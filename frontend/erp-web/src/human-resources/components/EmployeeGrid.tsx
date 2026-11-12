@@ -1,5 +1,6 @@
 import { Users } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Employee, EmployeeScreenField, Translate } from "./types";
 
 export type EmployeeGridProps = {
@@ -39,6 +40,7 @@ export default function EmployeeGrid({
     <div className="hr-table-wrap">
       <AdvancedDataGrid
         hideSearch
+        {...screenViewGridDefaults(fields)}
         className="hr-table hr-employee-table"
         onImportRows={isAdmin ? onImportRows : undefined}
         onEditRows={isAdmin ? onEditRows : undefined}

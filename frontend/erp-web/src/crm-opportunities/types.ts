@@ -16,7 +16,7 @@ export type Opportunity = {
 
 export type Customer = { id: string; code: string; name: string; type: string; isActive: boolean }
 export type Page<T> = { items: T[]; page: number; pageSize: number; total: number; totalCount?: number }
-export type ScreenField = { key: string; label: string; visible: boolean; position: number; section?: string | null; fixed?: boolean }
+export type ScreenField = { key: string; label: string; visible: boolean; position: number; section?: string | null; fixed?: boolean; width?: number | null; pinned?: 'left' | 'right' | null }
 
 export const defaultScreenFields: ScreenField[] = [
   { key: 'code', label: 'Fırsat kodu', visible: true, position: 0 },

@@ -3302,7 +3302,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Equal(320, active!.GetProperty("fields").EnumerateArray()
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").GetInt32());
 
-        var unsupported = await client.PostAsJsonAsync("/api/screen-views/inventory-stock/draft", new { name = "Stok kartları" });
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
         Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
         using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
         var stockDraftId = unsupportedDraft.RootElement.GetProperty("id").GetGuid();
@@ -3313,11 +3313,11 @@ public sealed class CustomFormEndpointsIntegrationTests
                 label = field.GetProperty("label").GetString()!,
                 visible = field.GetProperty("visible").GetBoolean(),
                 position = field.GetProperty("position").GetInt32(),
-                width = field.GetProperty("key").GetString() == "name" ? 320 : (int?)null
+                width = field.GetProperty("key").GetString() == "currencyCode" ? 320 : (int?)null
             }).ToArray();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{stockDraftId}", new
         {
-            expectedRevision = 1, name = "Stok kartları", fields = stockFields
+            expectedRevision = 1, name = "Döviz kurları", fields = stockFields
         })).StatusCode);
 
         SetIdentity(client, TenantB, UserB, "TenantAdmin");
@@ -3325,6 +3325,121 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.False(otherTenant!.GetProperty("isPublished").GetBoolean());
         Assert.Equal(JsonValueKind.Null, otherTenant.GetProperty("fields").EnumerateArray()
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").ValueKind);
+    }
+
+    [Fact]
+    public async Task Sales_order_column_pinning_and_width_are_validated_versioned_restorable_and_tenant_scoped()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var salesOrders = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "sales-orders");
+        Assert.True(salesOrders.GetProperty("supportsColumnWidth").GetBoolean());
+        Assert.True(salesOrders.GetProperty("supportsColumnPinning").GetBoolean());
+        var purchaseOrders = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-orders");
+        Assert.True(purchaseOrders.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.True(purchaseOrders.GetProperty("supportsColumnWidth").GetBoolean());
+        var exchangeRates = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "exchange-rates");
+        Assert.False(exchangeRates.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.False(exchangeRates.GetProperty("supportsColumnWidth").GetBoolean());
+
+        var create = await client.PostAsJsonAsync("/api/screen-views/sales-orders/draft", new { name = "Sipariş listesi" });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        using var created = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var baseFields = created.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32()
+            }).ToArray();
+        object[] Layout(Func<string, string?> pin, Func<string, bool>? visible = null, Func<string, int?>? width = null) =>
+            baseFields.Select(field => (object)new
+            {
+                field.key, field.label, visible = visible?.Invoke(field.key) ?? field.visible, field.position,
+                width = width?.Invoke(field.key), pinned = pin(field.key)
+            }).ToArray();
+        async Task<HttpStatusCode> PutAsync(object[] fields) =>
+            (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Sipariş listesi", fields })).StatusCode;
+
+        Assert.Equal(HttpStatusCode.BadRequest, await PutAsync(Layout(key => key == "code" ? "top" : null)));
+        Assert.Equal(HttpStatusCode.BadRequest, await PutAsync(Layout(key => key == "quoteCode" ? "left" : null, key => key != "quoteCode")));
+        Assert.Equal(HttpStatusCode.BadRequest, await PutAsync(Layout(key => key is "code" or "quoteCode" or "customerName" or "orderDate" ? "left" : null)));
+
+        var update = await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new
+        {
+            expectedRevision = 1, name = "Sipariş listesi",
+            fields = Layout(key => key switch { "code" or "customerName" => "left", "actions" => "right", _ => null },
+                width: key => key == "customerName" ? 260 : null)
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        static string? PinOf(JsonElement view, string key)
+        {
+            var field = view.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == key);
+            return field.TryGetProperty("pinned", out var pinned) && pinned.ValueKind == JsonValueKind.String ? pinned.GetString() : null;
+        }
+        SetIdentity(client, TenantA, UserA, "TenantUser");
+        var active = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/sales-orders/active");
+        Assert.Equal("left", PinOf(active, "code"));
+        Assert.Equal("left", PinOf(active, "customerName"));
+        Assert.Equal("right", PinOf(active, "actions"));
+        Assert.Null(PinOf(active, "grandTotal"));
+        Assert.Equal(260, active.GetProperty("fields").EnumerateArray()
+            .Single(x => x.GetProperty("key").GetString() == "customerName").GetProperty("width").GetInt32());
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var history = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/sales-orders/history");
+        var published = Assert.Single(history!, x => x.GetProperty("changeKind").GetString() == "Published");
+        Assert.Equal("left", PinOf(published, "code"));
+        var restored = await client.PostAsJsonAsync($"/api/screen-views/sales-orders/draft-from-revision/{published.GetProperty("id").GetGuid()}", new { });
+        Assert.Equal(HttpStatusCode.Created, restored.StatusCode);
+        using var restoredDraft = JsonDocument.Parse(await restored.Content.ReadAsStringAsync());
+        Assert.Equal("right", PinOf(restoredDraft.RootElement, "actions"));
+
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
+        Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
+        using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
+        var unsupportedFields = unsupportedDraft.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32(),
+                pinned = field.GetProperty("key").GetString() == "currencyCode" ? "left" : null
+            }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{unsupportedDraft.RootElement.GetProperty("id").GetGuid()}",
+            new { expectedRevision = 1, name = "Döviz kurları", fields = unsupportedFields })).StatusCode);
+
+        var purchaseInvoice = await client.PostAsJsonAsync("/api/screen-views/purchase-invoices/draft", new { name = "Alış faturaları" });
+        Assert.Equal(HttpStatusCode.Created, purchaseInvoice.StatusCode);
+        using var purchaseInvoiceDraft = JsonDocument.Parse(await purchaseInvoice.Content.ReadAsStringAsync());
+        var purchaseInvoiceFields = purchaseInvoiceDraft.RootElement.GetProperty("fields").EnumerateArray()
+            .Select(field => new
+            {
+                key = field.GetProperty("key").GetString()!,
+                label = field.GetProperty("label").GetString()!,
+                visible = field.GetProperty("visible").GetBoolean(),
+                position = field.GetProperty("position").GetInt32(),
+                width = field.GetProperty("key").GetString() == "supplierName" ? 240 : (int?)null,
+                pinned = field.GetProperty("key").GetString() == "code" ? "left" : null
+            }).ToArray();
+        var purchaseInvoiceUpdate = await client.PutAsJsonAsync($"/api/screen-views/{purchaseInvoiceDraft.RootElement.GetProperty("id").GetGuid()}",
+            new { expectedRevision = 1, name = "Alış faturaları", fields = purchaseInvoiceFields });
+        Assert.Equal(HttpStatusCode.OK, purchaseInvoiceUpdate.StatusCode);
+        using var purchaseInvoiceSaved = JsonDocument.Parse(await purchaseInvoiceUpdate.Content.ReadAsStringAsync());
+        Assert.Equal("left", PinOf(purchaseInvoiceSaved.RootElement, "code"));
+
+        SetIdentity(client, TenantB, UserB, "TenantAdmin");
+        var otherTenant = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/sales-orders/active");
+        Assert.False(otherTenant.GetProperty("isPublished").GetBoolean());
+        Assert.Null(PinOf(otherTenant, "code"));
     }
 
     private static async Task<WebApplication> StartApplicationAsync()

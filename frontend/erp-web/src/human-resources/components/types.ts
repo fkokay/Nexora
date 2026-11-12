@@ -20,6 +20,7 @@ export type EmployeeScreenField = {
   position: number
   fixed?: boolean
   width?: number | null
+  pinned?: "left" | "right" | null
 }
 
 export type Translate = (turkish: string, english: string) => string

@@ -4,6 +4,7 @@ import type {
   BuiltInScreenLayoutField,
   InventoryBalance,
 } from "../../erp-types";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 
 type Props = {
   fields: BuiltInScreenLayoutField[];
@@ -73,6 +74,7 @@ export function InventoryStockGrid({
           initialColumnWidths={fields.map(
             (field) => field.width || widths[field.key] || 110,
           )}
+          initialPinned={screenViewGridDefaults(fields).initialPinned}
           minimumColumnWidths={fields.map(
             (field) => minimumWidths[field.key] || 80,
           )}
