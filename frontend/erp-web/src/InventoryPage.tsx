@@ -323,6 +323,23 @@ export function InventoryPage({
       fixed: true,
     },
   ]);
+  const [transferScreenFields, setTransferScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "code", label: "Transfer kodu", visible: true, position: 0 },
+    { key: "transferDate", label: "Tarih", visible: true, position: 1 },
+    { key: "fromWarehouseName", label: "Kaynak depo", visible: true, position: 2 },
+    { key: "toWarehouseName", label: "Hedef depo", visible: true, position: 3 },
+    { key: "lineCount", label: "Stok kalemi", visible: true, position: 4 },
+    { key: "status", label: "Durum", visible: true, position: 5 },
+    { key: "createdAt", label: "Oluşturulma", visible: false, position: 6 },
+    { key: "actions", label: "İşlemler", visible: true, position: 7, fixed: true },
+  ]);
+  const visibleTransferFields = transferScreenFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
   const visibleMovementFields = movementScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -881,6 +898,21 @@ export function InventoryPage({
     )
       setInventoryPage(inventoryPageCount);
   }, [section, inventoryPage, inventoryPageCount]);
+  useEffect(() => {
+    if (section !== "inventory-transfers") return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/inventory-transfers/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setTransferScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, section]);
   useEffect(() => {
     if (section !== "inventory-stock") return;
     let cancelled = false;
@@ -2599,7 +2631,7 @@ export function InventoryPage({
               <section className="panel inventory-stock-grid-panel warehouse-transfer-grid">
                 <header className="inventory-stock-grid-heading"><div><h2>Transfer listesi</h2><p>{loading ? "Transferler yükleniyor…" : `${transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length} kayıt · sayfa ${transferPage}`}</p></div></header>
                 {transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Transfer kodu</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th>Stok kalemi</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).map((transfer) => <tr key={transfer.id}><td><span className="customer-code">{transfer.code}</span></td><td>{transfer.transferDate.split("-").reverse().join(".")}</td><td>{transfer.fromWarehouseName}</td><td>{transfer.toWarehouseName}</td><td>{transfer.lineCount}</td><td><span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span></td><td><div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div></td></tr>)}</tbody></table></div>
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></table></div>
                 ) : (
                   <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b><p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p></div></div>
                 )}

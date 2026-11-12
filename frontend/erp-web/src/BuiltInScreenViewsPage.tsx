@@ -139,6 +139,8 @@ export default function BuiltInScreenViewsPage({
                                                         ? "Work centers"
                                                         : en && screenKey === "customer-ledger-entries"
                                                         ? "Account ledger movements"
+                                                        : en && screenKey === "inventory-transfers"
+                                                        ? "Warehouse transfers"
                                                         : en &&
                                                             screenKey ===
                                                               "purchase-receipts"
@@ -651,6 +653,8 @@ export default function BuiltInScreenViewsPage({
                                                               ? "Work centers"
                                                               : en && catalog.key === "customer-ledger-entries"
                                                               ? "Account ledger movements"
+                                                              : en && catalog.key === "inventory-transfers"
+                                                              ? "Warehouse transfers"
                                                               : en &&
                                                                   catalog.key ===
                                                                     "purchase-receipts"

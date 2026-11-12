@@ -139,6 +139,8 @@ export default function ScreenViewPreview({
                                     ? ["IM-KESIM", "IM-MONTAJ"]
                                     : screenKey === "customer-ledger-entries"
                                     ? ["01.10.2026", "15.10.2026"]
+                                    : screenKey === "inventory-transfers"
+                                    ? ["TRF-2026-001", "TRF-2026-002"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

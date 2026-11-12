@@ -99,6 +99,13 @@ internal static class TenantScreenViewEndpoints
         new("quantity", "Miktar", true), new("unitCostBase", "Birim maliyet", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] InventoryTransferFields =
+    [
+        new("code", "Transfer kodu", true), new("transferDate", "Tarih", true),
+        new("fromWarehouseName", "Kaynak depo", true), new("toWarehouseName", "Hedef depo", true),
+        new("lineCount", "Stok kalemi", true), new("status", "Durum", true),
+        new("createdAt", "Oluşturulma", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] ExchangeRateFields =
     [
         new("rateDate", "Tarih", true), new("currencyCode", "Döviz", true),
@@ -539,6 +546,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("audit-events", "İşlem kayıtları", AuditEventFields),
             new ScreenViewCatalog("inventory-stock", "Stok kartları", StockItemFields),
             new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields),
+            new ScreenViewCatalog("inventory-transfers", "Depolar arası transferler", InventoryTransferFields),
             new ScreenViewCatalog("exchange-rates", "Döviz kurları", ExchangeRateFields),
             new ScreenViewCatalog("warehouse-location-balances", "Depo konum bakiyeleri", WarehouseLocationBalanceFields),
             new ScreenViewCatalog("inventory-warehouse-locations", "Raf ve bölmeler", WarehouseLocationFields),
@@ -841,6 +849,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "inventory-stock-movements", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields);
+            return true;
+        }
+        if (string.Equals(key, "inventory-transfers", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("inventory-transfers", "Depolar arası transferler", InventoryTransferFields);
             return true;
         }
         if (string.Equals(key, "exchange-rates", StringComparison.OrdinalIgnoreCase))
