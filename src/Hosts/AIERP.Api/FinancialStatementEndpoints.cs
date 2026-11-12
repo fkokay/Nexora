@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 public static class FinancialStatementEndpoints
 {
-    private const string CashFlowClassificationPrefix = "financial-statement.cash-flow-classification:";
+    internal const string CashFlowClassificationPrefix = "financial-statement.cash-flow-classification:";
 
     public static RouteGroupBuilder MapBalanceSheetEndpoint(this RouteGroupBuilder group)
     {
@@ -120,6 +120,10 @@ public static class FinancialStatementEndpoints
                     case CashFlowStatementClassification.WorkingCapitalAsset: workingCapitalChanges += openingNormal - closingNormal; break;
                     case CashFlowStatementClassification.WorkingCapitalLiability: workingCapitalChanges += closingNormal - openingNormal; break;
                     case CashFlowStatementClassification.Excluded: break;
+                    // This draft takes investing/financing totals from cash/bank movements, so
+                    // balance-sheet accounts tagged for the GL-derived statement stay outside it.
+                    case CashFlowStatementClassification.InvestingAsset or CashFlowStatementClassification.InvestingLiability
+                        or CashFlowStatementClassification.FinancingLiability or CashFlowStatementClassification.FinancingEquity: break;
                     default: unclassifiedBalanceAccounts.Add(account.Code); break;
                 }
             }
@@ -316,7 +320,7 @@ public static class FinancialStatementEndpoints
         return group;
     }
 
-    private static CashFlowStatementClassification? ParseCashFlowClassification(string key)
+    internal static CashFlowStatementClassification? ParseCashFlowClassification(string key)
     {
         if (!key.StartsWith(CashFlowClassificationPrefix, StringComparison.Ordinal)) return null;
         var parts = key[CashFlowClassificationPrefix.Length..].Split(':', 2);
@@ -324,18 +328,24 @@ public static class FinancialStatementEndpoints
     }
     private static string CashFlowClassificationKey(Guid accountId, CashFlowStatementClassification classification) =>
         $"{CashFlowClassificationPrefix}{accountId:D}:{classification}";
-    private static bool CashFlowClassificationFits(CashFlowStatementClassification classification, LedgerAccountStatementSection section) => classification switch
+    internal static bool CashFlowClassificationFits(CashFlowStatementClassification classification, LedgerAccountStatementSection section) => classification switch
     {
         CashFlowStatementClassification.Unclassified => true,
         CashFlowStatementClassification.Excluded => section is LedgerAccountStatementSection.Asset or LedgerAccountStatementSection.Liability or LedgerAccountStatementSection.Equity or LedgerAccountStatementSection.Unclassified,
         CashFlowStatementClassification.CashEquivalent or CashFlowStatementClassification.WorkingCapitalAsset => section == LedgerAccountStatementSection.Asset,
         CashFlowStatementClassification.WorkingCapitalLiability => section == LedgerAccountStatementSection.Liability,
-        CashFlowStatementClassification.ProfitLossBase or CashFlowStatementClassification.NonCashIncome or CashFlowStatementClassification.InvestingGain or CashFlowStatementClassification.FinancingGain => section == LedgerAccountStatementSection.Revenue,
+        CashFlowStatementClassification.InvestingAsset => section == LedgerAccountStatementSection.Asset,
+        CashFlowStatementClassification.InvestingLiability or CashFlowStatementClassification.FinancingLiability => section == LedgerAccountStatementSection.Liability,
+        CashFlowStatementClassification.FinancingEquity => section == LedgerAccountStatementSection.Equity,
+        CashFlowStatementClassification.ExchangeDifference => section is LedgerAccountStatementSection.Revenue or LedgerAccountStatementSection.Expense,
+        CashFlowStatementClassification.ProfitLossBase => section is LedgerAccountStatementSection.Revenue or LedgerAccountStatementSection.Expense,
+        CashFlowStatementClassification.NonCashIncome or CashFlowStatementClassification.InvestingGain or CashFlowStatementClassification.FinancingGain => section == LedgerAccountStatementSection.Revenue,
         CashFlowStatementClassification.NonCashExpense or CashFlowStatementClassification.InvestingLoss or CashFlowStatementClassification.FinancingLoss => section == LedgerAccountStatementSection.Expense,
         _ => false
     };
 }
 
 public enum CashFlowStatementClassification { Unclassified = 0, CashEquivalent = 1, WorkingCapitalAsset = 2, WorkingCapitalLiability = 3, Excluded = 4,
-    ProfitLossBase = 5, NonCashExpense = 6, NonCashIncome = 7, InvestingGain = 8, InvestingLoss = 9, FinancingGain = 10, FinancingLoss = 11 }
+    ProfitLossBase = 5, NonCashExpense = 6, NonCashIncome = 7, InvestingGain = 8, InvestingLoss = 9, FinancingGain = 10, FinancingLoss = 11,
+    InvestingAsset = 12, InvestingLiability = 13, FinancingLiability = 14, FinancingEquity = 15, ExchangeDifference = 16 }
 public sealed record CashFlowStatementClassificationWriteRequest(string Classification);
