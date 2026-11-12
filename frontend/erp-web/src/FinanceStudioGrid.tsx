@@ -10,6 +10,7 @@ import {
 } from "react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { api } from "./erpApi";
 import type { BuiltInScreenLayoutField, FinanceGridColumn } from "./erp-types";
 
@@ -212,6 +213,7 @@ export function FinanceStudioGrid({
     <AdvancedDataGrid
       className={table.props.className || "customer-table"}
       gridId={`studio-finance-${screenKey}`}
+      {...screenViewGridDefaults(visibleFields)}
       hideSearch={hideSearch}
       externalPagination={externalPagination}
       enableRowSelection={enableRowSelection}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Asset, AssetField } from "../types";
 
 type Props = {
@@ -91,6 +92,7 @@ export function FixedAssetRegister({
         <AdvancedDataGrid
           enableRowSelection={false}
           hideSearch
+          {...screenViewGridDefaults(fields)}
           className="customer-table fixed-asset-register-table"
         >
           <thead>

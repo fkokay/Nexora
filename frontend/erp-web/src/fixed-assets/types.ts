@@ -27,4 +27,4 @@ export type Asset = {
   vukTaxDepreciationStartDate: string | null
 }
 
-export type AssetField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
+export type AssetField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null; width?: number | null; pinned?: "left" | "right" | null }

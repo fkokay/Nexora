@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 internal static class TenantScreenViewEndpoints
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<string> ResizableColumnScreenKeys = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> ResizableColumnScreenKeys = new(StringComparer.Ordinal)
     {
         "customers", "sales-returns", "finance-accounts", "finance-account-transactions",
         "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure",
@@ -17,8 +17,22 @@ internal static class TenantScreenViewEndpoints
         "finance-maturity-aging", "finance-statement-lines", "finance-statement-unmatched-book",
         "finance-statements", "finance-transfer-sources", "finance-trial-balance",
         "hr-attendance", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests",
-        "hr-workplace-assignments", "hr-workplace-calendars"
+        "hr-workplace-assignments", "hr-workplace-calendars",
+        "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets",
+        "purchase-orders", "purchase-invoices"
     };
+    // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
+    internal static readonly HashSet<string> PinnableColumnScreenKeys = new(StringComparer.Ordinal)
+    {
+        "sales-quotes", "sales-orders", "sales-invoices", "sales-returns", "purchase-orders", "purchase-invoices",
+        "inventory-stock", "crm-opportunities",
+        "fixed-assets", "hr-employees", "audit-events", "finance-accounts", "finance-account-transactions",
+        "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure", "finance-fx-revaluation-lines",
+        "finance-fx-revaluations", "finance-income-statement", "finance-journals", "finance-ledger-accounts",
+        "finance-ledger-mappings", "finance-maturities", "finance-maturity-aging", "finance-statement-lines",
+        "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance"
+    };
+    internal const int MaxPinnedColumnsPerSide = 3;
     private static readonly ScreenViewField[] CustomerFields =
     [
         new("code", "Cari kodu", true), new("name", "Ünvan", true), new("groupName", "Cari grubu", true),
@@ -1250,10 +1264,26 @@ internal static class TenantScreenViewEndpoints
             var supportsColumnWidth = ResizableColumnScreenKeys.Contains(catalog.Key);
             if (field.Width is not null && (!supportsColumnWidth || metadata.Fixed || field.Width is < 80 or > 640))
             {
-                errors = new Dictionary<string, string[]> { ["fields"] = ["Sütun genişliği yalnız cari, finans ve satış iade listelerinde 80–640 piksel aralığında ayarlanabilir; sistem işlem sütunu sabit kalır."] };
+                errors = new Dictionary<string, string[]> { ["fields"] = ["Sütun genişliği yalnız desteklenen listelerde 80–640 piksel aralığında ayarlanabilir; sistem işlem sütunu sabit kalır."] };
                 return false;
             }
-            result.Add(new ScreenViewFieldLayout(metadata.Key, label, field.Visible, result.Count, metadata.Fixed, string.IsNullOrWhiteSpace(section) ? null : section, field.Width));
+            var pinned = string.IsNullOrWhiteSpace(field.Pinned) ? null : field.Pinned.Trim();
+            if (pinned is not null && (!PinnableColumnScreenKeys.Contains(catalog.Key) || pinned is not ("left" or "right")))
+            {
+                errors = new Dictionary<string, string[]> { ["fields"] = ["Sütun sabitleme yalnız desteklenen listelerde sol veya sağ olarak ayarlanabilir."] };
+                return false;
+            }
+            if (pinned is not null && !field.Visible)
+            {
+                errors = new Dictionary<string, string[]> { ["fields"] = ["Gizli sütunlar sabitlenemez."] };
+                return false;
+            }
+            result.Add(new ScreenViewFieldLayout(metadata.Key, label, field.Visible, result.Count, metadata.Fixed, string.IsNullOrWhiteSpace(section) ? null : section, field.Width, pinned));
+        }
+        if (result.Count(x => x.Pinned == "left") > MaxPinnedColumnsPerSide || result.Count(x => x.Pinned == "right") > MaxPinnedColumnsPerSide)
+        {
+            errors = new Dictionary<string, string[]> { ["fields"] = [$"Her iki yanda en fazla {MaxPinnedColumnsPerSide} sütun sabitlenebilir."] };
+            return false;
         }
         if (seen.Count != available.Count)
         {
@@ -1301,9 +1331,13 @@ internal static class TenantScreenViewEndpoints
     private sealed record CustomerPageSettings(string Title, string Description, string SearchLabel, string SearchPlaceholder, string TypeFilterLabel, string StatusFilterLabel, string ApplyLabel, bool ShowTypeFilter, bool ShowStatusFilter);
     private sealed record ScreenViewLayoutDocument(IReadOnlyList<ScreenViewFieldLayout> Fields, CustomerPageSettings PageSettings);
     private sealed record ScreenViewPublishRequest(int ExpectedRevision);
-    private sealed record ScreenViewCatalog(string Key, string Label, IReadOnlyList<ScreenViewField> Fields);
+    private sealed record ScreenViewCatalog(string Key, string Label, IReadOnlyList<ScreenViewField> Fields)
+    {
+        public bool SupportsColumnWidth => ResizableColumnScreenKeys.Contains(Key);
+        public bool SupportsColumnPinning => PinnableColumnScreenKeys.Contains(Key);
+    }
     private sealed record ScreenViewField(string Key, string Label, bool DefaultVisible, bool Fixed = false, string? Section = null);
-    internal sealed record ScreenViewFieldLayout(string Key, string Label, bool Visible, int Position, bool Fixed = false, string? Section = null, int? Width = null);
+    internal sealed record ScreenViewFieldLayout(string Key, string Label, bool Visible, int Position, bool Fixed = false, string? Section = null, int? Width = null, string? Pinned = null);
     private sealed record ScreenViewRecord(Guid? Id, string ScreenKey, string ScreenLabel, string Name, bool IsPublished, int Revision, IReadOnlyList<ScreenViewFieldLayout> Fields, CustomerPageSettings? PageSettings);
     private sealed record ScreenViewEditorState(ScreenViewCatalog Catalog, ScreenViewRecord Active, ScreenViewRecord? Draft);
     private sealed record ScreenViewRevisionView(Guid Id, int Revision, string Name, IReadOnlyList<ScreenViewFieldLayout> Fields, string ChangeKind, Guid ChangedByUserId, DateTimeOffset CreatedAt);

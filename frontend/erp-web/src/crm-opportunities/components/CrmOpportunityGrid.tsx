@@ -1,5 +1,6 @@
 import { Target } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { stageLabels, type Opportunity, type ScreenField } from "../types";
 import type { ReactNode } from "react";
@@ -111,9 +112,11 @@ export function CrmOpportunityGrid({
               enableRowSelection={false}
               gridId="crm-opportunities-v2"
               className="crm-table"
+              initialPinned={screenViewGridDefaults(fields).initialPinned}
               initialColumnWidths={fields.map(
                 (field) =>
-                  ({
+                  field.width ||
+                  (({
                     code: 100,
                     name: 165,
                     customerName: 150,
@@ -123,7 +126,7 @@ export function CrmOpportunityGrid({
                     expectedCloseDate: 135,
                     nextActivityAt: 145,
                     actions: 68,
-                  })[field.key] ?? 120,
+                  })[field.key] ?? 120),
               )}
               minimumColumnWidths={fields.map(
                 (field) =>

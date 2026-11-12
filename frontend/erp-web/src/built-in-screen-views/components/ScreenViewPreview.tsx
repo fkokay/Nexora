@@ -101,6 +101,20 @@ export default function ScreenViewPreview({
                   }
                 >
                   {field.label}
+                  {field.pinned && (
+                    <small
+                      className="screen-view-preview-pin"
+                      title={
+                        en
+                          ? `Frozen ${field.pinned === "left" ? "left" : "right"}`
+                          : `${field.pinned === "left" ? "Sola" : "Sağa"} sabitlendi`
+                      }
+                    >
+                      {en
+                        ? field.pinned === "left" ? "Frozen ←" : "Frozen →"
+                        : field.pinned === "left" ? "Sabit ←" : "Sabit →"}
+                    </small>
+                  )}
                 </th>
               ))}
             </tr>
