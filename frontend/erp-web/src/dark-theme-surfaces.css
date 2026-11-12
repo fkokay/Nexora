@@ -156,3 +156,16 @@ html[data-theme='dark'] .sales-row-menu-note { color: var(--erp-color-muted); }
 html[data-theme='dark'] .modal-head > .icon-button:hover { background-color: #2b3550 !important; color: var(--erp-color-text) !important; }
 /* The active document-detail tab picks up the gold focus fill; keep the intended dark tab. */
 html[data-theme='dark'] .sales-quote-detail-tabs button.active { background: #1f3043 !important; color: #a9d5f5 !important; }
+
+/* Dialogs opened by create/import actions, measured by opening each one in the dark theme. */
+html[data-theme='dark'] .op-project-modal {
+  border-color: var(--erp-color-border);
+  background: var(--erp-color-surface);
+  color: var(--erp-color-text);
+}
+html[data-theme='dark'] .op-project-modal > header,
+html[data-theme='dark'] .op-project-modal .op-project-create footer { border-color: var(--erp-color-border); }
+html[data-theme='dark'] .op-project-modal > header p:not(.eyebrow) { color: var(--erp-color-muted); }
+/* `--surface` is not defined anywhere, so the sticky heading fell back to white. */
+html[data-theme='dark'] .foreign-trade-create .panel-heading { background: var(--erp-color-surface); }
+html[data-theme='dark'] .contracts-form-note { background: var(--erp-paper-soft); color: var(--erp-color-muted); }
