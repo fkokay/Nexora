@@ -1,0 +1,106 @@
+/* Launcher dashboard background chosen in "Customize screen" mode. Values come from inline custom properties. */
+html #root .module-launcher.has-custom-background {
+  background-color: var(--launcher-bg-color, #e9edf8);
+  background-image: var(--launcher-bg-overlay, linear-gradient(transparent, transparent)), var(--launcher-bg-fill, none);
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+/* Light theme: images get a soft veil so the translucent panels keep their contrast. */
+html #root .module-launcher.is-image-background { --launcher-bg-overlay: linear-gradient(135deg, #f5f6faa0 0%, #f6f2faa0 48%, #eef2f9a0 100%); }
+/* Dark theme: any colour or image is dimmed so the dark panels and their text stay readable. */
+html[data-theme="dark"] #root .module-launcher.has-custom-background {
+  --launcher-bg-overlay: linear-gradient(135deg, #0f1727c4 0%, #161f33b0 48%, #0f1727c8 100%);
+  background-color: #111827;
+}
+html[data-theme="dark"] #root .module-launcher.is-color-background { background-color: color-mix(in srgb, var(--launcher-bg-color, #111827) 22%, #111827); }
+
+#root .launcher-background-picker { position: relative; display: inline-flex; }
+#root .launcher-dashboard-edit-toolbar button.launcher-background-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; font-size: 10px; }
+#root .launcher-background-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 12px;
+  width: min(312px, calc(100vw - 32px));
+  max-height: min(560px, 75vh);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid #e0e2ed;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 38px #1c28432b;
+  color: #283550;
+  font-size: 11px;
+  text-align: left;
+}
+#root .launcher-background-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#root .launcher-background-panel > header strong { font-size: 12px; color: #283550; }
+#root .launcher-background-panel section { display: grid; gap: 8px; }
+#root .launcher-background-label { color: #66728a; font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+#root .launcher-background-swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+#root .launcher-background-images { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel button { min-width: 0; height: auto; font-size: 11px; }
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-swatch,
+#root .launcher-background-swatch {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  height: auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d5d9e6;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+}
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-thumb {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d5d9e6;
+  border-radius: 8px;
+  background-position: center;
+  background-size: cover;
+  color: #fff;
+  cursor: pointer;
+}
+#root .launcher-background-panel [aria-pressed="true"],
+#root .launcher-background-custom[data-selected="true"] { outline: 2px solid #6550df; outline-offset: 2px; }
+#root .launcher-background-panel [aria-pressed="true"] svg { filter: drop-shadow(0 0 2px #0009); }
+#root .launcher-background-custom { background: conic-gradient(#f87171, #fbbf24, #4ade80, #38bdf8, #a78bfa, #f472b6, #f87171); }
+#root .launcher-background-custom input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-upload,
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+}
+#root .launcher-background-hint { color: #7a849a; font-size: 10px; line-height: 1.35; }
+#root .launcher-background-url { display: flex; gap: 6px; }
+#root .launcher-background-url input { flex: 1; min-width: 0; height: 32px; padding: 0 9px; border: 1px solid #d5d9e6; border-radius: 8px; background: #fff; color: #283550; font-size: 11px; }
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-url button { height: 32px; padding: 0 10px; }
+#root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-close { display: grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; background: transparent; color: #66728a; }
+#root .launcher-background-message { margin: 0; padding: 7px 9px; border-radius: 8px; background: #f3f1ff; color: #4336a6; font-size: 10px; line-height: 1.35; }
+
+html[data-theme="dark"] #root .launcher-background-panel { border-color: #37455d; background: #172235; color: #e3e9f4; }
+html[data-theme="dark"] #root .launcher-background-panel > header strong { color: #e3e9f4; }
+html[data-theme="dark"] #root .launcher-background-label,
+html[data-theme="dark"] #root .launcher-background-hint { color: #9aa6bd; }
+html[data-theme="dark"] #root .launcher-background-swatch,
+html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-thumb { border-color: #434e67; }
+html[data-theme="dark"] #root .launcher-background-url input { border-color: #434e67; background: #202c42; color: #e3e9f4; }
+html[data-theme="dark"] #root .launcher-background-message { background: #282344; color: #d0c8ff; }
+html[data-theme="dark"] #root .launcher-background-panel [aria-pressed="true"],
+html[data-theme="dark"] #root .launcher-background-custom[data-selected="true"] { outline-color: #a99aff; }
+
+@media (max-width: 650px) {
+  #root .launcher-background-panel { position: fixed; top: 76px; right: 16px; left: 16px; width: auto; }
+}
