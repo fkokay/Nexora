@@ -1,0 +1,87 @@
+/* Platform ve yönetim kayıt formları: ortak RecordForm yapısının sayfa içine gömülü kullanımı için ekrana özel kurallar. */
+
+/* Başka panellerle aynı sayfada duran, kendi çerçevesi olan kayıt formu. */
+.record-form.prf-embedded {
+  min-height: 0;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 8px;
+  background: var(--rf-surface);
+}
+.record-form.prf-embedded > .rf-toolbar { border-radius: 8px 8px 0 0; }
+.record-form.prf-embedded > .rf-status { border-radius: 0 0 8px 8px; }
+
+/* Zaten çerçeveli bir panelin içindeki kayıt formu: kenar boşluğunu panel verir. */
+.record-form.prf-flush { min-height: 0; }
+.record-form.prf-flush > .rf-toolbar { padding: 0 0 12px; background: transparent; }
+.record-form.prf-flush > .rf-form { padding: 16px 0; }
+.record-form.prf-flush > .rf-error { margin: 12px 0 0; }
+.record-form.prf-flush > .rf-status { padding-inline: 12px; border: 1px solid var(--rf-border-soft); border-radius: 6px; }
+
+/* Kapsayıcının vazgeçme davranışı olmayan formlarda "Vazgeç" gizlenir (komut çubuğunun son düğmesi). */
+.record-form.prf-no-cancel > .rf-toolbar .rf-actions > .rf-btn:last-child { display: none; }
+
+/* Dar sütundaki formlar: kimlik şeridi tek sütun. */
+.record-form.prf-stack .rf-identity { grid-template-columns: minmax(0, 1fr); }
+.record-form.prf-stack > .rf-toolbar { gap: 10px; }
+
+/* Ekrana özel kimlik şeridi oranları. */
+.record-form.prf-rule .rf-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 2fr) minmax(0, 1fr); }
+.record-form.prf-member .rf-identity { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); }
+.record-form.prf-three .rf-identity { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+.record-form.prf-two .rf-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.record-form.prf-form-meta .rf-identity { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 2fr); }
+.record-form.prf-edoc .rf-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr) auto; align-items: end; }
+
+/* Firma üyeleri paneli ızgara olduğunda form tüm genişliği kullanır. */
+.access-members-panel > .record-form { grid-column: 1 / -1; margin: 0 0 20px; }
+
+/* Açıklama ve yardımcı metinler. */
+.record-form .rf-form .prf-note { margin: 0; color: var(--rf-muted); font-size: 12.5px; font-weight: 400; line-height: 1.5; }
+.record-form .rf-form .prf-field-note { align-self: end; margin: 0; padding-bottom: 10px; color: var(--rf-muted); font-size: 12.5px; line-height: 1.45; }
+
+/* Birimli sayı alanı (ör. "gün"). */
+.record-form .rf-form .prf-unit { display: flex; align-items: center; gap: 8px; max-width: 220px; }
+.record-form .rf-form .prf-unit > span { flex: none; color: var(--rf-muted); font-size: 13px; font-weight: 400; }
+
+/* Alan değil, alan görünümünde özel kontrol taşıyan blok (ör. firma seçici). */
+.record-form .rf-form .prf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--rf-label); font-size: 13px; font-weight: 600; line-height: 1.35; }
+
+/* Form gövdesindeki ikincil düğme (ör. "Modelleri getir", "Belge içeriğini önizle"). */
+.record-form .rf-form .prf-inline-btn { width: auto; height: 40px; min-height: 40px; margin: 0; white-space: nowrap; }
+
+/* Durum çubuğundaki bildirim kapatma düğmesi. */
+.record-form .rf-status .prf-status-dismiss {
+  width: auto;
+  min-height: 0;
+  margin: 0 0 0 6px;
+  padding: 0 6px;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 4px;
+  background: var(--rf-surface);
+  color: var(--rf-label);
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+/* Lisans üretimi: firma seçici açılır penceresi kayıt formu alan kurallarından etkilenmesin. */
+.record-form .rf-form label.platform-license-company-search { flex-direction: row; align-items: center; gap: 8px; }
+.record-form .rf-form .platform-license-company-search input { height: 34px; min-height: 34px; padding: 0 4px; border: 0; outline: 0; background: transparent; }
+.record-form .rf-form .platform-license-company-trigger { width: 100%; height: 40px; min-height: 40px; margin: 0; }
+
+/* AI sağlayıcı ayarları. */
+.record-form .rf-form .prf-credential-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.record-form .rf-form .prf-ai-model { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.record-form .rf-form .prf-ai-model-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.record-form .rf-form .prf-check-inline { display: inline-flex; align-items: center; gap: 8px; color: var(--rf-label); font-size: 13px; font-weight: 400; }
+
+/* Özel form tasarımcısı: kayıt başlığı ile tasarım tuvali arasındaki görünüm şeridi. */
+.form-builder .prf-builder-switch { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+
+@media (max-width: 1100px) {
+  .record-form:is(.prf-rule, .prf-member, .prf-three, .prf-form-meta, .prf-edoc) .rf-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form:is(.prf-rule, .prf-member, .prf-three, .prf-two, .prf-form-meta, .prf-edoc) .rf-identity { grid-template-columns: minmax(0, 1fr); }
+  .record-form .rf-form .prf-ai-model-row { grid-template-columns: minmax(0, 1fr); }
+}

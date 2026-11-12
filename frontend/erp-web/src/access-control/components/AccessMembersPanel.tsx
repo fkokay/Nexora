@@ -1,6 +1,12 @@
 import { Plus, Search, Trash2, Users } from "lucide-react";
 import type { FormEvent } from "react";
 import type { PermissionMember } from "../../erp-types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 
 type Props = {
   members: PermissionMember[];
@@ -48,6 +54,11 @@ export function AccessMembersPanel(props: Props) {
     removeMember,
     selectMember,
   } = props;
+
+  const createBlocked =
+    !newMemberEmail.trim() ||
+    !newMemberName.trim() ||
+    temporaryPassword.length < 12;
 
   return (
     <section className="panel access-members-panel">
@@ -109,17 +120,40 @@ export function AccessMembersPanel(props: Props) {
           </button>
         </div>
       )}
-      <form
-        className="access-member-create"
-        onSubmit={(event) => void createMemberAccount(event)}
+      <RecordFormPage
+        variant="dialog"
+        className="prf-embedded prf-no-cancel prf-member"
+        title="Yeni kullanıcı oluştur"
+        mode="create"
+        busy={busy}
+        saveLabel="Hesap ve üyelik oluştur"
+        onSubmit={(event) => {
+          if (createBlocked) {
+            event.preventDefault();
+            return;
+          }
+          void createMemberAccount(event as FormEvent<HTMLFormElement>);
+        }}
+        onCancel={() => undefined}
+        onReset={() => {
+          setNewMemberEmail("");
+          setNewMemberName("");
+          setTemporaryPassword("");
+        }}
+        status={
+          <>
+            <span>Platform hesabı ve firma üyeliğini birlikte oluşturun.</span>
+            <span className="rf-status-end">
+              Parolayı kullanıcıya güvenli bir kanaldan iletin.
+            </span>
+          </>
+        }
       >
-        <div className="access-member-form-heading">
-          <h4>Yeni kullanıcı oluştur</h4>
-          <p>Platform hesabı ve firma üyeliğini birlikte oluşturun.</p>
-        </div>
+        <RecordFormGroup title="Kullanıcı Kimliği" bodyClassName="rf-identity">
         <label>
-          Yeni kullanıcının e-postası
+          <span>Yeni kullanıcının e-postası <RequiredMark /></span>
           <input
+            className="rf-must"
             type="email"
             value={newMemberEmail}
             onChange={(event) => setNewMemberEmail(event.target.value)}
@@ -130,8 +164,9 @@ export function AccessMembersPanel(props: Props) {
           />
         </label>
         <label>
-          Yeni kullanıcı adı
+          <span>Yeni kullanıcı adı <RequiredMark /></span>
           <input
+            className="rf-must"
             value={newMemberName}
             onChange={(event) => setNewMemberName(event.target.value)}
             maxLength={160}
@@ -141,8 +176,9 @@ export function AccessMembersPanel(props: Props) {
           />
         </label>
         <label>
-          Geçici parola
+          <span>Geçici parola <RequiredMark /></span>
           <input
+            className="rf-must"
             type="password"
             value={temporaryPassword}
             onChange={(event) => setTemporaryPassword(event.target.value)}
@@ -164,22 +200,8 @@ export function AccessMembersPanel(props: Props) {
             <option value="TenantAdmin">TenantAdmin</option>
           </select>
         </label>
-        <div className="access-member-form-footer">
-          <small>Parolayı kullanıcıya güvenli bir kanaldan iletin.</small>
-          <button
-            className="primary"
-            disabled={
-              busy ||
-              !newMemberEmail.trim() ||
-              !newMemberName.trim() ||
-              temporaryPassword.length < 12
-            }
-          >
-            <Plus size={15} />
-            {busy ? "Oluşturuluyor…" : "Hesap ve üyelik oluştur"}
-          </button>
-        </div>
-      </form>
+        </RecordFormGroup>
+      </RecordFormPage>
       <div className="access-members-workspace">
         <div className="access-member-list">
           {members.map((member) => (
