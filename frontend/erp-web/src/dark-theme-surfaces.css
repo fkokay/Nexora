@@ -130,3 +130,29 @@ html[data-theme='dark'] .app-shell tr:is(.is-selected, [aria-selected='true']):h
 html[data-theme='dark'] .app-shell .settings-sidebar nav button { color: var(--erp-color-text); }
 html[data-theme='dark'] .app-shell .settings-sidebar nav button:hover { background: #202638; }
 html[data-theme='dark'] .app-shell .settings-sidebar nav button.active { background: #3a3220; color: #f6c23e; }
+
+/* Menus and popovers, measured by opening every menu trigger on each page. Some of them
+ * render outside .app-shell, so these rules are not scoped to it. */
+html[data-theme='dark'] .app-shell:not(.standalone-studio) .profile-dropdown {
+  border-color: #34445c;
+  background: #151f2f;
+  color: var(--erp-color-text);
+}
+html[data-theme='dark'] .app-shell:not(.standalone-studio) :is(.profile-dropdown-identity, .profile-dropdown > button.profile-dropdown-signout) { border-color: #2a3850; }
+html[data-theme='dark'] .app-shell:not(.standalone-studio) .profile-dropdown > button { color: var(--erp-color-text); }
+html[data-theme='dark'] .app-shell:not(.standalone-studio) .profile-dropdown > button:hover { background: #1d2a3d; color: #8cc4f5; }
+html[data-theme='dark'] .app-shell:not(.standalone-studio) .profile-dropdown > button.profile-dropdown-signout { color: #fca5a5; }
+html[data-theme='dark'] .app-shell:not(.standalone-studio) .profile-dropdown > button.profile-dropdown-signout:hover { background: #3a1f26; color: #fecaca; }
+html[data-theme='dark'] .tenant-context-menu b { color: var(--erp-color-text); }
+
+html[data-theme='dark'] .sales-row-actions-menu { border-color: #34445c; background: #151f2f; }
+html[data-theme='dark'] .sales-row-menu-item { color: var(--erp-color-text); }
+html[data-theme='dark'] .sales-row-menu-item:hover:not(:disabled) { background: #1d2a3d; }
+html[data-theme='dark'] .sales-row-menu-item.danger-action { color: #fca5a5; }
+html[data-theme='dark'] .sales-row-menu-item.danger-action:hover:not(:disabled) { background: #3a1f26; }
+html[data-theme='dark'] .sales-row-menu-note { color: var(--erp-color-muted); }
+
+/* Dialog close buttons: the shared .icon-button hover is light. */
+html[data-theme='dark'] .modal-head > .icon-button:hover { background-color: #2b3550 !important; color: var(--erp-color-text) !important; }
+/* The active document-detail tab picks up the gold focus fill; keep the intended dark tab. */
+html[data-theme='dark'] .sales-quote-detail-tabs button.active { background: #1f3043 !important; color: #a9d5f5 !important; }
