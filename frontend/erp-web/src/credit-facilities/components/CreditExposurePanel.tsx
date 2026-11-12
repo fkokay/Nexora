@@ -1,3 +1,5 @@
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Exposure, ExposureSummary, ScreenField } from "../types";
 
 type Props = {
@@ -118,7 +120,14 @@ export function CreditExposurePanel({
           aria-label="Kredi bazında maruziyet"
           tabIndex={0}
         >
-          <table className="customer-table credit-table">
+          <AdvancedDataGrid
+            className="customer-table credit-table"
+            gridId="finance-credit-exposure-facilities"
+            {...screenViewGridDefaults(visibleFacilityFields)}
+            externalPagination
+            hideSearch
+            enableRowSelection={false}
+          >
             <thead>
               <tr>
                 {visibleFacilityFields.map((field) => (
@@ -135,7 +144,7 @@ export function CreditExposurePanel({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </AdvancedDataGrid>
         </div>
       </section>
     )

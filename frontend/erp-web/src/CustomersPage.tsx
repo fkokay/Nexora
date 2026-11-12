@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import { groupBuiltInScreenFields } from "./FinanceStudioGrid";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
   CustomerItem,
   CustomerGroupItem,
@@ -3298,7 +3300,14 @@ function CustomersPage({
               )}
             </div>
             <div className="ledger-list">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="customer-detail-movements"
+                {...screenViewGridDefaults(visibleMovementFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
                     {visibleMovementFields.map((field) => (
@@ -3368,7 +3377,7 @@ function CustomersPage({
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
             {statementPageCount > 1 && (
               <div className="modal-foot statement-pagination">

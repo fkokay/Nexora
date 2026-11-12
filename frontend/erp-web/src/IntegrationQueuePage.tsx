@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import IntegrationOperationsList, {
   defaultIntegrationOperationFields,
@@ -920,7 +921,11 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           tabIndex={0}
           aria-busy={submissionsLoading}
         >
-          <AdvancedDataGrid className="integration-queue-table">
+          <AdvancedDataGrid
+            className="integration-queue-table"
+            gridId="e-document-submissions"
+            {...screenViewGridDefaults(visibleSubmissionFields)}
+          >
             <caption className="integration-visually-hidden">
               {tr(
                 "Onay bekleyen e-belge gönderimleri",

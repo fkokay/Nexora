@@ -19,7 +19,13 @@ internal static class TenantScreenViewEndpoints
         "hr-attendance", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests",
         "hr-workplace-assignments", "hr-workplace-calendars",
         "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets",
-        "purchase-orders", "purchase-invoices"
+        "purchase-orders", "purchase-invoices",
+        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
+        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
+        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
+        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
+        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
+        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
     };
     // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
     internal static readonly HashSet<string> PinnableColumnScreenKeys = new(StringComparer.Ordinal)
@@ -30,7 +36,13 @@ internal static class TenantScreenViewEndpoints
         "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure", "finance-fx-revaluation-lines",
         "finance-fx-revaluations", "finance-income-statement", "finance-journals", "finance-ledger-accounts",
         "finance-ledger-mappings", "finance-maturities", "finance-maturity-aging", "finance-statement-lines",
-        "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance"
+        "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance",
+        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
+        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
+        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
+        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
+        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
+        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
     };
     internal const int MaxPinnedColumnsPerSide = 3;
     private static readonly ScreenViewField[] CustomerFields =

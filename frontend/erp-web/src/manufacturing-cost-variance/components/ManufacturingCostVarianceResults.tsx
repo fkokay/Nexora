@@ -1,3 +1,6 @@
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { ScreenColumnPin } from "../../erp-types";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { CostOrder, CostReport } from "./types";
 
 export type CostVarianceScreenViewField = {
@@ -6,6 +9,8 @@ export type CostVarianceScreenViewField = {
   visible: boolean;
   position: number;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 
 export const defaultCostVarianceFields: CostVarianceScreenViewField[] = [
@@ -123,7 +128,13 @@ export function ManufacturingCostVarianceResults({
         <span>{report.totalCount.toLocaleString("tr-TR")} kayıt</span>
       </div>
       <div className="manufacturing-cost-table-wrap">
-        <table>
+        <AdvancedDataGrid
+          gridId="manufacturing-cost-variance"
+          {...screenViewGridDefaults(visibleFields)}
+          externalPagination
+          hideSearch
+          enableRowSelection={false}
+        >
           <thead>
             <tr>
               {visibleFields.map((field) => (
@@ -149,7 +160,7 @@ export function ManufacturingCostVarianceResults({
               </tr>
             )}
           </tbody>
-        </table>
+        </AdvancedDataGrid>
       </div>
       <footer className="manufacturing-cost-pagination">
         <small>

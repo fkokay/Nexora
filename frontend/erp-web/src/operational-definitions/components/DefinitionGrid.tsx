@@ -1,3 +1,6 @@
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { ScreenColumnPin } from "../../erp-types";
 import type { Definition, Translate } from "../types";
 
 export type DefinitionScreenField = {
@@ -6,6 +9,8 @@ export type DefinitionScreenField = {
   visible: boolean;
   position: number;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 
 export const defaultDefinitionFields: (DefinitionScreenField & { enLabel: string })[] = [
@@ -101,7 +106,14 @@ export function DefinitionGrid({
 
   return (
     <div className="ledger-list">
-      <table className="customer-table">
+      <AdvancedDataGrid
+        className="customer-table"
+        gridId="operational-definitions"
+        {...screenViewGridDefaults(visibleFields)}
+        externalPagination
+        hideSearch
+        enableRowSelection={false}
+      >
         <thead>
           <tr>
             {visibleFields.map((field) => (
@@ -123,7 +135,7 @@ export function DefinitionGrid({
             </tr>
           )}
         </tbody>
-      </table>
+      </AdvancedDataGrid>
     </div>
   );
 }

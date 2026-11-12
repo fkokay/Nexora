@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { ScreenColumnPin } from "../../erp-types";
 import { Ban } from "lucide-react";
 
 function providerDocumentStatusLabel(status: number, tr: Props["tr"]) {
@@ -56,6 +58,8 @@ export type ScreenField = {
   visible: boolean;
   position: number;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 
 export const defaultIntegrationOperationFields: (ScreenField & { enLabel: string })[] = [
@@ -302,6 +306,8 @@ export default function IntegrationOperationsList({
           <AdvancedDataGrid
             externalPagination
             className="integration-queue-table"
+            gridId="integration-operations"
+            {...screenViewGridDefaults(visibleFields)}
           >
             <caption className="integration-visually-hidden">
               {tr(

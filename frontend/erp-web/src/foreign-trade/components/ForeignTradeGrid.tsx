@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { ScreenColumnPin } from "../../erp-types";
 import { ArrowRight, Globe2, RefreshCw } from "lucide-react";
 import { localizedText } from "../../locale";
 import type {
@@ -16,6 +18,8 @@ export type ForeignTradeScreenField = {
   visible: boolean;
   position: number;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 
 export const defaultForeignTradeFields: (ForeignTradeScreenField & {
@@ -138,7 +142,12 @@ export function ForeignTradeGrid({
     );
   return (
     <div className="table-wrap">
-      <AdvancedDataGrid enableRowSelection={false} hideSearch>
+      <AdvancedDataGrid
+        gridId="foreign-trade-files"
+        {...screenViewGridDefaults(visibleFields)}
+        enableRowSelection={false}
+        hideSearch
+      >
         <thead>
           <tr>
             {visibleFields.map((field) => (

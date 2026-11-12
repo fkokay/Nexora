@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Quote, ScreenField } from "../types";
 
 export const defaultSupplierQuoteFields: ScreenField[] = [
@@ -76,7 +78,14 @@ export default function SupplierQuotesTable({
       aria-label="Tedarikçi teklifleri tablosu"
       tabIndex={0}
     >
-      <table className="customer-table">
+      <AdvancedDataGrid
+        className="customer-table"
+        gridId="purchase-supplier-quotes"
+        {...screenViewGridDefaults(columns)}
+        externalPagination
+        hideSearch
+        enableRowSelection={false}
+      >
         <thead>
           <tr>
             {columns.map((field) => (
@@ -130,7 +139,7 @@ export default function SupplierQuotesTable({
             ))
           )}
         </tbody>
-      </table>
+      </AdvancedDataGrid>
     </div>
   );
 }

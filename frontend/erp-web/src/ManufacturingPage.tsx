@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
+import type { ScreenColumnPin } from "./erp-types";
 import {
   useCallback,
   useEffect,
@@ -211,6 +213,8 @@ type ScreenViewField = {
   position: number;
   fixed?: boolean;
   section?: string | null;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 type Page<T> = { items: T[]; pageSize: number; totalCount: number };
 const defaultWorkCenterFields: ScreenViewField[] = [
@@ -2709,7 +2713,13 @@ export default function ManufacturingPage({
             </div>
           ) : (
             <div className="manufacturing-table-wrap work-center-list-table">
-              <table>
+              <AdvancedDataGrid
+                gridId="manufacturing-work-centers"
+                {...screenViewGridDefaults(visibleWorkCenterFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
                     {visibleWorkCenterFields.map((field) => (
@@ -2728,7 +2738,7 @@ export default function ManufacturingPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
           )}
           <section

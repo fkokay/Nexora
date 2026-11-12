@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Boxes, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { api } from "./erpApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import type { InventoryMovement, StockItem, Warehouse } from "./erp-types";
+import type { InventoryMovement, ScreenColumnPin, StockItem, Warehouse } from "./erp-types";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { Locale } from "./WorkspaceComponents";
 import "./inventory-movements.css";
 
-type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean };
+type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; width?: number | null; pinned?: ScreenColumnPin | null };
 
 const defaultMovementFields: (ScreenField & { enLabel: string })[] = [
   { key: "entryDate", label: "Tarih", enLabel: "Date", visible: true, position: 0 },
@@ -222,7 +224,14 @@ export default function InventoryMovementsPage({
           {movements && <span>{number(movements.totalCount)} {en ? "records" : "kayıt"}</span>}
         </div>
         <div className="customer-table-wrap">
-          <table className="customer-table quote-table inventory-movements-table">
+          <AdvancedDataGrid
+            className="customer-table quote-table inventory-movements-table"
+            gridId="inventory-movement-history"
+            {...screenViewGridDefaults(visibleFields)}
+            externalPagination
+            hideSearch
+            enableRowSelection={false}
+          >
             <thead><tr>{visibleFields.map((field) => <th key={field.key}>{fieldLabel(field)}</th>)}</tr></thead>
             <tbody>
               {loading && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Loading movements…" : "Stok hareketleri yükleniyor…"}</td></tr>}
@@ -256,7 +265,7 @@ export default function InventoryMovementsPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </AdvancedDataGrid>
         </div>
         {movements && movements.totalCount > 50 && <div className="table-pagination"><span>{en ? `Page ${page} of ${totalPages}` : `${page} / ${totalPages}. sayfa`}</span><div><button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>{en ? "Previous" : "Önceki"}</button><button className="secondary-button" type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>{en ? "Next" : "Sonraki"}</button></div></div>}
       </section>

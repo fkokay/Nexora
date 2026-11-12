@@ -3673,6 +3673,75 @@ public sealed class CustomFormEndpointsIntegrationTests
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").ValueKind);
     }
 
+    [Theory]
+    [InlineData("purchase-supplier-quotes")]
+    [InlineData("purchase-requests")]
+    [InlineData("purchase-order-receipts")]
+    [InlineData("customer-ledger-entries")]
+    [InlineData("customer-detail-movements")]
+    [InlineData("sales-invoice-payments")]
+    [InlineData("inventory-transfers")]
+    [InlineData("inventory-warehouses")]
+    [InlineData("inventory-movement-history")]
+    [InlineData("manufacturing-work-centers")]
+    [InlineData("manufacturing-recipes")]
+    [InlineData("manufacturing-cost-variance")]
+    [InlineData("finance-credit-exposure-facilities")]
+    [InlineData("finance-credit-securities")]
+    [InlineData("hr-compensation-records")]
+    [InlineData("hr-tax-declarations")]
+    [InlineData("hr-payroll-drafts")]
+    [InlineData("hr-payroll-rule-sets")]
+    [InlineData("integration-operations")]
+    [InlineData("e-document-submissions")]
+    [InlineData("foreign-trade-files")]
+    [InlineData("customer-provinces")]
+    [InlineData("customer-districts")]
+    [InlineData("operational-definitions")]
+    public async Task Grid_backed_list_screens_publish_tenant_column_widths_and_frozen_columns(string screenKey)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = Assert.Single((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog"))!, x => x.GetProperty("key").GetString() == screenKey);
+        Assert.True(catalog.GetProperty("supportsColumnWidth").GetBoolean());
+        Assert.True(catalog.GetProperty("supportsColumnPinning").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync($"/api/screen-views/{screenKey}/draft", new { name = "Sabit sütunlu görünüm" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32(),
+            isFixed = field.TryGetProperty("fixed", out var f) && f.GetBoolean()
+        }).ToArray();
+        var first = fields.First(field => !field.isFixed && field.visible).key;
+        var layout = fields.Select(field => new
+        {
+            field.key, field.label, field.visible, field.position,
+            width = field.key == first ? 220 : (int?)null,
+            pinned = field.key == first ? "left" : field.key == "actions" ? "right" : null
+        }).ToArray();
+
+        var tooNarrow = layout.Select(field => field.key == first ? field with { width = 40 } : field).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = tooNarrow })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Sabit sütunlu görünüm", fields = layout })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        var pinnedA = activeA.Single(x => x.GetProperty("key").GetString() == first);
+        Assert.Equal(220, pinnedA.GetProperty("width").GetInt32());
+        Assert.Equal("left", pinnedA.GetProperty("pinned").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray();
+        Assert.All(activeB, field => Assert.True(!field.TryGetProperty("pinned", out var pin) || pin.ValueKind == JsonValueKind.Null));
+    }
+
     [Fact]
     public async Task Sales_order_column_pinning_and_width_are_validated_versioned_restorable_and_tenant_scoped()
     {

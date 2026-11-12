@@ -5638,7 +5638,14 @@ function PurchasingPanel({
             </div>
           </div>
           <div className="requests-list purchase-request-table-wrap">
-            <table className="purchase-request-table">
+            <AdvancedDataGrid
+              className="purchase-request-table"
+              gridId="purchase-requests"
+              {...screenViewGridDefaults(visibleRequestScreenFields)}
+              externalPagination
+              hideSearch
+              enableRowSelection={false}
+            >
               <thead><tr>{visibleRequestScreenFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead>
               <tbody>
                 {purchaseRequests.map((request) => (
@@ -5648,7 +5655,7 @@ function PurchasingPanel({
                 ))}
                 {purchaseRequests.length === 0 && <tr><td colSpan={visibleRequestScreenFields.length} className="purchase-request-empty">{requestStatus === "Approved" ? "Onaylanmış satın alma talebi yok." : requestSearch.trim() || requestStatus ? "Filtrelerle eşleşen satın alma talebi yok." : "Henüz satın alma talebi yok."}</td></tr>}
               </tbody>
-            </table>
+            </AdvancedDataGrid>
           </div>
           {requestTotal > purchasePageSize && (
             <div className="purchase-request-pagination">
@@ -7068,7 +7075,14 @@ function PurchasingPanel({
                 )}
             </div>
             <div className="ledger-list">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="purchase-order-receipts"
+                {...screenViewGridDefaults(visibleReceiptScreenFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
                     {visibleReceiptScreenFields.map((field) => (
@@ -7099,7 +7113,7 @@ function PurchasingPanel({
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
             {receiptEditor && (
               <form className="collection-form" onSubmit={createReceipt}>

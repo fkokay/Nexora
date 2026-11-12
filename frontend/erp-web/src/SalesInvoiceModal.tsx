@@ -4,6 +4,8 @@ import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import { X } from "lucide-react";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
 import { confirmLocalized, promptLocalized } from "./locale";
@@ -1101,7 +1103,14 @@ export function SalesInvoiceModal({
               </div>
             </div>
             <div className="ledger-list invoice-collections-wrap">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="sales-invoice-payments"
+                {...screenViewGridDefaults(visiblePaymentFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
                     {visiblePaymentFields.map((field) => (
@@ -1166,7 +1175,7 @@ export function SalesInvoiceModal({
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
             {invoice.status === "Posted" && invoice.outstandingAmount > 0 && (
               <form

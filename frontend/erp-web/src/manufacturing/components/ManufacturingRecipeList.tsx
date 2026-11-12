@@ -1,6 +1,8 @@
 import { Boxes, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { ScreenColumnPin } from "../../erp-types";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ManufacturingBom, ManufacturingPageKey } from "../types";
 
 export type RecipeScreenField = {
@@ -10,6 +12,8 @@ export type RecipeScreenField = {
   position: number;
   fixed?: boolean;
   section?: string | null;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 
 export const defaultRecipeFields: RecipeScreenField[] = [
@@ -235,6 +239,7 @@ export default function ManufacturingRecipeList({
             <AdvancedDataGrid
               className="customer-table manufacturing-recipe-grid"
               gridId="manufacturing-recipes"
+              {...screenViewGridDefaults(visibleFields)}
               externalPagination
               hideSearch
               enableRowSelection={false}

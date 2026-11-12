@@ -1,4 +1,6 @@
 import type { FormEvent } from "react";
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type {
   BuiltInScreenLayoutField,
   CustomerLocationProvinceView,
@@ -167,7 +169,14 @@ function DistrictGrid({
   }
   return (
     <div className="ledger-list">
-      <table className="customer-table">
+      <AdvancedDataGrid
+        className="customer-table"
+        gridId="customer-districts"
+        {...screenViewGridDefaults(visibleFields)}
+        externalPagination
+        hideSearch
+        enableRowSelection={false}
+      >
         <thead>
           <tr>
             {visibleFields.map((field) => (
@@ -191,7 +200,7 @@ function DistrictGrid({
             </tr>
           )}
         </tbody>
-      </table>
+      </AdvancedDataGrid>
     </div>
   );
 }

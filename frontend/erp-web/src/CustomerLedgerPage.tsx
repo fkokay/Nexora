@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownUp, BookOpenText, CalendarDays, ChevronDown, CircleDollarSign, Users } from "lucide-react";
 import { api } from "./erpApi";
-import type { CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
+import type { BuiltInScreenLayoutField, CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import "./customer-ledger-page.css";
 
 type CustomerPage = { items: CustomerItem[]; totalCount: number };
-type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean };
+type ScreenField = Pick<BuiltInScreenLayoutField, "key" | "label" | "visible" | "position" | "fixed" | "width" | "pinned">;
 
 const defaultLedgerFields: ScreenField[] = [
   { key: "entryDate", label: "Tarih", visible: true, position: 0 },
@@ -267,7 +269,14 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
               {loadingStatement && <span role="status">Güncelleniyor…</span>}
             </div>
             <div className="customer-ledger-table-scroll">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="customer-ledger-entries"
+                {...screenViewGridDefaults(visibleFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead><tr>{visibleFields.map((field) => <th key={field.key} className={numericLedgerFields.has(field.key) ? "numeric" : undefined}>{field.label}</th>)}</tr></thead>
                 <tbody>
                   {statement.items.length ? statement.items.map((item) => (
@@ -284,7 +293,7 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                     </tr>
                   )) : <tr><td colSpan={Math.max(visibleFields.length, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
           </section>
         </>

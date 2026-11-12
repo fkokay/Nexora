@@ -1,3 +1,5 @@
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Facility, ScreenField, Security } from "../types";
 
 const defaultSecurityFields: ScreenField[] = [
@@ -342,7 +344,14 @@ export function CreditSecuritiesPanel(props: Props) {
             aria-label="Teminat ve garanti listesi"
             tabIndex={0}
           >
-            <table className="customer-table credit-table">
+            <AdvancedDataGrid
+              className="customer-table credit-table"
+              gridId="finance-credit-securities"
+              {...screenViewGridDefaults(columns)}
+              externalPagination
+              hideSearch
+              enableRowSelection={false}
+            >
               <caption>
                 {props.securities.length} teminat/garanti kaydı · yaklaşan vade
                 uyarıları
@@ -363,7 +372,7 @@ export function CreditSecuritiesPanel(props: Props) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </AdvancedDataGrid>
           </div>
         ))}
     </section>

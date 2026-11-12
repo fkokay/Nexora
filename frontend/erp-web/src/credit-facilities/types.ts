@@ -10,5 +10,5 @@ export type InterestPosting = { id:string; period:string; accruedInterest:number
 export type EffectiveInterestRow = { date:string; openingAmortizedCost:number; effectiveInterestExpense:number; cashPayment:number; closingAmortizedCost:number }
 export type EffectiveInterestPreview = { facilityCode:string; currencyCode:string; effectiveAnnualRatePercent:number; initialTransactionCosts:number; dayCountConvention:string; rows:EffectiveInterestRow[]; note:string }
 export type Account = { id:string; code:string; name:string; type:number; currencyCode:string; isActive:boolean; balance:number }
-export type ScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null }
+export type ScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null; width?:number|null; pinned?:"left"|"right"|null }
 export type CurrencySummary = { code:string; approved:number; drawdown:number; outstanding:number; scheduled:number; count:number }

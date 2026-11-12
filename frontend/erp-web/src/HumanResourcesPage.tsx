@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import EmployeeDirectoryHeader from "./human-resources/components/EmployeeDirectoryHeader";
 import EmployeeFilters from "./human-resources/components/EmployeeFilters";
 import EmployeeGrid from "./human-resources/components/EmployeeGrid";
@@ -3924,7 +3925,11 @@ export default function HumanResourcesPage({
                       )}
                     </p>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-compensation-records"
+                        {...screenViewGridDefaults(compensationVisibleFields)}
+                      >
                         <thead>
                           <tr>
                             {compensationVisibleFields.map((field) => (
@@ -4379,7 +4384,11 @@ export default function HumanResourcesPage({
                       )}
                     </h3>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-tax-declarations"
+                        {...screenViewGridDefaults(taxDeclarationVisibleFields)}
+                      >
                         <thead>
                           <tr>
                             {taxDeclarationVisibleFields.map((field) => (
@@ -4727,7 +4736,11 @@ export default function HumanResourcesPage({
                   <div className="hr-panel">
                     <div className="panel-heading"><div><h3>{tr("Bordro taslak snapshotları", "Payroll draft snapshots")}</h3><p>{tr(`${payrollRunRows.length} kayıt gösteriliyor`, `${payrollRunRows.length} records shown`)}</p></div></div>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-payroll-drafts"
+                        {...screenViewGridDefaults(payrollDraftVisibleFields)}
+                      >
                         <thead>
                           <tr>
                             {payrollDraftVisibleFields.map((field) => (
@@ -5567,7 +5580,11 @@ export default function HumanResourcesPage({
                   <div className="hr-panel">
                     <h3>{tr("Kural seti taslakları", "Rule set drafts")}</h3>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-payroll-rule-sets"
+                        {...screenViewGridDefaults(payrollRuleSetVisibleFields)}
+                      >
                         <thead>
                           <tr>
                             {payrollRuleSetVisibleFields.map((field) => (

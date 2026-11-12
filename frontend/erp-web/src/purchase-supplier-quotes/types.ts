@@ -51,4 +51,6 @@ export type ScreenField = {
   visible: boolean
   position: number
   fixed?: boolean
+  width?: number | null
+  pinned?: "left" | "right" | null
 }
