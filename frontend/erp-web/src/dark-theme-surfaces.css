@@ -103,3 +103,30 @@ html[data-theme='dark'] .app-shell :is(
   color: #9cc8f5 !important;
 }
 html[data-theme='dark'] .app-shell :is(.marketplace-card summary, .module-starter-card summary) { color: #c4baff !important; }
+
+/* Hover and focus states that switch to a light background, measured by forcing each
+ * :hover / :focus rule on every workspace page in the dark theme. */
+html[data-theme='dark'] .module-launcher :is(
+  .launcher-all-modules, .launcher-notifications-collapse, .launcher-quick-actions-collapse
+):is(:hover, :focus-visible) {
+  background-color: #2b2850 !important;
+  color: #c4baff !important;
+}
+
+/* Record links and table text written in dark blue or navy for light tables. */
+html[data-theme='dark'] .app-shell .inventory-record-pick { color: #b3adff; }
+html[data-theme='dark'] .app-shell .purchase-requests-page .purchase-request-code { color: #8cc4f5; }
+html[data-theme='dark'] .app-shell .purchase-requests-page .purchase-request-table td { color: var(--erp-color-text); }
+html[data-theme='dark'] .app-shell .manufacturing-order-select:is(:hover, [aria-pressed='true']) { color: #b3adff; }
+
+/* The shared row hover in global-components.css is light and !important; tables whose cells
+ * are transparent (quote and order lines) showed light text on it. */
+html[data-theme='dark'] .app-shell table:not([role='presentation']) tbody tr:hover { background: #202d42 !important; }
+html[data-theme='dark'] .erp-table tbody tr:hover { background: #202d42; }
+/* A hovered selected row loses the gold background, so its dark small text must follow. */
+html[data-theme='dark'] .app-shell tr:is(.is-selected, [aria-selected='true']):hover small { color: var(--erp-color-muted) !important; }
+
+/* Workspace settings navigation. */
+html[data-theme='dark'] .app-shell .settings-sidebar nav button { color: var(--erp-color-text); }
+html[data-theme='dark'] .app-shell .settings-sidebar nav button:hover { background: #202638; }
+html[data-theme='dark'] .app-shell .settings-sidebar nav button.active { background: #3a3220; color: #f6c23e; }
