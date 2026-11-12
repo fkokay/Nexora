@@ -18,6 +18,7 @@ import SalesInvoiceFromDeliveryDialog from "./sales/components/SalesInvoiceFromD
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import PurchaseInvoiceEntryPage from "./PurchaseInvoiceEntryPage";
 import PurchaseSupplierQuotesPage from "./PurchaseSupplierQuotesPage";
 import StandaloneSupplierInvoiceDraftPage from "./StandaloneSupplierInvoiceDraftPage";
@@ -3662,7 +3663,14 @@ function PurchaseInvoicesScreen({
           </div>
         </div>
         <div className="customer-table-wrap">
-          <table className="customer-table quote-table">
+          <AdvancedDataGrid
+          className="customer-table quote-table"
+          gridId="purchase-invoices"
+          {...screenViewGridDefaults(visibleFields)}
+          externalPagination
+          hideSearch
+          enableRowSelection={false}
+        >
             <thead>
               <ScreenViewGroupHeader fields={visibleFields} />
               <tr>
@@ -3698,7 +3706,7 @@ function PurchaseInvoicesScreen({
                 ))
               )}
             </tbody>
-          </table>
+          </AdvancedDataGrid>
         </div>
       </section>
       <div className="table-pagination">
@@ -5965,7 +5973,14 @@ function PurchasingPanel({
             </div>
           </div>
       <div className="customer-table-wrap">
-        <table className="customer-table quote-table">
+        <AdvancedDataGrid
+          className="customer-table quote-table"
+          gridId="purchase-orders"
+          {...screenViewGridDefaults(visibleOrderScreenFields)}
+          externalPagination
+          hideSearch
+          enableRowSelection={false}
+        >
           <thead>
             <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
             <tr>
@@ -6016,7 +6031,7 @@ function PurchasingPanel({
               ))
             )}
           </tbody>
-        </table>
+        </AdvancedDataGrid>
       </div>
         </section>
       )}

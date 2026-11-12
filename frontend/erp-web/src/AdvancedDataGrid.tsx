@@ -53,7 +53,8 @@ type GridSettings = {
   order: number[];
   hidden: number[];
   widths: Record<number, number>;
-  pinned: Record<number, "left" | "right">;
+  // "none" records that the viewer unpinned a column the tenant layout pins by default.
+  pinned: Record<number, "left" | "right" | "none">;
   density: "compact" | "normal" | "comfortable";
   pageSize: number;
 };
@@ -63,6 +64,8 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   children?: ReactNode;
   gridId?: string;
   initialColumnWidths?: number[];
+  /** Tenant layout defaults for frozen columns, keyed by source column index. */
+  initialPinned?: Record<number, "left" | "right">;
   minimumColumnWidths?: number[];
   fillColumns?: boolean;
   externalPagination?: boolean;
@@ -272,9 +275,9 @@ function readSettings(key: string): GridSettings {
         ([key, value]) =>
           /^\d+$/.test(key) &&
           Number(key) < 1000 &&
-          (value === "left" || value === "right"),
+          (value === "left" || value === "right" || value === "none"),
       ),
-    ) as Record<number, "left" | "right">;
+    ) as Record<number, "left" | "right" | "none">;
     const density: GridSettings["density"] =
       saved.density === "compact"
         ? "compact"
@@ -380,6 +383,7 @@ export default function AdvancedDataGrid({
   children,
   gridId,
   initialColumnWidths,
+  initialPinned,
   minimumColumnWidths,
   fillColumns = false,
   externalPagination = false,
@@ -793,15 +797,19 @@ export default function AdvancedDataGrid({
         160,
     ),
   );
+  function pinnedSide(index: number): "left" | "right" | undefined {
+    const side = settings.pinned[index] ?? initialPinned?.[index];
+    return side === "left" || side === "right" ? side : undefined;
+  }
   function pinStyle(index: number): CSSProperties {
-    const side = settings.pinned[index];
+    const side = pinnedSide(index);
     if (!side) return {};
     if (side === "left") {
       const offset = visibleColumns
         .filter(
           (column) =>
             column !== index &&
-            settings.pinned[column] === "left" &&
+            pinnedSide(column) === "left" &&
             visibleColumns.indexOf(column) < visibleColumns.indexOf(index),
         )
         .reduce((sum, column) => sum + (widths[column] || 160), 0);
@@ -810,7 +818,7 @@ export default function AdvancedDataGrid({
     const offset = visibleColumns
       .filter(
         (column) =>
-          settings.pinned[column] === "right" &&
+          pinnedSide(column) === "right" &&
           visibleColumns.indexOf(column) > visibleColumns.indexOf(index),
       )
       .reduce((sum, column) => sum + (widths[column] || 160), 0);
@@ -822,11 +830,11 @@ export default function AdvancedDataGrid({
       minWidth: widths[index],
       ...(fillColumns ? {} : { maxWidth: widths[index] }),
       ...pinStyle(index),
-      ...(settings.pinned[index]
+      ...(pinnedSide(index)
         ? { background: "var(--erp-surface, #fff)" }
         : {}),
-      ...(isHeader ? { top: 0, zIndex: settings.pinned[index] ? 5 : 4 } : {}),
-      ...(settings.pinned[index] && isHeader
+      ...(isHeader ? { top: 0, zIndex: pinnedSide(index) ? 5 : 4 } : {}),
+      ...(pinnedSide(index) && isHeader
         ? { background: "var(--erp-surface-soft, #f4f6f9)" }
         : {}),
     };
@@ -914,6 +922,7 @@ export default function AdvancedDataGrid({
     setSettings((current) => {
       const pinned = { ...current.pinned };
       if (value) pinned[index] = value;
+      else if (initialPinned?.[index]) pinned[index] = "none";
       else delete pinned[index];
       return { ...current, pinned };
     });
@@ -1300,7 +1309,7 @@ export default function AdvancedDataGrid({
             {
               style: { ...cell.props.style, ...cellStyle(index) },
               className:
-                `${cell.props.className || ""}${settings.pinned[index] ? " advanced-grid-pinned" : ""}${editable ? " advanced-grid-editable" : ""}`.trim(),
+                `${cell.props.className || ""}${pinnedSide(index) ? " advanced-grid-pinned" : ""}${editable ? " advanced-grid-editable" : ""}`.trim(),
               onDoubleClick: (event: ReactMouseEvent) => {
                 cell.props.onDoubleClick?.(event);
                 if (
@@ -1540,7 +1549,7 @@ export default function AdvancedDataGrid({
                 />
                 <select
                   aria-label={`${column.label} pin`}
-                  value={settings.pinned[column.index] || ""}
+                  value={pinnedSide(column.index) || ""}
                   onChange={(event) =>
                     setPin(
                       column.index,

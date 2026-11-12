@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { BuiltInScreenLayoutField } from "../../erp-types";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 
 type SalesDocumentGridProps<T extends { id: string }> = {
   gridId: string;
@@ -37,6 +38,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
       <AdvancedDataGrid
         className="customer-table quote-table"
         gridId={gridId}
+        {...screenViewGridDefaults(fields)}
         externalPagination
         hideSearch
         enableRowSelection={false}

@@ -1167,6 +1167,11 @@ public static class ManufacturingEndpoints
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             await using var transaction = await BeginMutationAsync(db, ct);
+            if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId, ct)) return Results.NotFound();
+            var movementDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
+            if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
+                    await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, movementDate, ct), "üretim stok hareketi") is { } closedCompletionConflict)
+                return closedCompletionConflict;
             var order = await LockOrderAsync(db, tenantId, id, ct);
             if (order is null) return Results.NotFound();
             if (order.Status != ManufacturingOrderStatus.Released) return Results.Conflict(new { error = "Yalnız serbest bırakılmış üretim emirleri tamamlanabilir." });
@@ -1216,7 +1221,6 @@ public static class ManufacturingEndpoints
                 stockItems.Add(item);
             }
             var product = stockItems.Single(x => x.Id == bom.ProductStockItemId);
-            var movementDate = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
             var finishedTracking = request.FinishedGoodsTracking ?? [];
             var outputTrackingError = ValidateTrackingAllocations(product.TrackingMode, finishedTracking, actualGoodQuantity);
             if (outputTrackingError is not null)
