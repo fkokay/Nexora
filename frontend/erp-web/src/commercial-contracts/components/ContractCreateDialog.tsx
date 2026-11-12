@@ -1,5 +1,10 @@
 import type { FormEvent } from "react";
-import { X } from "lucide-react";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../sales/sales-record-forms.css";
 import type {
   Counterparty,
   CounterpartyPage,
@@ -92,6 +97,10 @@ export default function ContractCreateDialog(props: Props) {
     through,
     setThrough,
   } = props;
+  const saveBlocked =
+    counterpartyLoading ||
+    !counterpartyId ||
+    (sourceKind !== "none" && !sourceId);
   return (
     <div
       className="contracts-overlay"
@@ -104,39 +113,49 @@ export default function ContractCreateDialog(props: Props) {
       }}
     >
       <section
-        className="contracts-create"
+        className="contracts-create sales-rf-host"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="contract-create-title"
+        aria-label={tx("Sözleşme oluştur")}
       >
-        <header>
-          <div>
-            <p className="eyebrow">{tx("YENİ KAYIT")}</p>
-            <h2 id="contract-create-title">{tx("Sözleşme oluştur")}</h2>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setShowCreate(false)}
-            aria-label={tx("Oluşturma penceresini kapat")}
+        <RecordFormPage
+          variant="dialog"
+          className="sales-rf"
+          title={tx("Sözleşme oluştur")}
+          mode="create"
+          busy={busy}
+          saveLabel={tx("Taslağı oluştur")}
+          onSubmit={(event) => {
+            // The old save button was disabled in these states; keep the same guard.
+            if (saveBlocked) {
+              event.preventDefault();
+              return;
+            }
+            create(event);
+          }}
+          onCancel={() => setShowCreate(false)}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            <>
+              <span>{tx("Sözleşme taslak olarak oluşturulur.")}</span>
+              {!counterpartyId && (
+                <span className="rf-status-warning">
+                  {tx("Kaydetmek için cari hesap seçin.")}
+                </span>
+              )}
+              {sourceKind !== "none" && !sourceId && (
+                <span className="rf-status-warning">
+                  {tx("Kaydetmek için kaynak belge seçin veya bağlantıyı kaldırın.")}
+                </span>
+              )}
+            </>
+          }
+        >
+          <RecordFormGroup
+            title={tx("Sözleşme Kimliği")}
+            bodyClassName="rf-identity sales-rf-identity-3"
           >
-            <X size={18} />
-          </button>
-        </header>
-        {error && (
-          <div className="contracts-alert" role="alert">
-            {error}
-            <button
-              type="button"
-              onClick={() => setError("")}
-              aria-label={tx("Hatayı kapat")}
-            >
-              <X size={15} />
-            </button>
-          </div>
-        )}
-        <form className="collection-form" onSubmit={create}>
-          <div className="form-two">
             <label>
               {tx("Sözleşme türü")}
               <select
@@ -159,8 +178,11 @@ export default function ContractCreateDialog(props: Props) {
               </select>
             </label>
             <label>
-              {tx("Sözleşme kodu")}
+              <span>
+                {tx("Sözleşme kodu")} <RequiredMark />
+              </span>
               <input
+                className="rf-must rf-mono"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 required
@@ -168,8 +190,28 @@ export default function ContractCreateDialog(props: Props) {
                 placeholder="ORN-SOZ-001"
               />
             </label>
-          </div>
-          <div className="contracts-counterparty-field">
+          <label>
+            <span>
+              {tx("Para birimi")} <RequiredMark />
+            </span>
+            <input
+              className="rf-must rf-mono"
+              value={currency}
+              onChange={(e) => {
+                setCurrency(e.target.value.toUpperCase());
+                setSourceId("");
+                setSelectedSource(null);
+                setSourcePage(1);
+              }}
+              required
+              minLength={3}
+              maxLength={3}
+            />
+          </label>
+          </RecordFormGroup>
+          <div className="sales-rf-two-groups">
+          <RecordFormGroup title={tx("Cari Hesap")}>
+          <div className="contracts-counterparty-field sales-rf-field">
             <label htmlFor="contract-counterparty-search">
               {tx("Cari hesap ara")}
             </label>
@@ -258,7 +300,8 @@ export default function ContractCreateDialog(props: Props) {
               </div>
             </div>
           </div>
-          <div className="form-two">
+          </RecordFormGroup>
+          <RecordFormGroup title={tx("Kaynak Belge")}>
             <label>
               {tx("Kaynak belge türü")}
               <select
@@ -289,7 +332,7 @@ export default function ContractCreateDialog(props: Props) {
                 )}
               </select>
             </label>
-            <div className="contracts-source-field">
+            <div className="contracts-source-field sales-rf-field">
               <label htmlFor="contract-source-search">
                 {tx("Kaynak belge")}
               </label>
@@ -387,15 +430,18 @@ export default function ContractCreateDialog(props: Props) {
                 </>
               )}
             </div>
-          </div>
           <div className="contracts-source-hint">
             {tx(
               "Kaynaklar sunucuda tenant, cari ve para birimine göre filtrelenir. Arama ve sayfalama ile tüm uygun belgeleri bulabilirsiniz.",
             )}
           </div>
-          <div className="form-two">
+          </RecordFormGroup>
+          </div>
+          <RecordFormGroup title={tx("Geçerlilik")} bodyClassName="rf-pair">
             <label>
-              {tx("Başlangıç tarihi")}
+              <span>
+                {tx("Başlangıç tarihi")} <RequiredMark />
+              </span>
               <input
                 type="date"
                 value={from}
@@ -404,7 +450,9 @@ export default function ContractCreateDialog(props: Props) {
               />
             </label>
             <label>
-              {tx("Bitiş tarihi")}
+              <span>
+                {tx("Bitiş tarihi")} <RequiredMark />
+              </span>
               <input
                 type="date"
                 value={through}
@@ -413,48 +461,13 @@ export default function ContractCreateDialog(props: Props) {
                 required
               />
             </label>
-          </div>
-          <label>
-            {tx("Para birimi")}
-            <input
-              value={currency}
-              onChange={(e) => {
-                setCurrency(e.target.value.toUpperCase());
-                setSourceId("");
-                setSelectedSource(null);
-                setSourcePage(1);
-              }}
-              required
-              minLength={3}
-              maxLength={3}
-            />
-          </label>
+          </RecordFormGroup>
           <div className="contracts-form-note">
             {tx(
               "Sözleşme taslak olarak oluşturulur. Kaynak belge bağlantısı isteğe bağlıdır; bağlanan belge ile cari ve döviz tutarlılığı API’de yeniden doğrulanır.",
             )}
           </div>
-          <div className="contracts-modal-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setShowCreate(false)}
-            >
-              {tx("Vazgeç")}
-            </button>
-            <button
-              className="primary"
-              disabled={
-                busy ||
-                counterpartyLoading ||
-                !counterpartyId ||
-                (sourceKind !== "none" && !sourceId)
-              }
-            >
-              {busy ? tx("Kaydediliyor…") : tx("Taslağı oluştur")}
-            </button>
-          </div>
-        </form>
+        </RecordFormPage>
       </section>
     </div>
   );
