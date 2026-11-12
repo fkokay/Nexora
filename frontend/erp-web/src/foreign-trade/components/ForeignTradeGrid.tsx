@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { ScreenColumnPin } from "../../erp-types";
 import { ArrowRight, Globe2, RefreshCw } from "lucide-react";
 import { localizedText } from "../../locale";
 import type {
@@ -8,6 +11,28 @@ import type {
   TradeOrder,
   TradeStatus,
 } from "../types";
+
+export type ForeignTradeScreenField = {
+  key: string;
+  label: string;
+  visible: boolean;
+  position: number;
+  fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
+};
+
+export const defaultForeignTradeFields: (ForeignTradeScreenField & {
+  enLabel: string;
+})[] = [
+  { key: "reference", label: "Referans", enLabel: "Reference", visible: true, position: 0 },
+  { key: "direction", label: "Yön", enLabel: "Direction", visible: true, position: 1 },
+  { key: "linkedOrder", label: "Bağlı sipariş", enLabel: "Linked order", visible: true, position: 2 },
+  { key: "countries", label: "Ülkeler", enLabel: "Countries", visible: true, position: 3 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 4 },
+  { key: "transportMode", label: "Taşıma şekli", enLabel: "Transport mode", visible: false, position: 5 },
+  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 6, fixed: true },
+];
 
 type Props = {
   items: TradeCase[];
@@ -22,6 +47,8 @@ type Props = {
   onSelect: (item: TradeCase) => void;
   onTransition: (item: TradeCase, status: TradeStatus) => void;
   nextStatus: Partial<Record<TradeStatus, TradeStatus>>;
+  transportLabel?: (mode: string) => string;
+  fields?: ForeignTradeScreenField[];
 };
 
 const tr = (turkish: string, english: string) =>
@@ -40,7 +67,27 @@ export function ForeignTradeGrid({
   onSelect,
   onTransition,
   nextStatus,
+  transportLabel = (mode) => mode,
+  fields = defaultForeignTradeFields,
 }: Props) {
+  const visibleFields = fields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions"
+        ? 1
+        : b.key === "actions"
+          ? -1
+          : a.position - b.position,
+    );
+  // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
+  const fieldLabel = (field: ForeignTradeScreenField) => {
+    const standard = defaultForeignTradeFields.find(
+      (item) => item.key === field.key,
+    );
+    return standard && standard.label === field.label
+      ? tr(standard.label, standard.enLabel)
+      : field.label;
+  };
   if (loading)
     return (
       <div className="foreign-trade-empty-state is-loading">
@@ -95,15 +142,17 @@ export function ForeignTradeGrid({
     );
   return (
     <div className="table-wrap">
-      <AdvancedDataGrid enableRowSelection={false} hideSearch>
+      <AdvancedDataGrid
+        gridId="foreign-trade-files"
+        {...screenViewGridDefaults(visibleFields)}
+        enableRowSelection={false}
+        hideSearch
+      >
         <thead>
           <tr>
-            <th>{tr("Referans", "Reference")}</th>
-            <th>{tr("Yön", "Direction")}</th>
-            <th>{tr("Bağlı sipariş", "Linked order")}</th>
-            <th>{tr("Ülkeler", "Countries")}</th>
-            <th>{tr("Durum", "Status")}</th>
-            <th>{tr("İşlem", "Action")}</th>
+            {visibleFields.map((field) => (
+              <th key={field.key}>{fieldLabel(field)}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -112,6 +161,87 @@ export function ForeignTradeGrid({
               item.purchaseOrderId || item.salesOrderId || "",
             );
             const next = nextStatus[item.status];
+            const renderCell = (key: string): ReactNode => {
+              switch (key) {
+                case "reference":
+                  return (
+                    <>
+                      <b>{item.referenceCode}</b>
+                      <small>
+                        {item.customsReference ||
+                          item.carrierReference ||
+                          tr("Referans bekleniyor", "Awaiting reference")}
+                      </small>
+                    </>
+                  );
+                case "direction":
+                  return (
+                    <span
+                      className={`trade-direction ${item.direction.toLowerCase()}`}
+                    >
+                      {directionLabel(item.direction)}
+                    </span>
+                  );
+                case "linkedOrder":
+                  return order ? (
+                    <>
+                      <b>{order.code}</b>
+                      <small>{order.counterpartyName}</small>
+                    </>
+                  ) : (
+                    <span>{tr("Sipariş", "Order")}</span>
+                  );
+                case "countries":
+                  return (
+                    <>
+                      {item.originCountryCode} <ArrowRight size={13} />{" "}
+                      {item.destinationCountryCode}
+                    </>
+                  );
+                case "status":
+                  return (
+                    <span
+                      className={`trade-status ${item.status.toLowerCase()}`}
+                    >
+                      {statusLabel(item.status)}
+                    </span>
+                  );
+                case "transportMode":
+                  return transportLabel(item.transportMode);
+                case "actions":
+                  return (
+                    <>
+                      {capabilities.canAdvance && next && (
+                        <button
+                          className="secondary small-button"
+                          disabled={busyId === item.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onTransition(item, next);
+                          }}
+                        >
+                          {busyId === item.id ? "…" : `${statusLabel(next)} →`}
+                        </button>
+                      )}
+                      {capabilities.canAdvance &&
+                        ["Draft", "Booked"].includes(item.status) && (
+                          <button
+                            className="row-action danger-action"
+                            disabled={busyId === item.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onTransition(item, "Cancelled");
+                            }}
+                          >
+                            {tr("İptal et", "Cancel")}
+                          </button>
+                        )}
+                    </>
+                  );
+                default:
+                  return null;
+              }
+            };
             return (
               <tr
                 key={item.id}
@@ -125,67 +255,9 @@ export function ForeignTradeGrid({
                   }
                 }}
               >
-                <td>
-                  <b>{item.referenceCode}</b>
-                  <small>
-                    {item.customsReference ||
-                      item.carrierReference ||
-                      tr("Referans bekleniyor", "Awaiting reference")}
-                  </small>
-                </td>
-                <td>
-                  <span
-                    className={`trade-direction ${item.direction.toLowerCase()}`}
-                  >
-                    {directionLabel(item.direction)}
-                  </span>
-                </td>
-                <td>
-                  {order ? (
-                    <>
-                      <b>{order.code}</b>
-                      <small>{order.counterpartyName}</small>
-                    </>
-                  ) : (
-                    <span>{tr("Sipariş", "Order")}</span>
-                  )}
-                </td>
-                <td>
-                  {item.originCountryCode} <ArrowRight size={13} />{" "}
-                  {item.destinationCountryCode}
-                </td>
-                <td>
-                  <span className={`trade-status ${item.status.toLowerCase()}`}>
-                    {statusLabel(item.status)}
-                  </span>
-                </td>
-                <td>
-                  {capabilities.canAdvance && next && (
-                    <button
-                      className="secondary small-button"
-                      disabled={busyId === item.id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onTransition(item, next);
-                      }}
-                    >
-                      {busyId === item.id ? "…" : `${statusLabel(next)} →`}
-                    </button>
-                  )}
-                  {capabilities.canAdvance &&
-                    ["Draft", "Booked"].includes(item.status) && (
-                      <button
-                        className="row-action danger-action"
-                        disabled={busyId === item.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onTransition(item, "Cancelled");
-                        }}
-                      >
-                        {tr("İptal et", "Cancel")}
-                      </button>
-                    )}
-                </td>
+                {visibleFields.map((field) => (
+                  <td key={field.key}>{renderCell(field.key)}</td>
+                ))}
               </tr>
             );
           })}

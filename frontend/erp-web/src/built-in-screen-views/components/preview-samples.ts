@@ -205,6 +205,210 @@ export function previewValue(screenKey: string, key: string, index: number, en: 
     probabilityPercent: ['%60', '%40'], expectedCloseDate: ['15.11.2026', '30.11.2026'], nextActivityAt: ['25.10.2026 10:00', '26.10.2026 14:30'],
     actions: [en ? 'Advance · Lose' : 'İlerlet · Kaybet', en ? 'Advance · Lose' : 'İlerlet · Kaybet']
   }
+  const supplierQuoteValues: Record<string, [string, string]> = {
+    code: ['TKL-2026-001', 'TKL-2026-002'], requestCode: ['TLP-2026-014', 'TLP-2026-014'],
+    supplierName: ['Örnek Tedarik Ltd.', 'Örnek Metal A.Ş.'], quoteDate: ['20.10.2026', '21.10.2026'],
+    validUntil: ['20.11.2026', '—'], status: [en ? 'Under review' : 'Değerlendirmede', en ? 'Selected' : 'Seçildi'],
+    grandTotal: ['42.500,00 TRY', '3.950,00 USD'], lineCount: ['3', '2'], createdAt: ['20.10.2026 09:15', '21.10.2026 14:40']
+  }
+  const workCenterValues: Record<string, [string, string]> = {
+    code: ['IM-KESIM', 'IM-MONTAJ'], name: [en ? 'Cutting line' : 'Kesim hattı', en ? 'Assembly cell' : 'Montaj hücresi'],
+    capacityMinutesPerDay: ['480 dk', '960 dk'], laborCostPerHourBase: ['450', '380'], overheadCostPerHourBase: ['120', '95'],
+    status: [en ? 'Active' : 'Aktif', en ? 'Inactive' : 'Pasif'], shift: ['08:00–16:00', '07:00–23:00']
+  }
+  const customerLedgerEntryValues: Record<string, [string, string]> = {
+    entryDate: ['01.10.2026', '15.10.2026'], description: [en ? 'Sales invoice SF-2026-041' : 'Satış faturası SF-2026-041', en ? 'Bank collection' : 'Banka tahsilatı'],
+    direction: [en ? 'Debit' : 'Borç', en ? 'Credit' : 'Alacak'], debit: ['₺24.000,00', '—'], credit: ['—', '₺10.000,00'],
+    balance: ['₺24.000,00', '₺14.000,00'], currencyCode: ['TRY', 'TRY']
+  }
+  const inventoryTransferValues: Record<string, [string, string]> = {
+    code: ['TRF-2026-001', 'TRF-2026-002'], transferDate: ['05.10.2026', '12.10.2026'],
+    fromWarehouseName: [en ? 'Main warehouse' : 'Merkez depo', en ? 'Main warehouse' : 'Merkez depo'],
+    toWarehouseName: [en ? 'Ankara branch' : 'Ankara şube', en ? 'Production warehouse' : 'Üretim deposu'],
+    lineCount: ['4', '1'], status: [en ? 'Posted' : 'Kaydedildi', en ? 'Voided' : 'İptal edildi'],
+    createdAt: ['05.10.2026 10:20', '12.10.2026 16:05'],
+    actions: [en ? 'Lines · Void' : 'Kalemler · İptal', en ? 'Lines' : 'Kalemler']
+  }
+  const inventoryWarehouseValues: Record<string, [string, string]> = {
+    code: ['MRK', 'ANK'], name: [en ? 'Main warehouse' : 'Merkez depo', en ? 'Ankara branch' : 'Ankara şube'],
+    status: [en ? 'Active' : 'Aktif', en ? 'Inactive' : 'Pasif'],
+    availability: [en ? 'Open to new stock movements' : 'Yeni stok hareketlerine açık', en ? 'Closed to new stock movements' : 'Yeni stok hareketlerine kapalı']
+  }
+  const inventoryMovementHistoryValues: Record<string, [string, string]> = {
+    entryDate: ['03.10.2026', '07.10.2026'], direction: [en ? 'Receipt' : 'Giriş', en ? 'Issue' : 'Çıkış'],
+    quantity: ['120 AD', '35 AD'], warehouse: ['MRK · Merkez depo', 'MRK · Merkez depo'],
+    storageLocation: ['RAF-A01 · A blok', '—'], tracking: ['LOT-2610 (120)', '—'],
+    description: [en ? 'Purchase receipt MKB-2026-014' : 'Mal kabul MKB-2026-014', en ? 'Sales delivery IRS-2026-031' : 'Satış irsaliyesi IRS-2026-031'],
+    unitCostBase: ['42,50', '42,50']
+  }
+  const manufacturingRecipesValues: Record<string, [string, string]> = {
+    recipe: [en ? 'REC-001 · Steel table recipe' : 'REC-001 · Çelik masa reçetesi', en ? 'REC-002 · Wooden chair recipe' : 'REC-002 · Ahşap sandalye reçetesi'],
+    product: [en ? 'Steel table' : 'Çelik masa', en ? 'Wooden chair' : 'Ahşap sandalye'],
+    outputQuantity: ['1', '10'],
+    content: [en ? '4 components · 3 operations' : '4 bileşen · 3 operasyon', en ? '6 components · 2 operations' : '6 bileşen · 2 operasyon'],
+    status: [en ? 'Active · 5 production orders' : 'Aktif · 5 üretim emri', en ? 'Inactive · 0 production orders' : 'Pasif · 0 üretim emri'],
+    workCenters: [en ? 'Cutting, Welding, Painting' : 'Kesim, Kaynak, Boya', en ? 'Assembly, Varnish' : 'Montaj, Cila'],
+    actions: [en ? 'Edit · Deactivate · Delete' : 'Düzenle · Pasife al · Sil', en ? 'Edit · Activate · Delete' : 'Düzenle · Etkinleştir · Sil']
+  }
+  const manufacturingCostVarianceValues: Record<string, [string, string]> = {
+    orderCode: [en ? 'UE-2026-0142 · 3 operations' : 'UE-2026-0142 · 3 operasyon', en ? 'UE-2026-0143 · 2 operations' : 'UE-2026-0143 · 2 operasyon'],
+    plannedDate: ['2026-11-10', '2026-11-12'],
+    status: [en ? 'Completed' : 'Tamamlandı', en ? 'Released' : 'Serbest bırakıldı'],
+    plannedQuantity: ['500', '1.200'],
+    plannedMaterial: ['₺42.500,00', '₺96.000,00'],
+    actualMaterial: ['₺44.120,00', '—'],
+    plannedConversion: ['₺8.750,00', '₺15.600,00'],
+    actualConversion: ['₺9.210,00', '—'],
+    conversionVariance: ['₺460,00', '—'],
+    actualTotalCost: ['₺53.330,00', '—'],
+    totalVariance: ['₺2.080,00', '—'],
+    plannedLabor: ['₺5.250,00', '₺9.360,00'],
+    actualLabor: ['₺5.600,00', '—']
+  }
+  const financeCreditExposureFacilitiesValues: Record<string, [string, string]> = {
+    code: [en ? 'KRD-2026-001 · Active' : 'KRD-2026-001 · Aktif', en ? 'BCH-2026-002 · Closed' : 'BCH-2026-002 · Kapalı'],
+    lenderName: [en ? 'Sample Bank Inc.' : 'Örnek Banka A.Ş.', en ? 'Sample Participation Bank' : 'Örnek Katılım Bankası'],
+    currencyCode: ['TRY', 'EUR'],
+    approvedLimit: [en ? '₺5,000,000.00' : '₺5.000.000,00', en ? '€250,000.00' : '€250.000,00'],
+    outstandingPrincipal: [en ? '₺3,200,000.00' : '₺3.200.000,00', en ? '€0.00' : '€0,00'],
+    security: [en ? '₺1,500,000.00 · ₺0.00 called' : '₺1.500.000,00 · ₺0,00 çağrılmış', en ? '€100,000.00 · €20,000.00 called' : '€100.000,00 · €20.000,00 çağrılmış'],
+    limitUtilization: ['64%', '0%']
+  }
+  const integrationOperationsValues: Record<string, [string, string]> = {
+    integration: ['tr.e-document.submit', 'tr.e-document.submit'],
+    status: [en ? 'Succeeded' : 'Başarılı', en ? 'Indeterminate' : 'Sonuç belirsiz'],
+    createdAt: ['12.11.2026 09:15', '12.11.2026 10:40'],
+    attempts: ['1', '3'],
+    errorCode: ['—', 'provider_timeout'],
+    updatedAt: ['12.11.2026 09:16', '12.11.2026 10:52'],
+    actions: [en ? 'Details' : 'Ayrıntı', en ? 'Details' : 'Ayrıntı']
+  }
+  const eDocumentSubmissionsValues: Record<string, [string, string]> = {
+    documentType: [en ? 'e-Invoice' : 'e-Fatura', en ? 'e-Archive' : 'e-Arşiv'],
+    document: ['FTR2026000123', 'EAR2026000045'],
+    issueDate: ['11.11.2026', '12.11.2026'],
+    currencyCode: ['TRY', 'EUR'],
+    createdAt: ['12.11.2026 08:30', '12.11.2026 11:05'],
+    requestedBy: ['u-3f2a9c', 'u-7b1e44'],
+    actions: [en ? 'Review' : 'İncele', en ? 'Review' : 'İncele']
+  }
+  const purchaseRequestsValues: Record<string, [string, string]> = {
+    code: ['PR-2026-0001', 'PR-2026-0002'],
+    description: [en ? 'Sample office supplies' : 'Örnek ofis sarf malzemesi', en ? 'Sample maintenance spare part' : 'Örnek bakım yedek parçası'],
+    requestedByName: [en ? 'Sample User A' : 'Örnek Kullanıcı A', en ? 'Sample User B' : 'Örnek Kullanıcı B'],
+    requestDate: ['03.11.2026', '07.11.2026'],
+    neededByDate: ['15.11.2026', '—'],
+    lineCount: ['3', '1'],
+    status: [en ? 'Awaiting approval' : 'Onay bekliyor', en ? 'Converted to order' : 'Siparişe dönüştü'],
+    purchaseOrderCode: ['—', 'PO-2026-0012'],
+    actions: [en ? 'Review' : 'İncele', en ? 'Review' : 'İncele']
+  }
+  const purchaseOrderReceiptsValues: Record<string, [string, string]> = {
+    code: ['GR-2026-0001', 'GR-2026-0002'],
+    receiptDate: ['05.11.2026', '09.11.2026'],
+    warehouseName: [en ? 'Sample Main Warehouse' : 'Örnek Merkez Depo', en ? 'Sample Backup Warehouse' : 'Örnek Yedek Depo'],
+    lineCount: ['2', '4'],
+    status: [en ? 'Posted' : 'İşlendi', en ? 'Posted' : 'İşlendi'],
+    invoice: [en ? 'PI-2026-0003 · remaining 1,250.00 TRY' : 'PI-2026-0003 · kalan 1.250,00 TRY', en ? 'Create invoice' : 'Fatura oluştur'],
+    actions: [en ? '—' : '—', en ? 'Void' : 'İptal et']
+  }
+  const salesInvoicePaymentsValues: Record<string, [string, string]> = {
+    code: ['THS-000101', 'THS-000102'],
+    collectionDate: ['12.03.2026', '18.03.2026'],
+    paymentMethod: [en ? 'Bank transfer' : 'Havale', en ? 'Cash' : 'Nakit'],
+    reference: [en ? 'Sample receipt 001' : 'Örnek dekont 001', en ? '—' : '—'],
+    amount: ['5.000,00 TRY', '1.250,00 TRY'],
+    status: [en ? 'Received' : 'Alındı', en ? 'Voided' : 'İptal'],
+    createdAt: ['12.03.2026 14:25:00', '18.03.2026 09:10:00'],
+    actions: [en ? 'Void' : 'İptal et', en ? '—' : '—']
+  }
+  const customerDetailMovementsValues: Record<string, [string, string]> = {
+    entryDate: ['05.03.2026', '12.03.2026'],
+    direction: [en ? 'Debit' : 'Borç', en ? 'Credit' : 'Alacak'],
+    description: [en ? 'Sample sales invoice SF-0001' : 'Örnek satış faturası SF-0001', en ? 'Sample collection THS-0001' : 'Örnek tahsilat THS-0001'],
+    amount: ['5.000,00 TRY', '2.000,00 TRY'],
+    balance: ['5.000,00', '3.000,00'],
+    actions: [en ? 'Reverse' : 'Ters kayıt', en ? 'Reverse' : 'Ters kayıt']
+  }
+  const hrCompensationRecordsValues: Record<string, [string, string]> = {
+    employee: ['P-0001 · Örnek Personel A', 'P-0002 · Örnek Personel B'],
+    targetKind: [en ? 'Gross' : 'Brüt', en ? 'Net' : 'Net'],
+    amount: [en ? '45,000.00' : '45.000,00', en ? '38,500.00' : '38.500,00'],
+    currencyCode: ['TRY', 'TRY'],
+    payBasisCode: ['AYLIK', 'AYLIK'],
+    effectiveFrom: ['2026-01-01 · v1', '2026-07-01 · v2'],
+    status: [en ? 'Approved' : 'Onaylandı', en ? 'Pending approval' : 'Onay bekliyor'],
+    actions: [en ? '—' : '—', en ? 'Approve · Reject' : 'Onayla · Reddet']
+  }
+  const hrTaxDeclarationsValues: Record<string, [string, string]> = {
+    employee: ['P-0001 · Örnek Personel A', 'P-0002 · Örnek Personel B'],
+    taxYear: ['2026 · v1', '2026 · v2'],
+    declarationKind: [en ? 'Prior employer exists' : 'Önceki işveren var', en ? 'No prior employer' : 'Önceki işveren yok'],
+    baseEntries: [en ? 'View' : 'Görüntüle', en ? 'View' : 'Görüntüle'],
+    evidenceReference: ['ORNEK-BEYAN-001', 'ORNEK-BEYAN-002'],
+    status: [en ? 'Approved' : 'Onaylandı', en ? 'Pending approval' : 'Onay bekliyor'],
+    actions: [en ? '—' : '—', en ? 'Approve · Reject' : 'Onayla · Reddet']
+  }
+  const hrPayrollDraftsValues: Record<string, [string, string]> = {
+    period: [en ? '2026-10-01 – 2026-10-31 (Calendar month)' : '2026-10-01 – 2026-10-31 (Takvim ayı)', en ? '2026-10-15 – 2026-11-14 (Employer period)' : '2026-10-15 – 2026-11-14 (Firma dönemi)'],
+    profileCode: ['TR-4A-OZEL', 'TR-4A-OZEL'],
+    employeeCount: ['12', '3'],
+    status: [en ? 'Blocked' : 'Bloke', en ? 'Blocked' : 'Bloke'],
+    blockers: [en ? 'No approved rule set' : 'Onaylı kural seti yok', en ? 'Missing compensation record' : 'Ücret kaydı eksik'],
+    snapshotSha256: ['a1b2c3d4e5f60718…', '0f1e2d3c4b5a6978…'],
+    createdAt: ['01.11.2026 09:30:00', '05.11.2026 14:10:00'],
+    actions: [en ? 'Inspect inputs · Preview calculation' : 'Girdileri incele · Hesap önizlemesi', en ? 'Inspect inputs · Saved results' : 'Girdileri incele · Kayıtlı sonuçlar']
+  }
+  const hrPayrollRuleSetsValues: Record<string, [string, string]> = {
+    taxYear: ['2026', '2027'],
+    effectivePeriod: ['2026-01-01 – 2026-12-31', '2027-01-01 – …'],
+    version: ['v1', 'v2'],
+    officialSourceUrl: ['ornek-kaynak.example', 'ornek-kaynak.example'],
+    rules: [en ? 'View' : 'Görüntüle', en ? 'View' : 'Görüntüle'],
+    status: [en ? 'Approved' : 'Onaylandı', en ? 'Draft' : 'Taslak'],
+    approvedAt: ['02.01.2026 10:00:00', '—'],
+    actions: [en ? '—' : '—', en ? 'Approve' : 'Onayla']
+  }
+  const financeCreditSecuritiesValues: Record<string, [string, string]> = {
+    code: [en ? 'TMN-001 · Letter of guarantee' : 'TMN-001 · Teminat mektubu', en ? 'RHN-002 · Pledge / mortgage' : 'RHN-002 · Rehin / ipotek'],
+    facilityCode: ['KRD-ORNEK-01', 'KRD-ORNEK-02'],
+    parties: ['Örnek Banka A.Ş. → Örnek Tedarikçi Ltd.', 'Örnek Holding → Örnek Banka A.Ş.'],
+    amount: ['₺250.000,00', '$40.000,00'],
+    commissionAmount: ['₺1.250,00', '$0,00'],
+    issueDate: ['2026-01-15', '2026-03-01'],
+    expiryDate: ['2026-12-01', '2027-03-01'],
+    status: [en ? 'Expiring' : 'Yaklaşıyor', en ? 'Active' : 'Etkin'],
+    notes: [en ? 'Sample tender guarantee' : 'Örnek ihale teminatı', en ? '—' : '—'],
+    actions: [en ? 'Release · Call' : 'Serbest bırak · Çağır', en ? 'Release · Call' : 'Serbest bırak · Çağır']
+  }
+  const foreignTradeFilesValues: Record<string, [string, string]> = {
+    reference: ['DT-2026-001', 'DT-2026-002'],
+    direction: [en ? 'Import' : 'İthalat', en ? 'Export' : 'İhracat'],
+    linkedOrder: ['SA-1001 · Örnek Tedarikçi', 'SS-2002 · Örnek Müşteri'],
+    countries: ['DE → TR', 'TR → FR'],
+    status: [en ? 'Draft' : 'Taslak', en ? 'Shipped' : 'Sevkte'],
+    transportMode: [en ? 'Sea' : 'Deniz', en ? 'Road' : 'Kara'],
+    actions: [en ? 'Booked →' : 'Planlandı →', en ? 'Customs clearance →' : 'Gümrükte →']
+  }
+  const customerProvincesValues: Record<string, [string, string]> = {
+    name: [en ? 'Sample Province A' : 'Örnek İl A', en ? 'Sample Province B' : 'Örnek İl B'],
+    status: [en ? 'Active' : 'Aktif', en ? 'Inactive' : 'Pasif'],
+    districtCount: ['12', '4'],
+    actions: [en ? 'Edit · Deactivate' : 'Düzenle · Pasife al', en ? 'Edit · Activate' : 'Düzenle · Etkinleştir']
+  }
+  const customerDistrictsValues: Record<string, [string, string]> = {
+    name: [en ? 'Sample District Center' : 'Örnek İlçe Merkez', en ? 'Sample District Coast' : 'Örnek İlçe Sahil'],
+    province: [en ? 'Sample Province A' : 'Örnek İl A', en ? 'Sample Province A' : 'Örnek İl A'],
+    status: [en ? 'Active' : 'Aktif', en ? 'Inactive' : 'Pasif'],
+    actions: [en ? 'Edit · Deactivate' : 'Düzenle · Pasife al', en ? 'Edit · Activate' : 'Düzenle · Etkinleştir']
+  }
+  const operationalDefinitionsValues: Record<string, [string, string]> = {
+    kind: [en ? 'Workplace' : 'İş yeri', en ? 'Branch' : 'Şube'],
+    code: ['IY-001', 'SB-002'],
+    name: ['Örnek Merkez İş Yeri', 'Örnek Kuzey Şubesi'],
+    status: [en ? 'Active' : 'Etkin', en ? 'Inactive' : 'Devre dışı'],
+    actions: [en ? 'Edit · Deactivate' : 'Düzenle · Devre dışı bırak', en ? 'Edit · Activate' : 'Düzenle · Etkinleştir']
+  }
   const paymentInstrumentValues: Record<string, [string, string]> = {
     instrumentNumber: ['ÇK-2026-018', 'SN-2026-009'], code: ['CEK-2026-001', 'SNT-2026-001'],
     type: [en ? 'Check' : 'Çek', en ? 'Promissory note' : 'Senet'], direction: [en ? 'Received' : 'Alınan', en ? 'Issued' : 'Verilen'],
@@ -374,6 +578,6 @@ export function previewValue(screenKey: string, key: string, index: number, en: 
     tenantAccount: ['600 · Yurtiçi satışlar', '320 · Satıcılar'],
     status: [en ? 'Mapped' : 'Eşleştirildi', en ? 'Mapped' : 'Eşleştirildi']
   }
-  const values = screenKey === 'purchase-invoice-receipt-selection' ? purchaseInvoiceReceiptSelectionValues : screenKey === 'finance-statements' ? bankStatementValues : screenKey === 'finance-statement-lines' ? bankStatementLineValues : screenKey === 'finance-maturities' ? financeMaturityValues : screenKey === 'finance-cash-flow-forecast' ? financeCashFlowForecastValues : screenKey === 'manufacturing-mrp-lines' ? manufacturingMrpLineValues : screenKey === 'sales-order-lines' ? salesOrderLineValues : screenKey === 'sales-invoice-details' ? salesInvoiceDetailValues : screenKey === 'customer-sales-invoices' ? customerSalesInvoiceValues : screenKey === 'hr-employees' ? employeeValues : screenKey === 'hr-leave-requests' ? leaveRequestValues : screenKey === 'hr-attendance' ? attendanceValues : screenKey === 'hr-workplace-assignments' ? workplaceAssignmentValues : screenKey === 'hr-workplace-calendars' ? workplaceCalendarValues : screenKey === 'hr-employee-calendar-overrides' ? employeeCalendarOverrideValues : screenKey === 'inventory-stock-movements' ? inventoryMovementValues : screenKey === 'inventory-trace-balances' ? inventoryTraceValues : screenKey === 'inventory-warehouse-locations' ? warehouseBinValues : screenKey === 'inventory-warehouse-reconciliation' ? warehouseReconciliationValues : screenKey === 'inventory-stock' ? stockValues : screenKey === 'sales-distribution-plan' ? salesDistributionValues : screenKey === 'sales-orders' ? salesOrderValues : screenKey === 'sales-quotes' ? salesQuoteValues : screenKey === 'sales-promotions' ? salesPromotionValues : screenKey === 'sales-campaign-performance' ? salesCampaignPerformanceValues : screenKey === 'sales-deliveries' ? salesDeliveryValues : screenKey === 'sales-invoices' ? salesInvoiceValues : screenKey === 'purchase-invoices' ? purchaseInvoiceValues : screenKey === 'standalone-invoice-drafts' ? standaloneInvoiceDraftValues : screenKey === 'purchase-orders' ? purchaseOrderValues : screenKey === 'purchase-receipts' ? purchaseReceiptValues : screenKey === 'purchase-delivery-notes' ? purchaseDeliveryNoteValues : screenKey === 'purchase-delivery-order-lines' ? purchaseDeliveryOrderLineValues : screenKey === 'purchase-order-delivery-notes' ? purchaseOrderDeliveryNoteLineValues : screenKey === 'purchase-delivery-note-lines' ? purchaseDeliveryNoteLineValues : screenKey === 'manufacturing-orders' ? manufacturingOrderValues : screenKey === 'exchange-rates' ? exchangeRateValues : screenKey === 'warehouse-location-balances' ? warehouseLocationValues : screenKey === 'fixed-assets' ? fixedAssetValues : screenKey === 'fixed-asset-depreciation' ? fixedAssetDepreciationValues : screenKey === 'fixed-asset-assignments' ? fixedAssetAssignmentValues : screenKey === 'crm-opportunities' ? crmOpportunityValues : screenKey === 'payment-instruments' ? paymentInstrumentValues : screenKey === 'commercial-contracts' ? commercialContractValues : screenKey === 'operational-project-tasks' ? operationalProjectTaskValues : screenKey === 'operational-project-time-entries' ? operationalProjectTimeValues : screenKey === 'operational-projects' ? operationalProjectValues : screenKey === 'direct-cash-budgets' ? directCashBudgetValues : screenKey === 'finance-budget-scenarios' ? financeBudgetScenarioValues : screenKey === 'finance-accounts' ? financialAccountValues : screenKey === 'finance-account-transactions' ? accountTransactionValues : screenKey === 'finance-journals' ? journalValues : screenKey === 'finance-ledger-accounts' ? ledgerAccountValues : screenKey === 'finance-ledger-mappings' ? ledgerMappingValues : screenKey === 'finance-credit-schedules' ? creditScheduleValues : screenKey === 'finance-credit-movements' ? creditMovementValues : screenKey === 'finance-transfer-sources' ? transferSourceValues : screenKey === 'finance-statement-unmatched-book' ? unmatchedBookValues : screenKey === 'finance-maturity-aging' ? maturityAgingValues : screenKey === 'finance-fx-exposure' ? fxExposureValues : screenKey === 'finance-cash-flow-report' ? cashFlowReportValues : screenKey === 'finance-income-statement' ? incomeStatementValues : screenKey === 'finance-fx-revaluations' ? fxRevaluationVoucherValues : screenKey === 'finance-fx-revaluation-lines' ? fxRevaluationLineValues : screenKey === 'finance-balance-sheet' ? balanceSheetValues : screenKey === 'finance-trial-balance' ? trialBalanceValues : customerValues
+  const values = screenKey === 'purchase-invoice-receipt-selection' ? purchaseInvoiceReceiptSelectionValues : screenKey === 'finance-statements' ? bankStatementValues : screenKey === 'finance-statement-lines' ? bankStatementLineValues : screenKey === 'finance-maturities' ? financeMaturityValues : screenKey === 'finance-cash-flow-forecast' ? financeCashFlowForecastValues : screenKey === 'manufacturing-mrp-lines' ? manufacturingMrpLineValues : screenKey === 'sales-order-lines' ? salesOrderLineValues : screenKey === 'sales-invoice-details' ? salesInvoiceDetailValues : screenKey === 'customer-sales-invoices' ? customerSalesInvoiceValues : screenKey === 'hr-employees' ? employeeValues : screenKey === 'hr-leave-requests' ? leaveRequestValues : screenKey === 'hr-attendance' ? attendanceValues : screenKey === 'hr-workplace-assignments' ? workplaceAssignmentValues : screenKey === 'hr-workplace-calendars' ? workplaceCalendarValues : screenKey === 'hr-employee-calendar-overrides' ? employeeCalendarOverrideValues : screenKey === 'inventory-stock-movements' ? inventoryMovementValues : screenKey === 'inventory-trace-balances' ? inventoryTraceValues : screenKey === 'inventory-warehouse-locations' ? warehouseBinValues : screenKey === 'inventory-warehouse-reconciliation' ? warehouseReconciliationValues : screenKey === 'inventory-stock' ? stockValues : screenKey === 'sales-distribution-plan' ? salesDistributionValues : screenKey === 'sales-orders' ? salesOrderValues : screenKey === 'sales-quotes' ? salesQuoteValues : screenKey === 'sales-promotions' ? salesPromotionValues : screenKey === 'sales-campaign-performance' ? salesCampaignPerformanceValues : screenKey === 'sales-deliveries' ? salesDeliveryValues : screenKey === 'sales-invoices' ? salesInvoiceValues : screenKey === 'purchase-invoices' ? purchaseInvoiceValues : screenKey === 'standalone-invoice-drafts' ? standaloneInvoiceDraftValues : screenKey === 'purchase-orders' ? purchaseOrderValues : screenKey === 'purchase-supplier-quotes' ? supplierQuoteValues : screenKey === 'manufacturing-work-centers' ? workCenterValues : screenKey === 'customer-ledger-entries' ? customerLedgerEntryValues : screenKey === 'inventory-transfers' ? inventoryTransferValues : screenKey === 'inventory-warehouses' ? inventoryWarehouseValues : screenKey === 'inventory-movement-history' ? inventoryMovementHistoryValues : screenKey === 'purchase-requests' ? purchaseRequestsValues : screenKey === 'purchase-order-receipts' ? purchaseOrderReceiptsValues : screenKey === 'sales-invoice-payments' ? salesInvoicePaymentsValues : screenKey === 'customer-detail-movements' ? customerDetailMovementsValues : screenKey === 'hr-compensation-records' ? hrCompensationRecordsValues : screenKey === 'hr-tax-declarations' ? hrTaxDeclarationsValues : screenKey === 'hr-payroll-drafts' ? hrPayrollDraftsValues : screenKey === 'hr-payroll-rule-sets' ? hrPayrollRuleSetsValues : screenKey === 'finance-credit-securities' ? financeCreditSecuritiesValues : screenKey === 'foreign-trade-files' ? foreignTradeFilesValues : screenKey === 'customer-provinces' ? customerProvincesValues : screenKey === 'customer-districts' ? customerDistrictsValues : screenKey === 'operational-definitions' ? operationalDefinitionsValues : screenKey === 'manufacturing-recipes' ? manufacturingRecipesValues : screenKey === 'manufacturing-cost-variance' ? manufacturingCostVarianceValues : screenKey === 'finance-credit-exposure-facilities' ? financeCreditExposureFacilitiesValues : screenKey === 'integration-operations' ? integrationOperationsValues : screenKey === 'e-document-submissions' ? eDocumentSubmissionsValues : screenKey === 'purchase-receipts' ? purchaseReceiptValues : screenKey === 'purchase-delivery-notes' ? purchaseDeliveryNoteValues : screenKey === 'purchase-delivery-order-lines' ? purchaseDeliveryOrderLineValues : screenKey === 'purchase-order-delivery-notes' ? purchaseOrderDeliveryNoteLineValues : screenKey === 'purchase-delivery-note-lines' ? purchaseDeliveryNoteLineValues : screenKey === 'manufacturing-orders' ? manufacturingOrderValues : screenKey === 'exchange-rates' ? exchangeRateValues : screenKey === 'warehouse-location-balances' ? warehouseLocationValues : screenKey === 'fixed-assets' ? fixedAssetValues : screenKey === 'fixed-asset-depreciation' ? fixedAssetDepreciationValues : screenKey === 'fixed-asset-assignments' ? fixedAssetAssignmentValues : screenKey === 'crm-opportunities' ? crmOpportunityValues : screenKey === 'payment-instruments' ? paymentInstrumentValues : screenKey === 'commercial-contracts' ? commercialContractValues : screenKey === 'operational-project-tasks' ? operationalProjectTaskValues : screenKey === 'operational-project-time-entries' ? operationalProjectTimeValues : screenKey === 'operational-projects' ? operationalProjectValues : screenKey === 'direct-cash-budgets' ? directCashBudgetValues : screenKey === 'finance-budget-scenarios' ? financeBudgetScenarioValues : screenKey === 'finance-accounts' ? financialAccountValues : screenKey === 'finance-account-transactions' ? accountTransactionValues : screenKey === 'finance-journals' ? journalValues : screenKey === 'finance-ledger-accounts' ? ledgerAccountValues : screenKey === 'finance-ledger-mappings' ? ledgerMappingValues : screenKey === 'finance-credit-schedules' ? creditScheduleValues : screenKey === 'finance-credit-movements' ? creditMovementValues : screenKey === 'finance-transfer-sources' ? transferSourceValues : screenKey === 'finance-statement-unmatched-book' ? unmatchedBookValues : screenKey === 'finance-maturity-aging' ? maturityAgingValues : screenKey === 'finance-fx-exposure' ? fxExposureValues : screenKey === 'finance-cash-flow-report' ? cashFlowReportValues : screenKey === 'finance-income-statement' ? incomeStatementValues : screenKey === 'finance-fx-revaluations' ? fxRevaluationVoucherValues : screenKey === 'finance-fx-revaluation-lines' ? fxRevaluationLineValues : screenKey === 'finance-balance-sheet' ? balanceSheetValues : screenKey === 'finance-trial-balance' ? trialBalanceValues : customerValues
   return values[key]?.[index] ?? '—'
 }

@@ -11,7 +11,11 @@ import {
 } from "lucide-react";
 import "./foreign-trade.css";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
-import { ForeignTradeGrid } from "./foreign-trade/components/ForeignTradeGrid";
+import {
+  ForeignTradeGrid,
+  defaultForeignTradeFields,
+  type ForeignTradeScreenField,
+} from "./foreign-trade/components/ForeignTradeGrid";
 import { ForeignTradeDetail } from "./foreign-trade/components/ForeignTradeDetail";
 import type {
   Direction,
@@ -115,6 +119,9 @@ export default function ForeignTradePage({
     InventoryDocument[]
   >([]);
   const [inventoryDocumentId, setInventoryDocumentId] = useState("");
+  const [screenFields, setScreenFields] = useState<ForeignTradeScreenField[]>(
+    defaultForeignTradeFields,
+  );
 
   async function api<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await authenticatedFetch(url, token, {
@@ -188,6 +195,19 @@ export default function ForeignTradePage({
   }
   useEffect(() => {
     void load();
+  }, [token]);
+  useEffect(() => {
+    let active = true;
+    api<{ fields: ForeignTradeScreenField[] }>(
+      "/api/screen-views/foreign-trade-files/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [token]);
   useEffect(() => {
     setInventoryDocuments([]);
@@ -867,6 +887,8 @@ export default function ForeignTradePage({
               onSelect={setSelectedCase}
               onTransition={(item, status) => void transition(item, status)}
               nextStatus={nextStatus}
+              transportLabel={transportLabel}
+              fields={screenFields}
             />
           </div>
           <ForeignTradeDetail

@@ -147,6 +147,54 @@ export default function ScreenViewPreview({
                                   ? ["ALF-T-001", "ALF-T-002"]
                                   : screenKey === "purchase-orders"
                                     ? ["SAT-001", "SAT-002"]
+                                    : screenKey === "purchase-supplier-quotes"
+                                    ? ["TKL-2026-001", "TKL-2026-002"]
+                                    : screenKey === "manufacturing-work-centers"
+                                    ? ["IM-KESIM", "IM-MONTAJ"]
+                                    : screenKey === "customer-ledger-entries"
+                                    ? ["01.10.2026", "15.10.2026"]
+                                    : screenKey === "inventory-transfers"
+                                    ? ["TRF-2026-001", "TRF-2026-002"]
+                                    : screenKey === "inventory-warehouses"
+                                    ? ["MRK", "ANK"]
+                                    : screenKey === "inventory-movement-history"
+                                    ? ["03.10.2026", "07.10.2026"]
+                                    : screenKey === "purchase-requests"
+                                    ? ["PR-2026-0001", "PR-2026-0002"]
+                                    : screenKey === "purchase-order-receipts"
+                                    ? ["GR-2026-0001", "GR-2026-0002"]
+                                    : screenKey === "sales-invoice-payments"
+                                    ? ["THS-000101", "THS-000102"]
+                                    : screenKey === "customer-detail-movements"
+                                    ? ["05.03.2026", "12.03.2026"]
+                                    : screenKey === "hr-compensation-records"
+                                    ? ["P-0001", "P-0002"]
+                                    : screenKey === "hr-tax-declarations"
+                                    ? ["P-0001", "P-0002"]
+                                    : screenKey === "hr-payroll-drafts"
+                                    ? ["2026-10", "2026-11"]
+                                    : screenKey === "hr-payroll-rule-sets"
+                                    ? ["2026 · v1", "2027 · v2"]
+                                    : screenKey === "finance-credit-securities"
+                                    ? ["TMN-001", "RHN-002"]
+                                    : screenKey === "foreign-trade-files"
+                                    ? ["DT-2026-001", "DT-2026-002"]
+                                    : screenKey === "customer-provinces"
+                                    ? ["Örnek İl A", "Örnek İl B"]
+                                    : screenKey === "customer-districts"
+                                    ? ["Örnek İlçe Merkez", "Örnek İlçe Sahil"]
+                                    : screenKey === "operational-definitions"
+                                    ? ["IY-001", "SB-002"]
+                                    : screenKey === "manufacturing-recipes"
+                                    ? ["REC-001", "REC-002"]
+                                    : screenKey === "manufacturing-cost-variance"
+                                    ? ["UE-2026-0142", "UE-2026-0143"]
+                                    : screenKey === "finance-credit-exposure-facilities"
+                                    ? ["KRD-2026-001", "BCH-2026-002"]
+                                    : screenKey === "integration-operations"
+                                    ? ["tr.e-document.submit", "tr.e-document.submit"]
+                                    : screenKey === "e-document-submissions"
+                                    ? ["FTR2026000123", "EAR2026000045"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

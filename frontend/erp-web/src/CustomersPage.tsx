@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import { groupBuiltInScreenFields } from "./FinanceStudioGrid";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
   CustomerItem,
   CustomerGroupItem,
@@ -455,6 +457,37 @@ function CustomersPage({
     { key: "paymentTermDays", label: "Vade", visible: true, position: 5 },
     { key: "riskLimit", label: "Risk limiti", visible: true, position: 6 },
   ]);
+  const [movementScreenFields, setMovementScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "entryDate", label: "Tarih", visible: true, position: 0 },
+    { key: "direction", label: "Yön", visible: true, position: 1 },
+    { key: "description", label: "Açıklama", visible: true, position: 2 },
+    { key: "amount", label: "Tutar", visible: true, position: 3 },
+    { key: "balance", label: "Dönem bakiyesi", visible: true, position: 4 },
+    { key: "actions", label: "İşlemler", visible: true, position: 5, fixed: true },
+  ]);
+  const visibleMovementFields = movementScreenFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
+  const hasSelectedCustomer = Boolean(selectedCustomerId);
+  useEffect(() => {
+    if (!hasSelectedCustomer) return;
+    let active = true;
+    void api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/customer-detail-movements/active",
+      token,
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setMovementScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token, hasSelectedCustomer]);
   const [filter, setFilter] = useState(""),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1);
@@ -3267,74 +3300,84 @@ function CustomersPage({
               )}
             </div>
             <div className="ledger-list">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="customer-detail-movements"
+                {...screenViewGridDefaults(visibleMovementFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
-                    <th>Tarih</th>
-                    <th>Yön</th>
-                    <th>Açıklama</th>
-                    <th>Tutar</th>
-                    <th>Dönem bakiyesi</th>
-                    <th></th>
+                    {visibleMovementFields.map((field) => (
+                      <th key={field.key}>{field.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {pagedStatementItems.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.entryDate.split("-").reverse().join(".")}</td>
-                      <td>
-                        <span
-                          className={`party-pill ${item.direction === "Debit" ? "" : "supplier"}`}
-                        >
-                          {item.direction === "Debit" ? "Borç" : "Alacak"}
-                        </span>
-                      </td>
-                      <td>
-                        {item.description}
-                        {item.reversalOfId && (
-                          <small className="cell-subtitle">Ters kayıt</small>
-                        )}
-                        {item.hasReversal && (
-                          <small className="cell-subtitle">
-                            İptal edildi · geçmiş kaydı korunuyor
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        {item.amount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}{" "}
-                        {item.currencyCode}
-                      </td>
-                      <td>
-                        {item.balance.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {!item.reversalOfId && !item.hasReversal && (
-                          <button
-                            className="row-action"
-                            disabled={busy}
-                            onClick={() => void reverseMovement(item)}
-                          >
-                            Ters kayıt
-                          </button>
-                        )}
-                      </td>
+                      {visibleMovementFields.map((field) => (
+                        <td key={field.key}>
+                          {field.key === "entryDate" ? (
+                            item.entryDate.split("-").reverse().join(".")
+                          ) : field.key === "direction" ? (
+                            <span
+                              className={`party-pill ${item.direction === "Debit" ? "" : "supplier"}`}
+                            >
+                              {item.direction === "Debit" ? "Borç" : "Alacak"}
+                            </span>
+                          ) : field.key === "description" ? (
+                            <>
+                              {item.description}
+                              {item.reversalOfId && (
+                                <small className="cell-subtitle">Ters kayıt</small>
+                              )}
+                              {item.hasReversal && (
+                                <small className="cell-subtitle">
+                                  İptal edildi · geçmiş kaydı korunuyor
+                                </small>
+                              )}
+                            </>
+                          ) : field.key === "amount" ? (
+                            <>
+                              {item.amount.toLocaleString("tr-TR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              {item.currencyCode}
+                            </>
+                          ) : field.key === "balance" ? (
+                            item.balance.toLocaleString("tr-TR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                          ) : field.key === "actions" ? (
+                            !item.reversalOfId &&
+                            !item.hasReversal && (
+                              <button
+                                className="row-action"
+                                disabled={busy}
+                                onClick={() => void reverseMovement(item)}
+                              >
+                                Ters kayıt
+                              </button>
+                            )
+                          ) : null}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                   {statement?.items.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="table-empty">
+                      <td colSpan={Math.max(visibleMovementFields.length, 1)} className="table-empty">
                         Seçilen dönemde cari hareket yok.
                       </td>
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
             {statementPageCount > 1 && (
               <div className="modal-foot statement-pagination">

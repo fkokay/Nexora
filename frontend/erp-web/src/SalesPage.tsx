@@ -3805,6 +3805,49 @@ function PurchasingPanel({
   const [orderScreenFields, setOrderScreenFields] = useState<
     BuiltInScreenLayoutField[]
   >(defaultOrderScreenFields);
+  const defaultRequestScreenFields: BuiltInScreenLayoutField[] = [
+    { key: "code", label: "Talep no", visible: true, position: 0 },
+    { key: "description", label: "Açıklama", visible: true, position: 1 },
+    { key: "requestedByName", label: "Talep sahibi", visible: true, position: 2 },
+    { key: "requestDate", label: "Talep tarihi", visible: true, position: 3 },
+    { key: "neededByDate", label: "İhtiyaç tarihi", visible: true, position: 4 },
+    { key: "lineCount", label: "Kalem", visible: true, position: 5 },
+    { key: "status", label: "Durum", visible: true, position: 6 },
+    {
+      key: "purchaseOrderCode",
+      label: "Bağlı sipariş",
+      visible: false,
+      position: 7,
+    },
+    {
+      key: "actions",
+      label: "İşlemler",
+      visible: true,
+      position: 8,
+      fixed: true,
+    },
+  ];
+  const [requestScreenFields, setRequestScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >(defaultRequestScreenFields);
+  const defaultReceiptScreenFields: BuiltInScreenLayoutField[] = [
+    { key: "code", label: "Mal kabul", visible: true, position: 0 },
+    { key: "receiptDate", label: "Tarih", visible: true, position: 1 },
+    { key: "warehouseName", label: "Depo", visible: true, position: 2 },
+    { key: "lineCount", label: "Satır", visible: true, position: 3 },
+    { key: "status", label: "Durum", visible: true, position: 4 },
+    { key: "invoice", label: "Alış faturası", visible: true, position: 5 },
+    {
+      key: "actions",
+      label: "İşlemler",
+      visible: true,
+      position: 6,
+      fixed: true,
+    },
+  ];
+  const [receiptScreenFields, setReceiptScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >(defaultReceiptScreenFields);
   const [orders, setOrders] = useState<PurchaseOrderSummary[]>([]),
     [orderPage, setOrderPage] = useState(1),
     [orderTotal, setOrderTotal] = useState(0),
@@ -4081,6 +4124,180 @@ function PurchasingPanel({
         .sort((a, b) => a.position - b.position),
     [orderScreenFields],
   );
+  useEffect(() => {
+    if (!requestsOnly) return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/purchase-requests/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setRequestScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, requestsOnly]);
+  useEffect(() => {
+    if (requestsOnly) return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/purchase-order-receipts/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setReceiptScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, requestsOnly]);
+  const visibleRequestScreenFields = useMemo(
+    () =>
+      requestScreenFields
+        .filter((field) => field.key === "actions" || field.visible)
+        .sort((a, b) =>
+          a.key === "actions"
+            ? 1
+            : b.key === "actions"
+              ? -1
+              : a.position - b.position,
+        ),
+    [requestScreenFields],
+  );
+  const visibleReceiptScreenFields = useMemo(
+    () =>
+      receiptScreenFields
+        .filter((field) => field.key === "actions" || field.visible)
+        .sort((a, b) =>
+          a.key === "actions"
+            ? 1
+            : b.key === "actions"
+              ? -1
+              : a.position - b.position,
+        ),
+    [receiptScreenFields],
+  );
+  function renderPurchaseRequestCell(
+    field: BuiltInScreenLayoutField,
+    request: PurchaseRequestSummary,
+  ) {
+    switch (field.key) {
+      case "code":
+        return <td key={field.key}><button type="button" className="purchase-request-code" onClick={(event) => { event.stopPropagation(); setSelectedRequestId(request.id); }}>{request.code}</button></td>;
+      case "description":
+        return <td key={field.key} className="purchase-request-description">{request.description}</td>;
+      case "requestedByName":
+        return <td key={field.key}>{request.requestedByName || "—"}</td>;
+      case "requestDate":
+        return <td key={field.key}>{request.requestDate.split("-").reverse().join(".")}</td>;
+      case "neededByDate":
+        return <td key={field.key}>{request.neededByDate?.split("-").reverse().join(".") || "—"}</td>;
+      case "lineCount":
+        return <td key={field.key}>{request.lineCount}</td>;
+      case "status":
+        return <td key={field.key}><span className={`quote-status ${request.status === "Approved" || request.status === "Ordered" ? "accepted" : request.status === "Rejected" ? "rejected" : "sent"}`}>{request.status === "Submitted" ? "Onay bekliyor" : request.status === "Approved" ? "Onaylandı" : request.status === "Ordered" ? "Siparişe dönüştü" : "Reddedildi"}</span></td>;
+      case "purchaseOrderCode":
+        return <td key={field.key}>{request.purchaseOrderCode || "—"}</td>;
+      case "actions":
+        return <td key={field.key}><button className="row-action" onClick={(event) => { event.stopPropagation(); void openRequest(request.id); }}>İncele</button></td>;
+      default:
+        return <td key={field.key}>—</td>;
+    }
+  }
+  function renderPurchaseReceiptCell(
+    field: BuiltInScreenLayoutField,
+    receipt: PurchaseReceipt,
+  ) {
+    switch (field.key) {
+      case "code":
+        return (
+          <td key={field.key}>
+            <span className="customer-code">{receipt.code}</span>
+            {receipt.customFields?.some((item) => item.value) && (
+              <small className="cell-subtitle">
+                {receipt.customFields
+                  .filter((item) => item.value)
+                  .map((item) => `${item.label}: ${item.value}`)
+                  .join(" · ")}
+              </small>
+            )}
+          </td>
+        );
+      case "receiptDate":
+        return (
+          <td key={field.key}>
+            {receipt.receiptDate.split("-").reverse().join(".")}
+          </td>
+        );
+      case "warehouseName":
+        return <td key={field.key}>{receipt.warehouseName}</td>;
+      case "lineCount":
+        return <td key={field.key}>{receipt.lineCount}</td>;
+      case "status":
+        return (
+          <td key={field.key}>
+            <span
+              className={`quote-status ${receipt.status === "Posted" ? "accepted" : "rejected"}`}
+            >
+              {receipt.status === "Posted" ? "İşlendi" : "İptal"}
+            </span>
+          </td>
+        );
+      case "invoice":
+        return (
+          <td key={field.key}>
+            {receipt.invoice ? (
+              <button
+                className="row-action"
+                disabled={busy}
+                onClick={() => setInvoiceId(receipt.invoice!.id)}
+              >
+                {receipt.invoice.code} · kalan{" "}
+                {receipt.invoice.outstandingAmount.toLocaleString("tr-TR", {
+                  minimumFractionDigits: 2,
+                })}{" "}
+                {receipt.invoice.currencyCode}
+              </button>
+            ) : receipt.status === "Posted" ? (
+              <button
+                className="row-action"
+                disabled={busy}
+                onClick={() => {
+                  setInvoiceReceiptId(receipt.id);
+                  setInvoiceDate(receipt.receiptDate);
+                  setInvoiceCode("");
+                }}
+              >
+                Fatura oluştur
+              </button>
+            ) : (
+              "—"
+            )}
+          </td>
+        );
+      case "actions":
+        return (
+          <td key={field.key}>
+            {receipt.status === "Posted" && !receipt.invoice && (
+              <button
+                className="row-action danger-action"
+                disabled={busy}
+                onClick={() => void voidReceipt(receipt)}
+              >
+                İptal et
+              </button>
+            )}
+          </td>
+        );
+      default:
+        return <td key={field.key}>—</td>;
+    }
+  }
   function renderPurchaseOrderField(
     field: BuiltInScreenLayoutField,
     item: PurchaseOrderSummary,
@@ -5421,24 +5638,24 @@ function PurchasingPanel({
             </div>
           </div>
           <div className="requests-list purchase-request-table-wrap">
-            <table className="purchase-request-table">
-              <thead><tr><th>Talep no</th><th>Açıklama</th><th>Talep sahibi</th><th>Talep tarihi</th><th>İhtiyaç tarihi</th><th>Kalem</th><th>Durum</th><th>İşlemler</th></tr></thead>
+            <AdvancedDataGrid
+              className="purchase-request-table"
+              gridId="purchase-requests"
+              {...screenViewGridDefaults(visibleRequestScreenFields)}
+              externalPagination
+              hideSearch
+              enableRowSelection={false}
+            >
+              <thead><tr>{visibleRequestScreenFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead>
               <tbody>
                 {purchaseRequests.map((request) => (
                   <tr key={request.id} className={selectedRequestSummary?.id === request.id ? "erp-selected-request" : ""} onClick={() => setSelectedRequestId(request.id)}>
-                    <td><button type="button" className="purchase-request-code" onClick={(event) => { event.stopPropagation(); setSelectedRequestId(request.id); }}>{request.code}</button></td>
-                    <td className="purchase-request-description">{request.description}</td>
-                    <td>{request.requestedByName || "—"}</td>
-                    <td>{request.requestDate.split("-").reverse().join(".")}</td>
-                    <td>{request.neededByDate?.split("-").reverse().join(".") || "—"}</td>
-                    <td>{request.lineCount}</td>
-                    <td><span className={`quote-status ${request.status === "Approved" || request.status === "Ordered" ? "accepted" : request.status === "Rejected" ? "rejected" : "sent"}`}>{request.status === "Submitted" ? "Onay bekliyor" : request.status === "Approved" ? "Onaylandı" : request.status === "Ordered" ? "Siparişe dönüştü" : "Reddedildi"}</span></td>
-                    <td><button className="row-action" onClick={(event) => { event.stopPropagation(); void openRequest(request.id); }}>İncele</button></td>
+                    {visibleRequestScreenFields.map((field) => renderPurchaseRequestCell(field, request))}
                   </tr>
                 ))}
-                {purchaseRequests.length === 0 && <tr><td colSpan={8} className="purchase-request-empty">{requestStatus === "Approved" ? "Onaylanmış satın alma talebi yok." : requestSearch.trim() || requestStatus ? "Filtrelerle eşleşen satın alma talebi yok." : "Henüz satın alma talebi yok."}</td></tr>}
+                {purchaseRequests.length === 0 && <tr><td colSpan={visibleRequestScreenFields.length} className="purchase-request-empty">{requestStatus === "Approved" ? "Onaylanmış satın alma talebi yok." : requestSearch.trim() || requestStatus ? "Filtrelerle eşleşen satın alma talebi yok." : "Henüz satın alma talebi yok."}</td></tr>}
               </tbody>
-            </table>
+            </AdvancedDataGrid>
           </div>
           {requestTotal > purchasePageSize && (
             <div className="purchase-request-pagination">
@@ -6858,96 +7075,45 @@ function PurchasingPanel({
                 )}
             </div>
             <div className="ledger-list">
-              <table className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="purchase-order-receipts"
+                {...screenViewGridDefaults(visibleReceiptScreenFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
-                    <th>Mal kabul</th>
-                    <th>Tarih</th>
-                    <th>Depo</th>
-                    <th>Satır</th>
-                    <th>Durum</th>
-                    <th>Alış faturası</th>
-                    <th></th>
+                    {visibleReceiptScreenFields.map((field) => (
+                      <th key={field.key}>
+                        {field.key === "actions" && field.label === "İşlemler"
+                          ? ""
+                          : field.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {detail.receipts.map((receipt) => (
                     <tr key={receipt.id}>
-                      <td>
-                        <span className="customer-code">{receipt.code}</span>
-                        {receipt.customFields?.some((field) => field.value) && (
-                          <small className="cell-subtitle">
-                            {receipt.customFields
-                              .filter((field) => field.value)
-                              .map((field) => `${field.label}: ${field.value}`)
-                              .join(" · ")}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        {receipt.receiptDate.split("-").reverse().join(".")}
-                      </td>
-                      <td>{receipt.warehouseName}</td>
-                      <td>{receipt.lineCount}</td>
-                      <td>
-                        <span
-                          className={`quote-status ${receipt.status === "Posted" ? "accepted" : "rejected"}`}
-                        >
-                          {receipt.status === "Posted" ? "İşlendi" : "İptal"}
-                        </span>
-                      </td>
-                      <td>
-                        {receipt.invoice ? (
-                          <button
-                            className="row-action"
-                            disabled={busy}
-                            onClick={() => setInvoiceId(receipt.invoice!.id)}
-                          >
-                            {receipt.invoice.code} · kalan{" "}
-                            {receipt.invoice.outstandingAmount.toLocaleString(
-                              "tr-TR",
-                              { minimumFractionDigits: 2 },
-                            )}{" "}
-                            {receipt.invoice.currencyCode}
-                          </button>
-                        ) : receipt.status === "Posted" ? (
-                          <button
-                            className="row-action"
-                            disabled={busy}
-                            onClick={() => {
-                              setInvoiceReceiptId(receipt.id);
-                              setInvoiceDate(receipt.receiptDate);
-                              setInvoiceCode("");
-                            }}
-                          >
-                            Fatura oluştur
-                          </button>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td>
-                        {receipt.status === "Posted" && !receipt.invoice && (
-                          <button
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => void voidReceipt(receipt)}
-                          >
-                            İptal et
-                          </button>
-                        )}
-                      </td>
+                      {visibleReceiptScreenFields.map((field) =>
+                        renderPurchaseReceiptCell(field, receipt),
+                      )}
                     </tr>
                   ))}
                   {detail.receipts.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="table-empty">
+                      <td
+                        colSpan={visibleReceiptScreenFields.length}
+                        className="table-empty"
+                      >
                         Henüz mal kabul yok.
                       </td>
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
             {receiptEditor && (
               <form className="collection-form" onSubmit={createReceipt}>

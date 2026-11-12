@@ -4,7 +4,11 @@ import { authenticatedFetch } from "./authApi";
 import "./operational-definitions.css";
 import { OperationalDefinitionsHeader } from "./operational-definitions/components/OperationalDefinitionsHeader";
 import { DefinitionForm } from "./operational-definitions/components/DefinitionForm";
-import { DefinitionGrid } from "./operational-definitions/components/DefinitionGrid";
+import {
+  DefinitionGrid,
+  defaultDefinitionFields,
+  type DefinitionScreenField,
+} from "./operational-definitions/components/DefinitionGrid";
 import { OperationalDefinitionLinks } from "./operational-definitions/components/OperationalDefinitionLinks";
 import type {
   Definition,
@@ -58,6 +62,24 @@ export default function OperationalDefinitionsPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [screenFields, setScreenFields] = useState<DefinitionScreenField[]>(
+    defaultDefinitionFields,
+  );
+
+  useEffect(() => {
+    let active = true;
+    request<{ fields: DefinitionScreenField[] }>(
+      token,
+      "/api/screen-views/operational-definitions/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   async function load() {
     setLoading(true);
@@ -195,6 +217,7 @@ export default function OperationalDefinitionsPage({
           busy={busy}
           tx={tx}
           kindName={kindName}
+          fields={screenFields}
           onEdit={(row) => {
             setEditing(row);
             setKind(row.kind);
