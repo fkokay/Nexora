@@ -42,6 +42,49 @@
   --erp-muted: #526174;
 }
 
+/* Dark values for the shared tokens. The component rules below paint surfaces, text,
+ * borders and form controls from these tokens with !important, so without dark values
+ * they override every module's own dark-theme rules. */
+html[data-theme='dark'] {
+  --erp-color-primary: #F6C23E;
+  --erp-color-primary-hover: #F6C23E;
+  --erp-color-text: #e6eaf3;
+  --erp-color-muted: #a7b0c2;
+  --erp-color-border: #30394d;
+  --erp-color-border-strong: #4a5670;
+  --erp-color-surface: #191e2d;
+  --erp-color-surface-muted: #111522;
+  --erp-color-danger: #f87171;
+
+  --erp-ink: #e6eaf3;
+  --erp-muted-ink: #a7b0c2;
+  --erp-faint-ink: #a7b0c2;
+  --erp-line: #30394d;
+  --erp-paper: #191e2d;
+  --erp-paper-soft: #202638;
+  --erp-canvas: #111522;
+  --erp-primary: #F6C23E;
+  --erp-blue: #F6C23E;
+  --erp-primary-dark: #F6C23E;
+  --erp-blue-soft: #3a3220;
+  --erp-primary-soft: #3a3220;
+  --credit-ink: #e6eaf3;
+  --credit-muted: #a7b0c2;
+  --credit-border: #30394d;
+  --credit-surface: #191e2d;
+  --credit-blue: #F6C23E;
+
+  --nexora-bg: #111522;
+  --nexora-border: #30394d;
+  --nexora-text: #e6eaf3;
+  --nexora-muted: #a7b0c2;
+}
+
+/* Workspace chrome painted with fixed light colours in module-workspace.css. */
+html[data-theme='dark'] #root .app-shell:not(.standalone-studio) > .main-area > .content { background: var(--erp-color-surface-muted); }
+html[data-theme='dark'] .workspace-tabs { background: #171c29; border-bottom-color: var(--erp-color-border); }
+html[data-theme='dark'] .workspace-tab:not(.active) { background: #202638; border-color: var(--erp-color-border); color: var(--erp-color-text); }
+
 /* Shared theme defaults for every ERP module and legacy screen class. */
 html {
   color-scheme: light;
