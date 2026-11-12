@@ -185,17 +185,19 @@ export function PaymentInstrumentCreateForm({
               />
             </label>
           </RecordFormGroup>
-          <RecordFormGroup title="Not">
-            <label>
-              Açıklama
-              <textarea
-                maxLength={500}
-                rows={2}
-                value={draft.notes}
-                onChange={(event) => set("notes", event.target.value)}
-              />
-            </label>
-          </RecordFormGroup>
+          <div className="rf-columns-wide">
+            <RecordFormGroup title="Not">
+              <label>
+                Açıklama
+                <textarea
+                  maxLength={500}
+                  rows={2}
+                  value={draft.notes}
+                  onChange={(event) => set("notes", event.target.value)}
+                />
+              </label>
+            </RecordFormGroup>
+          </div>
         </div>
       </RecordFormPage>
     </section>

@@ -91,7 +91,7 @@
 .record-form .rf-form .fin-rf-line--budget { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; }
 .record-form .rf-form .fin-rf-line--cash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.8fr) minmax(0, 1fr) auto; }
 .record-form .rf-form .fin-rf-line--tax { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.record-form .rf-form .fin-rf-line > button { height: 40px; white-space: nowrap; }
+.record-form .rf-form .fin-rf-line > button { height: 40px; min-width: 56px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
 .record-form .rf-form .fin-rf-empty {
   margin: 0;
   padding: 14px;
@@ -130,11 +130,17 @@
 .record-form .rf-form .fin-rf-preview-result { display: flex; flex-wrap: wrap; gap: 6px 16px; flex-basis: 100%; font-size: 13px; }
 
 /* Modal ve <dialog> içinde: RecordFormPage kendi başlığını ve boşluğunu getirir. */
-dialog.finance-form-dialog.fin-rf-dialog { padding: 0; }
+dialog.finance-form-dialog.fin-rf-dialog { width: min(820px, calc(100vw - 32px)); max-width: none; padding: 0; }
 #root .app-shell .foreign-trade-create.fin-rf-host,
 .foreign-trade-create.fin-rf-host { width: min(980px, 100%); padding: 0; overflow: auto; }
-.account-transactions-modal .fin-rf-inline { border-top: 1px solid #d5dfeb; border-bottom: 1px solid #d5dfeb; }
-html[data-theme="dark"] .account-transactions-modal .fin-rf-inline { border-color: #30394d; }
+.foreign-trade-create.fin-rf-host .rf-toolbar { position: sticky; top: 0; z-index: 2; }
+.foreign-trade-create.fin-rf-host .rf-status { position: sticky; bottom: 0; z-index: 2; }
+/* Form açıkken modal taşarsa alt bilgi (Kapat) kesilmesin diye modal kaydırılabilir olur. */
+.account-transactions-modal:has(.fin-rf-inline) { overflow-y: auto; }
+.account-transactions-modal .fin-rf-inline { flex: none; border-top: 1px solid #d5dfeb; border-bottom: 1px solid #d5dfeb; }
+html[data-theme="dark"] .foreign-trade-create.fin-rf-host .rf-toolbar { position: sticky; top: 0; z-index: 2; }
+.foreign-trade-create.fin-rf-host .rf-status { position: sticky; bottom: 0; z-index: 2; }
+.account-transactions-modal .fin-rf-inline { border-color: #30394d; }
 
 @media (max-width: 1100px) {
   .record-form .rf-form .fin-rf-grid-4,

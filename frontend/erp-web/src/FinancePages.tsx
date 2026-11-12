@@ -1676,8 +1676,10 @@ function FinancePage({
                     />
                   </label>
                   <label>
-                    Referans{" "}
-                    <span className="optional-label">İsteğe bağlı</span>
+                    <span>
+                      Referans{" "}
+                      <span className="optional-label">İsteğe bağlı</span>
+                    </span>
                     <input
                       value={transferReference}
                       onChange={(e) => setTransferReference(e.target.value)}
