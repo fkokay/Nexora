@@ -1,0 +1,105 @@
+/*
+ * Dark-theme surfaces for page sections that are painted with fixed light colours and
+ * had no dark rule. Found by rendering every workspace page in the dark theme and
+ * measuring computed backgrounds and text contrast. The light rules they correct use
+ * long #root selectors, so these overrides use !important like the shared component
+ * rules in global-components.css. Small pastel icon chips and status badges are kept.
+ */
+
+/* Raised surfaces: cards, toolbars, summaries and page headers. */
+html[data-theme='dark'] :is(.app-shell, .module-launcher) :is(
+  .accounting-rule-profiles, .settings-main, .settings-sidebar, .workflow-template,
+  .ai-live-evaluation, .ledger-basis-toolbar, .purchase-request-table-wrap,
+  .contracts-summary, .purchase-note-overview, .pie-summary, .pie-record-detail,
+  .sales-distribution-kpis > article, .workflow-summary > div, .finance-summary-strip > div,
+  .tenant-license-command-summary, .launcher-assistant-composer > div, .table-empty,
+  .customer-create-tabs, .customer-detail-facts > div, .customer-export-menu > div,
+  .page-heading.ai-settings-page-heading, .page-heading.tenant-license-commandbar,
+  .page-heading.customer-heading, .customer-detail-backdrop, .customer-detail-modal
+) {
+  border-color: var(--erp-color-border) !important;
+  background-color: var(--erp-color-surface) !important;
+  color: var(--erp-color-text);
+}
+
+/* Inset surfaces: help boxes, notes, empty states and secondary form areas. */
+html[data-theme='dark'] .app-shell :is(
+  .sid-line, .sid-draft-banner, .collection-form, .finance-compact-form, .tax-rules-help,
+  .tax-preview-tools, .cash-forecast-empty, .cash-forecast-currency-note,
+  .manufacturing-cost-limitations, .screen-view-toolbar, .screen-view-empty, .license-empty,
+  .settings-card > header, .pie-hint, .tms7-total-row, .cash-flow-report-context,
+  .finance-summary-strip > div.closing-cash, .custom-menu-add-row, .settings-input-unit > small,
+  .gl-home-status, .modal-foot, .boundary-note, .ai-evaluation-notice
+) {
+  border-color: var(--erp-color-border) !important;
+  background-color: var(--erp-paper-soft) !important;
+}
+html[data-theme='dark'] .app-shell .tms7-total-row > td { background-color: var(--erp-paper-soft) !important; }
+
+/* Record create pages sit on the page canvas, not on a card. */
+html[data-theme='dark'] .app-shell :is(.customer-create-page, .inventory-create-page) {
+  background-color: var(--erp-color-surface-muted) !important;
+}
+
+/* Small controls painted white outside the shared .secondary / input rules. */
+html[data-theme='dark'] .app-shell :is(
+  .row-action, .accounting-rule-new, .accounting-tax-rule-title > button, .sid-secondary,
+  .sid-icon-button, .standard-menu-arrows > button, .pie-toolbar > button, .pie-toolbar > label,
+  .manufacturing-remove, .standalone-remove, .sales-row-actions-trigger, .searchable-record-trigger,
+  .compact-search, .finance-search, .ledger-account-search, .custom-menu-count,
+  .module-starter-count, .customer-detail-header-actions > .icon-button, .modal-head > .icon-button
+):not(.active):not([aria-selected='true']) {
+  border-color: var(--erp-color-border) !important;
+  background-color: #202638 !important;
+  color: var(--erp-color-text) !important;
+}
+html[data-theme='dark'] .app-shell .row-action.danger-action:not(:disabled) { color: #fca5a5 !important; }
+html[data-theme='dark'] .app-shell .customer-create-tabs > button:not(.active):not([aria-selected='true']) {
+  background-color: transparent !important;
+  color: var(--erp-color-muted) !important;
+}
+
+/* Dark text left on dark surfaces. */
+html[data-theme='dark'] .app-shell :is(
+  .report-columns > legend, .quote-lines-heading > b, .settings-row > span,
+  .sales-distribution-placeholder > b, .cash-forecast-result-copy > strong
+) {
+  color: var(--erp-color-text) !important;
+}
+html[data-theme='dark'] .launcher-metric > span { color: var(--erp-color-muted) !important; }
+html[data-theme='dark'] .launcher-center-hero > .launcher-all-modules { color: #c4baff !important; }
+html[data-theme='dark'] .app-shell .sales-invoice-total-panel output > b {
+  border-color: var(--erp-color-border) !important;
+  background-color: var(--erp-paper-soft) !important;
+  color: var(--erp-color-text) !important;
+}
+
+/* Pastel status pills keep their tint; the shared muted text colour is too light on them. */
+html[data-theme='dark'] .app-shell :is(
+  .status-badge, .quote-status, .license-state, .license-selected-badge,
+  .screen-view-preview-badge, .credential-status, .cash-flow-completion, .ai-evaluation-status,
+  .ai-settings-scope, .accounting-rule-form-title > span, .tms7-classification-heading > span
+) {
+  color: #1b2333 !important;
+}
+/* Selected items get the gold primary-focus background from global-components.css. */
+html[data-theme='dark'] .app-shell :is(.is-selected, [aria-selected='true']) small { color: #3a2f0b !important; }
+
+/* Navy and dark-blue text written for light cards. */
+html[data-theme='dark'] .app-shell :is(
+  .erp-record-facts dd, .settings-tabs > button, .settings-layers-icon,
+  .cash-forecast-currency-note > strong, .pie-record-empty > b, .sid-line-title > b,
+  .workflow-empty > b, .customer-ledger-customer > span, .license-tier-card > div,
+  .cash-forecast-empty strong
+) {
+  color: var(--erp-color-text) !important;
+}
+html[data-theme='dark'] .app-shell .settings-tabs > button.active { color: #f6c23e !important; }
+html[data-theme='dark'] .app-shell :is(
+  .eyebrow, .erp-record-kind, .customer-ledger-eyebrow, .contracts-scope, .ai-inspector-price > b,
+  .ai-model-cost strong, .custom-menu-add-row, .sid-tenant, .pie-tenant, .company-setting-card em,
+  .settings-sidebar em, .company-settings-page em
+) {
+  color: #9cc8f5 !important;
+}
+html[data-theme='dark'] .app-shell :is(.marketplace-card summary, .module-starter-card summary) { color: #c4baff !important; }
