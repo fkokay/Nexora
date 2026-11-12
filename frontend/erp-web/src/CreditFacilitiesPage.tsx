@@ -137,6 +137,25 @@ export default function CreditFacilitiesPage({
     { key: "feeAmount", label: "Ücret", visible: true, position: 5 },
     { key: "actions", label: "İşlem", visible: true, position: 6, fixed: true },
   ]);
+  const [exposureFields, setExposureFields] = useState<ScreenField[]>([
+    { key: "code", label: "Kredi", visible: true, position: 0 },
+    { key: "lenderName", label: "Banka / kurum", visible: true, position: 1 },
+    { key: "currencyCode", label: "Para birimi", visible: true, position: 2 },
+    { key: "approvedLimit", label: "Onaylı limit", visible: false, position: 3 },
+    {
+      key: "outstandingPrincipal",
+      label: "Açık anapara",
+      visible: true,
+      position: 4,
+    },
+    { key: "security", label: "Teminat + garanti", visible: true, position: 5 },
+    {
+      key: "limitUtilization",
+      label: "Limit kullanım",
+      visible: true,
+      position: 6,
+    },
+  ]);
   const [code, setCode] = useState(""),
     [lender, setLender] = useState(""),
     [kind, setKind] = useState("Loan"),
@@ -257,6 +276,26 @@ export default function CreditFacilitiesPage({
             view.fields.map((field, index) => ({
               ...field,
               fixed: field.key === "actions",
+              position: field.position ?? index,
+            })),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+  useEffect(() => {
+    let cancelled = false;
+    request<{ fields: ScreenField[] }>(
+      "/api/screen-views/finance-credit-exposure-facilities/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length)
+          setExposureFields(
+            view.fields.map((field, index) => ({
+              ...field,
               position: field.position ?? index,
             })),
           );
@@ -668,6 +707,9 @@ export default function CreditFacilitiesPage({
   const visibleMovementFields = movementFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
+  const visibleExposureFields = exposureFields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
   const currencySummaries = currencies
     .map((code) => {
       const rows = facilities.filter((f) => f.currencyCode === code);
@@ -759,7 +801,11 @@ export default function CreditFacilitiesPage({
             summaries={currencySummaries}
             formatMoney={money}
           />
-          <CreditExposurePanel exposure={exposure} formatMoney={money} />
+          <CreditExposurePanel
+            exposure={exposure}
+            formatMoney={money}
+            visibleFacilityFields={visibleExposureFields}
+          />
         </>
       )}
       <CreditFacilitySetup

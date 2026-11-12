@@ -99,6 +99,26 @@ internal static class TenantScreenViewEndpoints
         new("quantity", "Miktar", true), new("unitCostBase", "Birim maliyet", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] ManufacturingRecipesScreenFields =
+    [
+        new("recipe", "Reçete", true), new("product", "Mamul", true), new("outputQuantity", "Çıktı", true), new("content", "İçerik", true), new("status", "Durum / kullanım", true), new("workCenters", "İş merkezleri", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] ManufacturingCostVarianceScreenFields =
+    [
+        new("orderCode", "Üretim emri", true), new("plannedDate", "Plan tarihi", true), new("status", "Durum", true), new("plannedQuantity", "Miktar", true), new("plannedMaterial", "Planlanan malzeme", true), new("actualMaterial", "Fiilî malzeme", true), new("plannedConversion", "Planlanan dönüşüm", true), new("actualConversion", "Fiilî dönüşüm", true), new("conversionVariance", "Dönüşüm farkı", true), new("actualTotalCost", "Fiilî toplam", true), new("totalVariance", "Toplam fark", true), new("plannedLabor", "Planlanan işçilik", false), new("actualLabor", "Fiilî işçilik", false)
+    ];
+    private static readonly ScreenViewField[] FinanceCreditExposureFacilitiesScreenFields =
+    [
+        new("code", "Kredi", true), new("lenderName", "Banka / kurum", true), new("currencyCode", "Para birimi", true), new("approvedLimit", "Onaylı limit", false), new("outstandingPrincipal", "Açık anapara", true), new("security", "Teminat + garanti", true), new("limitUtilization", "Limit kullanım", true)
+    ];
+    private static readonly ScreenViewField[] IntegrationOperationsScreenFields =
+    [
+        new("integration", "Entegrasyon", true), new("status", "Durum", true), new("createdAt", "Oluşturulma", true), new("attempts", "Deneme", true), new("errorCode", "Hata kodu", true), new("updatedAt", "Son güncelleme", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] EDocumentSubmissionsScreenFields =
+    [
+        new("documentType", "Tür", true), new("document", "Belge", true), new("issueDate", "Düzenleme tarihi", true), new("currencyCode", "Para birimi", true), new("createdAt", "Hazırlanma", true), new("requestedBy", "Hazırlayan kullanıcı", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
     private static readonly ScreenViewField[] InventoryMovementHistoryFields =
     [
         new("entryDate", "Tarih", true), new("direction", "Yön", true), new("quantity", "Miktar", true),
@@ -560,6 +580,11 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("inventory-transfers", "Depolar arası transferler", InventoryTransferFields),
             new ScreenViewCatalog("inventory-warehouses", "Depo tanımları", InventoryWarehouseFields),
             new ScreenViewCatalog("inventory-movement-history", "Stok hareketleri", InventoryMovementHistoryFields),
+            new ScreenViewCatalog("manufacturing-recipes", "Ürün reçeteleri", ManufacturingRecipesScreenFields),
+            new ScreenViewCatalog("manufacturing-cost-variance", "Üretim maliyet farkı", ManufacturingCostVarianceScreenFields),
+            new ScreenViewCatalog("finance-credit-exposure-facilities", "Kredi bazında maruziyet", FinanceCreditExposureFacilitiesScreenFields),
+            new ScreenViewCatalog("integration-operations", "Entegrasyon işlem geçmişi", IntegrationOperationsScreenFields),
+            new ScreenViewCatalog("e-document-submissions", "Onay bekleyen e-belge gönderimleri", EDocumentSubmissionsScreenFields),
             new ScreenViewCatalog("exchange-rates", "Döviz kurları", ExchangeRateFields),
             new ScreenViewCatalog("warehouse-location-balances", "Depo konum bakiyeleri", WarehouseLocationBalanceFields),
             new ScreenViewCatalog("inventory-warehouse-locations", "Raf ve bölmeler", WarehouseLocationFields),
@@ -862,6 +887,31 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "inventory-stock-movements", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-recipes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-recipes", "Ürün reçeteleri", ManufacturingRecipesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-cost-variance", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-cost-variance", "Üretim maliyet farkı", ManufacturingCostVarianceScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "finance-credit-exposure-facilities", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("finance-credit-exposure-facilities", "Kredi bazında maruziyet", FinanceCreditExposureFacilitiesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "integration-operations", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("integration-operations", "Entegrasyon işlem geçmişi", IntegrationOperationsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "e-document-submissions", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("e-document-submissions", "Onay bekleyen e-belge gönderimleri", EDocumentSubmissionsScreenFields);
             return true;
         }
         if (string.Equals(key, "inventory-movement-history", StringComparison.OrdinalIgnoreCase))

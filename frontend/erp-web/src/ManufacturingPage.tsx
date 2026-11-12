@@ -12,7 +12,9 @@ import { Boxes, ClipboardList, Factory, Filter, Pencil, Plus, Search } from "luc
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
-import ManufacturingRecipeList from "./manufacturing/components/ManufacturingRecipeList";
+import ManufacturingRecipeList, {
+  defaultRecipeFields,
+} from "./manufacturing/components/ManufacturingRecipeList";
 import ManufacturingSummary from "./manufacturing/components/ManufacturingSummary";
 import type {
   ManufacturingBom as Bom,
@@ -554,6 +556,8 @@ export default function ManufacturingPage({
   const [workCenterScreenFields, setWorkCenterScreenFields] = useState<
     ScreenViewField[]
   >(defaultWorkCenterFields);
+  const [recipeScreenFields, setRecipeScreenFields] =
+    useState<ScreenViewField[]>(defaultRecipeFields);
   const visibleWorkCenterFields = workCenterScreenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
@@ -889,6 +893,20 @@ export default function ManufacturingPage({
       .then((view) => {
         if (active && view.fields?.length)
           setWorkCenterScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [request, section]);
+  useEffect(() => {
+    if (section !== "manufacturing-recipes") return;
+    let active = true;
+    void request<{ fields: ScreenViewField[] }>(
+      "/api/screen-views/manufacturing-recipes/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setRecipeScreenFields(view.fields);
       })
       .catch(() => {});
     return () => {
@@ -1914,6 +1932,7 @@ export default function ManufacturingPage({
       <div className="manufacturing-grid">
         {section === "manufacturing-recipes" && (
           <ManufacturingRecipeList
+            fields={recipeScreenFields}
             boms={boms}
             filteredBoms={filteredBoms}
             pagedBoms={pagedBoms}

@@ -145,6 +145,16 @@ export default function ScreenViewPreview({
                                     ? ["MRK", "ANK"]
                                     : screenKey === "inventory-movement-history"
                                     ? ["03.10.2026", "07.10.2026"]
+                                    : screenKey === "manufacturing-recipes"
+                                    ? ["REC-001", "REC-002"]
+                                    : screenKey === "manufacturing-cost-variance"
+                                    ? ["UE-2026-0142", "UE-2026-0143"]
+                                    : screenKey === "finance-credit-exposure-facilities"
+                                    ? ["KRD-2026-001", "BCH-2026-002"]
+                                    : screenKey === "integration-operations"
+                                    ? ["tr.e-document.submit", "tr.e-document.submit"]
+                                    : screenKey === "e-document-submissions"
+                                    ? ["FTR2026000123", "EAR2026000045"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

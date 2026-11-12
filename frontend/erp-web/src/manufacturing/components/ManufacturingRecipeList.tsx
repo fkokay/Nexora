@@ -1,9 +1,29 @@
 import { Boxes, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import type { ManufacturingBom, ManufacturingPageKey } from "../types";
 
+export type RecipeScreenField = {
+  key: string;
+  label: string;
+  visible: boolean;
+  position: number;
+  fixed?: boolean;
+  section?: string | null;
+};
+
+export const defaultRecipeFields: RecipeScreenField[] = [
+  { key: "recipe", label: "Reçete", visible: true, position: 0 },
+  { key: "product", label: "Mamul", visible: true, position: 1 },
+  { key: "outputQuantity", label: "Çıktı", visible: true, position: 2 },
+  { key: "content", label: "İçerik", visible: true, position: 3 },
+  { key: "status", label: "Durum / kullanım", visible: true, position: 4 },
+  { key: "workCenters", label: "İş merkezleri", visible: false, position: 5 },
+  { key: "actions", label: "İşlemler", visible: true, position: 6, fixed: true },
+];
+
 type Props = {
+  fields?: RecipeScreenField[];
   boms: ManufacturingBom[];
   filteredBoms: ManufacturingBom[];
   pagedBoms: ManufacturingBom[];
@@ -22,6 +42,7 @@ type Props = {
 };
 
 export default function ManufacturingRecipeList({
+  fields = defaultRecipeFields,
   boms,
   filteredBoms,
   pagedBoms,
@@ -38,6 +59,96 @@ export default function ManufacturingRecipeList({
   onChangeState,
   onDelete,
 }: Props) {
+  const visibleFields = fields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) => {
+      if (a.key === "actions") return 1;
+      if (b.key === "actions") return -1;
+      return a.position - b.position;
+    });
+  const renderCell = (bom: ManufacturingBom, key: string): ReactNode => {
+    switch (key) {
+      case "recipe":
+        return (
+          <>
+            <b>{bom.code}</b>
+            <small>{bom.name}</small>
+          </>
+        );
+      case "product":
+        return bom.productName;
+      case "outputQuantity":
+        return bom.outputQuantity.toLocaleString("tr-TR", {
+          maximumFractionDigits: 4,
+        });
+      case "content":
+        return (
+          <>
+            {bom.lines.length} bileşen · {bom.operations.length}{" "}
+            operasyon
+          </>
+        );
+      case "status":
+        return (
+          <>
+            <span
+              className={`manufacturing-status ${bom.isActive ? "manufacturing-completed" : "manufacturing-cancelled"}`}
+            >
+              {bom.isActive ? "Aktif" : "Pasif"}
+            </span>
+            <small>{bom.orderCount} üretim emri</small>
+          </>
+        );
+      case "workCenters": {
+        const names = Array.from(
+          new Set(
+            [...bom.operations]
+              .sort((a, b) => a.sequence - b.sequence)
+              .map((operation) => operation.workCenterName)
+              .filter(Boolean),
+          ),
+        );
+        return names.length ? names.join(", ") : "—";
+      }
+      case "actions":
+        return (
+          <div className="manufacturing-recipe-actions">
+            <button
+              type="button"
+              className="secondary small-button"
+              disabled={busy}
+              onClick={() => onEdit(bom)}
+            >
+              <Pencil size={13} /> Düzenle
+            </button>
+            <button
+              type="button"
+              className="secondary small-button"
+              disabled={busy}
+              onClick={() => onChangeState(bom)}
+            >
+              {bom.isActive ? "Pasife al" : "Etkinleştir"}
+            </button>
+            <button
+              type="button"
+              className="secondary small-button manufacturing-recipe-delete"
+              disabled={busy || bom.orderCount > 0}
+              title={
+                bom.orderCount > 0
+                  ? "Üretim emri referansı olan reçeteler silinemez."
+                  : ""
+              }
+              aria-label={`${bom.code} reçetesini sil`}
+              onClick={() => onDelete(bom)}
+            >
+              <Trash2 size={13} /> Sil
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
   return (
     <div className="manufacturing-recipe-stack">
       <section className="panel manufacturing-recipe-filter-card" aria-label="Reçete filtreleri">
@@ -131,73 +242,17 @@ export default function ManufacturingRecipeList({
             >
               <thead>
                 <tr>
-                  <th>Reçete</th>
-                  <th>Mamul</th>
-                  <th>Çıktı</th>
-                  <th>İçerik</th>
-                  <th>Durum / kullanım</th>
-                  <th>İşlemler</th>
+                  {visibleFields.map((field) => (
+                    <th key={field.key}>{field.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {pagedBoms.map((bom) => (
                   <tr key={bom.id}>
-                    <td>
-                      <b>{bom.code}</b>
-                      <small>{bom.name}</small>
-                    </td>
-                    <td>{bom.productName}</td>
-                    <td>
-                      {bom.outputQuantity.toLocaleString("tr-TR", {
-                        maximumFractionDigits: 4,
-                      })}
-                    </td>
-                    <td>
-                      {bom.lines.length} bileşen · {bom.operations.length}{" "}
-                      operasyon
-                    </td>
-                    <td>
-                      <span
-                        className={`manufacturing-status ${bom.isActive ? "manufacturing-completed" : "manufacturing-cancelled"}`}
-                      >
-                        {bom.isActive ? "Aktif" : "Pasif"}
-                      </span>
-                      <small>{bom.orderCount} üretim emri</small>
-                    </td>
-                    <td>
-                      <div className="manufacturing-recipe-actions">
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() => onEdit(bom)}
-                        >
-                          <Pencil size={13} /> Düzenle
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() => onChangeState(bom)}
-                        >
-                          {bom.isActive ? "Pasife al" : "Etkinleştir"}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small-button manufacturing-recipe-delete"
-                          disabled={busy || bom.orderCount > 0}
-                          title={
-                            bom.orderCount > 0
-                              ? "Üretim emri referansı olan reçeteler silinemez."
-                              : ""
-                          }
-                          aria-label={`${bom.code} reçetesini sil`}
-                          onClick={() => onDelete(bom)}
-                        >
-                          <Trash2 size={13} /> Sil
-                        </button>
-                      </div>
-                    </td>
+                    {visibleFields.map((field) => (
+                      <td key={field.key}>{renderCell(bom, field.key)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

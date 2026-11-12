@@ -145,6 +145,16 @@ export default function BuiltInScreenViewsPage({
                                                         ? "Warehouses"
                                                         : en && screenKey === "inventory-movement-history"
                                                         ? "Stock movements"
+                                                        : en && screenKey === "manufacturing-recipes"
+                                                        ? "Product recipes"
+                                                        : en && screenKey === "manufacturing-cost-variance"
+                                                        ? "Manufacturing cost variance"
+                                                        : en && screenKey === "finance-credit-exposure-facilities"
+                                                        ? "Exposure by facility"
+                                                        : en && screenKey === "integration-operations"
+                                                        ? "Integration operation history"
+                                                        : en && screenKey === "e-document-submissions"
+                                                        ? "E-document submissions awaiting approval"
                                                         : en &&
                                                             screenKey ===
                                                               "purchase-receipts"
@@ -663,6 +673,16 @@ export default function BuiltInScreenViewsPage({
                                                               ? "Warehouses"
                                                               : en && catalog.key === "inventory-movement-history"
                                                               ? "Stock movements"
+                                                              : en && catalog.key === "manufacturing-recipes"
+                                                              ? "Product recipes"
+                                                              : en && catalog.key === "manufacturing-cost-variance"
+                                                              ? "Manufacturing cost variance"
+                                                              : en && catalog.key === "finance-credit-exposure-facilities"
+                                                              ? "Exposure by facility"
+                                                              : en && catalog.key === "integration-operations"
+                                                              ? "Integration operation history"
+                                                              : en && catalog.key === "e-document-submissions"
+                                                              ? "E-document submissions awaiting approval"
                                                               : en &&
                                                                   catalog.key ===
                                                                     "purchase-receipts"

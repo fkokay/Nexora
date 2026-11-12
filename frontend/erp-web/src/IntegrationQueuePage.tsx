@@ -3,8 +3,10 @@ import type { FormEvent } from "react";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import IntegrationOperationsList, {
+  defaultIntegrationOperationFields,
   type IntegrationOperation,
   type IntegrationOperationPage,
+  type ScreenField,
 } from "./integration-queue/components/IntegrationOperationsList";
 import { localizedText } from "./locale";
 import { confirmLocalized } from "./locale";
@@ -100,6 +102,16 @@ function documentTypeLabel(type: string) {
   return label ? tr(...label) : type;
 }
 
+const defaultSubmissionFields: (ScreenField & { enLabel: string })[] = [
+  { key: "documentType", label: "Tür", enLabel: "Type", visible: true, position: 0 },
+  { key: "document", label: "Belge", enLabel: "Document", visible: true, position: 1 },
+  { key: "issueDate", label: "Düzenleme tarihi", enLabel: "Issue date", visible: true, position: 2 },
+  { key: "currencyCode", label: "Para birimi", enLabel: "Currency", visible: true, position: 3 },
+  { key: "createdAt", label: "Hazırlanma", enLabel: "Prepared", visible: true, position: 4 },
+  { key: "requestedBy", label: "Hazırlayan kullanıcı", enLabel: "Prepared by", visible: false, position: 5 },
+  { key: "actions", label: "İşlemler", enLabel: "Actions", visible: true, position: 6, fixed: true },
+];
+
 async function fetchQueue<T>(
   url: string,
   token: string,
@@ -175,6 +187,25 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
   );
   const [reviewDetail, setReviewDetail] =
     useState<EDocumentSubmissionDetail | null>(null);
+  const [operationFields, setOperationFields] = useState<ScreenField[]>(
+    defaultIntegrationOperationFields,
+  );
+  const [submissionFields, setSubmissionFields] = useState<ScreenField[]>(
+    defaultSubmissionFields,
+  );
+  const visibleSubmissionFields = submissionFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
+  const submissionColumnSpan = Math.max(visibleSubmissionFields.length, 1);
+  // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
+  const submissionFieldLabel = (field: ScreenField) => {
+    const standard = defaultSubmissionFields.find((item) => item.key === field.key);
+    return standard && standard.label === field.label
+      ? tr(standard.label, standard.enLabel)
+      : field.label;
+  };
   const submissionIdempotencyKey = useRef("");
   const submissionBody = useRef("");
 
@@ -230,6 +261,25 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
     void load(controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    const loadView = (key: string, apply: (fields: ScreenField[]) => void) =>
+      fetchQueue<{ fields: ScreenField[] }>(
+        `/api/screen-views/${key}/active`,
+        token,
+        requestApi,
+      )
+        .then((view) => {
+          if (active && view.fields?.length) apply(view.fields);
+        })
+        .catch(() => {});
+    void loadView("integration-operations", setOperationFields);
+    void loadView("e-document-submissions", setSubmissionFields);
+    return () => {
+      active = false;
+    };
+  }, [token, requestApi]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -376,6 +426,60 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
       );
     } finally {
       setPreviewing(false);
+    }
+  }
+
+  function renderSubmissionCell(field: ScreenField, item: EDocumentSubmission) {
+    switch (field.key) {
+      case "documentType":
+        return <td key={field.key}>{documentTypeLabel(item.documentType)}</td>;
+      case "document":
+        return (
+          <td key={field.key}>
+            <b>{item.documentNumber}</b>
+            <small className="queue-id">{item.documentId}</small>
+          </td>
+        );
+      case "issueDate":
+        return (
+          <td key={field.key}>
+            {new Date(item.issueDate).toLocaleDateString(locale())}
+          </td>
+        );
+      case "currencyCode":
+        return <td key={field.key}>{item.currencyCode}</td>;
+      case "createdAt":
+        return (
+          <td key={field.key}>
+            {new Date(item.createdAt).toLocaleString(locale(), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </td>
+        );
+      case "requestedBy":
+        return (
+          <td key={field.key}>
+            <small className="queue-id">{item.requestedByUserId}</small>
+          </td>
+        );
+      case "actions":
+        return (
+          <td key={field.key}>
+            <button
+              type="button"
+              className="primary small-button"
+              disabled={busyId === item.operationId}
+              onClick={() => void reviewSubmission(item)}
+            >
+              {busyId === item.operationId
+                ? tr("Yükleniyor…", "Loading…")
+                : tr("İncele", "Review")}
+            </button>
+          </td>
+        );
+      default:
+        return <td key={field.key}>—</td>;
     }
   }
 
@@ -825,18 +929,17 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
             </caption>
             <thead>
               <tr>
-                <th scope="col">{tr("Tür", "Type")}</th>
-                <th scope="col">{tr("Belge", "Document")}</th>
-                <th scope="col">{tr("Düzenleme tarihi", "Issue date")}</th>
-                <th scope="col">{tr("Para birimi", "Currency")}</th>
-                <th scope="col">{tr("Hazırlanma", "Prepared")}</th>
-                <th scope="col">{tr("İşlemler", "Actions")}</th>
+                {visibleSubmissionFields.map((field) => (
+                  <th key={field.key} scope="col">
+                    {submissionFieldLabel(field)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {submissionsLoading ? (
                 <tr>
-                  <td colSpan={6} className="queue-empty" role="status">
+                  <td colSpan={submissionColumnSpan} className="queue-empty" role="status">
                     {tr(
                       "Onay bekleyen gönderimler yükleniyor…",
                       "Loading submissions awaiting approval…",
@@ -845,7 +948,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
                 </tr>
               ) : submissionsError ? (
                 <tr>
-                  <td colSpan={6} className="queue-empty">
+                  <td colSpan={submissionColumnSpan} className="queue-empty">
                     {tr(
                       "Gönderim listesi görüntülenemiyor. Yenile düğmesini kullanın.",
                       "Cannot display the submission list. Use Refresh to try again.",
@@ -855,38 +958,14 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
               ) : submissions.length ? (
                 submissions.map((item) => (
                   <tr key={item.operationId}>
-                    <td>{documentTypeLabel(item.documentType)}</td>
-                    <td>
-                      <b>{item.documentNumber}</b>
-                      <small className="queue-id">{item.documentId}</small>
-                    </td>
-                    <td>
-                      {new Date(item.issueDate).toLocaleDateString(locale())}
-                    </td>
-                    <td>{item.currencyCode}</td>
-                    <td>
-                      {new Date(item.createdAt).toLocaleString(locale(), {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="primary small-button"
-                        disabled={busyId === item.operationId}
-                        onClick={() => void reviewSubmission(item)}
-                      >
-                        {busyId === item.operationId
-                          ? tr("Yükleniyor…", "Loading…")
-                          : tr("İncele", "Review")}
-                      </button>
-                    </td>
+                    {visibleSubmissionFields.map((field) =>
+                      renderSubmissionCell(field, item),
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="queue-empty">
+                  <td colSpan={submissionColumnSpan} className="queue-empty">
                     {tr(
                       "Onay bekleyen gönderim yok.",
                       "No submissions are awaiting approval.",
@@ -984,6 +1063,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           tr={tr}
           locale={locale}
           statusLabel={statusLabel}
+          fields={operationFields}
         />
       </section>
       <div className="boundary-note integration-queue-boundary">
