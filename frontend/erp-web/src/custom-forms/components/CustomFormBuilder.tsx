@@ -1,5 +1,7 @@
 import { Eye, GripVertical, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { RecordFormGroup, RecordFormPage } from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 import { fieldTypes, groupFieldsBySection, isFieldRequired, isFieldVisible, type Field, type Form } from "../types";
 
 type Props = {
@@ -64,79 +66,93 @@ export function CustomFormBuilder(props: Props) {
   const effectiveValues = Object.fromEntries(
     fields.map((field) => [field.code, values[field.code] ?? field.defaultValue ?? ""]),
   ) as Record<string, string>;
+  const saveBlocked = !name.trim() || fields.length === 0;
   return (
     <section className="form-builder">
-      <div className="builder-title">
-        <div>
-          <p className="eyebrow">
-            {selected ? `${selected.code} · v${selected.version}` : "YENİ FORM"}
-          </p>
-          <h2>{selected ? "Taslağı düzenle" : "Form tasarla"}</h2>
-        </div>
-        <div className="builder-actions">
-          <div
-            className="builder-view-switch"
-            role="group"
-            aria-label="Form oluşturucu görünümü"
+      <RecordFormPage
+        variant="dialog"
+        className="prf-flush prf-form-meta"
+        title={selected ? "Taslağı düzenle" : "Form tasarla"}
+        mode={selected ? "edit" : "create"}
+        busy={busy}
+        saveLabel="Taslağı kaydet"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (saveBlocked) return;
+          onSave();
+        }}
+        onCancel={onCancel}
+        status={
+          <>
+            {selected && (
+              <span>
+                {selected.code} · v{selected.version}
+              </span>
+            )}
+            {saveBlocked && (
+              <span className="rf-status-warning">
+                Taslağı kaydetmek için form adı ve en az bir alan gerekir.
+              </span>
+            )}
+          </>
+        }
+      >
+        <RecordFormGroup title="Form Kimliği" bodyClassName="rf-identity">
+          <label>
+            Form adı
+            <input
+              className="rf-must"
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              maxLength={120}
+              placeholder="Örn. Masraf talebi"
+            />
+          </label>
+          <label>
+            Form kodu
+            <input
+              className="rf-mono"
+              value={code}
+              onChange={(event) => onCodeChange(event.target.value)}
+              disabled={!!selected}
+              maxLength={40}
+              placeholder="masraf-talebi"
+            />
+          </label>
+          <label className="wide">
+            Açıklama
+            <textarea
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              maxLength={500}
+              placeholder="Formun hangi süreçte kullanıldığını açıklayın"
+            />
+          </label>
+        </RecordFormGroup>
+      </RecordFormPage>
+      <div className="prf-builder-switch">
+        <div
+          className="builder-view-switch"
+          role="group"
+          aria-label="Form oluşturucu görünümü"
+        >
+          <button
+            type="button"
+            className={!builderPreview ? "active" : ""}
+            aria-pressed={!builderPreview}
+            onClick={() => onPreviewChange(false)}
           >
-            <button
-              type="button"
-              className={!builderPreview ? "active" : ""}
-              aria-pressed={!builderPreview}
-              onClick={() => onPreviewChange(false)}
-            >
-              <GripVertical size={15} /> Tasarım
-            </button>
-            <button
-              type="button"
-              className={builderPreview ? "active" : ""}
-              aria-pressed={builderPreview}
-              onClick={() => onPreviewChange(true)}
-            >
-              <Eye size={15} /> Önizleme
-            </button>
-          </div>
-          <button className="secondary" onClick={onCancel}>
-            Vazgeç
+            <GripVertical size={15} /> Tasarım
           </button>
           <button
-            className="primary"
-            disabled={busy || !name.trim() || fields.length === 0}
-            onClick={onSave}
+            type="button"
+            className={builderPreview ? "active" : ""}
+            aria-pressed={builderPreview}
+            onClick={() => onPreviewChange(true)}
           >
-            {busy ? "Kaydediliyor…" : "Taslağı kaydet"}
+            <Eye size={15} /> Önizleme
           </button>
         </div>
-      </div>
-      <div className="form-meta-grid">
-        <label>
-          Form adı
-          <input
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            maxLength={120}
-            placeholder="Örn. Masraf talebi"
-          />
-        </label>
-        <label>
-          Form kodu
-          <input
-            value={code}
-            onChange={(event) => onCodeChange(event.target.value)}
-            disabled={!!selected}
-            maxLength={40}
-            placeholder="masraf-talebi"
-          />
-        </label>
-        <label className="wide">
-          Açıklama
-          <textarea
-            value={description}
-            onChange={(event) => onDescriptionChange(event.target.value)}
-            maxLength={500}
-            placeholder="Formun hangi süreçte kullanıldığını açıklayın"
-          />
-        </label>
       </div>
       {!builderPreview && (
         <>
