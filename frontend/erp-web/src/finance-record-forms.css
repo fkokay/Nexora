@@ -131,7 +131,8 @@
 
 /* Modal ve <dialog> içinde: RecordFormPage kendi başlığını ve boşluğunu getirir. */
 dialog.finance-form-dialog.fin-rf-dialog { padding: 0; }
-.foreign-trade-create.fin-rf-host { padding: 0; }
+#root .app-shell .foreign-trade-create.fin-rf-host,
+.foreign-trade-create.fin-rf-host { width: min(980px, 100%); padding: 0; overflow: auto; }
 .account-transactions-modal .fin-rf-inline { border-top: 1px solid #d5dfeb; border-bottom: 1px solid #d5dfeb; }
 html[data-theme="dark"] .account-transactions-modal .fin-rf-inline { border-color: #30394d; }
 

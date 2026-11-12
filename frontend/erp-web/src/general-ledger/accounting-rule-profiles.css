@@ -4,7 +4,8 @@
 .accounting-rule-profiles .eyebrow{font-size:10px;letter-spacing:.1em;color:#6951df;font-weight:700}
 .accounting-rule-profiles h2{margin:3px 0;font-size:18px}.accounting-rule-profiles header p{margin:0;color:#65748e;font-size:12px}
 .accounting-rule-layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:18px;padding-top:16px}
-.accounting-rule-layout aside,.accounting-rule-layout form{border:1px solid #e0e7f2;border-radius:10px;padding:14px;min-width:0}
+.accounting-rule-layout aside{border:1px solid #e0e7f2;border-radius:10px;padding:14px;min-width:0}
+.accounting-rule-layout .accounting-rule-form-host{border:1px solid #e0e7f2;border-radius:10px;min-width:0}
 .accounting-rule-layout aside h3{font-size:13px;margin:0 0 10px}
 .accounting-rule-layout aside button{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px;text-align:left;background:#fff;border:1px solid transparent;border-radius:8px;color:#17253d;cursor:pointer}
 .accounting-rule-layout aside button.selected{border-color:#cfc5ff;background:#f7f5ff}.accounting-rule-layout aside button span{font-size:11px;color:#71809b}
