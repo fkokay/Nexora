@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-13 Stock-movement history screen view
+
+The built-in screen-view allowlist now includes `inventory-movement-history` (Stok hareketleri): TenantAdmins can reorder, hide/show and relabel the date, direction, quantity, warehouse, location, lot/serial and description columns of the Stok Hareketleri page, and opt in to a unit-cost column that is hidden by default. In the English UI, columns that still carry the standard Turkish label are shown with their English label; tenant-relabelled columns keep the tenant text. The editor preview has sample rows and an English title. A focused integration test covers the catalog field set, blank-label rejection, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 68/68 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.
+
 ### 2026-11-13 Warehouse list screen view
 
 The built-in screen-view allowlist now includes `inventory-warehouses` (Depo tanımları): TenantAdmins can reorder, hide/show and relabel the warehouse code, name, status and availability-description columns. The Stok & Depo warehouse table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, rejection of a layout that omits a catalog field, reordering, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 67/67 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.

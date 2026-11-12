@@ -143,6 +143,8 @@ export default function ScreenViewPreview({
                                     ? ["TRF-2026-001", "TRF-2026-002"]
                                     : screenKey === "inventory-warehouses"
                                     ? ["MRK", "ANK"]
+                                    : screenKey === "inventory-movement-history"
+                                    ? ["03.10.2026", "07.10.2026"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

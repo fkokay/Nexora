@@ -143,6 +143,8 @@ export default function BuiltInScreenViewsPage({
                                                         ? "Warehouse transfers"
                                                         : en && screenKey === "inventory-warehouses"
                                                         ? "Warehouses"
+                                                        : en && screenKey === "inventory-movement-history"
+                                                        ? "Stock movements"
                                                         : en &&
                                                             screenKey ===
                                                               "purchase-receipts"
@@ -659,6 +661,8 @@ export default function BuiltInScreenViewsPage({
                                                               ? "Warehouse transfers"
                                                               : en && catalog.key === "inventory-warehouses"
                                                               ? "Warehouses"
+                                                              : en && catalog.key === "inventory-movement-history"
+                                                              ? "Stock movements"
                                                               : en &&
                                                                   catalog.key ===
                                                                     "purchase-receipts"
