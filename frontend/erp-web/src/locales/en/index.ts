@@ -2,12 +2,13 @@ import * as dialogs from './dialogs'
 import * as finance from './finance'
 import * as hrAssets from './hr-assets'
 import * as inventoryManufacturing from './inventory-manufacturing'
+import * as pageReview from './page-review'
 import * as platformA from './platform-a'
 import * as platformB from './platform-b'
 import * as purchasingCustomers from './purchasing-customers'
 import * as sales from './sales'
 
-const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs]
+const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview]
 
 
 /** Module dictionaries; the first group that defines a key wins. */
