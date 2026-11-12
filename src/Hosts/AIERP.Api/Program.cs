@@ -8101,6 +8101,7 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
 generalLedger.MapTrialBalanceEndpoint();
 generalLedger.MapLedgerAccountStatementEndpoint();
 generalLedger.MapBalanceSheetEndpoint();
+generalLedger.MapStatutoryCashFlowStatementEndpoint();
 generalLedger.MapFiscalYearCloseEndpoints();
 generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {

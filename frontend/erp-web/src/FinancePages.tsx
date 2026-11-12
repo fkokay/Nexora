@@ -32,6 +32,9 @@ const ExchangeRatesPage = lazy(() => import("./ExchangeRatesPage"));
 const FxRevaluationPage = lazy(() => import("./FxRevaluationPage"));
 const GeneralLedgerPage = lazy(() => import("./GeneralLedgerPage"));
 const Tms7CashFlowPage = lazy(() => import("./Tms7CashFlowPage"));
+const StatutoryCashFlowStatementPanel = lazy(
+  () => import("./StatutoryCashFlowStatementPanel"),
+);
 const CreditFacilitiesPage = lazy(() => import("./CreditFacilitiesPage"));
 
 function FinancePage({
@@ -855,6 +858,13 @@ function FinancePage({
           from={cashFlowFrom}
           to={cashFlowTo}
           role={role}
+        />
+      )}
+      {section === "finance-cash-flow" && (
+        <StatutoryCashFlowStatementPanel
+          token={token}
+          from={cashFlowFrom}
+          to={cashFlowTo}
         />
       )}
       {section === "finance-cash-flow" && <CashForecastPanel token={token} />}
