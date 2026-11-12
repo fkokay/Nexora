@@ -1,6 +1,7 @@
 /** English text for native confirm/prompt dialogs, passed through confirmLocalized/promptLocalized.
  * Keys are exact Turkish source texts. */
 export const english: Record<string, string> = {
+  'Bu ajanda kaydı silinsin mi?': 'Delete this agenda entry?',
   'Bu manuel hareket ters kayıtla iptal edilsin mi?': 'Cancel this manual transaction with a reversing entry?',
   'Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez. Devam edilsin mi?':
     'This mapping will be used for future transfers. Journal entries already created will not change. Continue?',

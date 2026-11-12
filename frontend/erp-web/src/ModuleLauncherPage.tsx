@@ -7,7 +7,6 @@ import {
   Bell,
   Boxes,
   Building2,
-  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
@@ -38,6 +37,7 @@ import type { ErpDashboardSummary } from "./dashboard/types";
 import type { ExchangeRate } from "./exchange-rates/types";
 import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { LauncherAssistantWidget } from "./LauncherAssistantWidget";
+import { LauncherAgendaPanel } from "./LauncherAgendaPanel";
 import { LauncherBackgroundPicker } from "./LauncherBackgroundPicker";
 import { launcherBackgroundProps, loadLauncherBackground, saveLauncherBackground, type LauncherBackground } from "./launcher-background";
 import {
@@ -1007,7 +1007,7 @@ export function ModuleLauncher({
             </div>
           </section>}
           {visibleWidgets.includes("cash") && <section className="launcher-panel launcher-cash" data-dashboard-widget="cash" data-selected={selectedWidget === "cash"} style={dashboardWidgetStyle("cash")}><button className="launcher-panel-link" type="button" onClick={() => openPage("finance-accounts")}><span><Landmark size={20} />{english ? "Cash & Bank" : "Kasa & Banka"}</span><ChevronRight size={18} /></button><p>{english ? "Active account balance" : "Aktif hesap bakiyesi"}</p><strong>{financialAccountsLoading ? "…" : baseCurrencyAccounts.length ? formatMoney(baseCurrencyBalance) : "—"}</strong><small>{financialAccountsLoading ? (english ? "Loading accounts…" : "Hesaplar yükleniyor…") : baseCurrencyAccounts.length ? `${baseCurrencyAccounts.length} ${english ? "accounts" : "hesap"} · ${currency}` : (english ? `No active ${currency} accounts` : `Aktif ${currency} hesabı yok`)}</small></section>}
-          {visibleWidgets.includes("agenda") && <section className="launcher-panel launcher-agenda" data-dashboard-widget="agenda" data-selected={selectedWidget === "agenda"} style={dashboardWidgetStyle("agenda")}><header><span><CalendarDays size={20} />{english ? "Agenda" : "Ajanda"}</span><span className="panel-date">{english ? "Today" : "Bugün"}</span></header><div className="launcher-empty-state">{english ? "Your agenda items will appear here." : "Ajanda kayıtlarınız burada görüntülenir."}</div></section>}
+          {visibleWidgets.includes("agenda") && <LauncherAgendaPanel token={token} english={english} selected={selectedWidget === "agenda"} style={dashboardWidgetStyle("agenda")} />}
           {visibleWidgets.includes("quickActions") && <section className={`launcher-panel launcher-quick-actions${quickActionsCollapsed ? " is-collapsed" : ""}`} data-dashboard-widget="quickActions" data-selected={selectedWidget === "quickActions"} style={dashboardWidgetStyle("quickActions")}><header><span><Activity size={20} />{english ? "Quick actions" : "Hızlı İşlemler"}</span><button type="button" className="launcher-quick-actions-collapse" aria-label={quickActionsCollapsed ? (english ? "Expand quick actions" : "Hızlı İşlemleri genişlet") : (english ? "Collapse quick actions" : "Hızlı İşlemleri daralt")} aria-expanded={!quickActionsCollapsed} onClick={() => setQuickActionsCollapsed((collapsed) => !collapsed)}>{quickActionsCollapsed ? <ChevronDown size={17} /> : <ChevronUp size={17} />}</button></header>{!quickActionsCollapsed && <div className="launcher-action-grid">{quickLinks.slice(0, 4).map((result, index) => <button type="button" key={result.page || result.label} onClick={() => onOpenResult(result)}><span className={`quick-action-icon quick-action-${index}`}>{icon(result, 20)}</span><b>{result.label}</b></button>)}</div>}</section>}
         </aside>
         <section className="launcher-center" aria-label={english ? "ERP workspace" : "ERP çalışma alanı"}>
