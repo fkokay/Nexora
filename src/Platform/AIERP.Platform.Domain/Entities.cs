@@ -3257,6 +3257,21 @@ public sealed class TenantUserPreference
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Personal agenda entry shown on the ERP home launcher; visible only to the user who created it.</summary>
+public sealed class AgendaItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public string Title { get; set; } = "";
+    public DateTimeOffset StartsAt { get; set; }
+    public string? Notes { get; set; }
+    public bool IsCompleted { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class TenantCustomizationPackageSnapshot
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -11,6 +11,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public Guid? ExecutionTenantId => auditExecutionContext?.TenantId;
     public DbSet<TenantStandardMenuLayout> TenantStandardMenuLayouts => Set<TenantStandardMenuLayout>();
     public DbSet<TenantUserPreference> TenantUserPreferences => Set<TenantUserPreference>();
+    public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();
     public DbSet<TenantCustomizationPackageSnapshot> TenantCustomizationPackageSnapshots => Set<TenantCustomizationPackageSnapshot>();
     public DbSet<TenantDocumentNumberTemplate> TenantDocumentNumberTemplates => Set<TenantDocumentNumberTemplate>();
     public DbSet<TenantDocumentNumberCounter> TenantDocumentNumberCounters => Set<TenantDocumentNumberCounter>();
@@ -101,6 +102,15 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.PreferenceKey).HasMaxLength(80).IsUnicode(false).IsRequired();
             e.Property(x => x.ValueJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<AgendaItem>(e =>
+        {
+            e.ToTable("AgendaItems");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.UserId, x.StartsAt });
+            e.Property(x => x.Title).HasMaxLength(160).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(1000);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<TenantCustomizationPackageSnapshot>(e =>

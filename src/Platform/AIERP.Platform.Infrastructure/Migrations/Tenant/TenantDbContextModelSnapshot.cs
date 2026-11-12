@@ -94,6 +94,49 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("AccountingRuleProfiles");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.AgendaItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UserId", "StartsAt");
+
+                    b.ToTable("AgendaItems", (string)null);
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.AuditEvent", b =>
                 {
                     b.Property<long>("Id")
@@ -18248,8 +18291,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
 
                     b.Property<string>("PreferenceKey")
                         .IsRequired()
-                        .IsUnicode(false)
                         .HasMaxLength(80)
+                        .IsUnicode(false)
                         .HasColumnType("varchar(80)");
 
                     b.Property<int>("Revision")
@@ -18262,19 +18305,19 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ValueJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "UserId", "PreferenceKey")
                         .IsUnique();
 
-                    b.ToTable("TenantUserPreferences");
+                    b.ToTable("TenantUserPreferences", (string)null);
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantWorkflowAction", b =>
@@ -18786,7 +18829,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AIERP.Platform.Domain.TenantUserPreference", b =>
+            modelBuilder.Entity("AIERP.Platform.Domain.AgendaItem", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
@@ -22018,6 +22061,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantStandardMenuLayout", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantUserPreference", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
