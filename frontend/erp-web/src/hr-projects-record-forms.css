@@ -1,0 +1,84 @@
+/* İK, duran varlık ve proje ekranlarındaki kayıt formları: ortak RecordForm yapısının panel / diyalog içi kullanımı. */
+.hrp-record-form-host { display: block; min-width: 0; }
+
+/* Panel içindeki form kendi çerçevesini taşır; komut çubuğu ve durum çubuğu kutunun parçasıdır. */
+.record-form.hrp-record-form {
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 6px;
+  background: var(--rf-surface);
+  overflow: hidden;
+}
+.record-form.hrp-record-form .rf-title h1 { font-size: 16px !important; line-height: 1.3 !important; letter-spacing: 0 !important; }
+
+/* Her zaman görünen formlarda kapatılacak bir şey yoktur: "Vazgeç" gizlenir. */
+.record-form.hrp-no-cancel .rf-actions > .rf-btn:last-child { display: none; }
+
+/* Alan sayısı değişen kimlik şeritleri ve grup gövdeleri için eşit sütunlu ızgara. */
+.record-form.hrp-record-form .hrp-identity-even { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.record-form.hrp-record-form .hrp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 20px;
+
+}
+.record-form.hrp-record-form .hrp-grid > .hrp-span { grid-column: 1 / -1; }
+
+/* Çok satırlı alanlar ve çoklu seçim, 40px alan yüksekliği kuralının dışında kalır. */
+.record-form.hrp-record-form .rf-form textarea:not([type="checkbox"]) { height: auto; min-height: 72px; }
+.record-form.hrp-record-form .rf-form select[multiple] { height: auto; min-height: 96px; padding: 6px 8px; }
+.record-form.hrp-record-form .rf-form input[readonly] { background: var(--rf-band); color: var(--rf-muted); }
+.record-form.hrp-record-form .rf-form :is(input, select, textarea):disabled { background: var(--rf-band); color: var(--rf-muted); }
+
+/* Açıklama ve bilgi notları */
+.record-form.hrp-record-form .hrp-note {
+  margin: 0;
+  color: var(--rf-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.record-form.hrp-record-form .rf-form .hrp-group-action { align-self: end; justify-self: start; width: auto; white-space: nowrap; }
+
+/* Formu taşıyan eski kapsayıcıların iç boşluğu forma devredilir. */
+.hr-employee-dialog.hrp-dialog-shell { padding: 0; overflow: auto; }
+.hr-employee-dialog.hrp-dialog-shell .record-form.hrp-record-form,
+.op-project-modal .record-form.hrp-record-form { border: 0; border-radius: 0; }
+.hr-panel > .hrp-record-form-host + .hr-table-wrap { margin-top: 16px; }
+.op-project-split .hrp-record-form-host,
+.op-project-time .hrp-record-form-host { margin-top: 14px; }
+
+/* Kod + ad + üçüncü alan düzenindeki kimlik şeritleri. */
+.record-form.hrp-record-form .hrp-identity-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.2fr); }
+.hrp-form-section { margin: 0 0 20px; }
+@media (max-width: 1100px) {
+  .record-form.hrp-record-form .hrp-identity-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form.hrp-record-form .hrp-identity-3 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Yalnızca formu taşıyan İK panelleri: çerçeve ve boşluk formun kendisindedir. */
+.hr-panel.hrp-form-panel { padding: 0; border: 0; background: none; box-shadow: none; }
+
+/* Tam genişlikte duran formlar diyalog sıkılığında kalır ama üç sütunu korur. */
+.record-form.hrp-record-form.hrp-wide .rf-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) {
+  .record-form.hrp-record-form.hrp-wide .rf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form.hrp-record-form.hrp-wide .rf-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Etiketi iki satıra kırılan alanlarda giriş kutuları aynı hizada kalsın. */
+.record-form.hrp-record-form .rf-identity,
+.record-form.hrp-record-form .hrp-grid { align-items: end; }
+
+/* Ortak diyalog kuralı .hr-employee-dialog içindeki her submit düğmesini birincil renge boyar;
+   "Kaydet ve Yeni" ikincil düğme olarak kalmalı. */
+.app-shell .hr-employee-dialog.hrp-dialog-shell .record-form.hrp-record-form .rf-btn:not(.rf-btn--primary) {
+  border: 1px solid var(--rf-border);
+  background: var(--rf-surface);
+  color: var(--rf-label);
+  font-weight: 500;
+  box-shadow: none;
+}
