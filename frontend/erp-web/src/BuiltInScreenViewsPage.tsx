@@ -135,6 +135,8 @@ export default function BuiltInScreenViewsPage({
                                                         ? "Purchase orders"
                                                         : en && screenKey === "purchase-supplier-quotes"
                                                         ? "Supplier quotes"
+                                                        : en && screenKey === "manufacturing-work-centers"
+                                                        ? "Work centers"
                                                         : en &&
                                                             screenKey ===
                                                               "purchase-receipts"
@@ -643,6 +645,8 @@ export default function BuiltInScreenViewsPage({
                                                               ? "Purchase orders"
                                                               : en && catalog.key === "purchase-supplier-quotes"
                                                               ? "Supplier quotes"
+                                                              : en && catalog.key === "manufacturing-work-centers"
+                                                              ? "Work centers"
                                                               : en &&
                                                                   catalog.key ===
                                                                     "purchase-receipts"

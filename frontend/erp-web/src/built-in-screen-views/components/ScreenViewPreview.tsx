@@ -135,6 +135,8 @@ export default function ScreenViewPreview({
                                     ? ["SAT-001", "SAT-002"]
                                     : screenKey === "purchase-supplier-quotes"
                                     ? ["TKL-2026-001", "TKL-2026-002"]
+                                    : screenKey === "manufacturing-work-centers"
+                                    ? ["IM-KESIM", "IM-MONTAJ"]
                                     : screenKey === "purchase-receipts"
                                       ? ["MKB-2026-001", "MKB-2026-002"]
                                       : screenKey ===

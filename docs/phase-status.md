@@ -1,4 +1,8 @@
 # Master Prompt Phase Status
+### 2026-11-12 Work-center list screen view
+
+The built-in screen-view allowlist now includes `manufacturing-work-centers` (İş merkezleri): TenantAdmins can reorder, hide/show and relabel the code, name, daily capacity, labor and overhead cost-per-hour and status columns, and opt in to a shift-hours column that is hidden by default. The Üretim work-center table renders the published layout and falls back to the standard columns; the editor preview has sample rows and an English title. A focused integration test covers the catalog field set, publish, TenantUser read and tenant isolation; `CustomFormEndpointsIntegrationTests` passed 64/64 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.
+
 ### 2026-11-12 Supplier-quote list screen view
 
 The built-in screen-view allowlist now includes `purchase-supplier-quotes` (Tedarikçi teklifleri): TenantAdmins can reorder, hide/show and relabel the quote number, request, supplier, date, validity, status and total columns, and opt in to the line-count and created-at columns, which are hidden by default. The Satın Alma supplier-quote table renders the tenant's published layout and falls back to the standard columns when no view is published or the request fails. The screen-view editor preview has sample rows and an English title for this screen. A focused integration test covers the catalog field set, default visibility, rejection of a non-catalog field, publish, TenantUser read and tenant isolation; the `CustomFormEndpointsIntegrationTests` class passed 63/63 and the ERP Web production build passed. Not verified in a running browser against a live API; no schema migration is required.

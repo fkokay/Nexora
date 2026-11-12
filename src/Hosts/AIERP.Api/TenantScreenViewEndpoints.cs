@@ -275,6 +275,12 @@ internal static class TenantScreenViewEndpoints
         new("plannedQuantity", "Planlanan miktar", true), new("components", "Bileşenler", true),
         new("status", "Durum", true), new("actions", "İşlem", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] ManufacturingWorkCenterFields =
+    [
+        new("code", "Kod", true), new("name", "İş merkezi", true), new("capacityMinutesPerDay", "Günlük kapasite", true),
+        new("laborCostPerHourBase", "İşçilik / saat", true), new("overheadCostPerHourBase", "Genel gider / saat", true),
+        new("status", "Durum", true), new("shift", "Vardiya", false)
+    ];
     private static readonly ScreenViewField[] ManufacturingMrpLineFields =
     [
         new("stockItem", "Stok kartı", true), new("level", "Seviye", true),
@@ -554,6 +560,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-delivery-note-lines", "Tedarikçi irsaliye satırları", PurchaseDeliveryNoteLineFields),
             new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields),
             new ScreenViewCatalog("manufacturing-mrp-lines", "MRP plan sonuçları", ManufacturingMrpLineFields),
+            new ScreenViewCatalog("manufacturing-work-centers", "İş merkezleri", ManufacturingWorkCenterFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("fixed-asset-depreciation", "Amortisman planı", FixedAssetDepreciationFields),
             new ScreenViewCatalog("fixed-asset-assignments", "Zimmet geçmişi", FixedAssetAssignmentFields),
@@ -957,6 +964,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "manufacturing-orders", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-work-centers", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-work-centers", "İş merkezleri", ManufacturingWorkCenterFields);
             return true;
         }
         if (string.Equals(key, "manufacturing-mrp-lines", StringComparison.OrdinalIgnoreCase))

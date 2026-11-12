@@ -373,6 +373,42 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Work_center_layout_is_tenant_scoped_and_can_show_the_shift_column()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var centers = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "manufacturing-work-centers");
+        Assert.Equal(["code", "name", "capacityMinutesPerDay", "laborCostPerHourBase", "overheadCostPerHourBase", "status", "shift"],
+            centers.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/manufacturing-work-centers/draft", new { name = "Kapasite görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "capacityMinutesPerDay" ? "Kapasite (dk/gün)" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is "shift" or "code" or "name" or "capacityMinutesPerDay" or "status",
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Kapasite görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-work-centers/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.True(activeA.Single(x => x.GetProperty("key").GetString() == "shift").GetProperty("visible").GetBoolean());
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "laborCostPerHourBase").GetProperty("visible").GetBoolean());
+        Assert.Equal("Kapasite (dk/gün)", activeA.Single(x => x.GetProperty("key").GetString() == "capacityMinutesPerDay").GetProperty("label").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-work-centers/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.False(activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "shift").GetProperty("visible").GetBoolean());
+    }
+
+    [Fact]
     public async Task Built_in_screen_field_sections_are_tenant_scoped_versioned_and_keep_actions_fixed()
     {
         await using var app = await StartApplicationAsync();
