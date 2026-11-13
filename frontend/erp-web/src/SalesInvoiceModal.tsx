@@ -697,6 +697,12 @@ export function SalesInvoiceModal({
                 {taxes.length > 0 && <div className="invoice-tax-breakdown-list">{taxes.map((tax, index) => <span key={`${tax.code}-${index}`}><b>{tax.name}</b><small>{tax.code} · %{tax.rate} · {tax.treatment === "Withholding" ? "Tevkifat" : "Ek vergi"}</small><strong>{tax.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</strong></span>)}</div>}
               </section>;
             })()}
+            {invoice.notes && (
+              <section className="invoice-note-view" aria-label="Fatura notu">
+                <b>Fatura notu</b>
+                <p>{invoice.notes}</p>
+              </section>
+            )}
             {invoice &&
               (invoice.customFields?.length > 0 || role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <section className="panel invoice-custom-fields">

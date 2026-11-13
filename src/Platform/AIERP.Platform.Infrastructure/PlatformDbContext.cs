@@ -1880,6 +1880,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.InvoiceType).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.AccountingProfileCode).HasMaxLength(32).IsUnicode(false);
             e.Property(x => x.TaxBreakdownJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Notes).HasMaxLength(1000);
             e.Property(x => x.Subtotal).HasPrecision(18, 2);
             e.Property(x => x.DiscountTotal).HasPrecision(18, 2);
             e.Property(x => x.TaxTotal).HasPrecision(18, 2);
