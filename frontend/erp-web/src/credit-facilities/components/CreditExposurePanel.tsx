@@ -1,11 +1,69 @@
-import type { ExposureSummary } from "../types";
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { Exposure, ExposureSummary, ScreenField } from "../types";
 
 type Props = {
   exposure: ExposureSummary;
   formatMoney: (amount: number, currency: string) => string;
+  visibleFacilityFields: ScreenField[];
 };
 
-export function CreditExposurePanel({ exposure, formatMoney }: Props) {
+export function CreditExposurePanel({
+  exposure,
+  formatMoney,
+  visibleFacilityFields,
+}: Props) {
+  function renderFacilityCell(field: ScreenField, row: Exposure) {
+    switch (field.key) {
+      case "code":
+        return (
+          <td key={field.key}>
+            {row.code}
+            <small>{row.status === "Active" ? "Aktif" : "Kapalı"}</small>
+          </td>
+        );
+      case "lenderName":
+        return <td key={field.key}>{row.lenderName}</td>;
+      case "currencyCode":
+        return <td key={field.key}>{row.currencyCode}</td>;
+      case "approvedLimit":
+        return (
+          <td key={field.key}>
+            {formatMoney(row.approvedLimit, row.currencyCode)}
+          </td>
+        );
+      case "outstandingPrincipal":
+        return (
+          <td key={field.key}>
+            {formatMoney(row.outstandingPrincipal, row.currencyCode)}
+          </td>
+        );
+      case "security":
+        return (
+          <td key={field.key}>
+            {formatMoney(
+              row.activeGuarantees + row.activeCollateral,
+              row.currencyCode,
+            )}
+            <small>
+              {formatMoney(row.calledAmount, row.currencyCode)} çağrılmış
+            </small>
+          </td>
+        );
+      case "limitUtilization":
+        return (
+          <td key={field.key}>
+            {row.limitUtilizationPercent.toLocaleString("tr-TR", {
+              maximumFractionDigits: 2,
+            })}
+            %
+          </td>
+        );
+      default:
+        return <td key={field.key}>-</td>;
+    }
+  }
+
   return (
     exposure.currencies.length > 0 && (
       <section
@@ -62,51 +120,31 @@ export function CreditExposurePanel({ exposure, formatMoney }: Props) {
           aria-label="Kredi bazında maruziyet"
           tabIndex={0}
         >
-          <table className="customer-table credit-table">
+          <AdvancedDataGrid
+            className="customer-table credit-table"
+            gridId="finance-credit-exposure-facilities"
+            {...screenViewGridDefaults(visibleFacilityFields)}
+            externalPagination
+            hideSearch
+            enableRowSelection={false}
+          >
             <thead>
               <tr>
-                <th>Kredi</th>
-                <th>Banka / kurum</th>
-                <th>Para birimi</th>
-                <th>Açık anapara</th>
-                <th>Teminat + garanti</th>
-                <th>Limit kullanım</th>
+                {visibleFacilityFields.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {exposure.facilities.map((row) => (
                 <tr key={row.id}>
-                  <td>
-                    {row.code}
-                    <small>
-                      {row.status === "Active" ? "Aktif" : "Kapalı"}
-                    </small>
-                  </td>
-                  <td>{row.lenderName}</td>
-                  <td>{row.currencyCode}</td>
-                  <td>
-                    {formatMoney(row.outstandingPrincipal, row.currencyCode)}
-                  </td>
-                  <td>
-                    {formatMoney(
-                      row.activeGuarantees + row.activeCollateral,
-                      row.currencyCode,
-                    )}
-                    <small>
-                      {formatMoney(row.calledAmount, row.currencyCode)}{" "}
-                      çağrılmış
-                    </small>
-                  </td>
-                  <td>
-                    {row.limitUtilizationPercent.toLocaleString("tr-TR", {
-                      maximumFractionDigits: 2,
-                    })}
-                    %
-                  </td>
+                  {visibleFacilityFields.map((field) =>
+                    renderFacilityCell(field, row),
+                  )}
                 </tr>
               ))}
             </tbody>
-          </table>
+          </AdvancedDataGrid>
         </div>
       </section>
     )

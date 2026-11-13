@@ -1,7 +1,25 @@
-import type { Quote } from "../types";
+import type { ReactNode } from "react";
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { Quote, ScreenField } from "../types";
+
+export const defaultSupplierQuoteFields: ScreenField[] = [
+  { key: "code", label: "Teklif no", visible: true, position: 0 },
+  { key: "requestCode", label: "Talep", visible: true, position: 1 },
+  { key: "supplierName", label: "Tedarikçi", visible: true, position: 2 },
+  { key: "quoteDate", label: "Tarih", visible: true, position: 3 },
+  { key: "validUntil", label: "Geçerlilik", visible: true, position: 4 },
+  { key: "status", label: "Durum", visible: true, position: 5 },
+  { key: "grandTotal", label: "Toplam", visible: true, position: 6 },
+  { key: "lineCount", label: "Satır", visible: false, position: 7 },
+  { key: "createdAt", label: "Oluşturulma", visible: false, position: 8 },
+];
+
+const numericFields = new Set(["grandTotal", "lineCount"]);
 
 type Props = {
   items: Quote[];
+  fields?: ScreenField[];
   loading: boolean;
   selectedId: string | undefined;
   onSelect: (quote: Quote) => void;
@@ -17,12 +35,42 @@ function statusLabel(status: string) {
         : status;
 }
 
+function renderCell(quote: Quote, key: string): ReactNode {
+  switch (key) {
+    case "code":
+      return <b>{quote.code}</b>;
+    case "requestCode":
+      return quote.requestCode;
+    case "supplierName":
+      return quote.supplierName;
+    case "quoteDate":
+      return quote.quoteDate;
+    case "validUntil":
+      return quote.validUntil || "—";
+    case "status":
+      return <span className="erp-status-chip">{statusLabel(quote.status)}</span>;
+    case "grandTotal":
+      return `${quote.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${quote.currencyCode}`;
+    case "lineCount":
+      return quote.lineCount.toLocaleString("tr-TR");
+    case "createdAt":
+      return new Date(quote.createdAt).toLocaleString("tr-TR");
+    default:
+      return null;
+  }
+}
+
 export default function SupplierQuotesTable({
   items,
+  fields = defaultSupplierQuoteFields,
   loading,
   selectedId,
   onSelect,
 }: Props) {
+  const columns = fields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
+  const span = Math.max(columns.length, 1);
   return (
     <div
       className="customer-table-wrap supplier-quotes-table-wrap"
@@ -30,30 +78,37 @@ export default function SupplierQuotesTable({
       aria-label="Tedarikçi teklifleri tablosu"
       tabIndex={0}
     >
-      <table className="customer-table">
+      <AdvancedDataGrid
+        className="customer-table"
+        gridId="purchase-supplier-quotes"
+        {...screenViewGridDefaults(columns)}
+        externalPagination
+        hideSearch
+        enableRowSelection={false}
+      >
         <thead>
           <tr>
-            <th scope="col">Teklif no</th>
-            <th scope="col">Talep</th>
-            <th scope="col">Tedarikçi</th>
-            <th scope="col">Tarih</th>
-            <th scope="col">Geçerlilik</th>
-            <th scope="col">Durum</th>
-            <th className="numeric" scope="col">
-              Toplam
-            </th>
+            {columns.map((field) => (
+              <th
+                key={field.key}
+                scope="col"
+                className={numericFields.has(field.key) ? "numeric" : undefined}
+              >
+                {field.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={7} className="table-empty" role="status">
+              <td colSpan={span} className="table-empty" role="status">
                 Teklifler yükleniyor…
               </td>
             </tr>
           ) : !items.length ? (
             <tr>
-              <td colSpan={7} className="table-empty">
+              <td colSpan={span} className="table-empty">
                 Bu filtrelerle teklif bulunamadı.
               </td>
             </tr>
@@ -72,29 +127,19 @@ export default function SupplierQuotesTable({
                 aria-selected={selectedId === quote.id}
                 className={selectedId === quote.id ? "erp-selected-row" : ""}
               >
-                <td>
-                  <b>{quote.code}</b>
-                </td>
-                <td>{quote.requestCode}</td>
-                <td>{quote.supplierName}</td>
-                <td>{quote.quoteDate}</td>
-                <td>{quote.validUntil || "—"}</td>
-                <td>
-                  <span className="erp-status-chip">
-                    {statusLabel(quote.status)}
-                  </span>
-                </td>
-                <td className="numeric">
-                  {quote.grandTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {quote.currencyCode}
-                </td>
+                {columns.map((field) => (
+                  <td
+                    key={field.key}
+                    className={numericFields.has(field.key) ? "numeric" : undefined}
+                  >
+                    {renderCell(quote, field.key)}
+                  </td>
+                ))}
               </tr>
             ))
           )}
         </tbody>
-      </table>
+      </AdvancedDataGrid>
     </div>
   );
 }

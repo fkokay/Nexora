@@ -2,6 +2,8 @@ import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import "../integration-queue-list-v2.css";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { ScreenColumnPin } from "../../erp-types";
 import { Ban } from "lucide-react";
 
 function providerDocumentStatusLabel(status: number, tr: Props["tr"]) {
@@ -52,6 +54,26 @@ export type IntegrationOperation = {
   attempts: number;
   errorCode: string | null;
 };
+
+export type ScreenField = {
+  key: string;
+  label: string;
+  visible: boolean;
+  position: number;
+  fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
+};
+
+export const defaultIntegrationOperationFields: (ScreenField & { enLabel: string })[] = [
+  { key: "integration", label: "Entegrasyon", enLabel: "Integration", visible: true, position: 0 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 1 },
+  { key: "createdAt", label: "Oluşturulma", enLabel: "Created", visible: true, position: 2 },
+  { key: "attempts", label: "Deneme", enLabel: "Attempt", visible: true, position: 3 },
+  { key: "errorCode", label: "Hata kodu", enLabel: "Error code", visible: true, position: 4 },
+  { key: "updatedAt", label: "Son güncelleme", enLabel: "Last updated", visible: false, position: 5 },
+  { key: "actions", label: "İşlemler", enLabel: "Actions", visible: true, position: 6, fixed: true },
+];
 
 export type IntegrationOperationPage = {
   items: IntegrationOperation[];
@@ -106,6 +128,7 @@ type Props = {
   tr: (turkish: string, english: string) => string;
   locale: () => string;
   statusLabel: (status: IntegrationOperation["status"]) => string;
+  fields?: ScreenField[];
 };
 
 export default function IntegrationOperationsList({
@@ -133,10 +156,111 @@ export default function IntegrationOperationsList({
   tr,
   locale,
   statusLabel,
+  fields = defaultIntegrationOperationFields,
 }: Props) {
   const [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(
     null,
   );
+  const english = tr("tr", "en") === "en";
+  const visibleFields = fields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
+  const columnSpan = Math.max(visibleFields.length, 1);
+  // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
+  const fieldLabel = (field: ScreenField) => {
+    const standard = defaultIntegrationOperationFields.find(
+      (item) => item.key === field.key,
+    );
+    return english && standard && standard.label === field.label
+      ? standard.enLabel
+      : field.label;
+  };
+  const renderCell = (field: ScreenField, item: IntegrationOperation) => {
+    switch (field.key) {
+      case "integration":
+        return (
+          <td key={field.key}>
+            <b>{item.integrationCode}</b>
+            <small className="queue-id">{item.operationId}</small>
+          </td>
+        );
+      case "status":
+        return (
+          <td key={field.key}>
+            <span
+              className={`queue-status status-${item.status.toLowerCase()}`}
+            >
+              <i />
+              {statusLabel(item.status)}
+            </span>
+          </td>
+        );
+      case "createdAt":
+        return (
+          <td key={field.key}>
+            {new Date(item.createdAt).toLocaleString(locale(), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </td>
+        );
+      case "attempts":
+        return (
+          <td key={field.key}>
+            <span>{item.attempts}</span>
+            {["Failed", "Indeterminate"].includes(item.status) && (
+              <small className="queue-retry-note">
+                {tr("Otomatik tekrar yok", "No automatic retry")}
+              </small>
+            )}
+          </td>
+        );
+      case "errorCode":
+        return <td key={field.key}>{item.errorCode || "—"}</td>;
+      case "updatedAt":
+        return (
+          <td key={field.key}>
+            {new Date(item.updatedAt).toLocaleString(locale(), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </td>
+        );
+      case "actions":
+        return (
+          <td key={field.key}>
+            <div className="queue-row-actions">
+              <button
+                type="button"
+                className="secondary small-button"
+                aria-pressed={
+                  selectedOperation?.operationId === item.operationId
+                }
+                onClick={() => onSelectOperation(item.operationId)}
+              >
+                {tr("Ayrıntı", "Details")}
+              </button>
+              {["Queued", "AwaitingApproval"].includes(item.status) && (
+                <button
+                  className="secondary small-button queue-cancel"
+                  disabled={busyId === item.operationId}
+                  onClick={() => onCancel(item)}
+                >
+                  <Ban size={14} />
+                  {busyId === item.operationId
+                    ? tr("İptal ediliyor…", "Cancelling…")
+                    : tr("İptal et", "Cancel")}
+                </button>
+              )}
+            </div>
+          </td>
+        );
+      default:
+        return <td key={field.key}>—</td>;
+    }
+  };
   return (
     <>
       <div className="integration-operation-list-heading">
@@ -181,6 +305,8 @@ export default function IntegrationOperationsList({
             externalPagination
             toolbarContainer={gridToolsSlot}
             className="integration-queue-table"
+            gridId="integration-operations"
+            {...screenViewGridDefaults(visibleFields)}
           >
             <caption className="integration-visually-hidden">
               {tr(
@@ -190,24 +316,23 @@ export default function IntegrationOperationsList({
             </caption>
             <thead>
               <tr>
-                <th scope="col">{tr("Entegrasyon", "Integration")}</th>
-                <th scope="col">{tr("Durum", "Status")}</th>
-                <th scope="col">{tr("Oluşturulma", "Created")}</th>
-                <th scope="col">{tr("Deneme", "Attempt")}</th>
-                <th scope="col">{tr("Hata kodu", "Error code")}</th>
-                <th scope="col">{tr("İşlemler", "Actions")}</th>
+                {visibleFields.map((field) => (
+                  <th key={field.key} scope="col">
+                    {fieldLabel(field)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="queue-empty" role="status">
+                  <td colSpan={columnSpan} className="queue-empty" role="status">
                     {tr("Kuyruk yükleniyor…", "Loading queue…")}
                   </td>
                 </tr>
               ) : !data ? (
                 <tr>
-                  <td colSpan={6} className="queue-empty">
+                  <td colSpan={columnSpan} className="queue-empty">
                     {tr(
                       "Kuyruk görüntülenemiyor. Yenile düğmesini kullanın.",
                       "Cannot display the queue. Use Refresh to try again.",
@@ -217,66 +342,12 @@ export default function IntegrationOperationsList({
               ) : data.items.length ? (
                 data.items.map((item) => (
                   <tr key={item.operationId}>
-                    <td>
-                      <b>{item.integrationCode}</b>
-                      <small className="queue-id">{item.operationId}</small>
-                    </td>
-                    <td>
-                      <span
-                        className={`queue-status status-${item.status.toLowerCase()}`}
-                      >
-                        <i />
-                        {statusLabel(item.status)}
-                      </span>
-                    </td>
-                    <td>
-                      {new Date(item.createdAt).toLocaleString(locale(), {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </td>
-                    <td>
-                      <span>{item.attempts}</span>
-                      {["Failed", "Indeterminate"].includes(item.status) && (
-                        <small className="queue-retry-note">
-                          {tr("Otomatik tekrar yok", "No automatic retry")}
-                        </small>
-                      )}
-                    </td>
-                    <td>{item.errorCode || "—"}</td>
-                    <td>
-                      <div className="queue-row-actions">
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          aria-pressed={
-                            selectedOperation?.operationId === item.operationId
-                          }
-                          onClick={() => onSelectOperation(item.operationId)}
-                        >
-                          {tr("Ayrıntı", "Details")}
-                        </button>
-                        {["Queued", "AwaitingApproval"].includes(
-                          item.status,
-                        ) && (
-                          <button
-                            className="secondary small-button queue-cancel"
-                            disabled={busyId === item.operationId}
-                            onClick={() => onCancel(item)}
-                          >
-                            <Ban size={14} />
-                            {busyId === item.operationId
-                              ? tr("İptal ediliyor…", "Cancelling…")
-                              : tr("İptal et", "Cancel")}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    {visibleFields.map((field) => renderCell(field, item))}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="queue-empty">
+                  <td colSpan={columnSpan} className="queue-empty">
                     {tr(
                       "Bu filtrede işlem bulunmuyor.",
                       "No operations match this filter.",

@@ -1,9 +1,19 @@
 import type { FormEvent } from "react";
 import { ListToolbar } from "../../list-page/ListToolbar";
+import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type {
+  BuiltInScreenLayoutField,
   CustomerLocationProvinceView,
   TurkeyLocationOption,
 } from "../../erp-types";
+
+export const defaultProvinceFields: BuiltInScreenLayoutField[] = [
+  { key: "name", label: "İl", visible: true, position: 0 },
+  { key: "status", label: "Durum", visible: true, position: 1 },
+  { key: "districtCount", label: "İlçeler", visible: true, position: 2 },
+  { key: "actions", label: "İşlemler", visible: true, position: 3, fixed: true },
+];
 
 type ProvinceFormProps = {
   editingId: number | null;
@@ -86,6 +96,7 @@ type ProvinceGridProps = {
   onSelect: (id: number) => void;
   onEdit: (item: CustomerLocationProvinceView) => void;
   onToggle: (item: TurkeyLocationOption) => void;
+  fields?: BuiltInScreenLayoutField[];
 };
 
 function ProvinceGrid({
@@ -97,16 +108,67 @@ function ProvinceGrid({
   onSelect,
   onEdit,
   onToggle,
+  fields,
 }: ProvinceGridProps) {
+  const visibleFields = (fields?.length ? fields : defaultProvinceFields)
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
+  function renderCell(item: CustomerLocationProvinceView, key: string) {
+    switch (key) {
+      case "name":
+        return <b>{item.name}</b>;
+      case "status":
+        return item.isActive ? "Aktif" : "Pasif";
+      case "districtCount":
+        return districts.filter((district) => district.provinceId === item.id)
+          .length;
+      case "actions":
+        return (
+          <>
+            <button
+              type="button"
+              className="row-action"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(item);
+              }}
+            >
+              Düzenle
+            </button>
+            <button
+              type="button"
+              className="row-action"
+              disabled={busy}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle(item);
+              }}
+            >
+              {item.isActive ? "Pasife al" : "Etkinleştir"}
+            </button>
+          </>
+        );
+      default:
+        return null;
+    }
+  }
   return (
     <div className="ledger-list">
-      <table className="customer-table">
+      <AdvancedDataGrid
+        className="customer-table"
+        gridId="customer-provinces"
+        {...screenViewGridDefaults(visibleFields)}
+        externalPagination
+        hideSearch
+        enableRowSelection={false}
+      >
         <thead>
           <tr>
-            <th>İl</th>
-            <th>Durum</th>
-            <th>İlçeler</th>
-            <th>İşlemler</th>
+            {visibleFields.map((field) => (
+              <th key={field.key}>{field.label}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -118,51 +180,20 @@ function ProvinceGrid({
               }
               onClick={() => onSelect(item.id)}
             >
-              <td>
-                <b>{item.name}</b>
-              </td>
-              <td>{item.isActive ? "Aktif" : "Pasif"}</td>
-              <td>
-                {
-                  districts.filter(
-                    (district) => district.provinceId === item.id,
-                  ).length
-                }
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className="row-action"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEdit(item);
-                  }}
-                >
-                  Düzenle
-                </button>
-                <button
-                  type="button"
-                  className="row-action"
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggle(item);
-                  }}
-                >
-                  {item.isActive ? "Pasife al" : "Etkinleştir"}
-                </button>
-              </td>
+              {visibleFields.map((field) => (
+                <td key={field.key}>{renderCell(item, field.key)}</td>
+              ))}
             </tr>
           ))}
           {!loading && provinces.length === 0 && (
             <tr>
-              <td colSpan={4} className="table-empty">
+              <td colSpan={Math.max(visibleFields.length, 1)} className="table-empty">
                 İl tanımı bulunamadı.
               </td>
             </tr>
           )}
         </tbody>
-      </table>
+      </AdvancedDataGrid>
     </div>
   );
 }
@@ -193,6 +224,7 @@ export function ProvinceSection(props: Props) {
     onCancel,
     query,
     onQueryChange,
+    fields,
   } = props;
   return (
     <section className="panel list-v2-list">
@@ -216,6 +248,7 @@ export function ProvinceSection(props: Props) {
         onSelect={onSelect}
         onEdit={onEdit}
         onToggle={onToggle}
+        fields={fields}
       />
       <ProvinceForm
         editingId={editingId}

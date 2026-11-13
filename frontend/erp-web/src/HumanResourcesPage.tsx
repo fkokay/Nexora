@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import EmployeeFilters from "./human-resources/components/EmployeeFilters";
 import EmployeeGrid from "./human-resources/components/EmployeeGrid";
 import type {
@@ -565,6 +566,94 @@ function formatPayrollSnapshot(snapshotJson: string): string {
   }
 }
 
+type HrDefaultScreenField = EmployeeScreenField & { enLabel: string };
+const hrCompensationDefaultFields: HrDefaultScreenField[] = [
+  { key: "employee", label: "Personel", enLabel: "Employee", visible: true, position: 0 },
+  { key: "targetKind", label: "Hedef", enLabel: "Target", visible: true, position: 1 },
+  { key: "amount", label: "Tutar", enLabel: "Amount", visible: true, position: 2 },
+  { key: "currencyCode", label: "Para birimi", enLabel: "Currency", visible: true, position: 3 },
+  { key: "payBasisCode", label: "Ödeme esası", enLabel: "Pay basis", visible: true, position: 4 },
+  { key: "effectiveFrom", label: "Yürürlük", enLabel: "Effective", visible: true, position: 5 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 6 },
+  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 7, fixed: true },
+];
+const hrTaxDeclarationDefaultFields: HrDefaultScreenField[] = [
+  { key: "employee", label: "Personel", enLabel: "Employee", visible: true, position: 0 },
+  { key: "taxYear", label: "Yıl / sürüm", enLabel: "Year / version", visible: true, position: 1 },
+  { key: "declarationKind", label: "Beyan türü", enLabel: "Declaration", visible: true, position: 2 },
+  { key: "baseEntries", label: "Matrahlar", enLabel: "Base entries", visible: true, position: 3 },
+  { key: "evidenceReference", label: "Kanıt ref.", enLabel: "Evidence ref.", visible: true, position: 4 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 5 },
+  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 6, fixed: true },
+];
+const hrPayrollDraftDefaultFields: HrDefaultScreenField[] = [
+  { key: "period", label: "Dönem", enLabel: "Period", visible: true, position: 0 },
+  { key: "profileCode", label: "Profil", enLabel: "Profile", visible: true, position: 1 },
+  { key: "employeeCount", label: "Personel", enLabel: "Employees", visible: true, position: 2 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 3 },
+  { key: "blockers", label: "Engeller", enLabel: "Blockers", visible: true, position: 4 },
+  { key: "snapshotSha256", label: "SHA-256", enLabel: "SHA-256", visible: true, position: 5 },
+  { key: "createdAt", label: "Oluşturulma", enLabel: "Created", visible: true, position: 6 },
+  { key: "actions", label: "Snapshot", enLabel: "Snapshot", visible: true, position: 7, fixed: true },
+];
+const hrPayrollRuleSetDefaultFields: HrDefaultScreenField[] = [
+  { key: "taxYear", label: "Yıl", enLabel: "Year", visible: true, position: 0 },
+  { key: "effectivePeriod", label: "Geçerlilik", enLabel: "Effective", visible: true, position: 1 },
+  { key: "version", label: "Sürüm", enLabel: "Version", visible: true, position: 2 },
+  { key: "officialSourceUrl", label: "Kaynak", enLabel: "Source", visible: true, position: 3 },
+  { key: "rules", label: "Parametreler", enLabel: "Parameters", visible: true, position: 4 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 5 },
+  { key: "approvedAt", label: "Onay tarihi", enLabel: "Approved at", visible: false, position: 6 },
+  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 7, fixed: true },
+];
+function hrMergeScreenFields(
+  defaults: HrDefaultScreenField[],
+  returned: EmployeeScreenField[],
+): EmployeeScreenField[] {
+  const allowed = new Set(defaults.map((field) => field.key));
+  const fields = returned
+    .filter((field) => field && allowed.has(field.key))
+    .map((field) => ({ ...field }));
+  if (!fields.length) return defaults;
+  const actions = fields.find((field) => field.key === "actions");
+  if (actions) {
+    actions.fixed = true;
+    actions.visible = true;
+  } else {
+    const fallback = defaults.find((field) => field.key === "actions");
+    if (fallback)
+      fields.push({
+        ...fallback,
+        position: Math.max(...fields.map((field) => field.position)) + 1,
+      });
+  }
+  return fields;
+}
+function hrVisibleScreenFields(fields: EmployeeScreenField[]) {
+  return fields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort(
+      (a, b) =>
+        (a.key === "actions" ? 1 : 0) - (b.key === "actions" ? 1 : 0) ||
+        a.position - b.position,
+    );
+}
+function hrScreenFieldLabel(
+  defaults: HrDefaultScreenField[],
+  field: EmployeeScreenField,
+  isEn: boolean,
+) {
+  const fallback = defaults.find((item) => item.key === field.key);
+  return isEn && fallback && fallback.label === field.label
+    ? fallback.enLabel
+    : field.label;
+}
+function hrScreenFieldStyle(field: EmployeeScreenField) {
+  return field.width
+    ? { width: field.width, minWidth: field.width }
+    : undefined;
+}
+
 export default function HumanResourcesPage({
   token,
   role,
@@ -719,6 +808,18 @@ export default function HumanResourcesPage({
     { key: "policyReference", label: "Politika", visible: true, position: 3 },
     { key: "actions", label: "İşlem", visible: true, position: 4, fixed: true },
   ]);
+  const [compensationScreenFields, setCompensationScreenFields] = useState<
+      EmployeeScreenField[]
+    >(hrCompensationDefaultFields),
+    [taxDeclarationScreenFields, setTaxDeclarationScreenFields] = useState<
+      EmployeeScreenField[]
+    >(hrTaxDeclarationDefaultFields),
+    [payrollDraftScreenFields, setPayrollDraftScreenFields] = useState<
+      EmployeeScreenField[]
+    >(hrPayrollDraftDefaultFields),
+    [payrollRuleSetScreenFields, setPayrollRuleSetScreenFields] = useState<
+      EmployeeScreenField[]
+    >(hrPayrollRuleSetDefaultFields);
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -1074,6 +1175,55 @@ export default function HumanResourcesPage({
       cancelled = true;
     };
   }, [token, isEn]);
+  const compensationViewAllowed = compensationAccess.view;
+  useEffect(() => {
+    const targets: [
+      string,
+      HrDefaultScreenField[],
+      (fields: EmployeeScreenField[]) => void,
+    ][] = [];
+    if (section === "compensation" && compensationViewAllowed)
+      targets.push(
+        [
+          "hr-compensation-records",
+          hrCompensationDefaultFields,
+          setCompensationScreenFields,
+        ],
+        [
+          "hr-tax-declarations",
+          hrTaxDeclarationDefaultFields,
+          setTaxDeclarationScreenFields,
+        ],
+      );
+    if (section === "runs" && compensationViewAllowed)
+      targets.push([
+        "hr-payroll-drafts",
+        hrPayrollDraftDefaultFields,
+        setPayrollDraftScreenFields,
+      ]);
+    if (section === "rules" && admin)
+      targets.push([
+        "hr-payroll-rule-sets",
+        hrPayrollRuleSetDefaultFields,
+        setPayrollRuleSetScreenFields,
+      ]);
+    if (!targets.length) return;
+    let cancelled = false;
+    targets.forEach(([key, defaults, setFields]) => {
+      void request<{ fields: EmployeeScreenField[] }>(
+        token,
+        `/api/screen-views/${key}/active`,
+      )
+        .then((view) => {
+          if (cancelled || !Array.isArray(view.fields)) return;
+          setFields(hrMergeScreenFields(defaults, view.fields));
+        })
+        .catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, section, admin, compensationViewAllowed]);
   async function submit(action: () => Promise<unknown>, success: string) {
     setBusy(true);
     setError("");
@@ -2335,6 +2485,18 @@ export default function HumanResourcesPage({
     const value = defaults[field.key];
     return isEn && value?.[0] === field.label ? value[1] : field.label;
   };
+  const compensationVisibleFields = hrVisibleScreenFields(
+    compensationScreenFields,
+  );
+  const taxDeclarationVisibleFields = hrVisibleScreenFields(
+    taxDeclarationScreenFields,
+  );
+  const payrollDraftVisibleFields = hrVisibleScreenFields(
+    payrollDraftScreenFields,
+  );
+  const payrollRuleSetVisibleFields = hrVisibleScreenFields(
+    payrollRuleSetScreenFields,
+  );
   const tabs: [Section, string][] = [
     ["employees", tr("Personel", "Employees")],
     ["leave", tr("İzinler", "Leave")],
@@ -3794,49 +3956,65 @@ export default function HumanResourcesPage({
                       )}
                     </p>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-compensation-records"
+                        {...screenViewGridDefaults(compensationVisibleFields)}
+                        hideSearch
+                        toolbarContainer={gridToolsSlot}
+                      >
                         <thead>
                           <tr>
-                            <th>{tr("Personel", "Employee")}</th>
-                            <th>{tr("Hedef", "Target")}</th>
-                            <th>{tr("Tutar", "Amount")}</th>
-                            <th>{tr("Para birimi", "Currency")}</th>
-                            <th>{tr("Ödeme esası", "Pay basis")}</th>
-                            <th>{tr("Yürürlük", "Effective")}</th>
-                            <th>{tr("Durum", "Status")}</th>
-                            <th>{tr("İşlem", "Action")}</th>
+                            {compensationVisibleFields.map((field) => (
+                              <th
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {hrScreenFieldLabel(
+                                  hrCompensationDefaultFields,
+                                  field,
+                                  isEn,
+                                )}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
                           {compensationRows.map((x) => (
                             <tr key={x.id}>
-                              <td>{x.employee}</td>
-                              <td>
-                                {x.targetKind === "Gross"
-                                  ? tr("Brüt", "Gross")
-                                  : tr("Net", "Net")}
-                              </td>
-                              <td>
-                                {x.amount.toLocaleString(
-                                  isEn ? "en-US" : "tr-TR",
-                                  {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 4,
-                                  },
-                                )}
-                              </td>
-                              <td>{x.currencyCode}</td>
-                              <td>{x.payBasisCode}</td>
-                              <td>
-                                {x.effectiveFrom} · v{x.version}
-                              </td>
-                              <td>
-                                <span className="hr-status">
-                                  {hrStatusLabel(x.status, isEn)}
-                                </span>
-                              </td>
-                              <td>
-                                {compensationAccess.approve && x.canApprove && (
+                              {compensationVisibleFields.map((field) => (
+                              <td
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {field.key === "employee" ? (
+                                  x.employee
+                                ) : field.key === "targetKind" ? (
+                                  x.targetKind === "Gross"
+                                    ? tr("Brüt", "Gross")
+                                    : tr("Net", "Net")
+                                ) : field.key === "amount" ? (
+                                  x.amount.toLocaleString(
+                                    isEn ? "en-US" : "tr-TR",
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 4,
+                                    },
+                                  )
+                                ) : field.key === "currencyCode" ? (
+                                  x.currencyCode
+                                ) : field.key === "payBasisCode" ? (
+                                  x.payBasisCode
+                                ) : field.key === "effectiveFrom" ? (
+                                  <>
+                                    {x.effectiveFrom} · v{x.version}
+                                  </>
+                                ) : field.key === "status" ? (
+                                  <span className="hr-status">
+                                    {hrStatusLabel(x.status, isEn)}
+                                  </span>
+                                ) : field.key === "actions" ? (
+                                compensationAccess.approve && x.canApprove && (
                                   <div className="hr-actions">
                                     <button
                                       className="secondary"
@@ -3890,13 +4068,20 @@ export default function HumanResourcesPage({
                                       {tr("Reddet", "Reject")}
                                     </button>
                                   </div>
-                                )}
+                                )
+                                ) : null}
                               </td>
+                              ))}
                             </tr>
                           ))}
                           {!compensationRows.length && (
                             <tr>
-                              <td colSpan={8}>
+                              <td
+                                colSpan={Math.max(
+                                  1,
+                                  compensationVisibleFields.length,
+                                )}
+                              >
                                 {tr(
                                   "Ücret kaydı yok.",
                                   "No compensation records.",
@@ -4232,56 +4417,70 @@ export default function HumanResourcesPage({
                       )}
                     </h3>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-tax-declarations"
+                        {...screenViewGridDefaults(taxDeclarationVisibleFields)}
+                      >
                         <thead>
                           <tr>
-                            <th>{tr("Personel", "Employee")}</th>
-                            <th>{tr("Yıl / sürüm", "Year / version")}</th>
-                            <th>{tr("Beyan türü", "Declaration")}</th>
-                            <th>{tr("Matrahlar", "Base entries")}</th>
-                            <th>{tr("Kanıt ref.", "Evidence ref.")}</th>
-                            <th>{tr("Durum", "Status")}</th>
-                            <th>{tr("İşlem", "Action")}</th>
+                            {taxDeclarationVisibleFields.map((field) => (
+                              <th
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {hrScreenFieldLabel(
+                                  hrTaxDeclarationDefaultFields,
+                                  field,
+                                  isEn,
+                                )}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
                           {priorBases.map((x) => (
                             <tr key={x.id}>
-                              <td>{x.employee}</td>
-                              <td>
-                                {x.taxYear} · v{x.version}
-                              </td>
-                              <td>
-                                {x.declarationKind === "HasPriorEmployer"
-                                  ? tr(
-                                      "Önceki işveren var",
-                                      "Prior employer exists",
-                                    )
-                                  : tr(
-                                      "Önceki işveren yok",
-                                      "No prior employer",
-                                    )}
-                              </td>
-                              <td>
-                                <details>
-                                  <summary>{tr("Görüntüle", "View")}</summary>
-                                  <pre>
-                                    {JSON.stringify(
-                                      JSON.parse(x.baseEntriesJson),
-                                      null,
-                                      2,
-                                    )}
-                                  </pre>
-                                </details>
-                              </td>
-                              <td>{x.evidenceReference}</td>
-                              <td>
-                                <span className="hr-status">
-                                  {hrStatusLabel(x.status, isEn)}
-                                </span>
-                              </td>
-                              <td>
-                                {compensationAccess.approve && x.canApprove && (
+                              {taxDeclarationVisibleFields.map((field) => (
+                              <td
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {field.key === "employee" ? (
+                                  x.employee
+                                ) : field.key === "taxYear" ? (
+                                  <>
+                                    {x.taxYear} · v{x.version}
+                                  </>
+                                ) : field.key === "declarationKind" ? (
+                                  x.declarationKind === "HasPriorEmployer"
+                                    ? tr(
+                                        "Önceki işveren var",
+                                        "Prior employer exists",
+                                      )
+                                    : tr(
+                                        "Önceki işveren yok",
+                                        "No prior employer",
+                                      )
+                                ) : field.key === "baseEntries" ? (
+                                  <details>
+                                    <summary>{tr("Görüntüle", "View")}</summary>
+                                    <pre>
+                                      {JSON.stringify(
+                                        JSON.parse(x.baseEntriesJson),
+                                        null,
+                                        2,
+                                      )}
+                                    </pre>
+                                  </details>
+                                ) : field.key === "evidenceReference" ? (
+                                  x.evidenceReference
+                                ) : field.key === "status" ? (
+                                  <span className="hr-status">
+                                    {hrStatusLabel(x.status, isEn)}
+                                  </span>
+                                ) : field.key === "actions" ? (
+                                compensationAccess.approve && x.canApprove && (
                                   <div className="hr-actions">
                                     <button
                                       className="secondary"
@@ -4335,13 +4534,20 @@ export default function HumanResourcesPage({
                                       {tr("Reddet", "Reject")}
                                     </button>
                                   </div>
-                                )}
+                                )
+                                ) : null}
                               </td>
+                              ))}
                             </tr>
                           ))}
                           {!priorBases.length && (
                             <tr>
-                              <td colSpan={7}>
+                              <td
+                                colSpan={Math.max(
+                                  1,
+                                  taxDeclarationVisibleFields.length,
+                                )}
+                              >
                                 {tr("Beyan yok.", "No declarations.")}
                               </td>
                             </tr>
@@ -4559,17 +4765,27 @@ export default function HumanResourcesPage({
                   />
                   <div className="hr-panel list-v2-list">
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-payroll-drafts"
+                        {...screenViewGridDefaults(payrollDraftVisibleFields)}
+                        hideSearch
+                        toolbarContainer={gridToolsSlot}
+                      >
                         <thead>
                           <tr>
-                            <th>{tr("Dönem", "Period")}</th>
-                            <th>{tr("Profil", "Profile")}</th>
-                            <th>{tr("Personel", "Employees")}</th>
-                            <th>{tr("Durum", "Status")}</th>
-                            <th>{tr("Engeller", "Blockers")}</th>
-                            <th>SHA-256</th>
-                            <th>{tr("Oluşturulma", "Created")}</th>
-                            <th>{tr("Snapshot", "Snapshot")}</th>
+                            {payrollDraftVisibleFields.map((field) => (
+                              <th
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {hrScreenFieldLabel(
+                                  hrPayrollDraftDefaultFields,
+                                  field,
+                                  isEn,
+                                )}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
@@ -4580,7 +4796,13 @@ export default function HumanResourcesPage({
                             } catch {}
                             return (
                               <tr key={run.id}>
-                                <td>
+                                {payrollDraftVisibleFields.map((field) => (
+                                <td
+                                  key={field.key}
+                                  style={hrScreenFieldStyle(field)}
+                                >
+                                  {field.key === "period" ? (
+                                  <>
                                   {run.periodStart} – {run.periodEnd}
                                   <br />
                                   <small>
@@ -4588,32 +4810,31 @@ export default function HumanResourcesPage({
                                       ? tr("Firma dönemi", "Employer period")
                                       : tr("Takvim ayı", "Calendar month")}
                                   </small>
-                                </td>
-                                <td>{run.profileCode}</td>
-                                <td>{run.employeeCount}</td>
-                                <td>
+                                  </>
+                                  ) : field.key === "profileCode" ? (
+                                    run.profileCode
+                                  ) : field.key === "employeeCount" ? (
+                                    run.employeeCount
+                                  ) : field.key === "status" ? (
                                   <span className="hr-status">
                                     {tr("Bloke", "Blocked")}
                                   </span>
-                                </td>
-                                <td>
-                                  {blockers.map((x) => (
+                                  ) : field.key === "blockers" ? (
+                                  blockers.map((x) => (
                                     <div key={x}>
                                       {payrollBlockerLabel(x, isEn, employees)}
                                     </div>
-                                  ))}
-                                </td>
-                                <td>
+                                  ))
+                                  ) : field.key === "snapshotSha256" ? (
                                   <code>
                                     {run.snapshotSha256.slice(0, 16)}…
                                   </code>
-                                </td>
-                                <td>
-                                  {new Date(run.createdAt).toLocaleString(
+                                  ) : field.key === "createdAt" ? (
+                                  new Date(run.createdAt).toLocaleString(
                                     isEn ? "en-US" : "tr-TR",
-                                  )}
-                                </td>
-                                <td>
+                                  )
+                                  ) : field.key === "actions" ? (
+                                  <>
                                   <button
                                     className="secondary"
                                     disabled={busy}
@@ -4658,13 +4879,21 @@ export default function HumanResourcesPage({
                                   >
                                     {tr("Kayıtlı sonuçlar", "Saved results")}
                                   </button>
+                                  </>
+                                  ) : null}
                                 </td>
+                                ))}
                               </tr>
                             );
                           })}
                           {!payrollRunRows.length && (
                             <tr>
-                              <td colSpan={8}>
+                              <td
+                                colSpan={Math.max(
+                                  1,
+                                  payrollDraftVisibleFields.length,
+                                )}
+                              >
                                 {tr(
                                   "Henüz bordro taslağı yok.",
                                   "No payroll drafts yet.",
@@ -5382,31 +5611,55 @@ export default function HumanResourcesPage({
                   <div className="hr-panel">
                     <h3>{tr("Kural seti taslakları", "Rule set drafts")}</h3>
                     <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
+                      <AdvancedDataGrid
+                        className="hr-table"
+                        gridId="hr-payroll-rule-sets"
+                        {...screenViewGridDefaults(payrollRuleSetVisibleFields)}
+                      >
                         <thead>
                           <tr>
-                            <th>{tr("Yıl", "Year")}</th>
-                            <th>{tr("Geçerlilik", "Effective")}</th>
-                            <th>{tr("Sürüm", "Version")}</th>
-                            <th>{tr("Kaynak", "Source")}</th>
-                            <th>{tr("Parametreler", "Parameters")}</th>
-                            <th>{tr("Durum", "Status")}</th>
-                            <th>{tr("İşlem", "Action")}</th>
+                            {payrollRuleSetVisibleFields.map((field) => (
+                              <th
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                              >
+                                {hrScreenFieldLabel(
+                                  hrPayrollRuleSetDefaultFields,
+                                  field,
+                                  isEn,
+                                )}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
                           {rules.map((x) => (
                             <tr key={x.id}>
-                              <td data-label={tr("Yıl", "Year")}>
-                                {x.taxYear}
-                              </td>
-                              <td data-label={tr("Geçerlilik", "Effective")}>
-                                {x.effectiveFrom} – {x.effectiveTo || "…"}
-                              </td>
-                              <td data-label={tr("Sürüm", "Version")}>
-                                v{x.version}
-                              </td>
-                              <td data-label={tr("Kaynak", "Source")}>
+                              {payrollRuleSetVisibleFields.map((field) => (
+                              <td
+                                key={field.key}
+                                style={hrScreenFieldStyle(field)}
+                                data-label={hrScreenFieldLabel(
+                                  hrPayrollRuleSetDefaultFields,
+                                  field,
+                                  isEn,
+                                )}
+                              >
+                                {field.key === "taxYear" ? (
+                                  x.taxYear
+                                ) : field.key === "effectivePeriod" ? (
+                                  <>
+                                    {x.effectiveFrom} – {x.effectiveTo || "…"}
+                                  </>
+                                ) : field.key === "version" ? (
+                                  <>v{x.version}</>
+                                ) : field.key === "approvedAt" ? (
+                                  x.approvedAt
+                                    ? new Date(x.approvedAt).toLocaleString(
+                                        isEn ? "en-US" : "tr-TR",
+                                      )
+                                    : "—"
+                                ) : field.key === "officialSourceUrl" ? (
                                 <a
                                   href={x.officialSourceUrl}
                                   target="_blank"
@@ -5414,8 +5667,7 @@ export default function HumanResourcesPage({
                                 >
                                   {new URL(x.officialSourceUrl).hostname}
                                 </a>
-                              </td>
-                              <td data-label={tr("Parametreler", "Parameters")}>
+                                ) : field.key === "rules" ? (
                                 <details>
                                   <summary>{tr("Görüntüle", "View")}</summary>
                                   <pre
@@ -5428,14 +5680,12 @@ export default function HumanResourcesPage({
                                     {x.rulesJson}
                                   </pre>
                                 </details>
-                              </td>
-                              <td data-label={tr("Durum", "Status")}>
+                                ) : field.key === "status" ? (
                                 <span className="hr-status">
                                   {hrStatusLabel(x.status, isEn)}
                                 </span>
-                              </td>
-                              <td data-label={tr("İşlem", "Action")}>
-                                {x.status === "Draft" && x.canApprove && (
+                                ) : field.key === "actions" ? (
+                                x.status === "Draft" && x.canApprove && (
                                   <button
                                     className="secondary"
                                     disabled={busy}
@@ -5462,13 +5712,20 @@ export default function HumanResourcesPage({
                                     <Check size={15} />
                                     {tr("Onayla", "Approve")}
                                   </button>
-                                )}
+                                )
+                                ) : null}
                               </td>
+                              ))}
                             </tr>
                           ))}
                           {!rules.length && (
                             <tr>
-                              <td colSpan={7}>
+                              <td
+                                colSpan={Math.max(
+                                  1,
+                                  payrollRuleSetVisibleFields.length,
+                                )}
+                              >
                                 <div className="hr-empty">
                                   <span>
                                     {tr(

@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import type * as AppTypes from "./erp-types";
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import MasterDataImportDialog from "./MasterDataImportDialog";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { InventoryStockFilters } from "./inventory/components/InventoryStockFilters";
@@ -330,6 +331,34 @@ export function InventoryPage({
       fixed: true,
     },
   ]);
+  const [warehouseScreenFields, setWarehouseScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "code", label: "Depo kodu", visible: true, position: 0 },
+    { key: "name", label: "Depo adı", visible: true, position: 1 },
+    { key: "status", label: "Durum", visible: true, position: 2 },
+    { key: "availability", label: "Açıklama", visible: true, position: 3 },
+  ]);
+  const visibleWarehouseFields = warehouseScreenFields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
+  const [transferScreenFields, setTransferScreenFields] = useState<
+    BuiltInScreenLayoutField[]
+  >([
+    { key: "code", label: "Transfer kodu", visible: true, position: 0 },
+    { key: "transferDate", label: "Tarih", visible: true, position: 1 },
+    { key: "fromWarehouseName", label: "Kaynak depo", visible: true, position: 2 },
+    { key: "toWarehouseName", label: "Hedef depo", visible: true, position: 3 },
+    { key: "lineCount", label: "Stok kalemi", visible: true, position: 4 },
+    { key: "status", label: "Durum", visible: true, position: 5 },
+    { key: "createdAt", label: "Oluşturulma", visible: false, position: 6 },
+    { key: "actions", label: "İşlemler", visible: true, position: 7, fixed: true },
+  ]);
+  const visibleTransferFields = transferScreenFields
+    .filter((field) => field.key === "actions" || field.visible)
+    .sort((a, b) =>
+      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
+    );
   const visibleMovementFields = movementScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -888,6 +917,36 @@ export function InventoryPage({
     )
       setInventoryPage(inventoryPageCount);
   }, [section, inventoryPage, inventoryPageCount]);
+  useEffect(() => {
+    if (section !== "inventory-warehouses") return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/inventory-warehouses/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setWarehouseScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, section]);
+  useEffect(() => {
+    if (section !== "inventory-transfers") return;
+    let cancelled = false;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/inventory-transfers/active",
+      token,
+    )
+      .then((view) => {
+        if (!cancelled && view.fields?.length) setTransferScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, section]);
   useEffect(() => {
     if (section !== "inventory-stock") return;
     let cancelled = false;
@@ -2552,7 +2611,7 @@ export function InventoryPage({
                 {loading ? (
                   <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
                 ) : visibleWarehouses.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Depo adı</th><th>Durum</th><th>Açıklama</th></tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}><td><b className="customer-name">{warehouse.name}</b><small className="cell-subtitle list-v2-name-code">{warehouse.code}</small></td><td><span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span></td><td>{warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı"}</td></tr>)}</tbody></table></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}
@@ -2581,7 +2640,7 @@ export function InventoryPage({
               </ListToolbar>
               <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
                 {visibleTransfers.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Transfer kodu</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th>Stok kalemi</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}><td><span className="customer-code">{transfer.code}</span></td><td>{transfer.transferDate.split("-").reverse().join(".")}</td><td>{transfer.fromWarehouseName}</td><td>{transfer.toWarehouseName}</td><td>{transfer.lineCount}</td><td><span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span></td><td><div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div></td></tr>)}</tbody></table></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
                 )}

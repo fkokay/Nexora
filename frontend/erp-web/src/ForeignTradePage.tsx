@@ -10,7 +10,11 @@ import "./foreign-trade.css";
 import "./foreign-trade/foreign-trade-list-v2.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
-import { ForeignTradeGrid } from "./foreign-trade/components/ForeignTradeGrid";
+import {
+  ForeignTradeGrid,
+  defaultForeignTradeFields,
+  type ForeignTradeScreenField,
+} from "./foreign-trade/components/ForeignTradeGrid";
 import { ForeignTradeDetail } from "./foreign-trade/components/ForeignTradeDetail";
 import type {
   Direction,
@@ -116,6 +120,9 @@ export default function ForeignTradePage({
     InventoryDocument[]
   >([]);
   const [inventoryDocumentId, setInventoryDocumentId] = useState("");
+  const [screenFields, setScreenFields] = useState<ForeignTradeScreenField[]>(
+    defaultForeignTradeFields,
+  );
 
   async function api<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await authenticatedFetch(url, token, {
@@ -189,6 +196,19 @@ export default function ForeignTradePage({
   }
   useEffect(() => {
     void load();
+  }, [token]);
+  useEffect(() => {
+    let active = true;
+    api<{ fields: ForeignTradeScreenField[] }>(
+      "/api/screen-views/foreign-trade-files/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [token]);
   useEffect(() => {
     setInventoryDocuments([]);
@@ -825,6 +845,8 @@ export default function ForeignTradePage({
               statusLabel={statusLabel}
               directionLabel={directionLabel}
               onSelect={setSelectedCase}
+              transportLabel={transportLabel}
+              fields={screenFields}
               toolbarContainer={toolsSlot}
             />
           </div>

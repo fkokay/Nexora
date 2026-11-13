@@ -2,12 +2,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { api } from "./erpApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import type { InventoryMovement, StockItem, Warehouse } from "./erp-types";
+import type { InventoryMovement, ScreenColumnPin, StockItem, Warehouse } from "./erp-types";
+import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { Locale } from "./WorkspaceComponents";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./inventory-movements.css";
 import "./inventory/inventory-list-v2.css";
+
+type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; width?: number | null; pinned?: ScreenColumnPin | null };
+
+const defaultMovementFields: (ScreenField & { enLabel: string })[] = [
+  { key: "entryDate", label: "Tarih", enLabel: "Date", visible: true, position: 0 },
+  { key: "direction", label: "Yön", enLabel: "Direction", visible: true, position: 1 },
+  { key: "quantity", label: "Miktar", enLabel: "Quantity", visible: true, position: 2 },
+  { key: "warehouse", label: "Depo", enLabel: "Warehouse", visible: true, position: 3 },
+  { key: "storageLocation", label: "Konum", enLabel: "Location", visible: true, position: 4 },
+  { key: "tracking", label: "Lot / seri", enLabel: "Lot / serial", visible: true, position: 5 },
+  { key: "description", label: "Açıklama", enLabel: "Description", visible: true, position: 6 },
+  { key: "unitCostBase", label: "Birim maliyet", enLabel: "Unit cost", visible: false, position: 7 },
+];
 
 type MovementPage = {
   items: InventoryMovement[];
@@ -35,6 +50,29 @@ export default function InventoryMovementsPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
+  const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultMovementFields);
+  const visibleFields = useMemo(
+    () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
+    [screenFields],
+  );
+  const columnSpan = Math.max(visibleFields.length, 1);
+  // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
+  const fieldLabel = (field: ScreenField) => {
+    const standard = defaultMovementFields.find((item) => item.key === field.key);
+    return en && standard && standard.label === field.label ? standard.enLabel : field.label;
+  };
+
+  useEffect(() => {
+    let active = true;
+    api<{ fields: ScreenField[] }>("/api/screen-views/inventory-movement-history/active", token)
+      .then((view) => {
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     let active = true;
@@ -170,26 +208,48 @@ export default function InventoryMovementsPage({
       {error && <div className="alert inline-alert" role="alert">{error}</div>}
       <section className="inventory-movements-table-card list-v2-list">
         <div className="customer-table-wrap">
-          <table className="customer-table quote-table inventory-movements-table">
-            <thead><tr><th>{en ? "Date" : "Tarih"}</th><th>{en ? "Direction" : "Yön"}</th><th>{en ? "Quantity" : "Miktar"}</th><th>{en ? "Warehouse" : "Depo"}</th><th>{en ? "Location" : "Konum"}</th><th>{en ? "Lot / serial" : "Lot / seri"}</th><th>{en ? "Description" : "Açıklama"}</th></tr></thead>
+          <AdvancedDataGrid
+            className="customer-table quote-table inventory-movements-table"
+            gridId="inventory-movement-history"
+            {...screenViewGridDefaults(visibleFields)}
+            externalPagination
+            hideSearch
+            enableRowSelection={false}
+          >
+            <thead><tr>{visibleFields.map((field) => <th key={field.key}>{fieldLabel(field)}</th>)}</tr></thead>
             <tbody>
-              {loading && <tr><td colSpan={7} className="inventory-movements-empty">{en ? "Loading movements…" : "Stok hareketleri yükleniyor…"}</td></tr>}
-              {!loading && !selectedStock && <tr><td colSpan={7} className="inventory-movements-empty">{en ? "Select a stock item to view its movements." : "Hareketleri görmek için bir stok kartı seçin."}</td></tr>}
-              {!loading && selectedStock && !warehouseId && <tr><td colSpan={7} className="inventory-movements-empty">{en ? "Create or activate a warehouse first." : "Önce bir depo oluşturun veya etkinleştirin."}</td></tr>}
-              {!loading && selectedStock && warehouseId && rows.length === 0 && <tr><td colSpan={7} className="inventory-movements-empty">{en ? "No movements found for this stock in the selected warehouse." : "Seçili stok ve depoda hareket bulunmuyor."}</td></tr>}
+              {loading && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Loading movements…" : "Stok hareketleri yükleniyor…"}</td></tr>}
+              {!loading && !selectedStock && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Select a stock item to view its movements." : "Hareketleri görmek için bir stok kartı seçin."}</td></tr>}
+              {!loading && selectedStock && !warehouseId && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Create or activate a warehouse first." : "Önce bir depo oluşturun veya etkinleştirin."}</td></tr>}
+              {!loading && selectedStock && warehouseId && rows.length === 0 && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "No movements found for this stock in the selected warehouse." : "Seçili stok ve depoda hareket bulunmuyor."}</td></tr>}
               {!loading && selectedStock && rows.map((row) => (
                 <tr key={row.id}>
-                  <td>{date(row.entryDate)}</td>
-                  <td><span className={`inventory-movement-direction ${row.direction === "Receipt" ? "is-receipt" : "is-issue"}`}>{row.direction === "Receipt" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{row.direction === "Receipt" ? (en ? "Receipt" : "Giriş") : (en ? "Issue" : "Çıkış")}{row.isReversal ? ` · ${en ? "Reversal" : "İade"}` : ""}</span></td>
-                  <td className="inventory-movement-quantity">{number(row.enteredQuantity ?? row.quantity)} {row.enteredUnitCode || selectedStock.unitCode}</td>
-                  <td>{row.warehouseCode ? `${row.warehouseCode} · ${row.warehouseName}` : selectedWarehouse ? `${selectedWarehouse.code} · ${selectedWarehouse.name}` : "—"}</td>
-                  <td>{row.storageLocationCode ? `${row.storageLocationCode} · ${row.storageLocationName}` : "—"}</td>
-                  <td>{row.tracking?.length ? row.tracking.map((trace) => `${trace.trackingCode} (${number(trace.quantity)})`).join(", ") : "—"}</td>
-                  <td>{row.description || "—"}</td>
+                  {visibleFields.map((field) => {
+                    switch (field.key) {
+                      case "entryDate":
+                        return <td key={field.key}>{date(row.entryDate)}</td>;
+                      case "direction":
+                        return <td key={field.key}><span className={`inventory-movement-direction ${row.direction === "Receipt" ? "is-receipt" : "is-issue"}`}>{row.direction === "Receipt" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{row.direction === "Receipt" ? (en ? "Receipt" : "Giriş") : (en ? "Issue" : "Çıkış")}{row.isReversal ? ` · ${en ? "Reversal" : "İade"}` : ""}</span></td>;
+                      case "quantity":
+                        return <td key={field.key} className="inventory-movement-quantity">{number(row.enteredQuantity ?? row.quantity)} {row.enteredUnitCode || selectedStock.unitCode}</td>;
+                      case "warehouse":
+                        return <td key={field.key}>{row.warehouseCode ? `${row.warehouseCode} · ${row.warehouseName}` : selectedWarehouse ? `${selectedWarehouse.code} · ${selectedWarehouse.name}` : "—"}</td>;
+                      case "storageLocation":
+                        return <td key={field.key}>{row.storageLocationCode ? `${row.storageLocationCode} · ${row.storageLocationName}` : "—"}</td>;
+                      case "tracking":
+                        return <td key={field.key}>{row.tracking?.length ? row.tracking.map((trace) => `${trace.trackingCode} (${number(trace.quantity)})`).join(", ") : "—"}</td>;
+                      case "description":
+                        return <td key={field.key}>{row.description || "—"}</td>;
+                      case "unitCostBase":
+                        return <td key={field.key} className="inventory-movement-quantity">{row.unitCostBase == null ? "—" : number(row.unitCostBase)}</td>;
+                      default:
+                        return <td key={field.key} />;
+                    }
+                  })}
                 </tr>
               ))}
             </tbody>
-          </table>
+          </AdvancedDataGrid>
         </div>
         {movements && movements.totalCount > 50 && <div className="table-pagination"><span>{en ? `Page ${page} of ${totalPages}` : `${page} / ${totalPages}. sayfa`}</span><div><button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>{en ? "Previous" : "Önceki"}</button><button className="secondary-button" type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>{en ? "Next" : "Sonraki"}</button></div></div>}
       </section>

@@ -3,14 +3,21 @@ import { api } from "./erpApi";
 import type * as AppTypes from "./erp-types";
 import { CustomerLocationDefinitionsFeedback } from "./customer-location-definitions/components/CustomerLocationDefinitionsFeedback";
 import { CustomerLocationDefinitionsHeader } from "./customer-location-definitions/components/CustomerLocationDefinitionsHeader";
-import { DistrictSection } from "./customer-location-definitions/components/DistrictSection";
-import { ProvinceSection } from "./customer-location-definitions/components/ProvinceSection";
+import {
+  DistrictSection,
+  defaultDistrictFields,
+} from "./customer-location-definitions/components/DistrictSection";
+import {
+  ProvinceSection,
+  defaultProvinceFields,
+} from "./customer-location-definitions/components/ProvinceSection";
 import "./operational-definitions.css";
 import "./customer-location-definitions/location-definitions-list-v2.css";
 type CustomerLocationDefinitions = AppTypes.CustomerLocationDefinitions;
 type CustomerLocationProvinceView = AppTypes.CustomerLocationProvinceView;
 type TurkeyDistrictOption = AppTypes.TurkeyDistrictOption;
 type TurkeyLocationOption = AppTypes.TurkeyLocationOption;
+type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 
 export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
   const [definitions, setDefinitions] = useState<CustomerLocationDefinitions>({
@@ -35,6 +42,34 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [provinceFields, setProvinceFields] = useState<
+    BuiltInScreenLayoutField[]
+  >(defaultProvinceFields);
+  const [districtFields, setDistrictFields] = useState<
+    BuiltInScreenLayoutField[]
+  >(defaultDistrictFields);
+  useEffect(() => {
+    let active = true;
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/customer-provinces/active",
+      token,
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setProvinceFields(view.fields);
+      })
+      .catch(() => undefined);
+    api<{ fields: BuiltInScreenLayoutField[] }>(
+      "/api/screen-views/customer-districts/active",
+      token,
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setDistrictFields(view.fields);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [token]);
   async function load() {
     setLoading(true);
     try {
@@ -232,6 +267,7 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
           setProvinceActive(item.isActive);
         }}
         onToggle={(item) => void toggleProvince(item)}
+        fields={provinceFields}
         onNameChange={setProvinceName}
         onActiveChange={setProvinceActive}
         onSubmit={saveProvince}
@@ -265,6 +301,7 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
           setDistrictActive(item.isActive);
         }}
         onToggle={(item) => void toggleDistrict(item)}
+        fields={districtFields}
       />
     </div>
   );
