@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Activity, Landmark, ShieldCheck, Wallet, X } from "lucide-react";
+import { Activity, Landmark, Wallet, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
@@ -26,6 +26,12 @@ import type {
   BuiltInScreenLayoutField,
 } from "./erp-types";
 import { confirmLocalized } from "./locale";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./finance-record-forms.css";
 
 const CashForecastPanel = lazy(() => import("./CashForecastPanel"));
 const ExchangeRatesPage = lazy(() => import("./ExchangeRatesPage"));
@@ -174,7 +180,7 @@ function FinancePage({
     [statementImportOpen, setStatementImportOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
   const statementImportDialog = useRef<HTMLDialogElement>(null);
-  const [accountFormTab, setAccountFormTab] = useState<"general" | "finance">("general");
+  const stayAfterAccountSave = useRef(false);
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [currencyCode, setCurrencyCode] = useState("TRY"),
@@ -361,9 +367,10 @@ function FinancePage({
       setCode("");
       setName("");
       setOpeningBalance("0");
-      setAccountCreateOpen(false);
+      const stayForNext = !editingAccount && stayAfterAccountSave.current;
+      stayAfterAccountSave.current = false;
+      if (!stayForNext) setAccountCreateOpen(false);
       setEditingAccount(null);
-      setAccountFormTab("general");
       setNotice(
         `${accountKind === "Cash" ? "Kasa" : "Banka"} hesabı ${editingAccount ? "güncellendi" : "oluşturuldu"}.`,
       );
@@ -376,7 +383,7 @@ function FinancePage({
   }
   function editAccount(account: FinancialAccount) {
     setEditingAccount(account); setCode(account.code); setName(account.name);
-    setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true);
+    setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountCreateOpen(true);
   }
   async function deleteAccount(account: FinancialAccount) {
     if (!confirmLocalized(`“${account.name}” hesabını silmek istiyor musunuz?`)) return;
@@ -750,61 +757,72 @@ function FinancePage({
     "finance-journal-ledger": "journal-ledger",
     "finance-transfer-sources": "transfer-sources",
   };
+  const accountFormOpen = accountCreateOpen && isAccountsPage;
   return (
     <div
       className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}`}
     >
-      {!ledgerViews[section] && (
+      {!ledgerViews[section] && !accountFormOpen && (
         <div className="page-heading">
           <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
             {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
             <div>
-              <p className="eyebrow">{accountCreateOpen && isAccountsPage ? "FİNANS YÖNETİMİ · KAYIT" : "FİNANS YÖNETİMİ"}</p>
-              <h1>{accountCreateOpen && isAccountsPage
-                ? editingAccount ? `${accountKind === "Cash" ? "Kasa" : "Banka" } Hesabı Düzenle` : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartı Tanımlama`
-                : financePageTitles[section]}</h1>
-              <p className="muted">{accountCreateOpen && isAccountsPage
-                ? editingAccount ? "Hesap bilgilerini güncelleyin. Açılış bakiyesi hareket kaydı olarak korunur." : "Yeni hesabın temel ve finansal bilgilerini tanımlayın."
-                : financePageDescriptions[section]}</p>
+              <p className="eyebrow">FİNANS YÖNETİMİ</p>
+              <h1>{financePageTitles[section]}</h1>
+              <p className="muted">{financePageDescriptions[section]}</p>
             </div>
           </div>
           {isAccountsPage && (
             <div className="heading-actions">
-              {accountCreateOpen ? <>
-                <button type="button" className="secondary" onClick={() => { setAccountCreateOpen(false); setEditingAccount(null); setError(""); setAccountFormTab("general"); }}>Vazgeç</button>
-                <button type="submit" form="finance-account-record-form" className="primary" disabled={busy}>{busy ? "Kaydediliyor…" : editingAccount ? "Değişiklikleri Kaydet" : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartını Kaydet`}</button>
-              </> : <button
+              <button
                 type="button"
                 className="primary"
-                onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true); }}
-              >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>}
+                onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true); }}
+              >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
             </div>
           )}
         </div>
       )}
-      {accountCreateOpen && isAccountsPage && (
-        <section className="finance-account-record-form customer-create-page-surface">
-          <nav className="customer-create-tabs" aria-label="Hesap bilgileri sekmeleri">
-            <button type="button" aria-current={accountFormTab === "general" ? "page" : undefined} onClick={() => setAccountFormTab("general")}>Genel Bilgiler</button>
-            <button type="button" aria-current={accountFormTab === "finance" ? "page" : undefined} onClick={() => setAccountFormTab("finance")}>Finansal Bilgiler</button>
-          </nav>
-          <form id="finance-account-record-form" className="finance-account-record-fields" onSubmit={create}>
-            {accountFormTab === "general" ? <fieldset className="erp-form-group">
-              <legend><Landmark size={16} /> Temel Bilgiler</legend>
-              <div className="finance-account-record-grid">
-                <label>{accountKind === "Cash" ? "Kasa" : "Banka"} kodu<input value={code} onChange={(e) => setCode(e.target.value)} required maxLength={40} placeholder={accountKind === "Cash" ? "KASA-01" : "BANKA-01"} /></label>
-                <label>{accountKind === "Cash" ? "Kasa" : "Banka"} adı<input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} placeholder={accountKind === "Cash" ? "Merkez kasa" : "Merkez banka hesabı"} /></label>
-                <label>Hesap türü<select value={accountKind} disabled><option value="Bank">Banka</option><option value="Cash">Kasa</option></select></label>
-                <label>Döviz kodu<input value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} required minLength={3} maxLength={3} /></label>
-              </div>
-            </fieldset> : <fieldset className="erp-form-group">
-              <legend><Wallet size={16} /> Finansal Bilgiler</legend>
-              {editingAccount ? <p className="finance-account-record-note">Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi değişikliği ayrı bir hareket olarak kaydedilmelidir.</p> : <div className="finance-account-record-grid">
-                <label>Açılış bakiyesi<input type="number" min={accountKind === "Cash" ? 0 : undefined} step="0.01" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} /></label>
-                <p className="finance-account-record-note">Açılış bakiyesi ayrı bir ilk hareket olarak kaydedilir ve hesap bakiyesi hareketlerden hesaplanır.</p>
-              </div>}
-            </fieldset>}
-          </form>
+      {accountFormOpen && (
+        <section className="finance-account-record-form">
+          <RecordFormPage
+            title={editingAccount ? `${accountKind === "Cash" ? "Kasa" : "Banka" } Hesabı Düzenle` : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartı Tanımlama`}
+            mode={editingAccount ? "edit" : "create"}
+            busy={busy}
+            saveLabel={editingAccount ? "Değişiklikleri Kaydet" : `${accountKind === "Cash" ? "Kasa" : "Banka" } Kartını Kaydet`}
+            formId="finance-account-record-form"
+            onSubmit={create}
+            onCancel={() => { setAccountCreateOpen(false); setEditingAccount(null); setError(""); }}
+            onSaveIntent={(stayForNext) => { stayAfterAccountSave.current = stayForNext; }}
+            onReset={() => { setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setError(""); setNotice(""); }}
+            error={error}
+            onDismissError={() => setError("")}
+            status={
+              <>
+                <span>
+                  Zorunlu alanlar: <b>{[code.trim(), name.trim(), currencyCode.trim()].filter(Boolean).length} / 3</b>
+                </span>
+                {notice && <span className="rf-status-notice">{notice}</span>}
+                {!editingAccount && (code.trim() || name.trim()) && <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>}
+              </>
+            }
+          >
+            <p className="fin-rf-hint">
+              {editingAccount ? "Hesap bilgilerini güncelleyin. Açılış bakiyesi hareket kaydı olarak korunur." : "Yeni hesabın temel ve finansal bilgilerini tanımlayın."}
+            </p>
+            <RecordFormGroup title={accountKind === "Cash" ? "Kasa Kimliği" : "Banka Kimliği"} bodyClassName="rf-identity">
+              <label><span>{accountKind === "Cash" ? "Kasa" : "Banka"} kodu<RequiredMark /></span><input className="rf-must rf-mono" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={40} placeholder={accountKind === "Cash" ? "KASA-01" : "BANKA-01"} /></label>
+              <label><span>{accountKind === "Cash" ? "Kasa" : "Banka"} adı<RequiredMark /></span><input className="rf-must" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} placeholder={accountKind === "Cash" ? "Merkez kasa" : "Merkez banka hesabı"} /></label>
+              <label>Hesap türü<select value={accountKind} disabled><option value="Bank">Banka</option><option value="Cash">Kasa</option></select></label>
+              <label><span>Döviz kodu<RequiredMark /></span><input className="rf-must rf-mono" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} required minLength={3} maxLength={3} /></label>
+            </RecordFormGroup>
+            <RecordFormGroup title="Finansal Bilgiler" bodyClassName="fin-rf-grid-2">
+              {editingAccount ? <p className="fin-rf-note fin-rf-span-all">Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi değişikliği ayrı bir hareket olarak kaydedilmelidir.</p> : <>
+                <label>Açılış bakiyesi<input className="rf-num" type="number" min={accountKind === "Cash" ? 0 : undefined} step="0.01" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} /></label>
+                <p className="fin-rf-note">Açılış bakiyesi ayrı bir ilk hareket olarak kaydedilir ve hesap bakiyesi hareketlerden hesaplanır.</p>
+              </>}
+            </RecordFormGroup>
+          </RecordFormPage>
         </section>
       )}
       {section === "finance-credit-facilities" && (
@@ -824,7 +842,7 @@ function FinancePage({
           onNavigate={onNavigate}
         />
       )}
-      {error && (
+      {error && !accountFormOpen && (
         <div className="alert inline-alert">
           {error}
           <button onClick={() => setError("")}>
@@ -832,7 +850,7 @@ function FinancePage({
           </button>
         </div>
       )}
-      {notice && (
+      {notice && !accountFormOpen && (
         <div className="notice">
           {notice}
           <button onClick={() => setNotice("")}>
@@ -1292,7 +1310,7 @@ function FinancePage({
       )}
       <dialog
         ref={statementImportDialog}
-        className="finance-form-dialog finance-statement-dialog"
+        className="finance-form-dialog finance-statement-dialog fin-rf-dialog"
         onCancel={(event) => {
           event.preventDefault();
           setStatementImportOpen(false);
@@ -1302,40 +1320,54 @@ function FinancePage({
             setStatementImportOpen(false);
         }}
       >
-        <div className="finance-form-dialog-header">
-          <div>
-            <p className="eyebrow">BANKA EKSTRESİ</p>
-            <h2 id="bank-statement-import-title">Banka ekstresi içe aktar</h2>
-            <p>
-              İmzalı tutar kullanın: pozitif giriş, negatif çıkış. Bakiye
-              toplamı API tarafından doğrulanır.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Pencereyi kapat"
-            onClick={() => setStatementImportOpen(false)}
+        {statementImportOpen && (
+          <RecordFormPage
+            variant="dialog"
+            title="Banka ekstresi içe aktar"
+            mode="create"
+            busy={busy}
+            saveLabel="Ekstreyi aktar"
+            onSubmit={(event) => {
+              if (!statementAccountId || !statementFileName) {
+                event.preventDefault();
+                return;
+              }
+              void importStatement(event);
+            }}
+            onCancel={() => {
+              if (!busy) setStatementImportOpen(false);
+            }}
+            error={error}
+            onDismissError={() => setError("")}
+            status={
+              <span>
+                {statementFileName
+                  ? `${statementFileName} · ${statementLines.length} satır okundu`
+                  : "CSV başlıkları date, amount, description; reference ve externalId alanları isteğe bağlıdır."}
+              </span>
+            }
           >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="finance-form-dialog-body">
-          <a
-            className="link-button"
-            href="data:text/csv;charset=utf-8,date%2Camount%2Cdescription%2Creference%2CexternalId%0A2026-10-01%2C1250.00%2CM%C3%BC%C5%9Fteri%20tahsilat%C4%B1%2CREF-01%2CTX-001%0A2026-10-02%2C-25.00%2CBanka%20masraf%C4%B1%2CREF-02%2CTX-002"
-            download="banka-ekstresi-ornek.csv"
-          >
-            CSV örneği indir
-          </a>
-          <form
-            className="collection-form finance-statement-import-form"
-            onSubmit={importStatement}
-          >
-            <div className="form-two">
+            <div className="fin-rf-bar">
+              <p className="fin-rf-hint">
+                İmzalı tutar kullanın: pozitif giriş, negatif çıkış. Bakiye
+                toplamı API tarafından doğrulanır.
+              </p>
+              <a
+                className="link-button"
+                href="data:text/csv;charset=utf-8,date%2Camount%2Cdescription%2Creference%2CexternalId%0A2026-10-01%2C1250.00%2CM%C3%BC%C5%9Fteri%20tahsilat%C4%B1%2CREF-01%2CTX-001%0A2026-10-02%2C-25.00%2CBanka%20masraf%C4%B1%2CREF-02%2CTX-002"
+                download="banka-ekstresi-ornek.csv"
+              >
+                CSV örneği indir
+              </a>
+            </div>
+            <RecordFormGroup title="Ekstre Kimliği" bodyClassName="fin-rf-grid-2">
               <label>
-                Banka hesabı
+                <span>
+                  Banka hesabı
+                  <RequiredMark />
+                </span>
                 <select
+                  className="rf-must"
                   value={statementAccountId}
                   onChange={(e) => setStatementAccountId(e.target.value)}
                   required
@@ -1351,7 +1383,10 @@ function FinancePage({
                 </select>
               </label>
               <label>
-                CSV dosyası
+                <span>
+                  CSV dosyası
+                  <RequiredMark />
+                </span>
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -1361,11 +1396,15 @@ function FinancePage({
                   required
                 />
               </label>
-            </div>
-            <div className="form-two">
+            </RecordFormGroup>
+            <RecordFormGroup title="Dönem ve Bakiyeler" bodyClassName="fin-rf-grid-4">
               <label>
-                Dönem başlangıcı
+                <span>
+                  Dönem başlangıcı
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must"
                   type="date"
                   value={periodStart}
                   onChange={(e) => setPeriodStart(e.target.value)}
@@ -1373,19 +1412,25 @@ function FinancePage({
                 />
               </label>
               <label>
-                Dönem bitişi
+                <span>
+                  Dönem bitişi
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must"
                   type="date"
                   value={periodEnd}
                   onChange={(e) => setPeriodEnd(e.target.value)}
                   required
                 />
               </label>
-            </div>
-            <div className="form-two">
               <label>
-                Açılış bakiyesi
+                <span>
+                  Açılış bakiyesi
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must rf-num"
                   type="number"
                   step="0.01"
                   value={statementOpening}
@@ -1394,8 +1439,12 @@ function FinancePage({
                 />
               </label>
               <label>
-                Kapanış bakiyesi
+                <span>
+                  Kapanış bakiyesi
+                  <RequiredMark />
+                </span>
                 <input
+                  className="rf-must rf-num"
                   type="number"
                   step="0.01"
                   value={statementClosing}
@@ -1403,33 +1452,9 @@ function FinancePage({
                   required
                 />
               </label>
-            </div>
-            <div className="finance-form-import-note">
-              <ShieldCheck size={15} />
-              <span>
-                {statementFileName
-                  ? `${statementFileName} · ${statementLines.length} satır okundu`
-                  : "CSV başlıkları date, amount, description; reference ve externalId alanları isteğe bağlıdır."}
-              </span>
-            </div>
-            <div className="modal-foot">
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => setStatementImportOpen(false)}
-              >
-                Vazgeç
-              </button>
-              <button
-                className="primary"
-                disabled={busy || !statementAccountId || !statementFileName}
-              >
-                {busy ? "Aktarılıyor…" : "Ekstreyi aktar"}
-              </button>
-            </div>
-          </form>
-        </div>
+            </RecordFormGroup>
+          </RecordFormPage>
+        )}
       </dialog>
       {isAccountsPage && detail && (
         <div
@@ -1469,6 +1494,7 @@ function FinancePage({
                   disabled={busy || !detail.isActive}
                   onClick={() => {
                     setMovementDirection("Inflow");
+                    setTransferOpen(false);
                     setMovementOpen(true);
                   }}
                 >
@@ -1484,6 +1510,7 @@ function FinancePage({
                   onClick={() => {
                     setToAccountId("");
                     setTransferRate("1");
+                    setMovementOpen(false);
                     setTransferOpen(true);
                   }}
                 >
@@ -1492,8 +1519,18 @@ function FinancePage({
               </div>
             </div>
             {movementOpen && (
-              <form className="collection-form" onSubmit={createMovement}>
-                <div className="form-two">
+              <RecordFormPage
+                variant="dialog"
+                className="fin-rf-inline"
+                title="Manuel hareket"
+                mode="create"
+                busy={busy}
+                saveLabel="Kaydet"
+                onSubmit={createMovement}
+                onCancel={() => setMovementOpen(false)}
+                status={<span>Nakit çıkışı hesap bakiyesini aşamaz.</span>}
+              >
+                <RecordFormGroup title="Hareket Bilgileri" bodyClassName="fin-rf-grid-4">
                   <label>
                     Yön
                     <select
@@ -1509,19 +1546,22 @@ function FinancePage({
                     </select>
                   </label>
                   <label>
-                    Tarih
+                    <span>
+                      Tarih
+                      <RequiredMark />
+                    </span>
                     <input
+                      className="rf-must"
                       type="date"
                       value={movementDate}
                       onChange={(e) => setMovementDate(e.target.value)}
                       required
                     />
                   </label>
-                </div>
-                <div className="form-two">
                   <label>
                     Tutar ({detail.currencyCode})
                     <input
+                      className="rf-must rf-num"
                       type="number"
                       min="0.01"
                       step="0.01"
@@ -1538,55 +1578,69 @@ function FinancePage({
                       maxLength={100}
                     />
                   </label>
-                </div>
-                <label>
-                  Açıklama
-                  <input
-                    value={movementDescription}
-                    onChange={(e) => setMovementDescription(e.target.value)}
-                    required
-                    maxLength={240}
-                  />
-                </label>
-                <label>
-                  Nakit akışı sınıfı
-                  <select
-                    value={movementCategory}
-                    onChange={(e) =>
-                      setMovementCategory(
-                        e.target.value as typeof movementCategory,
-                      )
-                    }
-                  >
-                    <option value="Unclassified">Sınıflandırılmamış</option>
-                    <option value="Operating">İşletme faaliyeti</option>
-                    <option value="Investing">Yatırım faaliyeti</option>
-                    <option value="Financing">Finansman faaliyeti</option>
-                  </select>
-                </label>
-                <div className="modal-foot">
-                  <span>Nakit çıkışı hesap bakiyesini aşamaz.</span>
-                  <div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setMovementOpen(false)}
+                  <label className="fin-rf-span-2">
+                    <span>
+                      Açıklama
+                      <RequiredMark />
+                    </span>
+                    <input
+                      className="rf-must"
+                      value={movementDescription}
+                      onChange={(e) => setMovementDescription(e.target.value)}
+                      required
+                      maxLength={240}
+                    />
+                  </label>
+                  <label className="fin-rf-span-2">
+                    Nakit akışı sınıfı
+                    <select
+                      value={movementCategory}
+                      onChange={(e) =>
+                        setMovementCategory(
+                          e.target.value as typeof movementCategory,
+                        )
+                      }
                     >
-                      Vazgeç
-                    </button>
-                    <button className="primary" disabled={busy}>
-                      {busy ? "Kaydediliyor…" : "Kaydet"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+                      <option value="Unclassified">Sınıflandırılmamış</option>
+                      <option value="Operating">İşletme faaliyeti</option>
+                      <option value="Investing">Yatırım faaliyeti</option>
+                      <option value="Financing">Finansman faaliyeti</option>
+                    </select>
+                  </label>
+                </RecordFormGroup>
+              </RecordFormPage>
             )}
             {transferOpen && (
-              <form className="collection-form" onSubmit={createTransfer}>
-                <div className="form-two">
-                  <label>
-                    Hedef hesap
+              <RecordFormPage
+                variant="dialog"
+                className="fin-rf-inline"
+                title="Transfer / döviz"
+                mode="create"
+                busy={busy}
+                saveLabel="Döviz transferi kaydet"
+                onSubmit={(event) => {
+                  if (!toAccountId || !transferAmount) {
+                    event.preventDefault();
+                    return;
+                  }
+                  void createTransfer(event);
+                }}
+                onCancel={() => setTransferOpen(false)}
+                status={
+                  <span>
+                    Kur kaynak para biriminden hedef para birimine uygulanır.
+                    Kasa bakiyesi kontrol edilir.
+                  </span>
+                }
+              >
+                <RecordFormGroup title="Transfer Bilgileri" bodyClassName="fin-rf-grid-4">
+                  <label className="fin-rf-span-2">
+                    <span>
+                      Hedef hesap
+                      <RequiredMark />
+                    </span>
                     <select
+                      className="rf-must"
                       value={toAccountId}
                       onChange={(e) => {
                         setToAccountId(e.target.value);
@@ -1609,19 +1663,33 @@ function FinancePage({
                     </select>
                   </label>
                   <label>
-                    Transfer tarihi
+                    <span>
+                      Transfer tarihi
+                      <RequiredMark />
+                    </span>
                     <input
+                      className="rf-must"
                       type="date"
                       value={transferDate}
                       onChange={(e) => setTransferDate(e.target.value)}
                       required
                     />
                   </label>
-                </div>
-                <div className="form-two">
+                  <label>
+                    <span>
+                      Referans{" "}
+                      <span className="optional-label">İsteğe bağlı</span>
+                    </span>
+                    <input
+                      value={transferReference}
+                      onChange={(e) => setTransferReference(e.target.value)}
+                      maxLength={100}
+                    />
+                  </label>
                   <label>
                     Kaynak tutarı ({detail.currencyCode})
                     <input
+                      className="rf-must rf-num"
                       type="number"
                       min="0.01"
                       step="0.01"
@@ -1636,6 +1704,7 @@ function FinancePage({
                       Kur · 1 {detail.currencyCode} = ?{" "}
                       {accounts.find((a) => a.id === toAccountId)?.currencyCode}
                       <input
+                        className="rf-must rf-num"
                         type="number"
                         min="0.00000001"
                         step="0.00000001"
@@ -1645,14 +1714,13 @@ function FinancePage({
                       />
                     </label>
                   )}
-                </div>
-                <div className="form-two">
                   <label>
                     Hedef tutar (
                     {accounts.find((a) => a.id === toAccountId)?.currencyCode ||
                       "—"}
                     )
                     <input
+                      className="rf-num"
                       value={
                         toAccountId && transferAmount
                           ? `${(Number(transferAmount) * Number(transferRate)).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -1661,38 +1729,8 @@ function FinancePage({
                       readOnly
                     />
                   </label>
-                  <label>
-                    Referans{" "}
-                    <span className="optional-label">İsteğe bağlı</span>
-                    <input
-                      value={transferReference}
-                      onChange={(e) => setTransferReference(e.target.value)}
-                      maxLength={100}
-                    />
-                  </label>
-                </div>
-                <div className="modal-foot">
-                  <span>
-                    Kur kaynak para biriminden hedef para birimine uygulanır.
-                    Kasa bakiyesi kontrol edilir.
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setTransferOpen(false)}
-                    >
-                      Vazgeç
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={busy || !toAccountId || !transferAmount}
-                    >
-                      {busy ? "Kaydediliyor…" : "Döviz transferi kaydet"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+                </RecordFormGroup>
+              </RecordFormPage>
             )}
             <div className="ledger-list">
               <FinanceStudioGrid

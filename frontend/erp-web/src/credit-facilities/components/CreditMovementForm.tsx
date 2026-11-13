@@ -1,4 +1,11 @@
 import type { Account, Facility } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../finance-record-forms.css";
+
 
 type Props = {
   isAdmin: boolean;
@@ -45,25 +52,57 @@ export function CreditMovementForm(props: Props) {
     ) ?? [];
 
   return (
-    <section className="panel credit-operation-page" id="credit-movement-form">
-      <div className="panel-heading">
-        <div>
-          <h2>
+    <section
+      className="panel credit-operation-page fin-rf-host"
+      id="credit-movement-form"
+    >
+      <RecordFormPage
+        variant="dialog"
+        title={
+          movementType === "Drawdown"
+            ? "Kredi kullandırımı kaydet"
+            : "Kredi geri ödemesi kaydet"
+        }
+        mode="create"
+        busy={busy}
+        saveLabel={
+          movementType === "Drawdown"
+            ? "Kullandırımı kaydet"
+            : "Geri ödemeyi kaydet"
+        }
+        onSubmit={(event) => {
+          if (!props.facilityId || !props.accountId) {
+            event.preventDefault();
+            return;
+          }
+          props.onSubmit(event as React.FormEvent<HTMLFormElement>);
+        }}
+        onCancel={() =>
+          props.onNavigate?.(
+            "finance-credit-facilities",
+            "Krediler & Finansman",
+          )
+        }
+        status={
+          <span>
             {movementType === "Drawdown"
-              ? "Kredi kullandırımı kaydet"
-              : "Kredi geri ödemesi kaydet"}
-          </h2>
-          <p>
-            İşlem, aynı para birimli kasa/banka hesabına ve finansman nakit
-            akışına bağlanır.
-          </p>
-        </div>
-      </div>
-      <form className="collection-form" onSubmit={props.onSubmit}>
-        <div className="form-two">
+              ? "Kullandırım limit bakiyesiyle doğrulanır."
+              : "Planlı taksit, ödeme kaydıyla birlikte kapatılır."}
+          </span>
+        }
+      >
+        <p className="fin-rf-hint">
+          İşlem, aynı para birimli kasa/banka hesabına ve finansman nakit
+          akışına bağlanır.
+        </p>
+        <RecordFormGroup title="Hareket Kimliği" bodyClassName="fin-rf-grid-4">
           <label>
-            Kredi / finansman
+            <span>
+              Kredi / finansman
+              <RequiredMark />
+            </span>
             <select
+              className="rf-must"
               value={props.facilityId}
               onChange={(event) => props.onFacilityChange(event.target.value)}
               required
@@ -90,11 +129,13 @@ export function CreditMovementForm(props: Props) {
               readOnly
             />
           </label>
-        </div>
-        <div className="form-two">
           <label>
-            Kasa / banka hesabı
+            <span>
+              Kasa / banka hesabı
+              <RequiredMark />
+            </span>
             <select
+              className="rf-must"
               value={props.accountId}
               onChange={(event) => props.onAccountChange(event.target.value)}
               required
@@ -113,41 +154,51 @@ export function CreditMovementForm(props: Props) {
             </select>
           </label>
           <label>
-            İşlem tarihi
+            <span>
+              İşlem tarihi
+              <RequiredMark />
+            </span>
             <input
+              className="rf-must"
               type="date"
               value={props.movementDate}
               onChange={(event) => props.onDateChange(event.target.value)}
               required
             />
           </label>
-        </div>
-        {movementType === "Repayment" && (
+        </RecordFormGroup>
+        <RecordFormGroup title="Tutarlar" bodyClassName="rf-custom-grid">
+          {movementType === "Repayment" && (
+            <label className="fin-rf-span-all">
+              Ödeme planı
+              <select
+                value={props.scheduleId}
+                onChange={(event) =>
+                  props.onScheduleSelected(event.target.value)
+                }
+              >
+                <option value="">Plansız / kısmi ödeme</option>
+                {availableSchedule.map((schedule) => (
+                  <option key={schedule.id} value={schedule.id}>
+                    {schedule.dueDate} ·{" "}
+                    {props.formatMoney(
+                      schedule.principalAmount +
+                        schedule.interestAmount +
+                        schedule.feeAmount,
+                      movementFacility!.currencyCode,
+                    )}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
-            Ödeme planı
-            <select
-              value={props.scheduleId}
-              onChange={(event) => props.onScheduleSelected(event.target.value)}
-            >
-              <option value="">Plansız / kısmi ödeme</option>
-              {availableSchedule.map((schedule) => (
-                <option key={schedule.id} value={schedule.id}>
-                  {schedule.dueDate} ·{" "}
-                  {props.formatMoney(
-                    schedule.principalAmount +
-                      schedule.interestAmount +
-                      schedule.feeAmount,
-                    movementFacility!.currencyCode,
-                  )}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <div className="form-two">
-          <label>
-            Anapara
+            <span>
+              Anapara
+              <RequiredMark />
+            </span>
             <input
+              className="rf-must rf-num"
               type="number"
               min="0.01"
               step="0.01"
@@ -160,6 +211,7 @@ export function CreditMovementForm(props: Props) {
             <label>
               Faiz
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -168,59 +220,29 @@ export function CreditMovementForm(props: Props) {
               />
             </label>
           )}
-        </div>
-        {movementType === "Repayment" && (
-          <label>
-            Ücret / komisyon
+          {movementType === "Repayment" && (
+            <label>
+              Ücret / komisyon
+              <input
+                className="rf-num"
+                type="number"
+                min="0"
+                step="0.01"
+                value={props.fee}
+                onChange={(event) => props.onFeeChange(event.target.value)}
+              />
+            </label>
+          )}
+          <label className="fin-rf-span-all">
+            Açıklama
             <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={props.fee}
-              onChange={(event) => props.onFeeChange(event.target.value)}
+              value={props.notes}
+              onChange={(event) => props.onNotesChange(event.target.value)}
+              maxLength={500}
             />
           </label>
-        )}
-        <label>
-          Açıklama
-          <input
-            value={props.notes}
-            onChange={(event) => props.onNotesChange(event.target.value)}
-            maxLength={500}
-          />
-        </label>
-        <div className="modal-foot">
-          <span>
-            {movementType === "Drawdown"
-              ? "Kullandırım limit bakiyesiyle doğrulanır."
-              : "Planlı taksit, ödeme kaydıyla birlikte kapatılır."}
-          </span>
-          <div className="credit-operation-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() =>
-                props.onNavigate?.(
-                  "finance-credit-facilities",
-                  "Krediler & Finansman",
-                )
-              }
-            >
-              Vazgeç
-            </button>
-            <button
-              className="primary"
-              disabled={busy || !props.facilityId || !props.accountId}
-            >
-              {busy
-                ? "Kaydediliyor…"
-                : movementType === "Drawdown"
-                  ? "Kullandırımı kaydet"
-                  : "Geri ödemeyi kaydet"}
-            </button>
-          </div>
-        </div>
-      </form>
+        </RecordFormGroup>
+      </RecordFormPage>
     </section>
   );
 }

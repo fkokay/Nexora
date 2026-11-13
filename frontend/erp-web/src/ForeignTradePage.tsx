@@ -10,6 +10,12 @@ import {
   Ship,
 } from "lucide-react";
 import "./foreign-trade.css";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./finance-record-forms.css";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
 import { ForeignTradeGrid } from "./foreign-trade/components/ForeignTradeGrid";
 import { ForeignTradeDetail } from "./foreign-trade/components/ForeignTradeDetail";
@@ -518,49 +524,62 @@ export default function ForeignTradePage({
           }}
         >
           <section
-            className="panel foreign-trade-create"
+            className="panel foreign-trade-create fin-rf-host"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="foreign-trade-create-title"
+            aria-label={editingId ? tr("Dosyayı düzenle", "Edit case") : tr("Yeni dosya", "New case")}
           >
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">
-                  {editingId
-                    ? tr("DOSYAYI DÜZENLE", "EDIT CASE")
-                    : tr("YENİ DOSYA", "NEW CASE")}
-                </p>
-                <h2 id="foreign-trade-create-title">
-                  {editingId
-                    ? tr(
-                        `${directionLabel(draft.direction)} dosyasını düzenle`,
-                        `Edit ${draft.direction.toLowerCase()} case`,
-                      )
-                    : tr(
-                        `${directionLabel(draft.direction)} dosyası oluştur`,
-                        `Create ${draft.direction.toLowerCase()} case`,
+            <RecordFormPage
+              variant="dialog"
+              title={
+                editingId
+                  ? tr(
+                      `${directionLabel(draft.direction)} dosyasını düzenle`,
+                      `Edit ${draft.direction.toLowerCase()} case`,
+                    )
+                  : tr(
+                      `${directionLabel(draft.direction)} dosyası oluştur`,
+                      `Create ${draft.direction.toLowerCase()} case`,
+                    )
+              }
+              mode={editingId ? "edit" : "create"}
+              busy={busyId === (editingId || "create")}
+              saveLabel={
+                editingId
+                  ? tr("Değişiklikleri kaydet", "Save changes")
+                  : tr("Dosya oluştur", "Create case")
+              }
+              onSubmit={(event) => void saveCase(event)}
+              onCancel={() => {
+                setCreating(false);
+                setEditingId("");
+              }}
+              status={
+                <>
+                  <span>
+                    {tr(
+                      "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
+                      "The order is validated in the company database and reference changes are audited.",
+                    )}
+                  </span>
+                  {!selectedOrder && (
+                    <span className="rf-status-warning">
+                      {tr(
+                        "Kaydetmek için bağlı sipariş seçin.",
+                        "Select a linked order to save.",
                       )}
-                </h2>
-              </div>
-              <button
-                className="secondary"
-                type="button"
-                onClick={() => {
-                  setCreating(false);
-                  setEditingId("");
-                }}
-              >
-                {tr("Vazgeç", "Cancel")}
-              </button>
-            </div>
-            <form onSubmit={saveCase}>
+                    </span>
+                  )}
+                </>
+              }
+            >
               {!editingId &&
                 !orders.some(
                   (order) =>
                     order.direction === draft.direction &&
                     order.status !== "Cancelled",
                 ) && (
-                  <p role="status" className="muted">
+                  <p role="status" className="fin-rf-note">
                     {draft.direction === "Import"
                       ? tr(
                           "İthalat dosyası için seçilebilir satın alma siparişi bulunamadı. Önce Satın Alma → Siparişler ekranından bir sipariş oluşturun.",
@@ -572,10 +591,17 @@ export default function ForeignTradePage({
                         )}
                   </p>
                 )}
-              <div className="form-two">
-                <label>
-                  {tr("Bağlı sipariş", "Linked order")}
+              <RecordFormGroup
+                title={tr("Dosya Kimliği", "Case identity")}
+                bodyClassName="fin-rf-grid-4"
+              >
+                <label className="fin-rf-span-2">
+                  <span>
+                    {tr("Bağlı sipariş", "Linked order")}
+                    <RequiredMark />
+                  </span>
                   <select
+                    className="rf-must"
                     required
                     disabled={!!editingId}
                     value={draft.orderId}
@@ -607,9 +633,13 @@ export default function ForeignTradePage({
                       ))}
                   </select>
                 </label>
-                <label>
-                  {tr("Dış ticaret referansı", "Foreign trade reference")}
+                <label className="fin-rf-span-2">
+                  <span>
+                    {tr("Dış ticaret referansı", "Foreign trade reference")}
+                    <RequiredMark />
+                  </span>
                   <input
+                    className="rf-must rf-mono"
                     required
                     maxLength={50}
                     value={draft.referenceCode}
@@ -623,8 +653,11 @@ export default function ForeignTradePage({
                     }
                   />
                 </label>
-              </div>
-              <div className="form-two">
+              </RecordFormGroup>
+              <RecordFormGroup
+                title={tr("Güzergâh ve Teslim", "Route and delivery")}
+                bodyClassName="fin-rf-grid-4"
+              >
                 <label>
                   {tr(
                     "Çıkış ülkesi (ISO alfa-2)",
@@ -663,8 +696,6 @@ export default function ForeignTradePage({
                     placeholder="DE"
                   />
                 </label>
-              </div>
-              <div className="form-three">
                 <label>
                   Incoterms 2020
                   <select
@@ -723,8 +754,11 @@ export default function ForeignTradePage({
                     ))}
                   </select>
                 </label>
-              </div>
-              <div className="form-three">
+              </RecordFormGroup>
+              <RecordFormGroup
+                title={tr("Değer ve Planlama", "Value and planning")}
+                bodyClassName="rf-custom-grid"
+              >
                 <label>
                   {tr("Beyan değeri", "Declared value")} (
                   {selectedOrder?.currencyCode ||
@@ -771,8 +805,11 @@ export default function ForeignTradePage({
                     }
                   />
                 </label>
-              </div>
-              <div className="form-two">
+              </RecordFormGroup>
+              <RecordFormGroup
+                title={tr("Referanslar ve Not", "References and notes")}
+                bodyClassName="fin-rf-grid-2"
+              >
                 <label>
                   {tr(
                     "Taşıyıcı / takip referansı",
@@ -802,8 +839,7 @@ export default function ForeignTradePage({
                     }
                   />
                 </label>
-              </div>
-              <label>
+              <label className="fin-rf-span-all">
                 {tr("Operasyon notu", "Operational notes")}
                 <textarea
                   rows={2}
@@ -814,27 +850,8 @@ export default function ForeignTradePage({
                   }
                 />
               </label>
-              <div className="modal-foot">
-                <span>
-                  {tr(
-                    "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
-                    "The order is validated in the company database and reference changes are audited.",
-                  )}
-                </span>
-                <button
-                  className="primary"
-                  disabled={
-                    busyId === (editingId || "create") || !selectedOrder
-                  }
-                >
-                  {busyId === (editingId || "create")
-                    ? tr("Kaydediliyor…", "Saving…")
-                    : editingId
-                      ? tr("Değişiklikleri kaydet", "Save changes")
-                      : tr("Dosya oluştur", "Create case")}
-                </button>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </section>
         </div>
       )}
