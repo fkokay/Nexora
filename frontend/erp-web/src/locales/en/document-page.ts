@@ -94,6 +94,7 @@ export const english: Record<string, string> = {
   "Müşteri seçilmelidir.": "A customer must be selected.",
   "Her satırda bir stok kartı seçilmelidir.": "Every line needs a stock card.",
   "Kaynak talep:": "Source request:",
+  "Kaynak talep": "Source request",
   "Stok kartı seçin": "Select stock card",
   "Stok seçin": "Select stock",
   // Statuses
