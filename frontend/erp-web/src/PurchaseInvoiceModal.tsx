@@ -7,6 +7,8 @@ import { confirmLocalized } from "./locale";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import { useRecordFormShortcutScope } from "./customers/components/useRecordFormShortcutScope";
 import "./purchasing-record-forms.css";
+import { DocumentSurface } from "./document-page/DocumentSurface";
+import { purchaseInvoiceStatus } from "./document-page/documentStatus";
 type FinancialAccount = AppTypes.FinancialAccount;
 type PurchaseInvoiceDetail = AppTypes.PurchaseInvoiceDetail;
 type AccountingTaxBreakdownLine = AppTypes.AccountingTaxBreakdownLine;
@@ -309,22 +311,14 @@ export function PurchaseInvoiceModal({
     }
   }
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <DocumentSurface
+      title="Alış faturası"
+      code={invoice?.code}
+      subtitle={invoice?.supplierName || "Yükleniyor…"}
+      status={invoice ? purchaseInvoiceStatus(invoice.status) : undefined}
+      onClose={onClose}
+      bodyClassName="modal ledger-modal"
     >
-      <div className="modal ledger-modal">
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">{invoice?.code || "ALIŞ FATURASI"}</p>
-            <h2>{invoice?.supplierName || "Tedarikçi faturası"}</h2>
-          </div>
-          <button className="icon-button" onClick={onClose}>
-            <X size={19} />
-          </button>
-        </div>
         {error && (
           <div className="alert inline-alert">
             {error}
@@ -919,7 +913,6 @@ export function PurchaseInvoiceModal({
             </>
           )
         )}
-      </div>
-    </div>
+      </DocumentSurface>
   );
 }

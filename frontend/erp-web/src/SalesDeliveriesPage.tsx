@@ -10,7 +10,7 @@ import {
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
-import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
@@ -21,6 +21,10 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./sales/sales-record-forms.css";
+import { ListPagination } from "./list-page/ListPagination";
+import { DocumentSurface } from "./document-page/DocumentSurface";
+import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
+import { salesDeliveryStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -140,6 +144,9 @@ export function SalesDeliveriesScreen({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [detail]);
   const pageSize = 25;
+  // Arama sunucuda yapılır; yalnızca açık sayfa değil tüm irsaliyeler taranır.
+  const [filter, setFilter] = useState("");
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   async function load() {
     setLoading(true);
     setError("");
@@ -147,7 +154,7 @@ export function SalesDeliveriesScreen({
       const result = await api<{
         items: SalesDeliverySummary[];
         totalCount: number;
-      }>(`/api/sales/deliveries/?page=${page}&pageSize=${pageSize}`, token);
+      }>(`/api/sales/deliveries/?page=${page}&pageSize=${pageSize}${filter ? `&q=${encodeURIComponent(filter)}` : ""}`, token);
       setItems(result.items);
       setTotal(result.totalCount);
     } catch (e) {
@@ -158,7 +165,7 @@ export function SalesDeliveriesScreen({
   }
   useEffect(() => {
     void load();
-  }, [token, page]);
+  }, [token, page, filter]);
   useEffect(() => {
     let active = true;
     void api<SalesInvoiceCustomFieldDefinition[]>(
@@ -259,11 +266,7 @@ export function SalesDeliveriesScreen({
         return item.lineCount;
       case "status":
         return (
-          <span
-            className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
-          >
-            {item.status === "Posted" ? "Sevk edildi" : "İptal"}
-          </span>
+          <DocumentStatusBadge status={salesDeliveryStatus(item.status)} />
         );
       case "invoiceStatus":
         return item.invoiceId ? (
@@ -558,7 +561,7 @@ export function SalesDeliveriesScreen({
         <div className="sales-lv2-stack">
           <ListPageHeader
             className="customer-heading"
-            title="Satış irsaliyeleri"
+            title="Satış İrsaliyeleri"
             description="Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."
             count={total}
           >
@@ -572,6 +575,8 @@ export function SalesDeliveriesScreen({
             onSearchChange={setSearch}
             searchLabel="İrsaliye, sipariş veya depo ara"
             searchPlaceholder="İrsaliye, sipariş veya depo ara"
+            onSearchApply={() => { setPage(1); setFilter(search.trim()); }}
+            toolsSlotRef={setToolsSlot}
             onRefresh={() => void load()}
           />
         </div>
@@ -596,101 +601,40 @@ export function SalesDeliveriesScreen({
         />
       ) : (
         <>
-          <div className="customer-table-wrap list-v2-list">
-            <table className="customer-table quote-table">
-              <thead>
-                <ScreenViewGroupHeader fields={visibleFields} />
-                <tr>
-                  {visibleFields.map((field) => (
-                    <th key={field.key}>{field.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={visibleFields.length} className="table-empty">
-                      İrsaliyeler yükleniyor…
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={visibleFields.length} className="table-empty">
-                      {search
-                        ? "Aramanızla eşleşen irsaliye yok."
-                        : "Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur."}
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={
-                        selected?.id === item.id ? "erp-selected-row" : ""
-                      }
-                      onClick={() => setSelectedId(item.id)}
-                      aria-selected={selected?.id === item.id}
-                    >
-                      {visibleFields.map((field) => (
-                        <td key={field.key}>{renderField(item, field)}</td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="table-pagination">
-            <span>
-              Sayfa {page} / {Math.max(1, Math.ceil(total / pageSize))}
-            </span>
-            <div>
-              <button
-                className="secondary"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((x) => Math.max(1, x - 1))}
-              >
-                Önceki
-              </button>
-              <button
-                className="secondary"
-                disabled={page * pageSize >= total || loading}
-                onClick={() => setPage((x) => x + 1)}
-              >
-                Sonraki
-              </button>
-            </div>
-          </div>
+          <section className="list-v2-list">
+            <SalesDocumentGrid
+              gridId="sales-deliveries"
+              fields={visibleFields}
+              items={items}
+              selectedId={selected?.id ?? null}
+              loading={loading}
+              loadingMessage="İrsaliyeler yükleniyor…"
+              emptyMessage="Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur."
+              search={filter}
+              searchEmptyMessage="Aramanızla eşleşen irsaliye yok."
+              toolbarContainer={toolsSlot}
+              onSelect={setSelectedId}
+              renderCell={(field, item) => renderField(item, field)}
+              ariaLabel="Satış irsaliyesi kayıtları"
+            />
+          </section>
+          <ListPagination
+            page={page}
+            total={total}
+            pageSize={pageSize}
+            loading={loading}
+            onPageChange={setPage}
+          />
         </>
       )}
       {detail && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
-          }}
-        >
-          <div
-            className="modal ledger-modal sales-detail-modal sales-quote-detail-modal sales-delivery-detail-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sales-delivery-detail-title"
+          <DocumentSurface
+            title="Satış irsaliyesi"
+            code={detail.code}
+            status={salesDeliveryStatus(detail.status)}
+            onClose={() => setDetail(null)}
+            bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal sales-delivery-detail-modal"
           >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">SATIŞ İRSALİYESİ DETAYI</p>
-                <h2 id="sales-delivery-detail-title">İrsaliye Detay</h2>
-                <p className="sales-quote-detail-subtitle">İrsaliye No: <b>{detail.code}</b></p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="İrsaliye ayrıntısını kapat"
-                onClick={() => setDetail(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
             <nav className="sales-quote-detail-tabs" role="tablist" aria-label="İrsaliye detay bölümleri">
               <button type="button" role="tab" aria-selected={detailTab === "information"} className={detailTab === "information" ? "active" : ""} onClick={() => setDetailTab("information")}>İrsaliye Bilgileri</button>
               <button type="button" role="tab" aria-selected={detailTab === "invoice"} className={detailTab === "invoice" ? "active" : ""} onClick={() => setDetailTab("invoice")}>Fatura İşlemleri<span>{detail.hasSalesInvoice ? 1 : 0}</span></button>
@@ -1023,9 +967,8 @@ export function SalesDeliveriesScreen({
               <span>{detail.orderId ? `Sipariş ${detail.orderCode} · ${detail.lines.length} kalem` : "Siparişsiz satış irsaliyesi"}</span>
               <button type="button" className="secondary" onClick={() => setDetail(null)}>Kapat</button>
             </div>
-          </div>
-        </div>
-      )}
+          </DocumentSurface>
+          )}
       {invoiceId && (
         <SalesInvoiceModal
           invoiceId={invoiceId}

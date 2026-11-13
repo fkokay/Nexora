@@ -3,7 +3,7 @@ import { authenticatedFetch } from "./authApi";
 import SupplierQuoteDetailPane from "./purchase-supplier-quotes/components/SupplierQuoteDetailPane";
 import SupplierQuotesFilters from "./purchase-supplier-quotes/components/SupplierQuotesFilters";
 import SupplierQuotesHeader from "./purchase-supplier-quotes/components/SupplierQuotesHeader";
-import SupplierQuotesPagination from "./purchase-supplier-quotes/components/SupplierQuotesPagination";
+import { ListPagination } from "./list-page/ListPagination";
 import SupplierQuotesTable, {
   defaultSupplierQuoteFields,
 } from "./purchase-supplier-quotes/components/SupplierQuotesTable";
@@ -115,7 +115,6 @@ export default function PurchaseSupplierQuotesPage({
     };
   }, [token, selected?.id]);
 
-  const pages = Math.max(1, Math.ceil((data?.totalCount ?? 0) / 50));
 
   return (
     <div className="purchase-requests-page supplier-quotes-page list-v2">
@@ -155,13 +154,12 @@ export default function PurchaseSupplierQuotesPage({
             selectedId={selected?.id}
             onSelect={setSelected}
           />
-          <SupplierQuotesPagination
+          <ListPagination
             page={page}
-            pages={pages}
-            totalCount={data?.totalCount ?? 0}
+            total={data?.totalCount ?? 0}
+            pageSize={50}
             loading={loading}
-            onPrevious={() => setPage((current) => current - 1)}
-            onNext={() => setPage((current) => current + 1)}
+            onPageChange={setPage}
           />
         </section>
         {selected && (

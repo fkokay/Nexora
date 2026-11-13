@@ -55,6 +55,7 @@ const standardListPages = new Set([
   "commercial-contracts", "sales-distribution", "sales-promotions", "sales-purchase-delivery-notes",
   "sales-quotes", "sales-requests", "sales-purchase-quotes", "sales-orders", "sales-invoices",
   "sales-deliveries", "sales-purchasing", "sales-purchase-invoices", "sales-purchase-receipts",
+  "sales-returns", "sales-purchase-returns", "sales-customer-requests",
   "sales-purchase-invoice-drafts", "finance-instruments", "finance-budget", "finance-cash-budget",
   "finance-accounts", "finance-banks", "finance-statements", "finance-cash-flow", "finance-fx",
   "finance-ledger", "finance-ledger-chart", "finance-ledger-mappings", "finance-journal-vouchers",
@@ -106,8 +107,10 @@ function WorkspaceRail({
         page.startsWith("crm")
       );
     if (itemPage === "inventory-stock") return page.startsWith("inventory-");
-    if (itemPage === "sales-invoices") return page.startsWith("sales-") && !page.includes("purchase");
-    if (itemPage === "sales-purchase-invoices") return page.includes("purchase");
+    // Satınalma sayfalarının anahtarları da "sales-" ile başlar; talep ve sipariş sayfalarında "purchase" geçmez.
+    const purchasingPage = page.includes("purchase") || page === "sales-requests" || page === "sales-purchasing" || page === "commercial-contracts";
+    if (itemPage === "sales-invoices") return page.startsWith("sales-") && !purchasingPage;
+    if (itemPage === "sales-purchase-invoices") return purchasingPage;
     if (itemPage === "finance-accounts") return page.startsWith("finance-");
     if (itemPage === "manufacturing-orders") return page.startsWith("manufacturing-");
     return page === itemPage;

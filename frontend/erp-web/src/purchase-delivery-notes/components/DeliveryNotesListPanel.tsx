@@ -3,6 +3,7 @@ import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
+import { ListPagination } from "../../list-page/ListPagination";
 
 export function DeliveryNotesListPanel({
   fields,
@@ -41,7 +42,6 @@ export function DeliveryNotesListPanel({
   const isSearching = searchResults !== null;
   const currentPage = isSearching ? searchPage : page;
   const currentTotal = isSearching ? searchTotal : total;
-  const pageCount = Math.max(1, Math.ceil(currentTotal / deliveryNotePageSize));
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 
   return (
@@ -141,31 +141,13 @@ export function DeliveryNotesListPanel({
           </tbody>
         </AdvancedDataGrid>
       </div>
-      <div className="table-pagination">
-        <span>
-          Sayfa {currentPage} / {pageCount}
-        </span>
-        <div>
-          <button
-            type="button"
-            className="secondary"
-            disabled={loading || currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}
-          >
-            Önceki
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={
-              loading || currentPage * deliveryNotePageSize >= currentTotal
-            }
-            onClick={() => onPageChange(currentPage + 1)}
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
+      <ListPagination
+        page={currentPage}
+        total={currentTotal}
+        pageSize={deliveryNotePageSize}
+        loading={loading}
+        onPageChange={onPageChange}
+      />
     </section>
     </>
   );

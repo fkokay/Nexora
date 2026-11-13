@@ -84,6 +84,9 @@ const SalesDeliveriesScreenPage = lazy(
 const SupplierOrdersPage = lazy(() => import("./SupplierOrdersPage"));
 const PurchaseInvoicesPage = lazy(() => import("./PurchaseInvoicesPage"));
 const PurchaseReceiptsPage = lazy(() => import("./PurchaseReceiptsPage"));
+const SalesReturnsPage = lazy(() => import("./SalesReturnsPage"));
+const SalesCustomerRequestsPage = lazy(() => import("./sales-customer-requests/SalesCustomerRequestsPage"));
+const PurchaseReturnsPage = lazy(() => import("./PurchaseReturnsPage"));
 const PurchaseInvoiceEntryScreenPage = lazy(
   () => import("./PurchaseInvoiceEntryScreenPage"),
 );
@@ -333,6 +336,12 @@ export function WorkspacePageRouter({
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")
     return <PurchaseReceiptsPage {...salesPageProps} />;
+  if (page === "sales-customer-requests")
+    return <SalesCustomerRequestsPage token={token} onNavigate={onNavigate} />;
+  if (page === "sales-returns")
+    return <SalesReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
+  if (page === "sales-purchase-returns")
+    return <PurchaseReturnsPage token={token} role={tenant.role} onNavigate={onNavigate} />;
   if (page === "sales-purchase-invoice-entry")
     return <PurchaseInvoiceEntryScreenPage {...salesPageProps} />;
   if (page === "sales-purchase-invoice-drafts")

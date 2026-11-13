@@ -1,5 +1,6 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { DocumentSurface } from "../../document-page/DocumentSurface";
 import type { Note, ScreenField } from "../types";
 
 export function DeliveryNoteDetailDialog({
@@ -14,27 +15,12 @@ export function DeliveryNoteDetailDialog({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <DocumentSurface
+      title="Tedarikçi irsaliyesi"
+      code={note.documentNumber}
+      onClose={onClose}
+      bodyClassName="modal ledger-modal"
     >
-      <section
-        className="modal ledger-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="purchase-note-detail-title"
-      >
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">TEDARİKÇİ İRSALİYESİ</p>
-            <h2 id="purchase-note-detail-title">{note.documentNumber}</h2>
-          </div>
-          <button className="icon-button" aria-label="Kapat" onClick={onClose}>
-            ×
-          </button>
-        </div>
         {loading ? (
           <p className="table-empty">İrsaliye ayrıntısı yükleniyor…</p>
         ) : (
@@ -96,7 +82,6 @@ export function DeliveryNoteDetailDialog({
             </div>
           </>
         )}
-      </section>
-    </div>
+      </DocumentSurface>
   );
 }

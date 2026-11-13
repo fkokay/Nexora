@@ -14,8 +14,9 @@ import * as recordFormsHrProjects from './record-forms-hr-projects'
 import * as recordFormsFinance from './record-forms-finance'
 import * as recordFormsPurchasing from './record-forms-purchasing'
 import * as recordFormsPlatform from './record-forms-platform'
+import * as documentPage from './document-page'
 
-const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform]
+const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform, documentPage]
 
 
 /** Module dictionaries; the first group that defines a key wins. */

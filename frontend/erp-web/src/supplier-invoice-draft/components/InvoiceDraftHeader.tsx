@@ -6,7 +6,7 @@ export function InvoiceDraftHeader({ role }: { role: string }) {
       <header className="sid-heading">
         <div>
           <p className="sid-eyebrow">ERP CORE · SATIN ALMA</p>
-          <h1>Bağımsız alış faturası taslakları</h1>
+          <h1>Bağımsız fatura taslakları</h1>
           <p>
             Siparişsiz tedarikçi faturasını kaydedin; uygunsa mal kabul
             satırıyla eşleştirip maliyet farkını aktarın.

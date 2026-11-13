@@ -7,7 +7,11 @@ import { ListToolbar } from "./list-page/ListToolbar";
 import "./purchase-list-v2/purchase-list-v2.css";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
-import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
+import { ListPagination } from "./list-page/ListPagination";
+import { DocumentSurface } from "./document-page/DocumentSurface";
+import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
+import { purchaseOrderStatus, purchaseReceiptStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type PurchaseOrderDetail = AppTypes.PurchaseOrderDetail;
 type SalesCustomer = AppTypes.SalesCustomer;
@@ -71,6 +75,7 @@ export function PurchaseReceiptsScreen({
     [invoiceId, setInvoiceId] = useState<string | null>(null),
     [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const pageSize = 25;
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   async function load() {
     setLoading(true);
     setError("");
@@ -169,11 +174,7 @@ export function PurchaseReceiptsScreen({
         return item.lineCount;
       case "status":
         return (
-          <span
-            className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
-          >
-            {item.status === "Posted" ? "Kabul edildi" : "İptal"}
-          </span>
+          <DocumentStatusBadge status={purchaseReceiptStatus(item.status)} />
         );
       default:
         return null;
@@ -198,59 +199,28 @@ export function PurchaseReceiptsScreen({
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Mal kabul, sipariş veya depo ara"
+        toolsSlotRef={setToolsSlot}
         onRefresh={() => {
           if (!loading) void load();
         }}
       />
-      <div className="customer-table-wrap list-v2-list">
-        <table className="customer-table quote-table">
-          <thead>
-            <ScreenViewGroupHeader fields={visibleFields} />
-            <tr>
-              {visibleFields.map((field) => (
-                <th key={field.key}>{field.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={visibleFields.length} className="table-empty">
-                  Mal kabulleri yükleniyor…
-                </td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={visibleFields.length} className="table-empty">
-                  {search
-                    ? "Aramanızla eşleşen mal kabul yok."
-                    : "Henüz mal kabul yok. Kabul, satın alma siparişi ayrıntısından kaydedilir."}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((item) => (
-                <tr
-                  key={item.id}
-                  className={selected?.id === item.id ? "erp-selected-row" : ""}
-                  tabIndex={0}
-                  onClick={() => setSelectedId(item.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedId(item.id);
-                    }
-                  }}
-                  aria-selected={selected?.id === item.id}
-                >
-                  {visibleFields.map((field) => (
-                    <td key={field.key}>{renderField(item, field)}</td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <section className="list-v2-list">
+        <SalesDocumentGrid
+          gridId="purchase-receipts"
+          fields={visibleFields}
+          items={filtered}
+          selectedId={selected?.id ?? null}
+          loading={loading}
+          loadingMessage="Mal kabulleri yükleniyor…"
+          emptyMessage="Henüz mal kabul yok. Kabul, satın alma siparişi ayrıntısından kaydedilir."
+          search={search}
+          searchEmptyMessage="Aramanızla eşleşen mal kabul yok."
+          toolbarContainer={toolsSlot}
+          onSelect={setSelectedId}
+          renderCell={(field, item) => renderField(item, field)}
+          ariaLabel="Mal kabul kayıtları"
+        />
+      </section>
       {selected && (
         <aside className="erp-record-pane sales-selected-record">
           <header className="list-v2-detail-head">
@@ -294,27 +264,13 @@ export function PurchaseReceiptsScreen({
           </dl>
         </aside>
       )}{" "}
-      <div className="table-pagination">
-        <span>
-          Sayfa {page} / {Math.max(1, Math.ceil(total / pageSize))}
-        </span>
-        <div>
-          <button
-            className="secondary"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((x) => Math.max(1, x - 1))}
-          >
-            Önceki
-          </button>
-          <button
-            className="secondary"
-            disabled={page * pageSize >= total || loading}
-            onClick={() => setPage((x) => x + 1)}
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
+      <ListPagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        loading={loading}
+        onPageChange={setPage}
+      />
       <StandaloneFulfillmentPanel
         token={token}
         customers={customers}
@@ -322,30 +278,14 @@ export function PurchaseReceiptsScreen({
         warehouses={warehouseOptions}
       />
       {order && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setOrder(null);
-          }}
-        >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">SATIN ALMA · MAL KABUL</p>
-                <h2>{order.code}</h2>
-                <p className="muted">
-                  {order.supplierName} ·{" "}
-                  {order.status === "Cancelled"
-                    ? "İptal"
-                    : order.status === "Received"
-                      ? "Tamamlandı"
-                      : "Açık"}
-                </p>
-              </div>
-              <button className="icon-button" onClick={() => setOrder(null)}>
-                <X size={19} />
-              </button>
-            </div>
+          <DocumentSurface
+            title="Mal kabul"
+            code={order.code}
+            subtitle={order.supplierName}
+            status={purchaseOrderStatus(order.status)}
+            onClose={() => setOrder(null)}
+            bodyClassName="modal"
+          >
             <div className="requests-list">
               {order.receipts.map((receipt) => (
                 <article className="request-row" key={receipt.id}>
@@ -388,9 +328,8 @@ export function PurchaseReceiptsScreen({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </DocumentSurface>
+          )}
       {invoiceId && (
         <PurchaseInvoiceModal
           invoiceId={invoiceId}

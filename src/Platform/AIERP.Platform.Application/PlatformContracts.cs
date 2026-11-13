@@ -174,7 +174,7 @@ public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quanti
 public sealed record SalesQuoteWriteRequest(string Code, Guid? CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
     string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,
     IReadOnlyDictionary<string, string?>? CustomFields = null, Guid? RevisesQuoteId = null, string? ProspectCustomerName = null,
-    string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null);
+    string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null, Guid? SalesRequestId = null);
 public sealed record SalesQuoteCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record SalesQuoteCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -196,7 +196,7 @@ public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, stri
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
     bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null,
     Guid? RevisionGroupId = null, int RevisionNumber = 1, string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null,
-    string? CustomerCode = null);
+    string? CustomerCode = null, Guid? SalesRequestId = null, string? SalesRequestCode = null);
 public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesOrder = false, Guid? RevisionGroupId = null, int RevisionNumber = 1, string? CustomerCode = null,
@@ -1293,3 +1293,44 @@ public static class PurchaseInvoiceWorkflow
             cumulative.LineTotal - previouslyInvoicedAmounts.LineTotal);
     }
 }
+
+// Belge ekranları: satış iadesi ve alış iadesi listeleri; tedarikçi teklifi ve mal kabul detayı.
+public sealed record SalesReturnListItem(Guid Id, string Code, Guid SalesInvoiceId, string InvoiceCode, Guid CustomerId, string CustomerName,
+    Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SalesReturnStatus Status, string CurrencyCode, decimal GrandTotal,
+    int LineCount, DateTimeOffset CreatedAt);
+public sealed record SalesReturnListPage(IReadOnlyList<SalesReturnListItem> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesReturnDetail(Guid Id, string Code, Guid SalesInvoiceId, string InvoiceCode, SalesInvoiceStatus InvoiceStatus,
+    Guid CustomerId, string CustomerName, Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SalesReturnStatus Status,
+    string CurrencyCode, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
+    IReadOnlyList<SalesReturnLineView> Lines);
+public sealed record SupplierReturnListItem(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode, Guid SupplierId, string SupplierName,
+    Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SupplierReturnStatus Status, string CurrencyCode, decimal GrandTotal,
+    int LineCount, DateTimeOffset CreatedAt);
+public sealed record SupplierReturnListPage(IReadOnlyList<SupplierReturnListItem> Items, int Page, int PageSize, int TotalCount);
+public sealed record SupplierReturnDetail(Guid Id, string Code, Guid PurchaseInvoiceId, string InvoiceCode, PurchaseInvoiceStatus InvoiceStatus,
+    Guid PurchaseOrderId, Guid SupplierId, string SupplierName, Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SupplierReturnStatus Status,
+    string CurrencyCode, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
+    IReadOnlyList<SupplierReturnLineView> Lines);
+public sealed record PurchaseSupplierQuoteDetail(Guid Id, Guid PurchaseRequestId, string RequestCode, PurchaseRequestStatus RequestStatus, string Code,
+    Guid SupplierId, string SupplierName, DateOnly QuoteDate, DateOnly? ValidUntil, string CurrencyCode, PurchaseSupplierQuoteStatus Status,
+    decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, string? Notes, DateTimeOffset CreatedAt,
+    IReadOnlyList<PurchaseSupplierQuoteLineView> Lines, string BaseCurrencyCode, decimal? ComparableGrandTotal, decimal? AppliedExchangeRate,
+    DateOnly? AppliedRateDate, IReadOnlyList<PurchaseSupplierQuoteCustomFieldValueView> CustomFields, Guid? PurchaseOrderId, string? PurchaseOrderCode);
+public sealed record PurchaseReceiptDetail(Guid Id, string Code, Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName,
+    Guid WarehouseId, string WarehouseName, DateOnly ReceiptDate, PurchaseReceiptStatus Status, DateTimeOffset CreatedAt,
+    IReadOnlyList<PurchaseReceiptLineView> Lines, PurchaseInvoiceSummary? Invoice, IReadOnlyList<PurchaseReceiptCustomFieldValueView> CustomFields);
+
+// Satış talebi: tekliften önceki adım.
+public sealed record SalesRequestLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null);
+public sealed record SalesRequestWriteRequest(string? Code, Guid CustomerId, DateOnly RequestDate, DateOnly? NeededByDate, string? Description,
+    IReadOnlyList<SalesRequestLineWriteRequest>? Lines);
+public sealed record SalesRequestCancelRequest(string? Reason);
+public sealed record SalesRequestLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode, decimal Quantity,
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+public sealed record SalesRequestQuoteLink(Guid Id, string Code, SalesQuoteStatus Status, decimal GrandTotal, string CurrencyCode, DateOnly QuoteDate);
+public sealed record SalesRequestSummary(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly RequestDate, DateOnly? NeededByDate,
+    string? Description, SalesRequestStatus Status, int LineCount, int QuoteCount, DateTimeOffset CreatedAt);
+public sealed record SalesRequestPage(IReadOnlyList<SalesRequestSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesRequestView(Guid Id, string Code, Guid CustomerId, string CustomerName, string CurrencyCode, DateOnly RequestDate,
+    DateOnly? NeededByDate, string? Description, SalesRequestStatus Status, string? CancelReason, DateTimeOffset CreatedAt,
+    IReadOnlyList<SalesRequestLineView> Lines, IReadOnlyList<SalesRequestQuoteLink> Quotes);
