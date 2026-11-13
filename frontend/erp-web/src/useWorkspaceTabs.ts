@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
+import { standalonePageTitle } from './workspace-navigation'
 
 type Tab = { id: string; label: string }
 type Props = {
@@ -29,7 +30,9 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
     const pageLabel = nextPage === 'erp-assistant' ? (locale === 'en' ? 'AI ERP Assistant' : 'AI ERP Asistanı') : nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : nextPage === 'sales-quote-create' ? (locale === 'en' ? 'New quote' : 'Yeni Teklif') : nextPage === 'customer-edit' ? (locale === 'en' ? 'Edit Customer' : 'Cari Düzenle') : undefined
-    const label = labelOverride || pageLabel || result?.label || (nextPage === 'modules' ? (locale === 'en' ? 'Module marketplace' : 'Modül pazaryeri') : nextPage.startsWith('module:') ? result?.label || nextPage.split(':').at(-1) || 'Modül' : nextPage.replace(/[-_]/g, ' '))
+    const knownLabel = labelOverride || pageLabel || result?.label || standalonePageTitle(nextPage, locale) || (nextPage.startsWith('module:') ? nextPage.split(':').at(-1) || 'Modül' : undefined)
+    // Başlığı bilinmeyen ekranda ham anahtar yalnızca yeni sekmede kullanılır; var olan sekmenin başlığı ezilmez.
+    const label = knownLabel || nextPage.replace(/[-_]/g, ' ')
     let pendingCustomerAction = false
     try {
       const action = JSON.parse(sessionStorage.getItem('nexora.customer-sales-action') || 'null') as { page?: string; customerId?: string } | null
@@ -41,7 +44,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     setActivePage(nextPage)
     setModuleTabs(current => current.some(tab => tab.id === nextPage)
-      ? current.map(tab => tab.id === nextPage ? { ...tab, label } : tab)
+      ? current.map(tab => tab.id === nextPage ? { ...tab, label: knownLabel || tab.label } : tab)
       : [...current, { id: nextPage, label }])
   }, [pageResults, moduleTabs, locale, onSelectModule])
 
