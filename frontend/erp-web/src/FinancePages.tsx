@@ -1,11 +1,12 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Activity, Landmark, ShieldCheck, Wallet, X } from "lucide-react";
+import { Landmark, ShieldCheck, Wallet, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
 import { FinanceAccountsToolbar } from "./finance/components/FinanceAccountsToolbar";
 import { FinanceAccountsGrid } from "./finance/components/FinanceAccountsGrid";
-import { BankStatementImportPrompt } from "./finance/components/BankStatementImportPrompt";
 import { BankStatementsGrid } from "./finance/components/BankStatementsGrid";
 import { BankStatementDetailPanel } from "./finance/components/BankStatementDetailPanel";
 import { financeGridDefaults, financePageTitles } from "./financeCatalog";
@@ -106,8 +107,7 @@ function FinancePage({
     [accountQueryDraft, setAccountQueryDraft] = useState(""),
     [accountStateFilter, setAccountStateFilter] = useState<
       "all" | "active" | "inactive"
-    >("all"),
-    [accountStateDraft, setAccountStateDraft] = useState<"all" | "active" | "inactive">("all");
+    >("all");
   const kindAccounts = accounts.filter(
     (account) => account.type === accountKind,
   );
@@ -137,6 +137,13 @@ function FinancePage({
       fixed: true,
     },
   ]);
+  // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
+  const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
+  const searchedAccounts = kindAccounts.filter((account) =>
+    `${account.code} ${account.name} ${account.currencyCode}`
+      .toLocaleLowerCase("tr-TR")
+      .includes(accountQuery.toLocaleLowerCase("tr-TR")),
+  );
   const visibleAccountFields = accountScreenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
@@ -750,11 +757,40 @@ function FinancePage({
     "finance-journal-ledger": "journal-ledger",
     "finance-transfer-sources": "transfer-sources",
   };
+  const isListSection =
+    isAccountsPage || section === "finance-statements" || section === "finance-maturities";
+  const showListHeader = isListSection && !(accountCreateOpen && isAccountsPage);
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}`}
     >
-      {!ledgerViews[section] && (
+      {showListHeader && (
+        <ListPageHeader
+          title={financePageTitles[section]}
+          description={financePageDescriptions[section]}
+          count={
+            isAccountsPage
+              ? loading ? null : kindAccounts.length
+              : section === "finance-statements"
+                ? loading ? null : statements.length
+                : maturity ? maturity.items.length : null
+          }
+        >
+          {isAccountsPage && (
+            <button
+              type="button"
+              className="primary"
+              onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountFormTab("general"); setAccountCreateOpen(true); }}
+            >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
+          )}
+          {section === "finance-statements" && (
+            <button type="button" className="primary" onClick={() => setStatementImportOpen(true)}>
+              Banka ekstresi içe aktar
+            </button>
+          )}
+        </ListPageHeader>
+      )}
+      {!ledgerViews[section] && !showListHeader && (
         <div className="page-heading">
           <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
             {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
@@ -1038,30 +1074,27 @@ function FinancePage({
       )}
       {section === "finance-maturities" && (
         <div className="maturity-workbench">
+          <ListToolbar
+            search={maturityQuery}
+            onSearchChange={setMaturityQuery}
+            searchLabel="Fatura veya cari ara"
+            searchPlaceholder="Fatura no veya cari adı"
+            toolsSlotRef={setListToolsSlot}
+            onRefresh={() => void load()}
+          >
+            <ListChipGroup
+              label="Yön"
+              value={maturityDirection}
+              onChange={(value) => setMaturityDirection(value as "all" | "Receivable" | "Payable")}
+              options={[
+                { value: "all", label: "Alacak ve borç", count: maturity?.items.length },
+                { value: "Receivable", label: "Alacak", count: maturity ? receivableMaturityCount : undefined },
+                { value: "Payable", label: "Borç", count: maturity ? payableMaturityCount : undefined },
+              ]}
+            />
+          </ListToolbar>
           <section className="maturity-overview" aria-label="Vade özeti">
-            <article className="maturity-stat"><span>Açık fatura</span><b>{maturity?.items.length ?? 0}</b><small>Alış ve satış faturaları</small></article>
-            <article className="maturity-stat"><span>Alacak faturası</span><b>{receivableMaturityCount}</b><small>Açık satış faturası</small></article>
-            <article className="maturity-stat"><span>Borç faturası</span><b>{payableMaturityCount}</b><small>Açık alış faturası</small></article>
             <article className="maturity-stat maturity-stat-warning"><span>Vadesi geçmiş</span><b>{overdueMaturityCount}</b><small>Ödeme tarihi geçen</small></article>
-          </section>
-          <section className="maturity-filter-card" aria-label="Vade filtreleri">
-            <div>
-              <h3>Filtreler</h3>
-              <p>Açık faturaları fatura numarası, cari veya işlem yönüne göre daraltın.</p>
-            </div>
-            <label>
-              Fatura veya cari ara
-              <input type="search" value={maturityQuery} onChange={(event) => setMaturityQuery(event.target.value)} placeholder="Fatura no veya cari adı" />
-            </label>
-            <label>
-              Yön
-              <select value={maturityDirection} onChange={(event) => setMaturityDirection(event.target.value as "all" | "Receivable" | "Payable")}>
-                <option value="all">Alacak ve borç</option>
-                <option value="Receivable">Alacak</option>
-                <option value="Payable">Borç</option>
-              </select>
-            </label>
-            <span className="maturity-filter-count">{maturityItems.length} fatura</span>
           </section>
           <div className="panel">
           <div className="panel-heading">
@@ -1149,14 +1182,15 @@ function FinancePage({
           <div className="list-toolbar">
             <div>
               <h3>Açık faturalar</h3>
-              <p>{maturityItems.length} kayıt</p>
             </div>
           </div>
-          <div className="ledger-list">
+          <div className="ledger-list list-v2-list">
             <FinanceStudioGrid
               token={token}
               screenKey="finance-maturities"
               defaults={financeGridDefaults["finance-maturities"]}
+              hideSearch
+              toolbarContainer={listToolsSlot}
             >
               <table className="customer-table">
                 <thead>
@@ -1211,45 +1245,31 @@ function FinancePage({
           </div>
         </div>
       )}
-      {isAccountsPage && (
-        <div className="finance-summary-strip">
-          <div>
-            <span className="finance-summary-icon blue"><Wallet size={19} /></span>
-            <div><small>Toplam {accountKind === "Cash" ? "kasa" : "banka"}</small><b>{kindAccounts.length}</b></div>
-          </div>
-          <div>
-            <span className="finance-summary-icon green"><Landmark size={19} /></span>
-            <div><small>Aktif {accountKind === "Cash" ? "kasa" : "banka"}</small><b>{kindAccounts.filter((a) => a.isActive).length}</b></div>
-          </div>
-          <div>
-            <span className="finance-summary-icon violet"><Activity size={19} /></span>
-            <div><small>Toplam hareket</small><b>{kindAccounts.reduce((sum, a) => sum + a.transactionCount, 0).toLocaleString("tr-TR")}</b></div>
-          </div>
-        </div>
-      )}
-      {isAccountsPage && (
+      {isAccountsPage && !accountCreateOpen && (
         <FinanceAccountsToolbar
           query={accountQueryDraft}
-          status={accountStateDraft}
+          status={accountStateFilter}
+          counts={{
+            all: searchedAccounts.length,
+            active: searchedAccounts.filter((account) => account.isActive).length,
+            inactive: searchedAccounts.filter((account) => !account.isActive).length,
+          }}
           onQueryChange={setAccountQueryDraft}
-          onStatusChange={setAccountStateDraft}
-          onApply={() => { setAccountQuery(accountQueryDraft); setAccountStateFilter(accountStateDraft); }}
+          onStatusChange={setAccountStateFilter}
+          onApply={() => setAccountQuery(accountQueryDraft)}
+          onRefresh={() => void load()}
+          toolsSlotRef={setListToolsSlot}
         />
       )}
       {isAccountsPage && (
-        <section className="ledger-list finance-accounts-grid-panel">
-          <div className="erp-pane-heading">
-            <div>
-              <h2>{accountKind === "Cash" ? "Kasalar" : "Bankalar"}</h2>
-              <p>{visibleAccounts.length} / {kindAccounts.length} kayıt</p>
-            </div>
-          </div>
+        <section className="ledger-list finance-accounts-grid-panel list-v2-list">
           <FinanceAccountsGrid
             token={token}
             loading={loading}
             busy={busy}
             accounts={visibleAccounts}
             fields={visibleAccountFields}
+            toolbarContainer={listToolsSlot}
             onShowDetail={(account) => void showDetail(account)}
             onToggle={(account) => void toggle(account)}
             onEdit={editAccount}
@@ -1263,11 +1283,7 @@ function FinancePage({
           statements={statements}
           loading={loading}
           onOpen={(statement) => void loadStatement(statement.id)}
-        />
-      )}
-      {section === "finance-statements" && (
-        <BankStatementImportPrompt
-          onImport={() => setStatementImportOpen(true)}
+          onRefresh={() => void load()}
         />
       )}
       {section === "finance-statements" && statementDetail && (

@@ -7,6 +7,8 @@ type Props = {
   items: AuditEvent[];
   selectedId: number | null;
   loading: boolean;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   onSelect: (id: number) => void;
 };
 
@@ -15,6 +17,7 @@ export function AuditEventGrid({
   items,
   selectedId,
   loading,
+  toolbarContainer,
   onSelect,
 }: Props) {
   return (
@@ -23,6 +26,7 @@ export function AuditEventGrid({
         token={token}
         screenKey="audit-events"
         defaults={auditGridDefaults}
+        toolbarContainer={toolbarContainer}
       >
         <table className="customer-table">
           <thead>

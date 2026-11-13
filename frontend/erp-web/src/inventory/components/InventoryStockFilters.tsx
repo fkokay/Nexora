@@ -1,6 +1,7 @@
-import { Filter, Search } from "lucide-react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Warehouse } from "../../erp-types";
+import "../inventory-list-v2.css";
 
 type Props = {
   warehouses: Warehouse[];
@@ -13,8 +14,11 @@ type Props = {
   onWarehouseChange: (id: string) => void;
   onSearchChange: (value: string) => void;
   onToggleBelowMinimum: () => void;
+  /** Reloads the list with the current filters (the toolbar's refresh button). */
   onApplyFilters: () => void;
   showMinimumFilter?: boolean;
+  /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export function InventoryStockFilters({
@@ -30,19 +34,19 @@ export function InventoryStockFilters({
   onToggleBelowMinimum,
   onApplyFilters,
   showMinimumFilter = true,
+  toolsSlotRef,
 }: Props) {
-  const controls = (
-    <div className="customer-toolbar inventory-stock-filters">
-      <label className="inventory-stock-search">
-        <Search size={16} />
-        <input
-          aria-label="Stok ara"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Kod veya stok adıyla ara"
-        />
-      </label>
-      <label className="warehouse-picker">
+  // The page reloads on every filter change by itself, so the search needs no apply step.
+  return (
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      searchLabel="Stok ara"
+      searchPlaceholder="Kod veya stok adıyla ara"
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onApplyFilters}
+    >
+      <label className="list-v2-filter warehouse-picker">
         Depo
         <SearchableRecordPicker
           options={[
@@ -73,30 +77,20 @@ export function InventoryStockFilters({
         />
       </label>
       {showMinimumFilter && (
-        <button
-          type="button"
-          className={belowMinimumOnly ? "primary" : "secondary"}
-          aria-pressed={belowMinimumOnly}
-          disabled={balancesLoading}
-          onClick={onToggleBelowMinimum}
-        >
-          Minimum altı · {balancesLoading ? "…" : belowMinimumCount}
-        </button>
+        <ListChipGroup
+          label="Stok filtreleri"
+          value={belowMinimumOnly ? "below" : ""}
+          onChange={() => onToggleBelowMinimum()}
+          allowClear
+          options={[
+            {
+              value: "below",
+              label: "Minimum altı",
+              count: balancesLoading ? null : belowMinimumCount,
+            },
+          ]}
+        />
       )}
-      <button type="button" className="primary" disabled={balancesLoading} onClick={onApplyFilters}>
-        <Filter size={15} /> Filtrele
-      </button>
-    </div>
-  );
-  return (
-    <section className="inventory-stock-filter-card" aria-label={showMinimumFilter ? "Stok filtreleri" : "Stok maliyeti filtreleri"}>
-      <div className="inventory-stock-filter-heading">
-        <div>
-          <h2>Filtreler</h2>
-          <p>{showMinimumFilter ? "Stok kartlarını arama, depo ve minimum seviye durumuna göre daraltın." : "Stok bakiyelerini kod veya depo seçimine göre daraltın."}</p>
-        </div>
-      </div>
-      {controls}
-    </section>
+    </ListToolbar>
   );
 }

@@ -15,6 +15,8 @@ type Props = {
   hasFilters: boolean;
   fields: ProjectScreenField[];
   selectedId: string | null;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   renderValue: (project: ProjectSummary, key: string) => ReactNode;
   onQueryChange: (query: {
     search: string;
@@ -39,6 +41,7 @@ export function ProjectRegister({
   hasFilters,
   fields,
   selectedId,
+  toolbarContainer,
   renderValue,
   onQueryChange,
   onSelect,
@@ -91,6 +94,7 @@ export function ProjectRegister({
         ) : (
           <AdvancedDataGrid
             hideSearch
+            toolbarContainer={toolbarContainer}
             className="op-project-register"
             serverData={{
               page: page.page ?? pageNumber,

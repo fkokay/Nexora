@@ -1,12 +1,16 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Asset, AssetField } from "../types";
 
 type Props = {
   assets: Asset[];
   totalAssetCount: number;
+  /** Shown on the status chips; omit while unknown. */
+  activeAssetCount?: number;
+  onRefresh?: () => void;
   fields: AssetField[];
   loading: boolean;
   search: string;
@@ -23,7 +27,9 @@ type Props = {
 export function FixedAssetRegister({
   assets,
   totalAssetCount,
-  fields,
+  activeAssetCount,
+  onRefresh,
+  fields: allFields,
   loading,
   search,
   status,
@@ -36,53 +42,43 @@ export function FixedAssetRegister({
   formatField,
 }: Props) {
   const en = locale === "en";
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  // The code is shown under the name, so it gets no column of its own while the
+  // name column is visible.
+  const hasName = allFields.some((field) => field.key === "name");
+  const fields = hasName
+    ? allFields.filter((field) => field.key !== "assetCode")
+    : allFields;
   return (
     <>
-    <section className="panel fixed-asset-filter-card" aria-label={en ? "Asset filters" : "Kıymet filtreleri"}>
-      <div className="panel-heading">
-        <div>
-          <h2>{en ? "Filters" : "Filtreler"}</h2>
-          <p>{en ? "Narrow the register by code, name, category, or status." : "Kıymetleri kod, ad, kategori veya duruma göre daraltın."}</p>
-        </div>
-      </div>
-      <div className="fixed-asset-register-toolbar">
-        <label>
-          <span>{en ? "Search" : "Ara"}</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={en ? "Code, name, or category" : "Kod, ad veya kategori"}
-          />
-        </label>
-        <label>
-          <span>{en ? "Status" : "Durum"}</span>
-          <select
-            value={status}
-            onChange={(event) => onStatusChange(event.target.value)}
-          >
-            <option value="all">{en ? "All assets" : "Tüm kıymetler"}</option>
-            <option value="active">{en ? "Active" : "Etkin"}</option>
-            <option value="inactive">{en ? "Disposed or inactive" : "Elden çıkarılan veya pasif"}</option>
-          </select>
-        </label>
-      </div>
-    </section>
-    <section className="panel fixed-asset-register-panel" aria-labelledby="asset-register-heading">
-      <div className="panel-heading">
-        <div>
-          <h3 id="asset-register-heading">
-            {en ? "Asset register" : "Kıymet listesi"}
-          </h3>
-          <p role="status" aria-live="polite">
-            {loading
-              ? en
-                ? "Loading assets…"
-                : "Kıymetler yükleniyor…"
-              : `${assets.length} / ${totalAssetCount} ${en ? "records" : "kayıt"}`}
-          </p>
-        </div>
-      </div>
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      searchLabel={en ? "Search" : "Ara"}
+      searchPlaceholder={en ? "Code, name, or category" : "Kod, ad veya kategori"}
+      toolsSlotRef={setToolsSlot}
+      onRefresh={onRefresh}
+      refreshLabel={en ? "Refresh" : "Yenile"}
+    >
+      <ListChipGroup
+        label={en ? "Status" : "Durum"}
+        value={status}
+        onChange={onStatusChange}
+        options={[
+          { value: "all", label: en ? "All assets" : "Tüm kıymetler", count: totalAssetCount },
+          { value: "active", label: en ? "Active" : "Etkin", count: activeAssetCount },
+          {
+            value: "inactive",
+            label: en ? "Disposed or inactive" : "Elden çıkarılan veya pasif",
+            count: activeAssetCount == null ? undefined : totalAssetCount - activeAssetCount,
+          },
+        ]}
+      />
+    </ListToolbar>
+    <section
+      className="panel fixed-asset-register-panel list-v2-list"
+      aria-label={en ? "Asset register" : "Kıymet listesi"}
+    >
       <div
         className="ledger-list"
         role="region"
@@ -92,6 +88,7 @@ export function FixedAssetRegister({
         <AdvancedDataGrid
           enableRowSelection={false}
           hideSearch
+          toolbarContainer={toolsSlot}
           {...screenViewGridDefaults(fields)}
           className="customer-table fixed-asset-register-table"
         >
@@ -138,9 +135,9 @@ export function FixedAssetRegister({
                           aria-pressed={selectedId === asset.id}
                           onClick={() => onSelect(asset)}
                         >
-                          {asset.assetCode}
+                          {asset.name}
                         </button>
-                        <small className="cell-subtitle">{asset.name}</small>
+                        <small className="cell-subtitle list-v2-name-code">{asset.assetCode}</small>
                       </>
                     ) : (
                       formatField(asset, field.key)

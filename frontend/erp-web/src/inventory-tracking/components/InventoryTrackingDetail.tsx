@@ -1,4 +1,4 @@
-import { Barcode, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { Balance } from "../types";
 
 type Props = { balance: Balance | null };
@@ -9,30 +9,21 @@ export default function InventoryTrackingDetail({ balance }: Props) {
       className="inventory-record-detail"
       aria-label="Seçili iz kaydı ayrıntısı"
     >
-      <div className="inventory-list-title">
-        <div>
-          <b>Seçili iz kaydı</b>
-          <small>Lot / seri bakiye bilgileri</small>
-        </div>
-        <Barcode size={16} aria-hidden="true" />
-      </div>
       {balance ? (
         <>
-          <div className="inventory-record-identity">
-            <span
-              className={
-                "inventory-tracking-mode " +
-                (balance.trackingMode === "Lot" ? "is-lot" : "is-serial")
-              }
-            >
-              {balance.trackingMode === "Lot" ? "Lot" : "Seri"}
-            </span>
-            <h2>{balance.trackingCode}</h2>
-            <p>
-              {balance.stockItemCode} · {balance.stockItemName}
-            </p>
+          <header className="list-v2-detail-head">
+            <div>
+              <span className="list-v2-kind">
+                {balance.trackingMode === "Lot" ? "Lot" : "Seri"}
+              </span>
+              <h2>{balance.trackingCode}</h2>
+            </div>
+          </header>
+          <div className="list-v2-detail-meta">
+            <span>{balance.stockItemName}</span>
+            <span className="list-v2-detail-code">{balance.stockItemCode}</span>
           </div>
-          <dl>
+          <dl className="list-v2-facts">
             <div>
               <dt>Mevcut miktar</dt>
               <dd>

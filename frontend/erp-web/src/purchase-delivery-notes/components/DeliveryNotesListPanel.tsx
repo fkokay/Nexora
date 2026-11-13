@@ -1,6 +1,6 @@
-import type { FormEvent } from "react";
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
 
@@ -15,8 +15,7 @@ export function DeliveryNotesListPanel({
   loading,
   search,
   onSearchChange,
-  onSearch,
-  onClearSearch,
+  onSearchApply,
   onRefresh,
   onPageChange,
   onOpenNote,
@@ -32,8 +31,8 @@ export function DeliveryNotesListPanel({
   loading: boolean;
   search: string;
   onSearchChange: (value: string) => void;
-  onSearch: (event: FormEvent) => void;
-  onClearSearch: () => void;
+  /** Applies the typed search text; an empty text returns to the full list. */
+  onSearchApply: () => void;
   onRefresh: () => void;
   onPageChange: (page: number) => void;
   onOpenNote: (note: Note) => void;
@@ -43,53 +42,31 @@ export function DeliveryNotesListPanel({
   const currentPage = isSearching ? searchPage : page;
   const currentTotal = isSearching ? searchTotal : total;
   const pageCount = Math.max(1, Math.ceil(currentTotal / deliveryNotePageSize));
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 
   return (
     <>
-    <section className="panel purchase-note-filter-card" aria-label="Gelen irsaliye filtreleri">
-      <div className="panel-heading">
-        <div>
-          <h2>Filtreler</h2>
-          <p>İrsaliyeleri belge, sipariş, tedarikçi veya mal kabul bilgisine göre arayın.</p>
-        </div>
-      </div>
-      <form className="form-inline" onSubmit={onSearch}>
-        <input
-          aria-label="Gelen irsaliyelerde ara"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="İrsaliye no, sipariş, tedarikçi veya mal kabul ara"
-        />
-        <button className="secondary" disabled={loading}>
-          {loading ? "Aranıyor…" : "Ara"}
-        </button>
-        {isSearching && (
-          <button type="button" className="secondary" onClick={onClearSearch}>
-            Temizle
-          </button>
-        )}
-      </form>
-    </section>
-    <section className="panel purchase-note-list-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">BELGE LİSTESİ</p>
-          <b>Gelen irsaliyeler</b>
-          <small>
-            {isSearching
-              ? `${searchTotal} eşleşme · sayfa ${searchPage} / ${Math.max(1, Math.ceil(searchTotal / deliveryNotePageSize))}`
-              : `${total} kayıt · sayfa ${page} / ${Math.max(1, Math.ceil(total / deliveryNotePageSize))}`}
-          </small>
-        </div>
-        <button className="secondary" disabled={loading} onClick={onRefresh}>
-          <RefreshCw size={15} /> Yenile
-        </button>
-      </div>
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      onSearchApply={onSearchApply}
+      searchLabel="Gelen irsaliyelerde ara"
+      searchPlaceholder="İrsaliye no, sipariş, tedarikçi veya mal kabul ara"
+      toolsSlotRef={setToolsSlot}
+      onRefresh={() => {
+        if (!loading) onRefresh();
+      }}
+    />
+    <section
+      className="panel purchase-note-list-panel list-v2-list"
+      aria-label="Gelen irsaliyeler"
+    >
       <div className="ledger-list">
         <AdvancedDataGrid
           hideSearch
           externalPagination
           className="customer-table"
+          toolbarContainer={toolsSlot}
         >
           <thead>
             <ScreenViewGroupHeader fields={fields} />

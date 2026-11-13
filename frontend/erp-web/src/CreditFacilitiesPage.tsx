@@ -781,7 +781,7 @@ export default function CreditFacilitiesPage({
             : "Kredi kullandırımı kaydet";
   return (
     <div
-      className={`finance-page credit-facilities-page${isList ? "" : " credit-operation-screen"}`}
+      className={`finance-page credit-facilities-page${isList ? " list-v2" : " credit-operation-screen"}`}
     >
       {isList ? (
         <CreditFacilitiesPageStatus
@@ -790,8 +790,6 @@ export default function CreditFacilitiesPage({
           notice={notice}
           isAdmin={admin}
           totalCount={facilities.length}
-          activeCount={active.length}
-          visibleCount={visibleFacilities.length}
           onCreateFacility={() =>
             onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit")
           }
@@ -1015,6 +1013,7 @@ export default function CreditFacilitiesPage({
               setStatusFilter("All");
               setCurrencyFilter("All");
             }}
+            onRefresh={() => void load()}
             onPreviewInterest={(facility) => void previewInterest(facility)}
             onPostPreviousMonthInterest={(facility) =>
               void postPreviousMonthInterest(facility)

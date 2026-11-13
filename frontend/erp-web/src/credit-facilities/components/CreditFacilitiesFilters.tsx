@@ -1,12 +1,16 @@
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
+
 type Props = {
   search: string;
   statusFilter: string;
   currencyFilter: string;
   currencies: string[];
+  /** Counts shown on the status chips; null while unknown. */
+  counts?: { all: number; active: number; closed: number } | null;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onCurrencyChange: (value: string) => void;
-  onClear: () => void;
+  onRefresh?: () => void;
 };
 
 export function CreditFacilitiesFilters({
@@ -14,39 +18,32 @@ export function CreditFacilitiesFilters({
   statusFilter,
   currencyFilter,
   currencies,
+  counts = null,
   onSearchChange,
   onStatusChange,
   onCurrencyChange,
-  onClear,
+  onRefresh,
 }: Props) {
   return (
-    <div
-      className="credit-filters"
-      role="search"
-      aria-label="Kredi kayıtlarını filtrele"
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      searchLabel="Kod, kurum, tür veya notta ara"
+      searchPlaceholder="Kod, kurum veya tür"
+      onRefresh={onRefresh}
+      refreshLabel="Kredi kayıtlarını yenile"
     >
-      <label className="credit-search">
-        Ara
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Kod, kurum veya tür"
-          aria-label="Kod, kurum, tür veya notta ara"
-        />
-      </label>
-      <label>
-        Durum
-        <select
-          value={statusFilter}
-          onChange={(event) => onStatusChange(event.target.value)}
-        >
-          <option value="All">Tüm durumlar</option>
-          <option value="Active">Aktif</option>
-          <option value="Closed">Kapalı</option>
-        </select>
-      </label>
-      <label>
+      <ListChipGroup
+        label="Durum"
+        value={statusFilter}
+        onChange={onStatusChange}
+        options={[
+          { value: "All", label: "Tüm durumlar", count: counts?.all },
+          { value: "Active", label: "Aktif", count: counts?.active },
+          { value: "Closed", label: "Kapalı", count: counts?.closed },
+        ]}
+      />
+      <label className="list-v2-filter">
         Para birimi
         <select
           value={currencyFilter}
@@ -60,15 +57,6 @@ export function CreditFacilitiesFilters({
           ))}
         </select>
       </label>
-      {(search || statusFilter !== "All" || currencyFilter !== "All") && (
-        <button
-          type="button"
-          className="secondary small-button credit-clear-filters"
-          onClick={onClear}
-        >
-          Filtreleri temizle
-        </button>
-      )}
-    </div>
+    </ListToolbar>
   );
 }

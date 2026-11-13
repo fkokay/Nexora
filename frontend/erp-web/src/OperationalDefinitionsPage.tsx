@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import "./operational-definitions.css";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { OperationalDefinitionsHeader } from "./operational-definitions/components/OperationalDefinitionsHeader";
 import { DefinitionForm } from "./operational-definitions/components/DefinitionForm";
 import {
@@ -54,6 +55,7 @@ export default function OperationalDefinitionsPage({
   const [rows, setRows] = useState<Definition[]>([]);
   const [kind, setKind] = useState<DefinitionKind>("Workplace");
   const [kindFilter, setKindFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -153,22 +155,26 @@ export default function OperationalDefinitionsPage({
       : value === "Branch"
         ? tx("Şube", "Branch")
         : tx("Fabrika", "Factory");
-  const filteredRows = rows.filter((row) => {
-    const term = search.trim().toLocaleLowerCase(en ? "en-US" : "tr-TR");
-    return (
+  const searchTerm = search.trim().toLocaleLowerCase(en ? "en-US" : "tr-TR");
+  // Rows matching the search text; the chip counts are taken from these.
+  const searchedRows = rows.filter((row) =>
+    `${row.code} ${row.name} ${kindName(row.kind)}`
+      .toLocaleLowerCase(en ? "en-US" : "tr-TR")
+      .includes(searchTerm),
+  );
+  const filteredRows = searchedRows.filter(
+    (row) =>
       (!kindFilter || row.kind === kindFilter) &&
-      `${row.code} ${row.name} ${kindName(row.kind)}`
-        .toLocaleLowerCase(en ? "en-US" : "tr-TR")
-        .includes(term)
-    );
-  });
+      (!statusFilter || (statusFilter === "active") === row.isActive),
+  );
+  const kindCount = (value: DefinitionKind) =>
+    searchedRows.filter((row) => row.kind === value).length;
 
   return (
-    <div className="operational-definitions-page">
+    <div className="operational-definitions-page list-v2">
       <OperationalDefinitionsHeader
         tx={tx}
-        loading={loading}
-        onRefresh={() => void load()}
+        total={loading && rows.length === 0 ? null : rows.length}
       />
       {error && (
         <div className="alert inline-alert" role="alert">
@@ -186,31 +192,48 @@ export default function OperationalDefinitionsPage({
           </button>
         </div>
       )}
-      <section className="reference-summary-grid" aria-label={tx("Tanım özeti", "Definition summary")}>
-        <div className="reference-summary-card violet"><div><small>{tx("Toplam tanım", "Total definitions")}</small><strong>{rows.length}</strong></div></div>
-        <div className="reference-summary-card green"><div><small>{tx("Etkin", "Active")}</small><strong>{rows.filter((row) => row.isActive).length}</strong></div></div>
-        <div className="reference-summary-card red"><div><small>{tx("Devre dışı", "Inactive")}</small><strong>{rows.filter((row) => !row.isActive).length}</strong></div></div>
-      </section>
-      <section className="panel op-definitions-filter-card" aria-label={tx("Tanım filtreleri", "Definition filters")}>
-        <div className="panel-heading"><div><h2>{tx("Filtreler", "Filters")}</h2><p>{tx("Tanımları tür, kod veya ada göre daraltın.", "Narrow definitions by type, code or name.")}</p></div></div>
-        <div className="customer-toolbar">
-          <input aria-label={tx("Tanımlarda ara", "Search definitions")} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tx("Kod veya ad ara", "Search code or name")} />
-          <label>{tx("Tür", "Type")}<select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="">{tx("Tüm türler", "All types")}</option><option value="Workplace">{tx("İş yeri", "Workplace")}</option><option value="Branch">{tx("Şube", "Branch")}</option><option value="Factory">{tx("Fabrika", "Factory")}</option></select></label>
-        </div>
-      </section>
-      <section className="panel op-definitions-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{tx("Organizasyon tanımları", "Organization definitions")}</h2>
-            <p>
-              {tx(
-                "İş yeri, şube ve fabrikalar; personel iş yeri atamaları ve çalışma takvimlerinde kullanılabilir.",
-                "Workplaces, branches and factories can be used in employee assignments and work calendars.",
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="panel-heading op-definitions-grid-heading"><div><h2>{tx("Tanım listesi", "Definition list")}</h2><p>{loading ? tx("Kayıtlar yükleniyor…", "Loading records…") : `${filteredRows.length} / ${rows.length} ${tx("kayıt", "records")}`}</p></div></div>
+      <ListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchLabel={tx("Tanımlarda ara", "Search definitions")}
+        searchPlaceholder={tx("Kod veya ad ara", "Search code or name")}
+        onRefresh={() => void load()}
+        refreshLabel={tx("Yenile", "Refresh")}
+      >
+        <ListChipGroup
+          label={tx("Tür", "Type")}
+          value={kindFilter}
+          onChange={setKindFilter}
+          options={[
+            { value: "", label: tx("Tümü", "All"), count: searchedRows.length },
+            { value: "Workplace", label: tx("İş yeri", "Workplace"), count: kindCount("Workplace") },
+            { value: "Branch", label: tx("Şube", "Branch"), count: kindCount("Branch") },
+            { value: "Factory", label: tx("Fabrika", "Factory"), count: kindCount("Factory") },
+          ]}
+        />
+        <ListChipGroup
+          label={tx("Durum", "Status")}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          allowClear
+          options={[
+            {
+              value: "active",
+              label: tx("Etkin", "Active"),
+              count: searchedRows.filter((row) => row.isActive).length,
+            },
+            {
+              value: "inactive",
+              label: tx("Devre dışı", "Inactive"),
+              count: searchedRows.filter((row) => !row.isActive).length,
+            },
+          ]}
+        />
+      </ListToolbar>
+      <section
+        className="panel op-definitions-panel list-v2-list"
+        aria-label={tx("Tanım listesi", "Definition list")}
+      >
         <DefinitionGrid
           rows={filteredRows}
           loading={loading}

@@ -7,7 +7,6 @@ import {
   FileText,
   Landmark,
   ListTree,
-  Search,
   Scale,
   ShieldCheck,
 } from "lucide-react";
@@ -28,6 +27,9 @@ import type {
   JournalEntryView,
 } from "./erp-types";
 import { confirmLocalized } from "./locale";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import "./general-ledger/general-ledger-list-v2.css";
 
 type LedgerView =
   | "overview"
@@ -191,6 +193,14 @@ export default function GeneralLedgerPage({
   >({});
   const [mappingSearch, setMappingSearch] = useState("");
   const [transferSourceSearch, setTransferSourceSearch] = useState("");
+  // list-v2: status chips of the three client-side lists ("" = all).
+  const [accountStatus, setAccountStatus] = useState("");
+  const [mappingStatus, setMappingStatus] = useState("");
+  const [transferStatus, setTransferStatus] = useState("");
+  // list-v2: the page toolbar hosts the visible list's own tools (columns, export…).
+  const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [newAccountSection, setNewAccountSection] =
@@ -207,14 +217,19 @@ export default function GeneralLedgerPage({
   const labelByKey = Object.fromEntries(
     mappings.map((m) => [m.mappingKey, m.label]),
   ) as Record<string, string>;
-  const activeMappingCount = mappings.filter((mapping) =>
-    accounts.some((account) => account.id === mapping.accountId && account.isActive),
-  ).length;
-  const visibleMappings = mappings.filter((mapping) =>
+  const isMappingActive = (mapping: LedgerMapping) =>
+    accounts.some((account) => account.id === mapping.accountId && account.isActive);
+  const searchedMappings = mappings.filter((mapping) =>
     `${mapping.label} ${mapping.accountCode || ""} ${mapping.accountName || ""}`
       .toLocaleLowerCase("tr-TR")
       .includes(mappingSearch.trim().toLocaleLowerCase("tr-TR")),
   );
+  const activeMappingCount = searchedMappings.filter(isMappingActive).length;
+  const visibleMappings = mappingStatus
+    ? searchedMappings.filter(
+        (mapping) => isMappingActive(mapping) === (mappingStatus === "mapped"),
+      )
+    : searchedMappings;
   function missingFor(source: LedgerSource) {
     return source.requiredMappings.filter(
       (key) =>
@@ -281,10 +296,6 @@ export default function GeneralLedgerPage({
     } catch (e) {
       setError((e as Error).message);
     }
-  }
-  function applyEntryFilters() {
-    setEntryPage(1);
-    void load(1);
   }
   async function loadTrialBalance() {
     setError("");
@@ -404,7 +415,7 @@ export default function GeneralLedgerPage({
   }
   useEffect(() => {
     void load();
-  }, [token, entryPage, view]);
+  }, [token, entryPage, view, entryFrom, entryTo]);
   async function createAccount(e: React.FormEvent) {
     e.preventDefault();
     const parent = accounts.find(
@@ -770,13 +781,18 @@ export default function GeneralLedgerPage({
     (account) => account.id === newAccountParentId && account.isActive,
   );
   const normalizedAccountQuery = accountQuery.trim().toLocaleLowerCase("tr-TR");
-  const filteredAccounts = normalizedAccountQuery
+  const searchedAccounts = normalizedAccountQuery
     ? accounts.filter((account) =>
         `${account.code} ${account.name}`
           .toLocaleLowerCase("tr-TR")
           .includes(normalizedAccountQuery),
       )
     : accounts;
+  const filteredAccounts = accountStatus
+    ? searchedAccounts.filter(
+        (account) => account.isActive === (accountStatus === "active"),
+      )
+    : searchedAccounts;
   const accountTreeRows = buildLedgerAccountTree(
     filteredAccounts,
     collapsedAccountCodes,
@@ -827,7 +843,9 @@ export default function GeneralLedgerPage({
     ...sources.fxRevaluations.map((source) => ({ sourceType: "FxRevaluation" as const, title: "Kur değerleme", source })),
     ...sources.inventoryAdjustments.map((source) => ({ sourceType: "InventoryCostAdjustment" as const, title: `Stok · ${source.kind || ""}`, source })),
   ].map((row) => ({ ...row, key: `${row.sourceType}-${row.source.id}` }));
-  const visibleTransferSourceRows = transferSourceRows.filter(({ title, source }) => {
+  const isTransferReady = (source: LedgerSource) =>
+    source.amount > 0 && missingFor(source).length === 0;
+  const searchedTransferSourceRows = transferSourceRows.filter(({ title, source }) => {
     const query = transferSourceSearch.trim().toLocaleLowerCase("tr-TR");
     return !query || [title, source.code, source.description, source.entryDate, source.currencyCode]
       .filter(Boolean)
@@ -835,26 +853,117 @@ export default function GeneralLedgerPage({
       .toLocaleLowerCase("tr-TR")
       .includes(query);
   });
-  const transferReadyCount = transferSourceRows.filter(
-    ({ source }) => source.amount > 0 && missingFor(source).length === 0,
+  const transferReadyCount = searchedTransferSourceRows.filter(({ source }) =>
+    isTransferReady(source),
   ).length;
+  const visibleTransferSourceRows = transferStatus
+    ? searchedTransferSourceRows.filter(({ source }) => isTransferReady(source))
+    : searchedTransferSourceRows;
   const selectedTransferRows = transferSourceRows.filter(({ key }) => selectedTransferKeys.has(key));
-  const readyTransferRows = selectedTransferRows.filter(
-    ({ source }) => source.amount > 0 && missingFor(source).length === 0,
+  const readyTransferRows = selectedTransferRows.filter(({ source }) =>
+    isTransferReady(source),
   );
+  const accountFormOpen = accountCreateOpen && view === "accounts";
+  // The record lists follow the list-v2 structure (see list-page/README.md); the account
+  // card form keeps the classic heading because it hides everything else on the page.
+  const isListView =
+    view === "accounts" ||
+    view === "mappings" ||
+    view === "journal-ledger" ||
+    view === "transfer-sources";
+  const showListHeader = isListView && !accountFormOpen;
+  const isTenantAdmin = role === "TenantAdmin";
+  const listCount =
+    view === "accounts"
+      ? accounts.length
+      : view === "mappings"
+        ? mappings.length
+        : view === "journal-ledger"
+          ? entryTotal
+          : isTenantAdmin
+            ? transferSourceRows.length
+            : null;
   return (
-    <section className={`panel general-ledger-panel finance-workbench${accountCreateOpen && view === "accounts" ? " general-ledger-record-form-open" : ""}`}>
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">GENEL MUHASEBE</p>
-          <h1>{viewTitles[view]}</h1>
-          <p>{viewDescriptions[view]}</p>
+    <section className={`panel general-ledger-panel finance-workbench${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader ? " list-v2" : ""}`}>
+      {showListHeader ? (
+        <ListPageHeader
+          title={viewTitles[view]}
+          description={viewDescriptions[view]}
+          count={listCount}
+        >
+          {view === "journal-ledger" && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => onNavigate?.("finance-transfer-sources")}
+            >
+              Aktarılabilir kaynaklar
+            </button>
+          )}
+          {view === "accounts" && isTenantAdmin && (
+            <>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => onNavigate?.("finance-ledger-mappings")}
+              >
+                Hesap eşleştirmeleri
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => void previewStandardChart()}
+              >
+                Tek Düzen Hesap Planı
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setError("");
+                  setEditingAccountId("");
+                  setCode("");
+                  setName("");
+                  setNewAccountParentId("");
+                  setNewAccountSection("Unclassified");
+                  setAccountType("Unclassified");
+                  setNormalBalance("Both");
+                  setAccountCurrency("");
+                  setIfrsAccountCode("");
+                  setIfrsAccountName("");
+                  setIfrsStatementSection("Unclassified");
+                  setAccountFormTab("general");
+                  setAccountCreateOpen(true);
+                }}
+              >
+                Hesap ekle
+              </button>
+            </>
+          )}
+          {view === "transfer-sources" && isTenantAdmin && (
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || readyTransferRows.length === 0}
+              onClick={() => void transferSelectedSources(readyTransferRows)}
+            >
+              {busy ? "Aktarılıyor…" : `Seçilenleri aktar${readyTransferRows.length ? ` (${readyTransferRows.length})` : ""}`}
+            </button>
+          )}
+        </ListPageHeader>
+      ) : (
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">GENEL MUHASEBE</p>
+            <h1>{viewTitles[view]}</h1>
+            <p>{viewDescriptions[view]}</p>
+          </div>
+          <div className="heading-actions">
+            <button className="secondary small-button" onClick={() => void load()}>Yenile</button>
+          </div>
         </div>
-        <div className="heading-actions">
-          {view === "journal-ledger" && <button className="secondary" onClick={() => onNavigate?.("finance-transfer-sources")}>Aktarılabilir kaynaklar</button>}
-          <button className="secondary small-button" onClick={() => void load()}>Yenile</button>
-        </div>
-      </div>
+      )}
       {error && <p className="error-banner">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
       {view === "overview" && (
@@ -937,76 +1046,25 @@ export default function GeneralLedgerPage({
           className="ledger-subpanel ledger-accounts-panel"
           aria-label="Hesap planı"
         >
-          <div className="finance-summary-strip ledger-account-summary" aria-label="Hesap planı özeti">
-            <div><small>Toplam hesap</small><b>{accounts.length.toLocaleString("tr-TR")}</b></div>
-            <div><small>Aktif hesap</small><b>{accounts.filter((account) => account.isActive).length.toLocaleString("tr-TR")}</b></div>
-            <div><small>Pasif hesap</small><b>{accounts.filter((account) => !account.isActive).length.toLocaleString("tr-TR")}</b></div>
-          </div>
-          <section className="panel ledger-account-filter-card" aria-label="Hesap planı filtreleri">
-            <div className="ledger-account-filter-heading">
-              <h2>Filtreler</h2>
-              <p>Hesap planını kod veya hesap adına göre daraltın.</p>
-            </div>
-            <label className="ledger-account-search finance-search">
-              <Search size={16} aria-hidden="true" />
-              <span className="sr-only">Hesap planında ara</span>
-              <input
-                type="search"
-                value={accountQuery}
-                onChange={(e) => setAccountQuery(e.target.value)}
-                placeholder="Kod veya hesap adına göre ara"
-              />
-            </label>
-          </section>
-          <div className="list-toolbar" id="ledger-chart">
-            <div>
-              <h3>Hesap planı</h3>
-              <p>{accountTreeRows.length.toLocaleString("tr-TR")} kayıt gösteriliyor · kod ve ad tenant tarafından belirlenir</p>
-            </div>
-          {role === "TenantAdmin" && (
-            <>
-                <div className="heading-actions ledger-account-controls">
-                  <button
-                    type="button"
-                    className="primary small-button"
-                    onClick={() => {
-                      setError("");
-                      setEditingAccountId("");
-                      setCode("");
-                      setName("");
-                      setNewAccountParentId("");
-                      setNewAccountSection("Unclassified");
-                      setAccountType("Unclassified");
-                      setNormalBalance("Both");
-                      setAccountCurrency("");
-                      setIfrsAccountCode("");
-                      setIfrsAccountName("");
-                      setIfrsStatementSection("Unclassified");
-                      setAccountFormTab("general");
-                      setAccountCreateOpen(true);
-                    }}
-                  >
-                    Hesap ekle
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    onClick={() => onNavigate?.("finance-ledger-mappings")}
-                  >
-                    Hesap eşleştirmeleri
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    disabled={busy}
-                    onClick={() => void previewStandardChart()}
-                  >
-                    Tek Düzen Hesap Planı
-                  </button>
-                </div>
-            </>
-          )}
-          </div>
+          <ListToolbar
+            search={accountQuery}
+            onSearchChange={setAccountQuery}
+            searchLabel="Hesap planında ara"
+            searchPlaceholder="Kod veya hesap adına göre ara"
+            toolsSlotRef={setListToolsSlot}
+            onRefresh={() => void load()}
+          >
+            <ListChipGroup
+              label="Hesap durumu"
+              value={accountStatus}
+              onChange={setAccountStatus}
+              options={[
+                { value: "", label: "Tüm durumlar", count: searchedAccounts.length },
+                { value: "active", label: "Aktif", count: searchedAccounts.filter((account) => account.isActive).length },
+                { value: "inactive", label: "Pasif", count: searchedAccounts.filter((account) => !account.isActive).length },
+              ]}
+            />
+          </ListToolbar>
           {role === "TenantAdmin" && (
             <>
               {chartPreview && (
@@ -1052,11 +1110,13 @@ export default function GeneralLedgerPage({
               )}
             </>
           )}
-          <div className="ledger-list">
+          <div className="ledger-list list-v2-list" id="ledger-chart">
             <FinanceStudioGrid
               token={token}
               screenKey="finance-ledger-accounts"
               defaults={financeGridDefaults["finance-ledger-accounts"]}
+              hideSearch
+              toolbarContainer={listToolsSlot}
             >
               <table className="customer-table">
                 <thead>
@@ -1211,7 +1271,7 @@ export default function GeneralLedgerPage({
                         colSpan={role === "TenantAdmin" ? 5 : 4}
                         className="table-empty"
                       >
-                        {normalizedAccountQuery
+                        {normalizedAccountQuery || accountStatus
                           ? "Aramayla eşleşen hesap bulunamadı."
                           : "Tenant hesabı eklenmedi."}
                       </td>
@@ -1275,35 +1335,32 @@ export default function GeneralLedgerPage({
           className="ledger-subpanel ledger-mappings-panel"
           aria-label="Hesap eşleştirmeleri"
         >
-          <div className="finance-summary-strip ledger-mapping-summary" aria-label="Hesap eşleştirmeleri özeti">
-            <div><small>Toplam eşleştirme</small><b>{mappings.length.toLocaleString("tr-TR")}</b></div>
-            <div><small>Etkin hesapla eşleşen</small><b>{activeMappingCount.toLocaleString("tr-TR")}</b></div>
-            <div><small>Eşleştirme gereken</small><b>{(mappings.length - activeMappingCount).toLocaleString("tr-TR")}</b></div>
-          </div>
-          <section className="panel ledger-account-filter-card" aria-label="Eşleştirme filtreleri">
-            <div className="ledger-account-filter-heading">
-              <h2>Filtreler</h2>
-              <p>Alt defter kaynağını veya bağlı hesabı arayın.</p>
-            </div>
-            <label className="ledger-account-search finance-search">
-              <Search size={16} aria-hidden="true" />
-              <span className="sr-only">Eşleştirmelerde ara</span>
-              <input type="search" value={mappingSearch} onChange={(event) => setMappingSearch(event.target.value)} placeholder="Kaynak veya hesap kodu/adı ara" />
-            </label>
-          </section>
-          <div className="list-toolbar" id="ledger-mappings">
-            <div>
-              <h3>Hesap eşleştirmeleri</h3>
-              <p>
-                {visibleMappings.length} / {mappings.length} kaynak gösteriliyor · eşleştirme tamamlanana kadar kaynak yevmiyeye aktarılamaz.
-              </p>
-            </div>
-          </div>
-          <div className="ledger-list">
+          <ListToolbar
+            search={mappingSearch}
+            onSearchChange={setMappingSearch}
+            searchLabel="Eşleştirmelerde ara"
+            searchPlaceholder="Kaynak veya hesap kodu/adı ara"
+            toolsSlotRef={setListToolsSlot}
+            onRefresh={() => void load()}
+          >
+            <ListChipGroup
+              label="Durum"
+              value={mappingStatus}
+              onChange={setMappingStatus}
+              options={[
+                { value: "", label: "Tüm durumlar", count: searchedMappings.length },
+                { value: "mapped", label: "Etkin hesapla eşleşen", count: activeMappingCount },
+                { value: "unmapped", label: "Eşleştirme gereken", count: searchedMappings.length - activeMappingCount },
+              ]}
+            />
+          </ListToolbar>
+          <div className="ledger-list list-v2-list" id="ledger-mappings">
             <FinanceStudioGrid
               token={token}
               screenKey="finance-ledger-mappings"
               defaults={financeGridDefaults["finance-ledger-mappings"]}
+              hideSearch
+              toolbarContainer={listToolsSlot}
             >
               <table className="customer-table">
                 <thead>
@@ -1314,9 +1371,7 @@ export default function GeneralLedgerPage({
                 </thead>
                 <tbody>
                   {visibleMappings.map((m) => {
-                    const active = accounts.some(
-                        (a) => a.id === m.accountId && a.isActive,
-                      ),
+                    const active = isMappingActive(m),
                       query = (mappingAccountQueries[m.mappingKey] || "")
                         .trim()
                         .toLocaleLowerCase("tr-TR"),
@@ -1434,41 +1489,32 @@ export default function GeneralLedgerPage({
       )}
       {view === "transfer-sources" && role === "TenantAdmin" && (
         <section className="ledger-subpanel ledger-transfer-sources" aria-label="Aktarılabilir alt defter kaynakları">
-          <div className="list-toolbar finance-transfer-toolbar">
-            <div>
-              <h3>Aktarılabilir alt defter kaynakları</h3>
-              <p>Eksik hesap eşleştirmelerini tamamlayıp hazır kaynakları muhasebeye aktarın.</p>
-            </div>
-            <button className="primary small-button" disabled={busy || readyTransferRows.length === 0} onClick={() => void transferSelectedSources(readyTransferRows)}>
-              {busy ? "Aktarılıyor…" : `Seçilenleri aktar${readyTransferRows.length ? ` (${readyTransferRows.length})` : ""}`}
-            </button>
-          </div>
-          <div className="finance-summary-strip ledger-transfer-summary" aria-label="Aktarılabilir kaynak özeti">
-            <div><small>Bekleyen kaynak</small><b>{transferSourceRows.length.toLocaleString("tr-TR")}</b></div>
-            <div><small>Aktarılmaya hazır</small><b>{transferReadyCount.toLocaleString("tr-TR")}</b></div>
-            <div><small>Seçilen kaynak</small><b>{selectedTransferRows.length.toLocaleString("tr-TR")}</b></div>
-          </div>
-          <section className="ledger-transfer-filter-card" aria-label="Aktarılabilir kaynak filtreleri">
-            <div className="ledger-transfer-filter-heading">
-              <h2>Filtreler</h2>
-              <p>Kaynak türü, kod veya açıklama ile daraltın.</p>
-            </div>
-            <label>
-              <span>Kaynakta ara</span>
-              <input
-                type="search"
-                value={transferSourceSearch}
-                onChange={(event) => setTransferSourceSearch(event.target.value)}
-                placeholder="Kaynak, kod veya açıklama"
-              />
-            </label>
-          </section>
-          <div className="ledger-list">
+          <ListToolbar
+            search={transferSourceSearch}
+            onSearchChange={setTransferSourceSearch}
+            searchLabel="Kaynakta ara"
+            searchPlaceholder="Kaynak, kod veya açıklama"
+            toolsSlotRef={setListToolsSlot}
+            onRefresh={() => void load()}
+          >
+            <ListChipGroup
+              label="Durum"
+              value={transferStatus}
+              onChange={setTransferStatus}
+              options={[
+                { value: "", label: "Bekleyen kaynak", count: searchedTransferSourceRows.length },
+                { value: "ready", label: "Aktarılmaya hazır", count: transferReadyCount },
+              ]}
+            />
+          </ListToolbar>
+          <div className="ledger-list list-v2-list">
             <FinanceStudioGrid
               token={token}
               screenKey="finance-transfer-sources"
               defaults={financeGridDefaults["finance-transfer-sources"]}
               onSelectionChange={handleTransferSelection}
+              hideSearch
+              toolbarContainer={listToolsSlot}
             >
                   <table className="customer-table">
                     <thead>
@@ -1552,39 +1598,44 @@ export default function GeneralLedgerPage({
             className="ledger-subpanel"
             aria-label="Yevmiye defteri kayıtları"
           >
-            <div className="finance-summary-strip ledger-journal-summary" aria-label="Yevmiye defteri özeti">
-              <div><small>Toplam yevmiye fişi</small><b>{entryTotal.toLocaleString("tr-TR")}</b></div>
-              <div><small>Bu sayfada gösterilen</small><b>{entries.length.toLocaleString("tr-TR")}</b></div>
-            </div>
-            <section className="panel ledger-journal-filter-card" aria-label="Yevmiye defteri filtreleri">
-              <div className="ledger-journal-filter-heading">
-                <h2>Filtreler</h2>
-                <p>Yevmiye kayıtlarını tarih aralığına göre daraltın.</p>
-              </div>
-              <div className="ledger-journal-filter-fields">
-                <label>
-                  Başlangıç
-                  <input type="date" value={entryFrom} max={entryTo || undefined} onChange={(e) => setEntryFrom(e.target.value)} />
-                </label>
-                <label>
-                  Bitiş
-                  <input type="date" value={entryTo} min={entryFrom || undefined} onChange={(e) => setEntryTo(e.target.value)} />
-                </label>
-                <button className="secondary small-button" onClick={applyEntryFilters}>Filtrele</button>
-              </div>
-            </section>
-            <div className="list-toolbar" id="ledger-journal">
-              <div>
-                <h3>Yevmiye defteri</h3>
-                <p>{entryTotal} kayıt · borç ve alacak toplamları eşit</p>
-              </div>
-            </div>
-            <div className="ledger-list journal-entries-list">
+            <ListToolbar
+              toolsSlotRef={setListToolsSlot}
+              onRefresh={() => void load()}
+            >
+              <label className="list-v2-filter">
+                <span>Başlangıç</span>
+                <input
+                  type="date"
+                  aria-label="Başlangıç"
+                  value={entryFrom}
+                  max={entryTo || undefined}
+                  onChange={(e) => {
+                    setEntryPage(1);
+                    setEntryFrom(e.target.value);
+                  }}
+                />
+              </label>
+              <label className="list-v2-filter">
+                <span>Bitiş</span>
+                <input
+                  type="date"
+                  aria-label="Bitiş"
+                  value={entryTo}
+                  min={entryFrom || undefined}
+                  onChange={(e) => {
+                    setEntryPage(1);
+                    setEntryTo(e.target.value);
+                  }}
+                />
+              </label>
+            </ListToolbar>
+            <div className="ledger-list journal-entries-list list-v2-list" id="ledger-journal">
               <FinanceStudioGrid
                 token={token}
                 screenKey="finance-journals"
                 defaults={financeGridDefaults["finance-journals"]}
                 externalPagination
+                toolbarContainer={listToolsSlot}
               >
                 <table className="customer-table">
                   <thead>
@@ -1659,16 +1710,13 @@ export default function GeneralLedgerPage({
               </div>
             </div>
             {selected && (
-              <div className="panel" style={{ marginTop: 14 }}>
-                <div className="panel-heading">
+              <div className="panel ledger-entry-detail" style={{ marginTop: 14 }}>
+                <header className="list-v2-detail-head">
                   <div>
-                    <h3>
-                      {selected.code} ·{" "}
-                      {selected.entryDate.split("-").reverse().join(".")}
-                    </h3>
-                    <p>{selected.description}</p>
+                    <span className="list-v2-kind">Yevmiye fişi</span>
+                    <h2>{selected.code}</h2>
                   </div>
-                  <div className="heading-actions">
+                  <div className="list-v2-detail-head-actions">
                     {role === "TenantAdmin" &&
                       selected.sourceType !== "ManualReversal" &&
                       !selected.isReversed && (
@@ -1687,6 +1735,10 @@ export default function GeneralLedgerPage({
                       Kapat
                     </button>
                   </div>
+                </header>
+                <div className="list-v2-detail-meta">
+                  <span>{selected.entryDate.split("-").reverse().join(".")}</span>
+                  {selected.description && <span>{selected.description}</span>}
                 </div>
                 <div className="ledger-list">
                   <table className="customer-table">

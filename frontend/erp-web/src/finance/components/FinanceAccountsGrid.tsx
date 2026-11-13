@@ -11,6 +11,8 @@ type Props = {
   busy: boolean;
   accounts: FinancialAccount[];
   fields: BuiltInScreenLayoutField[];
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   onShowDetail: (account: FinancialAccount) => void;
   onToggle: (account: FinancialAccount) => void;
   onEdit: (account: FinancialAccount) => void;
@@ -23,6 +25,7 @@ export function FinanceAccountsGrid({
   busy,
   accounts,
   fields,
+  toolbarContainer,
   onShowDetail,
   onToggle,
   onEdit,
@@ -36,6 +39,7 @@ export function FinanceAccountsGrid({
         defaults={financeGridDefaults["finance-accounts"]}
         hideSearch
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
       >
         <table className="customer-table">
           <thead>

@@ -1,4 +1,4 @@
-import { Globe2, PackageCheck, X } from "lucide-react";
+import { Globe2, PackageCheck, Pencil, X } from "lucide-react";
 import { localizedText } from "../../locale";
 import type {
   Direction,
@@ -59,22 +59,62 @@ export function ForeignTradeDetail({
     >
       {item ? (
         <>
-          <div className="foreign-trade-detail-head">
+          <header className="list-v2-detail-head">
             <div>
-              <small>
-                {item.referenceCode} · {directionLabel(item.direction)}
-              </small>
-              <h3>{statusLabel(item.status)}</h3>
+              <span className="list-v2-kind">
+                {directionLabel(item.direction)}
+              </span>
+              <h2>{item.referenceCode}</h2>
             </div>
-            <button
-              className="secondary"
-              aria-label={tr("Seçimi kaldır", "Clear selection")}
-              onClick={onClear}
+            <div className="list-v2-detail-head-actions">
+              {capabilities.canUpdate &&
+                ["Draft", "Booked"].includes(item.status) && (
+                  <button
+                    className="secondary small-button"
+                    disabled={busyId === item.id}
+                    onClick={() => onEdit(item)}
+                  >
+                    <Pencil size={14} /> {tr("Dosyayı düzenle", "Edit case")}
+                  </button>
+                )}
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={tr("Seçimi kaldır", "Clear selection")}
+                onClick={onClear}
+              >
+                <X size={19} />
+              </button>
+            </div>
+          </header>
+          <div className="list-v2-detail-meta">
+            <span
+              className={`list-v2-status${["Closed", "Cancelled"].includes(item.status) ? "" : " is-active"}`}
             >
-              <X size={15} />
-            </button>
+              <i aria-hidden="true" />
+              {statusLabel(item.status)}
+            </span>
           </div>
-          <dl>
+          {capabilities.canAdvance && nextStatus && (
+            <section
+              className="list-v2-quick"
+              aria-label={tr("İşlem", "Action")}
+            >
+              <div>
+                <button
+                  className="primary small-button"
+                  disabled={busyId === item.id}
+                  onClick={() => onTransition(item, nextStatus)}
+                >
+                  {tr(
+                    `${statusLabel(nextStatus)} aşamasına geçir`,
+                    `Move to ${statusLabel(nextStatus)}`,
+                  )}
+                </button>
+              </div>
+            </section>
+          )}
+          <dl className="list-v2-facts">
             <div>
               <dt>{tr("Bağlı sipariş", "Linked order")}</dt>
               <dd>
@@ -209,43 +249,19 @@ export function ForeignTradeDetail({
               </>
             )}
           </section>
-          {capabilities.canUpdate &&
+          {capabilities.canAdvance &&
             ["Draft", "Booked"].includes(item.status) && (
-              <div className="foreign-trade-detail-actions">
+              <div className="list-v2-detail-foot">
                 <button
-                  className="secondary"
-                  disabled={busyId === item.id}
-                  onClick={() => onEdit(item)}
-                >
-                  {tr("Dosyayı düzenle", "Edit case")}
-                </button>
-              </div>
-            )}
-          {capabilities.canAdvance && (
-            <div className="foreign-trade-detail-actions">
-              {nextStatus && (
-                <button
-                  className="primary"
-                  disabled={busyId === item.id}
-                  onClick={() => onTransition(item, nextStatus)}
-                >
-                  {tr(
-                    `${statusLabel(nextStatus)} aşamasına geçir`,
-                    `Move to ${statusLabel(nextStatus)}`,
-                  )}
-                </button>
-              )}
-              {["Draft", "Booked"].includes(item.status) && (
-                <button
-                  className="secondary"
+                  type="button"
+                  className="is-danger"
                   disabled={busyId === item.id}
                   onClick={() => onTransition(item, "Cancelled")}
                 >
                   {tr("Dosyayı iptal et", "Cancel case")}
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
         </>
       ) : (
         <div className="foreign-trade-detail-empty">

@@ -1,34 +1,23 @@
 type Props = {
-  totalCount: number;
   totalOpenDemand: number;
   totalUncovered: number;
-  warehouseCode: string;
 };
 
+/** Quantity totals of the visible page; they have no filter equivalent, so they stay. */
 export default function DistributionSummary({
-  totalCount,
   totalOpenDemand,
   totalUncovered,
-  warehouseCode,
 }: Props) {
   return (
-    <div className="sales-distribution-kpis">
-      <article>
-        <span>Listelenen stok kalemi</span>
-        <b>{totalCount}</b>
-      </article>
-      <article>
-        <span>Sayfadaki açık talep</span>
-        <b>{totalOpenDemand.toLocaleString("tr-TR")}</b>
-      </article>
-      <article>
-        <span>Sayfadaki karşılanmamış miktar</span>
-        <b>{totalUncovered.toLocaleString("tr-TR")}</b>
-      </article>
-      <article>
-        <span>Depo</span>
-        <b>{warehouseCode}</b>
-      </article>
-    </div>
+    <dl className="sales-lv2-facts">
+      <div>
+        <dt>Sayfadaki açık talep</dt>
+        <dd>{totalOpenDemand.toLocaleString("tr-TR")}</dd>
+      </div>
+      <div>
+        <dt>Sayfadaki karşılanmamış miktar</dt>
+        <dd>{totalUncovered.toLocaleString("tr-TR")}</dd>
+      </div>
+    </dl>
   );
 }

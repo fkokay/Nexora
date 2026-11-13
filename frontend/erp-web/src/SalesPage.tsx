@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
-  FileText,
-  Package,
   Plus,
   Printer,
   Search,
@@ -16,6 +14,9 @@ import SalesListPagination from "./sales/components/SalesListPagination";
 import SalesListToolbar from "./sales/components/SalesListToolbar";
 import SalesInvoiceFromDeliveryDialog from "./sales/components/SalesInvoiceFromDeliveryDialog";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import "./sales/sales-list-v2.css";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
@@ -292,9 +293,8 @@ export function SalesPage({
   const [quoteStatusFilter, setQuoteStatusFilter] = useState("");
   const [quoteDateFrom, setQuoteDateFrom] = useState("");
   const [quoteDateTo, setQuoteDateTo] = useState("");
-  const [quoteStatusDraft, setQuoteStatusDraft] = useState("");
-  const [quoteDateFromDraft, setQuoteDateFromDraft] = useState("");
-  const [quoteDateToDraft, setQuoteDateToDraft] = useState("");
+  const [salesGridToolsSlot, setSalesGridToolsSlot] =
+    useState<HTMLDivElement | null>(null);
   const defaultOrderLayout: BuiltInScreenLayoutField[] = [
     { key: "code", label: "Sipariş no", visible: true, position: 0 },
     { key: "quoteCode", label: "Kaynak teklif", visible: true, position: 1 },
@@ -1725,7 +1725,7 @@ export function SalesPage({
           </button>
         );
       case "customerName":
-        return <span className="quote-customer-cell">{item.customerCode && <small>{item.customerCode}</small>}<b className="customer-name">{item.customerName}</b></span>;
+        return <span className="quote-customer-cell"><b className="customer-name">{item.customerName}</b>{item.customerCode && <small className="cell-subtitle list-v2-name-code">{item.customerCode}</small>}</span>;
       case "revisionNumber":
         return item.revisionNumber;
       case "salesperson":
@@ -1866,7 +1866,7 @@ export function SalesPage({
     }
   }
   return (
-    <>
+    <div className="list-v2 sales-lv2-root">
       {createOrderPage && (
         <div className="page-heading customer-heading">
           <div>
@@ -1913,52 +1913,48 @@ export function SalesPage({
         activeTab !== "purchase-invoice-entry" &&
         activeTab !== "purchase-invoice-drafts" &&
         activeTab !== "deliveries" && !createInvoicePage && (
-          <div className="page-heading customer-heading">
-            <div>
-              {activeTab !== "invoices" && activeTab !== "quotes" && activeTab !== "orders" && <p className="eyebrow">ERP CORE · SATIŞ</p>}
-              <h1>
-                {activeTab === "quotes"
+          <div className="sales-lv2-stack">
+            <ListPageHeader
+              className="customer-heading"
+              title={
+                activeTab === "quotes"
                   ? "Satış Teklifleri"
                   : activeTab === "orders"
                     ? "Satış Siparişleri"
-                    : "Satış Faturaları"}
-              </h1>
-              <p className="muted">
-                {activeTab === "quotes"
+                    : "Satış Faturaları"
+              }
+              description={
+                activeTab === "quotes"
                   ? "Müşteri taleplerini iskonto ve KDV hesaplarıyla teklif taslağına dönüştürün."
                   : activeTab === "orders"
                     ? "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin."
-                    : "Kesilen satış faturalarını ve cari borç kayıtlarını izleyin."}
-              </p>
-            </div>
-            <div className="heading-actions">
+                    : "Kesilen satış faturalarını ve cari borç kayıtlarını izleyin."
+              }
+              count={salesListTotal}
+            >
               {activeTab === "quotes" && (role === "TenantAdmin" || role === "TenantDeveloper") && (
-                <>
-                  <button
-                    className="secondary"
-                    onClick={() => void openQuoteFieldCatalog()}
-                  >
-                    Teklif alanları
-                  </button>
-                </>
+                <button
+                  className="secondary"
+                  onClick={() => void openQuoteFieldCatalog()}
+                >
+                  Teklif alanları
+                </button>
+              )}
+              {activeTab === "orders" && (role === "TenantAdmin" || role === "TenantDeveloper") && (
+                <button
+                  className="secondary"
+                  onClick={() => void openOrderFieldCatalog()}
+                >
+                  Sipariş alanları
+                </button>
               )}
               {activeTab === "orders" && (
-                <>
-                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                    <button
-                      className="secondary"
-                      onClick={() => void openOrderFieldCatalog()}
-                    >
-                      Sipariş alanları
-                    </button>
-                  )}
-                  <button
-                    className="primary"
-                    onClick={() => onNavigate("sales-order-create")}
-                  >
-                    <Plus size={17} /> Yeni sipariş
-                  </button>
-                </>
+                <button
+                  className="primary"
+                  onClick={() => onNavigate("sales-order-create")}
+                >
+                  <Plus size={17} /> Yeni sipariş
+                </button>
               )}
               {activeTab === "quotes" && (
                 <button
@@ -1968,7 +1964,7 @@ export function SalesPage({
                   <Plus size={17} /> Yeni teklif
                 </button>
               )}
-              {activeTab === "invoices" && !createInvoicePage && (
+              {activeTab === "invoices" && (
                 <button
                   className="primary"
                   onClick={() => onNavigate("sales-invoice-create")}
@@ -1976,7 +1972,20 @@ export function SalesPage({
                   <Plus size={17} /> Fatura oluştur
                 </button>
               )}
-            </div>
+            </ListPageHeader>
+            <SalesListToolbar
+              activeTab={activeTab as "quotes" | "orders" | "invoices"}
+              search={search}
+              onSearchChange={setSearch}
+              quoteStatus={quoteStatusFilter}
+              onQuoteStatusChange={setQuoteStatusFilter}
+              quoteDateFrom={quoteDateFrom}
+              onQuoteDateFromChange={setQuoteDateFrom}
+              quoteDateTo={quoteDateTo}
+              onQuoteDateToChange={setQuoteDateTo}
+              toolsSlotRef={setSalesGridToolsSlot}
+              onRefresh={() => void load()}
+            />
           </div>
         )}
       {error && !createInvoicePage && (
@@ -1995,40 +2004,6 @@ export function SalesPage({
           </button>
         </div>
       )}
-      {!createOrderPage && !createQuotePage &&
-        activeTab !== "purchases" &&
-        activeTab !== "requests" &&
-        activeTab !== "purchase-quotes" &&
-        activeTab !== "purchase-invoices" &&
-        activeTab !== "purchase-receipts" &&
-        activeTab !== "purchase-invoice-entry" &&
-        activeTab !== "purchase-invoice-drafts" &&
-        activeTab !== "deliveries" && !createInvoicePage && (
-          <>
-            <SalesListToolbar
-              activeTab={activeTab as "quotes" | "orders" | "invoices"}
-              total={salesListTotal}
-              quoteRows={quotes}
-              orderRows={orders}
-              invoiceRows={invoices}
-              loading={loading}
-              search={search}
-              onSearchChange={setSearch}
-              quoteStatus={quoteStatusDraft}
-              onQuoteStatusChange={setQuoteStatusDraft}
-              onApplyQuoteFilters={() => {
-                setQuoteStatusFilter(quoteStatusDraft);
-                setQuoteDateFrom(quoteDateFromDraft);
-                setQuoteDateTo(quoteDateToDraft);
-                setSalesListPage(1);
-              }}
-              quoteDateFrom={quoteDateFromDraft}
-              onQuoteDateFromChange={setQuoteDateFromDraft}
-              quoteDateTo={quoteDateToDraft}
-              onQuoteDateToChange={setQuoteDateToDraft}
-            />
-          </>
-        )}
       {!createOrderPage && !createQuotePage &&
         (activeTab === "purchase-quotes" ? (
           <PurchaseSupplierQuotesPage
@@ -2089,6 +2064,7 @@ export function SalesPage({
             selectedId={selectedSalesId}
             search={search}
             fields={invoiceScreenFields}
+            toolbarContainer={salesGridToolsSlot}
             token={token}
             role={role}
             createOpen={invoiceCreateOpen}
@@ -2114,19 +2090,9 @@ export function SalesPage({
           />
         ) : activeTab === "quotes" ? (
           <section
-            className="sales-document-list-card"
+            className="sales-document-list-card list-v2-list"
             aria-label="Satış teklifi listesi"
           >
-            <div className="sales-document-list-heading">
-              <div>
-                <h2>Teklif kayıtları</h2>
-                <p>
-                  {loading
-                    ? "Kayıtlar yükleniyor…"
-                    : `${filtered.length} kayıt gösteriliyor`}
-                </p>
-              </div>
-            </div>
             <SalesDocumentGrid
               gridId="sales-quotes"
               fields={visibleQuoteFields}
@@ -2137,25 +2103,16 @@ export function SalesPage({
               emptyMessage="Henüz satış teklifi yok."
               search={search}
               searchEmptyMessage="Aramanızla eşleşen teklif yok."
+              toolbarContainer={salesGridToolsSlot}
               onSelect={setSelectedSalesId}
               renderCell={renderQuoteField}
             />
           </section>
         ) : (
           <section
-            className="sales-document-list-card"
+            className="sales-document-list-card list-v2-list"
             aria-label="Satış siparişi listesi"
           >
-            <div className="sales-document-list-heading">
-              <div>
-                <h2>Sipariş kayıtları</h2>
-                <p>
-                  {loading
-                    ? "Kayıtlar yükleniyor…"
-                    : `${filteredOrders.length} kayıt gösteriliyor`}
-                </p>
-              </div>
-            </div>
             <SalesDocumentGrid
               gridId="sales-orders"
               fields={visibleOrderFields}
@@ -2166,6 +2123,7 @@ export function SalesPage({
               emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
               search={search}
               searchEmptyMessage="Aramanızla eşleşen sipariş yok."
+              toolbarContainer={salesGridToolsSlot}
               onSelect={setSelectedSalesId}
               renderCell={renderOrderField}
             />
@@ -3371,7 +3329,7 @@ export function SalesPage({
           onSaved={load}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -3395,6 +3353,7 @@ function PurchaseInvoicesScreen({
     [error, setError] = useState(""),
     [invoiceId, setInvoiceId] = useState<string | null>(null),
     [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const defaultLayout: BuiltInScreenLayoutField[] = [
     { key: "code", label: "Fatura no", visible: true, position: 0 },
     { key: "supplierName", label: "Tedarikçi", visible: true, position: 1 },
@@ -3559,21 +3518,14 @@ function PurchaseInvoicesScreen({
     }
   }
   return (
-    <div className="purchase-invoices-page">
-      <div className="page-heading customer-heading">
-        <div>
-          <p className="eyebrow">ERP CORE · SATIN ALMA</p>
-          <h1>Alış faturaları</h1>
-          <p className="muted">
-            Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan
-            borçları izleyin.
-          </p>
-        </div>
-        <div className="heading-actions">
-          <span className="tenant-scope">
-            <ShieldCheck size={14} />
-            Firma kapsamlı belgeler
-          </span>
+    <div className="purchase-invoices-page list-v2">
+      <div className="sales-lv2-stack">
+        <ListPageHeader
+          className="customer-heading"
+          title="Alış faturaları"
+          description="Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin."
+          count={total}
+        >
           <button
             type="button"
             className="primary"
@@ -3582,7 +3534,34 @@ function PurchaseInvoicesScreen({
             <Plus size={16} />
             Fatura ekle
           </button>
-        </div>
+        </ListPageHeader>
+        <ListToolbar
+          search={query}
+          onSearchChange={(value) => {
+            setPage(1);
+            setQuery(value);
+          }}
+          searchLabel="Fatura numarası, tedarikçi veya mal kabul ara"
+          searchPlaceholder="Fatura no, tedarikçi veya mal kabul ara"
+          toolsSlotRef={setToolsSlot}
+          onRefresh={() => void load()}
+        >
+          {supplierFilter && (
+            <ListChipGroup
+              label="Tedarikçi"
+              value={supplierFilter.id}
+              onChange={(value) => {
+                if (value) return;
+                setSupplierFilter(null);
+                setPage(1);
+              }}
+              options={[
+                { value: "", label: "Tüm tedarikçiler" },
+                { value: supplierFilter.id, label: supplierFilter.name },
+              ]}
+            />
+          )}
+        </ListToolbar>
       </div>
       {error && (
         <div className="alert inline-alert" role="alert">
@@ -3592,76 +3571,10 @@ function PurchaseInvoicesScreen({
           </button>
         </div>
       )}
-      <div className="customer-summary">
-        <div className="customer-summary-icon">
-          <FileText size={19} />
-        </div>
-        <div>
-          <b>{total} alış faturası</b>
-          <small>
-            {supplierFilter
-              ? `${supplierFilter.name} · tedarikçi faturaları`
-              : "Kaydedilmiş mal kabullerine bağlı tedarikçi faturaları."}
-          </small>
-        </div>
-      </div>
-      <section className="panel sales-list-filter-card purchase-invoice-filter-card" aria-label="Alış faturası filtreleri">
-        <div className="sales-list-filter-heading">
-          <h2>Filtreler</h2>
-          <p>Faturaları belge numarası, tedarikçi veya mal kabul bilgisine göre daraltın.</p>
-        </div>
-      <div className="customer-toolbar">
-        <label className="customer-search">
-          <Search size={16} />
-          <input
-            aria-label="Fatura numarası, tedarikçi veya mal kabul ara"
-            value={query}
-            onChange={(e) => {
-              setPage(1);
-              setQuery(e.target.value);
-            }}
-            placeholder="Fatura no, tedarikçi veya mal kabul ara"
-          />
-        </label>
-        <span className="date-pill">
-          {loading
-            ? "Yükleniyor…"
-            : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}
-        </span>
-        {supplierFilter && (
-          <button
-            className="secondary"
-            onClick={() => {
-              setSupplierFilter(null);
-              setPage(1);
-            }}
-          >
-            Tüm tedarikçiler
-          </button>
-        )}
-        <button
-          className="secondary"
-          disabled={loading}
-          onClick={() => void load()}
-        >
-          Yenile
-        </button>
-      </div>
-      </section>
       <section
-        className="purchase-invoice-list-card"
+        className="purchase-invoice-list-card list-v2-list"
         aria-label="Alış faturası listesi"
       >
-        <div className="purchase-invoice-list-heading">
-          <div>
-            <h2>Fatura kayıtları</h2>
-            <p>
-              {loading
-                ? "Kayıtlar yükleniyor…"
-                : `${items.length} kayıt gösteriliyor`}
-            </p>
-          </div>
-        </div>
         <div className="customer-table-wrap">
           <AdvancedDataGrid
           className="customer-table quote-table"
@@ -3669,6 +3582,7 @@ function PurchaseInvoicesScreen({
           {...screenViewGridDefaults(visibleFields)}
           externalPagination
           hideSearch
+          toolbarContainer={toolsSlot}
           enableRowSelection={false}
         >
             <thead>
@@ -3978,6 +3892,8 @@ function PurchasingPanel({
   const [requestSearch, setRequestSearch] = useState(""),
     [requestStatus, setRequestStatus] = useState(""),
     [orderSearch, setOrderSearch] = useState("");
+  const [orderGridToolsSlot, setOrderGridToolsSlot] =
+    useState<HTMLDivElement | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null),
     [invoiceReceiptId, setInvoiceReceiptId] = useState<string | null>(null),
     [invoiceCode, setInvoiceCode] = useState(""),
@@ -5499,23 +5415,34 @@ function PurchasingPanel({
     null;
   return (
     <div
-      className={
+      className={`${
         requestsOnly ? "purchase-requests-page" : "purchase-orders-page"
-      }
+      } list-v2`}
     >
-      <div className="page-heading customer-heading">
-        <div>
-          <p className="eyebrow">ERP CORE · SATIN ALMA</p>
-          <h1>
-            {requestsOnly ? "Satın alma talepleri" : "Tedarikçi siparişleri"}
-          </h1>
-          <p className="muted">
-            {requestsOnly
+      <div className="sales-lv2-stack">
+        <ListPageHeader
+          className="customer-heading"
+          title={requestsOnly ? "Satın alma talepleri" : "Tedarikçi siparişleri"}
+          description={
+            requestsOnly
               ? "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin."
-              : "Tedarikçi siparişlerini, kısmi mal kabulleri ve depo stok girişlerini yönetin."}
-          </p>
-        </div>
-        <div className="heading-actions">
+              : "Tedarikçi siparişlerini, kısmi mal kabulleri ve depo stok girişlerini yönetin."
+          }
+          count={requestsOnly ? requestTotal : orderTotal}
+        >
+          {requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
+            <button
+              className="secondary"
+              onClick={() => setRequestFieldSettingsOpen(true)}
+            >
+              <Settings size={14} /> Talep alanları
+            </button>
+          )}
+          {requestsOnly && (
+            <button className="primary" onClick={beginRequestCreate}>
+              <Plus size={17} /> Talep oluştur
+            </button>
+          )}
           {!requestsOnly && (
             <button
               className="secondary"
@@ -5531,7 +5458,41 @@ function PurchasingPanel({
               <Plus size={17} /> Yeni satın alma siparişi
             </button>
           )}
-        </div>
+        </ListPageHeader>
+        {requestsOnly ? (
+          <ListToolbar
+            search={requestSearch}
+            onSearchChange={setRequestSearch}
+            searchLabel="Satın alma taleplerinde ara"
+            searchPlaceholder="Talep no, açıklama veya talep sahibi"
+            onRefresh={() => void load()}
+          >
+            <ListChipGroup
+              label="Talep durumuna göre filtrele"
+              value={requestStatus}
+              onChange={setRequestStatus}
+              options={[
+                { value: "", label: "Tümü" },
+                { value: "Submitted", label: "Onay bekliyor" },
+                { value: "Approved", label: "Onaylandı" },
+                { value: "Ordered", label: "Siparişe dönüştü" },
+                { value: "Rejected", label: "Reddedildi" },
+              ]}
+            />
+          </ListToolbar>
+        ) : (
+          <ListToolbar
+            search={orderSearch}
+            onSearchChange={(value) => {
+              setOrderPage(1);
+              setOrderSearch(value);
+            }}
+            searchLabel="Tedarikçi siparişlerinde ara"
+            searchPlaceholder="Sipariş no veya tedarikçi ara"
+            toolsSlotRef={setOrderGridToolsSlot}
+            onRefresh={() => void load(requestPage, orderPage)}
+          />
+        )}
       </div>
       {error && (
         <div className="alert inline-alert">
@@ -5549,94 +5510,9 @@ function PurchasingPanel({
           </button>
         </div>
       )}
-      {!requestsOnly && (
-        <div className="customer-summary">
-          <div className="customer-summary-icon">
-            <Package size={19} />
-          </div>
-          <div>
-            <b>{orderTotal} satın alma siparişi</b>
-            <small>Mal kabul yalnızca açık miktar için yapılabilir</small>
-          </div>
-          <span className="tenant-scope">
-            <ShieldCheck size={14} />
-            Firma kapsamlı belgeler
-          </span>
-        </div>
-      )}
       {requestsOnly && (
         <>
-          <div className="customer-summary purchase-request-summary">
-            <div className="customer-summary-icon">
-              <FileText size={19} />
-            </div>
-            <div>
-              <b>{requestTotal} satın alma talebi</b>
-              <small>Talepleri, onay durumlarını ve sipariş bağlantılarını izleyin.</small>
-            </div>
-          </div>
-          <section className="panel purchase-request-filter-card" aria-label="Satın alma talebi filtreleri">
-          <div className="panel-heading">
-            <div>
-              <b>Filtreler</b>
-              <small>
-                Talepleri numara, açıklama, talep sahibi veya durumuna göre daraltın.
-              </small>
-            </div>
-          </div>
-          <div className="customer-toolbar purchase-request-toolbar">
-            <label className="customer-search">
-              <Search size={15} />
-              <input
-                type="search"
-                aria-label="Satın alma taleplerinde ara"
-                placeholder="Talep no, açıklama veya talep sahibi"
-                value={requestSearch}
-                onChange={(event) => setRequestSearch(event.target.value)}
-              />
-            </label>
-            <label className="purchase-request-status">
-              <span>Durum</span>
-              <select
-                aria-label="Talep durumuna göre filtrele"
-                value={requestStatus}
-                onChange={(event) => setRequestStatus(event.target.value)}
-              >
-                <option value="">Tüm durumlar</option>
-                <option value="Submitted">Onay bekliyor</option>
-                <option value="Approved">Onaylandı</option>
-                <option value="Ordered">Siparişe dönüştü</option>
-                <option value="Rejected">Reddedildi</option>
-              </select>
-            </label>
-            <span className="purchase-request-count">
-              {loading ? "Yükleniyor…" : `${requestTotal} talep`}
-            </span>
-          </div>
-          </section>
-          <section className="panel purchase-request-list-card" style={{ marginBottom: 16 }}>
-          <div className="panel-heading">
-            <div>
-              <b>Talep listesi</b>
-              <small>{loading ? "Kayıtlar yükleniyor…" : `${requestTotal} kayıt`}</small>
-            </div>
-            <div className="heading-actions">
-              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                <button
-                  className="secondary small-button"
-                  onClick={() => setRequestFieldSettingsOpen(true)}
-                >
-                  <Settings size={14} /> Talep alanları
-                </button>
-              )}
-              <button
-                className="primary small-button"
-                onClick={beginRequestCreate}
-              >
-                <Plus size={14} /> Talep oluştur
-              </button>
-            </div>
-          </div>
+          <section className="panel purchase-request-list-card list-v2-list" style={{ marginBottom: 16 }}>
           <div className="requests-list purchase-request-table-wrap">
             <AdvancedDataGrid
               className="purchase-request-table"
@@ -5667,30 +5543,37 @@ function PurchasingPanel({
             </div>
           )}
           {selectedRequestSummary && (
-            <aside className="erp-record-pane purchase-request-selection">
-              <div className="erp-record-heading">
+            <aside className="erp-record-pane purchase-request-selection sales-lv2-detail">
+              <div className="list-v2-detail-head">
                 <div>
-                  <span className="erp-record-kind">SATIN ALMA · TALEP</span>
+                  <span className="list-v2-kind">SATIN ALMA · TALEP</span>
                   <h2>{selectedRequestSummary.code}</h2>
-                  <small>
-                    {selectedRequestSummary.requestedByName} ·{" "}
-                    {selectedRequestSummary.status === "Submitted"
-                      ? "Onay bekliyor"
-                      : selectedRequestSummary.status === "Approved"
-                        ? "Onaylandı"
-                        : selectedRequestSummary.status === "Ordered"
-                          ? "Siparişe dönüştü"
-                          : "Reddedildi"}
-                  </small>
                 </div>
-                <button
-                  className="secondary small-button"
-                  onClick={() => void openRequest(selectedRequestSummary.id)}
-                >
-                  Talebi aç
-                </button>
+                <div className="list-v2-detail-head-actions">
+                  <button
+                    className="secondary small-button"
+                    onClick={() => void openRequest(selectedRequestSummary.id)}
+                  >
+                    Talebi aç
+                  </button>
+                </div>
               </div>
-              <dl className="erp-record-facts">
+              <div className="list-v2-detail-meta">
+                <span>{selectedRequestSummary.requestedByName}</span>
+                <span
+                  className={`list-v2-status${selectedRequestSummary.status === "Approved" || selectedRequestSummary.status === "Ordered" ? " is-active" : ""}`}
+                >
+                  <i />
+                  {selectedRequestSummary.status === "Submitted"
+                    ? "Onay bekliyor"
+                    : selectedRequestSummary.status === "Approved"
+                      ? "Onaylandı"
+                      : selectedRequestSummary.status === "Ordered"
+                        ? "Siparişe dönüştü"
+                        : "Reddedildi"}
+                </span>
+              </div>
+              <dl className="list-v2-facts">
                 <div>
                   <dt>Talep tarihi</dt>
                   <dd>{selectedRequestSummary.requestDate}</dd>
@@ -5946,39 +5829,7 @@ function PurchasingPanel({
         </div>
       )}
       {!requestsOnly && (
-        <section className="panel purchase-order-filter-card" aria-label="Tedarikçi siparişi filtreleri">
-          <div className="panel-heading">
-            <div>
-              <b>Filtreler</b>
-              <small>Siparişleri belge numarası veya tedarikçi adına göre daraltın.</small>
-            </div>
-            <button className="secondary small-button" disabled={loading} onClick={() => void load(requestPage, orderPage)}>
-              Yenile
-            </button>
-          </div>
-          <label className="customer-search purchase-order-search">
-            <Search size={15} />
-            <input
-              type="search"
-              aria-label="Tedarikçi siparişlerinde ara"
-              placeholder="Sipariş no veya tedarikçi ara"
-              value={orderSearch}
-              onChange={(event) => {
-                setOrderPage(1);
-                setOrderSearch(event.target.value);
-              }}
-            />
-          </label>
-        </section>
-      )}
-      {!requestsOnly && (
-        <section className="panel purchase-order-list-card" aria-label="Tedarikçi siparişi listesi">
-          <div className="panel-heading">
-            <div>
-              <b>Sipariş listesi</b>
-              <small>{loading ? "Kayıtlar yükleniyor…" : `${orders.length} kayıt gösteriliyor · ${orderTotal} toplam`}</small>
-            </div>
-          </div>
+        <section className="panel purchase-order-list-card list-v2-list" aria-label="Tedarikçi siparişi listesi">
       <div className="customer-table-wrap">
         <AdvancedDataGrid
           className="customer-table quote-table"
@@ -5986,6 +5837,7 @@ function PurchasingPanel({
           {...screenViewGridDefaults(visibleOrderScreenFields)}
           externalPagination
           hideSearch
+          toolbarContainer={orderGridToolsSlot}
           enableRowSelection={false}
         >
           <thead>
@@ -6469,23 +6321,26 @@ function PurchasingPanel({
       )}
 
       {!requestsOnly && selectedOrderSummary && (
-        <aside className="erp-record-pane sales-selected-record">
-          <div className="erp-record-heading">
+        <aside className="erp-record-pane sales-selected-record sales-lv2-detail">
+          <div className="list-v2-detail-head">
             <div>
-              <span className="erp-record-kind">SATIN ALMA · SİPARİŞ</span>
+              <span className="list-v2-kind">SATIN ALMA · SİPARİŞ</span>
               <h2>{selectedOrderSummary.supplierName}</h2>
-              <small>
-                {selectedOrderSummary.code} · {selectedOrderSummary.status}
-              </small>
             </div>
-            <button
-              className="secondary small-button"
-              onClick={() => void openOrder(selectedOrderSummary.id)}
-            >
-              Siparişi aç
-            </button>
+            <div className="list-v2-detail-head-actions">
+              <button
+                className="secondary small-button"
+                onClick={() => void openOrder(selectedOrderSummary.id)}
+              >
+                Siparişi aç
+              </button>
+            </div>
           </div>
-          <dl className="erp-record-facts">
+          <div className="list-v2-detail-meta">
+            <span className="list-v2-detail-code">{selectedOrderSummary.code}</span>
+            <span>{selectedOrderSummary.status}</span>
+          </div>
+          <dl className="list-v2-facts">
             <div>
               <dt>Sipariş tarihi</dt>
               <dd>{selectedOrderSummary.orderDate}</dd>
@@ -9514,6 +9369,7 @@ function SalesInvoiceTable({
   selectedId,
   search,
   fields,
+  toolbarContainer,
   token,
   role,
   createOpen,
@@ -9534,6 +9390,7 @@ function SalesInvoiceTable({
   selectedId: string | null;
   search: string;
   fields: BuiltInScreenLayoutField[];
+  toolbarContainer?: HTMLElement | null;
   token: string;
   role: string;
   createOpen: boolean;
@@ -9751,15 +9608,9 @@ function SalesInvoiceTable({
         </div>
       )}
       {!entryPage && <section
-        className="sales-invoice-list-card"
+        className="sales-invoice-list-card list-v2-list"
         aria-label="Satış faturası listesi"
       >
-        <div className="sales-invoice-list-heading">
-          <div>
-            <h2>Fatura kayıtları</h2>
-            <p>{visible.length} kayıt gösteriliyor</p>
-          </div>
-        </div>
         <SalesDocumentGrid
           gridId="sales-invoices"
           fields={ordered}
@@ -9770,6 +9621,7 @@ function SalesInvoiceTable({
           emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
           search={search}
           searchEmptyMessage="Aramanızla eşleşen fatura yok."
+          toolbarContainer={toolbarContainer}
           onSelect={(id) => {
             onSelect(id);
             onOpen(id);

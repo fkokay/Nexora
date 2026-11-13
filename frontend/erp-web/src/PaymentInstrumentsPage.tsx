@@ -3,14 +3,13 @@ import { authenticatedFetch } from "./authApi";
 import {
   ArrowLeftRight,
   CheckCircle2,
-  FileText,
   Plus,
-  RefreshCw,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
 import { localDateString } from "./dateUtils";
 import "./payment-instruments.css";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import { PaymentInstrumentMetrics } from "./payment-instruments/components/PaymentInstrumentMetrics";
 import { PaymentInstrumentListToolbar } from "./payment-instruments/components/PaymentInstrumentListToolbar";
 import { PaymentInstrumentGrid } from "./payment-instruments/components/PaymentInstrumentGrid";
@@ -92,6 +91,8 @@ export default function PaymentInstrumentsPage({
       fixed: true,
     },
   ]);
+  // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const isAdmin = role === "TenantAdmin";
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,22 +171,14 @@ export default function PaymentInstrumentsPage({
           `${x.currencyCode} ${x.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`,
       )
       .join(" · ") || "—";
-  function applySearch(event: React.FormEvent) {
-    event.preventDefault();
+  // Runs while typing and on Enter. The API needs at least 2 characters, so a single
+  // character is not applied; clearing the box clears the search.
+  function applySearch() {
     const value = searchDraft.trim();
-    if (value && value.length < 2) {
-      setError("Arama için en az 2 karakter girin.");
-      return;
-    }
+    if (value.length === 1 || value === searchTerm) return;
     setError("");
     setPage(1);
     setSearchTerm(value);
-  }
-  function clearSearch() {
-    setError("");
-    setSearchDraft("");
-    setPage(1);
-    setSearchTerm("");
   }
   async function request<T>(
     path: string,
@@ -305,34 +298,21 @@ export default function PaymentInstrumentsPage({
     }
   }
   return (
-    <div className="page-content payment-instruments-page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">FİNANS · PORTFÖY YÖNETİMİ</p>
-          <h1>Çek ve senet</h1>
-          <p className="muted">
-            Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle
-            izleyin.
-          </p>
-        </div>
-        <div className="payment-instrument-heading-actions">
+    <div className="page-content payment-instruments-page list-v2">
+      <ListPageHeader
+        title="Çek ve senet"
+        description="Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin."
+        count={loading && totalCount === 0 ? null : totalCount}
+      >
+        {isAdmin && (
           <button
-            className="secondary"
-            onClick={() => void load()}
-            disabled={loading || busy}
+            className="primary"
+            onClick={() => setShowCreate((value) => !value)}
           >
-            <RefreshCw size={15} /> Yenile
+            <Plus size={16} /> Yeni kayıt
           </button>
-          {isAdmin && (
-            <button
-              className="primary"
-              onClick={() => setShowCreate((value) => !value)}
-            >
-              <Plus size={16} /> Yeni kayıt
-            </button>
-          )}
-        </div>
-      </div>
+        )}
+      </ListPageHeader>
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -353,41 +333,28 @@ export default function PaymentInstrumentsPage({
         summary={summary}
         portfolioSummary={portfolioSummary}
       />
-      <section className="payment-instrument-filter-card" aria-label="Çek ve senet filtreleri">
-        <div className="payment-instrument-filter-heading">
-          <h2>Filtreler</h2>
-          <p>Portföy kayıtlarını numara, cari, durum veya türe göre daraltın.</p>
-        </div>
-        <PaymentInstrumentListToolbar
-          searchDraft={searchDraft}
-          searchTerm={searchTerm}
-          filter={filter}
-          kindFilter={kindFilter}
-          onSearchDraftChange={setSearchDraft}
-          onSearch={applySearch}
-          onClearSearch={clearSearch}
-          onFilterChange={(value) => {
-            setPage(1);
-            setFilter(value);
-          }}
-          onKindFilterChange={(value) => {
-            setPage(1);
-            setKindFilter(value);
-          }}
-        />
-      </section>
-      <section className="panel payment-instrument-list">
-        <div className="payment-instrument-list-heading">
-          <div>
-            <h3>
-              <FileText size={17} /> Portföy kayıtları
-            </h3>
-            <p>
-              {totalCount} kayıt · sayfa {page} · firma veritabanı kapsamı
-            </p>
-          </div>
-        </div>
+      <PaymentInstrumentListToolbar
+        searchDraft={searchDraft}
+        filter={filter}
+        kindFilter={kindFilter}
+        onSearchDraftChange={setSearchDraft}
+        onSearch={applySearch}
+        onFilterChange={(value) => {
+          setPage(1);
+          setFilter(value);
+        }}
+        onKindFilterChange={(value) => {
+          setPage(1);
+          setKindFilter(value);
+        }}
+        onRefresh={() => {
+          if (!loading && !busy) void load();
+        }}
+        toolsSlotRef={setToolsSlot}
+      />
+      <section className="panel payment-instrument-list list-v2-list">
         <PaymentInstrumentGrid
+          toolbarContainer={toolsSlot}
           fields={visibleFields}
           items={visible}
           loading={loading}

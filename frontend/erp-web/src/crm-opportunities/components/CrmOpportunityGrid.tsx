@@ -13,6 +13,8 @@ type Props = {
   query: string;
   filter: string;
   selectedId: string | null;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   renderField: (item: Opportunity, field: ScreenField) => ReactNode;
   onSelect: (item: Opportunity) => void;
   onRefresh: () => void;
@@ -65,6 +67,7 @@ export function CrmOpportunityGrid({
   query,
   filter,
   selectedId,
+  toolbarContainer,
   renderField,
   onSelect,
   onRefresh,
@@ -110,6 +113,7 @@ export function CrmOpportunityGrid({
               hideSearch
               externalPagination
               enableRowSelection={false}
+              toolbarContainer={toolbarContainer}
               gridId="crm-opportunities-v2"
               className="crm-table"
               initialPinned={screenViewGridDefaults(fields).initialPinned}

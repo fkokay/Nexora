@@ -1,0 +1,24 @@
+/*
+ * Revaluation voucher list on the list-v2 structure. The list is a section of the
+ * "Kur & Değerleme" page (which owns the h1), so its title row uses an h2; the shared kit
+ * (list-page/list-page-v2.css) only styles an h1 there and leaves the gaps between its
+ * rows to the page, hence the few rules below.
+ */
+#root .fx-revaluation-workbench.list-v2 .list-v2-title h2 {
+  margin: 0;
+  color: var(--lv2-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+#root .fx-revaluation-workbench.list-v2 > .list-v2-toolbar {
+  margin-top: 12px;
+}
+/* The create form used to get this gap from the removed heading/filter-card chain. */
+#root .fx-revaluation-workbench.list-v2 .fx-revaluation-grid .ledger-list + .collection-form {
+  margin-top: 14px;
+}
+/* Voucher detail: head and meta use the kit classes; the line grid follows. */
+#root .fx-revaluation-workbench.list-v2 .fx-voucher-detail > .list-v2-detail-meta {
+  margin: 8px 0 12px;
+}

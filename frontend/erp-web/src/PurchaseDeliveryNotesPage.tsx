@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { localDateString } from "./dateUtils";
 import "./purchase-delivery-notes.css";
+import "./purchase-list-v2/purchase-list-v2.css";
 import { DeliveryNoteComposePanel } from "./purchase-delivery-notes/components/DeliveryNoteComposePanel";
 import { DeliveryNoteDetailDialog } from "./purchase-delivery-notes/components/DeliveryNoteDetailDialog";
 import { DeliveryNotesListPanel } from "./purchase-delivery-notes/components/DeliveryNotesListPanel";
-import { DeliveryNotesOverview } from "./purchase-delivery-notes/components/DeliveryNotesOverview";
 import { OrderDeliveryNotesPanel } from "./purchase-delivery-notes/components/OrderDeliveryNotesPanel";
 import { OrderSelectionPanel } from "./purchase-delivery-notes/components/OrderSelectionPanel";
 import { PurchaseDeliveryNotesHeader } from "./purchase-delivery-notes/components/PurchaseDeliveryNotesHeader";
@@ -95,6 +95,9 @@ export default function PurchaseDeliveryNotesPage({
   const orderLoadSequence = useRef(0);
   const orderSelectionGeneration = useRef(0);
   const noteDetailSequence = useRef(0);
+  // The search runs while typing, so a slower earlier response must not win.
+  const noteSearchSequence = useRef(0);
+  const noteSearchPending = useRef(0);
 
   const loadDeliveryNotes = useCallback(
     async (page: number) => {
@@ -254,6 +257,8 @@ export default function PurchaseDeliveryNotesPage({
       clearDeliveryNoteSearch();
       return;
     }
+    const sequence = ++noteSearchSequence.current;
+    noteSearchPending.current++;
     setNoteListLoading(true);
     setError("");
     try {
@@ -261,20 +266,22 @@ export default function PurchaseDeliveryNotesPage({
         `/api/purchasing/delivery-notes/?q=${encodeURIComponent(term)}&page=${page}&pageSize=${deliveryNotePageSize}`,
         token,
       );
+      if (sequence !== noteSearchSequence.current) return;
       setNoteSearchResults(result.items);
       setNoteSearchTotal(result.totalCount);
       setNoteSearchPage(result.page);
     } catch (e) {
+      if (sequence !== noteSearchSequence.current) return;
       setNoteSearchResults(null);
       setNoteSearchTotal(0);
       setError((e as Error).message);
     } finally {
-      setNoteListLoading(false);
+      noteSearchPending.current--;
+      if (sequence === noteSearchSequence.current) setNoteListLoading(false);
     }
   }
 
-  function searchDeliveryNotes(event: FormEvent) {
-    event.preventDefault();
+  function applyDeliveryNoteSearch() {
     const term = noteSearch.trim();
     if (!term) {
       clearDeliveryNoteSearch();
@@ -283,6 +290,10 @@ export default function PurchaseDeliveryNotesPage({
     void loadDeliveryNoteSearch(1, term);
   }
   function clearDeliveryNoteSearch() {
+    // Drops a search that is still in flight; its response is ignored, so the
+    // loading flag it raised is lowered here.
+    noteSearchSequence.current++;
+    if (noteSearchPending.current > 0) setNoteListLoading(false);
     setNoteSearch("");
     setNoteSearchResults(null);
     setNoteSearchTotal(0);
@@ -329,6 +340,7 @@ export default function PurchaseDeliveryNotesPage({
     }
   }
   async function refreshDeliveryNotes() {
+    noteSearchSequence.current++;
     setNoteSearch("");
     setNoteSearchResults(null);
     setNoteSearchPage(1);
@@ -458,22 +470,10 @@ export default function PurchaseDeliveryNotesPage({
 
   return (
     <div
-      className={`purchase-delivery-notes-page ${detail ? "has-selected-order" : ""}`}
+      className={`purchase-delivery-notes-page list-v2 ${detail ? "has-selected-order" : ""}`}
     >
       <PurchaseDeliveryNotesHeader
-        disabled={loading || noteListLoading}
-        onRefresh={() => {
-          void loadOrders();
-          void refreshDeliveryNotes();
-        }}
-      />
-      <DeliveryNotesOverview
-        noteTotal={noteTotal}
-        searching={noteSearchResults !== null}
-        orderTotal={orderTotal}
-        loading={loading}
-        detail={detail}
-        notes={notes}
+        total={noteListLoading && noteTotal === 0 ? null : noteTotal}
       />
       {(mutationOrderError || error) && (
         <div className="alert" role="alert">
@@ -496,9 +496,9 @@ export default function PurchaseDeliveryNotesPage({
         loading={noteListLoading}
         search={noteSearch}
         onSearchChange={setNoteSearch}
-        onSearch={searchDeliveryNotes}
-        onClearSearch={clearDeliveryNoteSearch}
+        onSearchApply={applyDeliveryNoteSearch}
         onRefresh={() => {
+          void loadOrders();
           void refreshDeliveryNotes();
         }}
         onPageChange={(page) =>

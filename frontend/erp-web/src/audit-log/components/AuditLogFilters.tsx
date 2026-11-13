@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { ListToolbar } from "../../list-page/ListToolbar";
 
 type Props = {
   search: string;
@@ -9,6 +9,8 @@ type Props = {
   onToChange: (value: string) => void;
   onApply: () => void;
   onRefresh: () => void;
+  /** Receives the element where the grid's own tools (columns, export…) are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export function AuditLogFilters({
@@ -20,28 +22,19 @@ export function AuditLogFilters({
   onToChange,
   onApply,
   onRefresh,
+  toolsSlotRef,
 }: Props) {
   return (
-    <div className="customer-toolbar audit-toolbar">
-      <form
-        className="customer-search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onApply();
-        }}
-      >
-        <Search size={16} />
-        <input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          maxLength={120}
-          placeholder="İşlem veya kaynak ara"
-        />
-        <button type="submit" className="secondary small-button">
-          Ara
-        </button>
-      </form>
-      <label className="date-pill audit-date-filter">
+    <ListToolbar
+      search={search}
+      // The audit search accepts at most 120 characters.
+      onSearchChange={(value) => onSearchChange(value.slice(0, 120))}
+      onSearchApply={onApply}
+      searchPlaceholder="İşlem veya kaynak ara"
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
+    >
+      <label className="list-v2-filter">
         <span>Başlangıç tarihi</span>
         <input
           aria-label="Başlangıç tarihi"
@@ -50,7 +43,7 @@ export function AuditLogFilters({
           onChange={(event) => onFromChange(event.target.value)}
         />
       </label>
-      <label className="date-pill audit-date-filter">
+      <label className="list-v2-filter">
         <span>Bitiş tarihi</span>
         <input
           aria-label="Bitiş tarihi"
@@ -59,13 +52,6 @@ export function AuditLogFilters({
           onChange={(event) => onToChange(event.target.value)}
         />
       </label>
-      <button
-        type="button"
-        className="secondary small-button"
-        onClick={onRefresh}
-      >
-        Yenile
-      </button>
-    </div>
+    </ListToolbar>
   );
 }

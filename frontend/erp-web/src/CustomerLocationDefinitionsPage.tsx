@@ -12,6 +12,7 @@ import {
   defaultProvinceFields,
 } from "./customer-location-definitions/components/ProvinceSection";
 import "./operational-definitions.css";
+import "./customer-location-definitions/location-definitions-list-v2.css";
 type CustomerLocationDefinitions = AppTypes.CustomerLocationDefinitions;
 type CustomerLocationProvinceView = AppTypes.CustomerLocationProvinceView;
 type TurkeyDistrictOption = AppTypes.TurkeyDistrictOption;
@@ -236,7 +237,7 @@ export function CustomerLocationDefinitionsPage({ token }: { token: string }) {
       .includes(provinceQuery.toLocaleLowerCase("tr-TR")),
   );
   return (
-    <div className="customer-location-definitions-page">
+    <div className="customer-location-definitions-page list-v2">
       <CustomerLocationDefinitionsHeader />
       <CustomerLocationDefinitionsFeedback
         error={error}

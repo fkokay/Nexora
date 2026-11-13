@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { addLocalCalendarDays, localDateString } from "./dateUtils";
 import type { FormEvent } from "react";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./sales-promotions.css";
+import "./sales/sales-list-v2.css";
 import CampaignsSection from "./sales-promotions/components/CampaignsSection";
 import CampaignPerformanceSection from "./sales-promotions/components/CampaignPerformanceSection";
 import ApplyCampaignSection from "./sales-promotions/components/ApplyCampaignSection";
@@ -334,29 +336,29 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       .includes(campaignQuery.trim().toLocaleLowerCase("tr-TR")),
   );
   return (
-    <main className="sales-promotions-page">
-      <header className="sales-promotions-header">
-        <div>
-          <p className="eyebrow">SATIŞ YÖNETİMİ</p>
-          <h1>Kampanyalar ve promosyonlar</h1>
-          <p className="muted">
-            Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine
-            uygulayın.
-          </p>
-        </div>
-        <div className="sales-promotions-header-actions">
-          {onBack && (
-            <button className="secondary" onClick={onBack}>
-              Satışa dön
-            </button>
-          )}
-          {role === "TenantAdmin" && (
-            <button className="primary" onClick={openCreate}>
-              + Kampanya oluştur
-            </button>
-          )}
-        </div>
-      </header>
+    <main className="sales-promotions-page list-v2">
+      <ListPageHeader
+        title="Kampanyalar ve promosyonlar"
+        description="Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine uygulayın."
+        count={
+          activeSection === "campaigns"
+            ? campaigns.length
+            : activeSection === "performance"
+              ? (performance?.totalCount ?? null)
+              : null
+        }
+      >
+        {onBack && (
+          <button className="secondary" onClick={onBack}>
+            Satışa dön
+          </button>
+        )}
+        {role === "TenantAdmin" && (
+          <button className="primary" onClick={openCreate}>
+            + Kampanya oluştur
+          </button>
+        )}
+      </ListPageHeader>
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}

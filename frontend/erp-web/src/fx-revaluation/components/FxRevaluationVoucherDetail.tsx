@@ -10,20 +10,23 @@ export default function FxRevaluationVoucherDetail({
 }: FxRevaluationVoucherDetailProps) {
   return (
     <section className="finance-workbench-card fx-voucher-detail">
-      <div className="panel-heading">
+      <header className="list-v2-detail-head">
         <div>
-          <h3>
-            {voucher.code} · {voucher.asOfDate.split("-").reverse().join(".")}
-          </h3>
-          <p>
-            {voucher.lines.length} fatura satırı · borç/alacak{" "}
-            {money(voucher.totalDebit, voucher.baseCurrencyCode)} · hesap
-            kodları eşleştirme aşamasında belirlenir
-          </p>
+          <h2>{voucher.code}</h2>
         </div>
-        <button className="secondary small-button" onClick={onClose}>
-          Kapat
-        </button>
+        <div className="list-v2-detail-head-actions">
+          <button className="secondary small-button" onClick={onClose}>
+            Kapat
+          </button>
+        </div>
+      </header>
+      <div className="list-v2-detail-meta">
+        <span>{voucher.asOfDate.split("-").reverse().join(".")}</span>
+        <span>
+          {voucher.lines.length} fatura satırı · borç/alacak{" "}
+          {money(voucher.totalDebit, voucher.baseCurrencyCode)} · hesap
+          kodları eşleştirme aşamasında belirlenir
+        </span>
       </div>
       <div className="ledger-list">
         <FinanceStudioGrid

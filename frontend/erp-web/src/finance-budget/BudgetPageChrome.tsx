@@ -1,8 +1,15 @@
+import { ListPageHeader } from "../list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "../list-page/ListToolbar";
 import type { Plan } from "./types";
 
 type Props = {
   plans: Plan[];
-  eligibleCount: number;
+  admin: boolean;
+  baseCurrency: string;
+  /** "" (all), "Draft" or "Approved". */
+  statusFilter: string;
+  onStatusFilterChange: (value: string) => void;
+  onNew: () => void;
   loading: boolean;
   controlsLocked: boolean;
   error: string;
@@ -13,7 +20,11 @@ type Props = {
 
 export function BudgetPageChrome({
   plans,
-  eligibleCount,
+  admin,
+  baseCurrency,
+  statusFilter,
+  onStatusFilterChange,
+  onNew,
   loading,
   controlsLocked,
   error,
@@ -23,57 +34,47 @@ export function BudgetPageChrome({
 }: Props) {
   return (
     <>
-      <header className="page-heading budget-hero">
-        <div className="budget-hero-copy">
-          <p className="eyebrow">
-            FİNANS YÖNETİMİ <span>·</span> PLANLAMA
-          </p>
-          <h1>Bütçe planı ve gerçekleşen</h1>
-          <p>
-            Aylık gelir ve gider hedeflerini yevmiye gerçekleşenleriyle aynı
-            ekranda izleyin.
-          </p>
-          <div className="budget-hero-caption">
-            <span className="budget-hero-dot" /> Onaylanan bütçeler
-            değiştirilemez ve mali yıl bazında takip edilir.
-          </div>
-        </div>
-        <button
-          type="button"
-          className="budget-refresh"
-          onClick={onRefresh}
-          disabled={controlsLocked}
-          aria-busy={loading}
-        >
-          {loading ? "Yenileniyor…" : "Yenile"}
-        </button>
-      </header>
-      <section className="budget-overview" aria-label="Bütçe özeti">
-        <article className="budget-overview-card">
-          <span>Toplam senaryo</span>
-          <strong>{plans.length}</strong>
-          <small>Firma kapsamındaki bütçeler</small>
-        </article>
-        <article className="budget-overview-card">
-          <span>Taslak</span>
-          <strong>
-            {plans.filter((plan) => !isApproved(plan.status)).length}
-          </strong>
-          <small>Onay sürecine hazır</small>
-        </article>
-        <article className="budget-overview-card">
-          <span>Onaylı</span>
-          <strong>
-            {plans.filter((plan) => isApproved(plan.status)).length}
-          </strong>
-          <small>Değiştirilemez planlar</small>
-        </article>
-        <article className="budget-overview-card">
-          <span>Uygun hesap</span>
-          <strong>{eligibleCount}</strong>
-          <small>Gelir ve gider hesapları</small>
-        </article>
-      </section>
+      <ListPageHeader
+        title="Bütçe planı ve gerçekleşen"
+        description="Aylık gelir ve gider hedeflerini yevmiye gerçekleşenleriyle aynı ekranda izleyin."
+        count={loading && plans.length === 0 ? null : plans.length}
+      >
+        {admin && (
+          <button
+            type="button"
+            className="primary"
+            onClick={onNew}
+            disabled={controlsLocked || !baseCurrency}
+          >
+            Yeni bütçe
+          </button>
+        )}
+      </ListPageHeader>
+      <ListToolbar
+        onRefresh={() => {
+          if (!controlsLocked) onRefresh();
+        }}
+      >
+        <ListChipGroup
+          label="Durum"
+          value={statusFilter}
+          onChange={onStatusFilterChange}
+          hideEmpty
+          options={[
+            { value: "", label: "Tümü", count: plans.length },
+            {
+              value: "Draft",
+              label: "Taslak",
+              count: plans.filter((plan) => !isApproved(plan.status)).length,
+            },
+            {
+              value: "Approved",
+              label: "Onaylı",
+              count: plans.filter((plan) => isApproved(plan.status)).length,
+            },
+          ]}
+        />
+      </ListToolbar>
       {error && (
         <div className="alert inline-alert budget-alert" role="alert">
           <span>{error}</span>
