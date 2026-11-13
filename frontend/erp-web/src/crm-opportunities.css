@@ -772,3 +772,14 @@ html[data-theme="dark"] .app-shell .crm-opp-rf .crm-opp-presets > button[aria-pr
   .crm-opp-rf .crm-opp-card { padding: 16px; }
 }
 .app-shell:not(.standalone-studio) .record-form.crm-opp-rf .rf-form .crm-opp-amount input.crm-opp-currency { background-color: var(--crm-opp-soft) !important; }
+
+/* One surface: the title row sits on the page background like list pages, and the form cards align with it,
+   instead of a full-bleed white band above a grey form area. */
+#root .record-form.crm-opp-rf { background: transparent; }
+#root .record-form.crm-opp-rf > .rf-toolbar {
+  padding: 2px 0 14px;
+  border-bottom: 0;
+  background: transparent;
+}
+#root .record-form.crm-opp-rf > .rf-form { padding: 0 0 24px; background: transparent; }
+html[data-theme='dark'] #root .record-form.crm-opp-rf > .rf-toolbar { background: transparent; }

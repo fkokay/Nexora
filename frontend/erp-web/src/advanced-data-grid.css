@@ -142,6 +142,15 @@ html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !impor
   border-radius: 0 !important;
   box-shadow: none !important;
 }
+/* An inline grid toolbar inside such a card keeps only a divider under it. */
+#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+  border: 0 !important;
+  border-bottom: 1px solid #e6ebf1 !important;
+  border-radius: 0 !important;
+}
+html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+  border-bottom-color: #2f3c52 !important;
+}
 
 /* Shared ERP list-table pattern: quiet filters, dense rows, and clear selection. */
 .app-shell:not(.standalone-studio) .advanced-grid { gap: 0; font-size: 12px; }

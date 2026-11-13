@@ -4131,3 +4131,7 @@ html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { backgrou
   background: transparent;
   box-shadow: none;
 }
+
+/* The page background runs to the bottom of the viewport instead of ending under short pages. */
+#root .app-shell:not(.standalone-studio) .main-area { display: flex; flex-direction: column; min-height: 100dvh; }
+#root .app-shell:not(.standalone-studio) .main-area > .workspace-content { flex: 1 0 auto; }

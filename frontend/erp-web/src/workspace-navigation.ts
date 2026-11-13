@@ -37,6 +37,8 @@ export const purchasingNavigationPages: SalesPageKey[] = ['sales-requests','sale
  */
 const standalonePageTitles: Record<string, Record<Locale, string>> = {
   modules: { tr: 'Modül pazaryeri', en: 'Module marketplace' },
+  'location-definitions': { tr: 'İş yeri, şube ve fabrika', en: 'Workplaces, branches and plants' },
+  'address-definitions': { tr: 'Adres tanımları', en: 'Address definitions' },
   'screen-views': { tr: 'Ekran Düzenleri', en: 'Screen layouts' },
   'custom-lists': { tr: 'Dinamik Listeler', en: 'Dynamic lists' },
   'custom-menus': { tr: 'Özel Menüler', en: 'Custom menus' },

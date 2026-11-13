@@ -6,7 +6,7 @@
   width: min(540px, 100%);
   max-height: min(86dvh, 760px);
   padding: 0;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid #dfe5ee;
   border-radius: 12px;
   background: #fff;
@@ -42,9 +42,7 @@
 #root .inv-modal-body {
   display: grid;
   gap: 14px;
-  min-height: 0;
   padding: 0 20px 18px;
-  overflow: auto;
 }
 #root .inv-modal-info {
   display: flex;
@@ -61,7 +59,6 @@
 #root .inv-modal-list {
   margin: 0;
   padding: 0;
-  overflow: hidden;
   border: 1px solid #e1e7ef;
   border-radius: 10px;
   list-style: none;
@@ -124,7 +121,7 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 5;
+  z-index: 8;
   display: grid;
   min-width: 190px;
   padding: 4px;
@@ -133,6 +130,8 @@
   background: #fff;
   box-shadow: 0 10px 28px #0a192f1f;
 }
+/* The last rows open upward so the menu is not clipped by the dialog's scrolling body. */
+#root .inv-modal-row:last-child:not(:first-child) .inv-modal-menu { top: auto; bottom: calc(100% + 4px); }
 #root .inv-modal-menu > button {
   display: flex;
   align-items: center;
@@ -164,7 +163,8 @@
 #root .inv-modal-form { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; background: transparent; }
 #root .inv-modal-form h3 { margin: 4px 0 0; font-size: 14px; }
 #root .inv-modal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-#root .inv-modal-grid label { display: grid; gap: 5px; margin: 0; color: #34465d; font-size: 12.5px; font-weight: 600; }
+#root .inv-modal-grid label { display: grid; align-content: start; gap: 5px; margin: 0; color: #34465d; font-size: 12.5px; font-weight: 600; }
+#root .inv-modal-grid label > :is(input, select) { height: 36px; min-height: 36px; }
 #root .inv-modal-grid label > small { color: #7a889b; font-size: 11.5px; font-weight: 400; }
 #root .inv-modal-code-input { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .02em; }
 #root .inv-modal-switch {
@@ -215,6 +215,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  margin-top: auto;
   padding: 12px 20px;
   border-top: 1px solid #e6ebf1;
   background: #f8fafc;
@@ -252,3 +256,4 @@ html[data-theme='dark'] #root .inv-modal-pill.is-warning { background: #3a2e12; 
 html[data-theme='dark'] #root .inv-modal-pill.is-muted { background: #26324a; color: #b6c3d6; }
 html[data-theme='dark'] #root .inv-modal-switch > input { background: #4a5a73; }
 html[data-theme='dark'] #root .inv-modal-switch > input:checked { background: #f6c23e; }
+html[data-theme='dark'] #root .inv-modal :is(input, textarea)::placeholder { color: #7d8ba0; opacity: 1; }
