@@ -1,0 +1,79 @@
+/* Stok & depo kayıt formlarının ortak RecordForm düzenine ekran-özel uyarlamaları. */
+
+/* Modal kabı: RecordFormPage variant="dialog" kendi iç boşluğunu taşır. */
+.modal.inv-rf-modal {
+  box-sizing: border-box;
+  display: block;
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.modal.inv-rf-modal.inv-rf-modal--wide { width: min(980px, calc(100vw - 32px)); }
+.modal.inv-rf-modal > .record-form { border-radius: inherit; }
+/* Kayıt formunun altında kalan eski paneller (geçmiş listesi, alan tanımı ekleme). */
+.modal.inv-rf-modal > :not(.record-form):not([hidden]) { margin-inline: 20px; }
+.modal.inv-rf-modal > :not(.record-form):not([hidden]):last-child { margin-bottom: 20px; }
+.modal.inv-rf-modal > .record-form + :not([hidden]) { margin-top: 16px; }
+
+/* Sayfa içine gömülü kısa kayıt formu (konum oluştur, operasyonel tanım). */
+.inv-rf-embedded {
+  margin-top: 16px;
+  border: 1px solid var(--erp-border, #cfd8e4);
+  border-radius: 8px;
+  background: var(--erp-surface, #fff);
+  overflow: hidden;
+}
+/* Kapsayıcının eski başlığı, formun kendi komut çubuğu başlığıyla yinelenmesin. */
+.op-definitions-form-heading:has(+ .op-definition-record-form) { display: none; }
+
+/* Kimlik şeridi çeşitleri */
+.record-form .rf-identity.inv-rf-identity-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.2fr); }
+.record-form .rf-identity.inv-rf-identity-even { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.record-form .inv-rf-span-all { grid-column: 1 / -1; }
+.record-form .rf-form label.inv-rf-check-bottom { align-self: end; }
+.record-form .inv-rf-stack { display: flex; flex-direction: column; gap: 20px; }
+
+/* Satır içi ekleme (stok kartı birim dönüşümü) */
+.record-form .inv-rf-inline-add {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 220px) auto;
+  gap: 8px 14px;
+  align-items: end;
+  justify-content: start;
+}
+.record-form .inv-rf-inline-add > button { height: 40px; }
+.record-form .inv-rf-inline-add > small { grid-column: 1 / -1; }
+
+/* Stok kartı varyant satırları ortak alan yüksekliğine uysun. */
+.record-form .rf-form .inventory-variant-dimensions { margin: 0; }
+.record-form .rf-form .inventory-variant-dimension > button { height: 40px; }
+
+/* Özel alan değer satırları (stok özel alanları modali) */
+.record-form .rf-form .requests-list .request-row .request-info { flex: 1; min-width: 0; }
+
+/* Transfer kalem tablosu */
+.record-form .rf-form label.inv-rf-line-picker { max-width: 460px; }
+.record-form .rf-form .inv-rf-lines { max-height: none; margin: 0; }
+.record-form .rf-form .inv-rf-lines td { vertical-align: top; }
+.record-form .rf-form .inv-rf-lines td:last-child { width: 300px; }
+.record-form .rf-form .inv-rf-line-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.record-form .rf-form .inv-rf-lines td:last-child .inv-rf-line-fields { grid-template-columns: 110px minmax(0, 1fr); margin-top: 0; }
+
+@media (max-width: 1100px) {
+  .record-form .rf-identity.inv-rf-identity-3,
+  .record-form .rf-identity.inv-rf-identity-even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form .rf-identity.inv-rf-identity-3,
+  .record-form .rf-identity.inv-rf-identity-even,
+  .record-form .inv-rf-inline-add,
+  .record-form .rf-form .inv-rf-line-fields { grid-template-columns: minmax(0, 1fr); }
+  .record-form .rf-form .inv-rf-lines td:last-child { width: auto; }
+}
