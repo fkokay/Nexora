@@ -155,6 +155,12 @@ body,
 ) {
   background-color: var(--erp-color-surface) !important;
 }
+/* Icon class names (lucide-panel-right-close, lucide-credit-card, …) match the substring selectors above;
+   icons must stay transparent and keep their own shape. */
+.app-shell svg:is([class*='-panel'], [class*='-card'], [class*='-hero'], [class*='-dialog'], [class*='-badge'], [class*='-pill'], [class*='-tag'], [class*='-chip'], [class*='-icon']) {
+  background-color: transparent !important;
+  border-radius: 0 !important;
+}
 
 .app-shell :is(.is-selected, [aria-selected='true']) {
   background-color: var(--erp-color-primary-focus) !important;
@@ -693,8 +699,10 @@ body,
 .auth-input-wrap:focus-within { border-color: #0A192F; outline: 1px solid #0A192F; outline-offset: 0; }
 .auth-input-icon { width: 45px; flex: none; display: grid; place-items: center; color: #283A52; font-size: 18px; font-weight: 600; }
 .auth-lock-icon { color: #283A52; }
-.auth-login-form .auth-input-wrap input { height: 44px; min-width: 0; padding: 0 12px 0 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: #0A192F; font-size: 13px; }
-.auth-login-form .auth-input-wrap input:focus { border: 0; outline: 0; box-shadow: none; }
+/* .auth-shell prefix outranks the generic `.auth-shell :is(input…)` control rule so only the wrapper draws a border. */
+.auth-shell .auth-login-form .auth-input-wrap input { height: 44px; min-height: 0; min-width: 0; flex: 1; padding: 0 12px 0 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: #0A192F; font-size: 13px; }
+/* The wrapper's :focus-within ring is the focus indicator; beat the global !important input focus ring and :focus-visible outline. */
+.auth-shell .auth-login-form .auth-input-wrap input:is(:focus, :focus-visible) { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
 .auth-login-form .auth-input-wrap input::placeholder { color: #8793A4; }
 .auth-password-toggle { height: 38px; width: 42px; flex: none; display: grid; place-items: center; border: 0; background: transparent; color: #536176; }
 .auth-form-options { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: -3px; }
@@ -803,7 +811,7 @@ html[data-theme='dark'] .auth-card-brand .auth-brand-caption, html[data-theme='d
 html[data-theme='dark'] .auth-card-heading .auth-kicker, html[data-theme='dark'] .auth-login-form label,
 html[data-theme='dark'] .auth-remember, html[data-theme='dark'] .auth-help-text { color: #C2CBD7 !important; }
 html[data-theme='dark'] .auth-input-wrap, html[data-theme='dark'] .auth-language, html[data-theme='dark'] .auth-theme-toggle { border-color: #47566A; background: #101A29; color: #E7EDF5; }
-html[data-theme='dark'] .auth-login-form .auth-input-wrap input { color: #F8FAFC; }
+html[data-theme='dark'] .auth-shell .auth-login-form .auth-input-wrap input { color: #F8FAFC; }
 html[data-theme='dark'] .auth-tenant-option { border-color: #47566A; background: #172335; }
 html[data-theme='dark'] .auth-tenant-option span:nth-child(2) b { color: #F8FAFC; }
 html[data-theme='dark'] .auth-tenant-icon { background: #243247; color: #F6C23E; }

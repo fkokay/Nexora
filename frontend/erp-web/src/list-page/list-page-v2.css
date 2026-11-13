@@ -252,6 +252,16 @@ html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: #b5a8f2;
   align-items: center;
   gap: 4px;
 }
+/* Edit and close share one height so the header actions line up. */
+#root .app-shell .list-v2 .list-v2-detail-head-actions > button {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+}
+#root .app-shell .list-v2 .list-v2-detail-head-actions > button.icon-button {
+  width: 36px;
+  padding: 0;
+}
 #root .list-v2 .list-v2-detail-meta {
   display: flex;
   flex-wrap: wrap;

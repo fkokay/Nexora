@@ -1,4 +1,5 @@
-import { Copy, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Copy, RefreshCw, Trash2 } from "lucide-react";
 import { localizedCatalogLabel, localizedText as tx } from "../../locale";
 import type { SavedReport, Source } from "../reportTypes";
 
@@ -17,6 +18,8 @@ type Props = {
   onOpen: (report: SavedReport) => void;
   onDuplicate: (report: SavedReport) => void;
   onRemove: (report: SavedReport) => void;
+  /** Extra content below the list, e.g. the open definition's revision history. */
+  children?: ReactNode;
 };
 
 export function SavedReportsPanel({
@@ -34,34 +37,31 @@ export function SavedReportsPanel({
   onOpen,
   onDuplicate,
   onRemove,
+  children,
 }: Props) {
   return (
-    <aside className="report-saved panel">
-      <div className="report-section-heading">
-        <div>
-          <p className="eyebrow">
-            {isList
-              ? tx("KAYITLI LİSTELER", "SAVED LISTS")
-              : tx("KAYITLI RAPORLAR", "SAVED REPORTS")}
-          </p>
-          <h2>
-            {isList
-              ? tx("Ekibinizin listeleri", "Your team’s lists")
-              : tx("Ekibinizin raporları", "Your team’s reports")}
-          </h2>
-          <small aria-live="polite">
-            {loading
-              ? tx("Yükleniyor…", "Loading…")
-              : `${saved.length} ${isList ? tx("liste", "lists") : tx("rapor", "reports")}`}
-          </small>
-        </div>
+    <aside
+      className="report-saved report-pane"
+      aria-labelledby="report-saved-title"
+    >
+      <div className="report-pane-head">
+        <h2 className="report-pane-title" id="report-saved-title">
+          {isList
+            ? tx("Kayıtlı listeler", "Saved lists")
+            : tx("Kayıtlı raporlar", "Saved reports")}
+          <b className="report-count" aria-live="polite">
+            {loading ? "…" : saved.length.toLocaleString(locale)}
+          </b>
+        </h2>
         <button
           type="button"
-          className="secondary small-button"
+          className="report-icon-button"
+          title={tx("Yenile", "Refresh")}
+          aria-label={tx("Yenile", "Refresh")}
           disabled={loading || busy}
           onClick={onRefresh}
         >
-          {tx("Yenile", "Refresh")}
+          <RefreshCw size={14} />
         </button>
       </div>
       {loading ? (
@@ -163,6 +163,7 @@ export function SavedReportsPanel({
               )}
         </div>
       )}
+      {children}
     </aside>
   );
 }

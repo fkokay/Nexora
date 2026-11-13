@@ -68,6 +68,31 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-fallback { min-width: 0; overflow: auto; }
 .advanced-grid-file-input { display: none !important; }
 .advanced-grid-action.active { border-color: #1475c9; background: #eaf4ff; color: #075da8; }
+/* Narrow toolbars: the grid tools collapse into one "Görünüm" menu (AdvancedDataGrid measures the fit). */
+.advanced-grid-toolbar [data-grid-tool] { white-space: nowrap; }
+.advanced-grid-view-menu { display: none; flex: none; }
+.advanced-grid-toolbar.is-tools-collapsed > .advanced-grid-view-menu { display: inline-flex; }
+.advanced-grid-toolbar.is-tools-collapsed > .advanced-grid-action[data-grid-tool],
+.advanced-grid-toolbar.is-tools-collapsed > .advanced-grid-menu[data-grid-tool]:not([open]),
+.advanced-grid-toolbar.is-tools-collapsed > .advanced-grid-menu[data-grid-tool][open] > summary { display: none !important; }
+.advanced-grid-view-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; white-space: nowrap; }
+.advanced-grid-view-trigger svg { flex: none; }
+.advanced-grid-view-trigger .advanced-grid-view-chevron { color: var(--grid-muted); transition: transform .16s ease; }
+.advanced-grid-view-trigger[aria-expanded="true"] .advanced-grid-view-chevron { transform: rotate(180deg); }
+.advanced-grid-view-trigger b,.advanced-grid-view-popover b { display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 9px; background: #e6f1fc; color: #1765a6; font-size: 10px; }
+.advanced-grid-popover.advanced-grid-view-popover { position: fixed; z-index: 1001; top: 0; right: 8px; gap: 1px; width: auto; min-width: 210px; max-width: calc(100vw - 16px); padding: 6px; }
+.advanced-grid-view-popover [role="menuitem"] { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--grid-ink); font: inherit; font-size: 12px; text-align: left; white-space: nowrap; cursor: pointer; }
+.advanced-grid-view-popover [role="menuitem"]:hover,.advanced-grid-view-popover [role="menuitem"]:focus-visible { background: var(--erp-surface-soft, #f3f6fa); outline: none; }
+.advanced-grid-view-popover [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px #277cc6; }
+.advanced-grid-view-popover [role="menuitem"].is-active { color: #075da8; }
+.advanced-grid-view-popover [role="menuitem"] small { color: var(--grid-muted); font-size: 11px; }
+.advanced-grid-view-divider { height: 1px; margin: 4px 2px; background: var(--grid-border); }
+html[data-theme="dark"] .advanced-grid-popover.advanced-grid-view-popover { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); box-shadow: 0 14px 34px #0008; }
+html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"] { color: var(--erp-text); }
+html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"]:hover,
+html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"]:focus-visible { background: #243247; }
+html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"].is-active { color: #8ec5fa; }
+html[data-theme="dark"] :is(.advanced-grid-view-trigger, .advanced-grid-view-popover) b { background: #1d344a; color: #8ec5fa; }
 .advanced-grid-import,.advanced-grid-pivot { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--grid-border); background: var(--erp-surface, #fff); color: var(--grid-ink); }
 .advanced-grid-import { border-top: 0; }
 .advanced-grid-import > header,.advanced-grid-pivot > header { display: flex; align-items: center; gap: 10px; }
@@ -100,11 +125,31 @@ html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !impor
 @media(max-width:700px) { .advanced-grid-toolbar { gap: 5px; padding: 7px; }.advanced-grid-count { flex: 1 1 100%; margin-left: 0; }.advanced-grid-search { flex-basis: 100%; max-width: none; }.advanced-grid-footer { align-items: flex-start; }.advanced-grid-filter { grid-template-columns: minmax(60px,.7fr) minmax(95px,1fr); }.advanced-grid-filter input { grid-column: 2; }.advanced-grid-filter input + input { grid-column: 2; } }
 
 /* The grid owns its frame; table wrappers should only provide scrolling/layout. */
-:is(.customer-table-wrap,.ledger-list,.table-scroll,.module-ui-table-wrap,.report-table-wrap,.screen-view-table-wrap,.crm-table-wrap,.contracts-table-wrap,.payment-instrument-table-wrap,.sales-distribution-table-wrap,.pie-table-wrap,.hr-table-wrap,.manufacturing-table-wrap,.op-project-register-wrap):has(> .advanced-grid) {
-  border: 0;
-  border-radius: 0;
+/* !important: page workbench rules (e.g. `.standard-list-screen … .crm-table-wrap`) re-add a wrapper border,
+   which stacks a second 1px frame right next to the grid's own. */
+:is(.customer-table-wrap,.ledger-list,.table-scroll,.module-ui-table-wrap,.report-table-wrap,.screen-view-table-wrap,.crm-table-wrap,.contracts-table-wrap,.payment-instrument-table-wrap,.sales-distribution-table-wrap,.pie-table-wrap,.hr-table-wrap,.manufacturing-table-wrap,.op-project-register-wrap,.cash-forecast-table-wrap,.credit-table-wrap,.integration-queue-table-wrap):has(> .advanced-grid) {
+  border: 0 !important;
+  border-radius: 0 !important;
   background: transparent;
-  box-shadow: none;
+  box-shadow: none !important;
+}
+/* When a card already frames the list flush (list-v2 list card, CRM and bank-statement panels), the card is the
+   single frame: the grid and its scroll area draw none. The list-v2 card (whose grid toolbar lives in the page
+   toolbar, so no popover is clipped) also clips the table to its rounded corners. */
+#root .app-shell .list-v2 .list-v2-list:has(.advanced-grid) { padding: 0; overflow: hidden; }
+#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) :is(.advanced-grid, .advanced-grid-scroll) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* An inline grid toolbar inside such a card keeps only a divider under it. */
+#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+  border: 0 !important;
+  border-bottom: 1px solid #e6ebf1 !important;
+  border-radius: 0 !important;
+}
+html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+  border-bottom-color: #2f3c52 !important;
 }
 
 /* Shared ERP list-table pattern: quiet filters, dense rows, and clear selection. */

@@ -140,6 +140,10 @@ export const english: Record<string, string> = {
   'Konum seçimi isteğe bağlıdır; stok, seçilen konum ve depoda doğrulanır.': 'Selecting a location is optional; stock is validated at the selected location and warehouse.',
   // Purchasing
   'Mal kabul özel alanı oluşturuldu.': 'Goods receipt custom field created.', 'Ödenmemiş': 'Unpaid', 'Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin.': 'Track supplier invoices created from goods receipts, due dates and remaining payables.', 'Fatura ekle': 'Add invoice',
+  'Mal kabulünden fatura': 'Invoice from goods receipt',
+  'Faturalanmamış bir mal kabulünü seçip faturasını girin.': 'Pick an uninvoiced goods receipt and enter its invoice.',
+  'Mal kabulsüz fatura': 'Invoice without goods receipt',
+  'Sipariş veya mal kabulü olmayan tedarikçi faturasını taslak olarak girin.': 'Enter a supplier invoice with no order or goods receipt as a draft.',
   'alış faturası': 'purchase invoice', 'Kaydedilmiş mal kabullerine bağlı tedarikçi faturaları.': 'Supplier invoices linked to saved goods receipts.', 'Alış faturası filtreleri': 'Purchase invoice filters', 'Faturaları belge numarası, tedarikçi veya mal kabul bilgisine göre daraltın.': 'Narrow invoices by document number, supplier or goods receipt.',
   'Fatura numarası, tedarikçi veya mal kabul ara': 'Search by invoice number, supplier or goods receipt', 'Fatura no, tedarikçi veya mal kabul ara': 'Search by invoice no., supplier or goods receipt', 'Tüm tedarikçiler': 'All suppliers', 'Alış faturası listesi': 'Purchase invoice list',
   'Alış faturaları yükleniyor…': 'Loading purchase invoices…', 'Aramanızla eşleşen alış faturası yok.': 'No purchase invoices match your search.', 'Henüz alış faturası yok. Fatura eklemek için faturalanabilir bir mal kabul seçin.': 'No purchase invoices yet. Select an invoiceable goods receipt to add an invoice.',

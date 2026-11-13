@@ -7,3 +7,230 @@
 #root .manufacturing-page.list-v2 .manufacturing-order-list tbody tr {
   cursor: pointer;
 }
+
+/* Compact manufacturing order rows: at most two short lines per cell; the
+   per-operation detail and actions live in the selected-order panel. */
+#root .manufacturing-page.list-v2 .manufacturing-order-list .manufacturing-table-wrap td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-list :is(.manufacturing-order-recipe-name, .manufacturing-order-cell-main) {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-list .manufacturing-order-cell-main {
+  color: var(--lv2-text, #25324a);
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-list .manufacturing-order-cell-sub {
+  display: block;
+  max-width: 240px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--lv2-muted, #6b7689);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-progress-bar {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e3e7ef;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-progress-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: #3f7fd0;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-progress-bar > span.is-done {
+  background: #11845f;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-progress small {
+  margin: 0;
+  color: var(--lv2-muted, #6b7689);
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* Order status pills: planned reads neutral, released is the accent. */
+#root .manufacturing-page .manufacturing-order-stack .manufacturing-status.manufacturing-planned {
+  color: #475569;
+  background: #edf1f6;
+}
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-order-stack .manufacturing-status.manufacturing-planned {
+  color: #c3ccda;
+  background: #2c3442;
+}
+#root .manufacturing-page .manufacturing-order-stack .manufacturing-status.manufacturing-cancelled {
+  color: #9f3a43;
+  background: #f8eaec;
+}
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-order-stack .manufacturing-status.manufacturing-cancelled {
+  color: #e6a3aa;
+  background: #3a2328;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-progress-bar {
+  background: #343b49;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-progress-bar > span {
+  background: #6ea8ec;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-progress-bar > span.is-done {
+  background: #4cc996;
+}
+
+/* Selected order panel. */
+#root .manufacturing-page.list-v2 .manufacturing-inspector-head {
+  align-items: center;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-head .list-v2-kind {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-head h2 {
+  font-size: 19px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-stats > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--lv2-border, #e3e7ee);
+  border-radius: 8px;
+  background: var(--lv2-surface, #fff);
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-stats span {
+  color: var(--lv2-muted, #6b7689);
+  font-size: 10px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-stats b {
+  overflow-wrap: anywhere;
+  color: var(--lv2-text, #25324a);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-inspector .list-v2-facts > div {
+  padding: 7px 0;
+}
+#root .manufacturing-page.list-v2 .manufacturing-order-inspector .list-v2-facts :is(dt, dd) {
+  font-size: 12px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-cards {
+  gap: 6px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-section li.manufacturing-op-card {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  font-size: 11px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card.is-completed {
+  border-left: 3px solid #11845f;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card.is-inprogress {
+  border-left: 3px solid #3f7fd0;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-head > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--lv2-text, #25324a);
+  font-size: 12px;
+  font-weight: 650;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-head > b {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-meta {
+  display: block;
+  color: var(--lv2-muted, #6b7689);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-meta > span + span::before {
+  content: "·";
+  margin: 0 4px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card-status {
+  font-weight: 650;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card.is-completed .manufacturing-op-card-status {
+  color: #11845f;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card.is-inprogress .manufacturing-op-card-status {
+  color: #2f6db8;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card > button {
+  width: 100%;
+  justify-content: center;
+  margin-top: 2px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card .actual-time-entry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 2px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card .actual-time-entry label {
+  min-width: 0;
+  font-size: 10px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card .actual-time-entry :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card .actual-time-entry :is(.is-wide, button) {
+  grid-column: 1 / -1;
+}
+#root .manufacturing-page.list-v2 .manufacturing-op-card .actual-time-entry button {
+  justify-content: center;
+}
+#root .manufacturing-page.list-v2 .manufacturing-component-row > span small {
+  display: block;
+  margin-top: 2px;
+  color: var(--lv2-muted, #6b7689);
+  font-size: 10px;
+}
+#root .manufacturing-page.list-v2 .manufacturing-inspector-section > small.manufacturing-component-total {
+  color: var(--lv2-text, #34435d);
+  font-weight: 650;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-op-card.is-completed {
+  border-left-color: #4cc996;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-op-card.is-inprogress {
+  border-left-color: #6ea8ec;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-op-card.is-completed .manufacturing-op-card-status {
+  color: #8ee0b9;
+}
+html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-op-card.is-inprogress .manufacturing-op-card-status {
+  color: #9dccfa;
+}

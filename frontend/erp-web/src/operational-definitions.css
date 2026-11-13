@@ -252,6 +252,8 @@ html[data-theme="dark"] .customer-location-definitions-page .location-definition
 
 /* Workplaces stay grouped with their form and register while warehouse setup is an adjacent path. */
 .operational-definitions-page { grid-template-columns: minmax(0, 1.4fr) minmax(250px, .8fr); align-items: start; gap: 14px; }
+/* The list-v2 version adds a full-width toolbar row; the two-column split pushed the list beside it, so stack everything. */
+.operational-definitions-page.list-v2 { grid-template-columns: minmax(0, 1fr); }
 .operational-definitions-page > .page-heading,
 .operational-definitions-page > .inline-alert,
 .operational-definitions-page > .notice,

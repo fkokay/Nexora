@@ -1149,15 +1149,13 @@ html[data-theme="dark"] #root .workspace-page-main :is(.customer-actions-menu > 
 #root .workspace-page-main .customer-workbench .advanced-grid-footer { border-radius: 0; }
 
 /* Keep the shared widget rail fully below the fixed topbar and workspace tabs while scrolling. */
+/* Widgets flow with the page instead of scrolling inside their own column. */
 #root .app-shell:not(.standalone-studio) .workspace-content.with-reference-widgets > .customer-reference-aside {
-  position: sticky;
-  top: 125px;
+  position: static;
   align-self: start;
   margin-top: 37px;
-  max-height: calc(100dvh - 135px);
-  overflow-y: auto;
-  overscroll-behavior-y: auto;
-  scrollbar-width: thin;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Detail tabs use a compact segmented control that fills the record card. */
@@ -2227,6 +2225,12 @@ html:not([data-theme="dark"]) .app-shell:not(.standalone-studio) .content :is(.c
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .content .erp-workbench :is(.erp-list-pane,.erp-record-pane),
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .content .erp-pane-heading { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
 @media(max-width:1100px){.app-shell:not(.standalone-studio) .content .erp-workbench{grid-template-columns:minmax(0,1fr)}.app-shell:not(.standalone-studio) .content .erp-record-pane{position:static}}
+/* With the detail panel open, the list card stretches to the panel's height and its grid fills the card. */
+#root .app-shell .content .customer-directory-layout:has(> .customer-detail-backdrop) { align-items: stretch; }
+#root .app-shell .content .customer-directory-layout:has(> .customer-detail-backdrop) .erp-list-pane { display: flex; flex-direction: column; min-height: 0; }
+#root .app-shell .content .customer-directory-layout:has(> .customer-detail-backdrop) .erp-list-pane > .customer-table-wrap { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+#root .app-shell .content .customer-directory-layout:has(> .customer-detail-backdrop) .customer-table-wrap > .advanced-grid { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+#root .app-shell .content .customer-directory-layout:has(> .customer-detail-backdrop) .customer-table-wrap > .advanced-grid > .advanced-grid-scroll { height: 100%; max-height: none; }
 .app-shell:not(.standalone-studio) .content .customer-directory-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.9fr) minmax(340px, .85fr);
@@ -3495,7 +3499,8 @@ html[data-theme="dark"] #root .launcher-center-hero{background:#11182770}
 /* Dashboard header aligned to the ERP workspace reference. */
 #root .module-launcher-topbar {
   height: 84px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 366px) minmax(0, 1fr);
+  /* Search grows with wide screens (366px floor, 640px cap) instead of staying fixed at 366px. */
+  grid-template-columns: minmax(0, 1fr) minmax(300px, clamp(366px, 34vw, 640px)) minmax(0, 1fr);
   gap: 24px;
   padding-inline: clamp(22px, 2.5vw, 42px);
   border-bottom-color: #dfe1ee;
@@ -4126,3 +4131,7 @@ html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { backgrou
   background: transparent;
   box-shadow: none;
 }
+
+/* The page background runs to the bottom of the viewport instead of ending under short pages. */
+#root .app-shell:not(.standalone-studio) .main-area { display: flex; flex-direction: column; min-height: 100dvh; }
+#root .app-shell:not(.standalone-studio) .main-area > .workspace-content { flex: 1 0 auto; }

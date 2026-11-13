@@ -56,6 +56,10 @@ export const english: Record<string, string> = {
   "Fırsat Kimliği": "Opportunity Identity",
   "Tutar ve Olasılık": "Amount and Probability",
   "Takip": "Follow-up",
+  "Hazır olasılık değerleri": "Probability presets",
+  "Ya da 0–99 arası değer yazın": "Or type a value between 0 and 99",
+  "Ağırlıklı değer": "Weighted value",
+  "Tahmini tutar × kazanma olasılığı": "Estimated amount × win probability",
   // Commercial contracts
   "Sözleşme Kimliği": "Contract Identity",
   "Cari Hesap": "Account",

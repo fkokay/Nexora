@@ -649,6 +649,22 @@ export const english: Record<string, string> = {
   'Yeni şifre (tekrar)': 'New password (again)',
   'En az 6 karakter kullanın.': 'Use at least 6 characters.',
   'Şifreyi kaydet': 'Save password',
+  // Report builder studio (ReportsPage)
+  'AI ile keşfet': 'Explore with AI',
+  'Çalıştır': 'Run',
+  'Veri kaynağı ve alanlar': 'Data source and fields',
+  'Alanlar': 'Fields',
+  'Filtre': 'Filter',
+  'Grupla': 'Group by',
+  'Koşul': 'Condition',
+  'Koşulu düzenle': 'Edit condition',
+  'Koşulları düzenle': 'Edit conditions',
+  'Düzenlemeyi kapat': 'Close editor',
+  'Gruplama alanı ekle': 'Add grouping field',
+  'Rapor tasarımı': 'Report design',
+  'Liste tasarımı': 'List design',
+  'Eşleşen alan yok.': 'No matching fields.',
+  'Yenile': 'Refresh',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -701,4 +717,9 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) öğesini aşağı taşı$/, 'Move $1 down'],
   [/^(.+?) göster$/, 'Show $1'],
   [/^(.+?) uyarısını kapat$/, 'Dismiss alert $1'],
+  [/^([\d.,]+) veri kaynağı · ([\d.,]+) kayıtlı rapor$/, '$1 data sources · $2 saved reports'],
+  [/^([\d.,]+) veri kaynağı · ([\d.,]+) kayıtlı liste$/, '$1 data sources · $2 saved lists'],
+  [/^\+ Alan \((\d)\/3\)$/, '+ Field ($1/3)'],
+  [/^Koşulu kaldır: (.+)$/, 'Remove condition: $1'],
+  [/^Gruplamadan çıkar: (.+)$/, 'Remove from grouping: $1'],
 ]
