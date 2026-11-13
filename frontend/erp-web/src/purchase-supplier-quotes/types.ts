@@ -44,3 +44,13 @@ export type QuotePage = {
   pageSize: number
   totalCount: number
 }
+
+export type ScreenField = {
+  key: string
+  label: string
+  visible: boolean
+  position: number
+  fixed?: boolean
+  width?: number | null
+  pinned?: "left" | "right" | null
+}

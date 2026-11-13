@@ -11,7 +11,11 @@ import { ManufacturingCostVarianceError } from "./manufacturing-cost-variance/co
 import { ManufacturingCostVarianceFilters } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceFilters";
 import { ManufacturingCostVarianceHeader } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceHeader";
 import { ManufacturingCostVarianceLimitations } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceLimitations";
-import { ManufacturingCostVarianceResults } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceResults";
+import {
+  defaultCostVarianceFields,
+  ManufacturingCostVarianceResults,
+  type CostVarianceScreenViewField,
+} from "./manufacturing-cost-variance/components/ManufacturingCostVarianceResults";
 import { ManufacturingCostVarianceSummary } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceSummary";
 import type { CostReport } from "./manufacturing-cost-variance/components/types";
 
@@ -31,6 +35,28 @@ export default function ManufacturingCostVariancePage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const generation = useRef(0);
+  const [screenFields, setScreenFields] = useState<
+    CostVarianceScreenViewField[]
+  >(defaultCostVarianceFields);
+
+  useEffect(() => {
+    let active = true;
+    void authenticatedFetch(
+      "/api/screen-views/manufacturing-cost-variance/active",
+      token,
+    )
+      .then(async (response) => {
+        if (!response.ok) return;
+        const view = (await response.json()) as {
+          fields?: CostVarianceScreenViewField[];
+        };
+        if (active && view.fields?.length) setScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   const load = useCallback(
     async (nextPage: number) => {
@@ -122,6 +148,7 @@ export default function ManufacturingCostVariancePage({
             pageCount={pageCount}
             loading={loading}
             onPageChange={(nextPage) => void load(nextPage)}
+            fields={screenFields}
           />
           <ManufacturingCostVarianceLimitations text={report.limitations} />
         </>

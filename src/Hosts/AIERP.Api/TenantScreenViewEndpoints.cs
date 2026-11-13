@@ -19,7 +19,13 @@ internal static class TenantScreenViewEndpoints
         "hr-attendance", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests",
         "hr-workplace-assignments", "hr-workplace-calendars",
         "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets",
-        "purchase-orders", "purchase-invoices"
+        "purchase-orders", "purchase-invoices",
+        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
+        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
+        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
+        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
+        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
+        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
     };
     // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
     internal static readonly HashSet<string> PinnableColumnScreenKeys = new(StringComparer.Ordinal)
@@ -30,7 +36,13 @@ internal static class TenantScreenViewEndpoints
         "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure", "finance-fx-revaluation-lines",
         "finance-fx-revaluations", "finance-income-statement", "finance-journals", "finance-ledger-accounts",
         "finance-ledger-mappings", "finance-maturities", "finance-maturity-aging", "finance-statement-lines",
-        "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance"
+        "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance",
+        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
+        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
+        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
+        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
+        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
+        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
     };
     internal const int MaxPinnedColumnsPerSide = 3;
     private static readonly ScreenViewField[] CustomerFields =
@@ -49,6 +61,12 @@ internal static class TenantScreenViewEndpoints
         new("identityNumber", "T.C. kimlik no", true, Section: "Genel Bilgiler"), new("taxOffice", "Vergi dairesi", true, Section: "Diğer"),
         new("currencyCode", "Para birimi", true, Section: "Finans"), new("paymentTermDays", "Vade", true, Section: "Finans"),
         new("riskLimit", "Risk limiti", true, Section: "Finans")
+    ];
+    private static readonly ScreenViewField[] CustomerLedgerEntryFields =
+    [
+        new("entryDate", "Tarih", true), new("description", "Açıklama", true), new("direction", "Yön", true),
+        new("debit", "Borç", true), new("credit", "Alacak", true), new("balance", "Bakiye", true),
+        new("currencyCode", "Döviz", false)
     ];
     private static readonly ScreenViewField[] AuditEventFields =
     [
@@ -106,6 +124,96 @@ internal static class TenantScreenViewEndpoints
         new("entryDate", "Tarih", true), new("direction", "Yön", true), new("description", "Açıklama", true),
         new("quantity", "Miktar", true), new("unitCostBase", "Birim maliyet", true),
         new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] ManufacturingRecipesScreenFields =
+    [
+        new("recipe", "Reçete", true), new("product", "Mamul", true), new("outputQuantity", "Çıktı", true), new("content", "İçerik", true), new("status", "Durum / kullanım", true), new("workCenters", "İş merkezleri", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] ManufacturingCostVarianceScreenFields =
+    [
+        new("orderCode", "Üretim emri", true), new("plannedDate", "Plan tarihi", true), new("status", "Durum", true), new("plannedQuantity", "Miktar", true), new("plannedMaterial", "Planlanan malzeme", true), new("actualMaterial", "Fiilî malzeme", true), new("plannedConversion", "Planlanan dönüşüm", true), new("actualConversion", "Fiilî dönüşüm", true), new("conversionVariance", "Dönüşüm farkı", true), new("actualTotalCost", "Fiilî toplam", true), new("totalVariance", "Toplam fark", true), new("plannedLabor", "Planlanan işçilik", false), new("actualLabor", "Fiilî işçilik", false)
+    ];
+    private static readonly ScreenViewField[] FinanceCreditExposureFacilitiesScreenFields =
+    [
+        new("code", "Kredi", true), new("lenderName", "Banka / kurum", true), new("currencyCode", "Para birimi", true), new("approvedLimit", "Onaylı limit", false), new("outstandingPrincipal", "Açık anapara", true), new("security", "Teminat + garanti", true), new("limitUtilization", "Limit kullanım", true)
+    ];
+    private static readonly ScreenViewField[] IntegrationOperationsScreenFields =
+    [
+        new("integration", "Entegrasyon", true), new("status", "Durum", true), new("createdAt", "Oluşturulma", true), new("attempts", "Deneme", true), new("errorCode", "Hata kodu", true), new("updatedAt", "Son güncelleme", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] EDocumentSubmissionsScreenFields =
+    [
+        new("documentType", "Tür", true), new("document", "Belge", true), new("issueDate", "Düzenleme tarihi", true), new("currencyCode", "Para birimi", true), new("createdAt", "Hazırlanma", true), new("requestedBy", "Hazırlayan kullanıcı", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] PurchaseRequestsScreenFields =
+    [
+        new("code", "Talep no", true), new("description", "Açıklama", true), new("requestedByName", "Talep sahibi", true), new("requestDate", "Talep tarihi", true), new("neededByDate", "İhtiyaç tarihi", true), new("lineCount", "Kalem", true), new("status", "Durum", true), new("purchaseOrderCode", "Bağlı sipariş", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] PurchaseOrderReceiptsScreenFields =
+    [
+        new("code", "Mal kabul", true), new("receiptDate", "Tarih", true), new("warehouseName", "Depo", true), new("lineCount", "Satır", true), new("status", "Durum", true), new("invoice", "Alış faturası", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] SalesInvoicePaymentsScreenFields =
+    [
+        new("code", "Fiş no", true), new("collectionDate", "Tarih", true), new("paymentMethod", "Yöntem", true), new("reference", "Referans", true), new("amount", "Tutar", true), new("status", "Durum", true), new("createdAt", "Oluşturulma", false), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] CustomerDetailMovementsScreenFields =
+    [
+        new("entryDate", "Tarih", true), new("direction", "Yön", true), new("description", "Açıklama", true), new("amount", "Tutar", true), new("balance", "Dönem bakiyesi", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] HrCompensationRecordsScreenFields =
+    [
+        new("employee", "Personel", true), new("targetKind", "Hedef", true), new("amount", "Tutar", true), new("currencyCode", "Para birimi", true), new("payBasisCode", "Ödeme esası", true), new("effectiveFrom", "Yürürlük", true), new("status", "Durum", true), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] HrTaxDeclarationsScreenFields =
+    [
+        new("employee", "Personel", true), new("taxYear", "Yıl / sürüm", true), new("declarationKind", "Beyan türü", true), new("baseEntries", "Matrahlar", true), new("evidenceReference", "Kanıt ref.", true), new("status", "Durum", true), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] HrPayrollDraftsScreenFields =
+    [
+        new("period", "Dönem", true), new("profileCode", "Profil", true), new("employeeCount", "Personel", true), new("status", "Durum", true), new("blockers", "Engeller", true), new("snapshotSha256", "SHA-256", true), new("createdAt", "Oluşturulma", true), new("actions", "Snapshot", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] HrPayrollRuleSetsScreenFields =
+    [
+        new("taxYear", "Yıl", true), new("effectivePeriod", "Geçerlilik", true), new("version", "Sürüm", true), new("officialSourceUrl", "Kaynak", true), new("rules", "Parametreler", true), new("status", "Durum", true), new("approvedAt", "Onay tarihi", false), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] FinanceCreditSecuritiesScreenFields =
+    [
+        new("code", "Kod / tür", true), new("facilityCode", "Bağlı kredi", true), new("parties", "Veren → lehtar", true), new("amount", "Tutar", true), new("commissionAmount", "Komisyon", true), new("issueDate", "Düzenleme", true), new("expiryDate", "Vade", true), new("status", "Durum", true), new("notes", "Not", false), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] ForeignTradeFilesScreenFields =
+    [
+        new("reference", "Referans", true), new("direction", "Yön", true), new("linkedOrder", "Bağlı sipariş", true), new("countries", "Ülkeler", true), new("status", "Durum", true), new("transportMode", "Taşıma şekli", false), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] CustomerProvincesScreenFields =
+    [
+        new("name", "İl", true), new("status", "Durum", true), new("districtCount", "İlçeler", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] CustomerDistrictsScreenFields =
+    [
+        new("name", "İlçe", true), new("province", "İl", true), new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] OperationalDefinitionsScreenFields =
+    [
+        new("kind", "Tür", true), new("code", "Kod", true), new("name", "Ad", true), new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] InventoryMovementHistoryFields =
+    [
+        new("entryDate", "Tarih", true), new("direction", "Yön", true), new("quantity", "Miktar", true),
+        new("warehouse", "Depo", true), new("storageLocation", "Konum", true), new("tracking", "Lot / seri", true),
+        new("description", "Açıklama", true), new("unitCostBase", "Birim maliyet", false)
+    ];
+    private static readonly ScreenViewField[] InventoryWarehouseFields =
+    [
+        new("code", "Depo kodu", true), new("name", "Depo adı", true),
+        new("status", "Durum", true), new("availability", "Açıklama", true)
+    ];
+    private static readonly ScreenViewField[] InventoryTransferFields =
+    [
+        new("code", "Transfer kodu", true), new("transferDate", "Tarih", true),
+        new("fromWarehouseName", "Kaynak depo", true), new("toWarehouseName", "Hedef depo", true),
+        new("lineCount", "Stok kalemi", true), new("status", "Durum", true),
+        new("createdAt", "Oluşturulma", false), new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] ExchangeRateFields =
     [
@@ -238,6 +346,12 @@ internal static class TenantScreenViewEndpoints
         new("lineCount", "Satır", true), new("createdAt", "Kaydedilme", true),
         new("status", "Durum", true), new("actions", "İşlemler", true, Fixed: true)
     ];
+    private static readonly ScreenViewField[] PurchaseSupplierQuoteFields =
+    [
+        new("code", "Teklif no", true), new("requestCode", "Talep", true), new("supplierName", "Tedarikçi", true),
+        new("quoteDate", "Tarih", true), new("validUntil", "Geçerlilik", true), new("status", "Durum", true),
+        new("grandTotal", "Toplam", true), new("lineCount", "Satır", false), new("createdAt", "Oluşturulma", false)
+    ];
     private static readonly ScreenViewField[] PurchaseOrderFields =
     [
         new("code", "Sipariş no", true), new("supplierName", "Tedarikçi", true),
@@ -282,6 +396,12 @@ internal static class TenantScreenViewEndpoints
         new("billOfMaterialName", "Reçete / rota ve fiili süre", true), new("warehouseName", "Depo", true),
         new("plannedQuantity", "Planlanan miktar", true), new("components", "Bileşenler", true),
         new("status", "Durum", true), new("actions", "İşlem", true, Fixed: true)
+    ];
+    private static readonly ScreenViewField[] ManufacturingWorkCenterFields =
+    [
+        new("code", "Kod", true), new("name", "İş merkezi", true), new("capacityMinutesPerDay", "Günlük kapasite", true),
+        new("laborCostPerHourBase", "İşçilik / saat", true), new("overheadCostPerHourBase", "Genel gider / saat", true),
+        new("status", "Durum", true), new("shift", "Vardiya", false)
     ];
     private static readonly ScreenViewField[] ManufacturingMrpLineFields =
     [
@@ -531,9 +651,31 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("hr-employee-calendar-overrides", "Kişi takvim istisnaları", HrEmployeeCalendarOverrideFields),
             new ScreenViewCatalog("customers", "Cari listesi", CustomerFields),
             new ScreenViewCatalog("customer-details", "Cari detay kartı", CustomerDetailFields),
+            new ScreenViewCatalog("customer-ledger-entries", "Cari hesap hareketleri", CustomerLedgerEntryFields),
             new ScreenViewCatalog("audit-events", "İşlem kayıtları", AuditEventFields),
             new ScreenViewCatalog("inventory-stock", "Stok kartları", StockItemFields),
             new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields),
+            new ScreenViewCatalog("inventory-transfers", "Depolar arası transferler", InventoryTransferFields),
+            new ScreenViewCatalog("inventory-warehouses", "Depo tanımları", InventoryWarehouseFields),
+            new ScreenViewCatalog("inventory-movement-history", "Stok hareketleri", InventoryMovementHistoryFields),
+            new ScreenViewCatalog("purchase-requests", "Satın alma talepleri", PurchaseRequestsScreenFields),
+            new ScreenViewCatalog("purchase-order-receipts", "Satın alma siparişi mal kabulleri", PurchaseOrderReceiptsScreenFields),
+            new ScreenViewCatalog("sales-invoice-payments", "Satış faturası tahsilatları", SalesInvoicePaymentsScreenFields),
+            new ScreenViewCatalog("customer-detail-movements", "Cari detay hareketleri", CustomerDetailMovementsScreenFields),
+            new ScreenViewCatalog("hr-compensation-records", "Gizli ücret kayıtları", HrCompensationRecordsScreenFields),
+            new ScreenViewCatalog("hr-tax-declarations", "Önceki işveren beyanları", HrTaxDeclarationsScreenFields),
+            new ScreenViewCatalog("hr-payroll-drafts", "Bordro taslak snapshotları", HrPayrollDraftsScreenFields),
+            new ScreenViewCatalog("hr-payroll-rule-sets", "Kural seti taslakları", HrPayrollRuleSetsScreenFields),
+            new ScreenViewCatalog("finance-credit-securities", "Kredi teminat ve garantileri", FinanceCreditSecuritiesScreenFields),
+            new ScreenViewCatalog("foreign-trade-files", "Dış ticaret dosyaları", ForeignTradeFilesScreenFields),
+            new ScreenViewCatalog("customer-provinces", "Müşteri il tanımları", CustomerProvincesScreenFields),
+            new ScreenViewCatalog("customer-districts", "Müşteri ilçe tanımları", CustomerDistrictsScreenFields),
+            new ScreenViewCatalog("operational-definitions", "Organizasyon tanımları", OperationalDefinitionsScreenFields),
+            new ScreenViewCatalog("manufacturing-recipes", "Ürün reçeteleri", ManufacturingRecipesScreenFields),
+            new ScreenViewCatalog("manufacturing-cost-variance", "Üretim maliyet farkı", ManufacturingCostVarianceScreenFields),
+            new ScreenViewCatalog("finance-credit-exposure-facilities", "Kredi bazında maruziyet", FinanceCreditExposureFacilitiesScreenFields),
+            new ScreenViewCatalog("integration-operations", "Entegrasyon işlem geçmişi", IntegrationOperationsScreenFields),
+            new ScreenViewCatalog("e-document-submissions", "Onay bekleyen e-belge gönderimleri", EDocumentSubmissionsScreenFields),
             new ScreenViewCatalog("exchange-rates", "Döviz kurları", ExchangeRateFields),
             new ScreenViewCatalog("warehouse-location-balances", "Depo konum bakiyeleri", WarehouseLocationBalanceFields),
             new ScreenViewCatalog("inventory-warehouse-locations", "Raf ve bölmeler", WarehouseLocationFields),
@@ -554,6 +696,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-invoice-receipt-selection", "Alış faturası girişi · mal kabul seçimi", PurchaseInvoiceReceiptSelectionFields),
             new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
+            new ScreenViewCatalog("purchase-supplier-quotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteFields),
             new ScreenViewCatalog("purchase-receipts", "Mal kabulleri", PurchaseReceiptFields),
             new ScreenViewCatalog("purchase-delivery-notes", "Tedarikçi irsaliyeleri", PurchaseDeliveryNoteFields),
             new ScreenViewCatalog("purchase-delivery-order-lines", "İrsaliye girişi · sipariş satırları", PurchaseDeliveryOrderLineFields),
@@ -561,6 +704,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("purchase-delivery-note-lines", "Tedarikçi irsaliye satırları", PurchaseDeliveryNoteLineFields),
             new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields),
             new ScreenViewCatalog("manufacturing-mrp-lines", "MRP plan sonuçları", ManufacturingMrpLineFields),
+            new ScreenViewCatalog("manufacturing-work-centers", "İş merkezleri", ManufacturingWorkCenterFields),
             new ScreenViewCatalog("fixed-assets", "Sabit kıymetler", FixedAssetFields),
             new ScreenViewCatalog("fixed-asset-depreciation", "Amortisman planı", FixedAssetDepreciationFields),
             new ScreenViewCatalog("fixed-asset-assignments", "Zimmet geçmişi", FixedAssetAssignmentFields),
@@ -816,6 +960,11 @@ internal static class TenantScreenViewEndpoints
             catalog = new ScreenViewCatalog("customer-details", "Cari detay kartı", CustomerDetailFields);
             return true;
         }
+        if (string.Equals(key, "customer-ledger-entries", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("customer-ledger-entries", "Cari hesap hareketleri", CustomerLedgerEntryFields);
+            return true;
+        }
         if (string.Equals(key, "audit-events", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("audit-events", "İşlem kayıtları", AuditEventFields);
@@ -829,6 +978,111 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "inventory-stock-movements", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("inventory-stock-movements", "Stok hareket geçmişi", InventoryMovementFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-recipes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-recipes", "Ürün reçeteleri", ManufacturingRecipesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-cost-variance", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-cost-variance", "Üretim maliyet farkı", ManufacturingCostVarianceScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "finance-credit-exposure-facilities", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("finance-credit-exposure-facilities", "Kredi bazında maruziyet", FinanceCreditExposureFacilitiesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "integration-operations", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("integration-operations", "Entegrasyon işlem geçmişi", IntegrationOperationsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "e-document-submissions", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("e-document-submissions", "Onay bekleyen e-belge gönderimleri", EDocumentSubmissionsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "purchase-requests", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-requests", "Satın alma talepleri", PurchaseRequestsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "purchase-order-receipts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-order-receipts", "Satın alma siparişi mal kabulleri", PurchaseOrderReceiptsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "sales-invoice-payments", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("sales-invoice-payments", "Satış faturası tahsilatları", SalesInvoicePaymentsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "customer-detail-movements", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("customer-detail-movements", "Cari detay hareketleri", CustomerDetailMovementsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "hr-compensation-records", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("hr-compensation-records", "Gizli ücret kayıtları", HrCompensationRecordsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "hr-tax-declarations", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("hr-tax-declarations", "Önceki işveren beyanları", HrTaxDeclarationsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "hr-payroll-drafts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("hr-payroll-drafts", "Bordro taslak snapshotları", HrPayrollDraftsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "hr-payroll-rule-sets", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("hr-payroll-rule-sets", "Kural seti taslakları", HrPayrollRuleSetsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "finance-credit-securities", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("finance-credit-securities", "Kredi teminat ve garantileri", FinanceCreditSecuritiesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "foreign-trade-files", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("foreign-trade-files", "Dış ticaret dosyaları", ForeignTradeFilesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "customer-provinces", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("customer-provinces", "Müşteri il tanımları", CustomerProvincesScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "customer-districts", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("customer-districts", "Müşteri ilçe tanımları", CustomerDistrictsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "operational-definitions", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("operational-definitions", "Organizasyon tanımları", OperationalDefinitionsScreenFields);
+            return true;
+        }
+        if (string.Equals(key, "inventory-movement-history", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("inventory-movement-history", "Stok hareketleri", InventoryMovementHistoryFields);
+            return true;
+        }
+        if (string.Equals(key, "inventory-warehouses", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("inventory-warehouses", "Depo tanımları", InventoryWarehouseFields);
+            return true;
+        }
+        if (string.Equals(key, "inventory-transfers", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("inventory-transfers", "Depolar arası transferler", InventoryTransferFields);
             return true;
         }
         if (string.Equals(key, "exchange-rates", StringComparison.OrdinalIgnoreCase))
@@ -926,6 +1180,11 @@ internal static class TenantScreenViewEndpoints
             catalog = new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields);
             return true;
         }
+        if (string.Equals(key, "purchase-supplier-quotes", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("purchase-supplier-quotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteFields);
+            return true;
+        }
         if (string.Equals(key, "purchase-orders", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields);
@@ -959,6 +1218,11 @@ internal static class TenantScreenViewEndpoints
         if (string.Equals(key, "manufacturing-orders", StringComparison.OrdinalIgnoreCase))
         {
             catalog = new ScreenViewCatalog("manufacturing-orders", "Üretim emirleri", ManufacturingOrderFields);
+            return true;
+        }
+        if (string.Equals(key, "manufacturing-work-centers", StringComparison.OrdinalIgnoreCase))
+        {
+            catalog = new ScreenViewCatalog("manufacturing-work-centers", "İş merkezleri", ManufacturingWorkCenterFields);
             return true;
         }
         if (string.Equals(key, "manufacturing-mrp-lines", StringComparison.OrdinalIgnoreCase))

@@ -329,6 +329,352 @@ public sealed class CustomFormEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Supplier_quote_layout_is_tenant_scoped_and_hides_optional_columns_by_default()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var quotes = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "purchase-supplier-quotes");
+        var catalogKeys = quotes.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
+        Assert.Equal(["code", "requestCode", "supplierName", "quoteDate", "validUntil", "status", "grandTotal", "lineCount", "createdAt"], catalogKeys);
+
+        var standard = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        Assert.False(standard.GetProperty("isPublished").GetBoolean());
+        Assert.False(standard.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("visible").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/purchase-supplier-quotes/draft", new { name = "Teklif karşılaştırma" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "grandTotal" ? "Teklif tutarı" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is "lineCount" ? true : field.GetProperty("key").GetString() is "requestCode" ? false : field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+
+        var unknownField = fields.Append(new { key = "supplierTaxNumber", label = "Vergi no", visible = true, position = fields.Length }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = unknownField })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Teklif karşılaştırma", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        var activeFields = activeA.GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Teklif tutarı", activeFields.Single(x => x.GetProperty("key").GetString() == "grandTotal").GetProperty("label").GetString());
+        Assert.False(activeFields.Single(x => x.GetProperty("key").GetString() == "requestCode").GetProperty("visible").GetBoolean());
+        Assert.True(activeFields.Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("visible").GetBoolean());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Toplam", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "grandTotal").GetProperty("label").GetString());
+    }
+
+    [Fact]
+    public async Task Work_center_layout_is_tenant_scoped_and_can_show_the_shift_column()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var centers = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "manufacturing-work-centers");
+        Assert.Equal(["code", "name", "capacityMinutesPerDay", "laborCostPerHourBase", "overheadCostPerHourBase", "status", "shift"],
+            centers.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/manufacturing-work-centers/draft", new { name = "Kapasite görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "capacityMinutesPerDay" ? "Kapasite (dk/gün)" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is "shift" or "code" or "name" or "capacityMinutesPerDay" or "status",
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Kapasite görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-work-centers/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.True(activeA.Single(x => x.GetProperty("key").GetString() == "shift").GetProperty("visible").GetBoolean());
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "laborCostPerHourBase").GetProperty("visible").GetBoolean());
+        Assert.Equal("Kapasite (dk/gün)", activeA.Single(x => x.GetProperty("key").GetString() == "capacityMinutesPerDay").GetProperty("label").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/manufacturing-work-centers/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.False(activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "shift").GetProperty("visible").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Customer_ledger_entry_layout_is_tenant_scoped_and_can_show_the_currency_column()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var ledger = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "customer-ledger-entries");
+        Assert.Equal(["entryDate", "description", "direction", "debit", "credit", "balance", "currencyCode"],
+            ledger.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/customer-ledger-entries/draft", new { name = "Ekstre görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "balance" ? "Yürüyen bakiye" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is not "direction",
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+        var duplicated = fields.Append(fields[0]).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = duplicated })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Ekstre görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/customer-ledger-entries/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.True(activeA.Single(x => x.GetProperty("key").GetString() == "currencyCode").GetProperty("visible").GetBoolean());
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "direction").GetProperty("visible").GetBoolean());
+        Assert.Equal("Yürüyen bakiye", activeA.Single(x => x.GetProperty("key").GetString() == "balance").GetProperty("label").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/customer-ledger-entries/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Bakiye", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "balance").GetProperty("label").GetString());
+    }
+
+    [Fact]
+    public async Task Inventory_transfer_layout_is_tenant_scoped_and_keeps_transfer_actions_fixed()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var transfers = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-transfers");
+        Assert.Equal(["code", "transferDate", "fromWarehouseName", "toWarehouseName", "lineCount", "status", "createdAt", "actions"],
+            transfers.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-transfers/draft", new { name = "Transfer görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "lineCount" ? "Kalem sayısı" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is "createdAt" || field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+
+        var hiddenActions = fields.Select(field => field.key == "actions" ? field with { visible = false } : field).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = hiddenActions })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Transfer görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-transfers/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.True(activeA.Single(x => x.GetProperty("key").GetString() == "createdAt").GetProperty("visible").GetBoolean());
+        Assert.Equal("Kalem sayısı", activeA.Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("label").GetString());
+        Assert.Equal("actions", activeA[^1].GetProperty("key").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-transfers/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Stok kalemi", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "lineCount").GetProperty("label").GetString());
+    }
+
+    [Fact]
+    public async Task Warehouse_layout_is_tenant_scoped_and_requires_every_catalog_field()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var warehouses = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-warehouses");
+        Assert.Equal(["code", "name", "status", "availability"],
+            warehouses.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-warehouses/draft", new { name = "Depo görünümü" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "name" ? "Depo" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is not "availability",
+            position = field.GetProperty("key").GetString() switch { "name" => 0, "code" => 1, _ => field.GetProperty("position").GetInt32() }
+        }).ToArray();
+
+        var missingField = fields.Where(field => field.key != "status").ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = missingField })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Depo görünümü", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-warehouses/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "availability").GetProperty("visible").GetBoolean());
+        Assert.Equal("Depo", activeA.Single(x => x.GetProperty("key").GetString() == "name").GetProperty("label").GetString());
+        Assert.Equal(0, activeA.Single(x => x.GetProperty("key").GetString() == "name").GetProperty("position").GetInt32());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-warehouses/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.Equal("Depo adı", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "name").GetProperty("label").GetString());
+    }
+
+    [Fact]
+    public async Task Inventory_movement_history_layout_is_tenant_scoped_and_can_show_unit_cost()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var history = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-movement-history");
+        Assert.Equal(["entryDate", "direction", "quantity", "warehouse", "storageLocation", "tracking", "description", "unitCostBase"],
+            history.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-movement-history/draft", new { name = "Maliyetli hareketler" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == "tracking" ? "İzlenebilirlik" : field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("key").GetString() is not "storageLocation",
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+        var blankLabel = fields.Select(field => field.key == "quantity" ? field with { label = "" } : field).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = blankLabel })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Maliyetli hareketler", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-movement-history/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.True(activeA.Single(x => x.GetProperty("key").GetString() == "unitCostBase").GetProperty("visible").GetBoolean());
+        Assert.False(activeA.Single(x => x.GetProperty("key").GetString() == "storageLocation").GetProperty("visible").GetBoolean());
+        Assert.Equal("İzlenebilirlik", activeA.Single(x => x.GetProperty("key").GetString() == "tracking").GetProperty("label").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/inventory-movement-history/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.False(activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "unitCostBase").GetProperty("visible").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("manufacturing-recipes", "recipe,product,outputQuantity,content,status,workCenters,actions", "workCenters", "recipe")]
+    [InlineData("manufacturing-cost-variance", "orderCode,plannedDate,status,plannedQuantity,plannedMaterial,actualMaterial,plannedConversion,actualConversion,conversionVariance,actualTotalCost,totalVariance,plannedLabor,actualLabor", "plannedLabor,actualLabor", "orderCode")]
+    [InlineData("finance-credit-exposure-facilities", "code,lenderName,currencyCode,approvedLimit,outstandingPrincipal,security,limitUtilization", "approvedLimit", "code")]
+    [InlineData("integration-operations", "integration,status,createdAt,attempts,errorCode,updatedAt,actions", "updatedAt", "integration")]
+    [InlineData("e-document-submissions", "documentType,document,issueDate,currencyCode,createdAt,requestedBy,actions", "requestedBy", "documentType")]
+    public async Task Added_list_screen_layouts_are_tenant_scoped_and_keep_actions_fixed(string screenKey, string expectedKeys, string hiddenByDefault, string relabelKey)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        var hidden = hiddenByDefault.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var entry = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == screenKey);
+        Assert.Equal(expectedKeys.Split(','), entry.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()!).ToArray());
+
+        var standard = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        foreach (var field in standard)
+            Assert.Equal(!hidden.Contains(field.GetProperty("key").GetString()), field.GetProperty("visible").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync($"/api/screen-views/{screenKey}/draft", new { name = "Özel görünüm" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == relabelKey ? "Özel etiket" : field.GetProperty("label").GetString()!,
+            visible = hidden.Contains(field.GetProperty("key").GetString()) || field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+
+        var unknownField = fields.Append(new { key = "notInCatalog", label = "Yok", visible = true, position = fields.Length }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = unknownField })).StatusCode);
+        if (fields.Any(field => field.key == "actions"))
+        {
+            var hiddenActions = fields.Select(field => field.key == "actions" ? field with { visible = false } : field).ToArray();
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = hiddenActions })).StatusCode);
+        }
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Özel görünüm", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Özel etiket", activeA.Single(x => x.GetProperty("key").GetString() == relabelKey).GetProperty("label").GetString());
+        Assert.All(activeA, field => Assert.True(field.GetProperty("visible").GetBoolean()));
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.NotEqual("Özel etiket", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == relabelKey).GetProperty("label").GetString());
+    }
+
+    [Theory]
+    [InlineData("purchase-requests", "code,description,requestedByName,requestDate,neededByDate,lineCount,status,purchaseOrderCode,actions", "purchaseOrderCode", "code")]
+    [InlineData("purchase-order-receipts", "code,receiptDate,warehouseName,lineCount,status,invoice,actions", "", "code")]
+    [InlineData("sales-invoice-payments", "code,collectionDate,paymentMethod,reference,amount,status,createdAt,actions", "createdAt", "code")]
+    [InlineData("customer-detail-movements", "entryDate,direction,description,amount,balance,actions", "", "entryDate")]
+    [InlineData("hr-compensation-records", "employee,targetKind,amount,currencyCode,payBasisCode,effectiveFrom,status,actions", "", "employee")]
+    [InlineData("hr-tax-declarations", "employee,taxYear,declarationKind,baseEntries,evidenceReference,status,actions", "", "employee")]
+    [InlineData("hr-payroll-drafts", "period,profileCode,employeeCount,status,blockers,snapshotSha256,createdAt,actions", "", "period")]
+    [InlineData("hr-payroll-rule-sets", "taxYear,effectivePeriod,version,officialSourceUrl,rules,status,approvedAt,actions", "approvedAt", "taxYear")]
+    [InlineData("finance-credit-securities", "code,facilityCode,parties,amount,commissionAmount,issueDate,expiryDate,status,notes,actions", "notes", "code")]
+    [InlineData("foreign-trade-files", "reference,direction,linkedOrder,countries,status,transportMode,actions", "transportMode", "reference")]
+    [InlineData("customer-provinces", "name,status,districtCount,actions", "", "name")]
+    [InlineData("customer-districts", "name,province,status,actions", "", "name")]
+    [InlineData("operational-definitions", "kind,code,name,status,actions", "", "kind")]
+    public async Task Second_batch_list_screen_layouts_are_tenant_scoped_and_keep_actions_fixed(string screenKey, string expectedKeys, string hiddenByDefault, string relabelKey)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        var hidden = hiddenByDefault.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
+        var entry = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == screenKey);
+        Assert.Equal(expectedKeys.Split(','), entry.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()!).ToArray());
+
+        var standard = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        foreach (var field in standard)
+            Assert.Equal(!hidden.Contains(field.GetProperty("key").GetString()), field.GetProperty("visible").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync($"/api/screen-views/{screenKey}/draft", new { name = "Özel görünüm" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("key").GetString() == relabelKey ? "Özel etiket" : field.GetProperty("label").GetString()!,
+            visible = hidden.Contains(field.GetProperty("key").GetString()) || field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32()
+        }).ToArray();
+
+        var unknownField = fields.Append(new { key = "notInCatalog", label = "Yok", visible = true, position = fields.Length }).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = unknownField })).StatusCode);
+        if (fields.Any(field => field.key == "actions"))
+        {
+            var hiddenActions = fields.Select(field => field.key == "actions" ? field with { visible = false } : field).ToArray();
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = hiddenActions })).StatusCode);
+        }
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Özel görünüm", fields })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        Assert.Equal("Özel etiket", activeA.Single(x => x.GetProperty("key").GetString() == relabelKey).GetProperty("label").GetString());
+        Assert.All(activeA, field => Assert.True(field.GetProperty("visible").GetBoolean()));
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active");
+        Assert.False(activeB.GetProperty("isPublished").GetBoolean());
+        Assert.NotEqual("Özel etiket", activeB.GetProperty("fields").EnumerateArray().Single(x => x.GetProperty("key").GetString() == relabelKey).GetProperty("label").GetString());
+    }
+
+    [Fact]
     public async Task Built_in_screen_field_sections_are_tenant_scoped_versioned_and_keep_actions_fixed()
     {
         await using var app = await StartApplicationAsync();
@@ -3325,6 +3671,75 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.False(otherTenant!.GetProperty("isPublished").GetBoolean());
         Assert.Equal(JsonValueKind.Null, otherTenant.GetProperty("fields").EnumerateArray()
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("purchase-supplier-quotes")]
+    [InlineData("purchase-requests")]
+    [InlineData("purchase-order-receipts")]
+    [InlineData("customer-ledger-entries")]
+    [InlineData("customer-detail-movements")]
+    [InlineData("sales-invoice-payments")]
+    [InlineData("inventory-transfers")]
+    [InlineData("inventory-warehouses")]
+    [InlineData("inventory-movement-history")]
+    [InlineData("manufacturing-work-centers")]
+    [InlineData("manufacturing-recipes")]
+    [InlineData("manufacturing-cost-variance")]
+    [InlineData("finance-credit-exposure-facilities")]
+    [InlineData("finance-credit-securities")]
+    [InlineData("hr-compensation-records")]
+    [InlineData("hr-tax-declarations")]
+    [InlineData("hr-payroll-drafts")]
+    [InlineData("hr-payroll-rule-sets")]
+    [InlineData("integration-operations")]
+    [InlineData("e-document-submissions")]
+    [InlineData("foreign-trade-files")]
+    [InlineData("customer-provinces")]
+    [InlineData("customer-districts")]
+    [InlineData("operational-definitions")]
+    public async Task Grid_backed_list_screens_publish_tenant_column_widths_and_frozen_columns(string screenKey)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+
+        var catalog = Assert.Single((await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog"))!, x => x.GetProperty("key").GetString() == screenKey);
+        Assert.True(catalog.GetProperty("supportsColumnWidth").GetBoolean());
+        Assert.True(catalog.GetProperty("supportsColumnPinning").GetBoolean());
+
+        using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync($"/api/screen-views/{screenKey}/draft", new { name = "Sabit sütunlu görünüm" })).Content.ReadAsStringAsync());
+        var draftId = created.RootElement.GetProperty("id").GetGuid();
+        var fields = created.RootElement.GetProperty("fields").EnumerateArray().Select(field => new
+        {
+            key = field.GetProperty("key").GetString()!,
+            label = field.GetProperty("label").GetString()!,
+            visible = field.GetProperty("visible").GetBoolean(),
+            position = field.GetProperty("position").GetInt32(),
+            isFixed = field.TryGetProperty("fixed", out var f) && f.GetBoolean()
+        }).ToArray();
+        var first = fields.First(field => !field.isFixed && field.visible).key;
+        var layout = fields.Select(field => new
+        {
+            field.key, field.label, field.visible, field.position,
+            width = field.key == first ? 220 : (int?)null,
+            pinned = field.key == first ? "left" : field.key == "actions" ? "right" : null
+        }).ToArray();
+
+        var tooNarrow = layout.Select(field => field.key == first ? field with { width = 40 } : field).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Geçersiz", fields = tooNarrow })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/screen-views/{draftId}", new { expectedRevision = 1, name = "Sabit sütunlu görünüm", fields = layout })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/screen-views/{draftId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-Role"); client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");
+        var activeA = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray().ToArray();
+        var pinnedA = activeA.Single(x => x.GetProperty("key").GetString() == first);
+        Assert.Equal(220, pinnedA.GetProperty("width").GetInt32());
+        Assert.Equal("left", pinnedA.GetProperty("pinned").GetString());
+
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant"); client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var activeB = (await client.GetFromJsonAsync<JsonElement>($"/api/screen-views/{screenKey}/active")).GetProperty("fields").EnumerateArray();
+        Assert.All(activeB, field => Assert.True(!field.TryGetProperty("pinned", out var pin) || pin.ValueKind == JsonValueKind.Null));
     }
 
     [Fact]

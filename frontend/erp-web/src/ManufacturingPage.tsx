@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
+import type { ScreenColumnPin } from "./erp-types";
 import {
   useCallback,
   useEffect,
@@ -12,7 +14,9 @@ import { Boxes, Factory, Filter, Plus, Search } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
-import ManufacturingRecipeList from "./manufacturing/components/ManufacturingRecipeList";
+import ManufacturingRecipeList, {
+  defaultRecipeFields,
+} from "./manufacturing/components/ManufacturingRecipeList";
 import ManufacturingSummary from "./manufacturing/components/ManufacturingSummary";
 import type {
   ManufacturingBom as Bom,
@@ -215,8 +219,54 @@ type ScreenViewField = {
   position: number;
   fixed?: boolean;
   section?: string | null;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 type Page<T> = { items: T[]; pageSize: number; totalCount: number };
+const defaultWorkCenterFields: ScreenViewField[] = [
+  { key: "code", label: "Kod", visible: true, position: 0 },
+  { key: "name", label: "İş merkezi", visible: true, position: 1 },
+  { key: "capacityMinutesPerDay", label: "Günlük kapasite", visible: true, position: 2 },
+  { key: "laborCostPerHourBase", label: "İşçilik / saat", visible: true, position: 3 },
+  { key: "overheadCostPerHourBase", label: "Genel gider / saat", visible: true, position: 4 },
+  { key: "status", label: "Durum", visible: true, position: 5 },
+  { key: "shift", label: "Vardiya", visible: false, position: 6 },
+];
+function minuteOfDayLabel(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+function renderWorkCenterCell(center: WorkCenter, key: string) {
+  switch (key) {
+    case "code":
+      return <b>{center.code}</b>;
+    case "name":
+      return center.name;
+    case "capacityMinutesPerDay":
+      return `${center.capacityMinutesPerDay.toLocaleString("tr-TR")} dk`;
+    case "laborCostPerHourBase":
+      return center.laborCostPerHourBase.toLocaleString("tr-TR");
+    case "overheadCostPerHourBase":
+      return center.overheadCostPerHourBase.toLocaleString("tr-TR");
+    case "status":
+      return (
+        <span
+          className={
+            center.isActive
+              ? "manufacturing-status-active"
+              : "manufacturing-status-inactive"
+          }
+        >
+          {center.isActive ? "Aktif" : "Pasif"}
+        </span>
+      );
+    case "shift":
+      return `${minuteOfDayLabel(center.shiftStartMinuteOfDay)}–${minuteOfDayLabel(center.shiftEndMinuteOfDay)}`;
+    default:
+      return null;
+  }
+}
 type OrderPageData = Page<Order> & { page: number; openOrderCount: number };
 const manufacturingSections: Record<
   ManufacturingPageKey,
@@ -515,6 +565,14 @@ export default function ManufacturingPage({
   ];
   const [mrpScreenFields, setMrpScreenFields] =
     useState<ScreenViewField[]>(defaultMrpFields);
+  const [workCenterScreenFields, setWorkCenterScreenFields] = useState<
+    ScreenViewField[]
+  >(defaultWorkCenterFields);
+  const [recipeScreenFields, setRecipeScreenFields] =
+    useState<ScreenViewField[]>(defaultRecipeFields);
+  const visibleWorkCenterFields = workCenterScreenFields
+    .filter((field) => field.visible)
+    .sort((a, b) => a.position - b.position);
   const visibleMrpFields = mrpScreenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
@@ -832,6 +890,35 @@ export default function ManufacturingPage({
     )
       .then((view) => {
         if (active && view.fields?.length) setOrderScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [request, section]);
+  useEffect(() => {
+    if (section !== "manufacturing-work-centers") return;
+    let active = true;
+    void request<{ fields: ScreenViewField[] }>(
+      "/api/screen-views/manufacturing-work-centers/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length)
+          setWorkCenterScreenFields(view.fields);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [request, section]);
+  useEffect(() => {
+    if (section !== "manufacturing-recipes") return;
+    let active = true;
+    void request<{ fields: ScreenViewField[] }>(
+      "/api/screen-views/manufacturing-recipes/active",
+    )
+      .then((view) => {
+        if (active && view.fields?.length) setRecipeScreenFields(view.fields);
       })
       .catch(() => {});
     return () => {
@@ -2657,6 +2744,7 @@ export default function ManufacturingPage({
             boms={boms}
             filteredBoms={filteredBoms}
             pagedBoms={pagedBoms}
+            fields={recipeScreenFields}
             loading={loading}
             busy={busy}
             search={recipeSearch}
@@ -2697,49 +2785,32 @@ export default function ManufacturingPage({
             </div>
           ) : (
             <div className="manufacturing-table-wrap work-center-list-table">
-              <table>
+              <AdvancedDataGrid
+                gridId="manufacturing-work-centers"
+                {...screenViewGridDefaults(visibleWorkCenterFields)}
+                externalPagination
+                hideSearch
+                enableRowSelection={false}
+              >
                 <thead>
                   <tr>
-                    <th>Kod</th>
-                    <th>İş merkezi</th>
-                    <th>Günlük kapasite</th>
-                    <th>İşçilik / saat</th>
-                    <th>Genel gider / saat</th>
-                    <th>Durum</th>
+                    {visibleWorkCenterFields.map((field) => (
+                      <th key={field.key}>{field.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {workCenters.map((center) => (
                     <tr key={center.id}>
-                      <td>
-                        <b>{center.code}</b>
-                      </td>
-                      <td>{center.name}</td>
-                      <td>
-                        {center.capacityMinutesPerDay.toLocaleString("tr-TR")}{" "}
-                        dk
-                      </td>
-                      <td>
-                        {center.laborCostPerHourBase.toLocaleString("tr-TR")}
-                      </td>
-                      <td>
-                        {center.overheadCostPerHourBase.toLocaleString("tr-TR")}
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            center.isActive
-                              ? "manufacturing-status-active"
-                              : "manufacturing-status-inactive"
-                          }
-                        >
-                          {center.isActive ? "Aktif" : "Pasif"}
-                        </span>
-                      </td>
+                      {visibleWorkCenterFields.map((field) => (
+                        <td key={field.key}>
+                          {renderWorkCenterCell(center, field.key)}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </AdvancedDataGrid>
             </div>
           )}
           <section
