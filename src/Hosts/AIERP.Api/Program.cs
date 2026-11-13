@@ -4394,7 +4394,9 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (SalesInvoiceEDocumentFieldsValidation.Validate(request?.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+    if (SalesInvoiceNotesValidation.Validate(request?.Notes) is { } notesErrors) return Results.ValidationProblem(notesErrors);
     var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request?.EDocument);
+    var invoiceNotes = SalesInvoiceNotesValidation.Normalize(request?.Notes);
     await using var transaction = await db.Database.BeginTransactionAsync();
     if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var delivery = await db.SalesDeliveries.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesDeliveries] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
@@ -4512,7 +4514,7 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
         DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
         DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
-        DeliverySentAt = eDocument?.SentAt };
+        DeliverySentAt = eDocument?.SentAt, Notes = invoiceNotes };
     foreach (var row in invoiceLines)
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLineId = row.DeliveryLine.Id,
             OrderLineNumber = row.DeliveryLine.OrderLineNumber, StockItemId = row.DeliveryLine.StockItemId, StockCode = row.DeliveryLine.StockCode,
@@ -4693,7 +4695,9 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (SalesInvoiceEDocumentFieldsValidation.Validate(request.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+    if (SalesInvoiceNotesValidation.Validate(request.Notes) is { } notesErrors) return Results.ValidationProblem(notesErrors);
     var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request.EDocument);
+    var invoiceNotes = SalesInvoiceNotesValidation.Normalize(request.Notes);
     if (request.CustomerId == Guid.Empty || request.Lines is null || request.Lines.Count == 0 || request.Lines.Count > 200)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["invoice"] = ["Müşteri seçin ve 1–200 fatura satırı ekleyin."] });
     if (request.RequestId == Guid.Empty || request.WarehouseId == Guid.Empty)
@@ -4842,7 +4846,7 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
         DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
         DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
-        DeliverySentAt = eDocument?.SentAt };
+        DeliverySentAt = eDocument?.SentAt, Notes = invoiceNotes };
     for (var i = 0; i < invoiceLines.Count; i++)
     {
         var row = invoiceLines[i];
@@ -5025,7 +5029,7 @@ salesInvoices.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Te
         invoice.ECommercePaymentMeans, invoice.ECommercePaymentInstructionNote, invoice.ECommerceIntermediaryCountry,
         invoice.ECommerceIntermediaryCountryCode, invoice.ECommerceIntermediaryCity, invoice.ECommerceIntermediaryDistrict,
         invoice.DeliveryCarrierTaxId, invoice.DeliveryCarrierName, invoice.DeliveryCarrierSurname, invoice.DeliverySentAt,
-        invoice.AccountingProfileCode, invoice.TaxBreakdownJson, invoice.InvoiceType));
+        invoice.AccountingProfileCode, invoice.TaxBreakdownJson, invoice.InvoiceType, invoice.Notes));
 });
 salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollectionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {

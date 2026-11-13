@@ -84,7 +84,8 @@ export default function SalesInvoiceFromDeliveryDialog({
   const [standaloneCustomerId, setStandaloneCustomerId] = useState(initialCustomerId),
     [invoiceDate, setInvoiceDate] = useState(localDateString()),
     [standaloneBusy, setStandaloneBusy] = useState(false),
-    [standaloneError, setStandaloneError] = useState("");
+    [standaloneError, setStandaloneError] = useState(""),
+    [invoiceNotes, setInvoiceNotes] = useState("");
   useEffect(() => {
     if (initialCustomerId) setStandaloneCustomerId(initialCustomerId);
   }, [initialCustomerId]);
@@ -425,6 +426,7 @@ export default function SalesInvoiceFromDeliveryDialog({
             customFields: customFieldsPayload,
             eDocument: eDocumentPayload,
             invoiceType,
+            notes: invoiceNotes.trim() || null,
             lines: standaloneLines.map((line) => ({
               stockItemId: line.stockItemId,
               quantity: Number(line.quantity),
@@ -465,13 +467,13 @@ export default function SalesInvoiceFromDeliveryDialog({
         ? sum + standaloneLineAmounts(line).tax
         : sum, 0),
     }));
-  const standaloneTotals = [
-    { label: "TOPLAM TUTAR", amount: standaloneSubtotal - standaloneDiscount, strong: false },
-    ...standaloneVatRows.map((row) => ({ label: `KDV %${row.rate}`, amount: row.amount, strong: false })),
-    { label: "KDV TOPLAMI", amount: standaloneTax, strong: false },
-    { label: "GENEL TOPLAM", amount: standaloneTotal, strong: true },
-    { label: "KDV TEVKİFAT TUTARI", amount: 0, strong: false },
-    { label: "ÖDENECEK TUTAR", amount: standaloneTotal, strong: true },
+  const standaloneTotals: { label: string; amount: number; kind?: "grand" | "payable" }[] = [
+    { label: "Toplam tutar", amount: standaloneSubtotal - standaloneDiscount },
+    ...standaloneVatRows.map((row) => ({ label: `KDV %${row.rate}`, amount: row.amount })),
+    { label: "KDV toplamı", amount: standaloneTax },
+    { label: "Genel toplam", amount: standaloneTotal, kind: "grand" },
+    { label: "KDV tevkifat tutarı", amount: 0 },
+    { label: "Ödenecek tutar", amount: standaloneTotal, kind: "payable" },
   ];
   const formatMoneyParts = (amount: number) => {
     const centsTotal = Math.round((Number.isFinite(amount) ? amount : 0) * 100);
@@ -1059,17 +1061,30 @@ export default function SalesInvoiceFromDeliveryDialog({
             </div>
             </RecordFormGroup>
             <RecordFormGroup title="Toplamlar">
-            <section className="sales-invoice-total-panel" aria-label="Fatura toplamları">
-              {standaloneTotals.map((row) => {
-                const parts = formatMoneyParts(row.amount);
-                return <div className={row.strong ? "total-row strong" : "total-row"} key={row.label}>
-                  <span>{row.label}</span>
-                  <output aria-label={`${row.label} ${parts.whole},${parts.fraction} ${standaloneCurrencyCode}`}>
-                    <b>{parts.whole}</b><i>,</i><b className="cents">{parts.fraction}</b><small>{standaloneCurrencyCode === "TRY" ? "TL" : standaloneCurrencyCode}</small>
-                  </output>
-                </div>;
-              })}
-            </section>
+            <div className="sales-invoice-totals-layout">
+              <label className="sales-invoice-note">
+                <span>Fatura notu <span className="optional-label">İsteğe bağlı</span></span>
+                <textarea
+                  value={invoiceNotes}
+                  onChange={(event) => setInvoiceNotes(event.target.value)}
+                  maxLength={1000}
+                  rows={5}
+                  placeholder="Faturaya ilişkin açıklama, sipariş notu veya ödeme bilgisi yazın."
+                />
+                <small className="sales-invoice-note-counter" aria-hidden="true">{invoiceNotes.length} / 1000</small>
+              </label>
+              <section className="sales-invoice-total-panel" aria-label="Fatura toplamları">
+                {standaloneTotals.map((row) => {
+                  const parts = formatMoneyParts(row.amount);
+                  return <div className={`total-row${row.kind ? ` ${row.kind}` : ""}`} key={row.label}>
+                    <span>{row.label}</span>
+                    <output aria-label={`${row.label} ${parts.whole},${parts.fraction} ${standaloneCurrencyCode}`}>
+                      {parts.whole},{parts.fraction} {standaloneCurrencyCode === "TRY" ? "TL" : standaloneCurrencyCode}
+                    </output>
+                  </div>;
+                })}
+              </section>
+            </div>
             </RecordFormGroup>
             {renderInvoiceCustomFields(true)}
             {renderAccountingProfileSelect(true)}
