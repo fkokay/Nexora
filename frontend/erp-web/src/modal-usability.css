@@ -1,0 +1,187 @@
+/*
+ * Popup usability baseline. Loaded last so it settles the conflicts between the
+ * many per-screen stylesheets that touch `.modal-backdrop` / `.modal`.
+ */
+
+/* The stacking order itself (above the top bar and workspace tabs) lives in the
+   base `.modal-backdrop` rule in style.css, so screen-specific backdrops that set
+   their own z-index keep winning.
+
+   Wheel scrolling stays inside the popup instead of scrolling the page behind it. */
+.modal-backdrop {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-backdrop .modal {
+  overscroll-behavior: contain;
+}
+
+/* Customer popups use the dynamic viewport so browser bars never push them off screen. */
+.customer-ledger-modal,
+.customer-address-modal,
+.customer-fields-modal,
+.group-modal,
+.customer-movement-modal {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+/* ---- Tall customer popups: header stays visible while the body scrolls ---- */
+.customer-ledger-modal > .modal-head,
+.customer-address-modal > .modal-head {
+  position: sticky;
+  top: -23px;
+  z-index: 6;
+  margin: -23px -23px 14px;
+  padding: 18px 23px 14px;
+  border-bottom: 1px solid #e6ebf2;
+  background: #fff;
+}
+
+html[data-theme="dark"] .customer-ledger-modal > .modal-head,
+html[data-theme="dark"] .customer-address-modal > .modal-head {
+  border-color: var(--erp-border);
+  background: var(--erp-surface);
+}
+
+/* ---- Cari mutabakat / ekstre ---- */
+.customer-ledger-modal {
+  width: min(880px, calc(100vw - 32px));
+}
+
+/* One scroll area: the popup. The movement table keeps its own scroll only for rows. */
+.customer-ledger-modal .ledger-list {
+  max-height: none;
+  overflow: visible;
+}
+
+.customer-ledger-modal .ledger-list .advanced-grid-scroll {
+  min-height: 0;
+  max-height: min(360px, 45dvh);
+}
+
+.customer-ledger-modal small,
+.customer-ledger-modal .muted,
+.customer-ledger-modal .modal-foot > span,
+.customer-ledger-modal .table-pagination,
+.customer-ledger-modal .balance-banner span {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.customer-ledger-modal input[type="file"] {
+  width: 100%;
+  min-height: 40px;
+  padding: 5px;
+  border: 1px dashed #c9d4e2;
+  border-radius: 8px;
+  background: #f8fafd;
+  color: #5d6b80;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.customer-ledger-modal input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid #d6dee9;
+  border-radius: 6px;
+  background: #fff;
+  color: #263449;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+html[data-theme="dark"] .customer-ledger-modal input[type="file"] {
+  border-color: var(--erp-border);
+  background: var(--erp-surface);
+  color: var(--erp-muted);
+}
+
+html[data-theme="dark"] .customer-ledger-modal input[type="file"]::file-selector-button {
+  border-color: var(--erp-border);
+  background: #242b3b;
+  color: var(--erp-text);
+}
+
+/* ---- Record forms inside popups: "İsteğe bağlı" no longer pushes the input down ---- */
+.modal .record-form .rf-form label:has(> .optional-label) {
+  position: relative;
+}
+
+.modal .record-form .rf-form label > .optional-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 11px;
+  line-height: inherit;
+}
+
+/* ---- Özel alanlar: readable row actions ---- */
+.customer-fields-modal button,
+.customer-field-definition-modal button {
+  font-size: max(12px, 1em);
+}
+
+.customer-fields-modal small,
+.customer-field-definition-modal small,
+.customer-field-definition-modal .modal-foot > span {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* ---- Satış faturaları ve iadeler ---- */
+.customer-sales-invoices-modal {
+  height: auto;
+  max-height: calc(100dvh - 32px);
+}
+
+.customer-sales-invoices-list {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.customer-sales-invoices-list .advanced-grid-scroll {
+  height: auto;
+  max-height: min(480px, calc(100dvh - 330px));
+}
+
+/* Only a populated table needs the wide minimum; an empty one must not scroll sideways. */
+.customer-sales-invoices-list .advanced-grid-scroll > table.customer-table.is-empty {
+  min-width: 0;
+  table-layout: auto;
+}
+
+.customer-sales-invoices-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 36px 16px;
+  color: #6b778a;
+  text-align: center;
+  white-space: normal;
+}
+
+.customer-sales-invoices-empty svg {
+  color: #9aa7b8;
+}
+
+.customer-sales-invoices-empty b {
+  color: #2b3850;
+  font-size: 13px;
+}
+
+.customer-sales-invoices-empty span {
+  font-size: 12px;
+}
+
+.customer-sales-invoices-modal > .modal-foot > span {
+  font-size: 12px;
+}
+
+html[data-theme="dark"] .customer-sales-invoices-empty b {
+  color: var(--erp-text);
+}

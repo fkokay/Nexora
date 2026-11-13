@@ -2464,7 +2464,7 @@ html[data-theme="dark"] .inventory-stock-actions-menu .row-action:hover:not(:dis
 @media(max-width:1280px) {
   .app-shell:not(.standalone-studio) .content .customer-directory-layout { grid-template-columns: minmax(0, 1fr); }
   .app-shell:not(.standalone-studio) .content .customer-detail-backdrop.is-popup {
-    position: fixed !important; inset: 0 !important; z-index: 1000 !important;
+    position: fixed !important; inset: 0 !important; z-index: 940 !important; /* below .modal-backdrop (950): popups opened from the detail stay on top */
     display: flex !important; align-items: center !important; justify-content: center !important;
     width: 100vw !important; height: 100dvh !important; max-height: 100dvh !important;
     padding: 18px !important; overflow: auto !important;

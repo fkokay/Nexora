@@ -149,6 +149,17 @@ function parseCustomerStatementCsv(source: string): ExternalStatementLine[] {
   });
 }
 
+const customerFieldTypeLabels: Record<string, string> = {
+  Text: "Metin",
+  Decimal: "Ondalık sayı",
+  Date: "Tarih",
+  Boolean: "Evet/Hayır",
+};
+
+function customerFieldTypeLabel(dataType: string) {
+  return customerFieldTypeLabels[dataType] ?? dataType;
+}
+
 function CustomersPage({
   token,
   role,
@@ -2119,7 +2130,7 @@ function CustomersPage({
                   <span>
                     {fieldCustomer.code} · {fieldCustomer.name}
                   </span>
-                  <span className="rf-status-end">Değerler tenant kapsamında saklanır.</span>
+                  <span className="rf-status-end">Değerler yalnızca bu firmada saklanır.</span>
                 </>
               }
             >
@@ -2147,11 +2158,7 @@ function CustomersPage({
                       <label>
                         <span>
                           {field.label}
-                          {field.isRequired && <RequiredMark />}{" "}
-                          <small>
-                            ({field.code} · {field.dataType} · v{field.version}
-                            {field.isRequired ? " · zorunlu" : ""})
-                          </small>
+                          {field.isRequired && <RequiredMark />}
                         </span>
                         {field.dataType === "Boolean" ? (
                           <select
@@ -2330,11 +2337,11 @@ function CustomersPage({
                         <div className="request-info">
                           <b>{field.label}</b>
                           <small>
-                            {field.code} · {field.dataType}
+                            {field.code} · {customerFieldTypeLabel(field.dataType)}
                             {field.dataType === "Text"
                               ? ` · en fazla ${field.maxLength} karakter`
                               : ""}{" "}
-                            · v{field.version}
+                            · sürüm {field.version}
                             {field.isRequired ? " · zorunlu" : ""} ·{" "}
                             {field.isActive ? "Etkin" : "Devre dışı"}
                           </small>
@@ -2545,7 +2552,7 @@ function CustomersPage({
                             v{revision.version} · {revision.label}
                           </b>
                           <small>
-                            {revision.dataType} ·{" "}
+                            {customerFieldTypeLabel(revision.dataType)} ·{" "}
                             {revision.isActive ? "Etkin" : "Devre dışı"} ·{" "}
                             {revision.changeKind} ·{" "}
                             {new Date(revision.createdAt).toLocaleString(
@@ -2592,7 +2599,9 @@ function CustomersPage({
                 </p>
               </div>
               <button
+                type="button"
                 className="icon-button"
+                aria-label="Kapat"
                 onClick={() => setGroupModal(false)}
               >
                 <X size={19} />
@@ -2713,14 +2722,23 @@ function CustomersPage({
             if (e.target === e.currentTarget) setAddressCustomer(null);
           }}
         >
-          <div className="modal">
+          <div
+            className="modal customer-address-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-address-title"
+          >
             <div className="modal-head">
               <div>
                 <p className="eyebrow">{addressCustomer.code}</p>
-                <h2>{addressCustomer.name} · Adresler</h2>
+                <h2 id="customer-address-title">
+                  {addressCustomer.name} · Adresler
+                </h2>
               </div>
               <button
+                type="button"
                 className="icon-button"
+                aria-label="Kapat"
                 onClick={() => setAddressCustomer(null)}
               >
                 <X size={19} />
@@ -2894,16 +2912,23 @@ function CustomersPage({
             if (e.target === e.currentTarget) setLedgerCustomer(null);
           }}
         >
-          <div className="modal ledger-modal">
+          <div
+            className="modal ledger-modal customer-ledger-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-ledger-title"
+          >
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
                   {ledgerCustomer.code} · CARİ MUTABAKAT
                 </p>
-                <h2>{ledgerCustomer.name}</h2>
+                <h2 id="customer-ledger-title">{ledgerCustomer.name}</h2>
               </div>
               <button
+                type="button"
                 className="icon-button"
+                aria-label="Kapat"
                 onClick={() => setLedgerCustomer(null)}
               >
                 <X size={19} />
