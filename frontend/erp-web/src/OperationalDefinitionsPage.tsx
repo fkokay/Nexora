@@ -64,6 +64,7 @@ export default function OperationalDefinitionsPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [screenFields, setScreenFields] = useState<DefinitionScreenField[]>(
     defaultDefinitionFields,
   );
@@ -199,6 +200,7 @@ export default function OperationalDefinitionsPage({
         searchPlaceholder={tx("Kod veya ad ara", "Search code or name")}
         onRefresh={() => void load()}
         refreshLabel={tx("Yenile", "Refresh")}
+        toolsSlotRef={setToolsSlot}
       >
         <ListChipGroup
           label={tx("Tür", "Type")}
@@ -241,6 +243,7 @@ export default function OperationalDefinitionsPage({
           tx={tx}
           kindName={kindName}
           fields={screenFields}
+          toolbarContainer={toolsSlot}
           onEdit={(row) => {
             setEditing(row);
             setKind(row.kind);

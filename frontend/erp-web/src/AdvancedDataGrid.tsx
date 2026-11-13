@@ -17,7 +17,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Download, SlidersHorizontal } from "lucide-react";
 import "./advanced-data-grid.css";
 
 type Operator =
@@ -1172,6 +1172,28 @@ export default function AdvancedDataGrid({
   // class restored in the same frame, so nothing flickers) and collapses if anything wrapped.
   const externalToolbar = !fullscreen && !!toolbarContainer;
   const hasGridTable = Boolean(thead && tbody);
+  // List pages (ListPageHeader) expose an export slot in the page's action row. The grid whose tools
+  // live in that page's toolbar moves XLSX/CSV there; the first grid to claim the slot owns it.
+  const [exportSlot, setExportSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!externalToolbar || hideExport || !toolbarContainer) {
+      setExportSlot(null);
+      return;
+    }
+    const slot = toolbarContainer
+      .closest(".list-v2")
+      ?.querySelector<HTMLElement>(".list-v2-heading .list-v2-export-slot");
+    if (!slot || (slot.dataset.gridOwner && slot.dataset.gridOwner !== storageKey)) {
+      setExportSlot(null);
+      return;
+    }
+    slot.dataset.gridOwner = storageKey;
+    setExportSlot(slot);
+    return () => {
+      if (slot.dataset.gridOwner === storageKey) delete slot.dataset.gridOwner;
+    };
+  }, [externalToolbar, hideExport, toolbarContainer, storageKey]);
+  const exportInHeader = Boolean(exportSlot);
   useEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
@@ -1208,7 +1230,7 @@ export default function AdvancedDataGrid({
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
-  }, [toolbarContainer, fullscreen, externalToolbar, hideExport, locale, hasGridTable]);
+  }, [toolbarContainer, fullscreen, externalToolbar, hideExport, exportInHeader, locale, hasGridTable]);
   useEffect(() => {
     if (!toolsCollapsed) setViewMenuOpen(false);
   }, [toolsCollapsed]);
@@ -1575,6 +1597,31 @@ export default function AdvancedDataGrid({
   const toolbarTarget = fullscreen ? null : toolbarContainer ?? null;
   const placeToolbar = (toolbar: ReactElement) =>
     toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar;
+  const headerExport = exportSlot
+    ? createPortal(
+        <>
+          <button
+            type="button"
+            className="secondary list-v2-export-action"
+            onClick={() => void exportExcel()}
+            title={labels.exportExcel}
+          >
+            <Download size={15} aria-hidden="true" />
+            XLSX
+          </button>
+          <button
+            type="button"
+            className="secondary list-v2-export-action"
+            onClick={exportCsv}
+            title={labels.exportCsv}
+          >
+            <Download size={15} aria-hidden="true" />
+            CSV
+          </button>
+        </>,
+        exportSlot,
+      )
+    : null;
   return (
     <div
       className={`advanced-grid ${settings.density} ${fullscreen ? "is-fullscreen" : ""}`}
@@ -1584,6 +1631,7 @@ export default function AdvancedDataGrid({
       role="region"
       aria-label={tableProps["aria-label"] || "Data grid"}
     >
+      {headerExport}
       {placeToolbar(
       <div
         className={`advanced-grid-toolbar${toolbarTarget ? " is-external" : ""}${toolsCollapsed ? ` ${collapsedToolsClass}` : ""}`}
@@ -1819,7 +1867,7 @@ export default function AdvancedDataGrid({
             )}
           </>
         )}
-        {!hideExport && (
+        {!hideExport && !exportInHeader && (
           <>
         <button
           type="button"
@@ -1971,7 +2019,7 @@ export default function AdvancedDataGrid({
                 <span>{labels.print}</span>
               </button>
               <div className="advanced-grid-view-divider" role="separator" />
-              {!hideExport && (
+              {!hideExport && !exportInHeader && (
                 <>
                   <button
                     type="button"

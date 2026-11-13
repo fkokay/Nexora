@@ -32,7 +32,11 @@ export function ListPageHeader({
           </span>
         )}
       </div>
-      {children && <div className="heading-actions">{children}</div>}
+      <div className="heading-actions">
+        {/* AdvancedDataGrid portals its XLSX/CSV buttons here when its tools live in this page's toolbar. */}
+        <span className="list-v2-export-slot" />
+        {children}
+      </div>
     </div>
   );
 }

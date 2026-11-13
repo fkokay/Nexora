@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
@@ -129,7 +129,8 @@ function DistrictGrid({
   onEdit,
   onToggle,
   fields,
-}: DistrictGridProps) {
+  toolbarContainer,
+}: DistrictGridProps & { toolbarContainer?: HTMLElement | null }) {
   const visibleFields = (fields?.length ? fields : defaultDistrictFields)
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -179,6 +180,7 @@ function DistrictGrid({
         externalPagination
         hideSearch
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
       >
         <thead>
           <tr>
@@ -242,6 +244,7 @@ export function DistrictSection(props: Props) {
     fields,
   } = props;
   useRecordFormShortcutScope();
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
     <section className="panel list-v2-list">
       <div className="panel-heading">
@@ -254,6 +257,7 @@ export function DistrictSection(props: Props) {
         search={query}
         onSearchChange={onQueryChange}
         searchPlaceholder="İlçe adı ara"
+        toolsSlotRef={setToolsSlot}
       />
       <DistrictGrid
         districts={districts}
@@ -263,6 +267,7 @@ export function DistrictSection(props: Props) {
         onEdit={onEdit}
         onToggle={onToggle}
         fields={fields}
+        toolbarContainer={toolsSlot}
       />
       <DistrictForm
         provinces={provinces}

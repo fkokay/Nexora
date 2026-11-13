@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
@@ -110,7 +110,8 @@ function ProvinceGrid({
   onEdit,
   onToggle,
   fields,
-}: ProvinceGridProps) {
+  toolbarContainer,
+}: ProvinceGridProps & { toolbarContainer?: HTMLElement | null }) {
   const visibleFields = (fields?.length ? fields : defaultProvinceFields)
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -164,6 +165,7 @@ function ProvinceGrid({
         externalPagination
         hideSearch
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
       >
         <thead>
           <tr>
@@ -228,6 +230,7 @@ export function ProvinceSection(props: Props) {
     fields,
   } = props;
   useRecordFormShortcutScope();
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
     <section className="panel list-v2-list">
       <div className="panel-heading">
@@ -240,6 +243,7 @@ export function ProvinceSection(props: Props) {
         search={query}
         onSearchChange={onQueryChange}
         searchPlaceholder="İl adı ara"
+        toolsSlotRef={setToolsSlot}
       />
       <ProvinceGrid
         provinces={provinces}
@@ -251,6 +255,7 @@ export function ProvinceSection(props: Props) {
         onEdit={onEdit}
         onToggle={onToggle}
         fields={fields}
+        toolbarContainer={toolsSlot}
       />
       <ProvinceForm
         editingId={editingId}

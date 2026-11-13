@@ -7,6 +7,8 @@ type Props = {
   /** Applies the typed search text (called after typing stops and on Enter). */
   onSearchApply: () => void;
   onStatusChange: (value: string) => void;
+  /** Receives the toolbar slot the list grid renders its own tools into. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export default function SupplierQuotesFilters({
@@ -15,6 +17,7 @@ export default function SupplierQuotesFilters({
   onSearchChange,
   onSearchApply,
   onStatusChange,
+  toolsSlotRef,
 }: Props) {
   return (
     <ListToolbar
@@ -23,6 +26,7 @@ export default function SupplierQuotesFilters({
       onSearchApply={onSearchApply}
       searchLabel="Tedarikçi tekliflerinde ara"
       searchPlaceholder="Teklif no, talep no veya tedarikçi"
+      toolsSlotRef={toolsSlotRef}
     >
       <ListChipGroup
         label="Durum"

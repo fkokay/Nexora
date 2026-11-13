@@ -439,3 +439,23 @@ html[data-theme="dark"] .manufacturing-recipe-filter-card{border-color:var(--erp
 html[data-theme="dark"] .manufacturing-recipe-filter-heading h2{color:var(--erp-text,#e4e7ed)}
 html[data-theme="dark"] .manufacturing-recipe-filter-heading p{color:var(--erp-muted,#a7afbf)}
 @media(max-width:700px){.manufacturing-recipe-filter-card{grid-template-columns:1fr;gap:10px;padding:12px}}
+
+/* Orders: the list and the selected-order inspector are two separate cards with a gap,
+   instead of one card holding both (which made the table run straight into the inspector). */
+#root .app-shell .list-v2 .manufacturing-order-list.list-v2-list:has(.manufacturing-order-inspector) {
+  overflow: visible;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
+  overflow: hidden;
+  border: 1px solid #dfe5ee !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+}
+#root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-inspector { border-radius: 12px; }
+html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
+  border-color: #35435b !important;
+  background: #1a263a !important;
+}

@@ -33,6 +33,7 @@ export default function ManufacturingCostVariancePage({
   const [screenFields, setScreenFields] = useState<
     CostVarianceScreenViewField[]
   >(defaultCostVarianceFields);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -125,6 +126,7 @@ export default function ManufacturingCostVariancePage({
         onRefresh={() => {
           if (!loading) void load(page);
         }}
+        toolsSlotRef={setToolsSlot}
       />
       <ManufacturingCostVarianceError
         error={error}
@@ -139,6 +141,7 @@ export default function ManufacturingCostVariancePage({
             loading={loading}
             onPageChange={(nextPage) => void load(nextPage)}
             fields={screenFields}
+            toolbarContainer={toolsSlot}
           />
           <ManufacturingCostVarianceLimitations text={report.limitations} />
         </>

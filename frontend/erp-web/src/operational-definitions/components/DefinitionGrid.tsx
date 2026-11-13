@@ -30,6 +30,7 @@ type Props = {
   onEdit: (row: Definition) => void;
   onToggle: (row: Definition) => void;
   fields?: DefinitionScreenField[];
+  toolbarContainer?: HTMLElement | null;
 };
 
 export function DefinitionGrid({
@@ -41,6 +42,7 @@ export function DefinitionGrid({
   onEdit,
   onToggle,
   fields = defaultDefinitionFields,
+  toolbarContainer,
 }: Props) {
   const visibleFields = fields
     .filter((field) => field.key === "actions" || field.visible)
@@ -113,6 +115,7 @@ export function DefinitionGrid({
         externalPagination
         hideSearch
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
       >
         <thead>
           <tr>

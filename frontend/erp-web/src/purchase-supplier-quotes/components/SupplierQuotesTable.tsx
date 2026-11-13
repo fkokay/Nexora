@@ -25,6 +25,7 @@ type Props = {
   loading: boolean;
   selectedId: string | undefined;
   onSelect: (quote: Quote) => void;
+  toolbarContainer?: HTMLElement | null;
 };
 
 function renderCell(quote: Quote, key: string): ReactNode {
@@ -58,6 +59,7 @@ export default function SupplierQuotesTable({
   loading,
   selectedId,
   onSelect,
+  toolbarContainer,
 }: Props) {
   const columns = fields
     .filter((field) => field.visible)
@@ -77,6 +79,7 @@ export default function SupplierQuotesTable({
         externalPagination
         hideSearch
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
       >
         <thead>
           <tr>

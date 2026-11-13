@@ -539,3 +539,7 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
   border-color: transparent !important;
   background: transparent !important;
 }
+
+/* Grid export buttons sit with the page actions (see ListPageHeader / AdvancedDataGrid). */
+#root .list-v2 .list-v2-export-slot { display: contents; }
+#root .list-v2 .list-v2-export-action { display: inline-flex; align-items: center; gap: 6px; }

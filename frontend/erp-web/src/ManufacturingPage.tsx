@@ -440,6 +440,11 @@ export default function ManufacturingPage({
     [recipeStatus, setRecipeStatus] = useState(""),
     [workCenterStatus, setWorkCenterStatus] = useState(""),
     [recipePage, setRecipePage] = useState(1);
+  const [workCenterToolsSlot, setWorkCenterToolsSlot] =
+    useState<HTMLDivElement | null>(null);
+  const [orderToolsSlot, setOrderToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [product, setProduct] = useState(""),
@@ -2825,7 +2830,10 @@ export default function ManufacturingPage({
         )}
       </div>
       {section === "manufacturing-work-centers" && (
-        <ListToolbar onRefresh={refreshList}>
+        <ListToolbar
+          onRefresh={refreshList}
+          toolsSlotRef={setWorkCenterToolsSlot}
+        >
           <ListChipGroup
             label="Durum"
             value={workCenterStatus}
@@ -2862,6 +2870,7 @@ export default function ManufacturingPage({
                 externalPagination
                 hideSearch
                 enableRowSelection={false}
+                toolbarContainer={workCenterToolsSlot}
               >
                 <thead>
                   <tr>
@@ -3636,6 +3645,7 @@ export default function ManufacturingPage({
             searchLabel="Üretim emirlerinde ara"
             searchPlaceholder="Emir, reçete, depo veya sipariş ara"
             onRefresh={refreshList}
+            toolsSlotRef={setOrderToolsSlot}
           >
             <ListChipGroup
               label="Üretim emri durumu"
@@ -3673,6 +3683,7 @@ export default function ManufacturingPage({
                   externalPagination
                   hideSearch
                   enableRowSelection={false}
+                  toolbarContainer={orderToolsSlot}
                 >
                   <thead>
                     <ScreenViewGroupHeader fields={visibleOrderFields} />

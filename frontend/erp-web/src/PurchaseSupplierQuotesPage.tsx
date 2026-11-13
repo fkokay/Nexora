@@ -51,6 +51,7 @@ export default function PurchaseSupplierQuotesPage({
   const [screenFields, setScreenFields] = useState<ScreenField[]>(
     defaultSupplierQuoteFields,
   );
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -139,6 +140,7 @@ export default function PurchaseSupplierQuotesPage({
           setPage(1);
           setStatus(value);
         }}
+        toolsSlotRef={setToolsSlot}
       />
       <div
         className={`supplier-quotes-workspace${selected ? " has-selection" : ""}`}
@@ -153,6 +155,7 @@ export default function PurchaseSupplierQuotesPage({
             loading={loading}
             selectedId={selected?.id}
             onSelect={setSelected}
+            toolbarContainer={toolsSlot}
           />
           <ListPagination
             page={page}
