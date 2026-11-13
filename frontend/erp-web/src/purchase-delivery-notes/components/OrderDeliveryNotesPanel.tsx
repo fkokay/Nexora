@@ -1,5 +1,6 @@
 import { Link2 } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { OrderDetail, Note, ScreenField } from "../types";
 
@@ -32,7 +33,11 @@ export function OrderDeliveryNotesPanel({
         </div>
       </div>
       <div className="ledger-list">
-        <AdvancedDataGrid className="customer-table">
+        <AdvancedDataGrid
+          className="customer-table"
+          gridId="purchase-order-delivery-notes"
+          {...screenViewGridDefaults(fields)}
+        >
           <thead>
             <ScreenViewGroupHeader fields={fields} />
             <tr>

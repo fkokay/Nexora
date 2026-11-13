@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../screenViewGridLayout";
 import type { BudgetLayoutField, Line, PlanView } from "./types";
 
 type Props = {
@@ -103,7 +104,11 @@ export default function BudgetDetail({
         </div>
       ) : (
         <div className="ledger-list budget-ledger-wrap">
-          <AdvancedDataGrid className="customer-table budget-ledger">
+          <AdvancedDataGrid
+            className="customer-table budget-ledger"
+            gridId="finance-budget-scenarios"
+            {...screenViewGridDefaults(visibleFields)}
+          >
             <caption>
               {selected.plan.name} bütçe ve yevmiye gerçekleşenleri
             </caption>

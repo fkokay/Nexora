@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { OrderDetail, Note, ScreenField } from "../types";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
@@ -99,7 +100,11 @@ export function DeliveryNoteComposePanel({
         </RecordFormGroup>
         <RecordFormGroup title="İrsaliye Satırları">
         <div className="ledger-list">
-          <AdvancedDataGrid className="customer-table">
+          <AdvancedDataGrid
+            className="customer-table"
+            gridId="purchase-delivery-order-lines"
+            {...screenViewGridDefaults(fields)}
+          >
             <thead>
               <ScreenViewGroupHeader fields={fields} />
               <tr>

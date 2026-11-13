@@ -3667,7 +3667,13 @@ export default function ManufacturingPage({
           ) : (
             <div className="manufacturing-order-workbench">
               <div className="manufacturing-table-wrap">
-                <table>
+                <AdvancedDataGrid
+                  gridId="manufacturing-orders"
+                  {...screenViewGridDefaults(visibleOrderFields)}
+                  externalPagination
+                  hideSearch
+                  enableRowSelection={false}
+                >
                   <thead>
                     <ScreenViewGroupHeader fields={visibleOrderFields} />
                     <tr>
@@ -3805,7 +3811,7 @@ export default function ManufacturingPage({
                       );
                     })}
                   </tbody>
-                </table>
+                </AdvancedDataGrid>
               </div>
               <aside
                 className="manufacturing-order-inspector"
@@ -4369,7 +4375,11 @@ export default function ManufacturingPage({
                 </div>
               ) : (
                 <div className="manufacturing-table-wrap">
-                  <AdvancedDataGrid hideSearch>
+                  <AdvancedDataGrid
+                    hideSearch
+                    gridId="manufacturing-mrp-lines"
+                    {...screenViewGridDefaults(visibleMrpFields)}
+                  >
                     <thead>
                       <ScreenViewGroupHeader fields={visibleMrpFields} />
                       <tr>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { BuiltInScreenLayoutField, CustomerItem } from "../../erp-types";
 
 type Props = {
@@ -41,7 +42,7 @@ export function CustomerGrid({
         <AdvancedDataGrid
           className="customer-table customer-directory-grid"
           gridId="customers-directory"
-          initialColumnWidths={fields.map((field) => field.width || 120)}
+          {...screenViewGridDefaults(fields, () => 120)}
           minimumColumnWidths={fields.map((field) =>
             field.key === "actions"
               ? 82

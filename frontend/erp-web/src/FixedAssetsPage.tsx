@@ -1,5 +1,6 @@
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import type { Asset, AssetField } from "./fixed-assets/types";
@@ -1321,6 +1322,8 @@ export default function FixedAssetsPage({
               <AdvancedDataGrid
                 enableRowSelection={false}
                 className="customer-table"
+                gridId="fixed-asset-depreciation"
+                {...screenViewGridDefaults(depreciationFields)}
               >
                 <thead>
                   <tr>
@@ -1741,6 +1744,8 @@ export default function FixedAssetsPage({
               <AdvancedDataGrid
                 enableRowSelection={false}
                 className="customer-table"
+                gridId="fixed-asset-assignments"
+                {...screenViewGridDefaults(assignmentFields)}
               >
                 <thead>
                   <tr>

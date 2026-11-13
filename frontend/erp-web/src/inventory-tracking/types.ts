@@ -1,3 +1,4 @@
+import type { ScreenColumnPin } from '../erp-types'
 export type Warehouse = { id: string; code: string; name: string; isActive: boolean }
 
 export type Balance = {
@@ -23,4 +24,6 @@ export type ScreenField = {
   visible: boolean
   position: number
   section?: string | null
+  width?: number | null
+  pinned?: ScreenColumnPin | null
 }

@@ -68,10 +68,11 @@ html[data-theme='dark'] .app-shell :is(
 }
 html[data-theme='dark'] .launcher-metric > span { color: var(--erp-color-muted) !important; }
 html[data-theme='dark'] .launcher-center-hero > .launcher-all-modules { color: #c4baff !important; }
-html[data-theme='dark'] .app-shell .sales-invoice-total-panel output > b {
-  border-color: var(--erp-color-border) !important;
-  background-color: var(--erp-paper-soft) !important;
-  color: var(--erp-color-text) !important;
+html[data-theme='dark'] .app-shell .sales-invoice-total-panel .total-row.payable {
+  background-color: #2b2613 !important;
+}
+html[data-theme='dark'] .app-shell .sales-invoice-total-panel .total-row.payable :is(span, output) {
+  color: #ffe7a3 !important;
 }
 
 /* Pastel status pills keep their tint; the shared muted text colour is too light on them. */

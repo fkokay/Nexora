@@ -3062,7 +3062,7 @@ export default function HumanResourcesPage({
                 </ListToolbar>
                 <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
+                    <AdvancedDataGrid className="hr-table" gridId="hr-leave-requests" {...screenViewGridDefaults(leaveVisibleFields)} hideSearch toolbarContainer={gridToolsSlot}>
                       <thead>
                         <tr>
                           {leaveVisibleFields.map((field) => (
@@ -3385,7 +3385,7 @@ export default function HumanResourcesPage({
                 </ListToolbar>
                 <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
+                    <AdvancedDataGrid className="hr-table" gridId="hr-attendance" {...screenViewGridDefaults(attendanceVisibleFields)} hideSearch toolbarContainer={gridToolsSlot}>
                       <thead>
                         <tr>
                           {attendanceVisibleFields.map((field) => (
@@ -6020,7 +6020,7 @@ className="secondary hrp-group-action"
 </RecordFormGroup>
 </ModuleRecordForm>
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table">
+                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-assignments" {...screenViewGridDefaults(workplaceAssignmentVisibleFields)}>
                       <thead>
                         <tr>
                           {workplaceAssignmentVisibleFields.map((field) => (
@@ -6248,7 +6248,7 @@ className="secondary hrp-group-action"
 </RecordFormGroup>
 </ModuleRecordForm>
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table">
+                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-calendars" {...screenViewGridDefaults(workplaceCalendarVisibleFields)}>
                       <thead>
                         <tr>
                           {workplaceCalendarVisibleFields.map((field) => (
@@ -6503,7 +6503,7 @@ className="secondary hrp-group-action"
 </RecordFormGroup>
 </ModuleRecordForm>
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table">
+                    <AdvancedDataGrid className="hr-table" gridId="hr-employee-calendar-overrides" {...screenViewGridDefaults(employeeCalendarOverrideVisibleFields)}>
                       <thead>
                         <tr>
                           {employeeCalendarOverrideVisibleFields.map(

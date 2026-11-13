@@ -8,42 +8,35 @@ using Microsoft.EntityFrameworkCore;
 internal static class TenantScreenViewEndpoints
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    internal static readonly HashSet<string> ResizableColumnScreenKeys = new(StringComparer.Ordinal)
-    {
-        "customers", "sales-returns", "finance-accounts", "finance-account-transactions",
-        "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure",
-        "finance-fx-revaluation-lines", "finance-fx-revaluations", "finance-income-statement",
-        "finance-journals", "finance-ledger-accounts", "finance-ledger-mappings", "finance-maturities",
-        "finance-maturity-aging", "finance-statement-lines", "finance-statement-unmatched-book",
-        "finance-statements", "finance-transfer-sources", "finance-trial-balance",
-        "hr-attendance", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests",
-        "hr-workplace-assignments", "hr-workplace-calendars",
-        "sales-quotes", "sales-orders", "sales-invoices", "inventory-stock", "crm-opportunities", "fixed-assets",
-        "purchase-orders", "purchase-invoices",
-        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
-        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
-        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
-        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
-        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
-        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
-    };
-    // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
-    internal static readonly HashSet<string> PinnableColumnScreenKeys = new(StringComparer.Ordinal)
-    {
-        "sales-quotes", "sales-orders", "sales-invoices", "sales-returns", "purchase-orders", "purchase-invoices",
-        "inventory-stock", "crm-opportunities",
-        "fixed-assets", "hr-employees", "audit-events", "finance-accounts", "finance-account-transactions",
-        "finance-balance-sheet", "finance-cash-flow-report", "finance-fx-exposure", "finance-fx-revaluation-lines",
-        "finance-fx-revaluations", "finance-income-statement", "finance-journals", "finance-ledger-accounts",
-        "finance-ledger-mappings", "finance-maturities", "finance-maturity-aging", "finance-statement-lines",
+    // Every built-in list screen whose runtime table renders through AdvancedDataGrid and therefore honours
+    // tenant-level column widths and frozen (sticky) columns. customer-details, direct-cash-budgets and sales-invoice-details render as cards, not grids.
+    private static readonly string[] GridBackedScreenKeys =
+    [
+        "audit-events", "commercial-contracts", "crm-opportunities", "customer-detail-movements", "customer-districts",
+        "customer-ledger-entries", "customer-provinces", "customer-sales-invoices", "customers",
+        "e-document-submissions", "exchange-rates", "finance-account-transactions", "finance-accounts", "finance-balance-sheet",
+        "finance-budget-scenarios", "finance-cash-flow-forecast", "finance-cash-flow-report", "finance-credit-exposure-facilities",
+        "finance-credit-movements", "finance-credit-schedules", "finance-credit-securities", "finance-fx-exposure",
+        "finance-fx-revaluation-lines", "finance-fx-revaluations", "finance-income-statement", "finance-journals",
+        "finance-ledger-accounts", "finance-ledger-mappings", "finance-maturities", "finance-maturity-aging", "finance-statement-lines",
         "finance-statement-unmatched-book", "finance-statements", "finance-transfer-sources", "finance-trial-balance",
-        "purchase-supplier-quotes", "purchase-requests", "purchase-order-receipts", "customer-ledger-entries",
-        "customer-detail-movements", "sales-invoice-payments", "inventory-transfers", "inventory-warehouses",
-        "inventory-movement-history", "manufacturing-work-centers", "manufacturing-recipes", "manufacturing-cost-variance",
-        "finance-credit-exposure-facilities", "finance-credit-securities", "hr-compensation-records", "hr-tax-declarations",
-        "hr-payroll-drafts", "hr-payroll-rule-sets", "integration-operations", "e-document-submissions",
-        "foreign-trade-files", "customer-provinces", "customer-districts", "operational-definitions"
-    };
+        "fixed-asset-assignments", "fixed-asset-depreciation", "fixed-assets", "foreign-trade-files", "hr-attendance",
+        "hr-compensation-records", "hr-employee-calendar-overrides", "hr-employees", "hr-leave-requests", "hr-payroll-drafts",
+        "hr-payroll-rule-sets", "hr-tax-declarations", "hr-workplace-assignments", "hr-workplace-calendars", "integration-operations",
+        "inventory-movement-history", "inventory-stock", "inventory-stock-movements", "inventory-trace-balances",
+        "inventory-transfers", "inventory-warehouse-locations", "inventory-warehouse-reconciliation", "inventory-warehouses",
+        "manufacturing-cost-variance", "manufacturing-mrp-lines", "manufacturing-orders", "manufacturing-recipes",
+        "manufacturing-work-centers", "operational-definitions", "operational-project-tasks", "operational-project-time-entries",
+        "operational-projects", "payment-instruments", "purchase-delivery-note-lines", "purchase-delivery-notes",
+        "purchase-delivery-order-lines", "purchase-invoice-receipt-selection", "purchase-invoices", "purchase-order-delivery-notes",
+        "purchase-order-receipts", "purchase-orders", "purchase-receipts", "purchase-requests", "purchase-supplier-quotes",
+        "sales-campaign-performance", "sales-deliveries", "sales-distribution-plan", "sales-invoice-payments",
+        "sales-invoices", "sales-order-lines", "sales-orders", "sales-promotions", "sales-quotes", "sales-returns",
+        "standalone-invoice-drafts", "warehouse-location-balances"
+    ];
+    internal static readonly HashSet<string> ResizableColumnScreenKeys = new(GridBackedScreenKeys, StringComparer.Ordinal);
+    // Screens whose runtime grid honours tenant-level frozen (sticky) columns.
+    internal static readonly HashSet<string> PinnableColumnScreenKeys = new(GridBackedScreenKeys, StringComparer.Ordinal);
     internal const int MaxPinnedColumnsPerSide = 3;
     private static readonly ScreenViewField[] CustomerFields =
     [

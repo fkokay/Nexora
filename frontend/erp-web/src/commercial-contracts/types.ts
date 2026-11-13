@@ -1,3 +1,4 @@
+import type { ScreenColumnPin } from "../erp-types";
 export type ContractStatus = 'Draft' | 'Active' | 'Suspended' | 'Completed' | 'Terminated' | 'Cancelled'
 export type ContractType = 'Sales' | 'Purchase'
 
@@ -52,7 +53,7 @@ export type SourcePage = { items: SourceOption[]; page: number; pageSize: number
 export type CounterpartyPage = { items: Counterparty[]; page: number; pageSize: number; total: number }
 export type Page = { items: Contract[]; page: number; pageSize: number; total: number }
 export type Detail = { contract: Contract; transitions: Transition[] }
-export type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
+export type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null; width?: number | null; pinned?: ScreenColumnPin | null }
 export type Translate = (value: string) => string
 
 export const defaultScreenFields: ScreenField[] = [

@@ -2530,6 +2530,7 @@ public sealed class SalesInvoice
     public string? DeliveryCarrierName { get; set; }
     public string? DeliveryCarrierSurname { get; set; }
     public DateOnly? DeliverySentAt { get; set; }
+    public string? Notes { get; set; }
     public SalesInvoiceStatus Status { get; set; } = SalesInvoiceStatus.Posted;
     public decimal Subtotal { get; set; }
     public decimal DiscountTotal { get; set; }

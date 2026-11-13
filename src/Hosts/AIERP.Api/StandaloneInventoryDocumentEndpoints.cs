@@ -168,7 +168,9 @@ public static class StandaloneInventoryDocumentEndpoints
     {
         if (!Tenant(user, out var tenantId)) return Results.Forbid();
         if (SalesInvoiceEDocumentFieldsValidation.Validate(request.EDocument) is { } metadataErrors) return Results.ValidationProblem(metadataErrors);
+        if (SalesInvoiceNotesValidation.Validate(request.Notes) is { } notesErrors) return Results.ValidationProblem(notesErrors);
         var eDocument = SalesInvoiceEDocumentFieldsValidation.Normalize(request.EDocument);
+        var invoiceNotes = SalesInvoiceNotesValidation.Normalize(request.Notes);
         if (request.Lines is null || request.Lines.Count is < 1 or > 200
             || request.Lines.Any(x => x.LineNumber < 1 || x.UnitPrice < 0 || x.UnitPrice > 99999999999999.9999m
                 || x.UnitPrice != decimal.Round(x.UnitPrice, 4) || x.DiscountPercent is < 0 or > 100
@@ -260,7 +262,7 @@ public static class StandaloneInventoryDocumentEndpoints
             ECommerceIntermediaryCity = eDocument?.IntermediaryCity, ECommerceIntermediaryDistrict = eDocument?.IntermediaryDistrict,
             DeliveryCarrierTaxId = eDocument?.CarrierTaxId,
             DeliveryCarrierName = eDocument?.CarrierName, DeliveryCarrierSurname = eDocument?.CarrierSurname,
-            DeliverySentAt = eDocument?.SentAt };
+            DeliverySentAt = eDocument?.SentAt, Notes = invoiceNotes };
         foreach (var row in rows)
             invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, StandaloneDeliveryLineId = row.Line.Id,
                 OrderLineNumber = row.Line.LineNumber, StockItemId = row.Line.StockItemId, StockCode = row.Line.StockCode,
@@ -546,7 +548,7 @@ public static class StandaloneInventoryDocumentEndpoints
 
 public sealed record StandaloneSalesDeliveryWrite(Guid RequestId, string Code, Guid CustomerId, Guid WarehouseId, DateOnly DeliveryDate, List<StandaloneSalesDeliveryLineWrite>? Lines);
 public sealed record StandaloneSalesDeliveryLineWrite(Guid StockItemId, decimal Quantity, string? UnitCode, string? TrackingCode, DateOnly? ExpiryDate, Guid? StorageLocationId = null);
-public sealed record StandaloneSalesDeliveryInvoiceWrite(DateOnly InvoiceDate, IReadOnlyList<StandaloneSalesDeliveryInvoiceLineWrite>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null);
+public sealed record StandaloneSalesDeliveryInvoiceWrite(DateOnly InvoiceDate, IReadOnlyList<StandaloneSalesDeliveryInvoiceLineWrite>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? Notes = null);
 public sealed record StandaloneSalesDeliveryInvoiceLineWrite(int LineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
 public sealed record StandalonePurchaseReceiptWrite(Guid RequestId, string Code, Guid SupplierId, Guid WarehouseId, DateOnly ReceiptDate, List<StandalonePurchaseReceiptLineWrite>? Lines);
 public sealed record StandalonePurchaseReceiptLineWrite(Guid StockItemId, decimal Quantity, string? UnitCode, decimal UnitCostBase, string? TrackingCode, DateOnly? ExpiryDate, Guid? StorageLocationId = null);

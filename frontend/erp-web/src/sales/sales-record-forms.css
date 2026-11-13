@@ -170,6 +170,23 @@
 }
 .record-form.sales-rf .rf-form .sales-invoice-total-panel { border: 0; padding: 0; background: transparent; }
 
+/* Fatura toplamları: solda fatura notu, sağda düz metin toplam satırları. */
+.record-form.sales-rf {
+  --sales-payable-bg: #fff8de;
+  --sales-payable-text: #172b45;
+}
+html[data-theme="dark"] .record-form.sales-rf {
+  --sales-payable-bg: #2b2613;
+  --sales-payable-text: #ffe7a3;
+}
+.record-form.sales-rf .rf-form .sales-invoice-note-counter { color: var(--rf-muted); }
+.record-form.sales-rf .rf-form .sales-invoice-total-panel span { color: var(--rf-muted); }
+.record-form.sales-rf .rf-form .sales-invoice-total-panel output,
+.record-form.sales-rf .rf-form .sales-invoice-total-panel .total-row.grand span { color: var(--rf-text); }
+.record-form.sales-rf .rf-form .sales-invoice-total-panel .total-row.grand { border-top-color: var(--rf-border-soft); }
+.record-form.sales-rf .rf-form .sales-invoice-total-panel .total-row.payable { background: var(--sales-payable-bg); }
+.record-form.sales-rf .rf-form .sales-invoice-total-panel .total-row.payable :is(span, output) { color: var(--sales-payable-text); }
+
 /* Siparişsiz irsaliye / mal kabul satır alanları. */
 .record-form.sales-rf .rf-form .delivery-document-line-fields {
   display: grid;

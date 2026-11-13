@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { CreditFacilitiesFilters } from "./CreditFacilitiesFilters";
 import type {
@@ -363,6 +364,8 @@ export function CreditFacilityRegister({
                   <AdvancedDataGrid
                     hideSearch
                     className="customer-table credit-table"
+                    gridId="finance-credit-schedules"
+                    {...screenViewGridDefaults(visibleScheduleFields)}
                   >
                     <caption>
                       Ödeme planı · {f.openScheduleCount} açık taksit ·
@@ -470,6 +473,8 @@ export function CreditFacilityRegister({
                       <AdvancedDataGrid
                         hideSearch
                         className="customer-table credit-table credit-movement-table"
+                        gridId="finance-credit-movements"
+                        {...screenViewGridDefaults(visibleMovementFields)}
                       >
                         <caption>
                           Gerçekleşen kullandırım, geri ödeme ve ters kayıtlar

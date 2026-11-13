@@ -254,7 +254,7 @@ public sealed record SalesDeliveryView(Guid Id, string Code, Guid? OrderId, stri
     IReadOnlyList<SalesDeliveryLineView> Lines, bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
 public sealed record SalesDeliveryPage(IReadOnlyList<SalesDeliverySummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, bool IsVatIncluded = false);
-public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
+public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale, string? Notes = null);
 public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
     string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
     SalesInvoiceStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
@@ -288,7 +288,8 @@ public sealed record SalesInvoiceView(Guid Id, string Code, Guid? DeliveryId, st
     string? ECommerceIntermediaryCity = null, string? ECommerceIntermediaryDistrict = null,
     string? DeliveryCarrierTaxId = null, string? DeliveryCarrierName = null,
     string? DeliveryCarrierSurname = null, DateOnly? DeliverySentAt = null,
-    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]", SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
+    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]", SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale,
+    string? Notes = null);
 public sealed record SalesInvoiceEDocumentFields(string? Scenario = null, string? TypeCode = null, string? RecipientAlias = null,
     string? PurchaseUrl = null, string? PaymentTaxId = null, string? PaymentTitle = null, string? PaymentAlias = null,
     string? PaymentAgentName = null, string? PaymentType = null, DateTimeOffset? PaymentDate = null,
@@ -345,8 +346,18 @@ public static class SalesInvoiceEDocumentFieldsValidation
 
     private static string? NormalizeValue(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+public static class SalesInvoiceNotesValidation
+{
+    public const int MaxLength = 1000;
+
+    public static string? Normalize(string? notes) => string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+
+    public static Dictionary<string, string[]>? Validate(string? notes) => Normalize(notes) is { Length: > MaxLength }
+        ? new Dictionary<string, string[]> { ["notes"] = [$"Fatura notu en fazla {MaxLength} karakter olabilir."] }
+        : null;
+}
 public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale);
+public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale, string? Notes = null);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
     Guid SalesInvoiceId, string InvoiceCode, DateOnly CollectionDate, decimal Amount, string CurrencyCode,

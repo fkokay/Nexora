@@ -1,3 +1,4 @@
+import type { ScreenColumnPin } from '../erp-types'
 export type OrderSummary = { id: string; code: string; supplierName: string; orderDate: string; status: string; lineCount: number }
 export type OrderLine = { lineNumber: number; stockCode: string; stockName: string; unitCode: string; quantity: number }
 export type ReceiptLine = { orderLineNumber: number; quantity: number }
@@ -6,7 +7,7 @@ export type OrderDetail = OrderSummary & { lines: OrderLine[]; receipts: Receipt
 export type NoteLine = { orderLineNumber: number; unitCode: string; quantity: number }
 export type Note = { id: string; documentNumber: string; documentDate: string; purchaseOrderId: string; purchaseOrderCode: string; supplierName: string; purchaseReceiptId: string | null; purchaseReceiptCode: string | null; lineCount: number; lines?: NoteLine[] }
 export type NotePage = { items: Note[]; page: number; pageSize: number; totalCount: number }
-export type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
+export type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null; width?: number | null; pinned?: ScreenColumnPin | null }
 
 export const deliveryNotePageSize = 25
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type {
@@ -124,7 +125,7 @@ export default function CampaignPerformanceSection({
               enableRowSelection={false}
               externalPagination
               gridId="sales-campaign-performance-v2"
-              initialColumnWidths={visibleFields.map(
+              {...screenViewGridDefaults(visibleFields,
                 (field) =>
                   ({
                     campaign: 180,

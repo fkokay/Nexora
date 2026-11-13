@@ -1,5 +1,7 @@
+import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { BuiltInScreenLayoutField } from "../../erp-types";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ExchangeRate } from "../types";
 
 type Props = {
@@ -24,7 +26,14 @@ export default function ExchangeRateHistory({ rates, base, fields }: Props) {
         </div>
       </div>
       <div className="ledger-list">
-        <table className="customer-table">
+        <AdvancedDataGrid
+          className="customer-table"
+          gridId="exchange-rates"
+          {...screenViewGridDefaults(visibleFields)}
+          externalPagination
+          hideSearch
+          enableRowSelection={false}
+        >
           <thead>
             <ScreenViewGroupHeader fields={visibleFields} />
             <tr>
@@ -52,7 +61,7 @@ export default function ExchangeRateHistory({ rates, base, fields }: Props) {
               </tr>
             )}
           </tbody>
-        </table>
+        </AdvancedDataGrid>
       </div>
     </section>
   );
