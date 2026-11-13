@@ -97,6 +97,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<InventoryCostAdjustment> InventoryCostAdjustments => Set<InventoryCostAdjustment>();
     public DbSet<InventoryCostAdjustmentLine> InventoryCostAdjustmentLines => Set<InventoryCostAdjustmentLine>();
     public DbSet<SalesQuote> SalesQuotes => Set<SalesQuote>();
+    public DbSet<SalesRequest> SalesRequests => Set<SalesRequest>();
+    public DbSet<SalesRequestLine> SalesRequestLines => Set<SalesRequestLine>();
     public DbSet<SalesQuoteLine> SalesQuoteLines => Set<SalesQuoteLine>();
     public DbSet<SalesQuoteCustomFieldDefinition> SalesQuoteCustomFieldDefinitions => Set<SalesQuoteCustomFieldDefinition>();
     public DbSet<SalesQuoteCustomFieldDefinitionRevision> SalesQuoteCustomFieldDefinitionRevisions => Set<SalesQuoteCustomFieldDefinitionRevision>();
@@ -1104,6 +1106,38 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.ToTable(t => t.HasCheckConstraint("CK_SalesQuotes_ValidDateRange", "[ValidUntil] >= [QuoteDate]"));
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesQuotes).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.SourceSalesRequest).WithMany(x => x.Quotes).HasForeignKey(x => new { x.TenantId, x.SourceSalesRequestId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesRequest>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.RequestDate, x.CreatedAt });
+            e.Property(x => x.Code).HasMaxLength(40);
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.CancelReason).HasMaxLength(500);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.ToTable(t => t.HasCheckConstraint("CK_SalesRequests_NeededByDate", "[NeededByDate] IS NULL OR [NeededByDate] >= [RequestDate]"));
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SalesRequestLine>(e =>
+        {
+            e.HasKey(x => new { x.TenantId, x.SalesRequestId, x.LineNumber });
+            e.HasIndex(x => new { x.TenantId, x.StockItemId });
+            e.Property(x => x.StockCode).HasMaxLength(64);
+            e.Property(x => x.StockName).HasMaxLength(200);
+            e.Property(x => x.UnitCode).HasMaxLength(8);
+            e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
+            e.Property(x => x.Quantity).HasPrecision(18, 4);
+            e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
+            e.ToTable(t => t.HasCheckConstraint("CK_SalesRequestLines_QuantityPositive", "[Quantity] > 0"));
+            e.HasOne(x => x.SalesRequest).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.SalesRequestId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.StockItem).WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SalesQuoteCustomFieldDefinition>(e =>
         {

@@ -34,6 +34,7 @@ public static class PlatformPermissionCatalog
         new("erp.warehouses", "/api/warehouses", "Warehouses and stock balances"),
         new("erp.inventory-transfers", "/api/warehouses/transfers", "Warehouse transfers"),
         new("erp.inventory-cost-adjustments", "/api/warehouses/cost-adjustments", "Inventory landed costs and revaluation"),
+        new("erp.sales-requests", "/api/sales/requests", "Sales requests"),
         new("erp.sales-quotes", "/api/sales/quotes", "Sales quotes"),
         new("erp.sales-orders", "/api/sales/orders", "Sales orders and reservations"),
         new("erp.sales-deliveries", "/api/sales/deliveries", "Sales deliveries"),

@@ -155,6 +155,8 @@ app.MapCustomMenuEndpoints();
 app.MapCrmEndpoints();
 app.MapManufacturingEndpoints();
 app.MapSalesOrderEndpoints();
+app.MapDocumentListEndpoints();
+app.MapSalesRequestEndpoints();
 app.MapIntegrationExecutionApi();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue("Database:ApplyMigrationsOnStartup", true))
@@ -2483,7 +2485,7 @@ salesQuotes.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCon
 salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order)
+    var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order).Include(x => x.SourceSalesRequest)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (quote is null) return Results.NotFound();
     var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
@@ -2494,7 +2496,8 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
     return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer.Name, quote.QuoteDate,
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
-        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields));
+        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields,
+        quote.SourceSalesRequestId, quote.SourceSalesRequest?.Code));
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -2509,6 +2512,15 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
     if (currencyCode != customer.CurrencyCode)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Teklif dövizi seçilen carinin döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
+    SalesRequest? sourceSalesRequest = null;
+    if (request.SalesRequestId is { } sourceSalesRequestId)
+    {
+        sourceSalesRequest = await db.SalesRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == sourceSalesRequestId);
+        if (sourceSalesRequest is null || sourceSalesRequest.Status == SalesRequestStatus.Cancelled)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesRequestId"] = ["İptal edilmemiş bir satış talebi seçilmelidir."] });
+        if (sourceSalesRequest.CustomerId != customer.Id)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesRequestId"] = ["Teklif müşterisi, talebin müşterisiyle aynı olmalıdır."] });
+    }
     await using var transaction = await db.Database.BeginTransactionAsync();
     var customDefinitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var customFieldErrors = new Dictionary<string, string[]>(); var normalizedCustomFields = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
@@ -2547,7 +2559,9 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Teklif toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
     var quote = new SalesQuote { TenantId = tenantId, CustomerId = customer.Id, Code = code, QuoteDate = request.QuoteDate,
         ValidUntil = request.ValidUntil, CurrencyCode = currencyCode, Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
-        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
+        SourceSalesRequestId = sourceSalesRequest?.Id };
+    if (sourceSalesRequest is { Status: SalesRequestStatus.Open }) sourceSalesRequest.Status = SalesRequestStatus.Quoted;
     for (var i = 0; i < request.Lines.Count; i++)
     {
         var input = normalizedLines[i].Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);

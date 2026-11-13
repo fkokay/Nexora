@@ -1345,6 +1345,8 @@ public sealed class SalesQuote
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<SalesQuoteLine> Lines { get; set; } = new List<SalesQuoteLine>();
     public SalesOrder? Order { get; set; }
+    public Guid? SourceSalesRequestId { get; set; }
+    public SalesRequest? SourceSalesRequest { get; set; }
 }
 
 public sealed class SalesQuoteLine
@@ -2395,4 +2397,41 @@ public sealed class StudioCodeReviewComment
     public string? GitHubAuthorLogin { get; set; }
     public int? GitHubPullRequestNumber { get; set; }
     public string? GitHubRepository { get; set; }
+}
+
+public enum SalesRequestStatus { Open = 1, Quoted = 2, Cancelled = 3 }
+
+/// <summary>Müşteriden gelen ürün talebi; satış teklifinden önceki adım.</summary>
+public sealed class SalesRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CustomerId { get; set; }
+    public CustomerAccount Customer { get; set; } = null!;
+    public string Code { get; set; } = "";
+    public DateOnly RequestDate { get; set; }
+    public DateOnly? NeededByDate { get; set; }
+    public string? Description { get; set; }
+    public SalesRequestStatus Status { get; set; } = SalesRequestStatus.Open;
+    public string? CancelReason { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<SalesRequestLine> Lines { get; set; } = new List<SalesRequestLine>();
+    public ICollection<SalesQuote> Quotes { get; set; } = new List<SalesQuote>();
+}
+
+public sealed class SalesRequestLine
+{
+    public Guid TenantId { get; set; }
+    public Guid SalesRequestId { get; set; }
+    public SalesRequest SalesRequest { get; set; } = null!;
+    public int LineNumber { get; set; }
+    public Guid StockItemId { get; set; }
+    public StockItem StockItem { get; set; } = null!;
+    public string StockCode { get; set; } = "";
+    public string StockName { get; set; } = "";
+    public string UnitCode { get; set; } = "EA";
+    public decimal Quantity { get; set; }
+    public decimal? EnteredQuantity { get; set; }
+    public string? EnteredUnitCode { get; set; }
 }
