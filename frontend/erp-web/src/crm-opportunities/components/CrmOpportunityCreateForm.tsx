@@ -1,7 +1,12 @@
 import type { FormEvent } from "react";
-import { BriefcaseBusiness, ShieldCheck, X } from "lucide-react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import type { Customer } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../sales/sales-record-forms.css";
 
 type Props = {
   mode?: "create" | "edit";
@@ -65,100 +70,91 @@ export function CrmOpportunityCreateForm({
   onNotesChange,
 }: Props) {
   return (
-      <section className="customer-create-page-surface crm-create-page-surface" aria-labelledby="crm-create-title">
-        <header className="customer-create-page-heading crm-create-page-heading">
-          <div className="customer-create-page-title crm-create-page-title">
-          <span className="customer-create-page-icon crm-create-heading-icon" aria-hidden="true">
-            <BriefcaseBusiness size={20} />
+    <RecordFormPage
+      className="crm-create-page-surface sales-rf"
+      title={mode === "edit" ? "Fırsatı düzenle" : "Yeni fırsat"}
+      mode={mode}
+      busy={busy}
+      saveLabel={mode === "edit" ? "Değişiklikleri kaydet" : "Fırsat oluştur"}
+      formId="crm-opportunity-form"
+      onSubmit={(event) => onSubmit(event as FormEvent<HTMLFormElement>)}
+      onCancel={onClose}
+      error={
+        customerError
+          ? `Müşteri listesi yüklenemedi: ${customerError}`
+          : undefined
+      }
+      status={
+        <span>
+          Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip tarihini
+          planlayın.
+        </span>
+      }
+    >
+      <RecordFormGroup
+        title="Fırsat Kimliği"
+        bodyClassName="rf-identity sales-rf-identity-3"
+      >
+        <label>
+          <span>
+            Fırsat kodu <RequiredMark />
           </span>
-          <div>
-            <p className="eyebrow">CRM · SATIŞ HATTI</p>
-            <h1 id="crm-create-title">{mode === "edit" ? "Fırsatı düzenle" : "Yeni fırsat"}</h1>
-            <p>
-              Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip
-              tarihini planlayın.
-            </p>
-          </div>
-          </div>
-          <div className="crm-create-page-actions">
-          <button
-            type="button"
-            className="secondary"
-            onClick={onClose}
-          >
-            <X size={17} />
-            Vazgeç
-          </button>
-          <button className="primary" type="submit" form="crm-opportunity-form" disabled={busy}>
-            <ShieldCheck size={16} aria-hidden="true" />
-            {busy ? "Kaydediliyor…" : mode === "edit" ? "Değişiklikleri kaydet" : "Fırsat oluştur"}
-          </button>
-          </div>
-        </header>
-        {customerError && (
-          <p className="crm-inline-error crm-create-page-error" role="status">
-            Müşteri listesi yüklenemedi: {customerError}
-          </p>
-        )}
-        <form id="crm-opportunity-form" className="crm-form crm-record-form" onSubmit={onSubmit}>
-          <fieldset className="crm-form-section">
-            <legend>Fırsat bilgileri</legend>
-            <div className="crm-form-fields">
-          <label>
-            Fırsat kodu
-            <input
-              value={code}
-              onChange={(event) => onCodeChange(event.target.value)}
-              required
-              maxLength={40}
-              placeholder="FRS-2026-001"
-            />
-          </label>
-          <label>
-            Fırsat adı
-            <input
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              required
-              maxLength={160}
-              placeholder="ERP yenileme projesi"
-            />
-          </label>
-          <label>
-            Müşteri
-            <SearchableRecordPicker
-              options={customers.map((item) => ({
-                id: item.id,
-                label: `${item.code} · ${item.name}`,
-              }))}
-              selectedId={customerId}
-              selectedLabel={
-                selectedCustomer
-                  ? `${selectedCustomer.code} · ${selectedCustomer.name}`
-                  : selectedCustomerName || undefined
-              }
-              onSelect={onCustomerSelect}
-              onSearchChange={onCustomerSearchChange}
-              title="Müşteri seçin"
-              placeholder="Henüz bağlanmadı"
-              searchPlaceholder="Müşteri kodu veya unvanıyla ara"
-              emptyMessage={
-                customerLoading
-                  ? "Müşteriler aranıyor…"
-                  : "Aramanızla eşleşen aktif müşteri bulunamadı."
-              }
-              overlayClassName="crm-customer-picker-backdrop"
-            />
-          </label>
-            </div>
-          </fieldset>
-          <fieldset className="crm-form-section">
-            <legend>Tutar ve takip</legend>
-            <div className="crm-form-fields">
+          <input
+            className="rf-must rf-mono"
+            value={code}
+            onChange={(event) => onCodeChange(event.target.value)}
+            required
+            maxLength={40}
+            placeholder="FRS-2026-001"
+          />
+        </label>
+        <label>
+          <span>
+            Fırsat adı <RequiredMark />
+          </span>
+          <input
+            className="rf-must"
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            required
+            maxLength={160}
+            placeholder="ERP yenileme projesi"
+          />
+        </label>
+        <label>
+          Müşteri
+          <SearchableRecordPicker
+            options={customers.map((item) => ({
+              id: item.id,
+              label: `${item.code} · ${item.name}`,
+            }))}
+            selectedId={customerId}
+            selectedLabel={
+              selectedCustomer
+                ? `${selectedCustomer.code} · ${selectedCustomer.name}`
+                : selectedCustomerName || undefined
+            }
+            onSelect={onCustomerSelect}
+            onSearchChange={onCustomerSearchChange}
+            title="Müşteri seçin"
+            placeholder="Henüz bağlanmadı"
+            searchPlaceholder="Müşteri kodu veya unvanıyla ara"
+            emptyMessage={
+              customerLoading
+                ? "Müşteriler aranıyor…"
+                : "Aramanızla eşleşen aktif müşteri bulunamadı."
+            }
+            overlayClassName="crm-customer-picker-backdrop"
+          />
+        </label>
+      </RecordFormGroup>
+      <div className="rf-columns">
+        <RecordFormGroup title="Tutar ve Olasılık">
           <label>
             Tahmini tutar
-            <div className="crm-inline-input">
+            <div className="crm-inline-input sales-rf-inline">
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -167,6 +163,7 @@ export function CrmOpportunityCreateForm({
                 placeholder="0,00"
               />
               <input
+                className="rf-mono"
                 aria-label="Para birimi"
                 value={currency}
                 onChange={(event) =>
@@ -179,6 +176,7 @@ export function CrmOpportunityCreateForm({
           <label>
             Kazanma olasılığı (%)
             <input
+              className="rf-num"
               type="number"
               min="0"
               max="99"
@@ -186,6 +184,8 @@ export function CrmOpportunityCreateForm({
               onChange={(event) => onProbabilityChange(event.target.value)}
             />
           </label>
+        </RecordFormGroup>
+        <RecordFormGroup title="Takip">
           <label>
             Beklenen kapanış
             <input
@@ -202,6 +202,8 @@ export function CrmOpportunityCreateForm({
               onChange={(event) => onActivityChange(event.target.value)}
             />
           </label>
+        </RecordFormGroup>
+        <RecordFormGroup title="Not">
           <label className="crm-notes">
             Not
             <textarea
@@ -212,9 +214,8 @@ export function CrmOpportunityCreateForm({
               placeholder="Görüşme özeti veya sonraki adım"
             />
           </label>
-            </div>
-          </fieldset>
-        </form>
-      </section>
+        </RecordFormGroup>
+      </div>
+    </RecordFormPage>
   );
 }
