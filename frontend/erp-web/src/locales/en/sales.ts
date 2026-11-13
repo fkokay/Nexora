@@ -33,6 +33,8 @@ export const english: Record<string, string> = {
   'İşlem, siparişin kalan miktarları için stok çıkışlı bir irsaliye oluşturur ve ardından faturayı keserek cari borcunu kaydeder.': 'This creates a delivery note with stock issue for the order\'s remaining quantities, then issues the invoice and records the customer account debit.',
   'Sipariş seçilmedi': 'No order selected', 'İrsaliye ve fatura oluşturuluyor…': 'Creating delivery note and invoice…', 'Eşleşen aktif müşteri yok.': 'No matching active customers.', 'Eşleşen aktif stok kartı yok.': 'No matching active stock items.',
   'Bu satırın stok çıkışı bu depodan yapılır': 'Stock for this line is issued from this warehouse', 'Aktif depo bulunamadı.': 'No active warehouse found.', 'Fatura toplamları': 'Invoice totals',
+  'Toplam tutar': 'Total amount', 'KDV tevkifat tutarı': 'VAT withholding amount', 'Ödenecek tutar': 'Amount payable', 'Fatura notu': 'Invoice note', 'İsteğe bağlı': 'Optional',
+  'Faturaya ilişkin açıklama, sipariş notu veya ödeme bilgisi yazın.': 'Enter a description, order note or payment information for the invoice.',
   'İrsaliye ve stok çıkışı oluşturulur · Fatura toplamı': 'A delivery note and stock issue are created · Invoice total', 'İrsaliye ve fatura kaydediliyor…': 'Saving delivery note and invoice…',
   'Sevk edilmiş irsaliyelerden fatura kesin; cari borç kaydı otomatik oluşur.': 'Issue invoices from shipped delivery notes; the customer account debit is created automatically.',
   // List pages
@@ -163,6 +165,7 @@ export const english: Record<string, string> = {
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
+  [/^KDV %(\d+(?:[.,]\d+)?)$/, 'VAT %$1'],
   [/^Satır (\d+) kaldır$/, 'Remove line $1'],
   [/^Satır (\d+) miktar$/, 'Line $1 quantity'],
   [/^Satır (\d+) birim$/, 'Line $1 unit'],
