@@ -459,7 +459,7 @@ html[data-theme="dark"] .sales-delivery-detail-modal .sales-delivery-lines-table
 .sales-invoice-type-field label{display:grid;gap:6px;max-width:460px;color:var(--erp-text-muted,#718098);font-size:10px;font-weight:700}
 .sales-invoice-type-field select{height:36px;padding:0 10px;border:1px solid var(--erp-border,#dce4ef);border-radius:7px;background:var(--erp-surface,#fff);color:var(--erp-text,#233149);font:inherit}
 .invoice-detail-modal{width:min(980px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:22px;overflow:auto;border:1px solid #dfe7f1;border-radius:15px;box-shadow:0 28px 90px #15243b35}
-body>.sales-invoice-detail-backdrop{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:#0a192f75;backdrop-filter:blur(3px)}
+body>.sales-invoice-detail-backdrop{position:fixed;inset:0;z-index:960;display:grid;place-items:center;padding:20px;background:#0a192f75;backdrop-filter:blur(3px)}
 body>.sales-invoice-detail-backdrop>.modal.ledger-modal.invoice-detail-modal{box-sizing:border-box;width:min(1080px,calc(100vw - 40px));max-height:calc(100dvh - 40px);margin:0;overflow:hidden}
 @media(max-width:680px){body>.sales-invoice-detail-backdrop{padding:10px}body>.sales-invoice-detail-backdrop>.modal.ledger-modal.invoice-detail-modal{width:calc(100vw - 20px);max-height:calc(100dvh - 20px)}}
 .invoice-detail-modal>.modal-head{position:sticky;top:-22px;z-index:4;margin:-22px -22px 15px;padding:18px 22px 14px;border-bottom:1px solid #e3eaf3;background:#fff;box-shadow:0 5px 12px #1b314b08}

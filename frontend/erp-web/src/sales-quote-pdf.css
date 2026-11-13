@@ -16,7 +16,7 @@
 .sales-quote-pdf-preview iframe{width:100%;flex:1;border:0;background:#fff}
 @media(max-width:640px){.sales-quote-pdf-tools .panel-heading{align-items:flex-start;flex-direction:column}.sales-quote-pdf-tools .heading-actions{width:100%}.sales-quote-pdf-tools select{flex:1;min-width:0;max-width:none}.sales-quote-template-editor{grid-template-columns:1fr}.sales-quote-pdf-preview header{align-items:flex-start;flex-direction:column}.sales-quote-pdf-preview{width:calc(100vw - 16px);height:calc(100vh - 16px)}}
 
-.sales-quote-print-backdrop{z-index:90;padding:16px;background:#0b1728a8;backdrop-filter:blur(5px)}
+.sales-quote-print-backdrop{z-index:970;padding:16px;background:#0b1728a8;backdrop-filter:blur(5px)}
 .sales-quote-print-modal{display:flex;flex-direction:column;gap:0;width:min(1320px,calc(100vw - 32px));height:min(940px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);padding:0;overflow:hidden;border:1px solid #d9e3ed;border-radius:15px;background:#f2f5f8;box-shadow:0 28px 90px #06152766}
 .sales-quote-print-header{display:flex;flex:none;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid #e2e8ef;background:#fff}
 .sales-quote-print-header>div{display:flex;align-items:center;gap:12px;min-width:0}

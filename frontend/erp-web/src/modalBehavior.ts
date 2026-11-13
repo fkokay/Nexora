@@ -16,7 +16,12 @@ const CLOSE_SELECTORS = [
 function topmostBackdrop(): HTMLElement | null {
   const backdrops = Array.from(
     document.querySelectorAll<HTMLElement>(".modal-backdrop"),
-  ).filter((element) => element.getClientRects().length > 0);
+  ).filter((element) => {
+    if (element.getClientRects().length === 0) return false;
+    // Full-page record forms (stock item, master data create) sit below the app
+    // chrome instead of covering the viewport; Escape must not discard them.
+    return element.getBoundingClientRect().top <= 0;
+  });
   if (backdrops.length === 0) return null;
   // Highest z-index wins; among equals the later element is painted on top.
   return backdrops.reduce((top, element) => {
