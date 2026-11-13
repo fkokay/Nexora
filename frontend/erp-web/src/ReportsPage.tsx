@@ -16,9 +16,7 @@ import {
 } from "./locale";
 import { localDateString } from "./dateUtils";
 import "./reports.css";
-import { ReportHero } from "./reports/components/ReportHero";
-import { ReportMetrics } from "./reports/components/ReportMetrics";
-import { ReportFilters } from "./reports/components/ReportFilters";
+import { ReportFilters, operatorLabel } from "./reports/components/ReportFilters";
 import { ReportResults } from "./reports/components/ReportResults";
 import { SavedReportsPanel } from "./reports/components/SavedReportsPanel";
 import type {
@@ -64,6 +62,7 @@ export default function ReportsPage({
   const [selectedRevision, setSelectedRevision] = useState(0);
   const [definition, setDefinition] = useState<Definition>(defaultDefinition);
   const [fieldSearch, setFieldSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -566,51 +565,109 @@ export default function ReportsPage({
       : String(value);
   }
 
+  function filterChipText(filter: FilterRow) {
+    const column = columnMap.get(filter.field);
+    const label = localizedCatalogLabel(column?.label ?? filter.field);
+    const operator = operatorLabel(filter.operator);
+    if (filter.operator === "isNull") return `${label} ${operator}`;
+    const raw = filter.value.trim();
+    const value =
+      column?.dataType === "boolean" && raw === "true"
+        ? tx("Aktif", "Active")
+        : column?.dataType === "boolean" && raw === "false"
+          ? tx("Pasif", "Inactive")
+          : raw;
+    return `${label} ${operator} ${value || "…"}`;
+  }
+  function setGrouping(next: string[]) {
+    update({
+      groupBy: undefined,
+      groupByFields: next.length ? next : undefined,
+      aggregate: next.length ? (definition.aggregate ?? "count") : undefined,
+    });
+  }
+  const runDisabled =
+    busy ||
+    loading ||
+    sources.length === 0 ||
+    (!isSqlQuery && definition.columns.length === 0) ||
+    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length))) ||
+    definition.filters.some((x) => x.operator !== "isNull" && !x.value.trim());
+  const saveDisabled =
+    busy ||
+    loading ||
+    !!drilldownBase ||
+    !name.trim() ||
+    (!isSqlQuery && definition.columns.length === 0) ||
+    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length)));
+  const saveTitle = selectedId
+    ? tx("Değişiklikleri kaydet", "Save changes")
+    : isList
+      ? tx("Listeyi kaydet", "Save list")
+      : tx("Raporu kaydet", "Save report");
+  const groupCandidates = columns.filter((column) => !groupingFields.includes(column.code));
+
   return (
-    <div className={`reports-page${isList ? " custom-list-mode" : ""}`}>
-      <ReportHero isList={isList} />
-      {!isList && onNavigate && (
-        <section
-          className="report-ai-assist"
-          aria-label={tx("Yapay zekâ desteği", "AI assistance")}
-        >
-          <span className="report-ai-assist-icon">
-            <Sparkles size={18} />
+    <div className={`reports-page report-studio${isList ? " custom-list-mode" : ""}`}>
+      <header className="report-topbar">
+        <div className="report-topbar-title">
+          <h1>
+            {isList
+              ? tx("Dinamik liste oluşturucu", "Dynamic list builder")
+              : tx("Rapor oluşturucu", "Report builder")}
+          </h1>
+          <span className="report-topbar-meta" aria-live="polite">
+            {loading
+              ? tx("Yükleniyor…", "Loading…")
+              : `${sources.length.toLocaleString(locale)} ${tx("veri kaynağı", "data sources")} · ${saved.length.toLocaleString(locale)} ${
+                  isList
+                    ? tx("kayıtlı liste", "saved lists")
+                    : tx("kayıtlı rapor", "saved reports")
+                }`}
           </span>
-          <div>
-            <strong>
-              {tx(
-                "Raporunuzu daha kolay keşfedin",
-                "Explore your report more easily",
+        </div>
+        <div className="report-topbar-actions">
+          {!isList && onNavigate && (
+            <button
+              type="button"
+              className="secondary"
+              title={tx(
+                "Veri kaynakları ve alanlar hakkında AI ERP Asistanı’ndan yardım alın.",
+                "Ask the AI ERP Assistant about data sources and fields.",
               )}
-            </strong>
-            <p>
-              {tx(
-                "Veri kaynakları ve alanlar hakkında AI ERP Asistanı’ndan yardım alın. Rapor tanımını burada siz oluşturup çalıştırabilirsiniz.",
-                "Ask the AI ERP Assistant about data sources and fields. You can build and run the report definition here.",
-              )}
-            </p>
-          </div>
+              onClick={() => onNavigate("erp-assistant")}
+            >
+              <Sparkles size={15} />
+              {tx("AI ile keşfet", "Explore with AI")}
+            </button>
+          )}
+          {canDesign && (
+            <button
+              type="button"
+              className="secondary"
+              title={saveTitle}
+              disabled={saveDisabled}
+              onClick={() => void save()}
+            >
+              <Save size={15} />
+              {tx("Kaydet", "Save")}
+            </button>
+          )}
           <button
             type="button"
-            className="secondary small-button"
-            onClick={() => onNavigate("erp-assistant")}
+            className="primary"
+            disabled={runDisabled}
+            onClick={() => void run(1)}
           >
-            {tx("AI ERP Asistanı", "AI ERP Assistant")}
-            <ArrowRight size={14} />
+            <Play size={15} />
+            {busy
+              ? tx("Çalıştırılıyor…", "Running…")
+              : isList
+                ? tx("Listeyi görüntüle", "View list")
+                : tx("Çalıştır", "Run")}
           </button>
-        </section>
-      )}
-      <ReportMetrics
-        isList={isList}
-        savedCount={saved.length}
-        sourceCount={sources.length}
-        activeFilterCount={definition.filters.length}
-        visibleFieldCount={definition.columns.length}
-        source={source}
-        loading={loading}
-        locale={locale}
-      />
+        </div>
+      </header>
       {error && (
         <div className="report-alert error" role="alert">
           {error}
@@ -641,318 +698,170 @@ export default function ReportsPage({
           </button>
         </div>
       )}
-      <div className="reports-layout" aria-busy={busy || loading}>
-        <section className="report-builder panel">
-          <div className="report-section-heading">
-            <div>
-              <p className="eyebrow">
-                {isList
-                  ? tx("LİSTE TASARIMI", "LIST DESIGN")
-                  : tx("SORGUNUZ", "YOUR QUERY")}
-              </p>
-              <h2>
-                {name ||
-                  (isList
-                    ? tx("Yeni liste", "New list")
-                    : tx("Yeni rapor", "New report"))}
-              </h2>
-              <small>
-                {source
-                  ? localizedCatalogLabel(source.label)
-                  : loading
-                    ? tx("Kaynak yükleniyor", "Loading source")
-                    : tx("Kaynak kullanılamıyor", "Source unavailable")}
-              </small>
-            </div>
-            {canDesign && <button
-              type="button"
-              className="secondary small-button"
-              disabled={busy}
-              onClick={newReport}
+      <div className="report-workspace" aria-busy={busy || loading}>
+        <aside
+          className="report-pane report-source-pane"
+          aria-labelledby="report-source-pane-title"
+        >
+          <h2 className="report-pane-title" id="report-source-pane-title">
+            {tx("Veri kaynağı ve alanlar", "Data source and fields")}
+          </h2>
+          <label className="report-pane-field">
+            <span>{tx("Veri kaynağı", "Data source")}</span>
+            <select
+              value={definition.source}
+              disabled={busy || loading || sources.length === 0}
+              onChange={(e) => {
+                const next = sources.find((s) => s.code === e.target.value);
+                const nextColumns = next?.columns ?? [];
+                setDrilldownBase(null);
+                setSelectedId("");
+                setFiltersOpen(false);
+                setDefinition({
+                  ...defaultDefinition,
+                  source: e.target.value,
+                  columns: e.target.value === "customSql" ? [] : nextColumns.slice(0, 5).map((c) => c.code),
+                  sortBy: e.target.value === "customSql" ? "sql" : nextColumns[0]?.code ?? defaultDefinition.sortBy,
+                  sqlQuery: e.target.value === "customSql" ? "" : undefined,
+                  companyIds: e.target.value === "customSql" ? companies.map((company) => company.id) : undefined,
+                });
+                setResult(null);
+              }}
             >
-              <Plus size={14} /> {tx("Yeni", "New")}{" "}
-              {isList ? tx("liste", "list") : tx("rapor", "report")}
-            </button>}
-          </div>
-          <div className="report-form-grid">
-            <label>
-              {tx("Veri kaynağı", "Data source")}
-              <select
-                value={definition.source}
-                disabled={busy || loading || sources.length === 0}
-                onChange={(e) => {
-                  const next = sources.find((s) => s.code === e.target.value);
-                  const nextColumns = next?.columns ?? [];
-                  setDrilldownBase(null);
-                  setSelectedId("");
-                  setDefinition({
-                    ...defaultDefinition,
-                    source: e.target.value,
-                    columns: e.target.value === "customSql" ? [] : nextColumns.slice(0, 5).map((c) => c.code),
-                    sortBy: e.target.value === "customSql" ? "sql" : nextColumns[0]?.code ?? defaultDefinition.sortBy,
-                    sqlQuery: e.target.value === "customSql" ? "" : undefined,
-                    companyIds: e.target.value === "customSql" ? companies.map((company) => company.id) : undefined,
-                  });
-                  setResult(null);
-                }}
-              >
-                {sources.length ? (
-                  sources.map((x) => (
-                    <option value={x.code} key={x.code}>
-                      {localizedCatalogLabel(x.label)}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">
-                    {loading
-                      ? tx("Kaynaklar yükleniyor…", "Loading sources…")
-                      : tx("Kullanılabilir kaynak yok", "No sources available")}
+              {sources.length ? (
+                sources.map((x) => (
+                  <option value={x.code} key={x.code}>
+                    {localizedCatalogLabel(x.label)}
                   </option>
-                )}
-              </select>
-            </label>
-            {isSqlQuery && (
-              <>
-                <div className="report-sql-query">
-                  <label htmlFor="report-sql-query">{tx("SQL sorgusu (salt okunur SELECT)", "SQL query (read-only SELECT)")}</label>
-                  <textarea
-                    id="report-sql-query"
-                    ref={sqlQueryRef}
-                    rows={11}
-                    spellCheck={false}
-                    value={definition.sqlQuery ?? ""}
-                    placeholder={'SELECT i.Code AS FaturaNo, c.Name AS Cari, c.TaxNumber AS VergiNo, i.GrandTotal\nFROM dbo.SalesInvoices AS i\nJOIN dbo.CustomerAccounts AS c ON c.Id = i.CustomerId'}
-                    onChange={(event) => update({ sqlQuery: event.target.value })}
-                  />
-                  <small>{tx("Sorgu seçtiğiniz firmalarda ayrı ayrı çalıştırılır; sonuçlarda Firma sütunu bulunur. En fazla 500 satır döndürülür.", "The query runs separately for each selected company; results include a Company column and are capped at 500 rows.")}</small>
-                  <button
-                    type="button"
-                    className="report-sql-schema-open secondary"
-                    onClick={() => setSqlSchemaOpen(true)}
-                  >
-                    <Database size={16} />
-                    {tx("Tablo ve alanları görüntüle", "Browse tables and fields")}
-                    <span>{sqlSchemaTables.length} {tx("tablo", "tables")}</span>
-                  </button>
-                  {sqlSchemaOpen && (
-                    <div className="report-sql-schema-backdrop" onMouseDown={(event) => {
-                      if (event.target === event.currentTarget) setSqlSchemaOpen(false);
-                    }}>
-                      <section className="report-sql-schema-dialog" role="dialog" aria-modal="true" aria-labelledby="report-sql-schema-title">
-                        <header>
-                          <div className="report-sql-schema-heading-icon"><Database size={19} /></div>
-                          <div>
-                            <p className="eyebrow">{tx("SORGUNUZ İÇİN", "FOR YOUR QUERY")}</p>
-                            <h2 id="report-sql-schema-title">{tx("Tablo ve alanlar", "Tables and fields")}</h2>
-                            <p>{tx("Bir tablo veya alan seçin; sorgu alanına eklenir.", "Select a table or field to insert it into the query.")}</p>
-                          </div>
-                          <button type="button" className="report-sql-schema-close" aria-label={tx("Kapat", "Close")} onClick={() => setSqlSchemaOpen(false)}><X size={18} /></button>
-                        </header>
-                        <label className="report-sql-schema-search">
-                          <Search size={16} />
-                          <input
-                            autoFocus
-                            type="search"
-                            aria-label={tx("Tablo ve alan ara", "Search tables and fields")}
-                            placeholder={tx("Tablo, alan veya veri türü ara…", "Search table, field, or data type…")}
-                            value={schemaSearch}
-                            onChange={(event) => setSchemaSearch(event.target.value)}
-                          />
-                          <span>{matchingSqlSchema.length} / {sqlSchemaTables.length}</span>
-                        </label>
-                        <div className="report-sql-schema-results">
-                          {matchingSqlSchema.map((table) => (
-                            <section key={`${table.schema}.${table.name}`}>
-                              <button type="button" className="report-sql-schema-table" onClick={() => insertSqlToken(`[${table.schema}].[${table.name}]`)}>
-                                <span><small>{table.schema}</small><b>{table.name}</b></span><ArrowRight size={15} />
-                              </button>
-                              {table.columns.map((column) => (
-                                <button type="button" className="report-sql-schema-column" key={column.name} onClick={() => insertSqlToken(`[${column.name}]`)}>
-                                  <span>{column.name}</span><small>{column.dataType}</small>
-                                </button>
-                              ))}
-                            </section>
-                          ))}
-                          {matchingSqlSchema.length === 0 && <div className="report-sql-schema-empty">{tx("Eşleşen tablo veya alan yok.", "No matching tables or fields.")}</div>}
-                        </div>
-                        <footer><span>{tx("Tablo adı eklemek için tablo satırını, alan eklemek için alan adını seçin.", "Choose a table row to insert its name, or a field to insert its column name.")}</span><button className="secondary" type="button" onClick={() => setSqlSchemaOpen(false)}>{tx("Tamam", "Done")}</button></footer>
-                      </section>
-                    </div>
-                  )}
-                </div>
-                <fieldset className="report-columns report-sql-companies" disabled={busy || loading}>
-                  <legend>{tx("Sorgunun çalışacağı firmalar", "Companies to query")}</legend>
-                  <div>
-                    {companies.map((company) => (
-                      <label key={company.id}>
-                        <input
-                          type="checkbox"
-                          checked={(definition.companyIds ?? []).includes(company.id)}
-                          onChange={(event) => update({ companyIds: event.target.checked
-                            ? [...new Set([...(definition.companyIds ?? []), company.id])]
-                            : (definition.companyIds ?? []).filter((id) => id !== company.id) })}
-                        />
-                        {company.name}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              </>
-            )}
-            {!isSqlQuery && !isList && (
-              <fieldset
-                className="report-columns report-group-fields"
-                disabled={busy}
-              >
-                <legend>
-                  {tx("Gruplama alanları", "Group by fields")} ·{" "}
-                  {groupingFields.length}/3
-                </legend>
-                <div>
-                  {columns.map((column) => (
-                    <label key={column.code}>
-                      <input
-                        type="checkbox"
-                        checked={groupingFields.includes(column.code)}
-                        disabled={
-                          !groupingFields.includes(column.code) &&
-                          groupingFields.length >= 3
-                        }
-                        onChange={(e) => {
-                          const next = e.target.checked
-                            ? [...groupingFields, column.code]
-                            : groupingFields.filter(
-                                (field) => field !== column.code,
-                              );
-                          update({
-                            groupBy: undefined,
-                            groupByFields: next.length ? next : undefined,
-                            aggregate: next.length
-                              ? (definition.aggregate ?? "count")
-                              : undefined,
-                          });
-                        }}
-                      />
-                      {localizedCatalogLabel(column.label)}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            {!isList && groupingFields.length > 0 && (
-              <label>
-                {tx("Toplama ölçüsü", "Aggregation")}
-                <select
-                  disabled={busy}
-                  value={
-                    aggregateOptions.some(
-                      (option) => option.code === definition.aggregate,
-                    )
-                      ? definition.aggregate
-                      : "count"
-                  }
-                  onChange={(e) => update({ aggregate: e.target.value })}
-                >
-                  {aggregateOptions.map((option) => (
-                    <option value={option.code} key={option.code}>
-                      {localizedCatalogLabel(option.label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {!isSqlQuery && groupingFields.length === 0 && (
-              <label>
-                {tx("Sıralama alanı", "Sort field")}
-                <select
-                  disabled={busy}
-                  value={definition.sortBy}
-                  onChange={(e) => update({ sortBy: e.target.value })}
-                >
-                  {columns.map((x) => (
-                    <option key={x.code} value={x.code}>
-                      {localizedCatalogLabel(x.label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {!isSqlQuery && <label className="report-sort-direction">
-              <span>
-                {groupingFields.length > 0
-                  ? tx("Grup sırası", "Group order")
-                  : tx("Sıralama yönü", "Sort direction")}
-              </span>
-              <button
-                type="button"
-                className="secondary small-button"
-                disabled={busy}
-                aria-pressed={definition.descending}
-                onClick={() => update({ descending: !definition.descending })}
-              >
-                {definition.descending
-                  ? tx("Azalan", "Descending")
-                  : tx("Artan", "Ascending")}
-              </button>
-            </label>}
-            {!isSqlQuery && <fieldset className="report-columns" disabled={busy}>
-              <legend>
-                {isList
-                  ? tx("Görünen alanlar", "Visible fields")
-                  : tx("Sütunlar", "Columns")}{" "}
-                · {definition.columns.length}/12
-              </legend>
-              <input
-                className="report-column-search"
-                type="search"
-                aria-label={tx("Alanlarda ara", "Search fields")}
-                placeholder={tx("Alanlarda ara", "Search fields")}
-                value={fieldSearch}
-                onChange={(event) => setFieldSearch(event.target.value)}
-              />
-              <div>
-                {matchingColumns.map((column) => (
-                  <label key={column.code}>
+                ))
+              ) : (
+                <option value="">
+                  {loading
+                    ? tx("Kaynaklar yükleniyor…", "Loading sources…")
+                    : tx("Kullanılabilir kaynak yok", "No sources available")}
+                </option>
+              )}
+            </select>
+          </label>
+          {isSqlQuery ? (
+            <fieldset className="report-field-list report-sql-companies" disabled={busy || loading}>
+              <legend>{tx("Sorgunun çalışacağı firmalar", "Companies to query")}</legend>
+              <div className="report-field-options">
+                {companies.map((company) => (
+                  <label key={company.id}>
                     <input
                       type="checkbox"
-                      checked={definition.columns.includes(column.code)}
-                      disabled={
-                        !definition.columns.includes(column.code) &&
-                        definition.columns.length >= 12
-                      }
-                      onChange={(e) =>
-                        update({
-                          columns: e.target.checked
-                            ? [...definition.columns, column.code]
-                            : definition.columns.filter(
-                                (x) => x !== column.code,
-                              ),
-                        })
-                      }
+                      checked={(definition.companyIds ?? []).includes(company.id)}
+                      onChange={(event) => update({ companyIds: event.target.checked
+                        ? [...new Set([...(definition.companyIds ?? []), company.id])]
+                        : (definition.companyIds ?? []).filter((id) => id !== company.id) })}
                     />
-                    {localizedCatalogLabel(column.label)}
+                    <span>{company.name}</span>
                   </label>
                 ))}
               </div>
-            </fieldset>}
-            {!isSqlQuery && <ReportFilters
-              columns={columns}
-              filters={definition.filters}
-              busy={busy}
-              onAdd={addFilter}
-              onChange={setFilter}
-              onRemove={(index) =>
-                update({
-                  filters: definition.filters.filter((_, i) => i !== index),
-                })
-              }
-            />}
-          </div>
-          <div className="report-builder-footer">
-            <label>
-              {isList
-                ? tx("Liste adı", "List name")
-                : tx("Rapor adı", "Report name")}
+            </fieldset>
+          ) : (
+            <>
+              <fieldset className="report-field-list" disabled={busy}>
+                <legend>
+                  {isList
+                    ? tx("Görünen alanlar", "Visible fields")
+                    : tx("Alanlar", "Fields")}
+                  <b className="report-count">{definition.columns.length}/12</b>
+                </legend>
+                <label className="report-field-search">
+                  <Search size={14} aria-hidden="true" />
+                  <input
+                    className="report-column-search"
+                    type="search"
+                    aria-label={tx("Alanlarda ara", "Search fields")}
+                    placeholder={tx("Alanlarda ara", "Search fields")}
+                    value={fieldSearch}
+                    onChange={(event) => setFieldSearch(event.target.value)}
+                  />
+                </label>
+                <div className="report-field-options">
+                  {matchingColumns.map((column) => (
+                    <label key={column.code}>
+                      <input
+                        type="checkbox"
+                        checked={definition.columns.includes(column.code)}
+                        disabled={
+                          !definition.columns.includes(column.code) &&
+                          definition.columns.length >= 12
+                        }
+                        onChange={(e) =>
+                          update({
+                            columns: e.target.checked
+                              ? [...definition.columns, column.code]
+                              : definition.columns.filter(
+                                  (x) => x !== column.code,
+                                ),
+                          })
+                        }
+                      />
+                      <span>{localizedCatalogLabel(column.label)}</span>
+                    </label>
+                  ))}
+                  {matchingColumns.length === 0 && (
+                    <p className="report-field-empty">
+                      {tx("Eşleşen alan yok.", "No matching fields.")}
+                    </p>
+                  )}
+                </div>
+              </fieldset>
+              <div className="report-sort-block">
+                {groupingFields.length === 0 && (
+                  <label className="report-pane-field">
+                    <span>{tx("Sıralama alanı", "Sort field")}</span>
+                    <select
+                      disabled={busy}
+                      value={definition.sortBy}
+                      onChange={(e) => update({ sortBy: e.target.value })}
+                    >
+                      {columns.map((x) => (
+                        <option key={x.code} value={x.code}>
+                          {localizedCatalogLabel(x.label)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <div className="report-pane-field report-sort-direction">
+                  <span id="report-sort-direction-label">
+                    {groupingFields.length > 0
+                      ? tx("Grup sırası", "Group order")
+                      : tx("Sıralama yönü", "Sort direction")}
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={busy}
+                    aria-pressed={definition.descending}
+                    aria-describedby="report-sort-direction-label"
+                    onClick={() => update({ descending: !definition.descending })}
+                  >
+                    {definition.descending
+                      ? tx("Azalan", "Descending")
+                      : tx("Artan", "Ascending")}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </aside>
+        <section
+          className="report-builder report-pane report-main-pane"
+          aria-label={isList ? tx("Liste tasarımı", "List design") : tx("Rapor tasarımı", "Report design")}
+        >
+          <div className="report-main-head">
+            <label className="report-name-field">
+              <span>
+                {isList
+                  ? tx("Liste adı", "List name")
+                  : tx("Rapor adı", "Report name")}
+              </span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -968,101 +877,246 @@ export default function ReportsPage({
                 disabled={!canDesign || !!drilldownBase || busy}
               />
             </label>
-            <div>
+            <small className="report-main-source">
+              {source
+                ? localizedCatalogLabel(source.label)
+                : loading
+                  ? tx("Kaynak yükleniyor", "Loading source")
+                  : tx("Kaynak kullanılamıyor", "Source unavailable")}
+            </small>
+            {canDesign && (
               <button
                 type="button"
-                className="primary"
-                disabled={
-                  busy ||
-                  loading ||
-                  sources.length === 0 ||
-                  (!isSqlQuery && definition.columns.length === 0) ||
-                  (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length))) ||
-                  definition.filters.some(
-                    (x) => x.operator !== "isNull" && !x.value.trim(),
-                  )
-                }
-                onClick={() => void run(1)}
+                className="secondary small-button"
+                disabled={busy}
+                onClick={() => {
+                  setFiltersOpen(false);
+                  newReport();
+                }}
               >
-                <Play size={15} />
-                {busy
-                  ? tx("Çalıştırılıyor…", "Running…")
-                  : isList
-                    ? tx("Listeyi görüntüle", "View list")
-                    : tx("Raporu çalıştır", "Run report")}
+                <Plus size={14} />
+                {isList ? tx("Yeni liste", "New list") : tx("Yeni rapor", "New report")}
               </button>
-              {canDesign && (
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={
-                    busy ||
-                    loading ||
-                    !!drilldownBase ||
-                    !name.trim() ||
-                    (!isSqlQuery && definition.columns.length === 0) ||
-                    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length)))
-                  }
-                  onClick={() => void save()}
-                >
-                  <Save size={15} />
-                  {selectedId
-                    ? tx("Değişiklikleri kaydet", "Save changes")
-                    : isList
-                      ? tx("Listeyi kaydet", "Save list")
-                      : tx("Raporu kaydet", "Save report")}
-                </button>
+            )}
+          </div>
+          {isSqlQuery ? (
+            <div className="report-sql-query">
+              <label htmlFor="report-sql-query">{tx("SQL sorgusu (salt okunur SELECT)", "SQL query (read-only SELECT)")}</label>
+              <textarea
+                id="report-sql-query"
+                ref={sqlQueryRef}
+                rows={11}
+                spellCheck={false}
+                value={definition.sqlQuery ?? ""}
+                placeholder={'SELECT i.Code AS FaturaNo, c.Name AS Cari, c.TaxNumber AS VergiNo, i.GrandTotal\nFROM dbo.SalesInvoices AS i\nJOIN dbo.CustomerAccounts AS c ON c.Id = i.CustomerId'}
+                onChange={(event) => update({ sqlQuery: event.target.value })}
+              />
+              <small>{tx("Sorgu seçtiğiniz firmalarda ayrı ayrı çalıştırılır; sonuçlarda Firma sütunu bulunur. En fazla 500 satır döndürülür.", "The query runs separately for each selected company; results include a Company column and are capped at 500 rows.")}</small>
+              <button
+                type="button"
+                className="report-sql-schema-open secondary"
+                onClick={() => setSqlSchemaOpen(true)}
+              >
+                <Database size={16} />
+                {tx("Tablo ve alanları görüntüle", "Browse tables and fields")}
+                <span>{sqlSchemaTables.length} {tx("tablo", "tables")}</span>
+              </button>
+              {sqlSchemaOpen && (
+                <div className="report-sql-schema-backdrop" onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setSqlSchemaOpen(false);
+                }}>
+                  <section className="report-sql-schema-dialog" role="dialog" aria-modal="true" aria-labelledby="report-sql-schema-title">
+                    <header>
+                      <div className="report-sql-schema-heading-icon"><Database size={19} /></div>
+                      <div>
+                        <p className="eyebrow">{tx("SORGUNUZ İÇİN", "FOR YOUR QUERY")}</p>
+                        <h2 id="report-sql-schema-title">{tx("Tablo ve alanlar", "Tables and fields")}</h2>
+                        <p>{tx("Bir tablo veya alan seçin; sorgu alanına eklenir.", "Select a table or field to insert it into the query.")}</p>
+                      </div>
+                      <button type="button" className="report-sql-schema-close" aria-label={tx("Kapat", "Close")} onClick={() => setSqlSchemaOpen(false)}><X size={18} /></button>
+                    </header>
+                    <label className="report-sql-schema-search">
+                      <Search size={16} />
+                      <input
+                        autoFocus
+                        type="search"
+                        aria-label={tx("Tablo ve alan ara", "Search tables and fields")}
+                        placeholder={tx("Tablo, alan veya veri türü ara…", "Search table, field, or data type…")}
+                        value={schemaSearch}
+                        onChange={(event) => setSchemaSearch(event.target.value)}
+                      />
+                      <span>{matchingSqlSchema.length} / {sqlSchemaTables.length}</span>
+                    </label>
+                    <div className="report-sql-schema-results">
+                      {matchingSqlSchema.map((table) => (
+                        <section key={`${table.schema}.${table.name}`}>
+                          <button type="button" className="report-sql-schema-table" onClick={() => insertSqlToken(`[${table.schema}].[${table.name}]`)}>
+                            <span><small>{table.schema}</small><b>{table.name}</b></span><ArrowRight size={15} />
+                          </button>
+                          {table.columns.map((column) => (
+                            <button type="button" className="report-sql-schema-column" key={column.name} onClick={() => insertSqlToken(`[${column.name}]`)}>
+                              <span>{column.name}</span><small>{column.dataType}</small>
+                            </button>
+                          ))}
+                        </section>
+                      ))}
+                      {matchingSqlSchema.length === 0 && <div className="report-sql-schema-empty">{tx("Eşleşen tablo veya alan yok.", "No matching tables or fields.")}</div>}
+                    </div>
+                    <footer><span>{tx("Tablo adı eklemek için tablo satırını, alan eklemek için alan adını seçin.", "Choose a table row to insert its name, or a field to insert its column name.")}</span><button className="secondary" type="button" onClick={() => setSqlSchemaOpen(false)}>{tx("Tamam", "Done")}</button></footer>
+                  </section>
+                </div>
               )}
             </div>
-          </div>
-          {selectedId && (
-            <section className="saved-history">
-              <div>
-                <h3>
-                  {tx("Tanım geçmişi", "Definition history")} ·{" "}
-                  {selectedRevision}
-                </h3>
-                <p>
-                  {tx(
-                    "Eski tanım geri yüklendiğinde yeni bir sürüm oluşturulur.",
-                    "Restoring an older definition creates a new revision.",
-                  )}
-                </p>
-              </div>
-              {history.map((item) => (
-                <article key={item.id}>
-                  <span>
-                    {tx("Sürüm", "Revision")} {item.revision} ·{" "}
-                    {new Date(item.createdAt).toLocaleString(locale)}
-                  </span>
-                  {admin && item.revision !== selectedRevision && (
-                    <button
-                      className="secondary small-button"
-                      disabled={busy}
-                      onClick={() => void restore(item)}
-                    >
-                      {tx("Bu sürümü geri yükle", "Restore this revision")}
-                    </button>
-                  )}
-                </article>
-              ))}
-            </section>
-          )}
-          <div className="report-security-note">
-            {tx(
-              "Yalnızca katalogdaki alanlar sorgulanır. Kayıtlar aktif tenant ile filtrelenir; liste/rapor çalıştırmaları ve tanım değişiklikleri audit kaydına yazılır.",
-              "Only catalog fields can be queried. Records are filtered to the active tenant; list/report runs and definition changes are written to the audit log.",
-            )}
-            {canDesign && !admin && (
-              <>
-                <br />
-                {tx(
-                  "Kaydettiğiniz liste ve rapor değişiklikleri firma genelinde hemen etkinleşir.",
-                  "Saved list and report changes take effect for the whole company immediately.",
+          ) : (
+            <div className="report-query-bar">
+              <div className="report-query-row" role="group" aria-labelledby="report-filter-bar-label">
+                <span className="report-query-label" id="report-filter-bar-label">
+                  {tx("Filtre", "Filter")}
+                  <b className="report-count">{definition.filters.length}/8</b>
+                </span>
+                <div className="report-chip-list">
+                  {definition.filters.map((filter, index) => {
+                    const text = filterChipText(filter);
+                    const incomplete = filter.operator !== "isNull" && !filter.value.trim();
+                    return (
+                      <span className={`report-chip${incomplete ? " incomplete" : ""}`} key={index}>
+                        <button
+                          type="button"
+                          className="report-chip-label"
+                          disabled={busy}
+                          title={tx("Koşulu düzenle", "Edit condition")}
+                          onClick={() => setFiltersOpen(true)}
+                        >
+                          {text}
+                        </button>
+                        <button
+                          type="button"
+                          className="report-chip-remove"
+                          aria-label={tx(`Koşulu kaldır: ${text}`, `Remove condition: ${text}`)}
+                          disabled={busy}
+                          onClick={() =>
+                            update({
+                              filters: definition.filters.filter((_, i) => i !== index),
+                            })
+                          }
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="report-chip-add"
+                    disabled={busy || definition.filters.length >= 8}
+                    onClick={() => {
+                      addFilter();
+                      setFiltersOpen(true);
+                    }}
+                  >
+                    <Plus size={13} />
+                    {tx("Koşul", "Condition")}
+                  </button>
+                </div>
+                {definition.filters.length > 0 && (
+                  <button
+                    type="button"
+                    className="report-query-toggle"
+                    aria-expanded={filtersOpen}
+                    aria-controls="report-filter-editor"
+                    onClick={() => setFiltersOpen((open) => !open)}
+                  >
+                    {filtersOpen
+                      ? tx("Düzenlemeyi kapat", "Close editor")
+                      : tx("Koşulları düzenle", "Edit conditions")}
+                  </button>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+              {filtersOpen && definition.filters.length > 0 && (
+                <div className="report-filter-editor" id="report-filter-editor">
+                  <ReportFilters
+                    columns={columns}
+                    filters={definition.filters}
+                    busy={busy}
+                    onAdd={addFilter}
+                    onChange={setFilter}
+                    onRemove={(index) =>
+                      update({
+                        filters: definition.filters.filter((_, i) => i !== index),
+                      })
+                    }
+                  />
+                </div>
+              )}
+              {!isList && (
+                <div className="report-query-row" role="group" aria-labelledby="report-group-bar-label">
+                  <span className="report-query-label" id="report-group-bar-label">
+                    {tx("Grupla", "Group by")}
+                    <b className="report-count">{groupingFields.length}/3</b>
+                  </span>
+                  <div className="report-chip-list">
+                    {groupingFields.map((field) => {
+                      const label = localizedCatalogLabel(columnMap.get(field)?.label ?? field);
+                      return (
+                        <span className="report-chip group" key={field}>
+                          <span className="report-chip-label">{label}</span>
+                          <button
+                            type="button"
+                            className="report-chip-remove"
+                            aria-label={tx(`Gruplamadan çıkar: ${label}`, `Remove from grouping: ${label}`)}
+                            disabled={busy}
+                            onClick={() => setGrouping(groupingFields.filter((x) => x !== field))}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <select
+                      className="report-chip-add report-chip-select"
+                      aria-label={tx("Gruplama alanı ekle", "Add grouping field")}
+                      value=""
+                      disabled={busy || groupingFields.length >= 3 || groupCandidates.length === 0}
+                      onChange={(e) => {
+                        if (e.target.value) setGrouping([...groupingFields, e.target.value]);
+                      }}
+                    >
+                      <option value="">
+                        {`+ ${tx("Alan", "Field")} (${groupingFields.length}/3)`}
+                      </option>
+                      {groupCandidates.map((column) => (
+                        <option value={column.code} key={column.code}>
+                          {localizedCatalogLabel(column.label)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {groupingFields.length > 0 && (
+                    <label className="report-aggregate-field">
+                      <span>{tx("Toplama ölçüsü", "Aggregation")}</span>
+                      <select
+                        disabled={busy}
+                        value={
+                          aggregateOptions.some(
+                            (option) => option.code === definition.aggregate,
+                          )
+                            ? definition.aggregate
+                            : "count"
+                        }
+                        onChange={(e) => update({ aggregate: e.target.value })}
+                      >
+                        {aggregateOptions.map((option) => (
+                          <option value={option.code} key={option.code}>
+                            {localizedCatalogLabel(option.label)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {busy && (
             <p className="report-loading" role="status" aria-live="polite">
               {tx("İşlem sürüyor…", "Working…")}
@@ -1117,6 +1171,21 @@ export default function ReportsPage({
               onPageChange={(page) => void run(page)}
             />
           )}
+          <div className="report-security-note">
+            {tx(
+              "Yalnızca katalogdaki alanlar sorgulanır. Kayıtlar aktif tenant ile filtrelenir; liste/rapor çalıştırmaları ve tanım değişiklikleri audit kaydına yazılır.",
+              "Only catalog fields can be queried. Records are filtered to the active tenant; list/report runs and definition changes are written to the audit log.",
+            )}
+            {canDesign && !admin && (
+              <>
+                <br />
+                {tx(
+                  "Kaydettiğiniz liste ve rapor değişiklikleri firma genelinde hemen etkinleşir.",
+                  "Saved list and report changes take effect for the whole company immediately.",
+                )}
+              </>
+            )}
+          </div>
         </section>
         <SavedReportsPanel
           isList={isList}
@@ -1133,7 +1202,41 @@ export default function ReportsPage({
           onOpen={(report) => void openReport(report)}
           onDuplicate={(report) => void duplicate(report)}
           onRemove={(report) => void remove(report)}
-        />
+        >
+          {selectedId && (
+            <section className="saved-history">
+              <div>
+                <h3>
+                  {tx("Tanım geçmişi", "Definition history")} ·{" "}
+                  {selectedRevision}
+                </h3>
+                <p>
+                  {tx(
+                    "Eski tanım geri yüklendiğinde yeni bir sürüm oluşturulur.",
+                    "Restoring an older definition creates a new revision.",
+                  )}
+                </p>
+              </div>
+              {history.map((item) => (
+                <article key={item.id}>
+                  <span>
+                    {tx("Sürüm", "Revision")} {item.revision} ·{" "}
+                    {new Date(item.createdAt).toLocaleString(locale)}
+                  </span>
+                  {admin && item.revision !== selectedRevision && (
+                    <button
+                      className="secondary small-button"
+                      disabled={busy}
+                      onClick={() => void restore(item)}
+                    >
+                      {tx("Bu sürümü geri yükle", "Restore this revision")}
+                    </button>
+                  )}
+                </article>
+              ))}
+            </section>
+          )}
+        </SavedReportsPanel>
       </div>
     </div>
   );

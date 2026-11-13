@@ -14,6 +14,8 @@ import { InventoryStockActionsMenu } from "./inventory/components/InventoryStock
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./inventory/inventory-list-v2.css";
+import "./inventory/inventory-modals.css";
+import { NegativeStockPolicyNote } from "./inventory/NegativeStockPolicyNote";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmLocalized, promptLocalized } from "./locale";
 import {
@@ -2776,14 +2778,7 @@ export function InventoryPage({
               </section>
             )}
           {section === "inventory-stock" && (
-            <div className="boundary-note">
-              <IconPack.ShieldCheck size={17} />
-              <span>
-                <b>Negatif stok koruması</b>Depo hareketleri sıralı ve tenant
-                kapsamlı kaydedilir. Stok değeri ağırlıklı ortalama bazında
-                gösterilir; maliyetsiz miktar ayrıca izlenir.
-              </span>
-            </div>
+            <NegativeStockPolicyNote token={token} />
           )}
           {categoryModal && (
             <div
@@ -4220,170 +4215,206 @@ export function InventoryPage({
               setWarehouseFieldCatalogModal(false);
           }}
         >
-          <div className="modal">
-            <div className="modal-head">
+          <div
+            className="modal inv-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="warehouse-field-catalog-title"
+          >
+            <div className="inv-modal-head">
               <div>
-                <p className="eyebrow">TENANT ÖZELLEŞTİRMESİ · DEPO</p>
-                <h2>Depo alan tanımları</h2>
+                <p className="inv-modal-eyebrow">Depo · Özel alanlar</p>
+                <h2 id="warehouse-field-catalog-title">Depo alan tanımları</h2>
+                <p className="inv-modal-sub">
+                  Depo kartlarına firmanıza özel alanlar ekleyin.
+                </p>
               </div>
               <button
-                className="icon-button"
+                type="button"
+                className="icon-button inv-modal-close"
+                aria-label="Kapat"
                 disabled={warehouseFieldBusy}
                 onClick={() => setWarehouseFieldCatalogModal(false)}
               >
-                <X size={19} />
+                <X size={18} />
               </button>
             </div>
-            <p className="muted">
-              Tenant kapsamındaki depo alanları. Zorunlu alan eklemek için önce
-              mevcut tüm depolarda değer bulunmalıdır.
-            </p>
-            <div className="requests-list">
-              {warehouseFieldDefinitions.map((field) => (
-                <article className="request-row" key={field.id}>
-                  <div className="request-info">
-                    <b>{field.label}</b>
-                    <small>
-                      {field.code} · {field.dataType}
-                      {field.dataType === "Text"
-                        ? ` · en fazla ${field.maxLength} karakter`
-                        : ""}
-                      {field.isRequired ? " · zorunlu" : ""} · v{field.version}
-                    </small>
-                  </div>
-                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                    <div>
-                      <button
-                        type="button"
-                        className="row-action"
-                        disabled={warehouseFieldBusy}
-                        onClick={() => void editWarehouseField(field)}
-                      >
-                        Tanımı düzenle
-                      </button>{" "}
-                      {role === "TenantAdmin" && (
-                        <button
-                          type="button"
-                          className="row-action danger-action"
-                          disabled={warehouseFieldBusy}
-                          onClick={() => void deactivateWarehouseField(field)}
-                        >
-                          Devre dışı bırak
-                        </button>
+            <div className="inv-modal-body">
+              {warehouseFieldDefinitions.length > 0 ? (
+                <ul className="inv-modal-list">
+                  {warehouseFieldDefinitions.map((field) => (
+                    <li className="inv-modal-row" key={field.id}>
+                      <span className="inv-modal-row-icon" aria-hidden="true">
+                        <IconPack.ListChecks size={16} />
+                      </span>
+                      <span className="inv-modal-row-text">
+                        <b>{field.label}</b>
+                        <small>
+                          <code>{field.code}</code> · {field.dataType}
+                          {field.dataType === "Text"
+                            ? ` · en fazla ${field.maxLength} karakter`
+                            : ""}
+                          {` · v${field.version}`}
+                        </small>
+                      </span>
+                      {field.isRequired && (
+                        <span className="inv-modal-pill is-warning">Zorunlu</span>
                       )}
-                    </div>
-                  )}
-                </article>
-              ))}
-              {warehouseFieldDefinitions.length === 0 && (
-                <div className="empty-small">
-                  Henüz depo alanı tanımlanmadı.
+                      {(role === "TenantAdmin" || role === "TenantDeveloper") && (
+                        <span className="inv-modal-row-actions">
+                          <button
+                            type="button"
+                            className="secondary small-button"
+                            disabled={warehouseFieldBusy}
+                            onClick={() => void editWarehouseField(field)}
+                          >
+                            Tanımı düzenle
+                          </button>
+                          {role === "TenantAdmin" && (
+                            <button
+                              type="button"
+                              className="row-action danger-action"
+                              disabled={warehouseFieldBusy}
+                              onClick={() => void deactivateWarehouseField(field)}
+                            >
+                              Devre dışı bırak
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="inv-modal-empty">
+                  <span className="inv-modal-row-icon" aria-hidden="true">
+                    <IconPack.ListPlus size={16} />
+                  </span>
+                  <span>
+                    <b>Henüz depo alanı tanımlanmadı.</b>
+                    <small>
+                      Aşağıdan ilk alanı ekleyin; tanımlanan alanlar burada
+                      listelenir.
+                    </small>
+                  </span>
                 </div>
               )}
-            </div>
-            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-              <form
-                onSubmit={createWarehouseField}
-                className="panel warehouse-field-create-form"
-                style={{ marginTop: 14 }}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <b>Yeni depo alanı</b>
-                    <small>Alan kodu tenant içinde yeniden kullanılamaz.</small>
-                  </div>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Alan kodu
-                    <input
-                      value={warehouseFieldCode}
-                      onChange={(e) =>
-                        setWarehouseFieldCode(e.target.value.toUpperCase())
-                      }
-                      required
-                      maxLength={40}
-                      placeholder="DEPO_BOLGE"
-                    />
-                  </label>
-                  <label>
-                    Ekran etiketi
-                    <input
-                      value={warehouseFieldLabel}
-                      onChange={(e) => setWarehouseFieldLabel(e.target.value)}
-                      required
-                      maxLength={120}
-                    />
-                  </label>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Veri türü
-                    <select
-                      value={warehouseFieldType}
-                      onChange={(e) =>
-                        setWarehouseFieldType(
-                          e.target
-                            .value as WarehouseCustomFieldDefinition["dataType"],
-                        )
-                      }
-                    >
-                      <option value="Text">Metin</option>
-                      <option value="Decimal">Ondalık sayı</option>
-                      <option value="Date">Tarih</option>
-                      <option value="Boolean">Evet/Hayır</option>
-                    </select>
-                  </label>
-                  {warehouseFieldType === "Text" && (
+              {(role === "TenantAdmin" || role === "TenantDeveloper") && (
+                <form
+                  id="warehouse-field-create-form"
+                  onSubmit={createWarehouseField}
+                  className="inv-modal-form"
+                >
+                  <h3>Yeni depo alanı</h3>
+                  <div className="inv-modal-grid">
                     <label>
-                      En fazla karakter
+                      <span>Ekran etiketi</span>
                       <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={warehouseFieldMaxLength}
-                        onChange={(e) =>
-                          setWarehouseFieldMaxLength(e.target.value)
-                        }
+                        value={warehouseFieldLabel}
+                        onChange={(e) => setWarehouseFieldLabel(e.target.value)}
                         required
+                        maxLength={120}
+                        placeholder="Depo bölgesi"
                       />
                     </label>
+                    <label>
+                      <span>Alan kodu</span>
+                      <input
+                        className="inv-modal-code-input"
+                        value={warehouseFieldCode}
+                        onChange={(e) =>
+                          setWarehouseFieldCode(e.target.value.toUpperCase())
+                        }
+                        required
+                        maxLength={40}
+                        placeholder="DEPO_BOLGE"
+                      />
+                      <small>Alan kodu tenant içinde yeniden kullanılamaz.</small>
+                    </label>
+                    <label>
+                      <span>Veri türü</span>
+                      <select
+                        value={warehouseFieldType}
+                        onChange={(e) =>
+                          setWarehouseFieldType(
+                            e.target
+                              .value as WarehouseCustomFieldDefinition["dataType"],
+                          )
+                        }
+                      >
+                        <option value="Text">Metin</option>
+                        <option value="Decimal">Ondalık sayı</option>
+                        <option value="Date">Tarih</option>
+                        <option value="Boolean">Evet/Hayır</option>
+                      </select>
+                    </label>
+                    {warehouseFieldType === "Text" && (
+                      <label>
+                        <span>En fazla karakter</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={warehouseFieldMaxLength}
+                          onChange={(e) =>
+                            setWarehouseFieldMaxLength(e.target.value)
+                          }
+                          required
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {role === "TenantAdmin" ? (
+                    <label className="inv-modal-switch">
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={warehouseFieldRequired}
+                        onChange={(e) =>
+                          setWarehouseFieldRequired(e.target.checked)
+                        }
+                      />
+                      <span>
+                        <b>Bu alanı zorunlu yap</b>
+                        <small>Mevcut depo değerlerini önce tamamlayın.</small>
+                      </span>
+                    </label>
+                  ) : (
+                    <p className="inv-modal-hint">
+                      Geliştirici alanları isteğe bağlıdır.
+                    </p>
                   )}
-                </div>
-                {role === "TenantAdmin" ? (
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={warehouseFieldRequired}
-                      onChange={(e) =>
-                        setWarehouseFieldRequired(e.target.checked)
-                      }
-                    />{" "}
-                    Bu alanı zorunlu yap
-                  </label>
-                ) : (
-                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-                )}
-                <div className="modal-foot">
-                  <span>Mevcut depo değerlerini önce tamamlayın.</span>
-                  <button className="secondary" disabled={warehouseFieldBusy}>
+                </form>
+              )}
+            </div>
+            <div className="inv-modal-foot">
+              <span>
+                <IconPack.History size={14} aria-hidden="true" />
+                <span>Değerlerin değişiklik geçmişi depo kartından açılır.</span>
+              </span>
+              <span className="inv-modal-foot-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setWarehouseFieldCatalogModal(false)}
+                >
+                  Kapat
+                </button>
+                {(role === "TenantAdmin" || role === "TenantDeveloper") && (
+                  <button
+                    type="submit"
+                    form="warehouse-field-create-form"
+                    className="primary"
+                    disabled={warehouseFieldBusy}
+                  >
                     Alan tanımı ekle
                   </button>
-                </div>
-              </form>
-            )}
-            <div className="modal-foot">
-              <span>Değerlerin değişiklik geçmişi depo kartından açılır.</span>
-              <button
-                className="secondary"
-                onClick={() => setWarehouseFieldCatalogModal(false)}
-              >
-                Kapat
-              </button>
+                )}
+              </span>
             </div>
           </div>
         </div>
-      )}{" "}
+      )}
       {warehouseAdminModal && (
         <div
           className="modal-backdrop"
@@ -4392,74 +4423,129 @@ export function InventoryPage({
               setWarehouseAdminModal(false);
           }}
         >
-          <div className="modal">
-            <div className="modal-head">
+          <div
+            className="modal inv-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="warehouse-admin-title"
+          >
+            <div className="inv-modal-head">
               <div>
-                <p className="eyebrow">STOK & DEPO</p>
-                <h2>Depo yönetimi</h2>
+                <p className="inv-modal-eyebrow">Stok ve depo</p>
+                <h2 id="warehouse-admin-title">Depo yönetimi</h2>
               </div>
               <button
-                className="icon-button"
+                type="button"
+                className="icon-button inv-modal-close"
+                aria-label="Kapat"
                 disabled={busy}
                 onClick={() => setWarehouseAdminModal(false)}
               >
-                <X size={19} />
+                <X size={18} />
               </button>
             </div>
-            <p className="muted">
-              Devre dışı depolar yeni stok hareketi ve transferde kullanılamaz.
-              Sıfırdan farklı bakiyesi olan depo kapatılamaz.
-            </p>
-            <div className="requests-list">
-              {warehouses.map((warehouse) => (
-                <article className="request-row" key={warehouse.id}>
-                  <div className="request-info">
-                    <b>
-                      {warehouse.code} · {warehouse.name}
-                    </b>
-                    <small>
-                      {warehouse.isActive ? "Etkin" : "Devre dışı"}
-                      {warehouse.id === warehouseId ? " · seçili depo" : ""}
-                    </small>
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      className="row-action"
-                      disabled={warehouseFieldBusy}
-                      onClick={() => void openWarehouseFields(warehouse)}
-                    >
-                      Özel alanlar
-                    </button>
-                    <button
-                      className="secondary small-button"
-                      disabled={busy}
-                      onClick={() => void editWarehouse(warehouse)}
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      className={
-                        warehouse.isActive
-                          ? "row-action danger-action"
-                          : "secondary small-button"
-                      }
-                      disabled={busy}
-                      onClick={() => void toggleWarehouse(warehouse)}
-                    >
-                      {warehouse.isActive
-                        ? "Devre dışı bırak"
-                        : "Yeniden etkinleştir"}
-                    </button>
-                  </div>
-                </article>
-              ))}
-              {warehouses.length === 0 && (
-                <div className="empty-small">Henüz depo oluşturulmadı.</div>
+            <div className="inv-modal-body">
+              <p className="inv-modal-info">
+                <IconPack.Info size={16} aria-hidden="true" />
+                <span>
+                  Devre dışı depolar yeni stok hareketi ve transferde
+                  kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.
+                </span>
+              </p>
+              {warehouses.length > 0 ? (
+                <ul className="inv-modal-list">
+                  {warehouses.map((warehouse) => (
+                    <li className="inv-modal-row" key={warehouse.id}>
+                      <span className="inv-modal-row-icon" aria-hidden="true">
+                        <IconPack.Warehouse size={16} />
+                      </span>
+                      <span className="inv-modal-row-text">
+                        <b>{warehouse.name}</b>
+                        <small>
+                          <code>{warehouse.code}</code>
+                          {warehouse.id === warehouseId ? " · seçili depo" : ""}
+                        </small>
+                      </span>
+                      <span
+                        className={`inv-modal-pill ${warehouse.isActive ? "is-success" : "is-muted"}`}
+                      >
+                        {warehouse.isActive ? "Etkin" : "Devre dışı"}
+                      </span>
+                      <span className="inv-modal-row-actions">
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          disabled={busy}
+                          onClick={() => void editWarehouse(warehouse)}
+                        >
+                          Düzenle
+                        </button>
+                        <details className="inv-modal-more">
+                          <summary aria-label="Diğer işlemler" title="Diğer işlemler">
+                            <IconPack.Ellipsis size={16} aria-hidden="true" />
+                          </summary>
+                          <div className="inv-modal-menu" role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              disabled={warehouseFieldBusy}
+                              onClick={(e) => {
+                                e.currentTarget
+                                  .closest("details")
+                                  ?.removeAttribute("open");
+                                void openWarehouseFields(warehouse);
+                              }}
+                            >
+                              <IconPack.ListChecks size={15} aria-hidden="true" />
+                              <span>Özel alanlar</span>
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className={warehouse.isActive ? "is-danger" : ""}
+                              disabled={busy}
+                              onClick={(e) => {
+                                e.currentTarget
+                                  .closest("details")
+                                  ?.removeAttribute("open");
+                                void toggleWarehouse(warehouse);
+                              }}
+                            >
+                              {warehouse.isActive ? (
+                                <IconPack.Ban size={15} aria-hidden="true" />
+                              ) : (
+                                <IconPack.RotateCcw size={15} aria-hidden="true" />
+                              )}
+                              <span>
+                                {warehouse.isActive
+                                  ? "Devre dışı bırak"
+                                  : "Yeniden etkinleştir"}
+                              </span>
+                            </button>
+                          </div>
+                        </details>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="inv-modal-empty">
+                  <span className="inv-modal-row-icon" aria-hidden="true">
+                    <IconPack.Warehouse size={16} />
+                  </span>
+                  <span>
+                    <b>Henüz depo oluşturulmadı.</b>
+                  </span>
+                </div>
               )}
             </div>
-            <div className="modal-foot">
-              <span>Depo hareket geçmişi korunur.</span>
+            <div className="inv-modal-foot">
+              <span>
+                <IconPack.History size={14} aria-hidden="true" />
+                <span>Depo hareket geçmişi korunur.</span>
+              </span>
               <button
+                type="button"
                 className="secondary"
                 onClick={() => setWarehouseAdminModal(false)}
               >

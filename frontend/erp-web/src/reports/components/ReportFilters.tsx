@@ -11,6 +11,23 @@ type Props = {
   onRemove: (index: number) => void;
 };
 
+/** Visible label of a filter operator; shared by the filter editor and the filter chips. */
+export function operatorLabel(op: string) {
+  return (
+    (
+      {
+        contains: tx("İçerir", "Contains"),
+        equals: tx("Eşittir", "Equals"),
+        gt: tx("Büyüktür", "Greater than"),
+        gte: tx("En az", "At least"),
+        lt: tx("Küçüktür", "Less than"),
+        lte: tx("En çok", "At most"),
+        isNull: tx("Boş", "Is empty"),
+      } as Record<string, string>
+    )[op] ?? op
+  );
+}
+
 function operatorsFor(column: Column | undefined) {
   if (!column) return ["equals"];
   if (column.code === "startedByUserId") return ["equals"];
@@ -171,19 +188,7 @@ export function ReportFilters({
             >
               {operatorsFor(field).map((op) => (
                 <option value={op} key={op}>
-                  {
-                    (
-                      {
-                        contains: tx("İçerir", "Contains"),
-                        equals: tx("Eşittir", "Equals"),
-                        gt: tx("Büyüktür", "Greater than"),
-                        gte: tx("En az", "At least"),
-                        lt: tx("Küçüktür", "Less than"),
-                        lte: tx("En çok", "At most"),
-                        isNull: tx("Boş", "Is empty"),
-                      } as Record<string, string>
-                    )[op]
-                  }
+                  {operatorLabel(op)}
                 </option>
               ))}
             </select>

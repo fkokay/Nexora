@@ -53,3 +53,48 @@
   display: block;
   min-width: 0;
 }
+
+/* Stock-card policy note: one-line strip with a status badge (see NegativeStockPolicyNote). */
+#root .inventory-list-v2 .stock-policy-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #17263a;
+}
+#root .inventory-list-v2 .stock-policy-note-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #e8f6ee;
+  color: #1c7a4a;
+}
+#root .inventory-list-v2 .stock-policy-note-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+#root .inventory-list-v2 .stock-policy-note-text b { font-size: 13px; font-weight: 650; }
+#root .inventory-list-v2 .stock-policy-note-text small { color: #5b6b80; font-size: 12px; line-height: 1.45; }
+#root .inventory-list-v2 .stock-policy-note-badge {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #e8f6ee;
+  color: #1c7a4a;
+  font-size: 11px;
+  font-weight: 650;
+}
+#root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-icon,
+#root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: #fff4dc; color: #8a5a05; }
+#root .inventory-list-v2 .stock-policy-note.is-unknown .stock-policy-note-icon { background: #eef2f7; color: #45566d; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note { border-color: #35435b; background: #1a263a; color: #e7edf5; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-text small { color: #a7b4c6; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-icon,
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-badge { background: #173a2a; color: #8ee0b2; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-icon,
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: #3a2e12; color: #f3c867; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .stock-policy-note-icon { background: #253247; color: #c2cfe0; }

@@ -3542,14 +3542,37 @@ function PurchaseInvoicesScreen({
           description="Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin."
           count={total}
         >
-          <button
-            type="button"
-            className="primary"
-            onClick={() => onNavigate("sales-purchase-invoice-entry")}
-          >
-            <Plus size={16} />
-            Fatura ekle
-          </button>
+          <details className="purchase-invoice-add-menu">
+            <summary className="primary" aria-haspopup="menu">
+              <Plus size={16} />
+              Fatura ekle
+              <ChevronDown size={15} aria-hidden="true" />
+            </summary>
+            <div className="purchase-invoice-add-options" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(e) => {
+                  e.currentTarget.closest("details")?.removeAttribute("open");
+                  onNavigate("sales-purchase-invoice-entry");
+                }}
+              >
+                <b>Mal kabulünden fatura</b>
+                <small>Faturalanmamış bir mal kabulünü seçip faturasını girin.</small>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(e) => {
+                  e.currentTarget.closest("details")?.removeAttribute("open");
+                  onNavigate("sales-purchase-invoice-drafts");
+                }}
+              >
+                <b>Mal kabulsüz fatura</b>
+                <small>Sipariş veya mal kabulü olmayan tedarikçi faturasını taslak olarak girin.</small>
+              </button>
+            </div>
+          </details>
         </ListPageHeader>
         <ListToolbar
           search={query}

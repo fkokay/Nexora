@@ -319,6 +319,18 @@ const statusLabel: Record<string, string> = {
   Completed: "Tamamlandı",
   Cancelled: "İptal edildi",
 };
+const operationStatusLabel: Record<string, string> = {
+  Planned: "Bekliyor",
+  InProgress: "Devam ediyor",
+  Completed: "Tamamlandı",
+};
+const decimalText = (value: number, digits = 2) =>
+  new Intl.NumberFormat("tr-TR", { maximumFractionDigits: digits }).format(value);
+/** Actual minutes once an operation is completed, planned minutes before that. */
+const operationMinutes = (operation: OrderOperation) =>
+  operation.status === "Completed"
+    ? (operation.actualSetupMinutes ?? 0) + (operation.actualRunMinutes ?? 0)
+    : operation.setupMinutes + operation.runMinutes;
 const formatBaseAmount = (amount: number, code: string) => {
   try {
     return new Intl.NumberFormat("tr-TR", {
@@ -1850,6 +1862,10 @@ export default function ManufacturingPage({
   const visibleOrderFields = orderScreenFields
     .filter((field) => field.key !== "actions" && (field.visible || field.fixed))
     .sort((a, b) => a.position - b.position);
+  // Without a plan date column the order cell shows the date under the code.
+  const orderPlanDateVisible = visibleOrderFields.some(
+    (field) => field.key === "plannedDate",
+  );
   const filteredBoms = boms.filter((bom) =>
     (!recipeStatus || bom.isActive === (recipeStatus === "Active")) &&
     `${bom.code} ${bom.name} ${bom.productName}`
@@ -3673,240 +3689,96 @@ export default function ManufacturingPage({
                             >
                               {x.code}
                             </button>
+                            {!orderPlanDateVisible && (
+                              <small className="manufacturing-order-cell-sub">
+                                {x.plannedDate}
+                              </small>
+                            )}
                           </>
                         ),
                         plannedDate: <>{x.plannedDate}</>,
                         productionSource: <>{x.sourceSalesOrderCode
                           ? `${x.sourceSalesOrderCode} · satır ${x.sourceSalesOrderLineNumber}`
                           : "Stoka üretim"}</>,
-                        billOfMaterialName: (
-                          <>
-                            <span className="manufacturing-order-recipe-name">
-                              {x.billOfMaterialName}
-                            </span>
-                            {x.operations.map((op) => (
-                              <div
-                                className="manufacturing-operation-detail"
-                                key={op.id}
+                        billOfMaterialName: (() => {
+                          const bom = boms.find(
+                            (candidate) => candidate.id === x.billOfMaterialId,
+                          );
+                          const recipeTitle = bom
+                            ? `${bom.code} · ${bom.productName}`
+                            : x.billOfMaterialName;
+                          const totalOperations = x.operations.length;
+                          const completedOperations = x.operations.filter(
+                            (operation) => operation.status === "Completed",
+                          ).length;
+                          const totalMinutes = x.operations.reduce(
+                            (sum, operation) => sum + operationMinutes(operation),
+                            0,
+                          );
+                          return (
+                            <>
+                              <span
+                                className="manufacturing-order-recipe-name"
+                                title={x.billOfMaterialName}
                               >
-                                <small>
-                                  {op.sequence}. {op.workCenterCode}: plan{" "}
-                                  {op.setupMinutes + op.runMinutes} dk ·{" "}
-                                  {op.plannedEnergyQuantityKwh.toLocaleString(
-                                    "tr-TR",
-                                  )}{" "}
-                                  kWh enerji (
-                                  {new Intl.NumberFormat("tr-TR", {
-                                    maximumFractionDigits: 2,
-                                  }).format(op.plannedEnergyCostBase)}{" "}
-                                  baz para) · operasyon toplamı{" "}
-                                  {new Intl.NumberFormat("tr-TR", {
-                                    maximumFractionDigits: 2,
-                                  }).format(op.plannedCostBase)}{" "}
-                                  baz para
-                                  {op.scheduledStartDate
-                                    ? ` · ${op.scheduledStartDate} ${secondTime(op.scheduledStartSecondOfDay ?? (op.scheduledStartMinuteOfDay ?? 0) * 60)}–${op.scheduledEndDate} ${secondTime(op.scheduledEndSecondOfDay ?? (op.scheduledEndMinuteOfDay ?? 0) * 60)}`
-                                    : ""}
+                                {recipeTitle}
+                              </span>
+                              {totalOperations > 0 ? (
+                                <span className="manufacturing-order-progress">
+                                  <span
+                                    className="manufacturing-order-progress-bar"
+                                    aria-hidden="true"
+                                  >
+                                    <span
+                                      className={
+                                        completedOperations === totalOperations
+                                          ? "is-done"
+                                          : ""
+                                      }
+                                      style={{
+                                        width: `${Math.round((completedOperations / totalOperations) * 100)}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  <small>{`${completedOperations}/${totalOperations} operasyon · ${decimalText(totalMinutes)} dk`}</small>
+                                </span>
+                              ) : (
+                                <small className="manufacturing-order-cell-sub">
+                                  Operasyon rotası tanımlı değil.
                                 </small>
-                                {op.capacityDays.map((slot) => (
-                                  <small key={slot.date}>
-                                    {" "}
-                                    · {slot.date}{" "}
-                                    {secondTime(
-                                      slot.startSecondOfDay ??
-                                        slot.startMinuteOfDay * 60,
-                                    )}
-                                    –
-                                    {secondTime(
-                                      slot.endSecondOfDay ??
-                                        slot.endMinuteOfDay * 60,
-                                    )}{" "}
-                                    ({slot.minutes} dk)
-                                  </small>
-                                ))}
-                                {x.status === "Released" &&
-                                  op.status === "Planned" && (
-                                    <button
-                                      className="secondary small-button"
-                                      disabled={busy}
-                                      onClick={() => void startOperation(x, op)}
-                                    >
-                                      Operasyonu başlat
-                                    </button>
-                                  )}
-                                {x.status === "Released" &&
-                                  op.status === "InProgress" && (
-                                    <div className="actual-time-entry">
-                                      <label>
-                                        Kurulum dk
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={
-                                            actualTimes[op.id]?.setup ??
-                                            String(op.setupMinutes)
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(
-                                              op,
-                                              "setup",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Çalışma dk
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={
-                                            actualTimes[op.id]?.run ??
-                                            String(op.runMinutes)
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(
-                                              op,
-                                              "run",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Enerji kWh
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.001"
-                                          value={
-                                            actualTimes[op.id]?.energyKwh ?? "0"
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(
-                                              op,
-                                              "energyKwh",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Baz para / kWh
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.000001"
-                                          value={
-                                            actualTimes[op.id]?.energyRate ??
-                                            "0"
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(
-                                              op,
-                                              "energyRate",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Operatör
-                                        <select
-                                          value={
-                                            actualTimes[op.id]?.employeeId ??
-                                            (employees.length === 1 ? employees[0].id : "")
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "employeeId", e.target.value)
-                                          }
-                                          required
-                                        >
-                                          <option value="">Personel seçin</option>
-                                          {employees.map((employee) => (
-                                            <option key={employee.id} value={employee.id}>
-                                              {employee.personnelCode} · {employee.fullName}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                      <button
-                                        className="primary small-button"
-                                        disabled={busy || employees.length === 0}
-                                        onClick={() =>
-                                          void completeOperation(x, op)
-                                        }
-                                      >
-                                        Fiili kayıtları kaydet
-                                      </button>
-                                    </div>
-                                  )}
-                                {op.status === "Completed" && (
-                                  <small className="actual-cost">
-                                    Tamamlandı · fiili{" "}
-                                    {(
-                                      (op.actualSetupMinutes ?? 0) +
-                                      (op.actualRunMinutes ?? 0)
-                                    ).toLocaleString("tr-TR")}{" "}
-                                    dk · enerji{" "}
-                                    {(
-                                      op.actualEnergyQuantityKwh ?? 0
-                                    ).toLocaleString("tr-TR")}{" "}
-                                    kWh (
-                                    {new Intl.NumberFormat("tr-TR", {
-                                      maximumFractionDigits: 2,
-                                    }).format(
-                                      op.actualEnergyCostBase ?? 0,
-                                    )}{" "}
-                                    baz para) · toplam{" "}
-                                    {new Intl.NumberFormat("tr-TR", {
-                                      maximumFractionDigits: 2,
-                                    }).format(op.actualCostBase ?? 0)}{" "}
-                                    baz para{op.performedByEmployeeName ? ` · Operatör: ${op.performedByEmployeeName}` : ""}
-                                  </small>
-                                )}
-                              </div>
-                            ))}
-                          </>
-                        ),
+                              )}
+                            </>
+                          );
+                        })(),
                         warehouseName: <>{x.warehouseName}</>,
                         plannedQuantity: (
                           <>{x.plannedQuantity.toLocaleString("tr-TR")}</>
                         ),
-                        components: (
+                        components: x.lines.length ? (
                           <>
-                            <div className="manufacturing-components">
-                              {x.lines.map((l) => (
-                                <span key={l.componentStockItemId}>
-                                  {l.componentCode}:{" "}
-                                  {l.requiredQuantity.toLocaleString("tr-TR")} ×{" "}
-                                  {l.standardUnitCostBaseSnapshot.toLocaleString(
-                                    "tr-TR",
-                                    { maximumFractionDigits: 4 },
-                                  )}{" "}
-                                  ={" "}
-                                  {l.plannedCostBase.toLocaleString("tr-TR", {
-                                    maximumFractionDigits: 4,
-                                  })}{" "}
-                                  baz para
-                                </span>
-                              ))}
-                              <b>
-                                Planlanan malzeme:{" "}
-                                {x.lines
-                                  .reduce(
-                                    (sum, line) => sum + line.plannedCostBase,
-                                    0,
-                                  )
-                                  .toLocaleString("tr-TR", {
-                                    maximumFractionDigits: 4,
-                                  })}{" "}
-                                baz para
-                              </b>
-                            </div>
+                            <span
+                              className="manufacturing-order-cell-main"
+                              title={x.lines
+                                .map(
+                                  (line) =>
+                                    `${line.componentCode} · ${line.componentName}`,
+                                )
+                                .join("\n")}
+                            >
+                              {x.lines.map((line) => line.componentCode).join(", ")}
+                            </span>
+                            <small className="manufacturing-order-cell-sub">
+                              {`Planlanan malzeme: ${decimalText(
+                                x.lines.reduce(
+                                  (sum, line) => sum + line.plannedCostBase,
+                                  0,
+                                ),
+                                4,
+                              )} baz para`}
+                            </small>
                           </>
+                        ) : (
+                          <>—</>
                         ),
                         status: (
                           <>
@@ -3941,13 +3813,11 @@ export default function ManufacturingPage({
               >
                 {selectedOrder ? (
                   <>
-                    <div className="list-v2-detail-head">
+                    <div className="list-v2-detail-head manufacturing-inspector-head">
                       <div>
-                        <span className="list-v2-kind">SEÇİLİ ÜRETİM EMRİ</span>
+                        <span className="list-v2-kind">Üretim emri</span>
                         <h2>{selectedOrder.code}</h2>
                       </div>
-                    </div>
-                    <div className="list-v2-detail-meta">
                       <span
                         className={
                           "manufacturing-status manufacturing-" +
@@ -4008,32 +3878,34 @@ export default function ManufacturingPage({
                       </div>
                     </div>
                     )}
+                    <div className="manufacturing-inspector-stats">
+                      <div>
+                        <span>Miktar</span>
+                        <b>
+                          {selectedOrder.plannedQuantity.toLocaleString(
+                            "tr-TR",
+                          )}
+                        </b>
+                      </div>
+                      <div>
+                        <span>Plan tarihi</span>
+                        <b>{selectedOrder.plannedDate}</b>
+                      </div>
+                    </div>
                     <dl className="list-v2-facts">
                       <div>
                         <dt>Reçete</dt>
                         <dd>{selectedOrder.billOfMaterialName}</dd>
                       </div>
                       <div>
-                        <dt>Üretim deposu</dt>
+                        <dt>Depo</dt>
                         <dd>{selectedOrder.warehouseName}</dd>
-                      </div>
-                      <div>
-                        <dt>Planlanan miktar</dt>
-                        <dd>
-                          {selectedOrder.plannedQuantity.toLocaleString(
-                            "tr-TR",
-                          )}
-                        </dd>
                       </div>
                       <div>
                         <dt>Üretim türü</dt>
                         <dd>{selectedOrder.sourceSalesOrderCode
                           ? `Siparişe özel · ${selectedOrder.sourceSalesOrderCode} / satır ${selectedOrder.sourceSalesOrderLineNumber}`
                           : "Stoka üretim"}</dd>
-                      </div>
-                      <div>
-                        <dt>Plan tarihi</dt>
-                        <dd>{selectedOrder.plannedDate}</dd>
                       </div>
                       {selectedOrder.actualGoodQuantity !== null && (
                         <>
@@ -4052,13 +3924,180 @@ export default function ManufacturingPage({
                       )}
                     </dl>
                     <div className="manufacturing-inspector-section">
-                      <b>Bileşen ihtiyacı</b>
+                      <b>Operasyonlar</b>
+                      {selectedOrder.operations.length ? (
+                        <ul className="manufacturing-op-cards">
+                          {selectedOrder.operations.map((op) => {
+                            const isCompleted = op.status === "Completed";
+                            const windowText = op.scheduledStartDate
+                              ? `${op.scheduledStartDate} ${secondTime(op.scheduledStartSecondOfDay ?? (op.scheduledStartMinuteOfDay ?? 0) * 60)}–${op.scheduledEndDate} ${secondTime(op.scheduledEndSecondOfDay ?? (op.scheduledEndMinuteOfDay ?? 0) * 60)}`
+                              : "";
+                            return (
+                              <li
+                                key={op.id}
+                                className={`manufacturing-op-card is-${op.status.toLowerCase()}`}
+                              >
+                                <div className="manufacturing-op-card-head">
+                                  <span>{`${op.sequence} · ${op.workCenterCode}`}</span>
+                                  <b>{`${decimalText(operationMinutes(op))} dk`}</b>
+                                </div>
+                                <small className="manufacturing-op-card-meta">
+                                  <span className="manufacturing-op-card-status">
+                                    {operationStatusLabel[op.status] || op.status}
+                                  </span>
+                                  {isCompleted ? (
+                                    <>
+                                      <span>{`${decimalText(op.actualEnergyQuantityKwh ?? 0, 3)} kWh enerji`}</span>
+                                      <span>{`fiili ${decimalText(op.actualCostBase ?? 0)} baz para`}</span>
+                                      {op.performedByEmployeeName && (
+                                        <span>{`Operatör: ${op.performedByEmployeeName}`}</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{`${decimalText(op.plannedEnergyQuantityKwh, 3)} kWh enerji`}</span>
+                                      <span>{`plan ${decimalText(op.plannedCostBase)} baz para`}</span>
+                                      {windowText && <span>{windowText}</span>}
+                                    </>
+                                  )}
+                                </small>
+                                {!isCompleted && op.capacityDays.length > 1 && (
+                                  <small className="manufacturing-op-card-meta">
+                                    {op.capacityDays.map((slot) => (
+                                      <span key={slot.date}>
+                                        {`${slot.date} ${secondTime(slot.startSecondOfDay ?? slot.startMinuteOfDay * 60)}–${secondTime(slot.endSecondOfDay ?? slot.endMinuteOfDay * 60)} (${slot.minutes} dk)`}
+                                      </span>
+                                    ))}
+                                  </small>
+                                )}
+                                {selectedOrder.status === "Released" &&
+                                  op.status === "Planned" && (
+                                    <button
+                                      type="button"
+                                      className="secondary small-button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void startOperation(selectedOrder, op)
+                                      }
+                                    >
+                                      Operasyonu başlat
+                                    </button>
+                                  )}
+                                {selectedOrder.status === "Released" &&
+                                  op.status === "InProgress" && (
+                                    <div className="actual-time-entry">
+                                      <label>
+                                        Kurulum dk
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={
+                                            actualTimes[op.id]?.setup ??
+                                            String(op.setupMinutes)
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "setup", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Çalışma dk
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={
+                                            actualTimes[op.id]?.run ??
+                                            String(op.runMinutes)
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "run", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Enerji kWh
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.001"
+                                          value={
+                                            actualTimes[op.id]?.energyKwh ?? "0"
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "energyKwh", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Baz para / kWh
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.000001"
+                                          value={
+                                            actualTimes[op.id]?.energyRate ?? "0"
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "energyRate", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label className="is-wide">
+                                        Operatör
+                                        <select
+                                          value={
+                                            actualTimes[op.id]?.employeeId ??
+                                            (employees.length === 1 ? employees[0].id : "")
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "employeeId", e.target.value)
+                                          }
+                                          required
+                                        >
+                                          <option value="">Personel seçin</option>
+                                          {employees.map((employee) => (
+                                            <option key={employee.id} value={employee.id}>
+                                              {employee.personnelCode} · {employee.fullName}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <button
+                                        type="button"
+                                        className="primary small-button"
+                                        disabled={busy || employees.length === 0}
+                                        onClick={() =>
+                                          void completeOperation(selectedOrder, op)
+                                        }
+                                      >
+                                        Fiili kayıtları kaydet
+                                      </button>
+                                    </div>
+                                  )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <small>Operasyon rotası tanımlı değil.</small>
+                      )}
+                    </div>
+                    <div className="manufacturing-inspector-section">
+                      <b>Bileşenler</b>
                       {selectedOrder.lines.length ? (
                         <ul>
                           {selectedOrder.lines.map((line) => (
-                            <li key={line.componentStockItemId}>
+                            <li
+                              key={line.componentStockItemId}
+                              className="manufacturing-component-row"
+                            >
                               <span>
                                 {line.componentCode} · {line.componentName}
+                                <small>
+                                  {`${decimalText(line.requiredQuantity, 4)} × ${decimalText(line.standardUnitCostBaseSnapshot, 4)} = ${decimalText(line.plannedCostBase, 4)} baz para`}
+                                </small>
                               </span>
                               <b>
                                 {line.requiredQuantity.toLocaleString("tr-TR")}
@@ -4069,26 +4108,16 @@ export default function ManufacturingPage({
                       ) : (
                         <small>Bu emirde bileşen satırı yok.</small>
                       )}
-                    </div>
-                    <div className="manufacturing-inspector-section">
-                      <b>Operasyonlar</b>
-                      {selectedOrder.operations.length ? (
-                        <ul>
-                          {selectedOrder.operations.map((operation) => (
-                            <li key={operation.id}>
-                              <span>
-                                {operation.sequence}. {operation.workCenterCode}{" "}
-                                · {operation.status}
-                              </span>
-                              <b>
-                                {operation.setupMinutes + operation.runMinutes}{" "}
-                                dk
-                              </b>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <small>Operasyon rotası tanımlı değil.</small>
+                      {selectedOrder.lines.length > 0 && (
+                        <small className="manufacturing-component-total">
+                          {`Planlanan malzeme: ${decimalText(
+                            selectedOrder.lines.reduce(
+                              (sum, line) => sum + line.plannedCostBase,
+                              0,
+                            ),
+                            4,
+                          )} baz para`}
+                        </small>
                       )}
                     </div>
                     {["Planned", "Released"].includes(selectedOrder.status) && (
@@ -4099,7 +4128,7 @@ export default function ManufacturingPage({
                           disabled={busy}
                           onClick={() => void transition(selectedOrder, "cancel")}
                         >
-                          İptal
+                          İptal et
                         </button>
                       </div>
                     )}

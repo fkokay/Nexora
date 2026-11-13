@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Landmark, X } from "lucide-react";
+import { Info, Landmark, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
@@ -853,9 +853,11 @@ function FinancePage({
               <label><span>Döviz kodu<RequiredMark /></span><input className="rf-must rf-mono" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} required minLength={3} maxLength={3} /></label>
             </RecordFormGroup>
             <RecordFormGroup title="Finansal Bilgiler" bodyClassName="fin-rf-grid-2">
-              {editingAccount ? <p className="fin-rf-note fin-rf-span-all">Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi değişikliği ayrı bir hareket olarak kaydedilmelidir.</p> : <>
-                <label>Açılış bakiyesi<input className="rf-num" type="number" min={accountKind === "Cash" ? 0 : undefined} step="0.01" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} /></label>
-                <p className="fin-rf-note">Açılış bakiyesi ayrı bir ilk hareket olarak kaydedilir ve hesap bakiyesi hareketlerden hesaplanır.</p>
+              {editingAccount ? <p className="fin-rf-field-hint fin-rf-span-all"><Info size={14} aria-hidden="true" /><span>Hesap bakiyesi hareketlerden hesaplanır. Açılış bakiyesi değişikliği ayrı bir hareket olarak kaydedilmelidir.</span></p> : <>
+                <label>Açılış bakiyesi
+                  <span className="fin-rf-amount"><input className="rf-num" type="number" min={accountKind === "Cash" ? 0 : undefined} step="0.01" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} aria-describedby="finance-opening-balance-hint" /><span className="fin-rf-suffix" aria-hidden="true">{currencyCode || "—"}</span></span>
+                  <small id="finance-opening-balance-hint" className="fin-rf-field-hint"><Info size={14} aria-hidden="true" /><span>Açılış bakiyesi ayrı bir ilk hareket olarak kaydedilir ve hesap bakiyesi hareketlerden hesaplanır.</span></small>
+                </label>
               </>}
             </RecordFormGroup>
           </RecordFormPage>

@@ -640,3 +640,135 @@ html[data-theme="dark"] .crm-grid-heading p { color: var(--erp-muted); }
   .crm-opportunity-workbench { padding: 10px; }
   .crm-filter-panel .crm-toolbar { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Fırsat oluştur/düzenle formu: tek ana kart + sağda olasılık ve ağırlıklı değer kartları. */
+.record-form.crm-opp-rf {
+  --crm-opp-border: #dfe5ee;
+  --crm-opp-card: #fff;
+  --crm-opp-soft: #f5f7fb;
+  --crm-opp-label: #33465d;
+  --crm-opp-muted: #65758a;
+  --crm-opp-text: #172b45;
+}
+html[data-theme="dark"] .record-form.crm-opp-rf {
+  --crm-opp-border: #33405a;
+  --crm-opp-card: #171d2b;
+  --crm-opp-soft: #1f2738;
+  --crm-opp-label: #c7d1df;
+  --crm-opp-muted: #9aa9bd;
+  --crm-opp-text: #edf3fb;
+}
+.record-form.crm-opp-rf .rf-badge {
+  display: inline-block;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.record-form.crm-opp-rf .rf-badge::first-letter { text-transform: uppercase; }
+.crm-opp-rf .crm-opp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.crm-opp-rf .crm-opp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--crm-opp-border);
+  border-radius: 12px;
+  background: var(--crm-opp-card);
+  box-shadow: none;
+}
+.crm-opp-rf .crm-opp-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.crm-opp-rf .crm-opp-row { display: grid; gap: 16px; }
+.crm-opp-rf .crm-opp-row--customer { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.crm-opp-rf .crm-opp-row--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell .record-form.crm-opp-rf .rf-form label { color: var(--crm-opp-label); font-size: 13px; }
+.crm-opp-rf .rf-form .crm-opp-name input { height: 44px; min-height: 44px; font-size: 14px; font-weight: 500; }
+.crm-opp-rf .rf-form .crm-notes textarea { height: auto; min-height: 84px; }
+.crm-opp-rf .crm-opp-amount { display: flex; min-width: 0; }
+.crm-opp-rf .rf-form .crm-opp-amount input.rf-num { flex: 1; border-radius: 6px 0 0 6px; }
+.crm-opp-rf .rf-form .crm-opp-amount input.crm-opp-currency {
+  flex: 0 0 64px;
+  width: 64px;
+  margin-left: -1px;
+  padding: 0 8px;
+  border-radius: 0 6px 6px 0;
+  background: var(--crm-opp-soft);
+  text-align: center;
+}
+.crm-opp-rf .rf-form .crm-opp-amount input:focus { position: relative; z-index: 1; }
+.app-shell .crm-opp-rf .crm-opp-card > h2 {
+  margin: 0;
+  color: var(--crm-opp-text) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.4 !important;
+  text-transform: none;
+}
+.crm-opp-rf .crm-opp-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.app-shell .crm-opp-rf .crm-opp-presets > button {
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  margin: 0 0 0 -1px;
+  padding: 0;
+  border: 1px solid var(--crm-opp-border);
+  border-radius: 0;
+  background: var(--crm-opp-card);
+  color: var(--crm-opp-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+  cursor: pointer;
+}
+.app-shell .crm-opp-rf .crm-opp-presets > button:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
+.app-shell .crm-opp-rf .crm-opp-presets > button:last-child { border-radius: 0 8px 8px 0; }
+.app-shell .crm-opp-rf .crm-opp-presets > button:hover { background: var(--crm-opp-soft); }
+.app-shell .crm-opp-rf .crm-opp-presets > button[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+  border-color: #b98206;
+  background: #f5b731;
+  color: #2b1d00;
+}
+.app-shell .crm-opp-rf .crm-opp-presets > button:focus-visible { position: relative; z-index: 2; outline: 2px solid #f5b731; outline-offset: 1px; }
+.crm-opp-rf .crm-opp-weighted { gap: 6px; }
+.crm-opp-rf .crm-opp-weighted output {
+  color: var(--crm-opp-text);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.crm-opp-rf .rf-form .crm-opp-card small { color: var(--crm-opp-muted); font-size: 12px; }
+.crm-opp-rf .crm-opp-tip {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--crm-opp-border);
+  border-radius: 10px;
+  background: var(--crm-opp-soft);
+  color: var(--crm-opp-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+html[data-theme="dark"] .app-shell .crm-opp-rf .crm-opp-presets > button[aria-pressed="true"] { border-color: #d39b1c; background: #f5b731; color: #2b1d00; }
+@media (max-width: 900px) {
+  .crm-opp-rf .crm-opp-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .crm-opp-rf .crm-opp-row--customer,
+  .crm-opp-rf .crm-opp-row--three { grid-template-columns: minmax(0, 1fr); }
+  .crm-opp-rf .crm-opp-card { padding: 16px; }
+}
+.app-shell:not(.standalone-studio) .record-form.crm-opp-rf .rf-form .crm-opp-amount input.crm-opp-currency { background-color: var(--crm-opp-soft) !important; }

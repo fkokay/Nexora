@@ -4,6 +4,7 @@ import {
   isValidElement,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import "./advanced-data-grid.css";
 
 type Operator =
@@ -170,6 +172,10 @@ const trLabels = {
   average: "Ortalama",
   pivotEmpty: "Pivot için en az iki sütun gerekir.",
   virtualized: "Sanallaştırma açık",
+  view: "Görünüm",
+  densityShort: "Yoğunluk",
+  downloadXlsx: "XLSX indir",
+  downloadCsv: "CSV indir",
 };
 const enLabels: typeof trLabels = {
   search: "Search all columns",
@@ -233,6 +239,10 @@ const enLabels: typeof trLabels = {
   average: "Average",
   pivotEmpty: "At least two columns are required for a pivot.",
   virtualized: "Virtualization on",
+  view: "View",
+  densityShort: "Density",
+  downloadXlsx: "Download XLSX",
+  downloadCsv: "Download CSV",
 };
 function readSettings(key: string): GridSettings {
   try {
@@ -384,6 +394,41 @@ function applyRule(
   );
 }
 
+const collapsedToolsClass = "is-tools-collapsed";
+/** The line the toolbar has to fit on: the nearest wrapping flex row around an external toolbar, else the toolbar itself. */
+function findToolbarRow(toolbar: HTMLElement, external: boolean): HTMLElement {
+  if (!external) return toolbar;
+  let node = toolbar.parentElement;
+  for (let depth = 0; node && depth < 5; depth += 1, node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.display.includes("flex") && style.flexWrap !== "nowrap") return node;
+  }
+  return toolbar;
+}
+function isRendered(element: Element) {
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 || rect.height > 0;
+}
+/**
+ * True when, with every tool shown inline, some toolbar item sits below the row's first line:
+ * either the whole tool group wrapped under the page's search/chips, or the tools wrapped among themselves.
+ */
+function toolbarWraps(toolbar: HTMLElement, row: HTMLElement) {
+  const items = Array.from(toolbar.children).filter(
+    (element) =>
+      !element.classList.contains("advanced-grid-view-menu") &&
+      isRendered(element),
+  );
+  if (!items.length) return false;
+  let reference: Element | undefined = Array.from(row.children).find(isRendered);
+  if (!reference || reference.contains(toolbar)) reference = items[0];
+  const lineBottom = reference.getBoundingClientRect().bottom;
+  return items.some((element) => {
+    const rect = element.getBoundingClientRect();
+    return (rect.top + rect.bottom) / 2 > lineBottom;
+  });
+}
+
 export default function AdvancedDataGrid({
   children,
   gridId,
@@ -453,7 +498,13 @@ export default function AdvancedDataGrid({
     [batchColumn, setBatchColumn] = useState(0),
     [batchValue, setBatchValue] = useState(""),
     [editError, setEditError] = useState(""),
-    [editBusy, setEditBusy] = useState(false);
+    [editBusy, setEditBusy] = useState(false),
+    [toolsCollapsed, setToolsCollapsed] = useState(false),
+    [viewMenuOpen, setViewMenuOpen] = useState(false),
+    [viewMenuPosition, setViewMenuPosition] = useState<{
+      top: number;
+      right: number;
+    } | null>(null);
   const settings =
     settingsState.key === storageKey
       ? settingsState.value
@@ -477,6 +528,10 @@ export default function AdvancedDataGrid({
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const cancelEditRef = useRef(false);
+  const viewButtonRef = useRef<HTMLButtonElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+  const filtersMenuRef = useRef<HTMLDetailsElement>(null);
+  const columnsMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeMenusOnOutsidePointer = (event: PointerEvent) => {
       const toolbar = toolbarRef.current;
@@ -495,6 +550,9 @@ export default function AdvancedDataGrid({
       if (!menu) return;
       menu.open = false;
       event.stopPropagation();
+      // Opened from the collapsed "Görünüm" menu: hand focus back to its trigger.
+      if (toolbarRef.current?.classList.contains(collapsedToolsClass))
+        viewButtonRef.current?.focus();
     };
     document.addEventListener("pointerdown", closeMenusOnOutsidePointer, true);
     document.addEventListener("keydown", closeMenusOnEscape, true);
@@ -1109,6 +1167,132 @@ export default function AdvancedDataGrid({
     toggleSort(index, event);
   }
 
+  // Collapse the grid tools into the "Görünüm" menu when they don't fit on the toolbar line.
+  // Each check briefly lays the toolbar out with every tool inline (class removed, layout read,
+  // class restored in the same frame, so nothing flickers) and collapses if anything wrapped.
+  const externalToolbar = !fullscreen && !!toolbarContainer;
+  const hasGridTable = Boolean(thead && tbody);
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const row = findToolbarRow(toolbar, externalToolbar);
+      toolbar.classList.remove(collapsedToolsClass);
+      const wraps = toolbarWraps(toolbar, row);
+      toolbar.classList.toggle(collapsedToolsClass, wraps);
+      setToolsCollapsed(wraps);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    const resizeObserver = new ResizeObserver(schedule);
+    const observeRow = () => {
+      resizeObserver.disconnect();
+      const row = findToolbarRow(toolbar, externalToolbar);
+      resizeObserver.observe(toolbar);
+      if (row !== toolbar) {
+        resizeObserver.observe(row);
+        Array.from(row.children).forEach((child) => resizeObserver.observe(child));
+      }
+      schedule();
+    };
+    // Chips or other items added to the page row change the room left for the tools.
+    const mutationObserver = new MutationObserver(observeRow);
+    const row = findToolbarRow(toolbar, externalToolbar);
+    if (row !== toolbar) mutationObserver.observe(row, { childList: true });
+    observeRow();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [toolbarContainer, fullscreen, externalToolbar, hideExport, locale, hasGridTable]);
+  useEffect(() => {
+    if (!toolsCollapsed) setViewMenuOpen(false);
+  }, [toolsCollapsed]);
+  useLayoutEffect(() => {
+    if (!viewMenuOpen) return;
+    const place = () => {
+      const rect = viewButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setViewMenuPosition({
+        top: Math.round(rect.bottom + 6),
+        right: Math.max(8, Math.round(document.documentElement.clientWidth - rect.right)),
+      });
+    };
+    place();
+    viewMenuRef.current
+      ?.querySelector<HTMLButtonElement>('[role="menuitem"]')
+      ?.focus();
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        (viewMenuRef.current?.contains(target) ||
+          viewButtonRef.current?.contains(target))
+      )
+        return;
+      setViewMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      event.preventDefault();
+      setViewMenuOpen(false);
+      viewButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    document.addEventListener("keydown", closeOnEscape, true);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+      document.removeEventListener("keydown", closeOnEscape, true);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [viewMenuOpen]);
+  function moveViewMenuFocus(event: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      viewMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    );
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next = -1;
+    if (event.key === "ArrowDown") next = (current + 1) % items.length;
+    else if (event.key === "ArrowUp") next = (current - 1 + items.length) % items.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else if (event.key === "Tab") {
+      setViewMenuOpen(false);
+      return;
+    }
+    if (next < 0) return;
+    event.preventDefault();
+    items[next].focus();
+  }
+  /** Opens one of the existing filter / column panels from the collapsed menu. */
+  function openToolPanel(menu: HTMLDetailsElement | null) {
+    setViewMenuOpen(false);
+    if (!menu) return;
+    menu.open = true;
+    window.requestAnimationFrame(() =>
+      menu
+        .querySelector<HTMLElement>(
+          ".advanced-grid-popover select, .advanced-grid-popover input, .advanced-grid-popover button",
+        )
+        ?.focus(),
+    );
+  }
+  function runViewMenuAction(action: () => void) {
+    setViewMenuOpen(false);
+    viewButtonRef.current?.focus();
+    action();
+  }
+  const densityOrder: GridSettings["density"][] = ["compact", "normal", "comfortable"];
+
   if (!thead || !tbody)
     return (
       <div className={`advanced-grid ${fullscreen ? "is-fullscreen" : ""}`}>
@@ -1401,7 +1585,10 @@ export default function AdvancedDataGrid({
       aria-label={tableProps["aria-label"] || "Data grid"}
     >
       {placeToolbar(
-      <div className={`advanced-grid-toolbar${toolbarTarget ? " is-external" : ""}`} ref={toolbarRef}>
+      <div
+        className={`advanced-grid-toolbar${toolbarTarget ? " is-external" : ""}${toolsCollapsed ? ` ${collapsedToolsClass}` : ""}`}
+        ref={toolbarRef}
+      >
         {!hideSearch && (
           <label className="advanced-grid-search">
             <span aria-hidden="true">⌕</span>
@@ -1416,7 +1603,7 @@ export default function AdvancedDataGrid({
           </label>
         )}
         {(!serverData || serverData.supported?.filters !== false) && (
-          <details className="advanced-grid-menu">
+          <details className="advanced-grid-menu" data-grid-tool ref={filtersMenuRef}>
             <summary>
               {labels.filters}
               {filterEntries.length > 0 && <b>{filterEntries.length}</b>}
@@ -1503,7 +1690,7 @@ export default function AdvancedDataGrid({
             </div>
           </details>
         )}
-        <details className="advanced-grid-menu">
+        <details className="advanced-grid-menu" data-grid-tool ref={columnsMenuRef}>
           <summary>{labels.columns}</summary>
           <div className="advanced-grid-popover advanced-grid-columns">
             <label className="advanced-grid-density">
@@ -1637,6 +1824,7 @@ export default function AdvancedDataGrid({
         <button
           type="button"
           className="advanced-grid-action"
+          data-grid-tool
           onClick={() => void exportExcel()}
           title={labels.exportExcel}
         >
@@ -1645,6 +1833,7 @@ export default function AdvancedDataGrid({
         <button
           type="button"
           className="advanced-grid-action"
+          data-grid-tool
           onClick={exportCsv}
           title={labels.exportCsv}
         >
@@ -1678,6 +1867,7 @@ export default function AdvancedDataGrid({
         <button
           type="button"
           className={`advanced-grid-action${pivotOpen ? " active" : ""}`}
+          data-grid-tool
           onClick={() => setPivotOpen((value) => !value)}
           title={labels.pivot}
         >
@@ -1686,6 +1876,7 @@ export default function AdvancedDataGrid({
         <button
           type="button"
           className="advanced-grid-action advanced-grid-icon-action"
+          data-grid-tool
           onClick={() => window.print()}
           title={labels.print}
         >
@@ -1694,11 +1885,120 @@ export default function AdvancedDataGrid({
         <button
           type="button"
           className="advanced-grid-action advanced-grid-icon-action"
+          data-grid-tool
           onClick={() => setFullscreen((value) => !value)}
           title={fullscreen ? labels.exitFullscreen : labels.fullscreen}
         >
           ⛶
         </button>
+        <div className="advanced-grid-view-menu">
+          <button
+            ref={viewButtonRef}
+            type="button"
+            className={`advanced-grid-action advanced-grid-view-trigger${viewMenuOpen || pivotOpen ? " active" : ""}`}
+            aria-haspopup="menu"
+            aria-expanded={viewMenuOpen}
+            aria-controls={viewMenuOpen ? `${reactId}-view-menu` : undefined}
+            onClick={() => setViewMenuOpen((value) => !value)}
+          >
+            <SlidersHorizontal size={15} aria-hidden="true" />
+            <span>{labels.view}</span>
+            {filterEntries.length > 0 && <b>{filterEntries.length}</b>}
+            <ChevronDown size={14} aria-hidden="true" className="advanced-grid-view-chevron" />
+          </button>
+          {viewMenuOpen && (
+            <div
+              ref={viewMenuRef}
+              id={`${reactId}-view-menu`}
+              className="advanced-grid-popover advanced-grid-view-popover"
+              role="menu"
+              aria-label={labels.view}
+              style={
+                viewMenuPosition
+                  ? { top: viewMenuPosition.top, right: viewMenuPosition.right }
+                  : undefined
+              }
+              onKeyDown={moveViewMenuFocus}
+            >
+              {(!serverData || serverData.supported?.filters !== false) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => openToolPanel(filtersMenuRef.current)}
+                >
+                  <span>{labels.filters}</span>
+                  {filterEntries.length > 0 && <b>{filterEntries.length}</b>}
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => openToolPanel(columnsMenuRef.current)}
+              >
+                <span>{labels.columns}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={pivotOpen ? "is-active" : undefined}
+                onClick={() => runViewMenuAction(() => setPivotOpen((value) => !value))}
+              >
+                <span>{labels.pivot}</span>
+                {pivotOpen && <span aria-hidden="true">✓</span>}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                title={labels.density}
+                onClick={() =>
+                  setSettings((current) => ({
+                    ...current,
+                    density:
+                      densityOrder[
+                        (densityOrder.indexOf(current.density) + 1) % densityOrder.length
+                      ],
+                  }))
+                }
+              >
+                <span>{labels.densityShort}</span>
+                <small>{labels[settings.density]}</small>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runViewMenuAction(() => window.print())}
+              >
+                <span>{labels.print}</span>
+              </button>
+              <div className="advanced-grid-view-divider" role="separator" />
+              {!hideExport && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => runViewMenuAction(() => void exportExcel())}
+                  >
+                    <span>{labels.downloadXlsx}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => runViewMenuAction(exportCsv)}
+                  >
+                    <span>{labels.downloadCsv}</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runViewMenuAction(() => setFullscreen((value) => !value))}
+              >
+                <span>{fullscreen ? labels.exitFullscreen : labels.fullscreen}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>,
       )}
       {importPreview && (

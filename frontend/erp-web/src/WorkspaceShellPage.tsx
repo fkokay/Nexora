@@ -44,7 +44,9 @@ const workbenchRailItems = [
   { id: "warehouse", page: "inventory-warehouses", label: ["Depo", "Warehousing"], icon: Package },
   { id: "manufacturing", page: "manufacturing-orders", label: ["Üretim", "Production"], icon: Factory },
   { id: "reports", page: "reports", label: ["Raporlar", "Reports"], icon: BarChart3 },
-  { id: "modules", page: "modules", label: ["Tanımlar", "Modules"], icon: Boxes },
+  // id stays "modules" so saved rail order/visibility preferences keep matching; the module marketplace
+  // remains reachable from the top bar. Definition pages are TenantAdmin-only, so the item is too.
+  { id: "modules", page: "location-definitions", label: ["Tanımlar", "Definitions"], icon: Boxes, adminOnly: true },
 ];
 
 const standardListPages = new Set([
@@ -69,11 +71,13 @@ function WorkspaceRail({
   page,
   locale,
   token,
+  role,
   onNavigate,
 }: {
   page: string;
   locale: Locale;
   token: string;
+  role: string;
   onNavigate: (page: string, label?: string) => void;
 }) {
   const defaultOrder = workbenchRailItems.map((item) => item.id);
@@ -106,17 +110,23 @@ function WorkspaceRail({
         (page.startsWith("customer") && page !== "customer-create") ||
         page.startsWith("crm")
       );
-    if (itemPage === "inventory-stock") return page.startsWith("inventory-");
+    // Depo öğesi kendi sayfalarında yanar; Stok yalnızca kalan stok sayfalarında.
+    const warehousePage = page === "inventory-warehouses" || page === "inventory-locations" || page === "inventory-transfers";
+    if (itemPage === "inventory-warehouses") return warehousePage;
+    if (itemPage === "inventory-stock") return page.startsWith("inventory-") && !warehousePage;
     // Satınalma sayfalarının anahtarları da "sales-" ile başlar; talep ve sipariş sayfalarında "purchase" geçmez.
     const purchasingPage = page.includes("purchase") || page === "sales-requests" || page === "sales-purchasing" || page === "commercial-contracts";
     if (itemPage === "sales-invoices") return page.startsWith("sales-") && !purchasingPage;
     if (itemPage === "sales-purchase-invoices") return purchasingPage;
     if (itemPage === "finance-accounts") return page.startsWith("finance-");
     if (itemPage === "manufacturing-orders") return page.startsWith("manufacturing-");
+    if (itemPage === "location-definitions") return page === "location-definitions" || page === "address-definitions";
     return page === itemPage;
   };
   const orderedItems = order.map((id) => workbenchRailItems.find((item) => item.id === id)).filter((item): item is typeof workbenchRailItems[number] => Boolean(item));
-  const visibleItems = orderedItems.filter((item) => !hidden.includes(item.id));
+  const visibleItems = orderedItems.filter(
+    (item) => !hidden.includes(item.id) && (!("adminOnly" in item) || role === "TenantAdmin"),
+  );
   const startEditing = () => {
     setDraftOrder(order);
     setDraftHidden(hidden);
@@ -405,7 +415,7 @@ export function WorkspaceShellPage(props: Props) {
         </Suspense>
       </div>
       {!standaloneStudio && (
-        <WorkspaceRail page={page} locale={locale} token={token} onNavigate={onNavigate} />
+        <WorkspaceRail page={page} locale={locale} token={token} role={tenant.role} onNavigate={onNavigate} />
       )}
       <main className="main-area">
         <WorkspaceTopbar
