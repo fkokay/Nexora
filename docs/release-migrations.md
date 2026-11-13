@@ -1,5 +1,47 @@
 # Production release migrations
 
+## Remote development invoice-notes schema and master `fcf1d318` — 2026-11-14
+
+`master` advanced to `fcf1d318` (PRs #40, #41, #42). PR #42 adds Platform migration `20261113204002_AddSalesInvoiceNotes` and Tenant migration `20261113204027_AddTenantSalesInvoiceNotes`. Both add the nullable column `SalesInvoices.Notes nvarchar(1000)`; nothing else changes. Before the change, the live histories were:
+
+- `AIERPPlatform`: 159 migrations, through `20261113083645_AddSalesRequests`.
+- Both tenant databases (`AIERPTenant_207af7e7d83f41c288d7cba5856f1109`, `AIERPTenant_ad7335d98296400194f297431db41e5b`): 101 migrations, through `20261113083656_AddTenantSalesRequests`.
+
+AIStudio databases had no pending migration and were not touched.
+
+Before applying, `COPY_ONLY, CHECKSUM, COMPRESSION` backups of the three databases were written to `/var/opt/mssql/backups/`. Each backup passed `RESTORE VERIFYONLY WITH CHECKSUM`:
+
+| Backup file | SHA-256 |
+|---|---|
+| `prerelease-20261114-notes-AIERPPlatform.bak` | `8fe5f18176e6334527f88e80ecfe886175afbb73c6ff8ac0e2174aa4a6444526` |
+| `prerelease-20261114-notes-AIERPTenant_207af7e7.bak` | `c3824065db32152944119db3127ea6b17d84eb7dcf685483b2713e13397730ff` |
+| `prerelease-20261114-notes-AIERPTenant_ad7335d9.bak` | `9c57c3ff4aeab9afbf8a3c62319e2257935852c44c89133d414406ad96b3efb8` |
+
+**Rehearsal.** The backups were restored to `AIERPPlatform_NotesRehearsal`, `AIERPTenant_NotesRehearsalA` and `AIERPTenant_NotesRehearsalB`. The incremental scripts in `artifacts/migrations/2026-11-14-invoice-notes/` were applied to the copies with `sqlcmd -I -b`. Every copy reached the expected migration count (160 Platform, 102 per tenant), had a nullable `Notes` column of type `nvarchar` (1000 characters, 2000 bytes), and passed `DBCC CHECKDB WITH PHYSICAL_ONLY`. The rehearsal databases were then dropped.
+
+**Live apply.** The same scripts were applied to the three live databases. Post-apply verification gave the same result: Platform 160 migrations, each tenant 102 migrations, the `Notes` column present, and `DBCC CHECKDB` clean. Existing invoice rows: Platform 0, each tenant 1.
+
+**Images.** Platform API and ERP Web images were built on the remote host from `fcf1d318`, using the `nexora-remote` Docker context. The containers were recreated with `up -d --no-deps --no-build platform-api erp-web`; a dry run beforehand listed only those two containers.
+
+| Image | Rollback tag | Deployed image |
+|---|---|---|
+| Platform API | `nexora-platform-api:rollback-20261114-notes` (`c70931b413fc`) | `sha256:4f37a794f831f07ca4988cb3ca0b29db162096ea4a8053961aa01291b84ebb10` |
+| ERP Web | `nexora-erp-web:rollback-20261114-notes` (`2520da03c4eb`) | `sha256:5255c5cf33deec38888ec3187d0455902971d17f88df787d0198c0ace010f420` |
+
+**After the deploy:**
+
+- Both containers reported healthy.
+- The public `/health` and `/` returned HTTP 200.
+- The served bundle contains the new screen strings.
+- An authenticated read of a sales invoice detail returned HTTP 200 with the `notes` key.
+
+**Not verified:**
+
+- No invoice with a note was created against the live API; creation was exercised only by the integration tests.
+- The Tenant Provisioning Worker still runs its 2026-11-11 image. A tenant provisioned before that worker is updated would be created without the schema added since then, including `SalesInvoices.Notes`.
+
+This is development-environment evidence only.
+
 ## Remote development sales-request schema and master `42d65add` — 2026-11-13
 
 After the agenda release earlier the same day, `master` advanced to `42d65add` (PRs #33 and #35), which adds Platform migration `20261113083645_AddSalesRequests` and Tenant migration `20261113083656_AddTenantSalesRequests`. Live histories before the change were `AIERPPlatform` 158 migrations through `20261112063756_AddAgendaPermissions`, and both tenant databases (`AIERPTenant_207af7e7d83f41c288d7cba5856f1109`, `AIERPTenant_ad7335d98296400194f297431db41e5b`) 100 migrations through `20261112063622_AddTenantAgendaItems`. AIStudio databases had no pending migration and were not touched.
