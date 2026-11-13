@@ -97,6 +97,7 @@ export const english: Record<string, string> = {
   "Kaynak talep": "Source request",
   "Stok kartı seçin": "Select stock card",
   "Stok seçin": "Select stock",
+  "Kendi talebinizi onaylayamaz veya reddedemezsiniz; kararı başka bir yetkili verir.": "You cannot approve or reject your own request; another authorized user decides.",
   // Statuses
   "Kabul edildi": "Accepted",
   "Silindi": "Deleted",
