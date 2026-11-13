@@ -35,10 +35,18 @@ Before applying, `COPY_ONLY, CHECKSUM, COMPRESSION` backups of the three databas
 - The served bundle contains the new screen strings.
 - An authenticated read of a sales invoice detail returned HTTP 200 with the `notes` key.
 
+**Tenant Provisioning Worker.** The worker image was rebuilt from `fcf1d318` in the same session. Before the update it ran the 2026-11-11 image `bc17ffeeb731`, which is now retained as `nexora-tenant-provisioning-worker:rollback-20261114-notes`.
+
+- The container was recreated with `--profile tenant-provisioning up -d --no-deps --no-build tenant-provisioning-worker`. A dry run listed only this container.
+- The container was originally created from the base Compose file alone, without overrides, so recreating it from that file keeps its configuration.
+- The deployed image is `sha256:2adedf3b557c21fdccfe7c221ae5951ca2cbb3d7da0fc9dcbd06016fc8775e08`.
+- Its log shows "Application started" with no errors.
+- Newly provisioned tenants now receive every migration through `20261113204027_AddTenantSalesInvoiceNotes`.
+
 **Not verified:**
 
 - No invoice with a note was created against the live API; creation was exercised only by the integration tests.
-- The Tenant Provisioning Worker still runs its 2026-11-11 image. A tenant provisioned before that worker is updated would be created without the schema added since then, including `SalesInvoices.Notes`.
+- No tenant was provisioned after the worker update, so the end-to-end provisioning path with the new image was not exercised.
 
 This is development-environment evidence only.
 
