@@ -198,6 +198,7 @@ export default function AISettingsPage({
             clearNvidia={clearNvidia}
             setClearNvidia={setClearNvidia}
             onSave={save}
+            busy={busy}
             onLoadOpenAIModels={() => void loadOpenAIModels()}
             onLoadNvidiaModels={() => void loadNvidiaModels()}
           />
