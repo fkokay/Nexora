@@ -18,6 +18,8 @@ type SalesDocumentGridProps<T extends { id: string }> = {
   toolbarContainer?: HTMLElement | null;
   onSelect: (id: string) => void;
   renderCell: (field: BuiltInScreenLayoutField, item: T) => ReactNode;
+  /** Tablonun erişilebilir adı; varsayılan "Satış belgesi kayıtları". */
+  ariaLabel?: string;
 };
 
 export default function SalesDocumentGrid<T extends { id: string }>({
@@ -33,6 +35,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
   toolbarContainer,
   onSelect,
   renderCell,
+  ariaLabel = "Satış belgesi kayıtları",
 }: SalesDocumentGridProps<T>) {
   const noRowsMessage = search ? searchEmptyMessage : emptyMessage;
 
@@ -46,7 +49,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
         hideSearch
         toolbarContainer={toolbarContainer}
         enableRowSelection={false}
-        aria-label="Satış belgesi kayıtları"
+        aria-label={ariaLabel}
       >
         <thead>
           <ScreenViewGroupHeader fields={fields} />
@@ -74,7 +77,15 @@ export default function SalesDocumentGrid<T extends { id: string }>({
               <tr
                 key={item.id}
                 className={selectedId === item.id ? "erp-selected-row" : ""}
+                tabIndex={0}
                 onClick={() => onSelect(item.id)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(item.id);
+                  }
+                }}
                 aria-selected={selectedId === item.id}
               >
                 {fields.map((field) => (

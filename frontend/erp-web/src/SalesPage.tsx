@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
-import SalesListPagination from "./sales/components/SalesListPagination";
+import { ListPagination } from "./list-page/ListPagination";
 import SalesListToolbar from "./sales/components/SalesListToolbar";
 import SalesInvoiceFromDeliveryDialog from "./sales/components/SalesInvoiceFromDeliveryDialog";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
@@ -37,6 +37,9 @@ import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
 import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import { confirmLocalized, promptLocalized } from "./locale";
+import { DocumentSurface } from "./document-page/DocumentSurface";
+import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
+import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -369,6 +372,8 @@ export function SalesPage({
     [quoteDetailTab, setQuoteDetailTab] = useState<"information" | "revisions">("information"),
     [quotePrintOpen, setQuotePrintOpen] = useState(false),
     [revisesQuoteId, setRevisesQuoteId] = useState<string | null>(null),
+    // Teklif bir satış talebinden hazırlanıyorsa kaynak talep; kayıtta salesRequestId olarak gönderilir.
+    [sourceSalesRequest, setSourceSalesRequest] = useState<{ id: string; code: string } | null>(null),
     [editingQuoteId, setEditingQuoteId] = useState<string | null>(null),
     [orderDetail, setOrderDetail] = useState<SalesOrderDetail | null>(null),
     [invoiceId, setInvoiceId] = useState<string | null>(null),
@@ -762,6 +767,7 @@ export function SalesPage({
   }
   async function openQuoteCreatePage(navigateToPage = true) {
     setError("");
+    setSourceSalesRequest(null);
     setRevisesQuoteId(null);
     setEditingQuoteId(null);
     setQuoteFieldValues({});
@@ -818,8 +824,55 @@ export function SalesPage({
       setBusy(false);
     }
   }
+  const quoteRequestPrefill = useRef(false);
+  /** Satış talebinden teklif: boş teklif formunu açar, müşteriyi ve satırları talepten doldurur. */
+  async function beginQuoteFromRequest(requestId: string) {
+    await openQuoteCreatePage(false);
+    try {
+      const request = await api<{
+        id: string; code: string; customerId: string; customerName: string; currencyCode: string; description: string | null;
+        lines: { stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number }[];
+      }>(`/api/sales/requests/${requestId}`, token);
+      // Müşteri seçicinin ilk sayfasında olmayabilir; kartı ayrıca alınır ve listeye eklenir.
+      const requestCustomer = await api<SalesCustomer>(`/api/customers/${request.customerId}`, token)
+        .catch(() => ({ id: request.customerId, code: "", name: request.customerName, type: "Customer", isActive: true, currencyCode: request.currencyCode }) as SalesCustomer);
+      setCustomers((current) => current.some((item) => item.id === requestCustomer.id && item.code)
+        ? current
+        : [requestCustomer, ...current.filter((item) => item.id !== requestCustomer.id)]);
+      setCustomerId(request.customerId);
+      setCurrencyCode(request.currencyCode || "TRY");
+      setNotes(request.description || "");
+      // Fiyat, iskonto ve KDV stok kartından gelir; kart bulunamazsa kullanıcı satırda girer.
+      const cards = new Map((await loadStockItemPickerPage(token).catch(() => ({ items: [] as StockItem[] }))).items.map((item) => [item.id, item]));
+      setQuoteStockLabels(Object.fromEntries(request.lines.map((line) => [line.stockItemId, `${line.stockCode} · ${line.stockName}`])));
+      setLines(request.lines.map((line) => ({
+        stockItemId: line.stockItemId,
+        quantity: String(line.quantity),
+        unitPrice: String(cards.get(line.stockItemId)?.salesListPrice ?? 0),
+        discountPercent: String(cards.get(line.stockItemId)?.salesDiscountPercent ?? 0),
+        vatPercent: String(cards.get(line.stockItemId)?.salesVatPercent ?? 20),
+        isVatIncluded: false,
+        unitCode: line.unitCode,
+        currencyCode: cards.get(line.stockItemId)?.priceCurrencyCode || "",
+        exchangeRateOverride: "",
+      })));
+      for (const line of request.lines) void loadQuoteUnits(line.stockItemId);
+      setSourceSalesRequest({ id: request.id, code: request.code });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   useEffect(() => {
     if (!createQuotePage) return;
+    const pendingRequestId = sessionStorage.getItem("nexora.sales-quote.request-id");
+    if (pendingRequestId) {
+      sessionStorage.removeItem("nexora.sales-quote.request-id");
+      quoteRequestPrefill.current = true;
+      void beginQuoteFromRequest(pendingRequestId).finally(() => { quoteRequestPrefill.current = false; });
+      return;
+    }
+    // Talepten ön doldurma sürerken efektin yeniden çalışması formu boşaltmamalı.
+    if (quoteRequestPrefill.current) return;
     const pendingEditId = sessionStorage.getItem("nexora.sales-quote.edit-id");
     if (pendingEditId) {
       sessionStorage.removeItem("nexora.sales-quote.edit-id");
@@ -1380,6 +1433,7 @@ export function SalesPage({
             salespersonEmployeeId: salespersonEmployeeId || null,
             customFields: quoteFieldValues,
             revisesQuoteId,
+            salesRequestId: editingQuoteId ? null : sourceSalesRequest?.id ?? null,
             lines: lines.map((x) => ({
               stockItemId: x.stockItemId,
               quantity: Number(x.quantity),
@@ -1770,9 +1824,7 @@ export function SalesPage({
         );
       case "status":
         return (
-          <span className={`quote-status ${item.status.toLowerCase()}`}>
-            {statusName(item.status)}
-          </span>
+          <DocumentStatusBadge status={salesQuoteStatus(item.status)} />
         );
       case "actions":
         return (
@@ -1846,13 +1898,7 @@ export function SalesPage({
         );
       case "status":
         return (
-          <span className="quote-status sent">
-            {item.status === "Open"
-              ? "Açık"
-              : item.status === "Fulfilled"
-                ? "Tamamlandı"
-                : "İptal"}
-          </span>
+          <DocumentStatusBadge status={salesOrderStatus(item.status)} />
         );
       case "actions":
         return (
@@ -2104,7 +2150,7 @@ export function SalesPage({
         activeTab === "orders" ||
         activeTab === "invoices") &&
         !createOrderPage && !createQuotePage && (
-          <SalesListPagination
+          <ListPagination
             page={salesListPage}
             total={salesListTotal}
             loading={loading}
@@ -2645,6 +2691,7 @@ export function SalesPage({
                 <span>{editingQuoteId ? "Taslak teklif bilgilerini ve satırlarını güncelleyin." : revisesQuoteId ? "Önceki teklif korunur; değişiklikler yeni revizyon taslağı olarak kaydedilir." : "Müşteri ve teklif satırlarını girerek yeni bir satış teklifi oluşturun."}</span>
                 {quoteExchangeRatesLoading && <span className="rf-status-warning">Döviz kurları yükleniyor…</span>}
                 {!quoteExchangeRatesLoading && hasMissingQuoteFx && <span className="rf-status-warning">Kuru bulunmayan satır var; teklif kaydedilemez.</span>}
+                {sourceSalesRequest && <span className="rf-status-notice"><span>Kaynak talep:</span> <b>{sourceSalesRequest.code}</b></span>}
                 {notice && <span className="rf-status-notice">{notice}</span>}
                 <span className="rf-status-end">Satır: <b>{lines.length}</b></span>
               </>
@@ -2943,33 +2990,16 @@ export function SalesPage({
               )}
           </RecordFormPage>
       )}
-      {detail && createPortal(
-        <div
-          className="modal-backdrop sales-quote-detail-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
-          }}
-        >
-          <div
-            className="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sales-quote-detail-title"
+      {detail && (
+          <DocumentSurface
+            title="Satış teklifi"
+            code={detail.code}
+            subtitle={detail.customerName}
+            status={salesQuoteStatus(detail.status)}
+            onClose={() => setDetail(null)}
+            className="sales-quote-detail-backdrop"
+            bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
           >
-            <div className="modal-head">
-              <div>
-                <h2 id="sales-quote-detail-title">Teklif Detay</h2>
-                <p className="sales-quote-detail-subtitle">Teklif No: <b>{detail.code}</b></p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Teklif ayrıntısını kapat"
-                onClick={() => setDetail(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
             <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Teklif detay bölümleri">
               {([
                 ["information", "Teklif Bilgileri"],
@@ -3283,9 +3313,7 @@ export function SalesPage({
                 )}
               </div>
             </div>
-          </div>
-        </div>,
-        document.body,
+          </DocumentSurface>
       )}
       {detail && quotePrintOpen && createPortal(
         <SalesQuotePdfTools
@@ -3296,7 +3324,7 @@ export function SalesPage({
         />,
         document.body,
       )}
-      {orderDetail && createPortal(
+      {orderDetail && (
         <SalesOrderModal
           order={orderDetail}
           token={token}
@@ -3308,8 +3336,7 @@ export function SalesPage({
             await openOrder(orderDetail.id);
           }}
           onInvoiceCreated={openInvoice}
-        />,
-        document.body,
+        />
       )}
       {invoiceId && (
         <SalesInvoiceModal
@@ -3487,11 +3514,7 @@ function PurchaseInvoicesScreen({
         return item.lineCount;
       case "status":
         return (
-          <span
-            className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
-          >
-            {item.status === "Posted" ? "İşlendi" : "İptal"}
-          </span>
+          <DocumentStatusBadge status={purchaseInvoiceStatus(item.status)} />
         );
       case "actions":
         return (
@@ -3514,7 +3537,7 @@ function PurchaseInvoicesScreen({
       <div className="sales-lv2-stack">
         <ListPageHeader
           className="customer-heading"
-          title="Alış faturaları"
+          title="Satınalma Faturaları"
           description="Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin."
           count={total}
         >
@@ -3615,28 +3638,13 @@ function PurchaseInvoicesScreen({
           </AdvancedDataGrid>
         </div>
       </section>
-      <div className="table-pagination">
-        <span>
-          Sayfa {page} / {Math.max(1, Math.ceil(total / pageSize))} · {total}{" "}
-          kayıt
-        </span>
-        <div>
-          <button
-            className="secondary"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((x) => Math.max(1, x - 1))}
-          >
-            Önceki
-          </button>
-          <button
-            className="secondary"
-            disabled={page * pageSize >= total || loading}
-            onClick={() => setPage((x) => x + 1)}
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
+      <ListPagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        loading={loading}
+        onPageChange={setPage}
+      />
       {invoiceId && (
         <PurchaseInvoiceModal
           invoiceId={invoiceId}
@@ -4108,7 +4116,7 @@ function PurchasingPanel({
       case "lineCount":
         return <td key={field.key}>{request.lineCount}</td>;
       case "status":
-        return <td key={field.key}><span className={`quote-status ${request.status === "Approved" || request.status === "Ordered" ? "accepted" : request.status === "Rejected" ? "rejected" : "sent"}`}>{request.status === "Submitted" ? "Onay bekliyor" : request.status === "Approved" ? "Onaylandı" : request.status === "Ordered" ? "Siparişe dönüştü" : "Reddedildi"}</span></td>;
+        return <td key={field.key}><DocumentStatusBadge status={purchaseRequestStatus(request.status)} /></td>;
       case "purchaseOrderCode":
         return <td key={field.key}>{request.purchaseOrderCode || "—"}</td>;
       case "actions":
@@ -4149,11 +4157,7 @@ function PurchasingPanel({
       case "status":
         return (
           <td key={field.key}>
-            <span
-              className={`quote-status ${receipt.status === "Posted" ? "accepted" : "rejected"}`}
-            >
-              {receipt.status === "Posted" ? "İşlendi" : "İptal"}
-            </span>
+            <DocumentStatusBadge status={purchaseReceiptStatus(receipt.status)} />
           </td>
         );
       case "invoice":
@@ -4239,17 +4243,7 @@ function PurchasingPanel({
         return item.currencyCode;
       case "status":
         return (
-          <span
-            className={`quote-status ${item.status === "Received" ? "accepted" : item.status === "Cancelled" ? "rejected" : "sent"}`}
-          >
-            {item.status === "Open"
-              ? "Açık"
-              : item.status === "PartiallyReceived"
-                ? "Kısmi mal kabul"
-                : item.status === "Received"
-                  ? "Tam alındı"
-                  : "İptal"}
-          </span>
+          <DocumentStatusBadge status={purchaseOrderStatus(item.status)} />
         );
       case "actions":
         return (
@@ -5414,7 +5408,7 @@ function PurchasingPanel({
       <div className="sales-lv2-stack">
         <ListPageHeader
           className="customer-heading"
-          title={requestsOnly ? "Satın alma talepleri" : "Tedarikçi siparişleri"}
+          title={requestsOnly ? "Satınalma Talepleri" : "Satınalma Siparişleri"}
           description={
             requestsOnly
               ? "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin."
@@ -5525,15 +5519,13 @@ function PurchasingPanel({
               </tbody>
             </AdvancedDataGrid>
           </div>
-          {requestTotal > purchasePageSize && (
-            <div className="purchase-request-pagination">
-              <span>{requestTotal} talep · Sayfa {requestPage} / {Math.ceil(requestTotal / purchasePageSize)}</span>
-              <div>
-                <button className="secondary small-button" disabled={requestPage <= 1 || loading} onClick={() => void load(requestPage - 1)}>Önceki</button>
-                <button className="secondary small-button" disabled={requestPage >= Math.ceil(requestTotal / purchasePageSize) || loading} onClick={() => void load(requestPage + 1)}>Sonraki</button>
-              </div>
-            </div>
-          )}
+          <ListPagination
+            page={requestPage}
+            total={requestTotal}
+            pageSize={purchasePageSize}
+            loading={loading}
+            onPageChange={(next) => void load(next)}
+          />
           {selectedRequestSummary && (
             <aside className="erp-record-pane purchase-request-selection sales-lv2-detail">
               <div className="list-v2-detail-head">
@@ -6357,31 +6349,14 @@ function PurchasingPanel({
           </dl>
         </aside>
       )}
-      {!requestsOnly && orderTotal > purchasePageSize && (
-        <div className="table-pagination">
-          <span>
-            Sayfa {orderPage}/{Math.ceil(orderTotal / purchasePageSize)} ·{" "}
-            {orderTotal} sipariş
-          </span>
-          <div>
-            <button
-              className="secondary small-button"
-              disabled={orderPage <= 1 || loading}
-              onClick={() => void load(requestPage, orderPage - 1)}
-            >
-              Önceki
-            </button>
-            <button
-              className="secondary small-button"
-              disabled={
-                orderPage >= Math.ceil(orderTotal / purchasePageSize) || loading
-              }
-              onClick={() => void load(requestPage, orderPage + 1)}
-            >
-              Sonraki
-            </button>
-          </div>
-        </div>
+      {!requestsOnly && (
+        <ListPagination
+          page={orderPage}
+          total={orderTotal}
+          pageSize={purchasePageSize}
+          loading={loading}
+          onPageChange={(next) => void load(requestPage, next)}
+        />
       )}
       <div className="boundary-note">
         <ShieldCheck size={17} />
@@ -6717,22 +6692,14 @@ function PurchasingPanel({
         </div>
       )}
       {detail && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
-          }}
-        >
-          <div className="modal ledger-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">{detail.code} · SATIN ALMA SİPARİŞİ</p>
-                <h2>{detail.supplierName}</h2>
-              </div>
-              <button className="icon-button" onClick={() => setDetail(null)}>
-                <X size={19} />
-              </button>
-            </div>
+          <DocumentSurface
+            title="Satınalma siparişi"
+            code={detail.code}
+            subtitle={detail.supplierName}
+            status={purchaseOrderStatus(detail.status)}
+            onClose={() => setDetail(null)}
+            bodyClassName="modal ledger-modal"
+          >
             <div className="balance-banner">
               <div>
                 <small>Genel toplam · {detail.currencyCode}</small>
@@ -7201,9 +7168,8 @@ function PurchasingPanel({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </DocumentSurface>
+          )}
       {requestEditor && (
         <div
           className="modal-backdrop"
@@ -7468,27 +7434,14 @@ function PurchasingPanel({
         </div>
       )}
       {requestDetail && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setRequestDetail(null);
-          }}
-        >
-          <div className="modal ledger-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">
-                  {requestDetail.code} · SATIN ALMA TALEBİ
-                </p>
-                <h2>{requestDetail.requestedByName}</h2>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setRequestDetail(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
+          <DocumentSurface
+            title="Satınalma talebi"
+            code={requestDetail.code}
+            subtitle={requestDetail.requestedByName}
+            status={purchaseRequestStatus(requestDetail.status)}
+            onClose={() => setRequestDetail(null)}
+            bodyClassName="modal ledger-modal"
+          >
             <div className="balance-banner">
               <div>
                 <small>
@@ -8441,9 +8394,8 @@ function PurchasingPanel({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}{" "}
+          </DocumentSurface>
+          )}
       {invoiceReceiptId && (
         <div
           className="modal-backdrop"
@@ -8875,33 +8827,15 @@ function SalesOrderModal({
   }
   const activeReservation = order.lines.some((x) => x.reservationId !== null);
   return (
-    <div
-      className="modal-backdrop sales-order-detail-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <DocumentSurface
+      title="Satış siparişi"
+      code={order.code}
+      subtitle={order.customerName}
+      status={salesOrderStatus(order.status)}
+      onClose={onClose}
+      className="sales-order-detail-backdrop"
+      bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
     >
-      <div
-        className="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sales-order-detail-title"
-      >
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">SATIŞ SİPARİŞİ DETAYI</p>
-            <h2 id="sales-order-detail-title">Sipariş Detay</h2>
-            <p className="sales-quote-detail-subtitle">Sipariş No: <b>{order.code}</b></p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Sipariş ayrıntısını kapat"
-            onClick={onClose}
-          >
-            <X size={19} />
-          </button>
-        </div>
         {error && (
           <div className="alert inline-alert">
             {error}
@@ -9350,8 +9284,7 @@ function SalesOrderModal({
         </div>
         </>}
         </div>
-      </div>
-    </div>
+      </DocumentSurface>
   );
 }
 
@@ -9547,11 +9480,7 @@ function SalesInvoiceTable({
         );
       case "status":
         return (
-          <span
-            className={`quote-status ${item.status === "Posted" ? "accepted" : "rejected"}`}
-          >
-            {item.status === "Posted" ? "Kesildi" : "İptal"}
-          </span>
+          <DocumentStatusBadge status={salesInvoiceStatus(item.status)} />
         );
       case "actions":
         return (

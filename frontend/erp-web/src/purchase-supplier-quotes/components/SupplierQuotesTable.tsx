@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { DocumentStatusBadge } from "../../document-page/DocumentStatusBadge";
+import { supplierQuoteStatus } from "../../document-page/documentStatus";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Quote, ScreenField } from "../types";
@@ -25,16 +27,6 @@ type Props = {
   onSelect: (quote: Quote) => void;
 };
 
-function statusLabel(status: string) {
-  return status === "Submitted"
-    ? "Değerlendirmede"
-    : status === "Selected"
-      ? "Seçildi"
-      : status === "NotSelected"
-        ? "Seçilmedi"
-        : status;
-}
-
 function renderCell(quote: Quote, key: string): ReactNode {
   switch (key) {
     case "code":
@@ -48,7 +40,7 @@ function renderCell(quote: Quote, key: string): ReactNode {
     case "validUntil":
       return quote.validUntil || "—";
     case "status":
-      return <span className="erp-status-chip">{statusLabel(quote.status)}</span>;
+      return <DocumentStatusBadge status={supplierQuoteStatus(quote.status)} />;
     case "grandTotal":
       return `${quote.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${quote.currencyCode}`;
     case "lineCount":

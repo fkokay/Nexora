@@ -15506,6 +15506,9 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Property<Guid?>("SalespersonEmployeeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SourceSalesRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -15529,6 +15532,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .IsUnique();
 
                     b.HasIndex("TenantId", "CustomerId");
+
+                    b.HasIndex("TenantId", "SourceSalesRequestId");
 
                     b.HasIndex("TenantId", "QuoteDate", "CreatedAt");
 
@@ -15889,6 +15894,114 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .IsUnique();
 
                     b.ToTable("SalesQuotePdfTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateOnly?>("NeededByDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("RequestDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CustomerId");
+
+                    b.HasIndex("TenantId", "RequestDate", "CreatedAt");
+
+                    b.ToTable("SalesRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_SalesRequests_NeededByDate", "[NeededByDate] IS NULL OR [NeededByDate] >= [RequestDate]");
+                        });
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesRequestLine", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SalesRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("EnteredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("EnteredUnitCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("StockCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StockName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.HasKey("TenantId", "SalesRequestId", "LineNumber");
+
+                    b.HasIndex("TenantId", "StockItemId");
+
+                    b.ToTable("SalesRequestLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_SalesRequestLines_QuantityPositive", "[Quantity] > 0");
+                        });
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesReturn", b =>
@@ -21306,7 +21419,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AIERP.Platform.Domain.SalesRequest", "SourceSalesRequest")
+                        .WithMany("Quotes")
+                        .HasForeignKey("TenantId", "SourceSalesRequestId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Customer");
+
+                    b.Navigation("SourceSalesRequest");
 
                     b.Navigation("Tenant");
                 });
@@ -21404,6 +21525,45 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesRequest", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Customer")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CustomerId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesRequestLine", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.SalesRequest", "SalesRequest")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "SalesRequestId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", "StockItem")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SalesRequest");
+
+                    b.Navigation("StockItem");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesReturn", b =>
@@ -22466,6 +22626,13 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("Lines");
 
                     b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.SalesRequest", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Quotes");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.SalesReturn", b =>

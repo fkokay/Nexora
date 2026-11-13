@@ -271,6 +271,8 @@ app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
 app.MapPurchaseInvoiceDraftEndpoints();
 app.MapPurchaseDeliveryNoteEndpoints();
+app.MapDocumentListEndpoints();
+app.MapSalesRequestEndpoints();
 app.MapForeignTradeEndpoints();
 app.MapForeignTradeAssistantEndpoints();
 app.MapCrmAssistantEndpoints();
@@ -3503,7 +3505,7 @@ salesQuotes.MapGet("/{id:guid}/revisions", async (Guid id, ClaimsPrincipal princ
 salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order)
+    var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order).Include(x => x.SourceSalesRequest)
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (quote is null) return Results.NotFound();
     var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
@@ -3516,7 +3518,8 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
     return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer?.Name ?? quote.ProspectCustomerName ?? "Teklif alıcısı", quote.QuoteDate,
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
         quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields,
-        quote.RevisionGroupId, quote.RevisionNumber, quote.DeliveryTerms, quote.SalespersonEmployeeId, quote.Customer?.Code));
+        quote.RevisionGroupId, quote.RevisionNumber, quote.DeliveryTerms, quote.SalespersonEmployeeId, quote.Customer?.Code,
+        quote.SourceSalesRequestId, quote.SourceSalesRequest?.Code));
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -3535,6 +3538,15 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     var currencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
     if (customer is not null && currencyCode != customer.CurrencyCode)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["currencyCode"] = [$"Teklif dövizi seçilen carinin döviziyle ({customer.CurrencyCode}) aynı olmalıdır."] });
+    SalesRequest? sourceSalesRequest = null;
+    if (request.SalesRequestId is { } sourceSalesRequestId)
+    {
+        sourceSalesRequest = await db.SalesRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == sourceSalesRequestId);
+        if (sourceSalesRequest is null || sourceSalesRequest.Status == SalesRequestStatus.Cancelled)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesRequestId"] = ["İptal edilmemiş bir satış talebi seçilmelidir."] });
+        if (customer is null || sourceSalesRequest.CustomerId != customer.Id)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesRequestId"] = ["Teklif müşterisi, talebin müşterisiyle aynı olmalıdır."] });
+    }
     await using var transaction = await db.Database.BeginTransactionAsync();
     var code = string.IsNullOrWhiteSpace(suppliedCode)
         ? await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesQuote", null, request.QuoteDate, CancellationToken.None)
@@ -3622,7 +3634,9 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
         Code = code, QuoteDate = request.QuoteDate,
         ValidUntil = request.ValidUntil, CurrencyCode = currencyCode, Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
         DeliveryTerms = string.IsNullOrWhiteSpace(request.DeliveryTerms) ? null : request.DeliveryTerms.Trim(),
-        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+        Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
+        SourceSalesRequestId = sourceSalesRequest?.Id };
+    if (sourceSalesRequest is { Status: SalesRequestStatus.Open }) sourceSalesRequest.Status = SalesRequestStatus.Quoted;
     for (var i = 0; i < request.Lines.Count; i++)
     {
         var normalized = normalizedLines[i]; var input = normalized.Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);

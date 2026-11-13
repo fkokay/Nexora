@@ -9,6 +9,7 @@ import "./purchase-invoice-entry.css";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchasing-record-forms.css";
 import "./purchase-list-v2/purchase-list-v2.css";
+import { ListPagination } from "./list-page/ListPagination";
 
 type ReceiptOption = {
   id: string;
@@ -246,7 +247,6 @@ export default function PurchaseInvoiceEntryPage({
     }
   }
 
-  const pages = Math.max(1, Math.ceil(total / pageSize));
   // The invoice action lives in the detail panel, so the row action column is not shown.
   const visibleFields = screenFields.filter(
     (field) => (field.visible || field.fixed) && field.key !== "actions",
@@ -274,7 +274,7 @@ export default function PurchaseInvoiceEntryPage({
   return (
     <main className="purchase-invoice-entry list-v2 purchase-lv2-stack">
       <ListPageHeader
-        title="Alış faturası girişi"
+        title="Mal kabul faturası girişi"
         description="İşlenmiş mal kabullerini seçin; fatura kaydı sipariş ve stok kabulüyle bağlantısını korusun."
         count={loading && total === 0 ? null : total}
       />
@@ -452,25 +452,13 @@ export default function PurchaseInvoiceEntryPage({
           )}
         </aside>
       </div>
-      <footer className="pie-pagination">
-        <span>
-          Sayfa {page} / {pages}
-        </span>
-        <div>
-          <button
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((x) => Math.max(1, x - 1))}
-          >
-            Önceki
-          </button>
-          <button
-            disabled={page >= pages || loading}
-            onClick={() => setPage((x) => x + 1)}
-          >
-            Sonraki
-          </button>
-        </div>
-      </footer>
+      <ListPagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        loading={loading}
+        onPageChange={setPage}
+      />
       {selected && (
         <div
           className="pie-backdrop"

@@ -46,6 +46,7 @@ public static class PlatformPermissionCatalog
         new("erp.screen-views", "/api/screen-views", "Tenant built-in ERP screen layouts"),
         new("erp.inventory-transfers", "/api/warehouses/transfers", "Warehouse transfers"),
         new("erp.inventory-cost-adjustments", "/api/warehouses/cost-adjustments", "Inventory landed costs and revaluation"),
+        new("erp.sales-requests", "/api/sales/requests", "Sales requests"),
         new("erp.sales-quotes", "/api/sales/quotes", "Sales quotes"),
         new("erp.sales-promotions", "/api/sales/promotions", "Sales promotion campaigns and applications"),
         new("erp.sales-orders", "/api/sales/orders", "Sales orders and reservations"),

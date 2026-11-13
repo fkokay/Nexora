@@ -1,0 +1,159 @@
+/* Tam sayfa belge yüzeyi (DocumentSurface.tsx): satış ve satınalma belgelerinin detay ekranı. */
+
+/* Açık belge, çalışma alanı görünümünün tek görünen içeriğidir; üst üste açılanlardan yalnızca sonuncusu görünür. */
+.workspace-view:has(> .doc-surface) > :not(.doc-surface) { display: none !important; }
+.workspace-view > .doc-surface:has(~ .doc-surface) { display: none !important; }
+
+.doc-surface {
+  --doc-border: var(--erp-line, #dfe5ec);
+  --doc-paper: var(--erp-paper, #fff);
+  --doc-ink: var(--erp-ink, #1f2937);
+  --doc-muted: var(--erp-muted-ink, #637083);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--doc-ink);
+}
+html[data-theme="dark"] .doc-surface {
+  --doc-border: #30394d;
+  --doc-paper: #171d2b;
+  --doc-ink: #edf3fb;
+  --doc-muted: #9aa9bd;
+}
+.doc-surface.doc-surface-floating {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: auto;
+  padding: 16px 24px 32px;
+  background: var(--erp-canvas, #f3f6fa);
+}
+html[data-theme="dark"] .doc-surface.doc-surface-floating { background: #10141f; }
+
+/* Başlık çubuğu: geri, belge türü ve numarası, durum, işlemler. Kaydırırken üstte kalır. */
+.doc-surface > .doc-surface-head {
+  position: sticky;
+  top: var(--doc-sticky-top, 0px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  background: var(--doc-paper);
+}
+.doc-surface .doc-surface-back {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--doc-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--doc-muted);
+  cursor: pointer;
+}
+.doc-surface .doc-surface-back:hover,
+.doc-surface .doc-surface-back:focus-visible { border-color: var(--erp-primary, #0876d1); color: var(--erp-primary, #0876d1); }
+.doc-surface .doc-surface-title { flex: 1 1 240px; min-width: 0; }
+.doc-surface .doc-surface-title h1 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--doc-ink);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.doc-surface .doc-surface-title h1 b { font-weight: 700; color: var(--erp-primary-dark, #005a9e); overflow-wrap: anywhere; }
+html[data-theme="dark"] .doc-surface .doc-surface-title h1 b { color: #8cc4f5; }
+.doc-surface .doc-surface-title p { margin: 2px 0 0; color: var(--doc-muted); font-size: 13px; overflow-wrap: anywhere; }
+.doc-surface .doc-surface-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.doc-surface .doc-surface-status {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid #cfd8e4;
+  border-radius: 999px;
+  background: #f1f4f8;
+  color: #4a586c;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.doc-surface .doc-surface-status.is-info { border-color: #9cc3e6; background: #e3f0fb; color: #0b4f8a; }
+.doc-surface .doc-surface-status.is-warning { border-color: #ecd08b; background: #fff6dd; color: #7a5600; }
+.doc-surface .doc-surface-status.is-success { border-color: #a5d8bb; background: #e6f6ed; color: #17643c; }
+.doc-surface .doc-surface-status.is-danger { border-color: #edb3ad; background: #fdecea; color: #9b2c22; }
+html[data-theme="dark"] .doc-surface .doc-surface-status { border-color: #3a4559; background: #20293a; color: #c7d1df; }
+html[data-theme="dark"] .doc-surface .doc-surface-status.is-info { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
+html[data-theme="dark"] .doc-surface .doc-surface-status.is-warning { border-color: #6b5520; background: #2b2613; color: #f0d48a; }
+html[data-theme="dark"] .doc-surface .doc-surface-status.is-success { border-color: #2c6a48; background: #143024; color: #9bdcb6; }
+html[data-theme="dark"] .doc-surface .doc-surface-status.is-danger { border-color: #7a3630; background: #33191a; color: #f2aaa3; }
+
+/*
+ * Gövde, taşınan pencerelerin kutu sınıflarını ("modal ledger-modal …") korur ki iç
+ * stilleri bozulmasın; pencereye özgü ölçü, gölge ve iç kaydırma burada kaldırılır.
+ */
+#root .doc-surface > .doc-surface-body,
+.doc-surface.doc-surface-floating > .doc-surface-body {
+  position: static !important;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  transform: none !important;
+  animation: none !important;
+  border: 1px solid var(--doc-border) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+/* Pencerede kendi içinde kayan bölümler sayfada doğal akışla uzar. */
+#root .doc-surface > .doc-surface-body > .sales-detail-content,
+#root .doc-surface > .doc-surface-body > .invoice-detail-layout {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 720px) {
+  .doc-surface > .doc-surface-head { padding: 10px 12px; }
+  .doc-surface .doc-surface-title h1 { font-size: 17px; }
+  .doc-surface .doc-surface-actions { width: 100%; }
+}
+@media print {
+  .doc-surface .doc-surface-back, .doc-surface .doc-surface-actions { display: none; }
+  .doc-surface > .doc-surface-head { position: static; }
+}
+
+/* Liste hücrelerinde ve belge içinde durum etiketi (DocumentStatusBadge.tsx). */
+.doc-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid #cfd8e4;
+  border-radius: 999px;
+  background: #f1f4f8;
+  color: #4a586c;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.doc-status.is-info { border-color: #9cc3e6; background: #e3f0fb; color: #0b4f8a; }
+.doc-status.is-warning { border-color: #ecd08b; background: #fff6dd; color: #7a5600; }
+.doc-status.is-success { border-color: #a5d8bb; background: #e6f6ed; color: #17643c; }
+.doc-status.is-danger { border-color: #edb3ad; background: #fdecea; color: #9b2c22; }
+html[data-theme="dark"] .doc-status { border-color: #3a4559; background: #20293a; color: #c7d1df; }
+html[data-theme="dark"] .doc-status.is-info { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
+html[data-theme="dark"] .doc-status.is-warning { border-color: #6b5520; background: #2b2613; color: #f0d48a; }
+html[data-theme="dark"] .doc-status.is-success { border-color: #2c6a48; background: #143024; color: #9bdcb6; }
+html[data-theme="dark"] .doc-status.is-danger { border-color: #7a3630; background: #33191a; color: #f2aaa3; }

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import { X } from "lucide-react";
@@ -9,6 +8,8 @@ import { screenViewGridDefaults } from "./screenViewGridLayout";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
 import { confirmLocalized, promptLocalized } from "./locale";
+import { DocumentSurface } from "./document-page/DocumentSurface";
+import { salesInvoiceStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type CustomerCollection = AppTypes.CustomerCollection;
 type FinancialAccount = AppTypes.FinancialAccount;
@@ -618,30 +619,16 @@ export function SalesInvoiceModal({
           line.salesInvoiceLineId,
           (returnedByLine.get(line.salesInvoiceLineId) || 0) + line.quantity,
         );
-  return createPortal((
-    <div
-      className="modal-backdrop sales-invoice-detail-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+  return (
+    <DocumentSurface
+      title="Satış faturası"
+      code={invoice?.code}
+      subtitle={invoice ? <><span>{invoice.customerName}</span>{invoice.invoiceType && <> · <span>{invoice.invoiceType === "Retail" ? "Perakende · KDV dâhil" : "Toptan · KDV hariç"}</span></>}</> : "Yükleniyor…"}
+      status={invoice ? salesInvoiceStatus(invoice.status) : undefined}
+      onClose={onClose}
+      className="sales-invoice-detail-backdrop"
+      bodyClassName="modal ledger-modal invoice-detail-modal"
     >
-      <div className="modal ledger-modal invoice-detail-modal">
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">SATIŞ FATURASI DETAYI</p>
-            <h2>Fatura Detay</h2>
-            <p className="invoice-detail-subtitle">
-              Fatura No: <b>{invoice?.code || "Yükleniyor…"}</b> · {invoice?.customerName || ""}{invoice?.invoiceType ? ` · ${invoice.invoiceType === "Retail" ? "Perakende · KDV dâhil" : "Toptan · KDV hariç"}` : ""}
-            </p>
-          </div>
-          <button
-            className="icon-button"
-            aria-label="Fatura detayını kapat"
-            onClick={onClose}
-          >
-            <X size={19} />
-          </button>
-        </div>
         {error && (
           <div className="alert inline-alert">
             {error}
@@ -1582,7 +1569,6 @@ export function SalesInvoiceModal({
           </div>
           </>
         )}
-      </div>
-    </div>
-  ), document.body);
+      </DocumentSurface>
+  );
 }

@@ -13,7 +13,7 @@ export default function SupplierQuotesHeader({
 }: Props) {
   return (
     <ListPageHeader
-      title="Tedarikçi Teklifleri"
+      title="Satınalma Teklifleri"
       description="Taleplere bağlı teklifleri tek listede bulun, durumlarını ve fiyatlarını inceleyin."
       count={total}
     >
