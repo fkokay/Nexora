@@ -1,7 +1,7 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { FileText, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { FileText, ReceiptText, RotateCcw, ShieldCheck, X } from "lucide-react";
 
 type InvoiceSummary = {
   id: string;
@@ -41,6 +41,18 @@ const defaultInvoiceFields: InvoiceScreenField[] = [
   { key: "status", label: "Durum", visible: true, position: 6 },
   { key: "actions", label: "", visible: true, position: 7, fixed: true },
 ];
+
+// Sized to fit the popup without sideways scrolling; fillColumns spreads any spare room.
+const invoiceColumnWidths: Record<string, number> = {
+  code: 140,
+  orderCode: 120,
+  deliveryCode: 120,
+  invoiceDate: 96,
+  lineCount: 64,
+  grandTotal: 140,
+  status: 90,
+  actions: 160,
+};
 
 async function request<T>(path: string, token: string): Promise<T> {
   const response = await authenticatedFetch(path, token, {
@@ -143,6 +155,24 @@ export default function CustomerSalesInvoicesPanel({
     };
   }, [customer.id, page, token]);
 
+  const visibleFields = screenFields.filter((field) => field.visible);
+  const pageCount = Math.max(1, Math.ceil(totalCount / 25));
+  const currencyTotals = items.reduce<Record<string, number>>(
+    (totals, invoice) => {
+      if (invoice.status === "Posted")
+        totals[invoice.currencyCode] =
+          (totals[invoice.currencyCode] ?? 0) + invoice.grandTotal;
+      return totals;
+    },
+    {},
+  );
+  const totalsText = Object.entries(currencyTotals)
+    .map(
+      ([currency, amount]) =>
+        `${amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`,
+    )
+    .join(" · ");
+
   return (
     <div
       className="modal-backdrop"
@@ -166,7 +196,12 @@ export default function CustomerSalesInvoicesPanel({
               Müşteriye ait satış faturaları. İade işlemi için faturayı açın.
             </p>
           </div>
-          <button className="icon-button" aria-label="Kapat" onClick={onClose}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Kapat"
+            onClick={onClose}
+          >
             <X size={19} />
           </button>
         </div>
@@ -178,12 +213,14 @@ export default function CustomerSalesInvoicesPanel({
             <b>
               {loading
                 ? "Faturalar yükleniyor…"
-                : `${totalCount} satış faturası`}
+                : `${totalCount.toLocaleString("tr-TR")} satış faturası`}
             </b>
             <small>
               {loading
-                ? "Aktif firma kayıtları yükleniyor"
-                : `${page}. sayfa · 25 kayıtlık sunucu sayfalaması`}
+                ? "Lütfen bekleyin"
+                : totalCount === 0
+                  ? "Bu müşteriye henüz fatura kesilmemiş."
+                  : `${pageCount > 1 ? "Bu sayfadaki " : ""}kesilmiş faturaların toplamı: ${totalsText || "0,00"}`}
             </small>
           </div>
         </div>
@@ -198,47 +235,45 @@ export default function CustomerSalesInvoicesPanel({
         <div className="ledger-list customer-sales-invoices-list">
           <AdvancedDataGrid
             externalPagination
-            className="customer-table"
+            className={`customer-table${!loading && items.length === 0 ? " is-empty" : ""}`}
             gridId="customer-sales-invoices"
+            enableRowSelection={false}
+            fillColumns
+            initialColumnWidths={visibleFields.map(
+              (field) => invoiceColumnWidths[field.key] ?? 120,
+            )}
           >
             <thead>
               <tr>
-                {screenFields
-                  .filter((field) => field.visible)
-                  .map((field) => (
-                    <th key={field.key}>{field.label}</th>
-                  ))}
+                {visibleFields.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td
-                    colSpan={
-                      screenFields.filter((field) => field.visible).length
-                    }
-                    className="table-empty"
-                  >
+                  <td colSpan={visibleFields.length} className="table-empty">
                     Faturalar yükleniyor…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={
-                      screenFields.filter((field) => field.visible).length
-                    }
-                    className="table-empty"
-                  >
-                    Bu müşteri için görüntülenebilir satış faturası yok.
+                  <td colSpan={visibleFields.length} className="table-empty">
+                    <div className="customer-sales-invoices-empty">
+                      <ReceiptText size={26} aria-hidden="true" />
+                      <b>Satış faturası yok</b>
+                      <span>
+                        Bu müşteri için kesilmiş fatura bulunmuyor. Fatura
+                        kesildiğinde burada listelenir.
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 items.map((invoice) => (
                   <tr key={invoice.id}>
-                    {screenFields
-                      .filter((field) => field.visible)
-                      .map((field) => (
+                    {visibleFields.map((field) => (
                         <td key={field.key}>
                           {field.key === "code" ? (
                             <span className="customer-code">
@@ -278,9 +313,10 @@ export default function CustomerSalesInvoicesPanel({
             </tbody>
           </AdvancedDataGrid>
         </div>
+        {pageCount > 1 && (
         <div className="table-pagination">
           <span>
-            Sayfa {page} / {Math.max(1, Math.ceil(totalCount / 25))}
+            Sayfa {page} / {pageCount}
           </span>
           <div>
             <button
@@ -301,12 +337,13 @@ export default function CustomerSalesInvoicesPanel({
             </button>
           </div>
         </div>
+        )}
         <div className="modal-foot">
           <span>
             <FileText size={15} /> İade miktarı ve kaynak fatura bağlantısı
             fatura detayında korunur.
           </span>
-          <button className="secondary" onClick={onClose}>
+          <button type="button" className="secondary" onClick={onClose}>
             Kapat
           </button>
         </div>

@@ -160,7 +160,7 @@ const uiEnglish: Record<string, string> = {
   'Çıktı': 'Output', 'Dağıtım satır yuvarlaması son satıra eklenir.': 'Any allocation rounding is added to the final line.',
   'Dağıtım yöntemi': 'Allocation method', 'Defter hareketi seçin': 'Select a ledger transaction',
   'Defterde olup ekstreden henüz eşleşmeyen hareketler': 'Ledger transactions not yet matched to the statement', 'Değer geçmişi': 'Value history',
-  'Değerleme tarihi': 'Revaluation date', 'Değerler tenant kapsamında saklanır.': 'Values are stored within the tenant.',
+  'Değerleme tarihi': 'Revaluation date', 'Değerler tenant kapsamında saklanır.': 'Values are stored within the tenant.', 'Değerler yalnızca bu firmada saklanır.': 'Values are stored only in this company.', 'Satış faturası yok': 'No sales invoices', 'Bu müşteri için kesilmiş fatura bulunmuyor. Fatura kesildiğinde burada listelenir.': 'No invoices have been issued for this customer. Issued invoices will appear here.', 'Bu müşteriye henüz fatura kesilmemiş.': 'No invoices have been issued to this customer yet.',  'Lütfen bekleyin': 'Please wait',
   'Değerler tenant kapsamlıdır.': 'Values are tenant-scoped.', 'Değerleri kaydet': 'Save values', 'Değerlerin değişiklik geçmişi depo kartından açılır.': 'Value change history is available from the warehouse record.',
   'Değişiklikler geçmişe kaydedilir.': 'Changes are saved to history.', 'Depo adı': 'Warehouse name', 'Depo alan tanımları': 'Warehouse field definitions',
   'Depo bakiyesi': 'Warehouse balance', 'Depo hareket geçmişi korunur.': 'Warehouse transaction history is retained.',
