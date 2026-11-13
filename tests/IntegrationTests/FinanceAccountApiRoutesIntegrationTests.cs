@@ -197,9 +197,9 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         await AssertStatusCodeAsync(HttpStatusCode.OK, previewResponse);
         using var preview = await previewResponse.Content.ReadFromJsonAsync<JsonDocument>();
         Assert.NotNull(preview);
-        Assert.Equal(238, preview.RootElement.GetProperty("totalAccounts").GetInt32());
+        Assert.Equal(243, preview.RootElement.GetProperty("totalAccounts").GetInt32());
         Assert.Equal(1, preview.RootElement.GetProperty("existingAccounts").GetInt32());
-        Assert.Equal(237, preview.RootElement.GetProperty("accountsToAdd").GetInt32());
+        Assert.Equal(242, preview.RootElement.GetProperty("accountsToAdd").GetInt32());
         Assert.Equal("https://www.gib.gov.tr/mevzuat/kanun/434/teblig/8181", preview.RootElement.GetProperty("sourceUrl").GetString());
 
         using var forbidden = await client.PostAsync("/api/finance/general-ledger/accounts/standard-chart/apply", content: null);
@@ -211,7 +211,7 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         await AssertStatusCodeAsync(HttpStatusCode.OK, apply);
         using var applied = await apply.Content.ReadFromJsonAsync<JsonDocument>();
         Assert.NotNull(applied);
-        Assert.Equal(237, applied.RootElement.GetProperty("addedCount").GetInt32());
+        Assert.Equal(242, applied.RootElement.GetProperty("addedCount").GetInt32());
         Assert.Equal(1, applied.RootElement.GetProperty("preservedExistingCount").GetInt32());
 
         using var repeatedApply = await client.PostAsync("/api/finance/general-ledger/accounts/standard-chart/apply", content: null);
@@ -219,13 +219,13 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         using var repeated = await repeatedApply.Content.ReadFromJsonAsync<JsonDocument>();
         Assert.NotNull(repeated);
         Assert.Equal(0, repeated.RootElement.GetProperty("addedCount").GetInt32());
-        Assert.Equal(238, repeated.RootElement.GetProperty("preservedExistingCount").GetInt32());
+        Assert.Equal(243, repeated.RootElement.GetProperty("preservedExistingCount").GetInt32());
 
         using var accountsResponse = await client.GetAsync("/api/finance/general-ledger/accounts");
         await AssertStatusCodeAsync(HttpStatusCode.OK, accountsResponse);
         using var accounts = await accountsResponse.Content.ReadFromJsonAsync<JsonDocument>();
         Assert.NotNull(accounts);
-        Assert.Equal(238, accounts.RootElement.GetArrayLength());
+        Assert.Equal(243, accounts.RootElement.GetArrayLength());
         var preservedAccount = Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("id").GetGuid() == existingAccountId);
         Assert.Equal("Firma kasa hesabı", preservedAccount.GetProperty("name").GetString());
         Assert.Equal("Expense", preservedAccount.GetProperty("statementSection").GetString());
@@ -233,6 +233,9 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
         Assert.Equal("Revenue", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "600").GetProperty("statementSection").GetString());
         Assert.Equal("Unclassified", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "610").GetProperty("statementSection").GetString());
         Assert.Equal("Expense", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "620").GetProperty("statementSection").GetString());
+        // Resmî planda yer alan ve şablona sonradan eklenen hesaplar (GİB 1 Sıra No.lu tebliğ, Ek-5).
+        Assert.Equal("Liability", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "398").GetProperty("statementSection").GetString());
+        Assert.Equal("Expense", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "652").GetProperty("statementSection").GetString());
         Assert.Equal("Unclassified", Assert.Single(accounts.RootElement.EnumerateArray(), x => x.GetProperty("code").GetString() == "690").GetProperty("statementSection").GetString());
         Assert.DoesNotContain(accounts.RootElement.EnumerateArray(), x => x.GetProperty("name").GetString() == "Diğer firma kasa hesabı");
     }
