@@ -66,6 +66,8 @@ export default function WarehouseLocationsPage({
   const [balances, setBalances] = useState<Balance[]>([]);
   const [reconciliation, setReconciliation] = useState<Reconciliation[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [balanceFields, setBalanceFields] = useState<ScreenField[]>([
     { key: "stockItemCode", label: "Stok kodu", visible: true, position: 0 },
     { key: "stockItemName", label: "Stok adı", visible: true, position: 1 },
@@ -128,8 +130,13 @@ export default function WarehouseLocationsPage({
     locations.find((location) => location.id === selectedId) ?? null;
   const filteredLocations = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("tr-TR");
-    if (!term) return locations;
-    return locations.filter((location) => {
+    const byStatus = statusFilter
+      ? locations.filter(
+          (location) => location.isActive === (statusFilter === "Active"),
+        )
+      : locations;
+    if (!term) return byStatus;
+    return byStatus.filter((location) => {
       const parentCode =
         locations.find((row) => row.id === location.parentLocationId)?.code ??
         "";
@@ -137,7 +144,7 @@ export default function WarehouseLocationsPage({
         .toLocaleLowerCase("tr-TR")
         .includes(term);
     });
-  }, [locations, search]);
+  }, [locations, search, statusFilter]);
   const visibleBalanceFields = useMemo(
     () =>
       balanceFields
@@ -415,17 +422,18 @@ export default function WarehouseLocationsPage({
   }
 
   return (
-    <div className="warehouse-locations-page">
+    <div className="warehouse-locations-page list-v2">
       <WarehouseLocationOverview
         warehouses={warehouses}
         warehouseId={warehouseId}
         locations={locations}
-        selected={selected}
-        balanceCount={balances.length}
         warehousesLoading={warehousesLoading}
         loading={loading}
-        balancesLoading={balancesLoading}
-        reconciliationLoading={reconciliationLoading}
+        search={search}
+        statusFilter={statusFilter}
+        onSearchChange={setSearch}
+        onStatusChange={setStatusFilter}
+        toolsSlotRef={setToolsSlot}
         error={error}
         notice={notice}
         onRefresh={() => void refresh()}
@@ -450,11 +458,8 @@ export default function WarehouseLocationsPage({
           search={search}
           loading={loading}
           warehouseId={warehouseId}
-          busy={busy}
-          role={role}
-          onSearchChange={setSearch}
+          toolbarContainer={toolsSlot}
           onSelect={setSelectedId}
-          onEdit={beginEdit}
         />
         <LocationBalancePanel
           selected={selected}

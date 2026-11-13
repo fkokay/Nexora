@@ -1,6 +1,6 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
-import { Search, Warehouse } from "lucide-react";
+import { Pencil, Warehouse } from "lucide-react";
 import type { Balance, Location, Reconciliation, ScreenField } from "../types";
 
 type LocationListProps = {
@@ -11,11 +11,9 @@ type LocationListProps = {
   search: string;
   loading: boolean;
   warehouseId: string;
-  busy: boolean;
-  role: string;
-  onSearchChange: (value: string) => void;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
   onSelect: (id: string) => void;
-  onEdit: (location: Location) => void;
 };
 
 export function LocationListPanel({
@@ -26,47 +24,21 @@ export function LocationListPanel({
   search,
   loading,
   warehouseId,
-  busy,
-  role,
-  onSearchChange,
+  toolbarContainer,
   onSelect,
-  onEdit,
 }: LocationListProps) {
+  // The code is shown under the name, and row actions live in the detail panel, so
+  // neither gets a column of its own. The code column stays if the name is hidden.
+  const hasName = visibleFields.some((field) => field.key === "name");
+  const fields = visibleFields.filter(
+    (field) => field.key !== "actions" && !(hasName && field.key === "code"),
+  );
   return (
     <section
-      className="panel warehouse-location-list-panel"
-      aria-labelledby="warehouse-location-list-title"
+      className="panel warehouse-location-list-panel list-v2-list"
+      aria-label="Raf ve bölmeler"
       aria-busy={loading}
     >
-      <div className="panel-heading">
-        <div>
-          <b id="warehouse-location-list-title">Raf ve bölmeler</b>
-          <small>
-            {locations.filter((row) => row.isActive).length} aktif ·{" "}
-            {locations.length} toplam
-          </small>
-        </div>
-      </div>
-      <label className="warehouse-location-search">
-        <Search size={16} aria-hidden="true" />
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Kod, ad veya üst konum ara"
-          aria-label="Kod, ad veya üst konum ara"
-          disabled={loading || locations.length === 0}
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => onSearchChange("")}
-            aria-label="Aramayı temizle"
-          >
-            ×
-          </button>
-        )}
-      </label>
       {loading ? (
         <div className="empty-small" role="status" aria-live="polite">
           Konumlar yükleniyor…
@@ -83,7 +55,7 @@ export function LocationListPanel({
         <div className="empty-small" role="status">
           “{search}” aramasıyla eşleşen konum bulunamadı.
         </div>
-      ) : visibleFields.length === 0 ? (
+      ) : fields.length === 0 ? (
         <div className="empty-small">
           Konum görünümünde açık sütun bulunmuyor.
         </div>
@@ -96,13 +68,15 @@ export function LocationListPanel({
         >
           <AdvancedDataGrid
             enableRowSelection={false}
+            hideSearch
+            toolbarContainer={toolbarContainer}
             className="customer-table"
             aria-label="Depo raf ve bölmeler"
           >
             <thead>
-              <ScreenViewGroupHeader fields={visibleFields} />
+              <ScreenViewGroupHeader fields={fields} />
               <tr>
-                {visibleFields.map((field) => (
+                {fields.map((field) => (
                   <th scope="col" key={field.key}>
                     {field.label}
                   </th>
@@ -114,12 +88,37 @@ export function LocationListPanel({
                 <tr
                   key={location.id}
                   className={
-                    selectedId === location.id ? "selected" : undefined
+                    selectedId === location.id
+                      ? "selected erp-selected-row"
+                      : undefined
                   }
+                  onClick={(event) => {
+                    if (
+                      (event.target as HTMLElement).closest(
+                        "button,a,input,select,textarea",
+                      )
+                    )
+                      return;
+                    onSelect(location.id);
+                  }}
                 >
-                  {visibleFields.map((field) => (
+                  {fields.map((field) => (
                     <td key={field.key}>
-                      {field.key === "code" ? (
+                      {field.key === "name" ? (
+                        <button
+                          type="button"
+                          className="warehouse-location-select"
+                          aria-pressed={selectedId === location.id}
+                          onClick={() => onSelect(location.id)}
+                        >
+                          <span>
+                            <b>{location.name}</b>
+                            <small className="cell-subtitle list-v2-name-code">
+                              {location.code}
+                            </small>
+                          </span>
+                        </button>
+                      ) : field.key === "code" ? (
                         <button
                           type="button"
                           className="warehouse-location-select"
@@ -128,8 +127,6 @@ export function LocationListPanel({
                         >
                           <b>{location.code}</b>
                         </button>
-                      ) : field.key === "name" ? (
-                        location.name
                       ) : field.key === "parentLocation" ? (
                         (locations.find(
                           (row) => row.id === location.parentLocationId,
@@ -144,27 +141,6 @@ export function LocationListPanel({
                         >
                           {location.isActive ? "Aktif" : "Pasif"}
                         </span>
-                      ) : field.key === "actions" ? (
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            className="secondary small-button"
-                            onClick={() => onSelect(location.id)}
-                          >
-                            Seç
-                          </button>
-                          {role === "TenantAdmin" && (
-                            <button
-                              type="button"
-                              className="row-action"
-                              disabled={busy}
-                              onClick={() => onEdit(location)}
-                              aria-label={`${location.code} konumunu düzenle`}
-                            >
-                              Düzenle
-                            </button>
-                          )}
-                        </div>
                       ) : (
                         "—"
                       )}
@@ -209,62 +185,63 @@ export function LocationBalancePanel({
       aria-labelledby="warehouse-location-balance-title"
       aria-busy={loading}
     >
-      <div className="panel-heading">
-        <div>
-          <b id="warehouse-location-balance-title">
-            {selected
-              ? `${selected.code} · ${selected.name}`
-              : "Konum bakiyesi"}
-          </b>
-          <small>
-            {selected
-              ? "Bu konuma açıkça atanmış stok hareketlerinin net miktarı"
-              : "Bakiye görmek için bir konum seçin."}
-          </small>
-        </div>
-        <span className="tenant-scope">
-          <Warehouse size={14} aria-hidden="true" />
-          {balances.length} stok satırı
-        </span>
-      </div>
-      {selected && (
-        <div className="warehouse-record-summary">
-          <div>
-            <small>Konum kodu</small>
-            <b>{selected.code}</b>
-          </div>
-          <div>
-            <small>Konum adı</small>
-            <b>{selected.name}</b>
-          </div>
-          <div>
-            <small>Üst konum</small>
-            <b>
-              {selected.parentLocationId
-                ? locations.find((row) => row.id === selected.parentLocationId)
-                    ?.code
-                : "Üst düzey"}
-            </b>
-          </div>
-          <span
-            className={
-              selected.isActive
-                ? "warehouse-location-state is-active"
-                : "warehouse-location-state"
-            }
-          >
-            {selected.isActive ? "Aktif" : "Pasif"}
-          </span>
-          {role === "TenantAdmin" && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => onEdit(selected)}
+      {selected ? (
+        <>
+          <header className="list-v2-detail-head">
+            <div>
+              <span className="list-v2-kind">Depo konumu</span>
+              <h2 id="warehouse-location-balance-title">{selected.name}</h2>
+            </div>
+            {role === "TenantAdmin" && (
+              <div className="list-v2-detail-head-actions">
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={busy}
+                  onClick={() => onEdit(selected)}
+                >
+                  <Pencil size={14} aria-hidden="true" /> Düzenle
+                </button>
+              </div>
+            )}
+          </header>
+          <div className="list-v2-detail-meta">
+            <span className="list-v2-detail-code">{selected.code}</span>
+            <span
+              className={`list-v2-status${selected.isActive ? " is-active" : ""}`}
             >
-              Düzenle
-            </button>
-          )}
+              <i aria-hidden="true" />
+              {selected.isActive ? "Aktif" : "Pasif"}
+            </span>
+          </div>
+          <dl className="list-v2-facts">
+            <div>
+              <dt>Üst konum</dt>
+              <dd>
+                {selected.parentLocationId
+                  ? locations.find(
+                      (row) => row.id === selected.parentLocationId,
+                    )?.code
+                  : "Üst düzey"}
+              </dd>
+            </div>
+          </dl>
+          <div className="warehouse-location-detail-balances">
+            <h3 title="Bu konuma açıkça atanmış stok hareketlerinin net miktarı">
+              Konum bakiyesi
+            </h3>
+            <span className="tenant-scope">
+              <Warehouse size={14} aria-hidden="true" />
+              {balances.length} stok satırı
+            </span>
+          </div>
+        </>
+      ) : (
+        <div className="panel-heading">
+          <div>
+            <b id="warehouse-location-balance-title">Konum bakiyesi</b>
+            <small>Bakiye görmek için bir konum seçin.</small>
+          </div>
         </div>
       )}
       {error ? (

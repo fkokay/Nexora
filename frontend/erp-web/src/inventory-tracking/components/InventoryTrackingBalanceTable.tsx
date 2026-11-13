@@ -6,35 +6,30 @@ import type { Balance, ScreenField } from "../types";
 type Props = {
   fields: ScreenField[];
   rows: Balance[];
-  totalCount: number;
   loading: boolean;
   error: string;
   hasFilters: boolean;
   onClick: (event: MouseEvent<HTMLDivElement>) => void;
   renderField: (row: Balance, field: ScreenField) => ReactNode;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
 };
 
 export default function InventoryTrackingBalanceTable({
   fields,
   rows,
-  totalCount,
   loading,
   error,
   hasFilters,
   onClick,
   renderField,
+  toolbarContainer,
 }: Props) {
   return (
     <section
-      className="inventory-list-pane"
+      className="inventory-list-pane list-v2-list"
       aria-label="Lot ve seri bakiye listesi"
     >
-      <div className="inventory-list-title">
-        <div>
-          <b>İzlenen stoklar</b>
-          <small>{totalCount} kayıt · ayrıntı için satır seçin</small>
-        </div>
-      </div>
       <div
         className="customer-table-wrap inventory-tracking-table-wrap"
         role="region"
@@ -45,6 +40,7 @@ export default function InventoryTrackingBalanceTable({
         <AdvancedDataGrid
           hideSearch
           externalPagination
+          toolbarContainer={toolbarContainer}
           enableRowSelection={false}
           className="customer-table quote-table inventory-tracking-table"
         >

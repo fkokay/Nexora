@@ -4,8 +4,8 @@ import SupplierQuoteDetailPane from "./purchase-supplier-quotes/components/Suppl
 import SupplierQuotesFilters from "./purchase-supplier-quotes/components/SupplierQuotesFilters";
 import SupplierQuotesHeader from "./purchase-supplier-quotes/components/SupplierQuotesHeader";
 import SupplierQuotesPagination from "./purchase-supplier-quotes/components/SupplierQuotesPagination";
-import SupplierQuotesSummary from "./purchase-supplier-quotes/components/SupplierQuotesSummary";
 import SupplierQuotesTable from "./purchase-supplier-quotes/components/SupplierQuotesTable";
+import "./purchase-list-v2/purchase-list-v2.css";
 import type {
   Quote,
   QuoteDetail,
@@ -37,6 +37,8 @@ export default function PurchaseSupplierQuotesPage({
 }: Props) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  // Search text that is applied to the query (set shortly after typing stops).
+  const [filter, setFilter] = useState("");
   const [status, setStatus] = useState("");
   const [data, setData] = useState<QuotePage | null>(null);
   const [selected, setSelected] = useState<Quote | null>(null);
@@ -49,7 +51,7 @@ export default function PurchaseSupplierQuotesPage({
     setLoading(true);
     setError("");
     const params = new URLSearchParams({ page: String(page), pageSize: "50" });
-    if (search.trim()) params.set("search", search.trim());
+    if (filter) params.set("search", filter);
     if (status) params.set("status", status);
     request<QuotePage>(`/api/purchasing/supplier-quotes/?${params}`, token)
       .then((result) => {
@@ -70,7 +72,7 @@ export default function PurchaseSupplierQuotesPage({
     return () => {
       cancelled = true;
     };
-  }, [token, page, search, status]);
+  }, [token, page, filter, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,51 +97,36 @@ export default function PurchaseSupplierQuotesPage({
   const pages = Math.max(1, Math.ceil((data?.totalCount ?? 0) / 50));
 
   return (
-    <div className="purchase-requests-page supplier-quotes-page">
-      <SupplierQuotesHeader onOpenRequests={onOpenRequests} />
-      <SupplierQuotesSummary totalCount={data?.totalCount ?? 0} />
+    <div className="purchase-requests-page supplier-quotes-page list-v2">
+      <SupplierQuotesHeader
+        onOpenRequests={onOpenRequests}
+        total={data?.totalCount ?? null}
+      />
       {error && (
         <div role="alert" className="inline-error">
           {error}
         </div>
       )}
-      <section className="panel supplier-quotes-filter-card" aria-label="Tedarikçi teklif filtreleri">
-        <div className="supplier-quotes-filter-heading">
-          <div>
-            <h2>Filtreler</h2>
-            <p>Teklifleri numara, talep, tedarikçi veya duruma göre daraltın.</p>
-          </div>
-        </div>
-        <SupplierQuotesFilters
-          search={search}
-          status={status}
-          onSearchChange={(value) => {
-            setPage(1);
-            setSearch(value);
-          }}
-          onStatusChange={(value) => {
-            setPage(1);
-            setStatus(value);
-          }}
-        />
-      </section>
+      <SupplierQuotesFilters
+        search={search}
+        status={status}
+        onSearchChange={setSearch}
+        onSearchApply={() => {
+          setPage(1);
+          setFilter(search.trim());
+        }}
+        onStatusChange={(value) => {
+          setPage(1);
+          setStatus(value);
+        }}
+      />
       <div
         className={`supplier-quotes-workspace${selected ? " has-selection" : ""}`}
       >
         <section
-          className="supplier-quotes-list"
+          className="supplier-quotes-list list-v2-list"
           aria-label="Tedarikçi teklif listesi"
         >
-          <div className="erp-pane-heading">
-            <div>
-              <b>Tedarikçi teklifleri</b>
-              <small>
-                {loading
-                  ? "Kayıtlar yükleniyor…"
-                  : `${data?.totalCount ?? 0} kayıt · sayfa ${page}/${pages}`}
-              </small>
-            </div>
-          </div>
           <SupplierQuotesTable
             items={data?.items ?? []}
             loading={loading}

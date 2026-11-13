@@ -10,6 +10,9 @@ import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { InventoryStockFilters } from "./inventory/components/InventoryStockFilters";
 import { InventoryStockGrid } from "./inventory/components/InventoryStockGrid";
 import { InventoryStockActionsMenu } from "./inventory/components/InventoryStockActionsMenu";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import "./inventory/inventory-list-v2.css";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmLocalized, promptLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
@@ -254,6 +257,10 @@ export function InventoryPage({
   const [warehouseCode, setWarehouseCode] = useState(""),
     [warehouseName, setWarehouseName] = useState("");
   const [warehouseSearch, setWarehouseSearch] = useState("");
+  // List-page toolbar state: status chips filter the loaded rows; the slot hosts the stock grid's tools.
+  const [warehouseStatusFilter, setWarehouseStatusFilter] = useState(""),
+    [transferStatusFilter, setTransferStatusFilter] = useState(""),
+    [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null);
   const [transferModal, setTransferModal] = useState(false),
     [transferSelectedItems, setTransferSelectedItems] = useState<string[]>([]),
     [transferSearch, setTransferSearch] = useState(""),
@@ -2080,9 +2087,29 @@ export function InventoryPage({
     }
   }
   const activeWarehouse = warehouses.find((x) => x.id === warehouseId);
-  const visibleStockFields = screenFields
+  const sortedStockFields = screenFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
+  // The code is shown under the name; its own column stays only if the name is hidden.
+  const visibleStockFields = sortedStockFields.some((field) => field.key === "name")
+    ? sortedStockFields.filter((field) => field.key !== "code")
+    : sortedStockFields;
+  const visibleWarehouses = warehouses.filter(
+    (row) =>
+      `${row.code} ${row.name}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR")) &&
+      (!warehouseStatusFilter ||
+        row.isActive === (warehouseStatusFilter === "Active")),
+  );
+  const visibleTransfers = transfers.filter(
+    (row) =>
+      `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(transferSearch.trim().toLocaleLowerCase("tr-TR")) &&
+      (!transferStatusFilter ||
+        (row.status === "Posted") === (transferStatusFilter === "Posted")),
+  );
   const itemsById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
     [items],
@@ -2135,7 +2162,7 @@ export function InventoryPage({
         return (
           <>
             <b className="customer-name">{item.name}</b>
-            <small className="cell-subtitle">{item.unitCode}</small>
+            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
           </>
         );
       case "category":
@@ -2251,97 +2278,104 @@ export function InventoryPage({
   return (
     <>
       {!editingItem && (
-        <>
+        <div className="inventory-list-v2 list-v2">
           {section !== "inventory-stock-create" && (
-            <div
-              className={`page-heading customer-heading inventory-page-heading${section === "inventory-stock" ? " inventory-stock-heading" : ""}`}
+            <ListPageHeader
+              className={`customer-heading inventory-page-heading${section === "inventory-stock" ? " inventory-stock-heading" : ""}`}
+              title={
+                section === "inventory-stock"
+                  ? "Stok Kartları"
+                  : section === "inventory-cost"
+                    ? "Stok Değerleme"
+                    : section === "inventory-transfers"
+                      ? "Depolar arası transferler"
+                      : "Depo Yönetimi"
+              }
+              description={
+                section === "inventory-stock"
+                  ? "Stok kartlarını ve depo bazındaki bakiyeleri yönetin."
+                  : section === "inventory-cost"
+                    ? "Ek maliyetleri, stok değerlemelerini ve alternatif birimleri yönetin."
+                    : section === "inventory-transfers"
+                      ? "Depolar arasındaki stok aktarım kayıtlarını ve iptal geçmişini yönetin."
+                      : "Depoları ve kullanım durumlarını yönetin."
+              }
+              count={
+                section === "inventory-stock" ||
+                (section === "inventory-cost" && role === "TenantAdmin")
+                  ? balancesLoading
+                    ? null
+                    : inventoryTotal
+                  : section === "inventory-transfers"
+                    ? transferTotal
+                    : section === "inventory-warehouses" && !loading
+                      ? warehouses.length
+                      : null
+              }
             >
-              <div>
-                <p className="eyebrow">ERP CORE · STOK</p>
-                <h1>
-                  {section === "inventory-stock"
-                    ? "Stok Kartları"
-                    : section === "inventory-cost"
-                      ? "Stok Değerleme"
-                      : section === "inventory-transfers"
-                        ? "Depolar arası transferler"
-                        : "Depo Yönetimi"}
-                </h1>
-                <p className="muted">
-                  {section === "inventory-stock"
-                    ? "Stok kartlarını ve depo bazındaki bakiyeleri yönetin."
-                    : section === "inventory-cost"
-                      ? "Ek maliyetleri, stok değerlemelerini ve alternatif birimleri yönetin."
-                      : section === "inventory-transfers"
-                        ? "Depolar arasındaki stok aktarım kayıtlarını ve iptal geçmişini yönetin."
-                        : "Depoları ve kullanım durumlarını yönetin."}
-                </p>
-              </div>
-              <div className="heading-actions">
-                {section === "inventory-transfers" && (
-                  <button
-                    className="primary"
-                    disabled={warehouses.filter((x) => x.isActive).length < 2}
-                    onClick={openTransferModal}
-                  >
-                    <IconPack.Plus size={16} /> Yeni transfer
-                  </button>
-                )}
-                {section === "inventory-warehouses" && (
-                  <>
+              {section === "inventory-transfers" && (
+                <button
+                  className="primary"
+                  disabled={warehouses.filter((x) => x.isActive).length < 2}
+                  onClick={openTransferModal}
+                >
+                  <IconPack.Plus size={16} /> Yeni transfer
+                </button>
+              )}
+              {section === "inventory-warehouses" && (
+                <>
+                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
                     <button
                       className="secondary"
-                      onClick={() => void openWarehouseModal()}
+                      onClick={() => void openWarehouseFieldCatalog()}
                     >
-                      Depo ekle
+                      Depo alan tanımları
                     </button>
-                    <button
-                      className="secondary"
-                      onClick={() => setWarehouseAdminModal(true)}
-                    >
-                      Depoları yönet
-                    </button>
-                    {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                      <button
-                        className="secondary"
-                        onClick={() => void openWarehouseFieldCatalog()}
-                      >
-                        Depo alan tanımları
-                      </button>
-                    )}
-                  </>
-                )}
-                {section === "inventory-stock" && role === "TenantAdmin" && (
+                  )}
                   <button
                     className="secondary"
-                    onClick={() => void openCategoryManager()}
+                    onClick={() => setWarehouseAdminModal(true)}
                   >
-                    <IconPack.Settings size={16} /> Kategorileri yönet
+                    Depoları yönet
                   </button>
-                )}
-                {section === "inventory-stock" && role === "TenantAdmin" && (
-                  <button
-                    className="secondary"
-                    onClick={() => setImportOpen(true)}
-                  >
-                    <IconPack.Upload size={15} /> CSV içe aktar
-                  </button>
-                )}
-                {section === "inventory-stock" && (
-                  <button className="secondary" onClick={() => setCustomFieldPickerOpen(true)}>
-                    Özel alanlar
-                  </button>
-                )}
-                {section === "inventory-stock" && (
                   <button
                     className="primary"
-                    onClick={() => onNavigate?.("inventory-stock-create")}
+                    onClick={() => void openWarehouseModal()}
                   >
-                    <IconPack.Plus size={17} /> Yeni stok kartı
+                    <IconPack.Plus size={16} /> Depo ekle
                   </button>
-                )}
-              </div>
-            </div>
+                </>
+              )}
+              {section === "inventory-stock" && role === "TenantAdmin" && (
+                <button
+                  className="secondary"
+                  onClick={() => void openCategoryManager()}
+                >
+                  <IconPack.Settings size={16} /> Kategorileri yönet
+                </button>
+              )}
+              {section === "inventory-stock" && role === "TenantAdmin" && (
+                <button
+                  className="secondary"
+                  onClick={() => setImportOpen(true)}
+                >
+                  <IconPack.Upload size={15} /> CSV içe aktar
+                </button>
+              )}
+              {section === "inventory-stock" && (
+                <button className="secondary" onClick={() => setCustomFieldPickerOpen(true)}>
+                  Özel alanlar
+                </button>
+              )}
+              {section === "inventory-stock" && (
+                <button
+                  className="primary"
+                  onClick={() => onNavigate?.("inventory-stock-create")}
+                >
+                  <IconPack.Plus size={17} /> Yeni stok kartı
+                </button>
+              )}
+            </ListPageHeader>
           )}
           {section !== "inventory-stock-create" && error && (
             <div className="alert inline-alert">
@@ -2359,57 +2393,12 @@ export function InventoryPage({
               </button>
             </div>
           )}
-          {section === "inventory-stock" && (
-            <section className="reference-summary-grid inventory-reference-summary" aria-label="Stok özeti">
-              <div className="reference-summary-card violet">
-                <span><IconPack.Boxes size={21} /></span>
-                <div><small>Toplam stok kartı</small><strong>{balancesLoading ? "…" : inventoryTotal.toLocaleString("tr-TR")}</strong></div>
-              </div>
-              <div className="reference-summary-card green">
-                <span><IconPack.CircleCheck size={21} /></span>
-                <div><small>Bu sayfada stokta</small><strong>{balancesLoading ? "…" : balances.filter((balance) => balance.quantityOnHand > 0).length}</strong></div>
-              </div>
-              <div className="reference-summary-card red">
-                <span><IconPack.TriangleAlert size={21} /></span>
-                <div><small>Bu sayfada stoksuz</small><strong>{balancesLoading ? "…" : balances.filter((balance) => balance.quantityOnHand <= 0).length}</strong></div>
-              </div>
-              <div className="reference-summary-card amber">
-                <span><IconPack.ArrowLeftRight size={21} /></span>
-                <div><small>Minimum seviyenin altında</small><strong>{balancesLoading ? "…" : belowMinimumCount.toLocaleString("tr-TR")}</strong></div>
-              </div>
-              <div className="reference-summary-card blue">
-                <span><IconPack.Landmark size={21} /></span>
-                <div><small>Depo sayısı</small><strong>{warehouses.length.toLocaleString("tr-TR")}</strong></div>
-              </div>
-            </section>
-          )}
           {section === "inventory-cost" && role !== "TenantAdmin" && (
             <div className="boundary-note">
               <IconPack.ShieldCheck size={17} />
               <span>
                 Stok maliyetleri ve alternatif birimler yalnızca firma
                 yöneticileri tarafından yönetilebilir.
-              </span>
-            </div>
-          )}
-          {section === "inventory-cost" && role === "TenantAdmin" && (
-            <div className="customer-summary">
-              <div className="customer-summary-icon">
-                <IconPack.Boxes size={19} />
-              </div>
-              <div>
-                <b>
-                  {inventoryTotal.toLocaleString("tr-TR")} değerlenebilir stok
-                  kalemi
-                </b>
-                <small>
-                  Ek maliyetler, değerleme hareketleri ve alternatif birimler
-                  depo bazında yönetilir.
-                </small>
-              </div>
-              <span className="tenant-scope">
-                <IconPack.ShieldCheck size={14} />
-                {activeWarehouse?.name || "Depo seçin"}
               </span>
             </div>
           )}
@@ -2437,35 +2426,11 @@ export function InventoryPage({
                 setInventoryPage(1);
               }}
               onApplyFilters={() => void loadBalances()}
+              toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : undefined}
             />
           )}
           {section === "inventory-cost" && role === "TenantAdmin" && (
             <section className="panel inventory-cost-panel">
-              <div className="inventory-cost-heading">
-                <div className="inventory-cost-title">
-                  <span className="inventory-cost-mark">
-                    <IconPack.Boxes size={19} />
-                  </span>
-                  <div>
-                    <p className="eyebrow">STOK DEĞERLEME</p>
-                    <h2>Maliyet ve birim yönetimi</h2>
-                    <p>
-                      Ek maliyetleri, maliyet yeniden değerlemelerini ve
-                      alternatif birimleri yönetin.
-                    </p>
-                  </div>
-                </div>
-                <div className="inventory-cost-count">
-                  <b>
-                    {balancesLoading
-                      ? "…"
-                      : inventoryTotal.toLocaleString("tr-TR")}
-                  </b>
-                  <span>
-                    {balancesLoading ? "Bakiyeler yükleniyor…" : "stok kalemi"}
-                  </span>
-                </div>
-              </div>
               {balancesLoading ? (
                 <div className="inventory-cost-empty">
                   <span>
@@ -2560,25 +2525,34 @@ export function InventoryPage({
               belowMinimumOnly={belowMinimumOnly}
               renderCell={renderStockScreenCell}
               pagination={renderInventoryPagination()}
+              toolbarContainer={stockToolsSlot}
             />
           )}
           {section === "inventory-warehouses" && (
             <div className="warehouse-management">
-              <section className="reference-summary-grid inventory-reference-summary" aria-label="Depo özeti">
-                <div className="reference-summary-card violet"><span><IconPack.Package size={21} /></span><div><small>Toplam depo</small><strong>{warehouses.length.toLocaleString("tr-TR")}</strong></div></div>
-                <div className="reference-summary-card green"><span><IconPack.CircleCheck size={21} /></span><div><small>Aktif</small><strong>{warehouses.filter((row) => row.isActive).length.toLocaleString("tr-TR")}</strong></div></div>
-                <div className="reference-summary-card red"><span><IconPack.CircleX size={21} /></span><div><small>Pasif</small><strong>{warehouses.filter((row) => !row.isActive).length.toLocaleString("tr-TR")}</strong></div></div>
-              </section>
-              <section className="panel inventory-stock-filter-card" aria-label="Depo filtreleri">
-                <div className="inventory-stock-filter-heading"><div><h2>Filtreler</h2><p>Depoları kod veya ada göre daraltın.</p></div></div>
-                <label className="inventory-stock-search"><span>Depo ara</span><input value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Depo kodu veya adıyla ara" /></label>
-              </section>
-              <section className="panel inventory-stock-grid-panel warehouse-directory-grid">
-                <header className="inventory-stock-grid-heading"><div><h2>Depo listesi</h2><p>{loading ? "Depolar yükleniyor…" : `${warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).length} kayıt`}</p></div><button className="secondary small-button" onClick={() => setWarehouseAdminModal(true)}>Depoları yönet</button></header>
+              <ListToolbar
+                search={warehouseSearch}
+                onSearchChange={setWarehouseSearch}
+                searchLabel="Depo ara"
+                searchPlaceholder="Depo kodu veya adıyla ara"
+                onRefresh={() => void loadBase()}
+              >
+                <ListChipGroup
+                  label="Durum"
+                  value={warehouseStatusFilter}
+                  onChange={setWarehouseStatusFilter}
+                  allowClear
+                  options={[
+                    { value: "Active", label: "Aktif", count: warehouses.filter((row) => row.isActive).length },
+                    { value: "Inactive", label: "Pasif", count: warehouses.filter((row) => !row.isActive).length },
+                  ]}
+                />
+              </ListToolbar>
+              <section className="panel inventory-stock-grid-panel warehouse-directory-grid list-v2-list">
                 {loading ? (
                   <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
-                ) : warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Depo kodu</th><th>Depo adı</th><th>Durum</th><th>Açıklama</th></tr></thead><tbody>{warehouses.filter((row) => `${row.code} ${row.name}`.toLocaleLowerCase("tr-TR").includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR"))).map((warehouse) => <tr key={warehouse.id}><td><span className="customer-code">{warehouse.code}</span></td><td>{warehouse.name}</td><td><span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span></td><td>{warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı"}</td></tr>)}</tbody></table></div>
+                ) : visibleWarehouses.length > 0 ? (
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Depo adı</th><th>Durum</th><th>Açıklama</th></tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}><td><b className="customer-name">{warehouse.name}</b><small className="cell-subtitle list-v2-name-code">{warehouse.code}</small></td><td><span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span></td><td>{warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı"}</td></tr>)}</tbody></table></div>
                 ) : (
                   <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}
@@ -2587,21 +2561,29 @@ export function InventoryPage({
           )}
           {section === "inventory-transfers" && (
             <div className="warehouse-management">
-              <section className="reference-summary-grid inventory-reference-summary" aria-label="Transfer özeti">
-                <div className="reference-summary-card violet"><span><IconPack.ArrowLeftRight size={21} /></span><div><small>Toplam transfer</small><strong>{transferTotal.toLocaleString("tr-TR")}</strong></div></div>
-                <div className="reference-summary-card green"><span><IconPack.CircleCheck size={21} /></span><div><small>Bu sayfada kaydedilen</small><strong>{transfers.filter((row) => row.status === "Posted").length.toLocaleString("tr-TR")}</strong></div></div>
-                <div className="reference-summary-card red"><span><IconPack.CircleX size={21} /></span><div><small>Bu sayfada iptal edilen</small><strong>{transfers.filter((row) => row.status !== "Posted").length.toLocaleString("tr-TR")}</strong></div></div>
-              </section>
-              <section className="panel inventory-stock-filter-card warehouse-transfer-filter" aria-label="Transfer filtreleri">
-                <div className="inventory-stock-filter-heading"><div><h2>Filtreler</h2><p>Transferler bu sayfadaki kayıtlar içinde aranır.</p></div><button type="button" className="secondary small-button" onClick={() => void loadTransfers()}>Yenile</button></div>
-                <label className="inventory-stock-search"><span>Transfer ara</span><input value={transferSearch} onChange={(event) => setTransferSearch(event.target.value)} placeholder="Kod veya depo adıyla ara" /></label>
-              </section>
-              <section className="panel inventory-stock-grid-panel warehouse-transfer-grid">
-                <header className="inventory-stock-grid-heading"><div><h2>Transfer listesi</h2><p>{loading ? "Transferler yükleniyor…" : `${transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length} kayıt · sayfa ${transferPage}`}</p></div></header>
-                {transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Transfer kodu</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th>Stok kalemi</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{transfers.filter((row) => `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`.toLocaleLowerCase("tr-TR").includes(transferSearch.trim().toLocaleLowerCase("tr-TR"))).map((transfer) => <tr key={transfer.id}><td><span className="customer-code">{transfer.code}</span></td><td>{transfer.transferDate.split("-").reverse().join(".")}</td><td>{transfer.fromWarehouseName}</td><td>{transfer.toWarehouseName}</td><td>{transfer.lineCount}</td><td><span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span></td><td><div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div></td></tr>)}</tbody></table></div>
+              <ListToolbar
+                search={transferSearch}
+                onSearchChange={setTransferSearch}
+                searchLabel="Transfer ara"
+                searchPlaceholder="Kod veya depo adıyla ara"
+                onRefresh={() => void loadTransfers()}
+              >
+                <ListChipGroup
+                  label="Durum"
+                  value={transferStatusFilter}
+                  onChange={setTransferStatusFilter}
+                  allowClear
+                  options={[
+                    { value: "Posted", label: "Kaydedildi", count: transfers.filter((row) => row.status === "Posted").length },
+                    { value: "Voided", label: "İptal edildi", count: transfers.filter((row) => row.status !== "Posted").length },
+                  ]}
+                />
+              </ListToolbar>
+              <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
+                {visibleTransfers.length > 0 ? (
+                  <div className="inventory-stock-table-scroll"><table className="customer-table"><thead><tr><th>Transfer kodu</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th>Stok kalemi</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}><td><span className="customer-code">{transfer.code}</span></td><td>{transfer.transferDate.split("-").reverse().join(".")}</td><td>{transfer.fromWarehouseName}</td><td>{transfer.toWarehouseName}</td><td>{transfer.lineCount}</td><td><span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span></td><td><div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div></td></tr>)}</tbody></table></div>
                 ) : (
-                  <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b><p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p></div></div>
+                  <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
                 )}
               {transferTotal > 50 && (
                 <div className="table-pagination">
@@ -3191,7 +3173,7 @@ export function InventoryPage({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
       {itemModal && (section === "inventory-stock-create" || !!editingItem) && (
         <section className="customer-create-page inventory-create-page">

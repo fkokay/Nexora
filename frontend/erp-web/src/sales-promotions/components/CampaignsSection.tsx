@@ -1,4 +1,6 @@
+import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { ListToolbar } from "../../list-page/ListToolbar";
 import type { Campaign, CampaignScreenField } from "./types";
 
 type Props = {
@@ -32,13 +34,23 @@ export default function CampaignsSection({
   onEdit,
   onToggleStatus,
 }: Props) {
-  const visibleFields = fields.filter((field) => field.visible);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  // The code is written under the name, so its own column is dropped while the name is shown.
+  const nameVisible = fields.some((field) => field.key === "name" && field.visible);
+  const visibleFields = fields.filter(
+    (field) => field.visible && !(nameVisible && field.key === "code"),
+  );
   const campaignCell = (campaign: Campaign, key: string) => {
     switch (key) {
       case "code":
         return <b>{campaign.code}</b>;
       case "name":
-        return campaign.name;
+        return (
+          <>
+            <b>{campaign.name}</b>
+            <small className="cell-subtitle list-v2-name-code">{campaign.code}</small>
+          </>
+        );
       case "discountPercent":
         return `%${campaign.discountPercent}`;
       case "effectiveFrom":
@@ -56,43 +68,30 @@ export default function CampaignsSection({
 
   return (
     <>
-    <section className="sales-campaign-summary" aria-label="Kampanya özeti">
-      <article><span>Toplam kampanya</span><b>{campaigns.length}</b></article>
-      <article><span>Etkin kampanya</span><b>{campaigns.filter((campaign) => campaign.isActive).length}</b></article>
-      <article><span>Toplam uygulama</span><b>{campaigns.reduce((sum, campaign) => sum + campaign.applicationCount, 0).toLocaleString("tr-TR")}</b></article>
-    </section>
-    <section className="panel sales-campaign-filter-card" aria-label="Kampanya filtreleri">
-      <div className="sales-campaign-filter-heading">
-        <h2>Filtreler</h2>
-        <p>Kampanyaları kod veya ada göre daraltın.</p>
+    <ListToolbar
+      search={query}
+      onSearchChange={onQueryChange}
+      searchLabel="Kampanya ara"
+      searchPlaceholder="Kod veya kampanya adı"
+      toolsSlotRef={setToolsSlot}
+      onRefresh={onRefresh}
+    />
+    <dl className="sales-lv2-facts" aria-label="Kampanya özeti">
+      <div>
+        <dt>Etkin kampanya</dt>
+        <dd>{campaigns.filter((campaign) => campaign.isActive).length}</dd>
       </div>
-      <label className="sales-campaign-search">
-        Kampanya ara
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Kod veya kampanya adı"
-        />
-      </label>
-    </section>
-    <section className="panel sales-campaign-workbench">
-      <div className="panel-heading">
-        <div>
-          <b>Kampanya listesi</b>
-          <small>
-            {campaigns.length} kayıt · teklif indirimi kampanya koşullarına göre
-            hesaplanır
-          </small>
-        </div>
-        <button className="secondary" onClick={onRefresh}>
-          Yenile
-        </button>
+      <div>
+        <dt>Toplam uygulama</dt>
+        <dd>{campaigns.reduce((sum, campaign) => sum + campaign.applicationCount, 0).toLocaleString("tr-TR")}</dd>
       </div>
+    </dl>
+    <section className="panel sales-campaign-workbench list-v2-list" aria-label="Kampanya listesi">
       <div className="sales-campaign-layout">
         <div className="table-scroll">
           <AdvancedDataGrid
             hideSearch
+            toolbarContainer={toolsSlot}
             enableRowSelection={false}
             gridId="sales-campaigns-v2"
             initialColumnWidths={visibleFields.map(
@@ -153,14 +152,13 @@ export default function CampaignsSection({
         </div>
         {selectedCampaign && (
           <aside className="sales-campaign-detail">
-            <div className="sales-campaign-detail-heading">
+            <div className="list-v2-detail-head">
               <div>
-                <small>SEÇİLİ KAMPANYA</small>
+                <span className="list-v2-kind">SEÇİLİ KAMPANYA</span>
                 <h2>{selectedCampaign.name}</h2>
-                <p>{selectedCampaign.code}</p>
               </div>
               {role === "TenantAdmin" && (
-                <div className="sales-campaign-actions">
+                <div className="list-v2-detail-head-actions">
                   <button
                     type="button"
                     className="secondary"
@@ -169,24 +167,19 @@ export default function CampaignsSection({
                   >
                     Düzenle
                   </button>
-                  <button
-                    type="button"
-                    className={
-                      selectedCampaign.isActive ? "secondary" : "primary"
-                    }
-                    disabled={busy}
-                    onClick={() => onToggleStatus(selectedCampaign)}
-                  >
-                    {busy
-                      ? "Kaydediliyor…"
-                      : selectedCampaign.isActive
-                        ? "Pasifleştir"
-                        : "Etkinleştir"}
-                  </button>
                 </div>
               )}
             </div>
-            <dl>
+            <div className="list-v2-detail-meta">
+              <span className="list-v2-detail-code">{selectedCampaign.code}</span>
+              <span
+                className={`list-v2-status${selectedCampaign.isActive ? " is-active" : ""}`}
+              >
+                <i />
+                {selectedCampaign.isActive ? "Aktif" : "Pasif"}
+              </span>
+            </div>
+            <dl className="list-v2-facts">
               <div>
                 <dt>İndirim</dt>
                 <dd>%{selectedCampaign.discountPercent}</dd>
@@ -199,14 +192,26 @@ export default function CampaignsSection({
                 </dd>
               </div>
               <div>
-                <dt>Durum</dt>
-                <dd>{selectedCampaign.isActive ? "Aktif" : "Pasif"}</dd>
-              </div>
-              <div>
                 <dt>Uygulama sayısı</dt>
                 <dd>{selectedCampaign.applicationCount}</dd>
               </div>
             </dl>
+            {role === "TenantAdmin" && (
+              <div className="list-v2-detail-foot">
+                <button
+                  type="button"
+                  className={selectedCampaign.isActive ? "is-danger" : undefined}
+                  disabled={busy}
+                  onClick={() => onToggleStatus(selectedCampaign)}
+                >
+                  {busy
+                    ? "Kaydediliyor…"
+                    : selectedCampaign.isActive
+                      ? "Pasifleştir"
+                      : "Etkinleştir"}
+                </button>
+              </div>
+            )}
           </aside>
         )}
       </div>

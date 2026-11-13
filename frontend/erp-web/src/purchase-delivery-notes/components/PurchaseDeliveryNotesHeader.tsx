@@ -1,25 +1,16 @@
-import { RefreshCw } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 
 export function PurchaseDeliveryNotesHeader({
-  disabled,
-  onRefresh,
+  total = null,
 }: {
-  disabled: boolean;
-  onRefresh: () => void;
+  /** Number of delivery notes of the company; null while unknown. */
+  total?: number | null;
 }) {
   return (
-    <div className="page-heading purchase-note-commandbar">
-      <div>
-        <p className="eyebrow">SATIN ALMA · TEDARİKÇİ BELGELERİ</p>
-        <h1>Satınalma İrsaliyeleri</h1>
-        <p className="muted">
-          Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul
-          öncesi veya sonrasında bağlantı kurun.
-        </p>
-      </div>
-      <button className="secondary" onClick={onRefresh} disabled={disabled}>
-        <RefreshCw size={16} /> Yenile
-      </button>
-    </div>
+    <ListPageHeader
+      title="Satınalma İrsaliyeleri"
+      description="Tedarikçi belge numarası ve sipariş miktarlarını kaydedin; mal kabul öncesi veya sonrasında bağlantı kurun."
+      count={total}
+    />
   );
 }

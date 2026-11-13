@@ -1,12 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import "./manufacturing-cost-variance.css";
+import "./manufacturing-cost-variance/manufacturing-cost-list-v2.css";
 import { ManufacturingCostVarianceError } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceError";
 import { ManufacturingCostVarianceFilters } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceFilters";
 import { ManufacturingCostVarianceHeader } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceHeader";
@@ -76,11 +71,6 @@ export default function ManufacturingCostVariancePage({
     void load(1);
   }, [load]);
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setPage(1);
-    void load(1);
-  };
   const pageCount = Math.max(
     1,
     Math.ceil((report?.totalCount ?? 0) / (report?.pageSize ?? 50)),
@@ -93,22 +83,22 @@ export default function ManufacturingCostVariancePage({
     : undefined;
 
   return (
-    <div className="manufacturing-cost-page">
-      <ManufacturingCostVarianceHeader
-        loading={loading}
-        onRefresh={() => void load(page)}
-      />
+    <div className="manufacturing-cost-page list-v2">
+      <ManufacturingCostVarianceHeader total={report?.totalCount ?? null} />
+      {/* Cost totals have no filter equivalent, so these cards stay. */}
       {report && (
         <ManufacturingCostVarianceSummary report={report} currency={code} />
       )}
+      {/* Changing a date reloads the report through the effect above. */}
       <ManufacturingCostVarianceFilters
         from={from}
         to={to}
         maxTo={maxTo}
-        loading={loading}
         onFromChange={setFrom}
         onToChange={setTo}
-        onSubmit={submit}
+        onRefresh={() => {
+          if (!loading) void load(page);
+        }}
       />
       <ManufacturingCostVarianceError
         error={error}

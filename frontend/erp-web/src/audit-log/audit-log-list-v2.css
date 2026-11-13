@@ -1,0 +1,19 @@
+/* Audit log on the list-v2 structure: the event detail is a plain card whose content
+   uses the shared list-v2-detail-* classes (the security-record-pane row boxes are not
+   used here, they would clash with list-v2-facts). */
+#root .audit-log-page.list-v2 .audit-detail-pane {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 8px;
+  background: var(--lv2-surface);
+}
+#root .audit-log-page.list-v2 .audit-detail-pane > p {
+  margin: 12px 0 0;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+#root .audit-log-page.list-v2 .audit-workbench {
+  margin-top: 0;
+}

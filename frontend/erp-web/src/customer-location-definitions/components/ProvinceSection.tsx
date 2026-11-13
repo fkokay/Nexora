@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { ListToolbar } from "../../list-page/ListToolbar";
 import type {
   CustomerLocationProvinceView,
   TurkeyLocationOption,
@@ -194,33 +195,18 @@ export function ProvinceSection(props: Props) {
     onQueryChange,
   } = props;
   return (
-    <section className="panel">
+    <section className="panel list-v2-list">
       <div className="panel-heading">
         <div>
           <h2>İl tanımları</h2>
           <p>{totalCount} il · varsayılan Türkiye listesi</p>
         </div>
       </div>
-      <section className="location-definition-summary" aria-label="İl tanımları özeti">
-        <article><span>Toplam il</span><b>{totalCount}</b></article>
-        <article><span>Listelenen</span><b>{provinces.length}</b></article>
-        <article><span>İlçe tanımları</span><b>{districts.length}</b></article>
-      </section>
-      <section className="location-definition-filter-card" aria-label="İl filtreleri">
-        <div>
-          <h3>Filtreler</h3>
-          <p>İl adını yazarak tanımları daraltın.</p>
-        </div>
-        <label>
-          Ara
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="İl adı ara"
-          />
-        </label>
-      </section>
+      <ListToolbar
+        search={query}
+        onSearchChange={onQueryChange}
+        searchPlaceholder="İl adı ara"
+      />
       <ProvinceGrid
         provinces={provinces}
         districts={districts}

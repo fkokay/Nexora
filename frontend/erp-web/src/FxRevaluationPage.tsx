@@ -11,6 +11,8 @@ import FxRevaluationVoucherGrid from "./fx-revaluation/components/FxRevaluationV
 import FxRevaluationVoucherDetail from "./fx-revaluation/components/FxRevaluationVoucherDetail";
 import FxRevaluationEmptySelection from "./fx-revaluation/components/FxRevaluationEmptySelection";
 import { confirmLocalized } from "./locale";
+import { ListToolbar } from "./list-page/ListToolbar";
+import "./fx-revaluation/fx-revaluation-list-v2.css";
 
 export default function FxRevaluationPage({
   token,
@@ -24,6 +26,10 @@ export default function FxRevaluationPage({
     [vouchers, setVouchers] = useState<FxRevaluationVoucherSummary[]>([]),
     [selected, setSelected] = useState<FxRevaluationVoucher | null>(null);
   const [query, setQuery] = useState("");
+  // The count next to the title stays hidden until the first successful load.
+  const [loaded, setLoaded] = useState(false);
+  // list-v2: the toolbar row hosts the voucher list's own tools (columns, export…).
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -35,6 +41,7 @@ export default function FxRevaluationPage({
           token,
         ),
       );
+      setLoaded(true);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -91,49 +98,33 @@ export default function FxRevaluationPage({
     voucher.asOfDate.includes(normalizedQuery),
   );
   return (
-    <section className="panel finance-workbench fx-revaluation-workbench">
-      <FxRevaluationHeader onRefresh={() => void load()} />
+    <section className="panel finance-workbench fx-revaluation-workbench list-v2">
+      <FxRevaluationHeader count={loaded ? vouchers.length : null} />
       <FxRevaluationMessages
         error={error}
         notice={notice}
         onDismissError={() => setError("")}
         onDismissNotice={() => setNotice("")}
       />
-      <section className="fx-revaluation-summary" aria-label="Değerleme özeti">
-        <article><span>Toplam fiş</span><b>{vouchers.length}</b></article>
-        <article><span>Toplam döviz kalemi</span><b>{vouchers.reduce((sum, voucher) => sum + voucher.lineCount, 0)}</b></article>
-        <article><span>Listelenen fiş</span><b>{filteredVouchers.length}</b></article>
-      </section>
+      <ListToolbar
+        search={query}
+        onSearchChange={setQuery}
+        searchPlaceholder="Fiş kodu veya YYYY-AA-GG"
+        toolsSlotRef={setToolsSlot}
+        onRefresh={() => void load()}
+      />
       <div className="finance-workbench-grid fx-revaluation-grid">
-        <section className="finance-workbench-card">
-          <div className="fx-revaluation-list-heading">
-            <div>
-              <h2>Değerleme fişleri</h2>
-              <p>{filteredVouchers.length} / {vouchers.length} kayıt</p>
-            </div>
-          </div>
-          <section className="fx-revaluation-filter-card" aria-label="Değerleme fişi filtreleri">
-            <div>
-              <h3>Filtreler</h3>
-              <p>Fiş kodu veya dönem sonu tarihine göre daraltın.</p>
-            </div>
-            <label htmlFor="fx-revaluation-search">
-              Ara
-              <input
-                id="fx-revaluation-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Fiş kodu veya YYYY-AA-GG"
-              />
-            </label>
-          </section>
+        <section
+          className="finance-workbench-card list-v2-list"
+          aria-label="Değerleme fişleri"
+        >
           <FxRevaluationVoucherGrid
             token={token}
             vouchers={filteredVouchers}
             emptyMessage={vouchers.length
               ? "Filtreye uygun değerleme fişi bulunamadı."
               : "Henüz değerleme fişi oluşturulmadı."}
+            toolbarContainer={toolsSlot}
             money={money}
             onOpen={(id) => void open(id)}
           />

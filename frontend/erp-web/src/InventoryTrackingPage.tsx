@@ -1,11 +1,9 @@
-import type { FormEvent, MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import InventoryTrackingHeader from "./inventory-tracking/components/InventoryTrackingHeader";
 import InventoryTrackingAlerts from "./inventory-tracking/components/InventoryTrackingAlerts";
-import InventoryTrackingSummary from "./inventory-tracking/components/InventoryTrackingSummary";
 import InventoryTrackingFilters from "./inventory-tracking/components/InventoryTrackingFilters";
-import InventoryTrackingResults from "./inventory-tracking/components/InventoryTrackingResults";
 import InventoryTrackingBalanceTable from "./inventory-tracking/components/InventoryTrackingBalanceTable";
 import InventoryTrackingDetail from "./inventory-tracking/components/InventoryTrackingDetail";
 import InventoryTrackingPagination from "./inventory-tracking/components/InventoryTrackingPagination";
@@ -60,6 +58,7 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
       position: 6,
     },
   ]);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const latestRequest = useRef(0);
   const pageSize = 50;
 
@@ -145,8 +144,7 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
   }, [result, selectedBalance]);
 
   const maxPage = Math.max(1, Math.ceil((result?.totalCount ?? 0) / pageSize));
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function applySearch() {
     setSearch(query);
     if (search === query) void load(1);
   }
@@ -192,15 +190,15 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
       case "stockItem":
         return (
           <>
-            <b>{row.stockItemCode}</b>
-            <small className="cell-subtitle">{row.stockItemName}</small>
+            <b>{row.stockItemName}</b>
+            <small className="cell-subtitle list-v2-name-code">{row.stockItemCode}</small>
           </>
         );
       case "warehouse":
         return (
           <>
-            {row.warehouseCode}
-            <small className="cell-subtitle">{row.warehouseName}</small>
+            {row.warehouseName}
+            <small className="cell-subtitle list-v2-name-code">{row.warehouseCode}</small>
           </>
         );
       case "quantityOnHand":
@@ -232,10 +230,9 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
   }
 
   return (
-    <div className="inventory-tracking-page">
+    <div className="inventory-tracking-page list-v2">
       <InventoryTrackingHeader
-        loading={loading}
-        onRefresh={() => void load()}
+        total={loading || error ? null : (result?.totalCount ?? null)}
       />
       <InventoryTrackingAlerts
         warehouseError={warehouseError}
@@ -243,55 +240,30 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
         loading={loading}
         onRetry={() => void load()}
       />
-      <InventoryTrackingSummary
-        totalCount={result?.totalCount ?? 0}
-        itemCount={result?.items.length ?? 0}
-        page={page}
-        maxPage={maxPage}
-        hasFilters={hasFilters}
-        pageSize={pageSize}
-      />
-      <section className="inventory-tracking-filter-card" aria-label="Lot ve seri filtreleri">
-        <div className="inventory-tracking-filter-heading">
-          <div>
-            <h2>Filtreler</h2>
-            <p>Lot veya seri kodu, iz türü ve depo seçerek listeyi daraltın.</p>
-          </div>
-        </div>
-        <InventoryTrackingFilters
-          query={query}
-          onQueryChange={setQuery}
-          trackingMode={trackingMode}
-          onTrackingModeChange={setTrackingMode}
-          warehouseId={warehouseId}
-          onWarehouseSelect={setWarehouseId}
-          warehouses={warehouses}
-          warehousesLoading={warehousesLoading}
-          warehouseError={warehouseError}
-          hasFilters={hasFilters}
-          loading={loading}
-          onSubmit={submit}
-          onClear={clearFilters}
-        />
-      </section>
-      <InventoryTrackingResults
-        loading={loading}
-        error={error}
-        totalCount={result?.totalCount ?? 0}
-        hasFilters={hasFilters}
-        search={search}
+      <InventoryTrackingFilters
+        query={query}
+        onQueryChange={setQuery}
         trackingMode={trackingMode}
+        onTrackingModeChange={setTrackingMode}
         warehouseId={warehouseId}
+        onWarehouseSelect={setWarehouseId}
         warehouses={warehouses}
+        warehousesLoading={warehousesLoading}
+        warehouseError={warehouseError}
+        hasFilters={hasFilters}
+        onApply={applySearch}
+        onClear={clearFilters}
+        onRefresh={() => void load()}
+        toolsSlotRef={setToolsSlot}
       />
       <div className="inventory-workbench-body">
         <InventoryTrackingBalanceTable
           fields={visibleFields}
           rows={result?.items ?? []}
-          totalCount={result?.totalCount ?? 0}
           loading={loading}
           error={error}
           hasFilters={hasFilters}
+          toolbarContainer={toolsSlot}
           onClick={selectTableRow}
           renderField={renderField}
         />

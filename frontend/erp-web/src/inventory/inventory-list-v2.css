@@ -1,0 +1,55 @@
+/*
+ * Additions to the shared list-v2 kit (src/list-page) that only the inventory and
+ * warehouse list pages need. Everything is scoped under these pages' own root classes.
+ */
+
+/* InventoryPage renders a fragment; this wrapper gives the list-v2 root and the spacing
+   between the title row, the toolbar and the list. */
+#root .inventory-list-v2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+#root .inventory-list-v2 > :is(.page-heading, .list-v2-toolbar, .panel, .alert, .notice, .boundary-note) {
+  margin-block: 0;
+}
+
+/* A record picker (warehouse, stock card) used as a toolbar filter. */
+#root :is(.inventory-list-v2, .inventory-movements-page, .inventory-tracking-page, .warehouse-locations-page).list-v2
+  .list-v2-filter
+  .searchable-record-trigger {
+  width: 220px;
+  min-width: 0;
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  font-size: 13px;
+}
+#root .inventory-movements-page.list-v2 .list-v2-filter.is-wide .searchable-record-trigger {
+  width: 320px;
+}
+
+/* Detail panels: section title above a table that follows the facts. */
+#root :is(.inventory-tracking-page, .warehouse-locations-page).list-v2 .list-v2-detail-meta + .list-v2-facts {
+  margin-top: 12px;
+}
+#root .warehouse-locations-page.list-v2 .warehouse-location-detail-balances {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+#root .warehouse-locations-page.list-v2 .warehouse-location-detail-balances h3 {
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* The name cell is the row's select button: name with the code under it. */
+#root .warehouse-locations-page.list-v2 .warehouse-location-select > span {
+  display: block;
+  min-width: 0;
+}

@@ -3,16 +3,17 @@ import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import {
   ArrowLeftRight,
-  Boxes,
   FilePlus2,
   Plus,
-  Search,
   X,
 } from "lucide-react";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListToolbar } from "./list-page/ListToolbar";
+import "./sales/sales-list-v2.css";
 import { confirmLocalized } from "./locale";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
@@ -534,19 +535,17 @@ export function SalesDeliveriesScreen({
   }
   return (
     <div
-      className={`delivery-screen${creating ? " delivery-create-screen" : ""}`}
+      className={`delivery-screen list-v2${creating ? " delivery-create-screen" : ""}`}
     >
-      <div className="page-heading customer-heading">
-        <div>
-          <p className="eyebrow">ERP CORE · SATIŞ</p>
-          <h1>{creating ? "Yeni satış irsaliyesi" : "Satış irsaliyeleri"}</h1>
-          <p className="muted">
-            {creating
-              ? "Siparişe bağlı olmadan sevk belgesi taslağı oluşturun."
-              : "Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."}
-          </p>
-        </div>
-        {creating ? (
+      {creating ? (
+        <div className="page-heading customer-heading">
+          <div>
+            <p className="eyebrow">ERP CORE · SATIŞ</p>
+            <h1>Yeni satış irsaliyesi</h1>
+            <p className="muted">
+              Siparişe bağlı olmadan sevk belgesi taslağı oluşturun.
+            </p>
+          </div>
           <div className="heading-actions">
             <button className="secondary" onClick={() => setCreating(false)}>
               <ArrowLeftRight size={15} />
@@ -554,13 +553,29 @@ export function SalesDeliveriesScreen({
             </button>
             <button className="primary" type="submit" form="sales-delivery-create-form">İrsaliye taslağı oluştur</button>
           </div>
-        ) : (
-          <button className="primary" onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Yeni irsaliye
-          </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="sales-lv2-stack">
+          <ListPageHeader
+            className="customer-heading"
+            title="Satış irsaliyeleri"
+            description="Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."
+            count={total}
+          >
+            <button className="primary" onClick={() => setCreating(true)}>
+              <Plus size={16} />
+              Yeni irsaliye
+            </button>
+          </ListPageHeader>
+          <ListToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="İrsaliye, sipariş veya depo ara"
+            searchPlaceholder="İrsaliye, sipariş veya depo ara"
+            onRefresh={() => void load()}
+          />
+        </div>
+      )}
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -580,50 +595,7 @@ export function SalesDeliveriesScreen({
         />
       ) : (
         <>
-          <div className="customer-summary">
-            <div className="customer-summary-icon">
-              <Boxes size={19} />
-            </div>
-            <div>
-              <b>{total} satış irsaliyesi</b>
-              <small>Siparişe bağlı sevkiyatlar burada listelenir.</small>
-            </div>
-          </div>
-          <section className="panel sales-delivery-filter-card" aria-label="Satış irsaliyesi filtreleri">
-          <div className="sales-delivery-filter-heading">
-            <h2>Filtreler</h2>
-            <p>İrsaliyeleri belge, sipariş veya depo bilgisine göre daraltın.</p>
-          </div>
-          <div className="customer-toolbar sales-delivery-filter-toolbar">
-            <label className="customer-search">
-              <Search size={16} />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="İrsaliye, sipariş veya depo ara"
-              />
-            </label>
-            <span className="date-pill">
-              {loading
-                ? "Yükleniyor…"
-                : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}
-            </span>
-            <button
-              className="secondary"
-              disabled={loading}
-              onClick={() => void load()}
-            >
-              Yenile
-            </button>
-          </div>
-          </section>
-          <div className="customer-table-wrap">
-            <div className="erp-pane-heading">
-              <div>
-                <b>Satış irsaliyeleri</b>
-                <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
-              </div>
-            </div>
+          <div className="customer-table-wrap list-v2-list">
             <table className="customer-table quote-table">
               <thead>
                 <ScreenViewGroupHeader fields={visibleFields} />

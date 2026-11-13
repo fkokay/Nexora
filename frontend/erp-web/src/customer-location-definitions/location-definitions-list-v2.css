@@ -1,0 +1,5 @@
+/* list-v2 spacing for the province / district panels: the shared toolbar row carries no
+   margin of its own, so it is set apart from the table below it here. */
+#root .customer-location-definitions-page.list-v2 .panel > .list-v2-toolbar {
+  margin: 0 0 12px;
+}

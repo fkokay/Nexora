@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Boxes, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { api } from "./erpApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import type { InventoryMovement, StockItem, Warehouse } from "./erp-types";
 import type { Locale } from "./WorkspaceComponents";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListToolbar } from "./list-page/ListToolbar";
 import "./inventory-movements.css";
+import "./inventory/inventory-list-v2.css";
 
 type MovementPage = {
   items: InventoryMovement[];
@@ -117,39 +120,25 @@ export default function InventoryMovementsPage({
 
   const rows = movements?.items ?? [];
   const selectedWarehouse = warehouses.find((row) => row.id === warehouseId);
-  const receiptCount = rows.filter((row) => row.direction === "Receipt").length;
-  const issueCount = rows.length - receiptCount;
   const totalPages = Math.max(1, Math.ceil((movements?.totalCount ?? 0) / 50));
   const date = (value: string) => new Date(value).toLocaleDateString(en ? "en-GB" : "tr-TR");
   const number = (value: number) => new Intl.NumberFormat(en ? "en-GB" : "tr-TR", { maximumFractionDigits: 3 }).format(value);
 
   return (
-    <main className="inventory-movements-page">
-      <header className="inventory-movements-heading">
-        <div className="inventory-movements-heading-icon"><Boxes size={22} /></div>
-        <div>
-          <p className="eyebrow">{en ? "INVENTORY & WAREHOUSING" : "STOK & DEPO"}</p>
-          <h1>{en ? "Stock movements" : "Stok Hareketleri"}</h1>
-          <p>{en ? "Choose a stock item to review its warehouse transaction history." : "Bir stok seçerek depo hareket geçmişini görüntüleyin."}</p>
-        </div>
-      </header>
+    <main className="inventory-movements-page list-v2">
+      <ListPageHeader
+        title={en ? "Stock movements" : "Stok Hareketleri"}
+        description={en ? "Choose a stock item to review its warehouse transaction history." : "Bir stok seçerek depo hareket geçmişini görüntüleyin."}
+        count={selectedStock && warehouseId && movements ? movements.totalCount : null}
+        countLabel={en ? "records" : "kayıt"}
+      />
 
-      {selectedStock && warehouseId && (
-        <section className="inventory-movements-summary" aria-label={en ? "Movement summary" : "Hareket özeti"}>
-          <div><span>{en ? "Selected stock" : "Seçili stok"}</span><strong>{selectedStock.code} · {selectedStock.name}</strong></div>
-          <div><span>{en ? "Transactions" : "Hareket sayısı"}</span><strong>{number(movements?.totalCount ?? 0)}</strong></div>
-          <div><span>{en ? "Receipts on page" : "Sayfadaki girişler"}</span><strong className="is-receipt">{number(receiptCount)}</strong></div>
-          <div><span>{en ? "Issues on page" : "Sayfadaki çıkışlar"}</span><strong className="is-issue">{number(issueCount)}</strong></div>
-        </section>
-      )}
-
-      <section className="inventory-movements-filters" aria-label={en ? "Movement filters" : "Hareket filtreleri"}>
-        <div className="inventory-movements-filter-heading">
-          <span><SlidersHorizontal size={17} /></span>
-          <div><strong>{en ? "Movement filters" : "Hareket filtreleri"}</strong><small>{en ? "Choose the stock item and warehouse to inspect." : "İncelemek istediğiniz stok kartını ve depoyu seçin."}</small></div>
-        </div>
-        <div className="inventory-movements-stock-filter">
-          <label>{en ? "Stock item" : "Stok kartı"}</label>
+      <ListToolbar
+        onRefresh={() => setRefreshKey((current) => current + 1)}
+        refreshLabel={en ? "Refresh" : "Yenile"}
+      >
+        <div className="list-v2-filter is-wide inventory-movements-stock-filter">
+          <span>{en ? "Stock item" : "Stok kartı"}</span>
           <SearchableRecordPicker
             options={stockOptions}
             selectedId={selectedStock?.id ?? ""}
@@ -168,23 +157,18 @@ export default function InventoryMovementsPage({
             emptyMessage={en ? "No matching stock item." : "Eşleşen stok kartı bulunamadı."}
           />
         </div>
-        <div className="inventory-movements-warehouse-filter">
-          <label htmlFor="inventory-movements-warehouse">{en ? "Warehouse" : "Depo"}</label>
+        <label className="list-v2-filter" htmlFor="inventory-movements-warehouse">
+          {en ? "Warehouse" : "Depo"}
           <select id="inventory-movements-warehouse" value={warehouseId} onChange={(event) => { setWarehouseId(event.target.value); setPage(1); }}>
             <option value="all">{en ? "All warehouses" : "Tüm depolar"}</option>
             {warehouses.length === 0 && <option value="">{en ? "No active warehouse" : "Aktif depo bulunmuyor"}</option>}
             {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}
           </select>
-        </div>
-        {selectedStock && warehouseId && <button className="secondary-button inventory-movements-refresh" type="button" onClick={() => setRefreshKey((current) => current + 1)} title={en ? "Refresh" : "Yenile"}><RefreshCw size={16} />{en ? "Refresh" : "Yenile"}</button>}
-      </section>
+        </label>
+      </ListToolbar>
 
       {error && <div className="alert inline-alert" role="alert">{error}</div>}
-      <section className="inventory-movements-table-card">
-        <div className="inventory-movements-table-heading">
-          <div><h2>{en ? "Transaction history" : "Hareket geçmişi"}</h2><span>{selectedStock && warehouseId ? (warehouseId === "all" ? (en ? "All warehouses" : "Tüm depolar") : selectedWarehouse?.name) : (en ? "Select a stock item to begin" : "Başlamak için stok kartı seçin")}</span></div>
-          {movements && <span>{number(movements.totalCount)} {en ? "records" : "kayıt"}</span>}
-        </div>
+      <section className="inventory-movements-table-card list-v2-list">
         <div className="customer-table-wrap">
           <table className="customer-table quote-table inventory-movements-table">
             <thead><tr><th>{en ? "Date" : "Tarih"}</th><th>{en ? "Direction" : "Yön"}</th><th>{en ? "Quantity" : "Miktar"}</th><th>{en ? "Warehouse" : "Depo"}</th><th>{en ? "Location" : "Konum"}</th><th>{en ? "Lot / serial" : "Lot / seri"}</th><th>{en ? "Description" : "Açıklama"}</th></tr></thead>

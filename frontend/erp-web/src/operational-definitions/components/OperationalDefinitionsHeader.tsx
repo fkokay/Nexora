@@ -1,33 +1,22 @@
-import { RefreshCw } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 import type { Translate } from "../types";
 
-type Props = { tx: Translate; loading: boolean; onRefresh: () => void };
+type Props = {
+  tx: Translate;
+  /** Number of definitions; null while the first load is running. */
+  total?: number | null;
+};
 
-export function OperationalDefinitionsHeader({
-  tx,
-  loading,
-  onRefresh,
-}: Props) {
+export function OperationalDefinitionsHeader({ tx, total = null }: Props) {
   return (
-    <div className="page-heading">
-      <div>
-        <p className="eyebrow">
-          {tx("FİRMA TANIMLARI", "COMPANY DEFINITIONS")}
-        </p>
-        <h1>
-          {tx("İş yeri, şube ve fabrika", "Workplaces, branches and factories")}
-        </h1>
-        <p className="muted">
-          {tx(
-            "Firma lokasyonlarını tanımlayın. Depolar, stok işlemleri ve raf/konum bağlantılarıyla birlikte ayrı depo kayıtları olarak yönetilir.",
-            "Define company locations. Warehouses remain separate records managed with inventory and storage locations.",
-          )}
-        </p>
-      </div>
-      <button className="secondary" onClick={onRefresh} disabled={loading}>
-        <RefreshCw size={15} />
-        {tx("Yenile", "Refresh")}
-      </button>
-    </div>
+    <ListPageHeader
+      title={tx("İş yeri, şube ve fabrika", "Workplaces, branches and factories")}
+      description={tx(
+        "Firma lokasyonlarını tanımlayın. Depolar, stok işlemleri ve raf/konum bağlantılarıyla birlikte ayrı depo kayıtları olarak yönetilir.",
+        "Define company locations. Warehouses remain separate records managed with inventory and storage locations.",
+      )}
+      count={total}
+      countLabel={tx("kayıt", "records")}
+    />
   );
 }

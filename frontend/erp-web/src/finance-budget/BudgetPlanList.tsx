@@ -2,6 +2,8 @@ import type { Plan, PlanView } from "./types";
 
 type Props = {
   plans: Plan[];
+  /** "" (all), "Draft" or "Approved"; narrows the listed plans. */
+  statusFilter?: string;
   selected: PlanView | null;
   editing: boolean;
   loading: boolean;
@@ -18,6 +20,7 @@ type Props = {
 
 export default function BudgetPlanList({
   plans,
+  statusFilter = "",
   selected,
   editing,
   loading,
@@ -32,27 +35,7 @@ export default function BudgetPlanList({
   money,
 }: Props) {
   return (
-    <section className="panel budget-list" aria-labelledby="budget-list-title">
-      <div className="panel-heading">
-        <div>
-          <h2 id="budget-list-title">Bütçe senaryoları</h2>
-          <p>
-            {loading
-              ? "Senaryolar yükleniyor…"
-              : `${plans.length} kayıt · firma kapsamlı`}
-          </p>
-        </div>
-        {admin && (
-          <button
-            type="button"
-            className="primary"
-            onClick={onNew}
-            disabled={controlsLocked || !baseCurrency}
-          >
-            Yeni bütçe
-          </button>
-        )}
-      </div>
+    <section className="panel budget-list list-v2-list" aria-label="Bütçe senaryoları">
       {loading ? (
         <div className="budget-state" role="status">
           <span className="budget-spinner" aria-hidden="true" />
@@ -95,7 +78,13 @@ export default function BudgetPlanList({
         </div>
       ) : (
         <div className="budget-plan-list" aria-label="Bütçe senaryoları">
-          {plans.map((plan) => (
+          {plans
+            .filter(
+              (plan) =>
+                !statusFilter ||
+                isApproved(plan.status) === (statusFilter === "Approved"),
+            )
+            .map((plan) => (
             <button
               type="button"
               key={plan.id}

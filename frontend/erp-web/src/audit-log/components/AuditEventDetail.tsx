@@ -1,18 +1,18 @@
-import { FileText } from "lucide-react";
 import type { AuditEvent } from "../types";
 
 export function AuditEventDetail({ item }: { item: AuditEvent }) {
   return (
-    <aside className="security-record-pane audit-detail-pane">
-      <div className="security-record-heading">
+    <aside className="audit-detail-pane">
+      <header className="list-v2-detail-head">
         <div>
-          <span>DENETİM OLAYI</span>
-          <h3>{item.action}</h3>
-          <small>{new Date(item.occurredAt).toLocaleString("tr-TR")}</small>
+          <span className="list-v2-kind">DENETİM OLAYI</span>
+          <h2>{item.action}</h2>
         </div>
-        <FileText size={18} />
+      </header>
+      <div className="list-v2-detail-meta">
+        <span>{new Date(item.occurredAt).toLocaleString("tr-TR")}</span>
       </div>
-      <dl>
+      <dl className="list-v2-facts">
         <div>
           <dt>Kullanıcı</dt>
           <dd>{item.userDisplayName || "Sistem"}</dd>

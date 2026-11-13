@@ -1,4 +1,4 @@
-import { MapPin, Pencil, X } from "lucide-react";
+import { ChevronRight, MapPin, Pencil, X } from "lucide-react";
 import type {
   BuiltInScreenLayoutField,
   CustomerAddressItem,
@@ -25,6 +25,10 @@ type Props = {
   onNewInvoice: () => void;
   onAddresses: () => void;
   onFields: () => void;
+  onPurchaseInvoices: () => void;
+  onToggleActive: () => void;
+  /** True while a save is running; disables the activate/deactivate action. */
+  busy: boolean;
   onBackdropClose: () => void;
 };
 
@@ -46,6 +50,9 @@ export function CustomerDetailPanel({
   onNewInvoice,
   onAddresses,
   onFields,
+  onPurchaseInvoices,
+  onToggleActive,
+  busy,
   onBackdropClose,
 }: Props) {
   if (!customer) return null;
@@ -79,6 +86,12 @@ export function CustomerDetailPanel({
                     ? "Belirtilmedi"
                     : `${customer.riskLimit.toLocaleString("tr-TR")} ${customer.currencyCode}`
                   : "—";
+  const kindLabel =
+    customer.type === "Customer" ? "MÜŞTERİ"
+      : customer.type === "Supplier" ? "TEDARİKÇİ"
+        : customer.type === "Dealer" ? "BAYİ"
+          : customer.type === "Employee" ? "PERSONEL"
+            : "MÜŞTERİ & TEDARİKÇİ";
   return (
     <aside
       className={`customer-detail-backdrop${isSmallScreen ? " is-popup" : ""}`}
@@ -93,32 +106,14 @@ export function CustomerDetailPanel({
         aria-modal={isSmallScreen ? "true" : undefined}
         aria-labelledby="customer-detail-title"
       >
-        <div className="erp-record-heading">
+        <header className="list-v2-detail-head">
           <div>
-            <span className="erp-record-kind">
-              {customer.type === "Customer"
-                ? "MÜŞTERİ"
-                : customer.type === "Supplier"
-                  ? "TEDARİKÇİ"
-                  : "MÜŞTERİ & TEDARİKÇİ"}
+            <span className={`list-v2-kind is-${customer.type.toLowerCase()}`}>
+              {kindLabel}
             </span>
             <h2 id="customer-detail-title">{customer.name}</h2>
-            <small>
-              <span>{customer.code}</span>
-              <span
-                className={`customer-status-pill${customer.isActive ? " is-active" : " is-inactive"}`}
-              >
-                {customer.isActive ? "Aktif" : "Pasif"}
-              </span>
-            </small>
-            <span className={`customer-einvoice-summary${customer.isEInvoiceRegistered ? " is-registered" : ""}`}>
-              {customer.isEInvoiceRegistered ? "E-Fatura mükellefi" : "E-Fatura mükellefi değil"}
-              {customer.isEInvoiceRegistered && customer.eInvoiceRecipientAlias
-                ? ` · ${customer.eInvoiceRecipientAlias}`
-                : ""}
-            </span>
           </div>
-          <div className="customer-detail-header-actions">
+          <div className="list-v2-detail-head-actions">
             <button className="secondary small-button" onClick={onEdit}>
               <Pencil size={14} /> Düzenle
             </button>
@@ -131,33 +126,57 @@ export function CustomerDetailPanel({
               <X size={19} />
             </button>
           </div>
+        </header>
+        <div className="list-v2-detail-meta">
+          <span className="list-v2-detail-code">{customer.code}</span>
+          <span className={`list-v2-status${customer.isActive ? " is-active" : ""}`}>
+            <i aria-hidden="true" />
+            {customer.isActive ? "Aktif" : "Pasif"}
+          </span>
+          <span className={`list-v2-einvoice${customer.isEInvoiceRegistered ? " is-registered" : ""}`}>
+            {customer.isEInvoiceRegistered ? "E-Fatura mükellefi" : "E-Fatura mükellefi değil"}
+            {customer.isEInvoiceRegistered && customer.eInvoiceRecipientAlias
+              ? ` · ${customer.eInvoiceRecipientAlias}`
+              : ""}
+          </span>
         </div>
-        <nav className="customer-detail-tabs" aria-label="Cari detay sekmeleri">
+        {["Customer", "Both", "Dealer"].includes(customer.type) && (
+          <section className="list-v2-quick" aria-label="Cari işlemleri">
+            <h3>Cari ile işlemler</h3>
+            <div>
+              <button className="primary small-button" onClick={onNewOrder}>Yeni sipariş</button>
+              <button className="secondary small-button" onClick={onNewQuote}>Yeni teklif</button>
+              <button className="secondary small-button" onClick={onNewDelivery}>Yeni irsaliye</button>
+              <button className="secondary small-button" onClick={onNewInvoice}>Yeni fatura</button>
+            </div>
+          </section>
+        )}
+        <nav className="list-v2-tabs" aria-label="Cari detay sekmeleri">
           {tabs.map((item) => (
             <button
               type="button"
               key={item.value}
-              className={activeTab === item.value ? "active" : ""}
-              aria-selected={activeTab === item.value}
+              className={activeTab === item.value ? "is-active" : ""}
+              aria-pressed={activeTab === item.value}
               onClick={() => onTabChange(item.value)}
             >
               {item.label}
             </button>
           ))}
         </nav>
-        <dl className="erp-record-facts customer-detail-facts">
-          {visibleFields.map((field) => (
-            <div key={field.key}>
-              <dt>{field.label}</dt>
-              <dd>{valueFor(field.key)}</dd>
-            </div>
-          ))}
-        </dl>
+        {visibleFields.length > 0 && (
+          <dl className="list-v2-facts">
+            {visibleFields.map((field) => (
+              <div key={field.key}>
+                <dt>{field.label}</dt>
+                <dd>{valueFor(field.key)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {activeTab === "contact" && (
-          <section className="customer-default-address">
-            <div className="customer-default-address-icon">
-              <MapPin size={16} />
-            </div>
+          <section className="list-v2-address">
+            <MapPin size={18} aria-hidden="true" />
             <div>
               <span>Varsayılan adres</span>
               {!addressLoaded ? (
@@ -204,33 +223,43 @@ export function CustomerDetailPanel({
             )}
           </section>
         )}
-        <div className="erp-record-actions">
+        <section className="list-v2-related" aria-labelledby="customer-detail-related">
+          <h3 id="customer-detail-related">İlgili kayıtlar</h3>
           {customer.type !== "Supplier" && (
-            <button className="secondary small-button" onClick={onInvoices}>
-              Satış faturaları
+            <button type="button" onClick={onInvoices}>
+              <span>Satış faturaları</span>
+              <ChevronRight size={16} aria-hidden="true" />
             </button>
           )}
-          <button className="secondary small-button" onClick={onLedger}>
-            Cari Hesap Hareketleri
+          {customer.type !== "Customer" && (
+            <button type="button" onClick={onPurchaseInvoices}>
+              <span>Alış faturaları</span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          )}
+          <button type="button" onClick={onLedger}>
+            <span>Cari Hesap Hareketleri</span>
+            <ChevronRight size={16} aria-hidden="true" />
           </button>
-          <button className="secondary small-button" onClick={onAddresses}>
-            Adresler
+          <button type="button" onClick={onAddresses}>
+            <span>Adresler</span>
+            <ChevronRight size={16} aria-hidden="true" />
           </button>
-          <button className="secondary small-button" onClick={onFields}>
-            Özel alanlar
+          <button type="button" onClick={onFields}>
+            <span>Özel alanlar</span>
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </section>
+        <div className="list-v2-detail-foot">
+          <button
+            type="button"
+            className={customer.isActive ? "is-danger" : ""}
+            disabled={busy}
+            onClick={onToggleActive}
+          >
+            {customer.isActive ? "Pasife al" : "Etkinleştir"}
           </button>
         </div>
-        {["Customer", "Both", "Dealer"].includes(customer.type) && (
-          <section className="customer-detail-quick-actions" aria-label="Cari işlemleri">
-            <h3>Cari ile işlemler</h3>
-            <div className="erp-record-actions">
-              <button className="secondary small-button" onClick={onNewOrder}>Yeni sipariş</button>
-              <button className="secondary small-button" onClick={onNewQuote}>Yeni teklif</button>
-              <button className="secondary small-button" onClick={onNewDelivery}>Yeni irsaliye</button>
-              <button className="secondary small-button" onClick={onNewInvoice}>Yeni fatura</button>
-            </div>
-          </section>
-        )}
       </section>
     </aside>
   );

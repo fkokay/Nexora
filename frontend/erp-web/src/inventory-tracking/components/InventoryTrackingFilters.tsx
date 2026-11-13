@@ -1,7 +1,7 @@
-import type { FormEvent } from "react";
-import { Search } from "lucide-react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Warehouse } from "../types";
+import "../../inventory/inventory-list-v2.css";
 
 type Props = {
   query: string;
@@ -14,9 +14,12 @@ type Props = {
   warehousesLoading: boolean;
   warehouseError: string;
   hasFilters: boolean;
-  loading: boolean;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  /** Applies the typed search text (shortly after typing stops and on Enter). */
+  onApply: () => void;
   onClear: () => void;
+  onRefresh: () => void;
+  /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export default function InventoryTrackingFilters({
@@ -30,40 +33,33 @@ export default function InventoryTrackingFilters({
   warehousesLoading,
   warehouseError,
   hasFilters,
-  loading,
-  onSubmit,
+  onApply,
   onClear,
+  onRefresh,
+  toolsSlotRef,
 }: Props) {
   return (
-    <form
-      className="customer-toolbar inventory-tracking-toolbar"
-      onSubmit={onSubmit}
-      role="search"
-      aria-label="Lot ve seri bakiyelerini filtrele"
+    <ListToolbar
+      search={query}
+      onSearchChange={onQueryChange}
+      onSearchApply={onApply}
+      searchLabel="Lot ve seri bakiyelerini filtrele"
+      searchPlaceholder="Lot/seri kodu, stok veya depo ara"
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
+      refreshLabel="Lot ve seri bakiyelerini yenile"
     >
-      <label className="customer-search" htmlFor="inventory-tracking-search">
-        <Search size={16} aria-hidden="true" />
-        <input
-          id="inventory-tracking-search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Lot/seri kodu, stok veya depo ara"
-          autoComplete="off"
-        />
-      </label>
-      <label htmlFor="inventory-tracking-mode">
-        İz türü
-        <select
-          id="inventory-tracking-mode"
-          value={trackingMode}
-          onChange={(event) => onTrackingModeChange(event.target.value)}
-        >
-          <option value="">Tümü</option>
-          <option value="Lot">Lot</option>
-          <option value="Serial">Seri</option>
-        </select>
-      </label>
-      <label>
+      <ListChipGroup
+        label="İz türü"
+        value={trackingMode}
+        onChange={onTrackingModeChange}
+        options={[
+          { value: "", label: "Tümü" },
+          { value: "Lot", label: "Lot" },
+          { value: "Serial", label: "Seri" },
+        ]}
+      />
+      <label className="list-v2-filter">
         Depo
         <SearchableRecordPicker
           id="inventory-tracking-warehouse"
@@ -93,20 +89,15 @@ export default function InventoryTrackingFilters({
           </span>
         )}
       </label>
-      <div className="inventory-tracking-filter-actions">
-        <button className="secondary" type="submit" disabled={loading}>
-          <Search size={14} aria-hidden="true" /> Ara
+      {hasFilters && (
+        <button
+          className="inventory-tracking-clear"
+          type="button"
+          onClick={onClear}
+        >
+          Filtreleri temizle
         </button>
-        {hasFilters && (
-          <button
-            className="inventory-tracking-clear"
-            type="button"
-            onClick={onClear}
-          >
-            Filtreleri temizle
-          </button>
-        )}
-      </div>
-    </form>
+      )}
+    </ListToolbar>
   );
 }

@@ -1,4 +1,15 @@
-import { Filter, RefreshCw, Search } from "lucide-react";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
+
+export type CustomerDirectoryCounts = {
+  total: number;
+  customers: number;
+  suppliers: number;
+  dealers: number;
+  employees: number;
+  others: number;
+  active: number;
+  inactive: number;
+};
 
 type Props = {
   search: string;
@@ -9,10 +20,15 @@ type Props = {
   onStatusChange: (value: string) => void;
   onApply: () => void;
   onRefresh: () => void;
+  /** Counts shown on the filter chips; null while loading or unavailable. */
+  counts?: CustomerDirectoryCounts | null;
+  /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
   searchLabel?: string;
   searchPlaceholder?: string;
   typeFilterLabel?: string;
   statusFilterLabel?: string;
+  /** Kept for saved page settings; the search now applies as you type. */
   applyLabel?: string;
   showTypeFilter?: boolean;
   showStatusFilter?: boolean;
@@ -27,75 +43,54 @@ export function CustomerFilters({
   onStatusChange,
   onApply,
   onRefresh,
+  counts = null,
+  toolsSlotRef,
   searchLabel = "Cari ara",
   searchPlaceholder = "Cari kodu, unvanı veya vergi no ile ara",
   typeFilterLabel = "Cari türü",
   statusFilterLabel = "Durum",
-  applyLabel = "Filtrele",
   showTypeFilter = true,
   showStatusFilter = true,
 }: Props) {
   return (
-    <div className="customer-toolbar customer-directory-toolbar">
-      <div className="customer-directory-search-field">
-        <label htmlFor="customer-directory-search">{searchLabel}</label>
-        <form
-          className="customer-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onApply();
-          }}
-        >
-          <Search size={16} aria-hidden="true" />
-          <input
-            id="customer-directory-search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={searchPlaceholder}
-            aria-label={searchLabel}
-          />
-        </form>
-      </div>
-      {showTypeFilter && <label className="customer-filter-field">
-        <span>{typeFilterLabel}</span>
-        <select
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      onSearchApply={onApply}
+      searchLabel={searchLabel}
+      searchPlaceholder={searchPlaceholder}
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
+      refreshLabel="Cari listesini yenile"
+    >
+      {showTypeFilter && (
+        <ListChipGroup
+          label={typeFilterLabel}
           value={typeFilter}
-          onChange={(event) => onTypeChange(event.target.value)}
-        >
-          <option value="">Tümü</option>
-          <option value="Customer">Müşteri</option>
-          <option value="Supplier">Tedarikçi</option>
-          <option value="Both">Diğer</option>
-          <option value="Dealer">Bayi</option>
-          <option value="Employee">Personel</option>
-        </select>
-      </label>}
-      {showStatusFilter && <label className="customer-filter-field">
-        <span>{statusFilterLabel}</span>
-        <select
+          onChange={onTypeChange}
+          hideEmpty
+          options={[
+            { value: "", label: "Tümü", count: counts?.total },
+            { value: "Customer", label: "Müşteri", count: counts?.customers },
+            { value: "Supplier", label: "Tedarikçi", count: counts?.suppliers },
+            { value: "Dealer", label: "Bayi", count: counts?.dealers },
+            { value: "Employee", label: "Personel", count: counts?.employees },
+            { value: "Both", label: "Diğer", count: counts?.others },
+          ]}
+        />
+      )}
+      {showStatusFilter && (
+        <ListChipGroup
+          label={statusFilterLabel}
           value={statusFilter}
-          onChange={(event) => onStatusChange(event.target.value)}
-        >
-          <option value="">Tümü</option>
-          <option value="Active">Aktif</option>
-          <option value="Inactive">Pasif</option>
-        </select>
-      </label>}
-      <button
-        type="button"
-        className="secondary customer-filter-button"
-        onClick={onApply}
-      >
-        <Filter size={15} /> {applyLabel}
-      </button>
-      <button
-        type="button"
-        className="secondary customer-filter-refresh"
-        onClick={onRefresh}
-        aria-label="Cari listesini yenile"
-      >
-        <RefreshCw size={15} /> Yenile
-      </button>
-    </div>
+          onChange={onStatusChange}
+          allowClear
+          options={[
+            { value: "Active", label: "Aktif", count: counts?.active },
+            { value: "Inactive", label: "Pasif", count: counts?.inactive },
+          ]}
+        />
+      )}
+    </ListToolbar>
   );
 }

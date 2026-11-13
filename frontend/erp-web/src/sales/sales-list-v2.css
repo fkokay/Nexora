@@ -1,0 +1,62 @@
+/*
+ * Sales-module glue for the shared list page structure (src/list-page, "list-v2").
+ * Only layout helpers the kit does not provide; colours come from the kit's variables.
+ */
+
+/* SalesPage renders a fragment into the shell; its list-v2 root must not add a box. */
+#root .sales-lv2-root {
+  display: contents;
+}
+
+/* Title row + toolbar row, stacked with the kit's 12px rhythm. */
+#root .list-v2 .sales-lv2-stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0 0 12px;
+}
+
+/* Indicators that stay (totals with no filter equivalent): a compact inline strip. */
+#root .list-v2 .sales-lv2-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 13px;
+}
+#root .list-v2 .sales-lv2-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#root .list-v2 .sales-lv2-facts dt {
+  margin: 0;
+}
+#root .list-v2 .sales-lv2-facts dd {
+  margin: 0;
+  color: var(--lv2-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Record summary panes restyled with list-v2-detail-*: spacing between head and facts. */
+#root .list-v2 .sales-lv2-detail .list-v2-facts {
+  margin-top: 10px;
+}
+#root .list-v2 .sales-lv2-detail .list-v2-facts > div:last-child {
+  border-bottom: 0;
+}
+
+/* A record picker (button + dialog) used as a toolbar filter. */
+#root .list-v2 .sales-lv2-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}

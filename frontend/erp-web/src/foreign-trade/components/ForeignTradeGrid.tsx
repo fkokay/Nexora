@@ -14,14 +14,13 @@ type Props = {
   caseCount: number;
   loading: boolean;
   selectedId: string | null;
-  busyId: string;
   orderMap: Map<string, TradeOrder>;
   capabilities: TradeCapabilities;
   statusLabel: (status: TradeStatus) => string;
   directionLabel: (direction: Direction) => string;
   onSelect: (item: TradeCase) => void;
-  onTransition: (item: TradeCase, status: TradeStatus) => void;
-  nextStatus: Partial<Record<TradeStatus, TradeStatus>>;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
 };
 
 const tr = (turkish: string, english: string) =>
@@ -32,14 +31,12 @@ export function ForeignTradeGrid({
   caseCount,
   loading,
   selectedId,
-  busyId,
   orderMap,
   capabilities,
   statusLabel,
   directionLabel,
   onSelect,
-  onTransition,
-  nextStatus,
+  toolbarContainer,
 }: Props) {
   if (loading)
     return (
@@ -95,7 +92,11 @@ export function ForeignTradeGrid({
     );
   return (
     <div className="table-wrap">
-      <AdvancedDataGrid enableRowSelection={false} hideSearch>
+      <AdvancedDataGrid
+        enableRowSelection={false}
+        hideSearch
+        toolbarContainer={toolbarContainer}
+      >
         <thead>
           <tr>
             <th>{tr("Referans", "Reference")}</th>
@@ -103,7 +104,6 @@ export function ForeignTradeGrid({
             <th>{tr("Bağlı sipariş", "Linked order")}</th>
             <th>{tr("Ülkeler", "Countries")}</th>
             <th>{tr("Durum", "Status")}</th>
-            <th>{tr("İşlem", "Action")}</th>
           </tr>
         </thead>
         <tbody>
@@ -111,7 +111,6 @@ export function ForeignTradeGrid({
             const order = orderMap.get(
               item.purchaseOrderId || item.salesOrderId || "",
             );
-            const next = nextStatus[item.status];
             return (
               <tr
                 key={item.id}
@@ -158,33 +157,6 @@ export function ForeignTradeGrid({
                   <span className={`trade-status ${item.status.toLowerCase()}`}>
                     {statusLabel(item.status)}
                   </span>
-                </td>
-                <td>
-                  {capabilities.canAdvance && next && (
-                    <button
-                      className="secondary small-button"
-                      disabled={busyId === item.id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onTransition(item, next);
-                      }}
-                    >
-                      {busyId === item.id ? "…" : `${statusLabel(next)} →`}
-                    </button>
-                  )}
-                  {capabilities.canAdvance &&
-                    ["Draft", "Booked"].includes(item.status) && (
-                      <button
-                        className="row-action danger-action"
-                        disabled={busyId === item.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onTransition(item, "Cancelled");
-                        }}
-                      >
-                        {tr("İptal et", "Cancel")}
-                      </button>
-                    )}
                 </td>
               </tr>
             );

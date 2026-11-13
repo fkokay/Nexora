@@ -1,0 +1,5 @@
+/* list-v2 spacing for the operation history panel: the shared toolbar row carries no
+   margin of its own, so it is set apart from the table below it here. */
+#root .integration-queue-page.list-v2 .integration-queue-panel > .list-v2-toolbar {
+  margin: 0 0 12px;
+}

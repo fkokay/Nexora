@@ -1,72 +1,55 @@
-import { RefreshCw, ShieldCheck } from "lucide-react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Location, WarehouseRow } from "../types";
+import "../../inventory/inventory-list-v2.css";
 
 type Props = {
   warehouses: WarehouseRow[];
   warehouseId: string;
   locations: Location[];
-  selected: Location | null;
-  balanceCount: number;
   warehousesLoading: boolean;
   loading: boolean;
-  balancesLoading: boolean;
-  reconciliationLoading: boolean;
+  search: string;
+  statusFilter: string;
   error: string;
   notice: string;
   onRefresh: () => void;
   onDismissError: () => void;
   onDismissNotice: () => void;
   onWarehouseSelect: (warehouseId: string) => void;
+  onSearchChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
+  /** Receives the element where the location list's own tools are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export function WarehouseLocationOverview({
   warehouses,
   warehouseId,
   locations,
-  selected,
-  balanceCount,
   warehousesLoading,
   loading,
-  balancesLoading,
-  reconciliationLoading,
+  search,
+  statusFilter,
   error,
   notice,
   onRefresh,
   onDismissError,
   onDismissNotice,
   onWarehouseSelect,
+  onSearchChange,
+  onStatusChange,
+  toolsSlotRef,
 }: Props) {
-  const activeWarehouses = warehouses.filter((warehouse) => warehouse.isActive);
-
   return (
     <>
-      <div className="page-heading customer-heading">
-        <div>
-          <p className="eyebrow">ERP CORE · STOK YERLEŞİMİ</p>
-          <h1>Depo konumları</h1>
-          <p className="muted">
-            Ambar içindeki raf ve bölmeleri tanımlayın; konuma atanmış stok
-            bakiyelerini izleyin.
-          </p>
-        </div>
-        <div className="heading-actions">
-          <button
-            className="secondary"
-            type="button"
-            onClick={onRefresh}
-            disabled={
-              warehousesLoading ||
-              loading ||
-              balancesLoading ||
-              reconciliationLoading
-            }
-            aria-label="Depo, konum ve bakiyeleri yenile"
-          >
-            <RefreshCw size={15} aria-hidden="true" /> Yenile
-          </button>
-        </div>
-      </div>
+      <ListPageHeader
+        className="customer-heading"
+        title="Depo konumları"
+        description="Ambar içindeki raf ve bölmeleri tanımlayın; konuma atanmış stok bakiyelerini izleyin."
+        count={warehouseId && !loading ? locations.length : null}
+      />
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -87,42 +70,16 @@ export function WarehouseLocationOverview({
           </button>
         </div>
       )}
-      <section
-        className="warehouse-location-kpis"
-        aria-label="Depo yerleşimi özeti"
+      <ListToolbar
+        search={search}
+        onSearchChange={onSearchChange}
+        searchLabel="Kod, ad veya üst konum ara"
+        searchPlaceholder="Kod, ad veya üst konum ara"
+        toolsSlotRef={toolsSlotRef}
+        onRefresh={onRefresh}
+        refreshLabel="Depo, konum ve bakiyeleri yenile"
       >
-        <article>
-          <span>Depo</span>
-          <b>
-            {warehouses.find((row) => row.id === warehouseId)?.name ??
-              "Seçilmedi"}
-          </b>
-          <small>{activeWarehouses.length} aktif depo</small>
-        </article>
-        <article>
-          <span>Depo konumu</span>
-          <b>{locations.length}</b>
-          <small>
-            {locations.filter((row) => row.isActive).length} aktif raf veya
-            bölme
-          </small>
-        </article>
-        <article>
-          <span>Seçili konum bakiyesi</span>
-          <b>{balanceCount}</b>
-          <small>
-            {selected
-              ? `${selected.code} · ${selected.name}`
-              : "Bir konum seçin"}
-          </small>
-        </article>
-        <span className="tenant-scope">
-          <ShieldCheck size={14} />
-          Firma kapsamlı
-        </span>
-      </section>
-      <div className="customer-toolbar">
-        <label className="warehouse-picker">
+        <label className="list-v2-filter">
           Depo
           <SearchableRecordPicker
             options={warehouses.map((row) => ({
@@ -143,8 +100,26 @@ export function WarehouseLocationOverview({
             clearLabel="Depo seçimini kaldır"
           />
         </label>
-        <span className="date-pill">Firma kapsamlı · raf / bölme</span>
-      </div>
+        <ListChipGroup
+          label="Durum"
+          value={statusFilter}
+          onChange={onStatusChange}
+          allowClear
+          hideEmpty
+          options={[
+            {
+              value: "Active",
+              label: "Aktif",
+              count: locations.filter((row) => row.isActive).length,
+            },
+            {
+              value: "Inactive",
+              label: "Pasif",
+              count: locations.filter((row) => !row.isActive).length,
+            },
+          ]}
+        />
+      </ListToolbar>
     </>
   );
 }

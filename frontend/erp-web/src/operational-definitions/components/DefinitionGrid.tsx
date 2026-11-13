@@ -25,7 +25,6 @@ export function DefinitionGrid({
         <thead>
           <tr>
             <th>{tx("Tür", "Type")}</th>
-            <th>{tx("Kod", "Code")}</th>
             <th>{tx("Ad", "Name")}</th>
             <th>{tx("Durum", "Status")}</th>
             <th>{tx("İşlemler", "Actions")}</th>
@@ -36,9 +35,11 @@ export function DefinitionGrid({
             <tr key={row.id}>
               <td>{kindName(row.kind)}</td>
               <td>
-                <b>{row.code}</b>
+                <b>{row.name}</b>
+                <small className="cell-subtitle list-v2-name-code">
+                  {row.code}
+                </small>
               </td>
-              <td>{row.name}</td>
               <td>
                 {row.isActive
                   ? tx("Etkin", "Active")
@@ -68,7 +69,7 @@ export function DefinitionGrid({
           ))}
           {!loading && rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="table-empty">
+              <td colSpan={4} className="table-empty">
                 {tx("Seçili filtrelerle eşleşen tanım yok.", "No definitions match these filters.")}
               </td>
             </tr>

@@ -1,54 +1,55 @@
-import { Filter, Search } from "lucide-react";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import { stages, stageLabels } from "../types";
 
+/** Opportunity counts for the current search text, per stage; `total` ignores the stage. */
+export type CrmStageCounts = { total: number; byStage: Record<string, number> };
+
 type Props = {
-  query: string;
+  search: string;
   filter: string;
-  onQueryChange: (value: string) => void;
+  onSearchChange: (value: string) => void;
+  onSearchApply: () => void;
   onFilterChange: (value: string) => void;
+  onRefresh: () => void;
+  /** Counts shown on the stage chips; null while loading or unavailable. */
+  counts?: CrmStageCounts | null;
+  /** Receives the element where the grid's own tools (columns, export…) are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 export function CrmOpportunityFilters({
-  query,
+  search,
   filter,
-  onQueryChange,
+  onSearchChange,
+  onSearchApply,
   onFilterChange,
+  onRefresh,
+  counts = null,
+  toolsSlotRef,
 }: Props) {
   return (
-    <section className="crm-filter-panel" aria-label="Fırsat filtreleri">
-      <div className="crm-filter-panel-heading">
-        <Filter size={15} aria-hidden="true" />
-        <h2>Filtreler</h2>
-      </div>
-      <div className="crm-toolbar">
-        <label className="crm-search">
-          <span>Ara</span>
-          <span className="crm-search-control">
-            <Search size={16} aria-hidden="true" />
-            <input
-              aria-label="Fırsatlarda ara"
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Kod, fırsat veya müşteri ara"
-            />
-          </span>
-        </label>
-        <label className="crm-filter-label">
-          <span>Aşama</span>
-          <select
-            aria-label="Aşamaya göre filtrele"
-            value={filter}
-            onChange={(event) => onFilterChange(event.target.value)}
-          >
-            <option value="">Tüm aşamalar</option>
-            {stages.map((stage) => (
-              <option key={stage} value={stage}>
-                {stageLabels[stage]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-    </section>
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      onSearchApply={onSearchApply}
+      searchLabel="Fırsatlarda ara"
+      searchPlaceholder="Kod, fırsat veya müşteri ara"
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
+    >
+      <ListChipGroup
+        label="Aşamaya göre filtrele"
+        value={filter}
+        onChange={onFilterChange}
+        options={[
+          { value: "", label: "Tümü", count: counts?.total },
+          ...stages.map((stage) => ({
+            value: stage as string,
+            label: stageLabels[stage],
+            count: counts?.byStage[stage],
+          })),
+        ]}
+      />
+    </ListToolbar>
   );
 }

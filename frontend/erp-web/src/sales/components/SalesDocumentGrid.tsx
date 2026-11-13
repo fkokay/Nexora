@@ -14,6 +14,8 @@ type SalesDocumentGridProps<T extends { id: string }> = {
   emptyMessage: string;
   search: string;
   searchEmptyMessage: string;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
   onSelect: (id: string) => void;
   renderCell: (field: BuiltInScreenLayoutField, item: T) => ReactNode;
 };
@@ -28,6 +30,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
   emptyMessage,
   search,
   searchEmptyMessage,
+  toolbarContainer,
   onSelect,
   renderCell,
 }: SalesDocumentGridProps<T>) {
@@ -41,6 +44,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
         {...screenViewGridDefaults(fields)}
         externalPagination
         hideSearch
+        toolbarContainer={toolbarContainer}
         enableRowSelection={false}
         aria-label="Satış belgesi kayıtları"
       >

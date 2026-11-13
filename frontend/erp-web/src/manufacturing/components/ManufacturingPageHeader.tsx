@@ -1,8 +1,16 @@
 import { Factory, Plus, RefreshCw } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 
 type Props = {
   title: string;
   description: string;
+  /**
+   * List pages (recipes, work centers, orders) get the shared list-v2 title row:
+   * title, record count and the create action. Refresh sits in their toolbar row.
+   */
+  listMode?: boolean;
+  /** Record count shown next to the title in list mode; null while unknown. */
+  listCount?: number | null;
   showRecipeScope: boolean;
   showCreateRecipe: boolean;
   showRecipeListBack: boolean;
@@ -25,6 +33,8 @@ type Props = {
 export default function ManufacturingPageHeader({
   title,
   description,
+  listMode = false,
+  listCount = null,
   showRecipeScope,
   showCreateRecipe,
   showRecipeListBack,
@@ -43,6 +53,30 @@ export default function ManufacturingPageHeader({
   onBackToOrderList,
   onRefresh,
 }: Props) {
+  if (listMode)
+    return (
+      <ListPageHeader title={title} description={description} count={listCount}>
+        {showCreateRecipe && (
+          <button className="primary" type="button" onClick={onCreateRecipe}>
+            <Plus size={15} /> Yeni reçete
+          </button>
+        )}
+        {showCreateWorkCenter && (
+          <button
+            className="primary"
+            type="button"
+            onClick={onCreateWorkCenter}
+          >
+            <Plus size={15} /> İş merkezi tanımla
+          </button>
+        )}
+        {showCreateOrder && (
+          <button className="primary" type="button" onClick={onCreateOrder}>
+            <Plus size={15} /> Yeni üretim emri
+          </button>
+        )}
+      </ListPageHeader>
+    );
   return (
     <header className="manufacturing-hero manufacturing-workbench-header screen-page-header">
       <div className="manufacturing-icon">

@@ -1,0 +1,9 @@
+/* list-v2 order detail panel: the inspector is a grid with its own gap, so the
+   kit's block margins are dropped there. */
+#root .manufacturing-page.list-v2 .manufacturing-order-inspector > :is(.list-v2-detail-meta, .list-v2-quick, .list-v2-detail-foot) {
+  margin-top: 0;
+}
+/* Selecting an order works by clicking anywhere on its row. */
+#root .manufacturing-page.list-v2 .manufacturing-order-list tbody tr {
+  cursor: pointer;
+}

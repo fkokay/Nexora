@@ -8,6 +8,8 @@ type Props = {
   fields: ScreenField[];
   items: Item[];
   loading: boolean;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   renderCell: (field: ScreenField, item: Item) => ReactNode;
 };
 
@@ -15,6 +17,7 @@ export function PaymentInstrumentGrid({
   fields,
   items,
   loading,
+  toolbarContainer,
   renderCell,
 }: Props) {
   if (loading)
@@ -35,6 +38,7 @@ export function PaymentInstrumentGrid({
         hideSearch
         externalPagination
         enableRowSelection={false}
+        toolbarContainer={toolbarContainer}
         initialColumnWidths={[
           210, 150, 85, 95, 220, 180, 125, 135, 85, 130, 360,
         ]}

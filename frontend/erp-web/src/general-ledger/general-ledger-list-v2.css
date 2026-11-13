@@ -1,0 +1,16 @@
+/*
+ * General ledger record lists (chart of accounts, account mappings, journal ledger,
+ * transfer sources) on the list-v2 structure. The shared kit (list-page/list-page-v2.css)
+ * has no spacing between its rows because its pages are grid/flex containers; the ledger
+ * panel is a plain block, so only the gaps between the kit rows are set here.
+ */
+#root .general-ledger-panel.list-v2 .ledger-subpanel {
+  padding-top: 12px;
+}
+#root .general-ledger-panel.list-v2 .ledger-subpanel > .list-v2-toolbar {
+  margin-bottom: 12px;
+}
+/* Journal entry detail: head and meta use the kit classes; the line table follows. */
+#root .general-ledger-panel.list-v2 .ledger-entry-detail > .list-v2-detail-meta {
+  margin: 8px 0 12px;
+}

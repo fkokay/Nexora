@@ -1,30 +1,18 @@
-import { RefreshCw } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 
+/** Title row of the cost analysis list; refresh lives in the toolbar row. */
 export function ManufacturingCostVarianceHeader({
-  loading,
-  onRefresh,
+  total,
 }: {
-  loading: boolean;
-  onRefresh: () => void;
+  /** Number of production orders in the selected range; null while unknown. */
+  total: number | null;
 }) {
   return (
-    <header className="page-heading manufacturing-cost-heading">
-      <div>
-        <p className="eyebrow">ÜRETİM YÖNETİMİ · MALİYET MUHASEBESİ</p>
-        <h1>Üretim maliyet analizi</h1>
-        <p className="muted">
-          Üretim emirlerinin planlanan ve kaydedilmiş fiilî maliyetlerini
-          karşılaştırın.
-        </p>
-      </div>
-      <button
-        className="secondary"
-        type="button"
-        onClick={onRefresh}
-        disabled={loading}
-      >
-        <RefreshCw size={15} /> Yenile
-      </button>
-    </header>
+    <ListPageHeader
+      title="Üretim maliyet analizi"
+      description="Üretim emirlerinin planlanan ve kaydedilmiş fiilî maliyetlerini karşılaştırın."
+      count={total}
+      className="manufacturing-cost-heading"
+    />
   );
 }

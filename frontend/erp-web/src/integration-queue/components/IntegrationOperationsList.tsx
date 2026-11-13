@@ -1,4 +1,7 @@
+import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { ListToolbar } from "../../list-page/ListToolbar";
+import "../integration-queue-list-v2.css";
 import { Ban } from "lucide-react";
 
 function providerDocumentStatusLabel(status: number, tr: Props["tr"]) {
@@ -131,28 +134,23 @@ export default function IntegrationOperationsList({
   locale,
   statusLabel,
 }: Props) {
+  const [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   return (
     <>
       <div className="integration-operation-list-heading">
-        <div>
-          <h2>{tr("İşlem geçmişi", "Operation history")}</h2>
-          <p className="muted">
-            {tr(
-              "Kuyruk içeriği ve hassas istek verileri bu listede gösterilmez.",
-              "Queue contents and sensitive request data are not shown in this list.",
-            )}
-          </p>
-        </div>
+        <h2
+          title={tr(
+            "Kuyruk içeriği ve hassas istek verileri bu listede gösterilmez.",
+            "Queue contents and sensitive request data are not shown in this list.",
+          )}
+        >
+          {tr("İşlem geçmişi", "Operation history")}
+        </h2>
       </div>
-      <section
-        className="integration-operation-filter-card"
-        aria-label={tr("İşlem geçmişi filtreleri", "Operation history filters")}
-      >
-        <div>
-          <h3>{tr("Filtreler", "Filters")}</h3>
-          <p>{tr("İşlemleri durumlarına göre daraltın.", "Narrow operations by status.")}</p>
-        </div>
-        <label>
+      <ListToolbar toolsSlotRef={setGridToolsSlot}>
+        <label className="list-v2-filter">
           {tr("Durum", "Status")}
           <select
             value={status}
@@ -167,7 +165,7 @@ export default function IntegrationOperationsList({
             ))}
           </select>
         </label>
-      </section>
+      </ListToolbar>
       <div className="integration-operations-workbench">
         <div
           className="integration-queue-table-wrap"
@@ -181,6 +179,7 @@ export default function IntegrationOperationsList({
         >
           <AdvancedDataGrid
             externalPagination
+            toolbarContainer={gridToolsSlot}
             className="integration-queue-table"
           >
             <caption className="integration-visually-hidden">

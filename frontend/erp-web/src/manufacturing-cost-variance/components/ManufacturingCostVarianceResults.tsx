@@ -35,20 +35,10 @@ export function ManufacturingCostVarianceResults({
   onPageChange,
 }: Props) {
   return (
-    <section className="panel manufacturing-cost-table-panel">
-      <div className="manufacturing-cost-table-title">
-        <div>
-          <h2>Maliyet farkı</h2>
-          <p>
-            {report.from} – {report.to} ·{" "}
-            {report.periodBasis === "plannedDate"
-              ? "plan tarihine göre"
-              : report.periodBasis}{" "}
-            · Baz para: {currency}
-          </p>
-        </div>
-        <span>{report.totalCount.toLocaleString("tr-TR")} kayıt</span>
-      </div>
+    <section
+      className="panel manufacturing-cost-table-panel list-v2-list"
+      aria-label="Maliyet farkı"
+    >
       <div className="manufacturing-cost-table-wrap">
         <table>
           <thead>

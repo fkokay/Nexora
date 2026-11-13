@@ -6,6 +6,8 @@ import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { authenticatedFetch } from "./authApi";
 import { localDateString } from "./dateUtils";
 import "./operational-projects.css";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import "./operational-projects/operational-projects-list-v2.css";
 import { ProjectDashboardSummary } from "./operational-projects/components/ProjectDashboardSummary";
 import { ProjectListFilters } from "./operational-projects/components/ProjectListFilters";
 import { ProjectRegister } from "./operational-projects/components/ProjectRegister";
@@ -193,7 +195,10 @@ export default function OperationalProjectsPage({
     [selected, setSelected] = useState<Detail | null>(null),
     [costSummary, setCostSummary] = useState<CostSummary | null>(null),
     [employees, setEmployees] = useState<Employee[]>([]),
+    // `searchText` is the text in the search box; `search` is the applied search.
+    [searchText, setSearchText] = useState(""),
     [search, setSearch] = useState(""),
+    [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(null),
     [statusFilter, setStatusFilter] = useState(""),
     [taskFilter, setTaskFilter] = useState(""),
     [overdueOnly, setOverdueOnly] = useState(false),
@@ -255,7 +260,7 @@ export default function OperationalProjectsPage({
       active = false;
     };
   }, [token]);
-  const visibleProjectFields = projectScreenFields
+  const shownProjectFields = projectScreenFields
     .filter((field) => field.fixed || field.visible)
     .sort((a, b) =>
       a.key === "actions"
@@ -264,6 +269,14 @@ export default function OperationalProjectsPage({
           ? -1
           : a.position - b.position,
     );
+  // The code is shown under the name, so it gets no column of its own while the name
+  // column is visible.
+  const hasProjectNameColumn = shownProjectFields.some(
+    (field) => field.key === "name",
+  );
+  const visibleProjectFields = shownProjectFields.filter(
+    (field) => !(hasProjectNameColumn && field.key === "code"),
+  );
   const [taskScreenFields, setTaskScreenFields] = useState<
     ProjectScreenField[]
   >(defaultProjectTaskFields);
@@ -599,7 +612,14 @@ export default function OperationalProjectsPage({
       case "code":
         return project.code;
       case "name":
-        return project.name;
+        return (
+          <>
+            <b>{project.name}</b>
+            <small className="cell-subtitle list-v2-name-code">
+              {project.code}
+            </small>
+          </>
+        );
       case "status":
         return (
           <span className={`op-project-status ${project.status.toLowerCase()}`}>
@@ -640,6 +660,7 @@ export default function OperationalProjectsPage({
       timeEntryDays,
   );
   function clearProjectFilters() {
+    setSearchText("");
     setSearch("");
     setStatusFilter("");
     setTaskFilter("");
@@ -649,38 +670,24 @@ export default function OperationalProjectsPage({
     setPageNumber(1);
   }
   return (
-    <main className="operational-projects">
-      <header className="op-project-heading">
-        <div>
-          <p className="eyebrow">
-            {en ? "PROJECTS · OPERATIONS" : "PROJELER · OPERASYON"}
-          </p>
-          <h1>{en ? "Projects" : "Projeler"}</h1>
-          <p>
-            {en
-              ? "Track delivery, dates, budget and planned resources. Budget and cost fields are operational planning values."
-              : "Teslimat, tarihler, bütçe ve planlanan kaynakları takip edin. Bütçe ve maliyet alanları operasyonel planlama değeridir."}
-          </p>
-        </div>
-        <div className="op-project-heading-actions">
-          <button
-            className="secondary"
-            onClick={() => void load()}
-            disabled={busy}
-          >
-            {en ? "Refresh" : "Yenile"}
+    <main className="operational-projects list-v2">
+      <ListPageHeader
+        title={en ? "Projects" : "Projeler"}
+        description={
+          en
+            ? "Track delivery, dates, budget and planned resources. Budget and cost fields are operational planning values."
+            : "Teslimat, tarihler, bütçe ve planlanan kaynakları takip edin. Bütçe ve maliyet alanları operasyonel planlama değeridir."
+        }
+        count={page?.total ?? null}
+        countLabel={en ? "records" : "kayıt"}
+      >
+        {canManage && (
+          <button className="primary" onClick={() => setProjectFormOpen(true)}>
+            <Plus size={16} />
+            {en ? "New project" : "Yeni proje"}
           </button>
-          {canManage && (
-            <button
-              className="primary"
-              onClick={() => setProjectFormOpen(true)}
-            >
-              <Plus size={16} />
-              {en ? "New project" : "Yeni proje"}
-            </button>
-          )}
-        </div>
-      </header>
+        )}
+      </ListPageHeader>
       {dashboard && (
         <ProjectDashboardSummary
           summary={dashboard}
@@ -692,46 +699,32 @@ export default function OperationalProjectsPage({
       )}
       {error && <div className="alert inline-alert">{error}</div>}
       {notice && <div className="op-project-notice">{notice}</div>}
-      <section className="panel op-project-filter-card" aria-label={en ? "Project filters" : "Proje filtreleri"}>
-        <div className="op-project-filter-heading">
-          <h2>{en ? "Filters" : "Filtreler"}</h2>
-          <p>{en ? "Narrow projects by name, status, tasks or dates." : "Projeleri ad, durum, görev ve tarihe göre daraltın."}</p>
-        </div>
-        <div className="op-project-filter-fields">
-          <ProjectListFilters
-            en={en}
-            search={search}
-            statusFilter={statusFilter}
-            taskFilter={taskFilter}
-            overdueOnly={overdueOnly}
-            upcomingWithinDays={upcomingWithinDays}
-            timeEntryDays={timeEntryDays}
-            status={status}
-            onSearch={setSearch}
-            onStatus={setStatusFilter}
-            onTask={setTaskFilter}
-            onOverdue={setOverdueOnly}
-            onUpcoming={setUpcomingWithinDays}
-            onTimeEntryDays={setTimeEntryDays}
-          />
-        </div>
-      </section>
+      <ProjectListFilters
+        en={en}
+        search={searchText}
+        statusFilter={statusFilter}
+        taskFilter={taskFilter}
+        overdueOnly={overdueOnly}
+        upcomingWithinDays={upcomingWithinDays}
+        timeEntryDays={timeEntryDays}
+        status={status}
+        onSearch={setSearchText}
+        onSearchApply={() => setSearch(searchText.trim())}
+        onStatus={setStatusFilter}
+        onTask={setTaskFilter}
+        onOverdue={setOverdueOnly}
+        onUpcoming={setUpcomingWithinDays}
+        onTimeEntryDays={setTimeEntryDays}
+        onRefresh={() => void load()}
+        toolsSlotRef={setGridToolsSlot}
+      />
       <section
         className={`op-project-layout${selected ? " has-selection" : ""}`}
       >
-        <aside className="panel op-project-list">
-          <div className="panel-heading">
-            <div>
-              <h2>{en ? "Project register" : "Proje listesi"}</h2>
-              <p>
-                {page?.total ?? 0} {en ? "matching projects" : "eşleşen proje"}{" "}
-                ·{" "}
-                {en
-                  ? "Select a row to view its plan"
-                  : "Detay için satır seçin"}
-              </p>
-            </div>
-          </div>
+        <aside
+          className="panel op-project-list list-v2-list"
+          aria-label={en ? "Project register" : "Proje listesi"}
+        >
           <ProjectRegister
             page={page}
             pageNumber={pageNumber}
@@ -743,6 +736,7 @@ export default function OperationalProjectsPage({
             hasFilters={hasProjectFilters}
             fields={visibleProjectFields}
             selectedId={selected?.project.id ?? null}
+            toolbarContainer={gridToolsSlot}
             renderValue={projectFieldValue}
             onQueryChange={(gridQuery) => {
               setSearch(gridQuery.search);

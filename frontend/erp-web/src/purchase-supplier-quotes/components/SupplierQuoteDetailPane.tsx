@@ -23,23 +23,32 @@ export default function SupplierQuoteDetailPane({
 }: Props) {
   return (
     <aside className="erp-record-pane supplier-quotes-detail">
-      <div className="erp-record-heading">
+      <header className="list-v2-detail-head">
         <div>
-          <span className="erp-record-kind">
-            SATIN ALMA · TEDARİKÇİ TEKLİFİ
-          </span>
+          <span className="list-v2-kind">SATIN ALMA · TEDARİKÇİ TEKLİFİ</span>
           <h2>{selected.supplierName}</h2>
-          <small>
-            {selected.code} · Talep {selected.requestCode}
-          </small>
         </div>
-        <button className="secondary small-button" onClick={onOpenRequests}>
-          Talep ekranı
-        </button>
+        <div className="list-v2-detail-head-actions">
+          <button className="secondary small-button" onClick={onOpenRequests}>
+            Talep ekranı
+          </button>
+        </div>
+      </header>
+      <div className="list-v2-detail-meta">
+        <span className="list-v2-detail-code">{selected.code}</span>
+        <span>
+          <span>Talep</span> <span>{selected.requestCode}</span>
+        </span>
+        <span
+          className={`list-v2-status${selected.status === "Selected" ? " is-active" : ""}`}
+        >
+          <i aria-hidden="true" />
+          {statusLabel(selected.status)}
+        </span>
       </div>
       {detail ? (
         <>
-          <dl className="erp-record-facts">
+          <dl className="list-v2-facts">
             <div>
               <dt>Teklif tarihi</dt>
               <dd>{detail.quoteDate}</dd>
@@ -47,10 +56,6 @@ export default function SupplierQuoteDetailPane({
             <div>
               <dt>Geçerlilik</dt>
               <dd>{detail.validUntil || "—"}</dd>
-            </div>
-            <div>
-              <dt>Durum</dt>
-              <dd>{statusLabel(detail.status)}</dd>
             </div>
             <div>
               <dt>Toplam</dt>

@@ -2,12 +2,14 @@ import { useState } from "react";
 import type { BankStatement } from "../../erp-types";
 import { FinanceStudioGrid } from "../../FinanceStudioGrid";
 import { financeGridDefaults } from "../../financeCatalog";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 
 type Props = {
   token: string;
   statements: BankStatement[];
   loading: boolean;
   onOpen: (statement: BankStatement) => void;
+  onRefresh?: () => void;
 };
 
 const amount = (value: number) =>
@@ -18,66 +20,52 @@ export function BankStatementsGrid({
   statements,
   loading,
   onOpen,
+  onRefresh,
 }: Props) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
-  const filteredStatements = statements.filter((statement) => {
-    const matchesQuery = !normalizedQuery || [
+  const searchedStatements = statements.filter((statement) =>
+    !normalizedQuery || [
       statement.code,
       statement.accountName,
       statement.currencyCode,
       statement.startDate,
       statement.endDate,
-    ].some((value) => value.toLocaleLowerCase("tr-TR").includes(normalizedQuery));
-    const matchesStatus = !status || statement.status === status;
-    return matchesQuery && matchesStatus;
-  });
-  const matchedLines = statements.reduce((sum, statement) => sum + statement.matchedLineCount, 0);
-  const totalLines = statements.reduce((sum, statement) => sum + statement.lineCount, 0);
+    ].some((value) => value.toLocaleLowerCase("tr-TR").includes(normalizedQuery)),
+  );
+  const filteredStatements = searchedStatements.filter(
+    (statement) => !status || statement.status === status,
+  );
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
     <>
-      <section className="bank-statements-summary" aria-label="Banka ekstreleri özeti">
-        <article><span>Toplam ekstre</span><b>{statements.length}</b></article>
-        <article><span>Mutabık ekstre</span><b>{statements.filter((statement) => statement.status === "Reconciled").length}</b></article>
-        <article><span>Eşleşen hareket</span><b>{matchedLines} / {totalLines}</b></article>
-      </section>
-      <section className="bank-statements-filter-card" aria-label="Banka ekstresi filtreleri">
-        <div>
-          <h2>Filtreler</h2>
-          <p>Ekstre kodu, hesap, döviz veya mutabakat durumuna göre daraltın.</p>
-        </div>
-        <label>
-          Ara
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Ekstre, hesap veya döviz ara"
-          />
-        </label>
-        <label>
-          Durum
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="">Tüm durumlar</option>
-            <option value="Reconciled">Mutabık</option>
-            <option value="Imported">Bekliyor</option>
-          </select>
-        </label>
-      </section>
-      <section className="panel bank-statements-list-panel">
-        <div className="list-toolbar">
-          <div>
-            <h2>Banka ekstreleri</h2>
-            <p>{filteredStatements.length} / {statements.length} aktarım</p>
-          </div>
-        </div>
+      <ListToolbar
+        search={query}
+        onSearchChange={setQuery}
+        searchPlaceholder="Ekstre, hesap veya döviz ara"
+        toolsSlotRef={setToolsSlot}
+        onRefresh={onRefresh}
+      >
+        <ListChipGroup
+          label="Durum"
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "", label: "Tüm durumlar", count: searchedStatements.length },
+            { value: "Reconciled", label: "Mutabık", count: searchedStatements.filter((statement) => statement.status === "Reconciled").length },
+            { value: "Imported", label: "Bekliyor", count: searchedStatements.filter((statement) => statement.status === "Imported").length },
+          ]}
+        />
+      </ListToolbar>
+      <section className="panel bank-statements-list-panel list-v2-list">
       <div className="ledger-list">
         <FinanceStudioGrid
           token={token}
           screenKey="finance-statements"
           defaults={financeGridDefaults["finance-statements"]}
           hideSearch
+          toolbarContainer={toolsSlot}
         >
           <table className="customer-table">
             <thead>

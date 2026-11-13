@@ -181,6 +181,7 @@ const englishUi: Record<string, string> = {
   Tamamlandı: "Completed",
   Feshedildi: "Terminated",
   İptal: "Cancelled",
+  kayıt: "records",
 };
 const translateUi = (value: string, en: boolean) =>
   en ? (englishUi[value] ?? value) : value;
@@ -218,6 +219,8 @@ export default function CommercialContractsPage({
   );
   const [typeFilter, setTypeFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState(""),
+    // `search` is the typed text; `query` is what the list request uses.
+    [search, setSearch] = useState(""),
     [query, setQuery] = useState(""),
     [pageNumber, setPageNumber] = useState(1),
     [pageSize, setPageSize] = useState(25),
@@ -559,16 +562,11 @@ export default function CommercialContractsPage({
           ? ["Active", "Completed", "Terminated"]
           : [];
   return (
-    <div className="contracts-page">
+    <div className="contracts-page list-v2">
       <ContractsPageHeader
         total={page?.total}
-        activeCount={
-          (page?.items ?? []).filter((x) => x.status === "Active").length
-        }
-        loading={loading}
         canEdit={canEdit}
         tx={tx}
-        onRefresh={() => void load()}
         onCreate={() => setShowCreate(true)}
       />
       {error && !showCreate && !selected && (
@@ -597,8 +595,11 @@ export default function CommercialContractsPage({
       )}
       <ContractsListPanel
         tx={tx}
+        search={search}
+        setSearch={setSearch}
         query={query}
         setQuery={setQuery}
+        onRefresh={() => void load()}
         typeFilter={typeFilter}
         setTypeFilter={setTypeFilter}
         statusFilter={statusFilter}

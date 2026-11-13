@@ -25,11 +25,6 @@ export function ManufacturingCostVarianceSummary({
       aria-label="Üretim maliyet özeti"
     >
       <article>
-        <span>Üretim emri</span>
-        <b>{report.totalCount.toLocaleString("tr-TR")}</b>
-        <small>Seçili plan tarihi aralığı</small>
-      </article>
-      <article>
         <span>Planlanan malzeme</span>
         <b>{amount(report.pageTotals.plannedMaterialBase, currency)}</b>
         <small>Bu sayfa · fire dahil emir anlık görüntüsü</small>
