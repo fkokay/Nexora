@@ -130,17 +130,7 @@ public static class FixedAssetEndpoints
             if (asset is null) return Results.NotFound();
             var entry = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "FixedAssetAcquisition" && x.SourceId == id, ct);
-            var invoiceCode = asset.PurchaseInvoiceId is { } invoiceId
-                ? await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == invoiceId).Select(x => x.Code).SingleOrDefaultAsync(ct)
-                : null;
-            if (entry is null) return Results.Ok(new FixedAssetAcquisitionPostingView(id, invoiceCode, null, null, []));
-            var accountIds = entry.Lines.Select(x => x.AccountId).Distinct().ToArray();
-            var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && accountIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, x => new { x.Code, x.Name }, ct);
-            return Results.Ok(new FixedAssetAcquisitionPostingView(id, invoiceCode, entry.Id, entry.EntryDate,
-                entry.Lines.OrderBy(x => x.LineNumber).Select(x => new FixedAssetAcquisitionJournalLineView(x.AccountId,
-                    accounts.GetValueOrDefault(x.AccountId)?.Code ?? "", accounts.GetValueOrDefault(x.AccountId)?.Name ?? "",
-                    x.Debit, x.Credit)).ToArray()));
+            return Results.Ok(await ReadAcquisitionPostingViewAsync(db, tenantId, id, asset.PurchaseInvoiceId, entry, ct));
         });
 
         group.MapPost("/{id:guid}/acquisition-posting", async (Guid id, FixedAssetAcquisitionPostingRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -150,7 +140,12 @@ public static class FixedAssetEndpoints
             if (!await TenantExistsUnderLockAsync(db, tenantId, ct)) return Results.NotFound();
             var prior = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "FixedAssetAcquisition" && x.SourceId == id, ct);
-            if (prior is not null) return Results.Ok(ToAcquisitionPostingView(prior));
+            if (prior is not null)
+            {
+                var priorInvoiceId = await db.FixedAssets.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                    .Select(x => x.PurchaseInvoiceId).SingleOrDefaultAsync(ct);
+                return Results.Ok(await ReadAcquisitionPostingViewAsync(db, tenantId, id, priorInvoiceId, prior, ct));
+            }
             var asset = await db.FixedAssets.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (asset is null) return Results.NotFound();
             var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, asset.AcquisitionDate, ct);
@@ -190,10 +185,11 @@ public static class FixedAssetEndpoints
             {
                 var raced = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
                     .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "FixedAssetAcquisition" && x.SourceId == id, ct);
-                if (raced is not null) return Results.Ok(ToAcquisitionPostingView(raced));
+                if (raced is not null) return Results.Ok(await ReadAcquisitionPostingViewAsync(db, tenantId, id, asset.PurchaseInvoiceId, raced, ct));
                 throw;
             }
-            return Results.Created($"/api/fixed-assets/{id}/acquisition-posting", ToAcquisitionPostingView(entry));
+            return Results.Created($"/api/fixed-assets/{id}/acquisition-posting",
+                await ReadAcquisitionPostingViewAsync(db, tenantId, id, asset.PurchaseInvoiceId, entry, ct));
         });
 
         group.MapGet("/{id:guid}/depreciation-schedule", async (Guid id, DateOnly? through, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -597,9 +593,25 @@ public static class FixedAssetEndpoints
         x.VukTaxYear, x.VukDepreciationLowerLimitTry, x.VukCommuniqueNumber, x.VukSourceUrl, x.VukUsefulLifeCode,
         x.VukUsefulLifeDescription, x.VukUsefulLifeTableYear, x.VukUsefulLifeCommuniqueNumber, x.VukUsefulLifeMonths,
         x.VukNormalDepreciationRatePercent, x.VukTaxDepreciationStartDate);
-    private static FixedAssetAcquisitionPostingView ToAcquisitionPostingView(JournalEntry entry) =>
-        new(entry.SourceId, null, entry.Id, entry.EntryDate, entry.Lines.OrderBy(x => x.LineNumber)
-            .Select(x => new FixedAssetAcquisitionJournalLineView(x.AccountId, null, null, x.Debit, x.Credit)).ToArray());
+    /// <summary>
+    /// Edinim yevmiyesinin tek görünümü: GET ve POST (ilk kayıt, tekrar, yarış) aynı alanları, hesap kodu ve adıyla döndürür.
+    /// Ekran POST yanıtını doğrudan gösterdiği için kod ve ad boş kalmamalıdır.
+    /// </summary>
+    private static async Task<FixedAssetAcquisitionPostingView> ReadAcquisitionPostingViewAsync(TenantDbContext db, Guid tenantId, Guid assetId,
+        Guid? purchaseInvoiceId, JournalEntry? entry, CancellationToken ct)
+    {
+        var invoiceCode = purchaseInvoiceId is { } invoiceId
+            ? await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == invoiceId).Select(x => x.Code).SingleOrDefaultAsync(ct)
+            : null;
+        if (entry is null) return new FixedAssetAcquisitionPostingView(assetId, invoiceCode, null, null, []);
+        var accountIds = entry.Lines.Select(x => x.AccountId).Distinct().ToArray();
+        var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && accountIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => new { x.Code, x.Name }, ct);
+        return new FixedAssetAcquisitionPostingView(assetId, invoiceCode, entry.Id, entry.EntryDate,
+            entry.Lines.OrderBy(x => x.LineNumber).Select(x => new FixedAssetAcquisitionJournalLineView(x.AccountId,
+                accounts.GetValueOrDefault(x.AccountId)?.Code ?? "", accounts.GetValueOrDefault(x.AccountId)?.Name ?? "",
+                x.Debit, x.Credit)).ToArray());
+    }
     private static FixedAssetDisposalView ToDisposalView(FixedAssetDisposal x, Guid? journalEntryId = null) => new(x.Id, x.AssetId, x.DisposalDate, x.Reason,
         x.ProceedsBase, x.PostedAccumulatedDepreciationBase, x.ScheduleAccumulatedDepreciationBase, x.BookValueBase,
         x.GainLossBase, x.ScheduleThroughPeriod, x.DisposedAt, x.DisposedByUserId, journalEntryId is null ? "NotPosted" : "GeneralLedgerPosted", journalEntryId);

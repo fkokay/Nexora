@@ -189,12 +189,15 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         using var createdJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
         var journalId = createdJson.RootElement.GetProperty("journalEntryId").GetGuid();
+        // The screen renders the POST response directly, so its lines carry the same account labels as the GET view.
+        AssertLineAccounts(createdJson.RootElement, assetCost, offset);
 
         // A retried command with a different offset still returns the first immutable journal.
         using var replay = await client.PostAsJsonAsync($"/api/fixed-assets/{asset.Id}/acquisition-posting", new { offsetAccountId = otherCost.Id });
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         using var replayJson = JsonDocument.Parse(await replay.Content.ReadAsStringAsync());
         Assert.Equal(journalId, replayJson.RootElement.GetProperty("journalEntryId").GetGuid());
+        AssertLineAccounts(replayJson.RootElement, assetCost, offset);
 
         using var foreignTenant = Client(app, otherTenantId);
         Assert.Equal(HttpStatusCode.NotFound, (await foreignTenant.GetAsync($"/api/fixed-assets/{asset.Id}/acquisition-posting")).StatusCode);
@@ -319,6 +322,17 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
         var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
         return client;
+    }
+
+    private static void AssertLineAccounts(JsonElement view, LedgerAccount debitAccount, LedgerAccount creditAccount)
+    {
+        var lines = view.GetProperty("lines").EnumerateArray().ToArray();
+        var debit = lines.Single(x => x.GetProperty("debit").GetDecimal() > 0);
+        var credit = lines.Single(x => x.GetProperty("credit").GetDecimal() > 0);
+        Assert.Equal(debitAccount.Code, debit.GetProperty("accountCode").GetString());
+        Assert.Equal(debitAccount.Name, debit.GetProperty("accountName").GetString());
+        Assert.Equal(creditAccount.Code, credit.GetProperty("accountCode").GetString());
+        Assert.Equal(creditAccount.Name, credit.GetProperty("accountName").GetString());
     }
 
     private static async Task AssertNoJournalAsync(WebApplication app)
