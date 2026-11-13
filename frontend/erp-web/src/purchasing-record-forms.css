@@ -1,0 +1,110 @@
+/* Satınalma ve cari modülü kayıt formlarının RecordForm yerleşimine özel eklemeleri.
+   Ortak yapı record-form/record-form.css içindedir; buradaki her kural prf- sınıflarıyla sınırlıdır. */
+
+/* Bir panelin veya liste içeren bir modalın içine gömülü form: kendi çerçevesiyle ayrı bir kutu. */
+.record-form.prf-embedded {
+  min-height: 0;
+  margin: 0;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 8px;
+  background: var(--rf-surface);
+  overflow: hidden;
+}
+.record-form.prf-embedded .rf-toolbar { background: var(--rf-band); }
+
+/* Modalın tamamını kaplayan form: modalın kendi iç boşluğu yeterli, kenar boşlukları sıfırlanır. */
+.record-form.prf-flush .rf-toolbar { padding: 0 0 12px; }
+.record-form.prf-flush .rf-form { padding: 16px 0; }
+.record-form.prf-flush .rf-error { margin: 12px 0 0; }
+.record-form.prf-flush .rf-status { padding: 6px 12px; border: 1px solid var(--rf-border-soft); border-radius: 6px; }
+
+/* Kayıt formu taşıyan modallar komut çubuğunun sığacağı genişlikte açılır. */
+.modal:not(.ledger-modal):has(> .record-form.prf-flush),
+.modal:not(.ledger-modal):has(> .record-form.prf-embedded) {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.pie-modal:has(> .record-form.prf-pie-form) {
+  width: min(100%, 780px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+/* Ortak bileşende Vazgeç her zaman görünür; iptal edilecek bir durumu olmayan gömülü formlarda gizlenir. */
+.record-form.prf-no-cancel .rf-actions > .rf-btn:last-child { display: none; }
+/* Ortak bileşen kaydet düğmesini yalnız "busy" ile kapatır; ek ön koşul sağlanmadığında düğme pasif görünür. */
+.record-form.prf-save-blocked .rf-actions > .rf-btn[type="submit"] { opacity: .6; pointer-events: none; }
+
+/* Kimlik şeridi sütun düzenleri */
+.record-form .rf-identity.prf-identity-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.record-form .rf-identity.prf-identity-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.record-form .rf-identity.prf-identity-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.record-form .rf-identity.prf-identity-code-name { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.record-form .rf-identity.prf-identity-supplier { grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+.record-form .rf-group-body.prf-terms { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 3fr); gap: 14px 20px; }
+.record-form .rf-group-body.prf-terms textarea { height: 40px; min-height: 40px; }
+.record-form .rf-group-body.prf-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 20px; }
+
+/* Grup içi açıklama + işlem satırı */
+.record-form .prf-group-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; }
+.record-form .prf-group-toolbar > small { flex: 1 1 260px; }
+.record-form .prf-group-toolbar > button { flex: 0 0 auto; width: auto; min-height: 36px; padding: 0 12px; border-radius: 6px; cursor: pointer; }
+.record-form .rf-form .prf-note { margin: 0; color: var(--rf-muted); font-size: 12px; line-height: 1.5; }
+.record-form .rf-form .optional-label { color: var(--rf-muted); font-size: 12px; font-weight: 400; }
+
+/* Satır tabloları: hücre içi alanlar tablo ölçüsünde kalır */
+.record-form .rf-form .ledger-list { margin: 0; }
+.record-form .rf-form table :is(input, select):not([type="checkbox"]) { height: 36px; min-height: 36px; }
+.record-form .rf-form .prf-line-controls { display: grid; grid-template-columns: minmax(84px, .7fr) minmax(96px, 1fr) minmax(130px, 1.4fr); gap: 8px; min-width: 330px; }
+.record-form.prf-return-form .ledger-list { max-height: min(32vh, 300px); overflow: auto; }
+
+/* Tedarikçi fatura taslağı satırları: mevcut satır kartı ızgarası korunur */
+.record-form .rf-form .sid-line .sid-wide { grid-column: 1 / -1; }
+.record-form .rf-form .sid-line-title { grid-column: 1 / -1; }
+.record-form .rf-form .sid-line-note { margin: 0; color: var(--rf-muted); font-size: 12px; }
+
+/* Cari özel alan değerleri listesi */
+.record-form .rf-form .customer-field-values-list { max-height: min(320px, 40vh); }
+
+@media (max-width: 1100px) {
+  .record-form .rf-identity.prf-identity-4,
+  .record-form .rf-group-body.prf-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-form .rf-group-body.prf-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-form .rf-group-body.prf-terms > label:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .record-form .rf-identity[class*="prf-identity-"],
+  .record-form .rf-group-body.prf-terms,
+  .record-form .rf-group-body.prf-totals { grid-template-columns: minmax(0, 1fr); }
+  .record-form .rf-form .prf-line-controls { grid-template-columns: minmax(0, 1fr); min-width: 160px; }
+}
+
+/* AdvancedDataGrid kayıt formunun içinde kullanıldığında (irsaliye satırları) ortak alan kuralları
+   tablonun kendi araç çubuğunu da etkiler; tablonun kendi ölçüleri geri verilir. */
+.record-form .rf-form .advanced-grid label { gap: 6px; color: var(--grid-muted, var(--rf-muted)); font-size: 11px; font-weight: 400; }
+.record-form .rf-form .advanced-grid :is(.advanced-grid-search, .advanced-grid-row-select, .advanced-grid-logic, .advanced-grid-density, .advanced-grid-filter-actions label, .advanced-grid-column-setting label, .advanced-grid-footer > label) {
+  flex-direction: row;
+  align-items: center;
+}
+.record-form .rf-form .advanced-grid .advanced-grid-row-select { display: inline-flex; gap: 7px; }
+.record-form .rf-form .advanced-grid .advanced-grid-search input:not([type="checkbox"]) {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 12px;
+}
+.record-form .rf-form .advanced-grid :is(.advanced-grid-toolbar, .advanced-grid-footer, .advanced-grid-popover) :is(input, select):not([type="checkbox"]):not(.input-field) {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.record-form .rf-form .advanced-grid :is(.advanced-grid-logic, .advanced-grid-density, .advanced-grid-footer) select:not([type="checkbox"]) { width: auto; min-width: 120px; }
+.record-form .rf-form .advanced-grid .advanced-grid-column-setting .advanced-grid-column-width:not([type="checkbox"]) { width: 76px; }
+.record-form .rf-form .advanced-grid .advanced-grid-column-setting select:not([type="checkbox"]) { width: 112px; min-width: 0; }

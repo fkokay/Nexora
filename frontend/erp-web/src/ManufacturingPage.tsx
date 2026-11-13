@@ -10,7 +10,7 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Boxes, ClipboardList, Factory, Pencil, Plus } from "lucide-react";
+import { Boxes, Factory, Plus } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
@@ -22,8 +22,14 @@ import type {
   ManufacturingBom as Bom,
   ManufacturingPageKey,
 } from "./manufacturing/types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./manufacturing.css";
+import "./manufacturing-record-forms.css";
 import "./manufacturing/manufacturing-list-v2.css";
 
 export type { ManufacturingPageKey } from "./manufacturing/types";
@@ -346,6 +352,8 @@ export default function ManufacturingPage({
   createOrderPage?: boolean;
 }) {
   const sectionLoadGeneration = useRef(0);
+  /** Set by "Kaydet ve Yeni": keep the recipe form open after a successful create. */
+  const stayAfterBomSave = useRef(false);
   const refreshRequestGeneration = useRef(0);
   const mutationEpoch = useRef(0);
   const calendarSelectionGeneration = useRef(0);
@@ -1129,6 +1137,7 @@ export default function ManufacturingPage({
         editing ? "Ürün reçetesi güncellendi." : "Ürün reçetesi oluşturuldu.",
       );
       await refresh();
+      if (!editing && stayAfterBomSave.current) return;
       onNavigate("manufacturing-recipes");
     } catch (e) {
       if (mutationIsCurrent(captured)) setError((e as Error).message);
@@ -1856,193 +1865,85 @@ export default function ManufacturingPage({
       (recipePage - 1) * recipePageSize,
       recipePage * recipePageSize,
     );
-  // Record lists follow the shared list-v2 structure (see list-page/README.md).
-  const listSection =
-    section === "manufacturing-recipes" ||
-    section === "manufacturing-work-centers" ||
-    (section === "manufacturing-orders" && !createOrderPage);
-  const listCount = loading
-    ? null
-    : section === "manufacturing-recipes"
-      ? boms.length
-      : section === "manufacturing-work-centers"
-        ? workCenters.length
-        : ordersTotalCount;
-  const refreshList = () => {
-    if (!busy) void refresh();
-  };
-  const activeWorkCenterCount = workCenters.filter((x) => x.isActive).length;
-  const visibleWorkCenters = workCenters.filter(
-    (center) =>
-      !workCenterStatus || center.isActive === (workCenterStatus === "Active"),
-  );
-  return (
-    <div
-      className={`manufacturing-page manufacturing-workbench${listSection ? " list-v2" : ""}`}
-    >
-      <ManufacturingPageHeader
-        listMode={listSection}
-        listCount={listCount}
-        title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
-        description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
-        showRecipeScope={section === "manufacturing-recipe-create"}
-        showCreateRecipe={section === "manufacturing-recipes"}
-        showRecipeListBack={section === "manufacturing-recipe-create"}
-        showCreateWorkCenter={section === "manufacturing-work-centers"}
-        showWorkCenterListBack={section === "manufacturing-work-center-create"}
-        showCreateOrder={section === "manufacturing-orders" && !createOrderPage}
-        showOrderListBack={createOrderPage}
-        showOrderSave={createOrderPage}
-        canSaveOrder={boms.length > 0 && warehouses.length > 0}
-        busy={busy}
-        onCreateRecipe={() => {
-          resetBomForm();
-          setError("");
-          setNotice("");
-          onNavigate("manufacturing-recipe-create");
-        }}
-        onBackToRecipeList={() => {
-          resetBomForm();
-          onNavigate("manufacturing-recipes");
-        }}
-        onCreateWorkCenter={() => {
-          setError("");
-          setNotice("");
-          onNavigate("manufacturing-work-center-create");
-        }}
-        onBackToWorkCenterList={() => onNavigate("manufacturing-work-centers")}
-        onCreateOrder={() => onNavigate("manufacturing-order-create")}
-        onBackToOrderList={() => onNavigate("manufacturing-orders")}
-        onRefresh={() => void refresh()}
-      />
-      {!createOrderPage &&
-        section !== "manufacturing-recipes" &&
-        section !== "manufacturing-orders" && <ManufacturingSummary
-        workCenterMode={
-          section === "manufacturing-work-centers" ||
-          section === "manufacturing-work-center-create"
-        }
-        workCenterMetrics={[
-          // On the list page the counts are in the title and on the status chips;
-          // the capacity total has no filter equivalent, so its card stays.
-          ...(section === "manufacturing-work-centers"
-            ? []
-            : [
-                {
-                  label: "İş merkezi",
-                  value: workCenters.length,
-                  detail: "Toplam tanım",
-                },
-                {
-                  label: "Aktif iş merkezi",
-                  value: workCenters.filter((x) => x.isActive).length,
-                  detail: "Üretim planlamasında kullanılabilir",
-                },
-              ]),
-          {
-            label: "Günlük kapasite",
-            value: `${workCenters
-              .filter((x) => x.isActive)
-              .reduce((sum, x) => sum + x.capacityMinutesPerDay, 0)
-              .toLocaleString("tr-TR")} dk`,
-            detail: "Aktif merkezlerin toplamı",
-          },
-        ]}
-        generalMetrics={[
-          {
-            label: "Ürün reçetesi",
-            value: boms.length,
-            detail: `${boms.filter((x) => x.isActive).length} aktif`,
-          },
-          {
-            label: "Açık üretim emri",
-            value: openOrdersCount,
-            detail: `${ordersTotalCount.toLocaleString("tr-TR")} toplam kayıt`,
-          },
-          {
-            label: "İş merkezi",
-            value: workCenters.length,
-            detail: `${workCenters.filter((x) => x.isActive).length} aktif`,
-          },
-          {
-            label: "Üretim deposu",
-            value: warehouses.length,
-            detail: "Firma kapsamındaki depolar",
-          },
-        ]}
-      />}
-      {error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-          <button onClick={() => setError("")}>×</button>
-        </div>
-      )}
-      {notice && <div className="notice">{notice}</div>}
-      <div className="manufacturing-grid">
-        {section === "manufacturing-recipes" && (
-          <ManufacturingRecipeList
-            fields={recipeScreenFields}
-            boms={boms}
-            filteredBoms={filteredBoms}
-            pagedBoms={pagedBoms}
-            loading={loading}
-            busy={busy}
-            search={recipeSearch}
-            setSearch={setRecipeSearch}
-            status={recipeStatus}
-            setStatus={setRecipeStatus}
-            onRefresh={refreshList}
-            page={recipePage}
-            setPage={setRecipePage}
-            pageCount={recipePageCount}
-            onResetForm={resetBomForm}
-            onNavigate={onNavigate}
-            onEdit={beginEditBom}
-            onChangeState={(bom) => void changeBomState(bom)}
-            onDelete={(bom) => void deleteBom(bom)}
-          />
-        )}
-        {section === "manufacturing-recipe-create" && (
-          <section className="manufacturing-panel">
-            <div className="manufacturing-heading">
-              <div className="manufacturing-icon soft">
-                <Boxes size={18} />
-              </div>
-              <div>
-                <h2>
-                  {editingBomId
-                    ? "Ürün reçetesini düzenle"
-                    : "Yeni ürün reçetesi"}
-                </h2>
-                <p>
-                  Mamul başına bileşen, fire miktarı ve operasyon rotasını
-                  yönetin.
-                </p>
-              </div>
-            </div>
-            <form className="manufacturing-form" onSubmit={saveBom}>
-              <label>
-                Reçete kodu
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  maxLength={48}
-                  placeholder="REC-URUN-001"
-                />
-              </label>
-              <label>
-                Reçete adı
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  maxLength={160}
-                  placeholder="Standart montaj reçetesi"
-                />
-              </label>
-              <label>
-                Mamul
+  const bomSaveBlocked = items.length === 0;
+  const orderSaveBlocked = boms.length === 0 || warehouses.length === 0;
+  const trackingProductMode = trackingOrder
+    ? (boms.find((x) => x.id === trackingOrder.billOfMaterialId)
+        ?.productTrackingMode ?? "None")
+    : "None";
+  if (section === "manufacturing-recipe-create")
+    return (
+      <div className="manufacturing-page manufacturing-record-form-host">
+        <RecordFormPage
+          title={editingBomId ? "Ürün Reçetesini Düzenle" : "Ürün Reçetesi Tanımlama"}
+          mode={editingBomId ? "edit" : "create"}
+          busy={busy}
+          saveLabel={editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"}
+          onSubmit={(event) => {
+            if (bomSaveBlocked) {
+              event.preventDefault();
+              return;
+            }
+            void saveBom(event);
+          }}
+          onCancel={() => {
+            if (busy) return;
+            resetBomForm();
+            onNavigate("manufacturing-recipes");
+          }}
+          onSaveIntent={(stay) => {
+            stayAfterBomSave.current = stay;
+          }}
+          onReset={() => {
+            resetBomForm();
+            setError("");
+            setNotice("");
+          }}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            <>
+              <span>
+                Bileşen: <b>{components.length}</b>
+              </span>
+              <span>
+                Operasyon: <b>{bomOperations.length} / 50</b>
+              </span>
+              {bomSaveBlocked && !loading && (
+                <span className="rf-status-warning">
+                  Stok kartı bulunmadığı için reçete kaydedilemez.
+                </span>
+              )}
+              {notice && <span className="rf-status-notice">{notice}</span>}
+              <span className="rf-status-end">Firma kapsamı · Reçeteler</span>
+            </>
+          }
+        >
+          <RecordFormGroup title="Reçete Kimliği" bodyClassName="rf-identity">
+            <label>
+              <span>Reçete kodu <RequiredMark /></span>
+              <input
+                className="rf-must rf-mono"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                maxLength={48}
+                placeholder="REC-URUN-001"
+              />
+            </label>
+            <label>
+              <span>Reçete adı <RequiredMark /></span>
+              <input
+                className="rf-must"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={160}
+                placeholder="Standart montaj reçetesi"
+              />
+            </label>
+            <label>
+              <span>Mamul <RequiredMark /></span>
                 <SearchableRecordPicker
                   options={eligibleItems.map((x) => ({
                     id: x.id,
@@ -2071,22 +1972,24 @@ export default function ManufacturingPage({
                   emptyMessage="Aramanızla eşleşen aktif stok kartı bulunamadı."
                   required
                 />
-              </label>
-              <label>
-                Çıktı miktarı
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  value={output}
-                  onChange={(e) => setOutput(e.target.value)}
-                  required
-                />
-              </label>
+            </label>
+            <label>
+              <span>Çıktı miktarı <RequiredMark /></span>
+              <input
+                className="rf-must rf-num"
+                type="number"
+                min="0.0001"
+                step="0.0001"
+                value={output}
+                onChange={(e) => setOutput(e.target.value)}
+                required
+              />
+            </label>
+          </RecordFormGroup>
+          <RecordFormGroup title="Bileşenler">
               <div className="manufacturing-lines manufacturing-component-section">
                 <div className="manufacturing-lines-title">
                   <div>
-                    <b>Bileşenler</b>
                     <small>
                       {components.length} satır · miktar, fire ve birim maliyeti
                       tanımlayın
@@ -2218,10 +2121,11 @@ export default function ManufacturingPage({
                   birim maliyeti.
                 </small>
               </div>
+          </RecordFormGroup>
+          <RecordFormGroup title="Operasyon Rotası">
               <div className="manufacturing-lines manufacturing-operation-section">
                 <div className="manufacturing-lines-title">
                   <div>
-                    <b>Operasyon rotası</b>
                     <small>
                       {bomOperations.length} adım · kurulum, süre ve enerji
                       standartları
@@ -2501,51 +2405,100 @@ export default function ManufacturingPage({
                   ayarlarından tanımlanır.
                 </small>
               </div>
-              <div className="manufacturing-recipe-form-actions">
-                <button
-                  className="primary"
-                  disabled={busy || items.length === 0}
-                >
-                  {editingBomId ? <Pencil size={16} /> : <Plus size={16} />}{" "}
-                  {editingBomId ? "Değişiklikleri kaydet" : "Reçete oluştur"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    resetBomForm();
-                    onNavigate("manufacturing-recipes");
-                  }}
-                >
-                  {editingBomId ? "Düzenlemeyi iptal et" : "İptal et"}
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
-        {section === "manufacturing-orders" && createOrderPage && (
-          <section className="manufacturing-panel">
-            <div className="manufacturing-heading">
-              <div className="manufacturing-icon soft blue">
-                <ClipboardList size={18} />
-              </div>
-              <div>
-                <h2>Üretim emri</h2>
-                <p>Reçete ve depo seçerek miktarı planlayın.</p>
-              </div>
-            </div>
-            <form id="manufacturing-order-create-form" className="manufacturing-form" onSubmit={createOrder}>
-              <label>
-                Emir kodu
-                <input
-                  value={orderCode}
-                  onChange={(e) => setOrderCode(e.target.value)}
+          </RecordFormGroup>
+        </RecordFormPage>
+      </div>
+    );
+  if (section === "manufacturing-orders" && createOrderPage)
+    return (
+      <div className="manufacturing-page manufacturing-record-form-host">
+        <RecordFormPage
+          title="Üretim Emri Planlama"
+          mode="create"
+          busy={busy}
+          saveLabel="Emir Planla"
+          formId="manufacturing-order-create-form"
+          onSubmit={(event) => {
+            if (orderSaveBlocked) {
+              event.preventDefault();
+              return;
+            }
+            void createOrder(event);
+          }}
+          onCancel={() => onNavigate("manufacturing-orders")}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            <>
+              <span>Reçete ve depo seçerek miktarı planlayın.</span>
+              {orderSaveBlocked && !loading && (
+                <span className="rf-status-warning">
+                  Emir planlamak için en az bir reçete ve üretim deposu gerekir.
+                </span>
+              )}
+              {notice && <span className="rf-status-notice">{notice}</span>}
+            </>
+          }
+        >
+          <RecordFormGroup title="Emir Kimliği" bodyClassName="rf-identity">
+            <label>
+              <span>Emir kodu <RequiredMark /></span>
+              <input
+                className="rf-must rf-mono"
+                value={orderCode}
+                onChange={(e) => setOrderCode(e.target.value)}
+                required
+                maxLength={48}
+                placeholder="URE-2026-001"
+              />
+            </label>
+            <label>
+              <span>Reçete <RequiredMark /></span>
+              <select
+                className="rf-must"
+                value={bomId}
+                onChange={(e) => setBomId(e.target.value)}
+                required
+              >
+                <option value="">Reçete seçin</option>
+                {boms
+                  .filter((x) => x.isActive)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.code} · {x.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              <span>Üretim deposu <RequiredMark /></span>
+                <SearchableRecordPicker
+                  options={warehouses.map((x) => ({
+                    id: x.id,
+                    label: `${x.code} · ${x.name}`,
+                  }))}
+                  selectedId={warehouseId}
+                  onSelect={setWarehouseId}
+                  title="Üretim deposu seçin"
+                  placeholder="Depo seçin"
+                  searchPlaceholder="Depo kodu veya adıyla ara"
+                  emptyMessage="Aramanızla eşleşen depo bulunamadı."
                   required
-                  maxLength={48}
-                  placeholder="URE-2026-001"
                 />
-              </label>
+            </label>
+            <label>
+              <span>Plan tarihi <RequiredMark /></span>
+              <input
+                className="rf-must"
+                type="date"
+                value={plannedDate}
+                onChange={(e) => setPlannedDate(e.target.value)}
+                required
+              />
+            </label>
+          </RecordFormGroup>
+          <div className="rf-columns">
+            <RecordFormGroup title="Üretim Kaynağı">
               <label>
                 Üretim türü
                 <select
@@ -2602,42 +2555,12 @@ export default function ManufacturingPage({
                   )}
                 </>
               )}
-              <label>
-                Reçete
-                <select
-                  value={bomId}
-                  onChange={(e) => setBomId(e.target.value)}
-                  required
-                >
-                  <option value="">Reçete seçin</option>
-                  {boms
-                    .filter((x) => x.isActive)
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.code} · {x.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Üretim deposu
-                <SearchableRecordPicker
-                  options={warehouses.map((x) => ({
-                    id: x.id,
-                    label: `${x.code} · ${x.name}`,
-                  }))}
-                  selectedId={warehouseId}
-                  onSelect={setWarehouseId}
-                  title="Üretim deposu seçin"
-                  placeholder="Depo seçin"
-                  searchPlaceholder="Depo kodu veya adıyla ara"
-                  emptyMessage="Aramanızla eşleşen depo bulunamadı."
-                  required
-                />
-              </label>
-              <label>
-                Planlanan miktar
+            </RecordFormGroup>
+            <RecordFormGroup title="Planlama">
+              <label className="rf-short">
+                <span>Planlanan miktar <RequiredMark /></span>
                 <input
+                  className="rf-must rf-num"
                   type="number"
                   min="0.0001"
                   step="0.0001"
@@ -2646,40 +2569,37 @@ export default function ManufacturingPage({
                   required
                 />
               </label>
-              <label>
-                Plan tarihi
-                <input
-                  type="date"
-                  value={plannedDate}
-                  onChange={(e) => setPlannedDate(e.target.value)}
-                  required
-                />
-              </label>
-            </form>
-          </section>
-        )}
-      </div>
-      {section === "manufacturing-work-center-create" && (
-        <section className="manufacturing-panel">
-          <div className="manufacturing-heading">
-            <div className="manufacturing-icon soft blue">
-              <Factory size={18} />
-            </div>
-            <div>
-              <h2>Yeni iş merkezi</h2>
-              <p>
-                Kapasiteyi ve saatlik maliyetleri girin. Tanım kaydedildikten
-                sonra iş merkezleri listesinde görünür.
-              </p>
-            </div>
+            </RecordFormGroup>
           </div>
-          <form
-            className="manufacturing-form work-center-form"
-            onSubmit={createWorkCenter}
-          >
+        </RecordFormPage>
+      </div>
+    );
+  if (section === "manufacturing-work-center-create")
+    return (
+      <div className="manufacturing-page manufacturing-record-form-host">
+        <RecordFormPage
+          title="İş Merkezi Tanımlama"
+          mode="create"
+          busy={busy}
+          saveLabel="İş Merkezini Kaydet"
+          onSubmit={(event) => void createWorkCenter(event)}
+          onCancel={() => onNavigate("manufacturing-work-centers")}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            <>
+              <span>
+                Tanım kaydedildikten sonra iş merkezleri listesinde görünür.
+              </span>
+              {notice && <span className="rf-status-notice">{notice}</span>}
+            </>
+          }
+        >
+          <RecordFormGroup title="İş Merkezi Kimliği" bodyClassName="rf-identity">
             <label>
-              Kod
+              <span>Kod <RequiredMark /></span>
               <input
+                className="rf-must rf-mono"
                 value={wcCode}
                 onChange={(e) => setWcCode(e.target.value)}
                 required
@@ -2688,8 +2608,9 @@ export default function ManufacturingPage({
               />
             </label>
             <label>
-              Ad
+              <span>Ad <RequiredMark /></span>
               <input
+                className="rf-must"
                 value={wcName}
                 onChange={(e) => setWcName(e.target.value)}
                 required
@@ -2698,8 +2619,9 @@ export default function ManufacturingPage({
               />
             </label>
             <label>
-              Günlük kapasite (dk)
+              <span>Günlük kapasite (dk) <RequiredMark /></span>
               <input
+                className="rf-must rf-num"
                 type="number"
                 min="1"
                 max="1440"
@@ -2708,34 +2630,184 @@ export default function ManufacturingPage({
                 required
               />
             </label>
-            <label>
-              İşçilik / saat
-              <input
-                type="number"
-                min="0"
-                step="0.0001"
-                value={wcLabor}
-                onChange={(e) => setWcLabor(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Genel gider / saat
-              <input
-                type="number"
-                min="0"
-                step="0.0001"
-                value={wcOverhead}
-                onChange={(e) => setWcOverhead(e.target.value)}
-                required
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              <Plus size={15} /> İş merkezi oluştur
-            </button>
-          </form>
-        </section>
+          </RecordFormGroup>
+          <div className="rf-columns">
+            <RecordFormGroup title="Saatlik Maliyetler">
+              <div className="rf-pair">
+                <label>
+                  <span>İşçilik / saat <RequiredMark /></span>
+                  <input
+                    className="rf-must rf-num"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={wcLabor}
+                    onChange={(e) => setWcLabor(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Genel gider / saat <RequiredMark /></span>
+                  <input
+                    className="rf-must rf-num"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={wcOverhead}
+                    onChange={(e) => setWcOverhead(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            </RecordFormGroup>
+          </div>
+        </RecordFormPage>
+      </div>
+    );
+  // Record lists follow the shared list-v2 structure (see list-page/README.md).
+  const listSection =
+    section === "manufacturing-recipes" ||
+    section === "manufacturing-work-centers" ||
+    (section === "manufacturing-orders" && !createOrderPage);
+  const listCount = loading
+    ? null
+    : section === "manufacturing-recipes"
+      ? boms.length
+      : section === "manufacturing-work-centers"
+        ? workCenters.length
+        : ordersTotalCount;
+  const refreshList = () => {
+    if (!busy) void refresh();
+  };
+  const activeWorkCenterCount = workCenters.filter((x) => x.isActive).length;
+  const visibleWorkCenters = workCenters.filter(
+    (center) =>
+      !workCenterStatus || center.isActive === (workCenterStatus === "Active"),
+  );
+  return (
+    <div
+      className={`manufacturing-page manufacturing-workbench${listSection ? " list-v2" : ""}`}
+    >
+      <ManufacturingPageHeader
+        listMode={listSection}
+        listCount={listCount}
+        title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
+        description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
+        showRecipeScope={false}
+        showCreateRecipe={section === "manufacturing-recipes"}
+        showRecipeListBack={false}
+        showCreateWorkCenter={section === "manufacturing-work-centers"}
+        showWorkCenterListBack={false}
+        showCreateOrder={section === "manufacturing-orders" && !createOrderPage}
+        showOrderListBack={createOrderPage}
+        showOrderSave={createOrderPage}
+        canSaveOrder={boms.length > 0 && warehouses.length > 0}
+        busy={busy}
+        onCreateRecipe={() => {
+          resetBomForm();
+          setError("");
+          setNotice("");
+          onNavigate("manufacturing-recipe-create");
+        }}
+        onBackToRecipeList={() => {
+          resetBomForm();
+          onNavigate("manufacturing-recipes");
+        }}
+        onCreateWorkCenter={() => {
+          setError("");
+          setNotice("");
+          onNavigate("manufacturing-work-center-create");
+        }}
+        onBackToWorkCenterList={() => onNavigate("manufacturing-work-centers")}
+        onCreateOrder={() => onNavigate("manufacturing-order-create")}
+        onBackToOrderList={() => onNavigate("manufacturing-orders")}
+        onRefresh={() => void refresh()}
+      />
+      {!createOrderPage &&
+        section !== "manufacturing-recipes" &&
+        section !== "manufacturing-orders" && <ManufacturingSummary
+        workCenterMode={section === "manufacturing-work-centers"}
+        workCenterMetrics={[
+          // On the list page the counts are in the title and on the status chips;
+          // the capacity total has no filter equivalent, so its card stays.
+          ...(section === "manufacturing-work-centers"
+            ? []
+            : [
+                {
+                  label: "İş merkezi",
+                  value: workCenters.length,
+                  detail: "Toplam tanım",
+                },
+                {
+                  label: "Aktif iş merkezi",
+                  value: workCenters.filter((x) => x.isActive).length,
+                  detail: "Üretim planlamasında kullanılabilir",
+                },
+              ]),
+          {
+            label: "Günlük kapasite",
+            value: `${workCenters
+              .filter((x) => x.isActive)
+              .reduce((sum, x) => sum + x.capacityMinutesPerDay, 0)
+              .toLocaleString("tr-TR")} dk`,
+            detail: "Aktif merkezlerin toplamı",
+          },
+        ]}
+        generalMetrics={[
+          {
+            label: "Ürün reçetesi",
+            value: boms.length,
+            detail: `${boms.filter((x) => x.isActive).length} aktif`,
+          },
+          {
+            label: "Açık üretim emri",
+            value: openOrdersCount,
+            detail: `${ordersTotalCount.toLocaleString("tr-TR")} toplam kayıt`,
+          },
+          {
+            label: "İş merkezi",
+            value: workCenters.length,
+            detail: `${workCenters.filter((x) => x.isActive).length} aktif`,
+          },
+          {
+            label: "Üretim deposu",
+            value: warehouses.length,
+            detail: "Firma kapsamındaki depolar",
+          },
+        ]}
+      />}
+      {error && !trackingOrder && (
+        <div className="alert inline-alert" role="alert">
+          {error}
+          <button onClick={() => setError("")}>×</button>
+        </div>
       )}
+      {notice && <div className="notice">{notice}</div>}
+      <div className="manufacturing-grid">
+        {section === "manufacturing-recipes" && (
+          <ManufacturingRecipeList
+            boms={boms}
+            filteredBoms={filteredBoms}
+            pagedBoms={pagedBoms}
+            fields={recipeScreenFields}
+            loading={loading}
+            busy={busy}
+            search={recipeSearch}
+            setSearch={setRecipeSearch}
+            status={recipeStatus}
+            setStatus={setRecipeStatus}
+            onRefresh={refreshList}
+            page={recipePage}
+            setPage={setRecipePage}
+            pageCount={recipePageCount}
+            onResetForm={resetBomForm}
+            onNavigate={onNavigate}
+            onEdit={beginEditBom}
+            onChangeState={(bom) => void changeBomState(bom)}
+            onDelete={(bom) => void deleteBom(bom)}
+          />
+        )}
+      </div>
       {section === "manufacturing-work-centers" && (
         <ListToolbar onRefresh={refreshList}>
           <ListChipGroup
@@ -4472,51 +4544,64 @@ export default function ManufacturingPage({
           }}
         >
           <section
-            className="manufacturing-modal"
+            className="manufacturing-modal manufacturing-modal--record-form"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="finished-goods-title"
+            aria-label={`Üretimi bildir · ${trackingOrder.code}`}
           >
-            <button
-              className="manufacturing-modal-close"
-              aria-label="Kapat"
-              disabled={busy}
-              onClick={() => setTrackingOrder(null)}
+            <RecordFormPage
+              variant="dialog"
+              title={`Üretimi bildir · ${trackingOrder.code}`}
+              mode="create"
+              busy={busy}
+              saveLabel="Bildir ve Tamamla"
+              onSubmit={submitFinishedTracking}
+              onCancel={() => {
+                if (!busy) setTrackingOrder(null);
+              }}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    Planlanan: <b>{trackingOrder.plannedQuantity.toLocaleString("tr-TR")}</b>
+                  </span>
+                  <span>
+                    Bildirilen: <b>{(Number(actualGoodQuantity || 0) + Number(scrapQuantity || 0)).toLocaleString("tr-TR")}</b>
+                  </span>
+                </>
+              }
             >
-              ×
-            </button>
-            <p className="eyebrow">ÜRETİM SONU BİLDİRİMİ</p>
-            <h2 id="finished-goods-title">
-              Üretimi bildir · {trackingOrder.code}
-            </h2>
-            <p>İyi ürün ve fire miktarını bildirin. Toplam, planlanan miktara eşit olmalıdır.</p>
-            <form onSubmit={submitFinishedTracking}>
-              <div className="manufacturing-form-grid">
-                <label>
-                  İyi ürün miktarı
-                  <input
-                    type="number"
-                    min="0.0001"
-                    max={trackingOrder.plannedQuantity}
-                    step="0.0001"
-                    required
-                    value={actualGoodQuantity}
-                    onChange={(e) => setActualGoodQuantity(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Fire miktarı
-                  <input
-                    type="number"
-                    min="0"
-                    max={trackingOrder.plannedQuantity}
-                    step="0.0001"
-                    required
-                    value={scrapQuantity}
-                    onChange={(e) => setScrapQuantity(e.target.value)}
-                  />
-                </label>
-              </div>
+              <RecordFormGroup title="Üretim Miktarları">
+                <small>İyi ürün ve fire miktarını bildirin. Toplam, planlanan miktara eşit olmalıdır.</small>
+                <div className="rf-pair">
+                  <label>
+                    <span>İyi ürün miktarı <RequiredMark /></span>
+                    <input
+                      className="rf-must rf-num"
+                      type="number"
+                      min="0.0001"
+                      max={trackingOrder.plannedQuantity}
+                      step="0.0001"
+                      required
+                      value={actualGoodQuantity}
+                      onChange={(e) => setActualGoodQuantity(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Fire miktarı <RequiredMark /></span>
+                    <input
+                      className="rf-must rf-num"
+                      type="number"
+                      min="0"
+                      max={trackingOrder.plannedQuantity}
+                      step="0.0001"
+                      required
+                      value={scrapQuantity}
+                      onChange={(e) => setScrapQuantity(e.target.value)}
+                    />
+                  </label>
+                </div>
               {Number(scrapQuantity) > 0 && (
                 <label>
                   Fire nedeni
@@ -4529,9 +4614,10 @@ export default function ManufacturingPage({
                   />
                 </label>
               )}
-              <small>
-                Planlanan: {trackingOrder.plannedQuantity.toLocaleString("tr-TR")} · Bildirilen: {(Number(actualGoodQuantity || 0) + Number(scrapQuantity || 0)).toLocaleString("tr-TR")}
-              </small>
+              </RecordFormGroup>
+              {(trackingProductMode === "Lot" ||
+                trackingProductMode === "Serial") && (
+                <RecordFormGroup title="Lot / Seri İzleme">
               {boms.find((x) => x.id === trackingOrder.billOfMaterialId)
                 ?.productTrackingMode === "Lot" ? (
                 <>
@@ -4579,20 +4665,9 @@ export default function ManufacturingPage({
                   </small>
                 </>
               ) : null}
-              <div className="manufacturing-modal-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => setTrackingOrder(null)}
-                >
-                  Vazgeç
-                </button>
-                <button className="primary" disabled={busy}>
-                  {busy ? "Kaydediliyor…" : "Bildir ve tamamla"}
-                </button>
-              </div>
-            </form>
+                </RecordFormGroup>
+              )}
+            </RecordFormPage>
           </section>
         </div>
       )}

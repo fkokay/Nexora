@@ -1,14 +1,4 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
-import {
-  CircleDollarSign,
-  FileText,
-  Info,
-  Layers,
-  MapPin,
-  ShieldCheck,
-  Users,
-  X,
-} from "lucide-react";
 import type {
   CustomerItem,
   CustomerGroupItem,
@@ -23,6 +13,13 @@ import {
   turkeyDistrictsForProvince,
 } from "./CustomerFormControls";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RecordFormTabs,
+  RequiredMark,
+  type RecordFormTab,
+} from "../../record-form/RecordForm";
 
 export type CustomerCreatePageProps = {
   busy: boolean;
@@ -83,6 +80,12 @@ export type CustomerCreatePageProps = {
   customerCreateFields: CustomerCustomFieldDefinition[];
   customerCreateValues: Record<string, string>;
   setCustomerCreateValues: Dispatch<SetStateAction<Record<string, string>>>;
+  /** Success message shown in the status bar after "Kaydet ve Yeni". */
+  notice?: string;
+  /** Tells the container whether the next successful create keeps the form open for another record. */
+  setStayAfterSave?: (value: boolean) => void;
+  /** Clears every field of a new card back to its default. */
+  onReset?: () => void;
 };
 
 export default function CustomerCreatePage({
@@ -144,173 +147,268 @@ export default function CustomerCreatePage({
   customerCreateFields,
   customerCreateValues,
   setCustomerCreateValues,
+  notice,
+  setStayAfterSave,
+  onReset,
 }: CustomerCreatePageProps) {
   const parentCompany = companyOptions.find(
     (company) => company.id === parentCompanyId,
   );
+  const isEdit = !!editingCustomer;
+  const tabs: RecordFormTab[] = [
+    { key: "contact", label: "İletişim ve Adres" },
+    { key: "finance", label: "Finans ve Muhasebe" },
+    { key: "other", label: "Vergi ve E-Fatura" },
+  ];
+  if (customerCreateFields.length > 0) tabs.push({ key: "custom", label: "Özel Alanlar" });
+  const activeTab = tabs.some((tab) => tab.key === customerCreateTab)
+    ? customerCreateTab
+    : "contact";
+  const requiredFilled = [code.trim(), name.trim(), type, currencyCode.trim()].filter(Boolean).length;
+  const eInvoiceWarning = !isEInvoiceRegistered
+    ? ""
+    : !taxNumber.trim() && !identityNumber.trim()
+      ? "E-Fatura mükellefi için vergi no veya T.C. kimlik no girilmedi."
+      : !eInvoiceRecipientAlias.trim()
+        ? "E-Fatura mükellefi için alıcı etiketi girilmedi."
+        : "";
+  tabs[2].warning = !!eInvoiceWarning;
+  const hasUnsavedInput = !isEdit && !!(code.trim() || name.trim());
+
   return (
-    <div className="customer-create-page">
-      <section className="customer-create-page-surface">
-        <header className="customer-create-page-heading">
-          <div className="customer-create-page-title">
-            <span className="customer-create-page-icon">
-              <Users size={22} />
-            </span>
-            <div>
-              <p className="eyebrow">CARİ YÖNETİMİ</p>
-              <h1>{editingCustomer ? "Cari Kartı Düzenle" : "Cari Kart Tanımlama"}</h1>
-              <p>
-                {editingCustomer
-                  ? "Cari bilgilerini aynı çalışma alanında görüntüleyip güncelleyin."
-                  : "Yeni cari oluşturun, temel bilgileri ve ilişkili detayları tanımlayın."}
-              </p>
-            </div>
-          </div>
-          <div className="customer-create-page-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setModal(false)}
-            >
-              <X size={16} />
-              Vazgeç
-            </button>
-            <button
-              type="submit"
-              form="customer-create-form"
-              className="primary"
-              disabled={busy}
-            >
-              <ShieldCheck size={16} />
-              {busy ? "Kaydediliyor…" : editingCustomer ? "Değişiklikleri Kaydet" : "Cari Kartı Kaydet"}
-            </button>
-          </div>
-        </header>
-        {error && (
-          <div
-            className="alert inline-alert customer-create-page-error"
-            role="alert"
-          >
-            {error}
-            <button
-              type="button"
-              aria-label="Hatayı kapat"
-              onClick={() => setError("")}
-            >
-              <X size={15} />
-            </button>
-          </div>
-        )}
-        <form
-          id="customer-create-form"
-          className="customer-create-form"
-          onSubmit={create}
+    <RecordFormPage
+      title={isEdit ? "Cari Kartı Düzenle" : "Cari Kart Tanımlama"}
+      mode={isEdit ? "edit" : "create"}
+      busy={busy}
+      saveLabel={isEdit ? "Değişiklikleri Kaydet" : "Cari Kartı Kaydet"}
+      formId="customer-create-form"
+      onSubmit={create}
+      onCancel={() => setModal(false)}
+      onSaveIntent={setStayAfterSave}
+      onReset={onReset}
+      error={error}
+      onDismissError={() => setError("")}
+      status={
+        <>
+          <span>
+            Zorunlu alanlar: <b>{requiredFilled} / 4</b>
+          </span>
+          {eInvoiceWarning && <span className="rf-status-warning">{eInvoiceWarning}</span>}
+          {notice && <span className="rf-status-notice">{notice}</span>}
+          {hasUnsavedInput && <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>}
+        </>
+      }
+    >
+        <RecordFormGroup title="Cari Kimliği" bodyClassName="rf-identity">
+            <label>
+              <span>Cari kodu <RequiredMark /></span>
+              <input
+                className="rf-must rf-mono"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                maxLength={64}
+                placeholder="Örn. C-1001"
+              />
+            </label>
+            <label>
+              <span>Ünvan <RequiredMark /></span>
+              <input
+                className="rf-must"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={200}
+                placeholder="Firma veya kişi adı"
+              />
+            </label>
+            <label>
+              <span>Cari türü <RequiredMark /></span>
+              <select
+                className="rf-must"
+                value={type}
+                onChange={(e) => setType(e.target.value as CustomerItem["type"])}
+              >
+                <option value="Customer">Müşteri</option>
+                <option value="Supplier">Tedarikçi</option>
+                <option value="Both">Müşteri & Tedarikçi</option>
+                <option value="Dealer">Bayi</option>
+                <option value="Employee">Personel</option>
+              </select>
+            </label>
+            <label>
+              Cari grubu
+              <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+                <option value="">Grup atama</option>
+                {groups
+                  .filter((x) => x.isActive)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+                  </RecordFormGroup>
+
+        <RecordFormTabs
+          tabs={tabs}
+          active={activeTab}
+          onChange={setCustomerCreateTab}
+          label="Cari form bölümleri"
         >
-          <nav
-            className="customer-create-tabs"
-            aria-label="Cari form bölümleri"
-          >
-            {[
-              ["basic", "Genel Bilgiler", "customer-create-basic"],
-              ["contact", "İletişim Bilgileri", "customer-create-contact"],
-              ["finance", "Finansal Bilgiler", "customer-create-finance"],
-              ["other", "Diğer / E-Fatura", "customer-create-other"],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                aria-current={customerCreateTab === key ? "page" : undefined}
-                onClick={() => setCustomerCreateTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-          <div
-            className={`customer-create-fields customer-create-fields--${customerCreateTab}`}
-          >
-            {customerCreateTab === "basic" && (
-              <fieldset
-                id="customer-create-basic"
-                className="customer-create-section erp-form-group"
-              >
-                <legend>
-                  <Info size={16} aria-hidden="true" />
-                  Temel Bilgiler
-                </legend>
-                <div className="form-two">
-                  <label>
-                    Cari kodu
-                    <input
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      required
-                      maxLength={64}
-                      placeholder="Örn. C-1001"
+            {activeTab === "contact" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="İletişim">
+                    <label>Telefon<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={40} /></label>
+                    <label>Kurumsal e-posta<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} /></label>
+                    <label>Web sitesi<input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} maxLength={255} placeholder="https://…" /></label>
+                                  </RecordFormGroup>
+                <RecordFormGroup title="Yetkili Kişi">
+                    <label>Yetkili kişi<input value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={160} /></label>
+                    <label>Yetkili telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={40} /></label>
+                    <label>Yetkili e-posta<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} maxLength={254} /></label>
+                                  </RecordFormGroup>
+                <RecordFormGroup title="Adres">
+                    <CustomerCountryInput
+                      value={addressCountry}
+                      onChange={(value) => {
+                        setAddressCountry(value);
+                        setAddressCity("");
+                        setAddressDistrict("");
+                      }}
                     />
-                  </label>
-                  <label>
-                    Cari türü
-                    <select
-                      value={type}
-                      onChange={(e) =>
-                        setType(e.target.value as CustomerItem["type"])
-                      }
-                    >
-                      <option value="Customer">Müşteri</option>
-                      <option value="Supplier">Tedarikçi</option>
-                      <option value="Both">Müşteri & Tedarikçi</option>
-                      <option value="Dealer">Bayi</option>
-                      <option value="Employee">Personel</option>
-                    </select>
-                  </label>
-                </div>
-                <label>
-                  Ünvan
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    maxLength={200}
-                    placeholder="Firma veya kişi adı"
-                  />
-                </label>
-              </fieldset>
-            )}
-            {customerCreateTab === "finance" && (
-              <>
-                <fieldset
-                  id="customer-create-finance"
-                  className="customer-create-section erp-form-group"
-                >
-                  <legend>
-                    <CircleDollarSign size={16} aria-hidden="true" />
-                    Finansal Bilgiler
-                  </legend>
-                  <div className="form-two">
-                    <label>
-                      Cari grubu
-                      <select
-                        value={groupId}
-                        onChange={(e) => setGroupId(e.target.value)}
-                      >
-                        <option value="">Grup atama</option>
-                        {groups
-                          .filter((x) => x.isActive)
-                          .map((x) => (
-                            <option key={x.id} value={x.id}>
-                              {x.name}
-                            </option>
-                          ))}
-                      </select>
+                    <div className="rf-pair">
+                      <CustomerLocationInput
+                        id="customer-create-province"
+                        label="İl"
+                        optional={false}
+                        value={addressCity}
+                        options={addressCountry === "TR" ? locationDefinitions.provinces : []}
+                        required={
+                          !!(
+                            addressLine.trim() ||
+                            addressDistrict.trim() ||
+                            addressPostalCode.trim()
+                          )
+                        }
+                        onChange={(value) => {
+                          setAddressCity(value);
+                          setAddressDistrict("");
+                        }}
+                      />
+                      <CustomerLocationInput
+                        id="customer-create-district"
+                        label="İlçe"
+                        optional={false}
+                        value={addressDistrict}
+                        options={
+                          addressCountry === "TR"
+                            ? turkeyDistrictsForProvince(
+                                addressCity,
+                                locationDefinitions.provinces,
+                                locationDefinitions.districts,
+                              )
+                            : []
+                        }
+                        onChange={setAddressDistrict}
+                      />
+                    </div>
+                    <label className="rf-short">
+                      Posta kodu
+                      <input
+                        value={addressPostalCode}
+                        onChange={(e) => setAddressPostalCode(e.target.value)}
+                        maxLength={20}
+                      />
                     </label>
+                    <label>
+                      Adres
+                      <textarea
+                        value={addressLine}
+                        onChange={(e) => setAddressLine(e.target.value)}
+                        maxLength={400}
+                        required={
+                          !!(
+                            addressCity.trim() ||
+                            addressDistrict.trim() ||
+                            addressPostalCode.trim()
+                          )
+                        }
+                        placeholder="Mahalle, cadde, sokak ve kapı no"
+                      />
+                    </label>
+                                  </RecordFormGroup>
+                <div className="rf-columns-wide">
+                  <CustomerLocationMap
+                    latitude={addressLatitude}
+                    longitude={addressLongitude}
+                    onChange={(latitude, longitude) => {
+                      setAddressLatitude(latitude);
+                      setAddressLongitude(longitude);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {activeTab === "finance" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="Finans">
+                    <div className="rf-pair">
+                      <label>
+                        <span>Döviz kodu <RequiredMark /></span>
+                        <input
+                          className="rf-must rf-mono"
+                          value={currencyCode}
+                          onChange={(e) => setCurrencyCode(e.target.value.toUpperCase().slice(0, 3))}
+                          required
+                          maxLength={3}
+                          placeholder="TRY"
+                        />
+                      </label>
+                      <label>
+                        Vade günü
+                        <input
+                          className="rf-num"
+                          type="number"
+                          min="0"
+                          max="3650"
+                          value={paymentTermDays}
+                          onChange={(e) => setPaymentTermDays(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      Risk limiti
+                      <input
+                        className="rf-num"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={riskLimit}
+                        onChange={(e) => setRiskLimit(e.target.value)}
+                        placeholder="Belirtilmedi"
+                      />
+                    </label>
+                    <label>Fiyat listesi kodu<input value={priceListCode} onChange={(event) => setPriceListCode(event.target.value)} maxLength={40} placeholder="Standart" /></label>
+                                  </RecordFormGroup>
+                <RecordFormGroup title="Muhasebe ve Banka">
+                    <div className="rf-pair">
+                      <label>Alıcı muhasebe hesabı<input className="rf-mono" value={receivableAccountCode} onChange={(event) => setReceivableAccountCode(event.target.value)} maxLength={40} placeholder="120" /></label>
+                      <label>Satıcı muhasebe hesabı<input className="rf-mono" value={payableAccountCode} onChange={(event) => setPayableAccountCode(event.target.value)} maxLength={40} placeholder="320" /></label>
+                    </div>
+                    <div className="rf-pair">
+                      <label>Banka adı<input value={bankName} onChange={(event) => setBankName(event.target.value)} maxLength={120} /></label>
+                      <label>Şube kodu<input value={bankBranchCode} onChange={(event) => setBankBranchCode(event.target.value)} maxLength={40} /></label>
+                    </div>
+                    <label>IBAN<input className="rf-mono" value={iban} onChange={(event) => setIban(event.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={34} placeholder="TR…" /></label>
+                                  </RecordFormGroup>
+                <RecordFormGroup title="Bağlı Firma">
                     <label>
                       Grup şirketi / Ana firma
                       <SearchableRecordPicker
                         options={companyOptions
-                          .filter(
-                            (company) => company.id !== editingCustomer?.id,
-                          )
+                          .filter((company) => company.id !== editingCustomer?.id)
                           .map((company) => ({
                             id: company.id,
                             label: `${company.code} · ${company.name}`,
@@ -326,84 +424,30 @@ export default function CustomerCreatePage({
                         placeholder="Bağımsız firma"
                         searchPlaceholder="Firma kodu veya adıyla ara"
                         emptyMessage="Aramanızla eşleşen firma bulunamadı."
+                        triggerVariant="ellipsis"
                         clearable
                         clearLabel="Bağımsız firma"
                       />
-                      <small>
-                        Bu cari seçilen ana firmanın alt firması olur.
-                      </small>
+                      <small>Bu cari seçilen ana firmanın alt firması olur.</small>
                     </label>
+                                  </RecordFormGroup>
+              </div>
+            )}
+            {activeTab === "other" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="Vergi ve Kimlik">
                     <label>
-                      Döviz kodu
+                      Vergi dairesi
                       <input
-                        value={currencyCode}
-                        onChange={(e) =>
-                          setCurrencyCode(
-                            e.target.value.toUpperCase().slice(0, 3),
-                          )
-                        }
-                        required
-                        maxLength={3}
-                        placeholder="TRY"
+                        value={taxOffice}
+                        onChange={(e) => setTaxOffice(e.target.value)}
+                        maxLength={120}
                       />
                     </label>
                     <label>
-                      Risk limiti
+                      Vergi numarası
                       <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={riskLimit}
-                        onChange={(e) => setRiskLimit(e.target.value)}
-                        placeholder="Belirtilmedi"
-                      />
-                    </label>
-                    <label>
-                      Vade günü
-                      <input
-                        type="number"
-                        min="0"
-                        max="3650"
-                        value={paymentTermDays}
-                        onChange={(e) => setPaymentTermDays(e.target.value)}
-                      />
-                    </label>
-                    <label>Fiyat listesi kodu<input value={priceListCode} onChange={(event) => setPriceListCode(event.target.value)} maxLength={40} placeholder="Standart" /></label>
-                    <label>Alıcı muhasebe hesabı<input value={receivableAccountCode} onChange={(event) => setReceivableAccountCode(event.target.value)} maxLength={40} placeholder="120" /></label>
-                    <label>Satıcı muhasebe hesabı<input value={payableAccountCode} onChange={(event) => setPayableAccountCode(event.target.value)} maxLength={40} placeholder="320" /></label>
-                    <label>Banka adı<input value={bankName} onChange={(event) => setBankName(event.target.value)} maxLength={120} /></label>
-                    <label>Şube kodu<input value={bankBranchCode} onChange={(event) => setBankBranchCode(event.target.value)} maxLength={40} /></label>
-                    <label>IBAN<input value={iban} onChange={(event) => setIban(event.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={34} placeholder="TR…" /></label>
-                  </div>
-                </fieldset>
-                <fieldset
-                  id="customer-create-tax"
-                  className="customer-create-section erp-form-group"
-                >
-                  <legend>
-                    <FileText size={16} aria-hidden="true" />
-                    Vergi ve Kimlik Bilgileri
-                  </legend>
-                  <div className="form-two">
-                    <label>
-                      T.C. kimlik no{" "}
-                      <span className="optional-label">İsteğe bağlı</span>
-                      <input
-                        inputMode="numeric"
-                        value={identityNumber}
-                        onChange={(e) =>
-                          setIdentityNumber(
-                            e.target.value.replace(/\D/g, "").slice(0, 11),
-                          )
-                        }
-                        maxLength={11}
-                        placeholder="11 haneli TCKN"
-                      />
-                    </label>
-                    <label>
-                      Vergi numarası{" "}
-                      <span className="optional-label">İsteğe bağlı</span>
-                      <input
+                        className="rf-mono"
                         inputMode="numeric"
                         value={taxNumber}
                         onChange={(e) => setTaxNumber(e.target.value)}
@@ -412,167 +456,56 @@ export default function CustomerCreatePage({
                       />
                     </label>
                     <label>
-                      Vergi dairesi{" "}
-                      <span className="optional-label">İsteğe bağlı</span>
+                      T.C. kimlik no
                       <input
-                        value={taxOffice}
-                        onChange={(e) => setTaxOffice(e.target.value)}
-                        maxLength={120}
+                        className="rf-mono"
+                        inputMode="numeric"
+                        value={identityNumber}
+                        onChange={(e) =>
+                          setIdentityNumber(e.target.value.replace(/\D/g, "").slice(0, 11))
+                        }
+                        maxLength={11}
+                        placeholder="11 haneli TCKN"
                       />
                     </label>
-                  </div>
-                </fieldset>
-              </>
+                                  </RecordFormGroup>
+                <RecordFormGroup title="E-Fatura">
+                    <label className="rf-check">
+                      <input
+                        type="checkbox"
+                        checked={isEInvoiceRegistered}
+                        onChange={(event) => setIsEInvoiceRegistered(event.target.checked)}
+                      />
+                      E-Fatura mükellefi
+                    </label>
+                    {isEInvoiceRegistered ? (
+                      <label>
+                        Alıcı etiketi (PK)
+                        <input
+                          className="rf-mono"
+                          value={eInvoiceRecipientAlias}
+                          onChange={(event) => setEInvoiceRecipientAlias(event.target.value)}
+                          maxLength={255}
+                          placeholder="urn:mail:..."
+                        />
+                        <small>GİB kayıtlı e-fatura alıcısının posta kutusu adresi.</small>
+                      </label>
+                    ) : (
+                      <small>Mükellef seçildiğinde alıcı posta kutusu etiketi girilebilir.</small>
+                    )}
+                                  </RecordFormGroup>
+              </div>
             )}
-            {customerCreateTab === "contact" && (
-              <>
-                <fieldset
-                  id="customer-create-address"
-                  className="customer-create-section erp-form-group"
-                >
-                  <legend>
-                    <MapPin size={16} aria-hidden="true" />
-                    Adres Bilgileri
-                  </legend>
-                  <div className="form-two">
-                    <label>Telefon<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={40} /></label>
-                    <label>Kurumsal e-posta<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} /></label>
-                    <label>Web sitesi<input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} maxLength={255} placeholder="https://…" /></label>
-                    <label>Yetkili kişi<input value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={160} /></label>
-                    <label>Yetkili telefon<input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={40} /></label>
-                    <label>Yetkili e-posta<input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} maxLength={254} /></label>
-                  </div>
-                  <div className="form-two">
-                    <CustomerCountryInput
-                      value={addressCountry}
-                      onChange={(value) => {
-                        setAddressCountry(value);
-                        setAddressCity("");
-                        setAddressDistrict("");
-                      }}
-                    />
-                    <label>
-                      Posta kodu{" "}
-                      <span className="optional-label">İsteğe bağlı</span>
-                      <input
-                        value={addressPostalCode}
-                        onChange={(e) => setAddressPostalCode(e.target.value)}
-                        maxLength={20}
-                      />
-                    </label>
-                    <CustomerLocationInput
-                      id="customer-create-province"
-                      label="İl"
-                      value={addressCity}
-                      options={
-                        addressCountry === "TR"
-                          ? locationDefinitions.provinces
-                          : []
-                      }
-                      required={
-                        !!(
-                          addressLine.trim() ||
-                          addressDistrict.trim() ||
-                          addressPostalCode.trim()
-                        )
-                      }
-                      onChange={(value) => {
-                        setAddressCity(value);
-                        setAddressDistrict("");
-                      }}
-                    />
-                    <CustomerLocationInput
-                      id="customer-create-district"
-                      label="İlçe"
-                      value={addressDistrict}
-                      options={
-                        addressCountry === "TR"
-                          ? turkeyDistrictsForProvince(
-                              addressCity,
-                              locationDefinitions.provinces,
-                              locationDefinitions.districts,
-                            )
-                          : []
-                      }
-                      onChange={setAddressDistrict}
-                    />
-                  </div>
-                  <label>
-                    Adres <span className="optional-label">İsteğe bağlı</span>
-                    <textarea
-                      value={addressLine}
-                      onChange={(e) => setAddressLine(e.target.value)}
-                      maxLength={400}
-                      required={
-                        !!(
-                          addressCity.trim() ||
-                          addressDistrict.trim() ||
-                          addressPostalCode.trim()
-                        )
-                      }
-                      placeholder="Mahalle, cadde, sokak ve kapı no"
-                    />
-                  </label>
-                  <CustomerLocationMap
-                    latitude={addressLatitude}
-                    longitude={addressLongitude}
-                    onChange={(latitude, longitude) => {
-                      setAddressLatitude(latitude);
-                      setAddressLongitude(longitude);
-                    }}
-                  />
-                </fieldset>
-              </>
-            )}
-            {customerCreateTab === "other" && (
-              <>
-                <fieldset className="customer-create-section erp-form-group customer-einvoice-section">
-                  <legend>
-                    <FileText size={16} aria-hidden="true" />
-                    E-Fatura Bilgileri
-                  </legend>
-                  <label className="customer-einvoice-toggle">
-                    E-Fatura mükellefi
-                    <select
-                      value={isEInvoiceRegistered ? "yes" : "no"}
-                      onChange={(event) => setIsEInvoiceRegistered(event.target.value === "yes")}
-                    >
-                      <option value="no">Hayır</option>
-                      <option value="yes">Evet</option>
-                    </select>
-                    <small>Mükellef seçildiğinde alıcı posta kutusu etiketi girilebilir.</small>
-                  </label>
-                  {isEInvoiceRegistered && (
-                    <label>
-                      Alıcı etiketi (PK)
-                      <input
-                        value={eInvoiceRecipientAlias}
-                        onChange={(event) => setEInvoiceRecipientAlias(event.target.value)}
-                        maxLength={255}
-                        placeholder="urn:mail:..."
-                      />
-                      <small>GİB kayıtlı e-fatura alıcısının posta kutusu adresi.</small>
-                    </label>
-                  )}
-                </fieldset>
-                {customerCreateFields.length > 0 && (
-                <fieldset
-                  id="customer-create-other"
-                  className="customer-create-section erp-form-group"
-                >
-                  <legend>
-                    <Layers size={16} aria-hidden="true" />
-                    Cari Özel Alanları
-                  </legend>
-                  <p>Zorunlu değerler cari kartıyla birlikte kaydedilir.</p>
-                  <div className="form-two">
+            {activeTab === "custom" && (
+              <RecordFormGroup title="Cari Özel Alanları">
+                  <small>Zorunlu değerler cari kartıyla birlikte kaydedilir.</small>
+                  <div className="rf-custom-grid">
                     {customerCreateFields.map((field) => (
                       <label key={field.id}>
-                        {field.label}
-                        {field.isRequired ? " *" : ""}
-                        <small>
-                          {field.code} · {field.dataType}
-                        </small>
+                        <span>
+                          {field.label}
+                          {field.isRequired && <RequiredMark />}
+                        </span>
                         {field.dataType === "Boolean" ? (
                           <select
                             required={field.isRequired}
@@ -597,14 +530,8 @@ export default function CustomerCreatePage({
                                   ? "date"
                                   : "text"
                             }
-                            step={
-                              field.dataType === "Decimal" ? "any" : undefined
-                            }
-                            maxLength={
-                              field.dataType === "Text"
-                                ? field.maxLength
-                                : undefined
-                            }
+                            step={field.dataType === "Decimal" ? "any" : undefined}
+                            maxLength={field.dataType === "Text" ? field.maxLength : undefined}
                             required={field.isRequired}
                             value={customerCreateValues[field.code] || ""}
                             onChange={(e) =>
@@ -615,16 +542,15 @@ export default function CustomerCreatePage({
                             }
                           />
                         )}
+                        <small>
+                          {field.code} · {field.dataType}
+                        </small>
                       </label>
                     ))}
                   </div>
-                </fieldset>
-                )}
-              </>
+                              </RecordFormGroup>
             )}
-          </div>
-        </form>
-      </section>
-    </div>
+        </RecordFormTabs>
+    </RecordFormPage>
   );
 }

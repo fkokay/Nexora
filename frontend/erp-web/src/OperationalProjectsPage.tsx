@@ -1,11 +1,13 @@
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import AdvancedDataGrid from "./AdvancedDataGrid";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { authenticatedFetch } from "./authApi";
 import { localDateString } from "./dateUtils";
 import "./operational-projects.css";
+import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
+import { RecordFormGroup } from "./record-form/RecordForm";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./operational-projects/operational-projects-list-v2.css";
 import { ProjectDashboardSummary } from "./operational-projects/components/ProjectDashboardSummary";
@@ -220,6 +222,7 @@ export default function OperationalProjectsPage({
     [budget, setBudget] = useState("0"),
     [currency, setCurrency] = useState("TRY"),
     [notes, setNotes] = useState(""),
+    stayAfterCreate = useRef(false),
     [projectFormOpen, setProjectFormOpen] = useState(false);
   const [taskCode, setTaskCode] = useState(""),
     [taskName, setTaskName] = useState(""),
@@ -439,6 +442,16 @@ export default function OperationalProjectsPage({
       setBusy(false);
     }
   }
+  function resetProjectForm() {
+    setCode("");
+    setName("");
+    setCustomer("");
+    setStart("");
+    setEnd("");
+    setBudget("0");
+    setCurrency("TRY");
+    setNotes("");
+  }
   function createProject(e: React.FormEvent) {
     e.preventDefault();
     return run(
@@ -457,15 +470,8 @@ export default function OperationalProjectsPage({
           }),
         });
         await loadDetail(p.id);
-        setCode("");
-        setName("");
-        setCustomer("");
-        setStart("");
-        setEnd("");
-        setBudget("0");
-        setCurrency("TRY");
-        setNotes("");
-        setProjectFormOpen(false);
+        resetProjectForm();
+        if (!stayAfterCreate.current) setProjectFormOpen(false);
       },
       en ? "Project created" : "Proje oluşturuldu",
     );
@@ -927,9 +933,17 @@ export default function OperationalProjectsPage({
                       )}
                     </tbody>
                   </AdvancedDataGrid>
-                  <form className="op-project-form" onSubmit={createTask}>
-                    <h4>{en ? "Add task" : "Görev ekle"}</h4>
-                    <div className="form-two">
+                  <ModuleRecordForm
+                    title={en ? "Add task" : "Görev ekle"}
+                    mode="create"
+                    busy={busy}
+                    saveLabel={en ? "Add task" : "Görev ekle"}
+                    onSubmit={createTask}
+                  >
+                    <RecordFormGroup
+                      title={en ? "Task identity" : "Görev Kimliği"}
+                      bodyClassName="rf-identity hrp-identity-even"
+                    >
                       <label>
                         {en ? "Code" : "Kod"}
                         <input
@@ -946,6 +960,11 @@ export default function OperationalProjectsPage({
                           onChange={(e) => setTaskName(e.target.value)}
                         />
                       </label>
+                    </RecordFormGroup>
+                    <RecordFormGroup
+                      title={en ? "Plan" : "Planlama"}
+                      bodyClassName="hrp-grid"
+                    >
                       <label>
                         {en ? "Planned hours" : "Planlanan saat"}
                         <input
@@ -972,11 +991,8 @@ export default function OperationalProjectsPage({
                           onChange={(e) => setTaskEnd(e.target.value)}
                         />
                       </label>
-                    </div>
-                    <button className="secondary" disabled={busy}>
-                      {en ? "Add task" : "Görev ekle"}
-                    </button>
-                  </form>
+                    </RecordFormGroup>
+                  </ModuleRecordForm>
                 </section>
                 <section>
                   <h3>{en ? "Resource allocations" : "Kaynak planlamaları"}</h3>
@@ -998,9 +1014,17 @@ export default function OperationalProjectsPage({
                       </p>
                     )}
                   </div>
-                  <form className="op-project-form" onSubmit={allocate}>
-                    <h4>{en ? "Record allocation" : "Kaynak planla"}</h4>
-                    <div className="form-two">
+                  <ModuleRecordForm
+                    title={en ? "Record allocation" : "Kaynak planla"}
+                    mode="create"
+                    busy={busy}
+                    saveLabel={en ? "Save allocation" : "Planlamayı kaydet"}
+                    onSubmit={allocate}
+                  >
+                    <RecordFormGroup
+                      title={en ? "Resource" : "Kaynak"}
+                      bodyClassName="rf-identity hrp-identity-even"
+                    >
                       <label>
                         {en ? "Employee" : "Personel"}
                         <SearchableRecordPicker
@@ -1059,6 +1083,11 @@ export default function OperationalProjectsPage({
                           ))}
                         </select>
                       </label>
+                    </RecordFormGroup>
+                    <RecordFormGroup
+                      title={en ? "Planned effort and cost" : "Planlanan Süre ve Maliyet"}
+                      bodyClassName="hrp-grid"
+                    >
                       <label>
                         {en ? "Planned hours" : "Planlanan saat"}
                         <input
@@ -1089,11 +1118,8 @@ export default function OperationalProjectsPage({
                           }
                         />
                       </label>
-                    </div>
-                    <button className="secondary" disabled={busy}>
-                      {en ? "Save allocation" : "Planlamayı kaydet"}
-                    </button>
-                  </form>
+                    </RecordFormGroup>
+                  </ModuleRecordForm>
                 </section>
               </div>
               <section className="op-project-time">
@@ -1170,9 +1196,17 @@ export default function OperationalProjectsPage({
                     )}
                   </tbody>
                 </AdvancedDataGrid>
-                <form className="op-project-form" onSubmit={recordTime}>
-                  <h4>{en ? "Record work time" : "Çalışma süresi gir"}</h4>
-                  <div className="form-two">
+                <ModuleRecordForm
+                  title={en ? "Record work time" : "Çalışma süresi gir"}
+                  mode="create"
+                  busy={busy}
+                  saveLabel={en ? "Record time" : "Süreyi kaydet"}
+                  onSubmit={recordTime}
+                >
+                  <RecordFormGroup
+                    title={en ? "Time entry" : "Süre Kaydı"}
+                    bodyClassName="rf-identity hrp-identity-even"
+                  >
                     <label>
                       {en ? "Task" : "Görev"}
                       <select
@@ -1213,6 +1247,8 @@ export default function OperationalProjectsPage({
                         onChange={(e) => setActualHours(e.target.value)}
                       />
                     </label>
+                  </RecordFormGroup>
+                  <RecordFormGroup title={en ? "Description" : "Açıklama"}>
                     <label>
                       {en ? "Description" : "Açıklama"}
                       <input
@@ -1221,11 +1257,8 @@ export default function OperationalProjectsPage({
                         onChange={(e) => setTimeDescription(e.target.value)}
                       />
                     </label>
-                  </div>
-                  <button className="secondary" disabled={busy}>
-                    {en ? "Record time" : "Süreyi kaydet"}
-                  </button>
-                </form>
+                  </RecordFormGroup>
+                </ModuleRecordForm>
                 <p className="op-project-footnote">
                   {en
                     ? "Entries are append-only, limited to 24 hours per user per day, and do not post to payroll or accounting."
@@ -1265,33 +1298,36 @@ export default function OperationalProjectsPage({
             className="op-project-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="op-project-modal-title"
+            aria-label={en ? "New project" : "Yeni proje"}
           >
-            <header>
-              <div>
-                <p className="eyebrow">
-                  {en ? "PROJECTS · OPERATIONS" : "PROJELER · OPERASYON"}
-                </p>
-                <h2 id="op-project-modal-title">
-                  {en ? "New project" : "Yeni proje"}
-                </h2>
-                <p>
-                  {en
-                    ? "Set the project basics. You can plan tasks and resources after saving."
-                    : "Proje bilgilerini girin. Kaydettikten sonra görevleri ve kaynakları planlayabilirsiniz."}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="secondary op-project-modal-close"
-                aria-label={en ? "Close" : "Kapat"}
-                onClick={() => setProjectFormOpen(false)}
+            <ModuleRecordForm
+              title={en ? "New project" : "Yeni proje"}
+              mode="create"
+              busy={busy}
+              saveLabel={en ? "Create project" : "Projeyi oluştur"}
+              onSubmit={createProject}
+              onCancel={() => setProjectFormOpen(false)}
+              onSaveIntent={(stay) => {
+                stayAfterCreate.current = stay;
+              }}
+              onReset={resetProjectForm}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    {en
+                      ? "You can plan tasks and resources after saving."
+                      : "Kaydettikten sonra görevleri ve kaynakları planlayabilirsiniz."}
+                  </span>
+                  {notice && <span className="rf-status-notice">{notice}</span>}
+                </>
+              }
+            >
+              <RecordFormGroup
+                title={en ? "Project identity" : "Proje Kimliği"}
+                bodyClassName="rf-identity hrp-identity-3"
               >
-                <X size={18} />
-              </button>
-            </header>
-            <form className="op-project-create" onSubmit={createProject}>
-              <div className="form-two">
                 <label>
                   {en ? "Code" : "Proje kodu"}
                   <input
@@ -1320,6 +1356,10 @@ export default function OperationalProjectsPage({
                     placeholder={en ? "UUID" : "Kimlik numarası"}
                   />
                 </label>
+              </RecordFormGroup>
+              <div className="rf-columns">
+                <RecordFormGroup title={en ? "Budget" : "Bütçe"}>
+                  <div className="rf-pair">
                 <label>
                   {en ? "Budget" : "Operasyonel bütçe"}
                   <input
@@ -1339,6 +1379,10 @@ export default function OperationalProjectsPage({
                     onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                   />
                 </label>
+                  </div>
+                </RecordFormGroup>
+                <RecordFormGroup title={en ? "Schedule" : "Takvim"}>
+                  <div className="rf-pair">
                 <label>
                   {en ? "Start" : "Başlangıç"}
                   <input
@@ -1355,7 +1399,10 @@ export default function OperationalProjectsPage({
                     onChange={(e) => setEnd(e.target.value)}
                   />
                 </label>
-              </div>
+                  </div>
+                </RecordFormGroup>
+                <div className="rf-columns-wide">
+                  <RecordFormGroup title={en ? "Notes" : "Notlar"}>
               <label>
                 {en ? "Notes" : "Not"}
                 <textarea
@@ -1365,25 +1412,10 @@ export default function OperationalProjectsPage({
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </label>
-              <footer>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setProjectFormOpen(false)}
-                >
-                  {en ? "Cancel" : "Vazgeç"}
-                </button>
-                <button className="primary" disabled={busy}>
-                  {busy
-                    ? en
-                      ? "Saving…"
-                      : "Kaydediliyor…"
-                    : en
-                      ? "Create project"
-                      : "Projeyi oluştur"}
-                </button>
-              </footer>
-            </form>
+                  </RecordFormGroup>
+                </div>
+              </div>
+            </ModuleRecordForm>
           </section>
         </div>
       )}

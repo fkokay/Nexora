@@ -12,6 +12,12 @@ import IntegrationOperationsList, {
 import { localizedText } from "./locale";
 import { confirmLocalized } from "./locale";
 import "./integration-queue.css";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./platform-record-forms.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 
 type EDocumentSubmission = {
@@ -703,101 +709,112 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
         </div>
       )}
       <section className="panel integration-queue-panel">
-        <div className="integration-queue-toolbar">
-          <div>
-            <h2>
-              {tr("E-belge gönderim taslağı", "E-document submission draft")}
-            </h2>
-            <p className="muted">
-              {tr(
-                "Trendyol gönderimi e-Fatura ve e-Arşiv için hazırlanabilir. E-İrsaliye taşıma alanları eşlenene kadar kapalıdır; taslakları farklı bir firma yöneticisi onaylar.",
-                "Trendyol submissions can be prepared for e-invoice and e-archive. E-dispatch is unavailable until transport fields are mapped; another company administrator approves drafts.",
-              )}
-            </p>
-          </div>
-        </div>
-        <form
-          className="integration-edoc-form"
+        <RecordFormPage
+          variant="dialog"
+          className="prf-flush prf-no-cancel prf-edoc"
+          title={tr("E-belge gönderim taslağı", "E-document submission draft")}
+          mode="create"
+          busy={submitting}
+          saveLabel={tr("Onay için taslak oluştur", "Create draft for approval")}
           onSubmit={(event) => void prepareSubmission(event)}
-          aria-busy={sourceDocumentsLoading || submitting}
-        >
-          <label>
-            {tr("Belge türü", "Document type")}
-            <select
-              value={documentType}
-              onChange={(event) => setDocumentType(event.target.value)}
-            >
-              <option value="e-invoice">e-Fatura</option>
-              <option value="e-dispatch" disabled>
-                {tr("e-İrsaliye (eşleme bekliyor)", "e-Dispatch (mapping pending)")}
-              </option>
-              <option value="e-archive">e-Arşiv</option>
-            </select>
-          </label>
-          <label className="integration-edoc-payload">
-            {tr("ERP belgesi", "ERP document")}
-            <select
-              required
-              value={documentId}
-              disabled={sourceDocumentsLoading || Boolean(sourceDocumentsError)}
-              onChange={(event) => {
-                setDocumentId(event.target.value);
-                setSourcePreview(null);
-              }}
-            >
-              <option value="">
-                {sourceDocumentsLoading
-                  ? tr("Belgeler yükleniyor…", "Loading documents…")
-                  : tr("Belge seçin", "Select a document")}
-              </option>
-              {sourceDocuments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.number} ·{" "}
-                  {new Date(item.issueDate).toLocaleDateString(locale())} ·{" "}
-                  {item.counterpartyName} ·{" "}
-                  {new Intl.NumberFormat(locale(), {
-                    style: "currency",
-                    currency: item.currencyCode,
-                  }).format(item.total)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {sourceDocumentsError ? (
-            <p className="integration-inline-error" role="alert">
-              {tr(
-                "ERP belgeleri yüklenemedi:",
-                "Could not load ERP documents:",
-              )}{" "}
-              {sourceDocumentsError}
-            </p>
-          ) : (
-            !sourceDocumentsLoading &&
-            !sourceDocuments.length && (
-              <p className="muted" role="status">
+          onCancel={() => undefined}
+          onReset={() => {
+            setDocumentId("");
+            setSourcePreview(null);
+          }}
+          status={
+            sourceDocumentsError ? (
+              <span className="rf-status-warning" role="alert">
+                {tr(
+                  "ERP belgeleri yüklenemedi:",
+                  "Could not load ERP documents:",
+                )}{" "}
+                {sourceDocumentsError}
+              </span>
+            ) : !sourceDocumentsLoading && !sourceDocuments.length ? (
+              <span role="status">
                 {tr(
                   "Bu türde gönderime hazırlanabilecek açık ERP belgesi bulunamadı.",
                   "No open ERP documents are available to prepare for this type.",
                 )}
-              </p>
-            )
-          )}
-          <button
-            type="button"
-            className="secondary"
-            disabled={!documentId || previewing}
-            onClick={() => void previewSourceDocument()}
-          >
-            {previewing
-              ? tr("Önizleme yükleniyor…", "Loading preview…")
-              : tr("Belge içeriğini önizle", "Preview document")}
-          </button>
-          <button className="primary" disabled={submitting || !documentId}>
-            {submitting
-              ? tr("Taslak hazırlanıyor…", "Preparing draft…")
-              : tr("Onay için taslak oluştur", "Create draft for approval")}
-          </button>
-        </form>
+              </span>
+            ) : undefined
+          }
+        >
+          <p className="prf-note">
+            {tr(
+              "Trendyol gönderimi e-Fatura ve e-Arşiv için hazırlanabilir. E-İrsaliye taşıma alanları eşlenene kadar kapalıdır; taslakları farklı bir firma yöneticisi onaylar.",
+              "Trendyol submissions can be prepared for e-invoice and e-archive. E-dispatch is unavailable until transport fields are mapped; another company administrator approves drafts.",
+            )}
+          </p>
+          <div aria-busy={sourceDocumentsLoading || submitting}>
+            <RecordFormGroup
+              title={tr("Gönderilecek Belge", "Document to Submit")}
+              bodyClassName="rf-identity"
+            >
+              <label>
+                {tr("Belge türü", "Document type")}
+                <select
+                  value={documentType}
+                  onChange={(event) => setDocumentType(event.target.value)}
+                >
+                  <option value="e-invoice">e-Fatura</option>
+                  <option value="e-dispatch" disabled>
+                    {tr(
+                      "e-İrsaliye (eşleme bekliyor)",
+                      "e-Dispatch (mapping pending)",
+                    )}
+                  </option>
+                  <option value="e-archive">e-Arşiv</option>
+                </select>
+              </label>
+              <label>
+                <span>
+                  {tr("ERP belgesi", "ERP document")} <RequiredMark />
+                </span>
+                <select
+                  className="rf-must"
+                  required
+                  value={documentId}
+                  disabled={
+                    sourceDocumentsLoading || Boolean(sourceDocumentsError)
+                  }
+                  onChange={(event) => {
+                    setDocumentId(event.target.value);
+                    setSourcePreview(null);
+                  }}
+                >
+                  <option value="">
+                    {sourceDocumentsLoading
+                      ? tr("Belgeler yükleniyor…", "Loading documents…")
+                      : tr("Belge seçin", "Select a document")}
+                  </option>
+                  {sourceDocuments.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.number} ·{" "}
+                      {new Date(item.issueDate).toLocaleDateString(locale())} ·{" "}
+                      {item.counterpartyName} ·{" "}
+                      {new Intl.NumberFormat(locale(), {
+                        style: "currency",
+                        currency: item.currencyCode,
+                      }).format(item.total)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="secondary prf-inline-btn"
+                disabled={!documentId || previewing}
+                onClick={() => void previewSourceDocument()}
+              >
+                {previewing
+                  ? tr("Önizleme yükleniyor…", "Loading preview…")
+                  : tr("Belge içeriğini önizle", "Preview document")}
+              </button>
+            </RecordFormGroup>
+          </div>
+        </RecordFormPage>
         <p className="muted">
           {tr(
             "Aynı belge için yeniden taslak oluşturmadan önce onay bekleyen gönderimleri ve işlem geçmişini kontrol edin.",

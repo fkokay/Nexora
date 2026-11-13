@@ -13,6 +13,12 @@ import type {
   Warehouse,
 } from "../../erp-types";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../sales-record-forms.css";
 
 type Props = {
   deliveries: SalesDeliverySummary[];
@@ -83,7 +89,7 @@ export default function SalesInvoiceFromDeliveryDialog({
     if (initialCustomerId) setStandaloneCustomerId(initialCustomerId);
   }, [initialCustomerId]);
   const [eDocument, setEDocument] = useState({ scenario: "", typeCode: "SATIS", recipientAlias: "", purchaseUrl: "", paymentTaxId: "", paymentTitle: "", paymentAlias: "", paymentAgentName: "", paymentType: "", paymentDate: "", paymentDueDate: "", paymentMeans: "", paymentInstructionNote: "", intermediaryCountry: "", intermediaryCountryCode: "", intermediaryCity: "", intermediaryDistrict: "", carrierTaxId: "", carrierName: "", carrierSurname: "", sentAt: "" });
-  function renderEDocumentFields() {
+  function renderEDocumentFields(asGroup = false) {
     const fields: [keyof typeof eDocument, string, string?][] = [
       ["scenario", "Belge senaryosu"], ["typeCode", "Belge tür kodu"],
     ];
@@ -104,14 +110,14 @@ export default function SalesInvoiceFromDeliveryDialog({
     const renderField = ([key, label, placeholder]: [keyof typeof eDocument, string, string?]) => (
       <label key={key}>{label}{key === "scenario" ? <select value={eDocument[key]} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))}><option value="">Senaryo seçin</option>{[["TEMELFATURA", "Temel e-Fatura"], ["TICARIFATURA", "Ticari e-Fatura"], ["EARSIVFATURA", "e-Arşiv Fatura"], ["IHRACAT", "İhracat"], ["YOLCUBERABERFATURA", "Yolcu beraber"], ["KAMU", "Kamu"], ["HKS", "Hal Kayıt Sistemi"], ["ENERJI", "Enerji"], ["ILAC_TIBBICIHAZ", "İlaç / tıbbi cihaz"]].map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select> : key === "typeCode" ? <select value={eDocument[key]} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))}>{[["SATIS", "Satış"], ["IADE", "İade"], ["TEVKIFAT", "Tevkifat"], ["ISTISNA", "İstisna"], ["OZELMATRAH", "Özel matrah"], ["IHRACKAYITLI", "İhraç kayıtlı"], ["TEVKIFATIADE", "Tevkifat iade"], ["HKSSATIS", "Hal satış"], ["HKSKOMISYONCU", "Hal komisyoncu"]].map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select> : <input value={eDocument[key]} placeholder={placeholder} onChange={(event) => setEDocument((value) => ({ ...value, [key]: event.target.value }))} />}</label>
     );
-    return (
-      <section className="panel sales-invoice-edocument">
-        <div className="panel-heading"><b>E-belge ve e-ticaret bilgileri</b><small>{eDocument.scenario ? "Seçilen senaryonun alanları" : "Devam etmek için belge senaryosunu seçin"}</small></div>
-        <div className="form-two">{fields.map(renderField)}</div>
+    const hint = eDocument.scenario ? "Seçilen senaryonun alanları" : "Devam etmek için belge senaryosunu seçin";
+    const body = (
+      <>
+        <div className={asGroup ? "rf-pair" : "form-two"}>{fields.map(renderField)}</div>
         {optionalFields.length > 0 && (
-          <details className="sales-invoice-edocument-extra">
+          <details className={asGroup ? "sales-invoice-edocument-extra sales-rf-details" : "sales-invoice-edocument-extra"}>
             <summary>Ek bilgiler <span>{optionalFields.length + (eDocument.scenario ? 1 : 0) + (eDocument.scenario === "EARSIVFATURA" ? 2 : 0)}</span></summary>
-            <div className="form-two">
+            <div className={asGroup ? "rf-custom-grid" : "form-two"}>
               {optionalFields.map(renderField)}
               {eDocument.scenario === "EARSIVFATURA" && <>
                 <label>Ödeme tarihi<input type="datetime-local" value={eDocument.paymentDate ? eDocument.paymentDate.slice(0, 16) : ""} onChange={(event) => setEDocument((value) => ({ ...value, paymentDate: event.target.value ? new Date(event.target.value).toISOString() : "" }))} /></label>
@@ -121,6 +127,19 @@ export default function SalesInvoiceFromDeliveryDialog({
             </div>
           </details>
         )}
+      </>
+    );
+    if (asGroup)
+      return (
+        <RecordFormGroup title="E-belge ve E-ticaret Bilgileri">
+          <small>{hint}</small>
+          {body}
+        </RecordFormGroup>
+      );
+    return (
+      <section className="panel sales-invoice-edocument">
+        <div className="panel-heading"><b>E-belge ve e-ticaret bilgileri</b><small>{hint}</small></div>
+        {body}
       </section>
     );
   }
@@ -178,23 +197,21 @@ export default function SalesInvoiceFromDeliveryDialog({
       .catch(() => { if (active) setAccountingProfiles([]); });
     return () => { active = false; };
   }, [token]);
-  function renderAccountingProfileSelect() {
+  function renderAccountingProfileSelect(asGroup = false) {
     if (!accountingProfiles.length) return null;
-    return <section className="panel"><div className="panel-heading"><b>Vergi mevzuatı profili</b><small>Fatura vergileri seçilen ülke profiline göre hesaplanır.</small></div><label>Hesap profili<select value={accountingProfileCode} onChange={(event) => setAccountingProfileCode(event.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((item) => <option key={item.profileCode} value={item.profileCode}>{item.name} · {item.jurisdictionCode} · {item.reportingStandard}</option>)}</select></label></section>;
+    const select = <select value={accountingProfileCode} onChange={(event) => setAccountingProfileCode(event.target.value)} required><option value="">Profil seçin</option>{accountingProfiles.map((item) => <option key={item.profileCode} value={item.profileCode}>{item.name} · {item.jurisdictionCode} · {item.reportingStandard}</option>)}</select>;
+    if (asGroup)
+      return (
+        <RecordFormGroup title="Vergi Mevzuatı Profili">
+          <label><span>Hesap profili <RequiredMark /></span>{select}<small>Fatura vergileri seçilen ülke profiline göre hesaplanır.</small></label>
+        </RecordFormGroup>
+      );
+    return <section className="panel"><div className="panel-heading"><b>Vergi mevzuatı profili</b><small>Fatura vergileri seçilen ülke profiline göre hesaplanır.</small></div><label>Hesap profili{select}</label></section>;
   }
-  function renderInvoiceCustomFields() {
-    return (
-      invoiceCustomFields.length > 0 && (
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <b>Fatura özel alanları</b>
-              <small>
-                Fatura kaydı için tenant tarafından tanımlanan alanlar
-              </small>
-            </div>
-          </div>
-          <div className="form-two">
+  function renderInvoiceCustomFields(asGroup = false) {
+    if (invoiceCustomFields.length === 0) return false;
+    const grid = (
+          <div className={asGroup ? "rf-custom-grid" : "form-two"}>
             {invoiceCustomFields.map((field) => (
               <label key={field.id}>
                 {field.label}
@@ -243,8 +260,26 @@ export default function SalesInvoiceFromDeliveryDialog({
               </label>
             ))}
           </div>
+    );
+    if (asGroup)
+      return (
+        <RecordFormGroup title="Fatura Özel Alanları">
+          <small>Fatura kaydı için tenant tarafından tanımlanan alanlar</small>
+          {grid}
+        </RecordFormGroup>
+      );
+    return (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <b>Fatura özel alanları</b>
+              <small>
+                Fatura kaydı için tenant tarafından tanımlanan alanlar
+              </small>
+            </div>
+          </div>
+          {grid}
         </section>
-      )
     );
   }
   const customFieldsPayload = Object.fromEntries(
@@ -449,6 +484,15 @@ export default function SalesInvoiceFromDeliveryDialog({
     (customer) => customer.id === standaloneCustomerId,
   )?.currencyCode || "TRY";
 
+  const standaloneSaveBlocked =
+    !standaloneCustomerId ||
+    standaloneLines.some((line) => !line.stockItemId || !line.warehouseId);
+  const invoiceTypeSelect = (
+            <select value={invoiceType} onChange={(event) => setInvoiceType(event.target.value as "Wholesale" | "Retail")}>
+              <option value="Retail">Perakende satış · KDV dâhil</option>
+              <option value="Wholesale">Toptan satış · KDV hariç</option>
+            </select>
+  );
   return (
     <div
       className={fullPage ? "sales-invoice-entry-page" : "modal-backdrop"}
@@ -457,11 +501,13 @@ export default function SalesInvoiceFromDeliveryDialog({
       }}
     >
       <section
-        className={fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}
+        className={`${fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}${mode === "standalone" ? " sales-rf-host" : ""}`}
         role={fullPage ? "region" : "dialog"}
         aria-modal={fullPage ? undefined : "true"}
-        aria-labelledby="sales-invoice-create-title"
+        aria-labelledby={mode === "standalone" ? undefined : "sales-invoice-create-title"}
+        aria-label={mode === "standalone" ? "Yeni satış faturası" : undefined}
       >
+        {mode !== "standalone" && <>
         <div className="modal-head">
           <div>
             <p className="eyebrow">SATIŞ · FATURALAMA</p>
@@ -477,7 +523,6 @@ export default function SalesInvoiceFromDeliveryDialog({
                 : "Yeni satış faturası"}
             </h2>}
           </div>
-          {fullPage && mode === "standalone" && <button type="submit" form="sales-invoice-standalone-form" className="primary" disabled={standaloneBusy || !standaloneCustomerId || standaloneLines.some((line) => !line.stockItemId || !line.warehouseId)}>İrsaliye ve faturayı oluştur</button>}
           <button
             type="button"
             className="icon-button"
@@ -491,12 +536,11 @@ export default function SalesInvoiceFromDeliveryDialog({
         <p className="muted">
           {mode === "order"
             ? "Açık siparişin kalan miktarından stok çıkışlı irsaliye ve fatura oluşturun."
-            : mode === "standalone"
-              ? "Sipariş seçmeden fatura oluşturun. Seçilen depodan stok çıkışı ve faturaya bağlı irsaliye otomatik kaydedilir."
-              : "Kaydedilmiş ve faturalanmamış irsaliyeyi seçerek faturayı oluşturun."}
+            : "Kaydedilmiş ve faturalanmamış irsaliyeyi seçerek faturayı oluşturun."}
         </p>
+        </>}
         {!fullPage && <nav
-          className="sales-quote-detail-tabs invoice-create-tabs"
+          className={`sales-quote-detail-tabs invoice-create-tabs${mode === "standalone" ? " sales-rf-mode-tabs" : ""}`}
           aria-label="Fatura oluşturma yöntemi"
         >
           <button
@@ -521,15 +565,12 @@ export default function SalesInvoiceFromDeliveryDialog({
             Siparişsiz fatura + irsaliye
           </button>
         </nav>}
-        <div className="form-two sales-invoice-type-field">
+        {mode !== "standalone" && <div className="form-two sales-invoice-type-field">
           <label>
             Fatura türü
-            <select value={invoiceType} onChange={(event) => setInvoiceType(event.target.value as "Wholesale" | "Retail")}>
-              <option value="Retail">Perakende satış · KDV dâhil</option>
-              <option value="Wholesale">Toptan satış · KDV hariç</option>
-            </select>
+            {invoiceTypeSelect}
           </label>
-        </div>
+        </div>}
         {mode === "delivery" && (
           <>
             {renderEDocumentFields()}
@@ -762,14 +803,64 @@ export default function SalesInvoiceFromDeliveryDialog({
           </div>
         )}
         {mode === "standalone" && (
-          <form
-            id="sales-invoice-standalone-form"
-            className="sales-invoice-standalone"
-            onSubmit={(event) => void createStandaloneInvoice(event)}
+          <RecordFormPage
+            variant={fullPage ? "page" : "dialog"}
+            className="sales-rf"
+            title="Yeni satış faturası"
+            mode="create"
+            busy={standaloneBusy}
+            saveLabel="İrsaliye ve faturayı oluştur"
+            formId="sales-invoice-standalone-form"
+            onSubmit={(event) => {
+              // The old save button was disabled until a customer and every line's stock/warehouse were chosen.
+              if (standaloneSaveBlocked) {
+                event.preventDefault();
+                return;
+              }
+              void createStandaloneInvoice(event as FormEvent<HTMLFormElement>);
+            }}
+            onCancel={onClose}
+            error={standaloneError}
+            onDismissError={() => setStandaloneError("")}
+            status={
+              <>
+                <span>
+                  Sipariş seçmeden fatura oluşturun. Seçilen depodan stok çıkışı
+                  ve faturaya bağlı irsaliye otomatik kaydedilir.
+                </span>
+                {standaloneSaveBlocked && (
+                  <span className="rf-status-warning">
+                    Kaydetmek için müşteri ile her satırın stok ve deposunu seçin.
+                  </span>
+                )}
+                <span className="rf-status-end">
+                  Fatura toplamı{" "}
+                  <b>
+                    {standaloneTotal.toLocaleString("tr-TR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    {customers.find(
+                      (customer) => customer.id === standaloneCustomerId,
+                    )?.currencyCode || ""}
+                  </b>
+                </span>
+              </>
+            }
           >
-            <div className="form-two">
+            <RecordFormGroup title="Fatura Kimliği" bodyClassName="rf-identity sales-rf-identity-3">
+              <label className="invoice-date-field">
+                <span>Fatura tarihi <RequiredMark /></span>
+                <input
+                  className="rf-must"
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(event) => setInvoiceDate(event.target.value)}
+                  required
+                />
+              </label>
               <label className="invoice-customer-field">
-                Müşteri
+                <span>Müşteri <RequiredMark /></span>
                 <SearchableRecordPicker
                   options={customers
                     .filter(
@@ -790,25 +881,16 @@ export default function SalesInvoiceFromDeliveryDialog({
                   required
                 />
               </label>
-              <label className="invoice-date-field">
-                Fatura tarihi
-                <input
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(event) => setInvoiceDate(event.target.value)}
-                  required
-                />
+              <label>
+                Fatura türü
+                {invoiceTypeSelect}
               </label>
-            </div>
-            {standaloneError && (
-              <div className="alert inline-alert" role="alert">
-                {standaloneError}
-              </div>
-            )}
-            {renderEDocumentFields()}
-            <div className="sales-invoice-standalone-lines">
-              <div className="sales-invoice-standalone-heading">
-                <b>Fatura satırları</b>
+            </RecordFormGroup>
+            {renderEDocumentFields(true)}
+            <RecordFormGroup title="Fatura Satırları">
+            <div className="sales-rf-standalone-lines">
+              <div className="sales-invoice-standalone-heading sales-rf-group-actions">
+                <span className="muted">Her satırın stok çıkışı seçilen depodan yapılır.</span>
                 <button
                   type="button"
                   className="secondary"
@@ -975,6 +1057,8 @@ export default function SalesInvoiceFromDeliveryDialog({
                 </div>
               ))}
             </div>
+            </RecordFormGroup>
+            <RecordFormGroup title="Toplamlar">
             <section className="sales-invoice-total-panel" aria-label="Fatura toplamları">
               {standaloneTotals.map((row) => {
                 const parts = formatMoneyParts(row.amount);
@@ -986,42 +1070,10 @@ export default function SalesInvoiceFromDeliveryDialog({
                 </div>;
               })}
             </section>
-            {renderInvoiceCustomFields()}
-            {renderAccountingProfileSelect()}
-            <div className="modal-foot">
-              <span>
-                İrsaliye ve stok çıkışı oluşturulur · Fatura toplamı{" "}
-                {standaloneTotal.toLocaleString("tr-TR", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                {customers.find(
-                  (customer) => customer.id === standaloneCustomerId,
-                )?.currencyCode || ""}
-              </span>
-              <div>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={standaloneBusy}
-                  onClick={onClose}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  className="primary"
-                  disabled={
-                    standaloneBusy || !standaloneCustomerId || standaloneLines.some((line) => !line.stockItemId || !line.warehouseId)
-                  }
-                >
-                  {standaloneBusy
-                    ? "İrsaliye ve fatura kaydediliyor…"
-                    : "İrsaliye ve faturayı oluştur"}
-                </button>
-              </div>
-            </div>
-          </form>
+            </RecordFormGroup>
+            {renderInvoiceCustomFields(true)}
+            {renderAccountingProfileSelect(true)}
+          </RecordFormPage>
         )}
       </section>
     </div>

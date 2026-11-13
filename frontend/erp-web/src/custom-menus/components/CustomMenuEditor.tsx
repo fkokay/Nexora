@@ -1,6 +1,11 @@
 import type { FormEvent } from "react";
-import { Save, X } from "lucide-react";
 import type { Target } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 
 type Props = {
   canDesign: boolean;
@@ -33,89 +38,95 @@ export function CustomMenuEditor({
   onTargetChange,
   onReset,
 }: Props) {
-  return (
-    <section className="panel custom-menu-editor">
-      <div className="panel-heading">
-        <div>
-          <h3>{editing ? "Menüyü düzenle" : "Yeni menü öğesi"}</h3>
-          <p>Hedef, yetkili ERP sayfa kataloğundan seçilir.</p>
-        </div>
-        {editing && (
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onReset}
-            aria-label="Düzenlemeyi kapat"
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
-      {canDesign ? (
-        <form onSubmit={onSubmit}>
-          <label className="custom-menu-field">
-            Menü kodu
-            <input
-              required
-              maxLength={40}
-              pattern="[a-z][a-z0-9_-]{0,39}"
-              value={code}
-              onChange={(event) => onCodeChange(event.target.value)}
-              placeholder="depo-kisayolu"
-            />
-            <small>
-              Küçük harfle başlar; harf, rakam, tire ve alt çizgi
-              kullanılabilir.
-            </small>
-          </label>
-          <label className="custom-menu-field">
-            Görünen ad
-            <input
-              required
-              maxLength={80}
-              value={label}
-              onChange={(event) => onLabelChange(event.target.value)}
-              placeholder="Depo yönetimi"
-            />
-          </label>
-          <label className="custom-menu-field">
-            ERP sayfası
-            <select
-              value={targetPage}
-              onChange={(event) => onTargetChange(event.target.value)}
-            >
-              {targets.map((target) => (
-                <option key={target.page} value={target.page}>
-                  {target.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="custom-menu-form-actions">
-            <button
-              className="primary"
-              disabled={busy || (entryCount >= 30 && !editing)}
-            >
-              <Save size={16} />
-              {busy
-                ? "Kaydediliyor…"
-                : editing
-                  ? "Değişiklikleri kaydet"
-                  : "Menü ekle"}
-            </button>
-            {editing && (
-              <button type="button" className="secondary" onClick={onReset}>
-                Vazgeç
-              </button>
-            )}
+  if (!canDesign)
+    return (
+      <section className="panel custom-menu-editor">
+        <div className="panel-heading">
+          <div>
+            <h3>{editing ? "Menüyü düzenle" : "Yeni menü öğesi"}</h3>
+            <p>Hedef, yetkili ERP sayfa kataloğundan seçilir.</p>
           </div>
-        </form>
-      ) : (
+        </div>
         <div className="custom-menu-readonly">
           Özel menü düzenleme yetkisi gerekir. Mevcut menüler çalışma alanı
           kenar çubuğunda görünür.
         </div>
-      )}
-    </section>
+      </section>
+    );
+  const limitReached = entryCount >= 30 && !editing;
+  return (
+    <RecordFormPage
+      variant="dialog"
+      className={`custom-menu-editor prf-embedded prf-stack${editing ? "" : " prf-no-cancel"}`}
+      title={editing ? "Menüyü düzenle" : "Yeni menü öğesi"}
+      mode={editing ? "edit" : "create"}
+      busy={busy}
+      saveLabel={editing ? "Değişiklikleri kaydet" : "Menü ekle"}
+      onSubmit={(event) => {
+        if (limitReached) {
+          event.preventDefault();
+          return;
+        }
+        onSubmit(event);
+      }}
+      onCancel={onReset}
+      onReset={onReset}
+      status={
+        <>
+          <span>Hedef, yetkili ERP sayfa kataloğundan seçilir.</span>
+          {limitReached && (
+            <span className="rf-status-warning">
+              En fazla 30 menü öğesi tanımlanabilir.
+            </span>
+          )}
+        </>
+      }
+    >
+      <RecordFormGroup title="Menü Kimliği" bodyClassName="rf-identity">
+        <label className="custom-menu-field">
+          <span>
+            Menü kodu <RequiredMark />
+          </span>
+          <input
+            className="rf-must rf-mono"
+            required
+            maxLength={40}
+            pattern="[a-z][a-z0-9_-]{0,39}"
+            value={code}
+            onChange={(event) => onCodeChange(event.target.value)}
+            placeholder="depo-kisayolu"
+          />
+          <small>
+            Küçük harfle başlar; harf, rakam, tire ve alt çizgi kullanılabilir.
+          </small>
+        </label>
+        <label className="custom-menu-field">
+          <span>
+            Görünen ad <RequiredMark />
+          </span>
+          <input
+            className="rf-must"
+            required
+            maxLength={80}
+            value={label}
+            onChange={(event) => onLabelChange(event.target.value)}
+            placeholder="Depo yönetimi"
+          />
+        </label>
+        <label className="custom-menu-field">
+          ERP sayfası
+          <select
+            value={targetPage}
+            onChange={(event) => onTargetChange(event.target.value)}
+          >
+            {targets.map((target) => (
+              <option key={target.page} value={target.page}>
+                {target.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </RecordFormGroup>
+    </RecordFormPage>
   );
 }

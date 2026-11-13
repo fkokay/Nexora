@@ -1,4 +1,10 @@
-import type { FormEventHandler } from "react";
+import type { FormEvent, FormEventHandler } from "react";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../finance-record-forms.css";
 
 type Props = {
   base: string;
@@ -134,12 +140,30 @@ function RateEntryForm({
   onSubmit,
 }: RateEntryFormProps) {
   return (
-    <form className="collection-form" onSubmit={onSubmit}>
-      <h4>Kur tanımla</h4>
-      <div className="form-two">
+    <RecordFormPage
+      variant="dialog"
+      className="fin-rf-no-cancel"
+      title="Kur tanımla"
+      mode="create"
+      busy={busy}
+      saveLabel="Kuru kaydet"
+      onSubmit={onSubmit as (event: FormEvent) => void}
+      onCancel={() => {}}
+      status={
+        <span>
+          Geçmiş tarih için kur girilebilir. Aynı gün düzeltmesi yeni revizyon
+          oluşturur.
+        </span>
+      }
+    >
+      <RecordFormGroup title="Kur Bilgileri" bodyClassName="fin-rf-grid-2">
         <label>
-          Döviz kodu
+          <span>
+            Döviz kodu
+            <RequiredMark />
+          </span>
           <input
+            className="rf-must rf-mono"
             value={code}
             onChange={(e) => onCodeChange(e.target.value)}
             minLength={3}
@@ -148,19 +172,22 @@ function RateEntryForm({
           />
         </label>
         <label>
-          Tarih
+          <span>
+            Tarih
+            <RequiredMark />
+          </span>
           <input
+            className="rf-must"
             type="date"
             value={date}
             onChange={(e) => onDateChange(e.target.value)}
             required
           />
         </label>
-      </div>
-      <div className="form-two">
         <label>
           Kur · 1 {code || "döviz"} = ? {base}
           <input
+            className="rf-must rf-num"
             type="number"
             min="0.00000001"
             step="0.00000001"
@@ -178,16 +205,7 @@ function RateEntryForm({
             placeholder="Örn. banka satış kuru"
           />
         </label>
-      </div>
-      <div className="modal-foot">
-        <span>
-          Geçmiş tarih için kur girilebilir. Aynı gün düzeltmesi yeni revizyon
-          oluşturur.
-        </span>
-        <button className="primary" disabled={busy}>
-          {busy ? "Kaydediliyor…" : "Kuru kaydet"}
-        </button>
-      </div>
-    </form>
+      </RecordFormGroup>
+    </RecordFormPage>
   );
 }

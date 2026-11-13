@@ -1,0 +1,194 @@
+/* Satış, satın alma, kampanya, CRM ve sözleşme kayıt formlarının ortak RecordForm yerleşimine
+   (src/record-form) ekrana özel tamamlayıcıları. Ortak dosyalara dokunmadan bu modülde tutulur. */
+
+/* Modal kapsayıcı: iç boşluğu ve başlığı RecordForm yönetir. */
+.app-shell .sales-rf-host { padding: 0 !important; overflow: auto; }
+.app-shell .modal.sales-rf-host { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.app-shell .modal.sales-rf-host.sales-rf-host--narrow { width: min(620px, calc(100vw - 32px)); }
+.app-shell .contracts-create.sales-rf-host { width: min(900px, 100%); }
+.app-shell .sales-campaign-create.sales-rf-host { width: min(760px, 100%); }
+.app-shell .sales-rf-host > .record-form { border-radius: inherit; }
+.app-shell .sales-rf-host > .record-form > .rf-toolbar { border-radius: 8px 8px 0 0; }
+
+/* Eski modal/form kuralları (form-design-system.css) etiket ve zorunlu alan görünümünü eziyor; geri al. */
+.app-shell .record-form.sales-rf .rf-form label {
+  color: var(--rf-label);
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell .record-form.sales-rf .rf-form label.rf-check { font-size: 14px; }
+/* Uygulama genelindeki alan zemini !important ile verildiği için zorunlu alan zemini de öyle geri alınır. */
+.app-shell:not(.standalone-studio) .record-form.sales-rf .rf-form :is(input, select).rf-must {
+  border-color: var(--rf-accent-edge);
+  background-color: var(--rf-must-bg) !important;
+}
+.app-shell:not(.standalone-studio) .record-form.sales-rf .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):disabled,
+.app-shell:not(.standalone-studio) .record-form.sales-rf .rf-form :is(input, textarea):not([type="checkbox"]):not([type="radio"]):read-only {
+  background-color: var(--rf-band);
+  color: var(--rf-muted);
+}
+.record-form.sales-rf .rf-form .optional-label { color: var(--rf-muted); font-size: 11px; font-weight: 400; }
+.record-form.sales-rf .rf-form .muted { margin: 0; color: var(--rf-muted); font-size: 12px; line-height: 1.5; }
+
+/* Kimlik şeridi varyantları ve yardımcı ızgaralar. */
+.record-form.sales-rf .sales-rf-identity-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.record-form.sales-rf .sales-rf-identity-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.4fr); }
+.record-form.sales-rf .sales-rf-identity-even { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.record-form.sales-rf .sales-rf-triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; }
+.record-form.sales-rf .sales-rf-two-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.record-form.sales-rf .sales-rf-inline { display: grid; grid-template-columns: minmax(0, 1fr) 82px; gap: 8px; }
+.record-form.sales-rf .sales-rf-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.record-form.sales-rf .sales-rf-field > label { margin: 0; }
+.record-form.sales-rf .sales-rf-group-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
+.record-form.sales-rf .rf-form .customer-popup-trigger {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid var(--rf-border);
+  border-radius: 6px;
+  background: var(--rf-surface);
+  color: var(--rf-text);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* Satır tabloları eski kart sınıfının tablo kurallarını kullanmaya devam eder; kartın kendi çerçevesi sıfırlanır. */
+.app-shell .record-form.sales-rf .sales-rf-lines.sales-order-create-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.record-form.sales-rf .rf-form .sales-rf-lines { min-width: 0; }
+.record-form.sales-rf .rf-form .sales-rf-lines .quote-lines-table-wrap,
+.record-form.sales-rf .rf-form .sales-rf-lines .ledger-list { max-width: 100%; margin: 0; overflow: auto; }
+.record-form.sales-rf .rf-form .sales-rf-lines .order-grand-total { margin-top: 0; }
+.record-form.sales-rf .rf-form .sales-rf-lines small { font-size: 11px; }
+
+/* Kart tipindeki satırlar (satın alma siparişi / talep kalemleri). */
+.record-form.sales-rf .rf-form .quote-line {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 6px;
+  background: var(--rf-band);
+}
+.record-form.sales-rf .rf-form .quote-line-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
+.record-form.sales-rf .rf-form .quote-line .form-two { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.record-form.sales-rf .rf-form .quote-line .form-two.order-line-tax { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* Teslimat miktar satırları. */
+.record-form.sales-rf .rf-form .delivery-quantity {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(90px, .7fr) minmax(90px, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+}
+.record-form.sales-rf .rf-form .delivery-quantity > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* Detay penceresinin içine gömülü kayıt formu (mal kabul, irsaliye, tedarikçi teklifi). */
+.app-shell .record-form.sales-rf.sales-rf-embedded {
+  margin: 14px 0;
+  border: 1px solid var(--rf-border);
+  border-radius: 6px;
+  background: var(--rf-surface);
+  overflow: hidden;
+}
+.record-form.sales-rf.sales-rf-embedded .rf-title h1 { font-size: 16px; }
+
+/* Geniş pencereler: modal içinde üç kolon yerine iki kolon yeterli; dar ekranda tek kolon. */
+@media (max-width: 1100px) {
+  .record-form.sales-rf .sales-rf-identity-3,
+  .record-form.sales-rf .sales-rf-identity-even,
+  .record-form.sales-rf .sales-rf-triple { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .record-form.sales-rf .sales-rf-identity-2,
+  .record-form.sales-rf .sales-rf-identity-3,
+  .record-form.sales-rf .sales-rf-identity-even,
+  .record-form.sales-rf .sales-rf-triple,
+  .record-form.sales-rf .sales-rf-two-groups,
+  .record-form.sales-rf .rf-form .quote-line .form-two,
+  .record-form.sales-rf .rf-form .quote-line .form-two.order-line-tax,
+  .record-form.sales-rf .rf-form .delivery-quantity { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Teklif: koşullar + toplamlar yan yana. */
+.record-form.sales-rf .sales-rf-totals-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  gap: 20px;
+  align-items: start;
+}
+.record-form.sales-rf .rf-form textarea.sales-rf-tall { height: 110px; }
+.record-form.sales-rf .rf-form .quote-prospect-toggle { min-height: 0; }
+.record-form.sales-rf .rf-form .quote-prospect-toggle-copy { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.record-form.sales-rf .sales-rf-order-2 { order: 2; }
+
+/* Açılır ek alan bölümleri (e-belge). */
+.record-form.sales-rf .rf-form details.sales-rf-details {
+  border: 1px solid var(--rf-border-soft);
+  border-radius: 6px;
+  background: var(--rf-band);
+}
+.record-form.sales-rf .rf-form details.sales-rf-details > summary {
+  padding: 10px 14px;
+  color: var(--rf-label);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.record-form.sales-rf .rf-form details.sales-rf-details > div { padding: 4px 14px 14px; }
+
+/* Fatura oluşturma penceresinde yöntem sekmeleri RecordForm'un üstünde kalır. */
+.app-shell .sales-rf-host > .sales-rf-mode-tabs { margin: 0; padding: 12px 20px 0; }
+
+/* Siparişsiz fatura satırları. */
+.record-form.sales-rf .rf-form .sales-rf-standalone-lines { display: flex; flex-direction: column; min-width: 0; }
+.record-form.sales-rf .rf-form .sales-invoice-standalone-heading { margin: 0 0 4px; padding: 0; border: 0; }
+.app-shell .record-form.sales-rf .rf-form .sales-invoice-standalone-line {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) minmax(160px, 1.4fr) repeat(4, minmax(84px, 1fr)) 40px;
+  align-items: end;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rf-border-soft);
+}
+.app-shell .record-form.sales-rf .rf-form .sales-invoice-standalone-line .standalone-remove {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--rf-border);
+  border-radius: 6px;
+  background: var(--rf-surface);
+  color: var(--rf-muted);
+}
+.record-form.sales-rf .rf-form .sales-invoice-total-panel { border: 0; padding: 0; background: transparent; }
+
+/* Siparişsiz irsaliye / mal kabul satır alanları. */
+.record-form.sales-rf .rf-form .delivery-document-line-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.sales-rf-fulfillment { display: flex; flex-direction: column; min-width: 0; }
+.sales-rf-fulfillment > .requests-list { margin: 16px 32px 24px; }
+
+/* Tek hücrede birim + miktar (mal kabul). */
+.record-form.sales-rf .rf-form .sales-rf-lines table td > select:has(+ input) { display: inline-block; width: 42%; }
+.record-form.sales-rf .rf-form .sales-rf-lines table td > select + input { display: inline-block; width: calc(58% - 6px); margin-left: 6px; }
+
+@media (max-width: 1100px) {
+  .record-form.sales-rf .sales-rf-totals-layout { grid-template-columns: minmax(0, 1fr); }
+  .app-shell .record-form.sales-rf .rf-form .sales-invoice-standalone-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell .record-form.sales-rf .rf-form .sales-invoice-standalone-line :is(.standalone-stock, .standalone-warehouse) { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .record-form.sales-rf .rf-form .delivery-document-line-fields { grid-template-columns: minmax(0, 1fr); }
+  .sales-rf-fulfillment > .requests-list { margin-inline: 16px; }
+}

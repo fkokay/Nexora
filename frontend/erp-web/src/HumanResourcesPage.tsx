@@ -15,6 +15,8 @@ import { confirmLocalized, promptLocalized } from "./locale";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
+import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
+import { RecordFormGroup } from "./record-form/RecordForm";
 type Leave = {
   id: string;
   employeeId: string;
@@ -827,6 +829,7 @@ export default function HumanResourcesPage({
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [creatingEmployee, setCreatingEmployee] = useState(false);
   const employeeDialog = useRef<HTMLDialogElement>(null);
+  const stayAfterEmployeeCreate = useRef(false);
   useEffect(() => {
     if (!creatingEmployee) return;
     const dialog = employeeDialog.current;
@@ -1175,6 +1178,16 @@ export default function HumanResourcesPage({
       cancelled = true;
     };
   }, [token, isEn]);
+  function resetEmployeeCreate() {
+    setCode("");
+    setName("");
+    setDepartment("");
+    setJob("");
+    setEmploymentCategory("");
+    setEmail("");
+    setLinkedUserId("");
+    setHireDate(today);
+  }
   const compensationViewAllowed = compensationAccess.view;
   useEffect(() => {
     const targets: [
@@ -2710,22 +2723,13 @@ export default function HumanResourcesPage({
                   </div>
                 </div>
                 {admin && editingEmployee && (
-                  <div className="hr-panel">
-                    <div className="panel-heading">
-                      <div>
-                        <h3>
-                          {tr("Personel bilgilerini düzenle", "Edit employee")}
-                        </h3>
-                        <p>
-                          {tr(
-                            "İşten ayrılış tarihi son aktif gündür; çalışan o gün boyunca aktif kalır, kayıt silinmez.",
-                            "The termination date is the last active day; the employee remains active through that date and the record is retained.",
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <form
-                      className="hr-form"
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr("Personel bilgilerini düzenle", "Edit employee")}
+                      mode="edit"
+                      busy={busy}
+                      saveLabel={tr("Değişiklikleri kaydet", "Save changes")}
+                      onCancel={() => setEditingEmployee(null)}
                       onSubmit={(e) => {
                         e.preventDefault();
                         const current = editingEmployee;
@@ -2756,7 +2760,14 @@ export default function HumanResourcesPage({
                         );
                         setEditingEmployee(null);
                       }}
-                    >
+>
+<p className="hrp-note">
+                          {tr(
+                            "İşten ayrılış tarihi son aktif gündür; çalışan o gün boyunca aktif kalır, kayıt silinmez.",
+                            "The termination date is the last active day; the employee remains active through that date and the record is retained.",
+                          )}
+</p>
+<RecordFormGroup title={tr("Personel Kimliği", "Employee identity")} bodyClassName="rf-identity">
                       <label>
                         {tr("Personel kodu", "Personnel code")}
                         <input
@@ -2811,6 +2822,8 @@ export default function HumanResourcesPage({
                           maxLength={120}
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("İstihdam", "Employment")} bodyClassName="hrp-grid">
                       <label>
                         {tr(
                           "Çalışan kategorisi (firma tanımlı)",
@@ -2870,63 +2883,47 @@ export default function HumanResourcesPage({
                           }
                         />
                       </label>
-                      <div className="hr-actions">
-                        <button className="primary" disabled={busy}>
-                          {tr("Değişiklikleri kaydet", "Save changes")}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => setEditingEmployee(null)}
-                        >
-                          {tr("İptal", "Cancel")}
-                        </button>
-                      </div>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
                 {admin && creatingEmployee && (
                   <dialog
                     ref={employeeDialog}
-                    className="hr-panel hr-employee-form hr-employee-dialog"
-                    aria-labelledby="hr-create-employee-title"
+                    className="hr-panel hr-employee-form hr-employee-dialog hrp-dialog-shell"
+                    aria-label={tr("Personel ekle", "Add employee")}
                     onCancel={(event) => {
                       event.preventDefault();
                       if (!busy) setCreatingEmployee(false);
                     }}
                   >
-                    <div className="hr-dialog-close">
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        aria-label={tr("Kapat", "Close")}
-                        onClick={() => setCreatingEmployee(false)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="hr-employee-form-heading">
-                      <span>
-                        {tr("YENİ PERSONEL KAYDI", "NEW EMPLOYEE RECORD")}
-                      </span>
-                      <h3 id="hr-create-employee-title">
-                        {tr("Personel ekle", "Add employee")}
-                      </h3>
-                      <p>
+                    <ModuleRecordForm
+                      title={tr("Personel ekle", "Add employee")}
+                      mode="create"
+                      busy={busy}
+                      saveLabel={tr("Personel ekle", "Add employee")}
+                      onCancel={() => {
+                        if (!busy) setCreatingEmployee(false);
+                      }}
+                      onSaveIntent={(stay) => {
+                        stayAfterEmployeeCreate.current = stay;
+                      }}
+                      onReset={resetEmployeeCreate}
+                      error={error}
+                      onDismissError={() => setError("")}
+                      status={
+                        <>
+                          <span>
                         {tr(
                           "Temel iş bilgilerini girerek firma personel listesine ekleyin.",
                           "Add an employee to the company directory with their basic work details.",
                         )}
-                      </p>
-                    </div>
-                    {error && (
-                      <p role="alert" className="hr-dialog-error">
-                        {error}
-                      </p>
-                    )}
-                    <form
-                      className="hr-form hr-employee-create-form"
+                          </span>
+                          {message && (
+                            <span className="rf-status-notice">{message}</span>
+                          )}
+                        </>
+                      }
                       onSubmit={(e) => {
                         e.preventDefault();
                         void submit(
@@ -2948,19 +2945,14 @@ export default function HumanResourcesPage({
                           tr("Personel kaydedildi.", "Employee saved."),
                         ).then((saved) => {
                           if (saved) {
-                            setCreatingEmployee(false);
-                            setCode("");
-                            setName("");
-                            setDepartment("");
-                            setJob("");
-                            setEmploymentCategory("");
-                            setEmail("");
-                            setLinkedUserId("");
-                            setHireDate(today);
+                            resetEmployeeCreate();
+                            if (!stayAfterEmployeeCreate.current)
+                              setCreatingEmployee(false);
                           }
                         });
                       }}
-                    >
+>
+<RecordFormGroup title={tr("Personel Kimliği", "Employee identity")} bodyClassName="rf-identity">
                       <label>
                         {tr("Personel kodu", "Personnel code")}
                         <input
@@ -2996,6 +2988,8 @@ export default function HumanResourcesPage({
                           maxLength={120}
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("İstihdam ve Erişim", "Employment and access")} bodyClassName="hrp-grid">
                       <label>
                         {tr(
                           "Çalışan kategorisi (firma tanımlı)",
@@ -3037,19 +3031,8 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
-                      <button className="primary" disabled={busy}>
-                        <Plus size={16} />
-                        {tr("Personel ekle", "Add employee")}
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => setCreatingEmployee(false)}
-                      >
-                        {tr("İptal", "Cancel")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </dialog>
                 )}
               </>
@@ -3258,10 +3241,18 @@ export default function HumanResourcesPage({
                     </AdvancedDataGrid>
                   </div>
                 </div>
-                <div className="hr-panel">
-                  <h3>{tr("İzin talebi oluştur", "Request leave")}</h3>
-                  <form
-                    className="hr-form"
+                <div className="hr-panel hrp-form-panel">
+                  <ModuleRecordForm
+                    title={tr("İzin talebi oluştur", "Request leave")}
+                    mode="create"
+                    busy={busy}
+                    saveDisabled={
+                      !employeeId ||
+                      !employees.some(
+                        (x) => x.id === employeeId && x.status === "Active",
+                      )
+                    }
+                    saveLabel={tr("Talep et", "Submit")}
                     onSubmit={(e) => {
                       e.preventDefault();
                       void submit(
@@ -3283,7 +3274,8 @@ export default function HumanResourcesPage({
                         ),
                       );
                     }}
-                  >
+>
+<RecordFormGroup title={tr("İzin Talebi", "Leave request")} bodyClassName="rf-identity hrp-identity-even">
                     <label>
                       {tr("Personel", "Employee")}
                       <SearchableRecordPicker
@@ -3339,6 +3331,8 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Süre ve Not", "Duration and note")} bodyClassName="hrp-grid">
                     <label>
                       {tr(
                         "Talep edilen gün (elle girilir)",
@@ -3361,20 +3355,8 @@ export default function HumanResourcesPage({
                         maxLength={1000}
                       />
                     </label>
-                    <button
-                      className="primary"
-                      disabled={
-                        busy ||
-                        !employeeId ||
-                        !employees.some(
-                          (x) => x.id === employeeId && x.status === "Active",
-                        )
-                      }
-                    >
-                      <Plus size={16} />
-                      {tr("Talep et", "Submit")}
-                    </button>
-                  </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                 </div>
               </>
             )}
@@ -3542,10 +3524,13 @@ export default function HumanResourcesPage({
                   </div>
                 </div>
                 {admin && editingAttendance && (
-                  <div className="hr-panel">
-                    <h3>{tr("Puantaj düzelt", "Correct attendance")}</h3>
-                    <form
-                      className="hr-form"
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr("Puantaj düzelt", "Correct attendance")}
+                      mode="edit"
+                      busy={busy}
+                      saveLabel={tr("Düzeltmeyi kaydet", "Save correction")}
+                      onCancel={() => setEditingAttendance(null)}
                       onSubmit={(e) => {
                         e.preventDefault();
                         const current = editingAttendance;
@@ -3566,7 +3551,8 @@ export default function HumanResourcesPage({
                         );
                         setEditingAttendance(null);
                       }}
-                    >
+>
+<RecordFormGroup title={tr("Puantaj Kaydı", "Attendance record")} bodyClassName="rf-identity hrp-identity-even">
                       <label>
                         {tr("Personel", "Employee")}
                         <input value={editingAttendance.employee} readOnly />
@@ -3617,6 +3603,8 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Not", "Note")}>
                       <label className="wide">
                         {tr("Not", "Note")}
                         <input
@@ -3630,32 +3618,18 @@ export default function HumanResourcesPage({
                           maxLength={1000}
                         />
                       </label>
-                      <div className="hr-actions">
-                        <button className="primary" disabled={busy}>
-                          {tr("Düzeltmeyi kaydet", "Save correction")}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => setEditingAttendance(null)}
-                        >
-                          {tr("İptal", "Cancel")}
-                        </button>
-                      </div>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
                 {admin && (
-                  <div className="hr-panel">
-                    <h3>{tr("Puantaj gir", "Record attendance")}</h3>
-                    <p className="hr-footnote">
-                      {tr(
-                        "Kayıt, istihdam tarihleri içindeki girilmiş günlük dakikalardır; sistem çalışma takvimi veya eksik gün varsaymaz.",
-                        "This stores entered daily minutes within employment dates; the system does not infer a work calendar or missing days.",
-                      )}
-                    </p>
-                    <form
-                      className="hr-form"
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr("Puantaj gir", "Record attendance")}
+                      mode="create"
+                      busy={busy}
+                      saveDisabled={!employeeId}
+                      saveLabel={tr("Kaydet", "Save")}
                       onSubmit={(e) => {
                         e.preventDefault();
                         void submit(
@@ -3673,7 +3647,14 @@ export default function HumanResourcesPage({
                           tr("Puantaj kaydedildi.", "Attendance saved."),
                         );
                       }}
-                    >
+>
+<p className="hrp-note">
+                      {tr(
+                        "Kayıt, istihdam tarihleri içindeki girilmiş günlük dakikalardır; sistem çalışma takvimi veya eksik gün varsaymaz.",
+                        "This stores entered daily minutes within employment dates; the system does not infer a work calendar or missing days.",
+                      )}
+</p>
+<RecordFormGroup title={tr("Puantaj Kaydı", "Attendance record")} bodyClassName="rf-identity hrp-identity-even">
                       <label>
                         {tr("Personel", "Employee")}
                         <SearchableRecordPicker
@@ -3724,6 +3705,8 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Not", "Note")}>
                       <label className="wide">
                         {tr("Not", "Note")}
                         <input
@@ -3732,14 +3715,8 @@ export default function HumanResourcesPage({
                           maxLength={1000}
                         />
                       </label>
-                      <button
-                        className="primary"
-                        disabled={busy || !employeeId}
-                      >
-                        <Plus size={16} />
-                        {tr("Kaydet", "Save")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
               </>
@@ -4096,21 +4073,16 @@ export default function HumanResourcesPage({
                   </>
                 )}
                 {compensationAccess.change && (
-                  <div className="hr-panel">
-                    <h3>
-                      {tr(
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr(
                         "Ücret değişikliği talebi",
                         "Request compensation change",
                       )}
-                    </h3>
-                    <p className="hr-footnote">
-                      {tr(
-                        "Tutar, para birimi ve firma tanımlı ödeme esası girilir. Kayıt ikinci yetkili onayına kadar etkin değildir.",
-                        "Enter the amount, currency, and employer-defined pay basis. The record is inactive until a second authorized user approves it.",
-                      )}
-                    </p>
-                    <form
-                      className="hr-form"
+                      mode="create"
+                      busy={busy}
+                      saveDisabled={!compensationEmployeeId}
+                      saveLabel={tr("Onaya gönder", "Submit for approval")}
                       onSubmit={(e) => {
                         e.preventDefault();
                         void submit(
@@ -4132,7 +4104,14 @@ export default function HumanResourcesPage({
                           ),
                         );
                       }}
-                    >
+>
+<p className="hrp-note">
+                      {tr(
+                        "Tutar, para birimi ve firma tanımlı ödeme esası girilir. Kayıt ikinci yetkili onayına kadar etkin değildir.",
+                        "Enter the amount, currency, and employer-defined pay basis. The record is inactive until a second authorized user approves it.",
+                      )}
+</p>
+<RecordFormGroup title={tr("Ücret Değişikliği", "Compensation change")} bodyClassName="rf-identity hrp-identity-even">
                       {compensationEmployees.length > 0 ? (
                         <label>
                           {tr("Personel", "Employee")}
@@ -4215,6 +4194,8 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Ödeme Esası ve Yürürlük", "Pay basis and effective date")} bodyClassName="hrp-grid">
                       <label>
                         {tr("Ödeme esası kodu", "Pay basis code")}
                         <input
@@ -4238,32 +4219,21 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
-                      <button
-                        className="primary"
-                        disabled={busy || !compensationEmployeeId}
-                      >
-                        <Plus size={16} />
-                        {tr("Onaya gönder", "Submit for approval")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
                 {compensationAccess.change && (
-                  <div className="hr-panel">
-                    <h3>
-                      {tr(
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr(
                         "Önceki işveren / matrah beyanı",
                         "Prior-employer / tax-base declaration",
                       )}
-                    </h3>
-                    <p className="hr-footnote">
-                      {tr(
-                        "Beyan çalışan ve vergi yılı için kaydedilir; tutarı oluşturan matrah kodu, açıklama ve birim firma/mali müşavir tarafından tanımlanır. Belge referansı zorunludur. Bu kayıt tek başına yasal sınıflama veya bordro hesabı yapmaz.",
-                        "The declaration is recorded per employee and tax year. Base codes, labels, and units are employer/CPA-defined. An evidence reference is required. This record does not determine statutory classification or calculate payroll.",
-                      )}
-                    </p>
-                    <form
-                      className="hr-form"
+                      mode="create"
+                      busy={busy}
+                      saveDisabled={!priorBaseEmployeeId}
+                      saveLabel={tr("Onaya gönder", "Submit for approval")}
                       onSubmit={(e) => {
                         e.preventDefault();
                         let entries: unknown;
@@ -4300,7 +4270,14 @@ export default function HumanResourcesPage({
                           ),
                         );
                       }}
-                    >
+>
+<p className="hrp-note">
+                      {tr(
+                        "Beyan çalışan ve vergi yılı için kaydedilir; tutarı oluşturan matrah kodu, açıklama ve birim firma/mali müşavir tarafından tanımlanır. Belge referansı zorunludur. Bu kayıt tek başına yasal sınıflama veya bordro hesabı yapmaz.",
+                        "The declaration is recorded per employee and tax year. Base codes, labels, and units are employer/CPA-defined. An evidence reference is required. This record does not determine statutory classification or calculate payroll.",
+                      )}
+</p>
+<RecordFormGroup title={tr("Beyan", "Declaration")} bodyClassName="rf-identity hrp-identity-even">
                       {compensationEmployees.length > 0 ? (
                         <label>
                           {tr("Personel", "Employee")}
@@ -4387,6 +4364,8 @@ export default function HumanResourcesPage({
                           )}
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Matrah Kalemleri", "Tax-base entries")}>
                       <label className="wide">
                         {tr("Matrah kalemleri JSON", "Tax-base entries JSON")}
                         <textarea
@@ -4398,14 +4377,8 @@ export default function HumanResourcesPage({
                           placeholder='[{"code":"employer-approved-code","label":"Employer-defined label","amount":0,"unit":"TRY"}]'
                         />
                       </label>
-                      <button
-                        className="primary"
-                        disabled={busy || !priorBaseEmployeeId}
-                      >
-                        <Plus size={16} />
-                        {tr("Onaya gönder", "Submit for approval")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
                 {compensationAccess.view && (
@@ -4570,21 +4543,16 @@ export default function HumanResourcesPage({
             {section === "runs" && (
               <>
                 {compensationAccess.change && compensationAccess.view && (
-                  <div className="hr-panel">
-                    <h3>
-                      {tr(
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr(
                         "Bloke bordro taslağı oluştur",
                         "Create blocked payroll draft",
                       )}
-                    </h3>
-                    <p className="hr-footnote">
-                      {tr(
-                        "Seçilen personel ve dönem için ücret, puantaj, izin ve onaylı kural sürümleri değişmez snapshot olarak kaydedilir. Formül önizlemesi ve iç inceleme taslağı saklanabilir; bordro tahakkuku oluşturulmaz.",
-                        "Compensation, attendance, leave, and approved rule versions are saved as an immutable snapshot. Formula preview and internal review draft can be saved; no payroll accrual is created.",
-                      )}
-                    </p>
-                    <form
-                      className="hr-form"
+                      mode="create"
+                      busy={busy}
+                      saveDisabled={runEmployeeIds.length === 0}
+                      saveLabel={tr("Bloke taslak oluştur", "Create blocked draft")}
                       onSubmit={(e) => {
                         e.preventDefault();
                         void submit(
@@ -4609,7 +4577,14 @@ export default function HumanResourcesPage({
                           ),
                         );
                       }}
-                    >
+>
+<p className="hrp-note">
+                      {tr(
+                        "Seçilen personel ve dönem için ücret, puantaj, izin ve onaylı kural sürümleri değişmez snapshot olarak kaydedilir. Formül önizlemesi ve iç inceleme taslağı saklanabilir; bordro tahakkuku oluşturulmaz.",
+                        "Compensation, attendance, leave, and approved rule versions are saved as an immutable snapshot. Formula preview and internal review draft can be saved; no payroll accrual is created.",
+                      )}
+</p>
+<RecordFormGroup title={tr("Bordro Dönemi", "Payroll period")} bodyClassName="rf-identity hrp-identity-even">
                       <label>
                         {tr("Dönem türü", "Period type")}
                         <select
@@ -4685,6 +4660,8 @@ export default function HumanResourcesPage({
                           </label>
                         </>
                       )}
+</RecordFormGroup>
+<RecordFormGroup title={tr("Bordro Personeli", "Payroll employees")}>
                       <label className="wide">
                         {tr("Personeller", "Employees")}
                         <div className="hr-employee-multi-picker">
@@ -4743,14 +4720,8 @@ export default function HumanResourcesPage({
                           "Initial private-sector 4/a profile. Employer periods are internal drafts; official declarations follow a separately approved legal period rule.",
                         )}
                       </div>
-                      <button
-                        className="primary"
-                        disabled={busy || runEmployeeIds.length === 0}
-                      >
-                        <Plus size={16} />
-                        {tr("Bloke taslak oluştur", "Create blocked draft")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                 )}
                 {compensationAccess.view && (
@@ -5741,12 +5712,12 @@ export default function HumanResourcesPage({
                       </AdvancedDataGrid>
                     </div>
                   </div>
-                  <div className="hr-panel">
-                    <h3>
-                      {tr("Kaynaklı taslak oluştur", "Create sourced draft")}
-                    </h3>
-                    <form
-                      className="hr-form"
+                  <div className="hr-panel hrp-form-panel">
+                    <ModuleRecordForm
+                      title={tr("Kaynaklı taslak oluştur", "Create sourced draft")}
+                      mode="create"
+                      busy={busy}
+                      saveLabel={tr("Taslak kaydet", "Save draft")}
                       onSubmit={(e) => {
                         e.preventDefault();
                         let parsed: unknown;
@@ -5776,7 +5747,8 @@ export default function HumanResourcesPage({
                           tr("Taslak oluşturuldu.", "Draft created."),
                         );
                       }}
-                    >
+>
+<RecordFormGroup title={tr("Kural Seti", "Rule set")} bodyClassName="rf-identity hrp-identity-even">
                       <label>
                         {tr("Vergi yılı", "Tax year")}
                         <input
@@ -5813,6 +5785,8 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Kural Verisi", "Rule data")}>
                       <label className="wide">
                         {tr("Kural verisi (JSON)", "Rule data (JSON)")}
                         <textarea
@@ -5822,14 +5796,9 @@ export default function HumanResourcesPage({
                           required
                         />
                       </label>
-                      <div className="hr-panel wide">
-                        <h4>
-                          {tr(
-                            "1003A profil taslağı ekle",
-                            "Add a 1003A profile draft",
-                          )}
-                        </h4>
-                        <p className="hr-footnote">
+</RecordFormGroup>
+<RecordFormGroup title={tr("1003A profil taslağı ekle", "Add a 1003A profile draft")} bodyClassName="hrp-grid">
+<p className="hrp-note hrp-span">
                           {tr(
                             "Bu yardımcı yalnız 1003A/MUHSGK_21 profil kaydını ekler. Gerçek beyan yetkisini ve kaynakları kontrol edin; taslak ikinci yetkili onaylayana kadar etkin değildir.",
                             "This helper adds only the 1003A/MUHSGK_21 profile record. Verify actual filing authority and sources; the draft is inactive until a second authorized user approves it.",
@@ -5936,7 +5905,7 @@ export default function HumanResourcesPage({
                         </label>
                         <button
                           type="button"
-                          className="secondary"
+className="secondary hrp-group-action"
                           disabled={busy}
                           onClick={addPayroll1003AProfile}
                         >
@@ -5945,12 +5914,8 @@ export default function HumanResourcesPage({
                             "Add 1003A profile to JSON",
                           )}
                         </button>
-                      </div>
-                      <button className="primary" disabled={busy}>
-                        <Plus size={16} />
-                        {tr("Taslak kaydet", "Save draft")}
-                      </button>
-                    </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   </div>
                   <p className="hr-footnote">
                     {tr(
@@ -5970,20 +5935,15 @@ export default function HumanResourcesPage({
             {section === "calendar" && admin && (
               <>
                 <div className="hr-panel">
-                  <h3>
-                    {tr(
+                  <ModuleRecordForm
+                    title={tr(
                       "Yürürlük tarihli işyeri atamaları",
                       "Effective-dated workplace assignments",
                     )}
-                  </h3>
-                  <p className="hr-footnote">
-                    {tr(
-                      "Personelin işyeri geçmişi değişmez; her yeni atama ikinci yönetici onayından sonra yürürlüğe girer.",
-                      "Workplace history is retained; each new assignment takes effect after a second administrator approves it.",
-                    )}
-                  </p>
-                  <form
-                    className="hr-form"
+                    mode="create"
+                    busy={busy}
+                    saveDisabled={!assignmentEmployeeId}
+                    saveLabel={tr("Onaya gönder", "Submit for approval")}
                     onSubmit={(e) => {
                       e.preventDefault();
                       void submit(
@@ -6006,7 +5966,14 @@ export default function HumanResourcesPage({
                         ),
                       );
                     }}
-                  >
+>
+<p className="hrp-note">
+                    {tr(
+                      "Personelin işyeri geçmişi değişmez; her yeni atama ikinci yönetici onayından sonra yürürlüğe girer.",
+                      "Workplace history is retained; each new assignment takes effect after a second administrator approves it.",
+                    )}
+</p>
+<RecordFormGroup title={tr("İşyeri Ataması", "Workplace assignment")} bodyClassName="rf-identity hrp-identity-even">
                     <label>
                       {tr("Personel", "Employee")}
                       <SearchableRecordPicker
@@ -6050,14 +6017,8 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
-                    <button
-                      className="primary"
-                      disabled={busy || !assignmentEmployeeId}
-                    >
-                      <Plus size={16} />
-                      {tr("Onaya gönder", "Submit for approval")}
-                    </button>
-                  </form>
+</RecordFormGroup>
+</ModuleRecordForm>
                   <div className="hr-table-wrap">
                     <AdvancedDataGrid className="hr-table">
                       <thead>
@@ -6182,20 +6143,14 @@ export default function HumanResourcesPage({
                   </div>
                 </div>
                 <div className="hr-panel">
-                  <h3>
-                    {tr(
+                  <ModuleRecordForm
+                    title={tr(
                       "İşyeri çalışma takvimleri",
                       "Workplace work calendars",
                     )}
-                  </h3>
-                  <p className="hr-footnote">
-                    {tr(
-                      "Haftalık dakikalar JSON nesnesi; tarih istisnaları [{date, expectedMinutes}] dizisidir. Resmî tatiller önceden yüklenmez; firma takvimine eklenmelidir.",
-                      "Weekly minutes use a JSON object; date exceptions use a [{date, expectedMinutes}] array. Public holidays are not preloaded and must be entered in the company calendar.",
-                    )}
-                  </p>
-                  <form
-                    className="hr-form"
+                    mode="create"
+                    busy={busy}
+                    saveLabel={tr("Onaya gönder", "Submit for approval")}
                     onSubmit={(e) => {
                       e.preventDefault();
                       void submit(
@@ -6220,7 +6175,14 @@ export default function HumanResourcesPage({
                         ),
                       );
                     }}
-                  >
+>
+<p className="hrp-note">
+                    {tr(
+                      "Haftalık dakikalar JSON nesnesi; tarih istisnaları [{date, expectedMinutes}] dizisidir. Resmî tatiller önceden yüklenmez; firma takvimine eklenmelidir.",
+                      "Weekly minutes use a JSON object; date exceptions use a [{date, expectedMinutes}] array. Public holidays are not preloaded and must be entered in the company calendar.",
+                    )}
+</p>
+<RecordFormGroup title={tr("Çalışma Takvimi", "Work calendar")} bodyClassName="rf-identity hrp-identity-even">
                     <label>
                       {tr("İşyeri kodu", "Workplace code")}
                       <input
@@ -6254,6 +6216,9 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Takvim Verisi", "Calendar data")}>
+<div className="rf-pair">
                     <label>
                       {tr(
                         "Haftalık beklenen dakika JSON",
@@ -6279,11 +6244,9 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
-                    <button className="primary" disabled={busy}>
-                      <Plus size={16} />
-                      {tr("Onaya gönder", "Submit for approval")}
-                    </button>
-                  </form>
+</div>
+</RecordFormGroup>
+</ModuleRecordForm>
                   <div className="hr-table-wrap">
                     <AdvancedDataGrid className="hr-table">
                       <thead>
@@ -6426,20 +6389,15 @@ export default function HumanResourcesPage({
                   </div>
                 </div>
                 <div className="hr-panel">
-                  <h3>
-                    {tr(
+                  <ModuleRecordForm
+                    title={tr(
                       "Kişi bazlı takvim istisnaları",
                       "Employee calendar overrides",
                     )}
-                  </h3>
-                  <p className="hr-footnote">
-                    {tr(
-                      "Bu çizelge, yürürlük döneminde işyeri takviminin tamamının yerine geçer ve ikinci yönetici onayı gerektirir.",
-                      "This schedule replaces the workplace calendar for its effective period and requires a second administrator approval.",
-                    )}
-                  </p>
-                  <form
-                    className="hr-form"
+                    mode="create"
+                    busy={busy}
+                    saveDisabled={!overrideEmployeeId}
+                    saveLabel={tr("Onaya gönder", "Submit for approval")}
                     onSubmit={(e) => {
                       e.preventDefault();
                       void submit(
@@ -6464,7 +6422,14 @@ export default function HumanResourcesPage({
                         ),
                       );
                     }}
-                  >
+>
+<p className="hrp-note">
+                    {tr(
+                      "Bu çizelge, yürürlük döneminde işyeri takviminin tamamının yerine geçer ve ikinci yönetici onayı gerektirir.",
+                      "This schedule replaces the workplace calendar for its effective period and requires a second administrator approval.",
+                    )}
+</p>
+<RecordFormGroup title={tr("Kişi Takvimi", "Employee calendar")} bodyClassName="rf-identity hrp-identity-even">
                     <label>
                       {tr("Personel", "Employee")}
                       <SearchableRecordPicker
@@ -6506,6 +6471,9 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
+</RecordFormGroup>
+<RecordFormGroup title={tr("Takvim Verisi", "Calendar data")}>
+<div className="rf-pair">
                     <label>
                       {tr(
                         "Haftalık beklenen dakika JSON",
@@ -6531,14 +6499,9 @@ export default function HumanResourcesPage({
                         required
                       />
                     </label>
-                    <button
-                      className="primary"
-                      disabled={busy || !overrideEmployeeId}
-                    >
-                      <Plus size={16} />
-                      {tr("Onaya gönder", "Submit for approval")}
-                    </button>
-                  </form>
+</div>
+</RecordFormGroup>
+</ModuleRecordForm>
                   <div className="hr-table-wrap">
                     <AdvancedDataGrid className="hr-table">
                       <thead>

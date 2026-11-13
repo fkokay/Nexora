@@ -1,0 +1,74 @@
+/* Üretim kayıt formları (RecordForm düzeni): reçete, üretim emri, iş merkezi ve üretim sonu bildirimi. */
+
+/* Tam sayfa form: üretim sayfasının ızgara boşluklarını kullanmadan içerik alanını doldurur. */
+.manufacturing-page.manufacturing-record-form-host {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 100%;
+}
+.manufacturing-record-form-host > .record-form { flex: 1; }
+
+/* Satır tabloları grup kutusunun içinde: kendi çerçevesi ve zemini kalkar, başlık satırı araç satırı olur. */
+.manufacturing-record-form-host .rf-group .manufacturing-lines {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.manufacturing-record-form-host .rf-group .manufacturing-lines-title { align-items: center; }
+.manufacturing-record-form-host .rf-form .manufacturing-lines-title small,
+.manufacturing-record-form-host .rf-form .manufacturing-lines > small { font-size: 12px; }
+.manufacturing-record-form-host .rf-form .manufacturing-line-labels,
+.manufacturing-record-form-host .rf-form .manufacturing-operation-labels {
+  color: var(--rf-label);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Satır içi alanlar: 40px alan yüksekliği ile hizalı kaldır düğmesi ve seçim penceresi tetikleyicisi. */
+.manufacturing-record-form-host .rf-form .manufacturing-line .manufacturing-remove,
+.manufacturing-record-form-host .rf-form .manufacturing-operation .manufacturing-remove {
+  width: 30px;
+  height: 40px;
+  padding: 0;
+  font-size: 17px;
+  cursor: pointer;
+}
+.manufacturing-record-form-host .rf-form .manufacturing-line .searchable-record-trigger { min-height: 40px; }
+
+/* Operasyon satırı: daha geniş etiketler ve 40px alanlar için sütunlar bir miktar genişler. */
+.manufacturing-record-form-host .rf-form .manufacturing-operation-section .manufacturing-operation-labels,
+.manufacturing-record-form-host .rf-form .manufacturing-operation-section .manufacturing-operation {
+  grid-template-columns: 24px minmax(160px, 1.2fr) minmax(110px, .9fr) 96px 96px 110px 120px 96px minmax(150px, 1.2fr) 30px;
+  gap: 8px;
+  min-width: 1080px;
+}
+
+/* Alternatif iş merkezi onay kutuları ortak etiket düzenini (üstte etiket) devralmaz. */
+.manufacturing-record-form-host .rf-form .manufacturing-alternates label {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.manufacturing-record-form-host .rf-form .manufacturing-alternates > small { font-size: 11px; }
+
+/* Üretim sonu bildirimi: modal kabı kalır, içerik RecordForm (dialog) olur. */
+.manufacturing-modal.manufacturing-modal--record-form {
+  width: min(100%, 800px);
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow: auto;
+}
+.manufacturing-modal--record-form .rf-toolbar { border-radius: 18px 18px 0 0; }
+.manufacturing-modal--record-form .rf-status { border-radius: 0 0 18px 18px; }
+.manufacturing-modal--record-form .rf-form textarea { min-height: 96px; }
+html[data-theme="dark"] .manufacturing-modal.manufacturing-modal--record-form {
+  background: #171d2b;
+  border-color: #30394d;
+}

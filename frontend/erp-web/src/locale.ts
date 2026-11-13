@@ -593,7 +593,8 @@ export function localizeMountedUi(root: ParentNode, locale: 'tr' | 'en'): void {
     const source = prior && current === prior.applied ? prior.source : current
     const translated = translate(source)
     mountedTextSources.set(node, { source, applied: translated })
-    if (current !== translated) node.data = translated
+    // nodeValue of a Text node is plain character data; it is never parsed as HTML.
+    if (current !== translated) node.nodeValue = translated
   }
   const updateAttribute = (element: Element, name: string) => {
     const current = element.getAttribute(name)

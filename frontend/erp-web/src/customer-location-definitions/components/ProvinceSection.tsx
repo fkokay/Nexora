@@ -7,6 +7,9 @@ import type {
   CustomerLocationProvinceView,
   TurkeyLocationOption,
 } from "../../erp-types";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
+import { useRecordFormShortcutScope } from "../../customers/components/useRecordFormShortcutScope";
+import "../../purchasing-record-forms.css";
 
 export const defaultProvinceFields: BuiltInScreenLayoutField[] = [
   { key: "name", label: "İl", visible: true, position: 0 },
@@ -37,11 +40,30 @@ function ProvinceForm({
   onCancel,
 }: ProvinceFormProps) {
   return (
-    <form className="collection-form" onSubmit={onSubmit}>
-      <div className="form-two">
+    <RecordFormPage
+      variant="dialog"
+      className={`prf-embedded${editingId ? "" : " prf-no-cancel"}`}
+      title={editingId ? "İl Tanımını Düzenle" : "Yeni İl Tanımı"}
+      mode={editingId ? "edit" : "create"}
+      busy={busy}
+      saveLabel={editingId ? "İl tanımını kaydet" : "İl ekle"}
+      onSubmit={onSubmit}
+      onCancel={() => {
+        if (editingId) onCancel();
+      }}
+      status={
+        <span>
+          {editingId
+            ? "Seçili il tanımını düzenleyin."
+            : "Yeni il tanımı ekleyin."}
+        </span>
+      }
+    >
+      <RecordFormGroup title="İl Kimliği" bodyClassName="rf-identity prf-identity-2">
         <label>
-          İl adı
+          <span>İl adı <RequiredMark /></span>
           <input
+            className="rf-must"
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             required
@@ -61,29 +83,8 @@ function ProvinceForm({
             <option value="inactive">Pasif</option>
           </select>
         </label>
-      </div>
-      <div className="modal-foot">
-        <span>
-          {editingId
-            ? "Seçili il tanımını düzenleyin."
-            : "Yeni il tanımı ekleyin."}
-        </span>
-        <div>
-          {editingId && (
-            <button type="button" className="secondary" onClick={onCancel}>
-              Vazgeç
-            </button>
-          )}
-          <button className="primary" disabled={busy}>
-            {busy
-              ? "Kaydediliyor…"
-              : editingId
-                ? "İl tanımını kaydet"
-                : "İl ekle"}
-          </button>
-        </div>
-      </div>
-    </form>
+      </RecordFormGroup>
+    </RecordFormPage>
   );
 }
 
@@ -226,6 +227,7 @@ export function ProvinceSection(props: Props) {
     onQueryChange,
     fields,
   } = props;
+  useRecordFormShortcutScope();
   return (
     <section className="panel list-v2-list">
       <div className="panel-heading">

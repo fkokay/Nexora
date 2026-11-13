@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
-import { ShieldCheck } from "lucide-react";
 import type { PermissionDefinition, PermissionMember } from "../../erp-types";
+import { RecordFormGroup, RecordFormPage } from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 
 type Props = {
   attributes: string[];
@@ -53,20 +54,40 @@ export function PermissionRuleForm({
   busy,
   save,
 }: Props) {
+  const blocked =
+    definitions.length === 0 ||
+    !permissionCode ||
+    (subjectType === "User" && !subjectUserId);
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h3>Politika oluştur</h3>
-          <p>
-            TenantAdmin yönetim yetkisi korunur. Eşleşen bir Deny, Allow
-            sonucunu geçersiz kılar.
-          </p>
-        </div>
-        <ShieldCheck size={20} />
-      </div>
-      <form onSubmit={(event) => void save(event)}>
-        <div className="form-two">
+    <RecordFormPage
+      variant="dialog"
+      className="prf-embedded prf-no-cancel prf-rule"
+      title="Politika oluştur"
+      mode="create"
+      busy={busy}
+      saveLabel="Politikayı kaydet"
+      onSubmit={(event) => {
+        if (blocked) {
+          event.preventDefault();
+          return;
+        }
+        void save(event as FormEvent<HTMLFormElement>);
+      }}
+      onCancel={() => undefined}
+      status={
+        <>
+          <span>
+            Koşulsuz kural, seçilen izin için tüm eşleşen kaynaklara uygulanır.
+          </span>
+          {blocked && (
+            <span className="rf-status-warning">
+              Kaydetmek için izin ve hedef seçin.
+            </span>
+          )}
+        </>
+      }
+    >
+      <RecordFormGroup title="Politika Kimliği" bodyClassName="rf-identity">
           <label>
             Hedef türü
             <select
@@ -120,8 +141,6 @@ export function PermissionRuleForm({
               </select>
             </label>
           )}
-        </div>
-        <div className="form-two">
           <label>
             İzin
             <select
@@ -162,10 +181,13 @@ export function PermissionRuleForm({
               <option value="Deny">Deny · reddet</option>
             </select>
           </label>
-        </div>
-        <div className="form-two">
+      </RecordFormGroup>
+      <RecordFormGroup title="Koşul (ABAC)" bodyClassName="rf-custom-grid">
           <label>
-            ABAC attribute <span className="optional-label">İsteğe bağlı</span>
+            <span>
+              ABAC attribute{" "}
+              <span className="optional-label">İsteğe bağlı</span>
+            </span>
             <select
               value={attributeName}
               onChange={(event) => setAttributeName(event.target.value)}
@@ -223,24 +245,11 @@ export function PermissionRuleForm({
               </label>
             </>
           )}
-        </div>
-        <div className="modal-foot">
-          <span>
-            Koşulsuz kural, seçilen izin için tüm eşleşen kaynaklara uygulanır.
-          </span>
-          <button
-            className="primary"
-            disabled={
-              busy ||
-              definitions.length === 0 ||
-              !permissionCode ||
-              (subjectType === "User" && !subjectUserId)
-            }
-          >
-            {busy ? "Kaydediliyor…" : "Politikayı kaydet"}
-          </button>
-        </div>
-      </form>
-    </section>
+      </RecordFormGroup>
+      <p className="prf-note">
+        TenantAdmin yönetim yetkisi korunur. Eşleşen bir Deny, Allow sonucunu
+        geçersiz kılar.
+      </p>
+    </RecordFormPage>
   );
 }

@@ -7,6 +7,9 @@ import type {
   CustomerLocationProvinceView,
   TurkeyDistrictOption,
 } from "../../erp-types";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
+import { useRecordFormShortcutScope } from "../../customers/components/useRecordFormShortcutScope";
+import "../../purchasing-record-forms.css";
 
 export const defaultDistrictFields: BuiltInScreenLayoutField[] = [
   { key: "name", label: "İlçe", visible: true, position: 0 },
@@ -43,11 +46,30 @@ function DistrictForm({
   onCancel,
 }: DistrictFormProps) {
   return (
-    <form className="collection-form" onSubmit={onSubmit}>
-      <div className="form-two">
+    <RecordFormPage
+      variant="dialog"
+      className={`prf-embedded${editingId ? "" : " prf-no-cancel"}${provinces.length === 0 ? " prf-save-blocked" : ""}`}
+      title={editingId ? "İlçe Tanımını Düzenle" : "Yeni İlçe Tanımı"}
+      mode={editingId ? "edit" : "create"}
+      busy={busy}
+      saveLabel={editingId ? "İlçe tanımını kaydet" : "İlçe ekle"}
+      onSubmit={onSubmit}
+      onCancel={() => {
+        if (editingId) onCancel();
+      }}
+      status={
+        <span>
+          {editingId
+            ? "Seçili ilçe tanımını düzenleyin."
+            : "Yeni ilçe tanımı ekleyin."}
+        </span>
+      }
+    >
+      <RecordFormGroup title="İlçe Kimliği" bodyClassName="rf-identity prf-identity-3">
         <label>
-          İl
+          <span>İl <RequiredMark /></span>
           <select
+            className="rf-must"
             value={provinceId}
             onChange={(event) => onProvinceIdChange(event.target.value)}
             required
@@ -62,8 +84,9 @@ function DistrictForm({
           </select>
         </label>
         <label>
-          İlçe adı
+          <span>İlçe adı <RequiredMark /></span>
           <input
+            className="rf-must"
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             required
@@ -83,29 +106,8 @@ function DistrictForm({
             <option value="inactive">Pasif</option>
           </select>
         </label>
-      </div>
-      <div className="modal-foot">
-        <span>
-          {editingId
-            ? "Seçili ilçe tanımını düzenleyin."
-            : "Yeni ilçe tanımı ekleyin."}
-        </span>
-        <div>
-          {editingId && (
-            <button type="button" className="secondary" onClick={onCancel}>
-              Vazgeç
-            </button>
-          )}
-          <button className="primary" disabled={busy || provinces.length === 0}>
-            {busy
-              ? "Kaydediliyor…"
-              : editingId
-                ? "İlçe tanımını kaydet"
-                : "İlçe ekle"}
-          </button>
-        </div>
-      </div>
-    </form>
+      </RecordFormGroup>
+    </RecordFormPage>
   );
 }
 
@@ -239,6 +241,7 @@ export function DistrictSection(props: Props) {
     onQueryChange,
     fields,
   } = props;
+  useRecordFormShortcutScope();
   return (
     <section className="panel list-v2-list">
       <div className="panel-heading">

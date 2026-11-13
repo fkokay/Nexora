@@ -15,6 +15,12 @@ import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
 import { confirmLocalized } from "./locale";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./sales/sales-record-forms.css";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -429,14 +435,9 @@ export function SalesDeliveriesScreen({
   function renderInvoiceCustomFieldInputs() {
     return (
       invoiceCustomFields.length > 0 && (
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <b>Fatura özel alanları</b>
-              <small>Tenant tarafından tanımlanan ek bilgiler</small>
-            </div>
-          </div>
-          <div className="form-two">
+        <RecordFormGroup title="Fatura Özel Alanları">
+          <small>Tenant tarafından tanımlanan ek bilgiler</small>
+          <div className="rf-custom-grid">
             {invoiceCustomFields.map((field) => (
               <label key={field.id}>
                 {field.label}
@@ -485,7 +486,7 @@ export function SalesDeliveriesScreen({
               </label>
             ))}
           </div>
-        </section>
+        </RecordFormGroup>
       )
     );
   }
@@ -551,7 +552,6 @@ export function SalesDeliveriesScreen({
               <ArrowLeftRight size={15} />
               İrsaliye listesine dön
             </button>
-            <button className="primary" type="submit" form="sales-delivery-create-form">İrsaliye taslağı oluştur</button>
           </div>
         </div>
       ) : (
@@ -592,6 +592,7 @@ export function SalesDeliveriesScreen({
           stockItems={stockItems}
           warehouses={warehouses}
           initialCustomerId={customerActionId}
+          onCancel={() => setCreating(false)}
         />
       ) : (
         <>
@@ -820,10 +821,27 @@ export function SalesDeliveriesScreen({
               )}
             </section>
             {invoiceEditing && (
-              <form
-                className="sales-invoice-standalone"
+              <RecordFormPage
+                variant="dialog"
+                className="sales-rf sales-rf-embedded"
+                title="Fatura bilgileri"
+                mode="create"
+                busy={busy}
+                saveLabel="Faturayı oluştur"
+                onCancel={() => {
+                  if (!busy) setInvoiceEditing(false);
+                }}
+                status={
+                  <span>
+                    {detail.orderId
+                      ? "Sipariş fiyatları kullanılır."
+                      : `${customers.find((customer) => customer.id === invoiceCustomerId)?.currencyCode || "Döviz"} · KDV/iskonto oranlarını doğrulayın`}
+                  </span>
+                }
                 onSubmit={(event) => {
                   event.preventDefault();
+                  // The old save button was disabled until a customer was chosen.
+                  if (detail.orderId === null && !invoiceCustomerId) return;
                   const request = detail.orderId
                     ? { customFields: invoiceCustomFieldsPayload }
                     : {
@@ -842,10 +860,11 @@ export function SalesDeliveriesScreen({
               >
                 {detail.orderId === null ? (
                   <>
-                    <div className="form-two">
-                      <label>
-                        Müşteri
+                    <RecordFormGroup title="Fatura Kimliği" bodyClassName="rf-identity sales-rf-identity-2">
+                      <label className="sales-rf-order-2">
+                        <span>Müşteri <RequiredMark /></span>
                         <select
+                          className="rf-must"
                           value={invoiceCustomerId}
                           onChange={(event) =>
                             setInvoiceCustomerId(event.target.value)
@@ -868,7 +887,7 @@ export function SalesDeliveriesScreen({
                         </select>
                       </label>
                       <label>
-                        Fatura tarihi
+                        <span>Fatura tarihi <RequiredMark /></span>
                         <input
                           type="date"
                           value={invoiceDate}
@@ -878,8 +897,9 @@ export function SalesDeliveriesScreen({
                           required
                         />
                       </label>
-                    </div>
-                    <div className="customer-table-wrap sales-delivery-lines-wrap">
+                    </RecordFormGroup>
+                    <RecordFormGroup title="Fatura Satırları">
+                    <div className="customer-table-wrap sales-delivery-lines-wrap sales-rf-lines">
                       <table className="customer-table">
                         <thead>
                           <tr>
@@ -986,6 +1006,7 @@ export function SalesDeliveriesScreen({
                       Bu işlem yalnızca faturayı ve cari borç kaydını oluşturur;
                       irsaliyedeki stok çıkışı tekrarlanmaz.
                     </p>
+                    </RecordFormGroup>
                   </>
                 ) : (
                   <p className="muted">
@@ -994,33 +1015,7 @@ export function SalesDeliveriesScreen({
                   </p>
                 )}
                 {renderInvoiceCustomFieldInputs()}
-                <div className="modal-foot">
-                  <span>
-                    {detail.orderId
-                      ? "Sipariş fiyatları kullanılır."
-                      : `${customers.find((customer) => customer.id === invoiceCustomerId)?.currencyCode || "Döviz"} · KDV/iskonto oranlarını doğrulayın`}
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => setInvoiceEditing(false)}
-                    >
-                      Vazgeç
-                    </button>
-                    <button
-                      type="submit"
-                      className="primary"
-                      disabled={
-                        busy || (detail.orderId === null && !invoiceCustomerId)
-                      }
-                    >
-                      {busy ? "Fatura kaydediliyor…" : "Faturayı oluştur"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+              </RecordFormPage>
             )}
             </>}
             </div>

@@ -1,9 +1,9 @@
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import type { DraftInput, Supplier } from "../types";
+import { RecordFormGroup, RequiredMark } from "../../record-form/RecordForm";
 
 type Props = {
   draft: DraftInput;
-  editing: boolean;
   suppliers: Supplier[];
   onUpdate: <K extends keyof DraftInput>(
     field: K,
@@ -15,24 +15,16 @@ type Props = {
 
 export function InvoiceDraftDocumentFields({
   draft,
-  editing,
   suppliers,
   onUpdate,
   onSelectSupplier,
   onSearchSuppliers,
 }: Props) {
   return (
-    <section className="sid-card">
-      <div className="sid-card-heading">
-        <div>
-          <h2>Belge bilgileri</h2>
-          <p>Tedarikçi faturasında görünen değerleri girin.</p>
-        </div>
-        <span>{editing ? "Taslak düzenleniyor" : "Taslak"}</span>
-      </div>
-      <div className="sid-fields">
+    <>
+      <RecordFormGroup title="Belge Kimliği" bodyClassName="rf-identity prf-identity-supplier">
         <label>
-          Tedarikçi *
+          <span>Tedarikçi <RequiredMark /></span>
           <SearchableRecordPicker
             options={suppliers.map((x) => ({
               id: x.id,
@@ -49,8 +41,9 @@ export function InvoiceDraftDocumentFields({
           />
         </label>
         <label>
-          Tedarikçi fatura no *
+          <span>Tedarikçi fatura no <RequiredMark /></span>
           <input
+            className="rf-must rf-mono"
             value={draft.invoiceNumber}
             onChange={(e) => onUpdate("invoiceNumber", e.target.value)}
             maxLength={100}
@@ -58,14 +51,17 @@ export function InvoiceDraftDocumentFields({
           />
         </label>
         <label>
-          Fatura tarihi *
+          <span>Fatura tarihi <RequiredMark /></span>
           <input
+            className="rf-must"
             type="date"
             value={draft.invoiceDate}
             onChange={(e) => onUpdate("invoiceDate", e.target.value)}
             required
           />
         </label>
+      </RecordFormGroup>
+      <RecordFormGroup title="Vade, Para Birimi ve Not" bodyClassName="prf-terms">
         <label>
           Vade tarihi
           <input
@@ -75,8 +71,9 @@ export function InvoiceDraftDocumentFields({
           />
         </label>
         <label>
-          Para birimi *
+          <span>Para birimi <RequiredMark /></span>
           <input
+            className="rf-must rf-mono"
             value={draft.currencyCode}
             onChange={(e) =>
               onUpdate("currencyCode", e.target.value.toUpperCase())
@@ -86,7 +83,7 @@ export function InvoiceDraftDocumentFields({
             required
           />
         </label>
-        <label className="sid-wide">
+        <label>
           Not
           <textarea
             value={draft.notes}
@@ -95,7 +92,7 @@ export function InvoiceDraftDocumentFields({
             rows={2}
           />
         </label>
-      </div>
-    </section>
+      </RecordFormGroup>
+    </>
   );
 }

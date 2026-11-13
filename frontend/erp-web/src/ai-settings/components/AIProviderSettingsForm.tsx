@@ -2,6 +2,8 @@ import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import type { FormEvent } from "react";
 import type { AIProviderSettings } from "./aiSettingsPresentation";
+import { RecordFormGroup, RecordFormPage } from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 import {
   formatOpenAiUsdPrice,
   OPENAI_GPT6_COMPARISON,
@@ -31,6 +33,8 @@ type Props = {
   onSave: (event: FormEvent) => void;
   onLoadOpenAIModels: () => void;
   onLoadNvidiaModels: () => void;
+  /** True while the settings are being saved; disables the save command. */
+  busy?: boolean;
 };
 
 type CredentialCardProps = {
@@ -57,9 +61,9 @@ function CredentialCard({
   onClearChange,
 }: CredentialCardProps) {
   return (
-    <label className="ai-credential-card">
-      <span className="ai-credential-title">
-        <b>{title}</b>
+    <label>
+      <span className="prf-credential-title">
+        {title}
         <span
           className={
             configured ? "credential-status configured" : "credential-status"
@@ -78,7 +82,7 @@ function CredentialCard({
       />
       <small>{helpText}</small>
       {configured && (
-        <span className="inline-check">
+        <span className="inline-check prf-check-inline">
           <input
             type="checkbox"
             checked={clear}
@@ -105,45 +109,43 @@ function OpenAIModelSettings({
   onLoad: () => void;
 }) {
   return (
-    <div className="ai-model-field">
-      <div className="ai-model-heading">
+    <div className="prf-ai-model">
+      <div className="prf-ai-model-row">
         <label htmlFor="openai-model">
           OpenAI modeli
-          <small>
-            API anahtarınızla erişilebilen metin modelleri listelenir.
-          </small>
+          <select
+            id="openai-model"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            disabled={models.length === 0 && !model}
+          >
+            <option value="">Model seçin</option>
+            {model && !models.includes(model) && (
+              <option value={model}>{model} · kayıtlı</option>
+            )}
+            {models.map((item) => {
+              const price = OPENAI_MODEL_PRICES[item];
+              return (
+                <option key={item} value={item}>
+                  {item}
+                  {price
+                    ? ` · ${formatOpenAiUsdPrice(price.inputUsdPerMillion)} input / ${formatOpenAiUsdPrice(price.outputUsdPerMillion)} output per 1M tokens (USD)`
+                    : ""}
+                </option>
+              );
+            })}
+          </select>
         </label>
         <button
           type="button"
-          className="secondary"
+          className="secondary prf-inline-btn"
           onClick={onLoad}
           disabled={loading}
         >
           {loading ? "Yükleniyor…" : "Modelleri getir"}
         </button>
       </div>
-      <select
-        id="openai-model"
-        value={model}
-        onChange={(event) => setModel(event.target.value)}
-        disabled={models.length === 0 && !model}
-      >
-        <option value="">Model seçin</option>
-        {model && !models.includes(model) && (
-          <option value={model}>{model} · kayıtlı</option>
-        )}
-        {models.map((item) => {
-          const price = OPENAI_MODEL_PRICES[item];
-          return (
-            <option key={item} value={item}>
-              {item}
-              {price
-                ? ` · ${formatOpenAiUsdPrice(price.inputUsdPerMillion)} input / ${formatOpenAiUsdPrice(price.outputUsdPerMillion)} output per 1M tokens (USD)`
-                : ""}
-            </option>
-          );
-        })}
-      </select>
+      <small>API anahtarınızla erişilebilen metin modelleri listelenir.</small>
       <small>
         Model listesi OpenAI API anahtarınızla sunucu üzerinden alınır.
       </small>
@@ -252,37 +254,37 @@ function NvidiaModelSettings({
   onLoad: () => void;
 }) {
   return (
-    <div className="ai-model-field">
-      <div className="ai-model-heading">
+    <div className="prf-ai-model">
+      <div className="prf-ai-model-row">
         <label htmlFor="nvidia-model">
           NVIDIA modeli
-          <small>NVIDIA API kataloğundaki modeller listelenir.</small>
+          <select
+            id="nvidia-model"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            disabled={models.length === 0 && !model}
+          >
+            <option value="">Model seçin</option>
+            {model && !models.includes(model) && (
+              <option value={model}>{model} · kayıtlı</option>
+            )}
+            {models.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
         </label>
         <button
           type="button"
-          className="secondary"
+          className="secondary prf-inline-btn"
           onClick={onLoad}
           disabled={loading}
         >
           {loading ? "Yükleniyor…" : "Modelleri getir"}
         </button>
       </div>
-      <select
-        id="nvidia-model"
-        value={model}
-        onChange={(event) => setModel(event.target.value)}
-        disabled={models.length === 0 && !model}
-      >
-        <option value="">Model seçin</option>
-        {model && !models.includes(model) && (
-          <option value={model}>{model} · kayıtlı</option>
-        )}
-        {models.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
+      <small>NVIDIA API kataloğundaki modeller listelenir.</small>
       <small>Model listesi NVIDIA API’sinden sunucu üzerinden alınır.</small>
     </div>
   );
@@ -312,9 +314,10 @@ export default function AIProviderSettingsForm(props: Props) {
     onSave,
     onLoadOpenAIModels,
     onLoadNvidiaModels,
+    busy = false,
   } = props;
-  return (
-    <>
+  if (!settings)
+    return (
       <div className="panel-heading ai-settings-heading">
         <div>
           <span className="ai-settings-icon">
@@ -332,14 +335,38 @@ export default function AIProviderSettingsForm(props: Props) {
           <ShieldCheck size={14} /> Firma ayarı
         </span>
       </div>
-      {settings && (
-        <form id="ai-provider-settings-form" onSubmit={onSave}>
-          <div className="ai-provider-choice">
+    );
+  return (
+    <RecordFormPage
+      variant="dialog"
+      className="prf-flush prf-no-cancel prf-two"
+      title="AI sağlayıcı bağlantısı"
+      mode="edit"
+      busy={busy}
+      saveLabel="Ayarları kaydet"
+      formId="ai-provider-settings-form"
+      onSubmit={onSave}
+      onCancel={() => undefined}
+      status={
+        <>
+          <span>
+            {settings.provider === provider
+              ? "Şu anda seçili: " + provider
+              : "Sağlayıcı değişikliği kaydedilmedi"}
+          </span>
+          <span>Değişiklikler kaydedilene kadar etkinleşmez.</span>
+          <span className="rf-status-end">Firma ayarı</span>
+        </>
+      }
+    >
+      <p className="prf-note">
+        Bu firmanın Studio sohbetinde kullanılacak modeli ve erişim bilgilerini
+        yönetin.
+      </p>
+      <RecordFormGroup title="Sağlayıcı ve Erişim" bodyClassName="rf-identity">
             <label htmlFor="ai-provider">
               Aktif sağlayıcı
-              <span>Yeni sohbetlerde kullanılacak yapay zekâ</span>
-            </label>
-            <select
+              <select
               id="ai-provider"
               value={provider}
               onChange={(event) =>
@@ -349,8 +376,9 @@ export default function AIProviderSettingsForm(props: Props) {
               <option value="OpenAI">OpenAI</option>
               <option value="NVIDIA">NVIDIA NIM</option>
             </select>
-          </div>
-          <div className="ai-credential-grid">
+              <small>Yeni sohbetlerde kullanılacak yapay zekâ</small>
+            </label>
+
             {provider === "OpenAI" ? (
               <CredentialCard
                 title="OpenAI API anahtarı"
@@ -392,7 +420,8 @@ export default function AIProviderSettingsForm(props: Props) {
                 onClearChange={setClearNvidia}
               />
             )}
-          </div>
+      </RecordFormGroup>
+      <RecordFormGroup title="Model">
           {provider === "OpenAI" ? (
             <OpenAIModelSettings
               model={openAIModel}
@@ -410,6 +439,7 @@ export default function AIProviderSettingsForm(props: Props) {
               onLoad={onLoadNvidiaModels}
             />
           )}
+      </RecordFormGroup>
           <div className="boundary-note">
             <ShieldCheck size={17} />
             <span>
@@ -418,16 +448,6 @@ export default function AIProviderSettingsForm(props: Props) {
               uygulanır.
             </span>
           </div>
-          <div className="ai-settings-footer">
-            <span>
-              {settings.provider === provider
-                ? "Şu anda seçili: " + provider
-                : "Sağlayıcı değişikliği kaydedilmedi"}
-            </span>
-            <span>Değişiklikler kaydedilene kadar etkinleşmez.</span>
-          </div>
-        </form>
-      )}
-    </>
+    </RecordFormPage>
   );
 }

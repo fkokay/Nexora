@@ -16,6 +16,14 @@ import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./inventory/inventory-list-v2.css";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmLocalized, promptLocalized } from "./locale";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RecordFormTabs,
+  RequiredMark,
+  type RecordFormTab,
+} from "./record-form/RecordForm";
+import "./inventory-record-forms.css";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type InventoryBalance = AppTypes.InventoryBalance;
 type InventoryCostAdjustment = AppTypes.InventoryCostAdjustment;
@@ -204,6 +212,17 @@ export function InventoryPage({
   const [itemCreateTab, setItemCreateTab] = useState<
     "basic" | "inventory" | "pricing" | "logistics" | "accounting" | "units" | "variants" | "recipes"
   >("basic");
+  // "Kaydet ve Yeni": the next successful create keeps the form open for another record.
+  const stayAfterItemSaveRef = useRef(false);
+  const setStayAfterItemSave = (stay: boolean) => {
+    stayAfterItemSaveRef.current = stay;
+  };
+  const [itemFormNotice, setItemFormNotice] = useState("");
+  const stayAfterWarehouseSaveRef = useRef(false);
+  const setStayAfterWarehouseSave = (stay: boolean) => {
+    stayAfterWarehouseSaveRef.current = stay;
+  };
+  const [warehouseFormNotice, setWarehouseFormNotice] = useState("");
   const [variantDimensions, setVariantDimensions] = useState<VariantDimensionDraft[]>([{ name: "", values: "" }]);
   const [existingVariants, setExistingVariants] = useState<StockItemVariant[]>([]);
   const [itemRecipes, setItemRecipes] = useState<StockRecipe[]>([]);
@@ -984,8 +1003,9 @@ export function InventoryPage({
       cancelled = true;
     };
   }, [token, section]);
-  async function openItemModal() {
-    setEditingItem(null);
+  /** Puts every field of a new stock card back to its default ("Temizle" and "Kaydet ve Yeni"). */
+  function resetItemFormFields() {
+    setItemFormNotice("");
     setItemCreateTab("basic");
     setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
     setItemUnitConversions([]);
@@ -1011,6 +1031,10 @@ export function InventoryPage({
     setManufacturingLeadTimeDays("0");
     setTrackingMode("None");
     setError("");
+  }
+  async function openItemModal() {
+    setEditingItem(null);
+    resetItemFormFields();
     try {
       setItemCustomFieldDefinitions(
         await api<StockCustomFieldDefinition[]>(
@@ -1320,8 +1344,14 @@ export function InventoryPage({
       setItemCustomFieldValues({});
       if (section === "inventory-stock-create")
         window.dispatchEvent(new Event("inventory-stock-refresh"));
-      closeItemForm();
-      setEditingItem(null);
+      if (!prior && stayAfterItemSaveRef.current) {
+        // "Kaydet ve Yeni": keep the form open, cleared for the next card.
+        resetItemFormFields();
+        setItemFormNotice("Stok kartı oluşturuldu. Yeni kart girebilirsiniz.");
+      } else {
+        closeItemForm();
+        setEditingItem(null);
+      }
       setItemUnitConversions([]);
       setItemUnitRemovals([]);
       setNotice(prior ? "Stok kartı güncellendi." : "Stok kartı oluşturuldu.");
@@ -1332,8 +1362,15 @@ export function InventoryPage({
       setBusy(false);
     }
   }
+  function resetWarehouseForm() {
+    setWarehouseCode("");
+    setWarehouseName("");
+    setWarehouseCreateValues({});
+    setWarehouseFormNotice("");
+  }
   async function openWarehouseModal() {
     setWarehouseCreateValues({});
+    setWarehouseFormNotice("");
     setError("");
     try {
       setWarehouseCreateDefinitions(
@@ -1366,7 +1403,10 @@ export function InventoryPage({
       setWarehouseCode("");
       setWarehouseName("");
       setWarehouseCreateValues({});
-      setWarehouseModal(false);
+      // "Kaydet ve Yeni" keeps the dialog open, cleared for the next warehouse.
+      if (stayAfterWarehouseSaveRef.current)
+        setWarehouseFormNotice("Depo oluşturuldu. Yeni depo girebilirsiniz.");
+      else setWarehouseModal(false);
       setNotice("Depo oluşturuldu.");
     } catch (e) {
       setError((e as Error).message);
@@ -2175,6 +2215,28 @@ export function InventoryPage({
   );
   const filteredBalances = balances;
   const pagedBalances = balances;
+  const itemFormTabs: RecordFormTab[] = [
+    { key: "basic", label: "Genel ve Stok Yönetimi" },
+    { key: "pricing", label: "Fiyat ve Vergi" },
+    { key: "logistics", label: "Lojistik ve Muhasebe" },
+    {
+      key: "units",
+      label: "Birim ve Özel Alanlar",
+      warning: itemCustomFieldDefinitions.some(
+        (field) =>
+          field.isRequired &&
+          !String(itemCustomFieldValues[field.code] || "").trim(),
+      ),
+    },
+    { key: "variants", label: "Varyantlar" },
+    { key: "recipes", label: "Üretim Reçeteleri" },
+  ];
+  const activeItemTab = itemFormTabs.some((tab) => tab.key === itemCreateTab)
+    ? itemCreateTab
+    : "basic";
+  const transferReady =
+    !!transferTo &&
+    Object.values(transferQuantities).some((x) => Number(x) > 0);
   function renderInventoryPagination() {
     return inventoryTotal > inventoryPageSize ? (
       <div className="table-pagination" aria-label="Stok sayfaları">
@@ -2858,163 +2920,146 @@ export function InventoryPage({
                   setCustomFieldItem(null);
               }}
             >
-              <div className="modal">
-                <div className="modal-head">
-                  <div>
-                    <p className="eyebrow">
-                      TENANT ÖZELLEŞTİRMESİ · STOK KARTI
-                    </p>
-                    <h2>
-                      {customFieldItem.code} · {customFieldItem.name}
-                    </h2>
-                  </div>
-                  <button
-                    className="icon-button"
-                    disabled={customFieldBusy}
-                    onClick={() => setCustomFieldItem(null)}
-                  >
-                    <X size={19} />
-                  </button>
-                </div>
-                <p className="muted">
-                  Bu alan tanımları yalnız seçili firmaya aittir. Değerler veri
-                  türüne göre doğrulanır; alan tanımını kaldırmak eski değerleri
-                  silmez.
-                </p>
-                {error && <div className="alert">{error}</div>}
-                {customFieldBusy && !customFieldDefinitions.length ? (
-                  <div className="empty-small">Özel alanlar yükleniyor…</div>
-                ) : (
-                  <form onSubmit={saveCustomFieldValues}>
-                    <div className="requests-list">
-                      {customFieldDefinitions.map((field) => (
-                        <article
-                          className="request-row expanded"
-                          key={field.id}
-                        >
-                          <div className="request-info">
-                            <label>
-                              {field.label}{" "}
-                              <small>
-                                ({field.code} · {field.dataType} · v
-                                {field.version}
-                                {field.isRequired ? " · zorunlu" : ""})
-                              </small>
-                              {field.dataType === "Boolean" ? (
-                                <select
-                                  required={field.isRequired}
-                                  value={customFieldValues[field.code] || ""}
-                                  onChange={(e) =>
-                                    setCustomFieldValues((current) => ({
-                                      ...current,
-                                      [field.code]: e.target.value,
-                                    }))
-                                  }
-                                >
-                                  <option value="">Seçin</option>
-                                  <option value="true">Evet</option>
-                                  <option value="false">Hayır</option>
-                                </select>
-                              ) : (
-                                <input
-                                  type={
-                                    field.dataType === "Decimal"
-                                      ? "number"
-                                      : field.dataType === "Date"
-                                        ? "date"
-                                        : "text"
-                                  }
-                                  step={
-                                    field.dataType === "Decimal"
-                                      ? "any"
-                                      : undefined
-                                  }
-                                  maxLength={
-                                    field.dataType === "Text"
-                                      ? field.maxLength
-                                      : undefined
-                                  }
-                                  required={field.isRequired}
-                                  value={customFieldValues[field.code] || ""}
-                                  onChange={(e) =>
-                                    setCustomFieldValues((current) => ({
-                                      ...current,
-                                      [field.code]: e.target.value,
-                                    }))
-                                  }
-                                />
-                              )}
-                            </label>
-                          </div>
-                          <button
-                            type="button"
-                            className="row-action"
-                            disabled={customFieldBusy}
-                            onClick={() =>
-                              void loadCustomFieldValueHistory(field)
-                            }
+              <div className="modal inv-rf-modal">
+                <RecordFormPage
+                  variant="dialog"
+                  title={`${customFieldItem.code} · ${customFieldItem.name}`}
+                  mode="edit"
+                  busy={customFieldBusy}
+                  saveLabel="Değerleri kaydet"
+                  onSubmit={saveCustomFieldValues}
+                  onCancel={() => setCustomFieldItem(null)}
+                  error={error}
+                  onDismissError={() => setError("")}
+                  status={<span>Değerler tenant kapsamlıdır.</span>}
+                >
+                  <RecordFormGroup title="Stok Özel Alan Değerleri">
+                    <small>
+                      Bu alan tanımları yalnız seçili firmaya aittir. Değerler veri
+                      türüne göre doğrulanır; alan tanımını kaldırmak eski değerleri
+                      silmez.
+                    </small>
+                    {customFieldBusy && !customFieldDefinitions.length ? (
+                      <div className="empty-small">Özel alanlar yükleniyor…</div>
+                    ) : (
+                      <div className="requests-list">
+                        {customFieldDefinitions.map((field) => (
+                          <article
+                            className="request-row expanded"
+                            key={field.id}
                           >
-                            Değer geçmişi
-                          </button>
-                          {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                            <div>
-                              <button
-                                type="button"
-                                className="row-action"
-                                disabled={customFieldBusy}
-                                onClick={() => void editCustomField(field)}
-                              >
-                                Tanımı düzenle
-                              </button>{" "}
-                              <button
-                                type="button"
-                                className="row-action"
-                                disabled={customFieldBusy}
-                                onClick={() =>
-                                  void loadCustomFieldHistory(field)
-                                }
-                              >
-                                Sürüm geçmişi
-                              </button>{" "}
-                              {role === "TenantAdmin" && (
+                            <div className="request-info">
+                              <label>
+                                <span>
+                                  {field.label}
+                                  {field.isRequired && <RequiredMark />}
+                                </span>
+                                {field.dataType === "Boolean" ? (
+                                  <select
+                                    required={field.isRequired}
+                                    value={customFieldValues[field.code] || ""}
+                                    onChange={(e) =>
+                                      setCustomFieldValues((current) => ({
+                                        ...current,
+                                        [field.code]: e.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Seçin</option>
+                                    <option value="true">Evet</option>
+                                    <option value="false">Hayır</option>
+                                  </select>
+                                ) : (
+                                  <input
+                                    type={
+                                      field.dataType === "Decimal"
+                                        ? "number"
+                                        : field.dataType === "Date"
+                                          ? "date"
+                                          : "text"
+                                    }
+                                    step={
+                                      field.dataType === "Decimal"
+                                        ? "any"
+                                        : undefined
+                                    }
+                                    maxLength={
+                                      field.dataType === "Text"
+                                        ? field.maxLength
+                                        : undefined
+                                    }
+                                    required={field.isRequired}
+                                    value={customFieldValues[field.code] || ""}
+                                    onChange={(e) =>
+                                      setCustomFieldValues((current) => ({
+                                        ...current,
+                                        [field.code]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                )}
+                                <small>
+                                  ({field.code} · {field.dataType} · v
+                                  {field.version}
+                                  {field.isRequired ? " · zorunlu" : ""})
+                                </small>
+                              </label>
+                            </div>
+                            <button
+                              type="button"
+                              className="row-action"
+                              disabled={customFieldBusy}
+                              onClick={() =>
+                                void loadCustomFieldValueHistory(field)
+                              }
+                            >
+                              Değer geçmişi
+                            </button>
+                            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
+                              <div>
+                                <button
+                                  type="button"
+                                  className="row-action"
+                                  disabled={customFieldBusy}
+                                  onClick={() => void editCustomField(field)}
+                                >
+                                  Tanımı düzenle
+                                </button>{" "}
                                 <button
                                   type="button"
                                   className="row-action"
                                   disabled={customFieldBusy}
                                   onClick={() =>
-                                    void deactivateCustomField(field)
+                                    void loadCustomFieldHistory(field)
                                   }
                                 >
-                                  Alanı devre dışı bırak
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </article>
-                      ))}
-                      {customFieldDefinitions.length === 0 && (
-                        <div className="empty-small">
-                          Bu tenant için henüz stok özel alanı yok.
-                        </div>
-                      )}
-                    </div>
-                    <div className="modal-foot">
-                      <span>Değerler tenant kapsamlıdır.</span>
-                      <div>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => setCustomFieldItem(null)}
-                        >
-                          Kapat
-                        </button>
-                        <button className="primary" disabled={customFieldBusy}>
-                          Değerleri kaydet
-                        </button>
+                                  Sürüm geçmişi
+                                </button>{" "}
+                                {role === "TenantAdmin" && (
+                                  <button
+                                    type="button"
+                                    className="row-action"
+                                    disabled={customFieldBusy}
+                                    onClick={() =>
+                                      void deactivateCustomField(field)
+                                    }
+                                  >
+                                    Alanı devre dışı bırak
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </article>
+                        ))}
+                        {customFieldDefinitions.length === 0 && (
+                          <div className="empty-small">
+                            Bu tenant için henüz stok özel alanı yok.
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </form>
-                )}
+                    )}
+                  </RecordFormGroup>
+                </RecordFormPage>
                 {customFieldValueHistoryDefinition && (
                   <section className="panel" style={{ marginTop: 14 }}>
                     <div className="panel-heading">
@@ -3235,475 +3280,415 @@ export function InventoryPage({
         </div>
       )}
       {itemModal && (section === "inventory-stock-create" || !!editingItem) && (
-        <section className="customer-create-page inventory-create-page">
-          <div className="customer-create-page-surface">
-            <header className="customer-create-page-heading">
-              <div className="customer-create-page-title">
-                <span className="customer-create-page-icon">
-                  <IconPack.Package size={22} />
+        <RecordFormPage
+          className="inventory-item-record-form"
+          title={editingItem ? "Stok Kartını Düzenle" : "Stok Kartı Tanımlama"}
+          mode={editingItem ? "edit" : "create"}
+          busy={busy}
+          saveLabel={editingItem ? "Değişiklikleri Kaydet" : "Stok Kartını Kaydet"}
+          formId="inventory-item-create-form"
+          onSubmit={createItem}
+          onCancel={closeItemForm}
+          onSaveIntent={setStayAfterItemSave}
+          onReset={resetItemFormFields}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            <>
+              <span>
+                Zorunlu alanlar:{" "}
+                <b>
+                  {[code.trim(), name.trim(), unitCode.trim()].filter(Boolean).length} / 3
+                </b>
+              </span>
+              {itemFormTabs[3].warning && (
+                <span className="rf-status-warning">
+                  Zorunlu özel alanlar doldurulmadı.
                 </span>
-                <div>
-                  <p className="eyebrow">STOK & DEPO</p>
-                  <h1>
-                    {editingItem
-                      ? "Stok Kartını Düzenle"
-                      : "Stok Kartı Tanımlama"}
-                  </h1>
-                  <p>
-                    {editingItem
-                      ? `${editingItem.code} kodlu stok kartının bilgilerini ve stok yönetimi ayarlarını güncelleyin.`
-                      : "Yeni stok kartının temel bilgilerini ve stok yönetimi ayarlarını tanımlayın."}
-                  </p>
-                </div>
-              </div>
-              <div className="customer-create-page-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={closeItemForm}
-                >
-                  <X size={16} />
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  form="inventory-item-create-form"
-                  className="primary"
-                  disabled={busy}
-                >
-                  <IconPack.ShieldCheck size={16} />
-                  {busy
-                    ? "Kaydediliyor…"
-                    : editingItem
-                      ? "Değişiklikleri Kaydet"
-                      : "Stok Kartını Kaydet"}
-                </button>
-              </div>
-            </header>
-            {error && (
-              <div
-                className="alert inline-alert customer-create-page-error"
-                role="alert"
+              )}
+              {itemFormNotice && (
+                <span className="rf-status-notice">{itemFormNotice}</span>
+              )}
+              {!editingItem && !!(code.trim() || name.trim()) && (
+                <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>
+              )}
+            </>
+          }
+        >
+          <RecordFormGroup title="Stok Kimliği" bodyClassName="rf-identity">
+            <label>
+              <span>Stok kodu <RequiredMark /></span>
+              <input
+                className="rf-must rf-mono"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                maxLength={64}
+                placeholder="STK-1001"
+              />
+            </label>
+            <label>
+              <span>Stok adı <RequiredMark /></span>
+              <input
+                className="rf-must"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={200}
+                placeholder="Stok adı"
+              />
+            </label>
+            <label>
+              <span>Birim kodu <RequiredMark /></span>
+              <input
+                className="rf-must rf-mono"
+                value={unitCode}
+                onChange={(e) => setUnitCode(e.target.value.toUpperCase())}
+                required
+                maxLength={8}
+                placeholder="EA"
+              />
+            </label>
+            <label>
+              Kategori
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
               >
-                {error}
-                <button
-                  type="button"
-                  aria-label="Hatayı kapat"
-                  onClick={() => setError("")}
-                >
-                  <X size={15} />
-                </button>
+                <option value="">Kategori seçin</option>
+                {stockCategoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </RecordFormGroup>
+
+          <RecordFormTabs
+            tabs={itemFormTabs}
+            active={activeItemTab}
+            onChange={(key) => setItemCreateTab(key as typeof itemCreateTab)}
+            label="Stok kartı form bölümleri"
+          >
+            {activeItemTab === "basic" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="Tanımlama ve Takip">
+                  <label>
+                    Barkod
+                    <input
+                      className="rf-mono"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      maxLength={64}
+                      placeholder="Barkod"
+                    />
+                  </label>
+                  <label>
+                    Lot / seri takibi
+                    <select
+                      value={trackingMode}
+                      onChange={(e) =>
+                        setTrackingMode(
+                          e.target.value as StockItem["trackingMode"],
+                        )
+                      }
+                    >
+                      <option value="None">Kapalı</option>
+                      <option value="Lot">Lot</option>
+                      <option value="Serial">Seri numarası</option>
+                    </select>
+                    <small>
+                      Hareket geçmişi oluşunca takip türü değiştirilemez.
+                    </small>
+                  </label>
+                </RecordFormGroup>
+                <RecordFormGroup title="Stok Seviyeleri">
+                  <div className="rf-pair">
+                    <label>
+                      Minimum stok
+                      <input
+                        className="rf-num"
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={minimumStock}
+                        onChange={(e) => setMinimumStock(e.target.value)}
+                      />
+                    </label>
+                    <label>Azami stok<input className="rf-num" type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>
+                  </div>
+                  <div className="rf-pair">
+                    <label>Yeniden sipariş noktası<input className="rf-num" type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>
+                    <label>Güvenli stok<input className="rf-num" type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>
+                  </div>
+                </RecordFormGroup>
+                <RecordFormGroup title="Temin Süreleri">
+                  <div className="rf-pair">
+                    <label>
+                      Tedarik süresi (gün)
+                      <input
+                        className="rf-num"
+                        type="number"
+                        min="0"
+                        max="3650"
+                        step="1"
+                        value={procurementLeadTimeDays}
+                        onChange={(e) =>
+                          setProcurementLeadTimeDays(e.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Üretim süresi (gün)
+                      <input
+                        className="rf-num"
+                        type="number"
+                        min="0"
+                        max="3650"
+                        step="1"
+                        value={manufacturingLeadTimeDays}
+                        onChange={(e) =>
+                          setManufacturingLeadTimeDays(e.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                </RecordFormGroup>
               </div>
             )}
-            <form
-              id="inventory-item-create-form"
-              className="customer-create-form inventory-item-create-form"
-              onSubmit={createItem}
-            >
-              <nav
-                className="customer-create-tabs"
-                aria-label="Stok kartı form bölümleri"
-              >
-                {(
-                  [
-                    ["basic", "Genel Bilgiler"],
-                    ["inventory", "Stok Yönetimi"],
-                    ["pricing", "Alış / Satış Fiyatları"],
-                    ["logistics", "Lojistik"],
-                    ["accounting", "Muhasebe / Entegrasyon"],
-                    ["units", "Birim ve Özel Alanlar"],
-                    ["variants", "Varyantlar"],
-                    ["recipes", "Üretim reçeteleri"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-current={itemCreateTab === key ? "page" : undefined}
-                    onClick={() => setItemCreateTab(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
-              <div
-                className={`customer-create-fields inventory-item-create-fields inventory-item-create-fields--${itemCreateTab}`}
-              >
-                {itemCreateTab === "variants" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend><IconPack.Layers size={16} /> Stok varyantları</legend>
-                    {editingItem ? (
-                      <>
-                        <p className="muted">Her varyant ayrı stok kodu ve bağımsız depo bakiyesiyle izlenir. Yeni varyant grubu oluşturmak için stok kartını yeni kart olarak tanımlayın.</p>
-                        {existingVariants.length ? <div className="inventory-variant-list">
-                          <div className="inventory-variant-row inventory-variant-row--head"><span>Stok kodu</span><span>Varyant</span><span>Barkod</span><span>Durum</span></div>
-                          {existingVariants.map((variant) => <div className="inventory-variant-row" key={variant.id}><b>{variant.code}</b><span>{variant.name.replace(`${editingItem.name} · `, "")}</span><span>{variant.barcode || "—"}</span><span>{variant.isActive ? "Aktif" : "Pasif"}</span></div>)}
-                        </div> : <div className="inventory-variant-empty">Bu stok kartına bağlı varyant yok.</div>}
-                      </>
-                    ) : (
-                      <>
-                        <p className="muted">Renk, beden veya ölçü gibi seçenekler tanımlayın. Seçeneklerin kombinasyonları ayrı stok kartları oluşturur; her birinin kodu ana stok kodundan türetilir.</p>
-                        <div className="inventory-variant-dimensions">
-                          {variantDimensions.map((dimension, index) => <div className="inventory-variant-dimension" key={index}>
-                            <label>Özellik adı<input value={dimension.name} maxLength={40} placeholder="Renk" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row))} /></label>
-                            <label>Seçenekler (virgülle ayırın)<input value={dimension.values} placeholder="Kırmızı, Mavi" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, values: event.target.value } : row))} /></label>
-                            <button type="button" className="secondary small-button" aria-label="Özelliği kaldır" onClick={() => setVariantDimensions((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}><X size={14} /></button>
-                          </div>)}
-                        </div>
-                        <button type="button" className="secondary" onClick={() => setVariantDimensions((rows) => [...rows, { name: "", values: "" }])}><IconPack.Plus size={15} /> Özellik ekle</button>
-                        {(() => { const variants = makeVariantDrafts(code, name, variantDimensions); return variants.length ? <div className="inventory-variant-preview"><div className="inventory-variant-row inventory-variant-row--head"><span>Oluşacak stok kodu</span><span>Varyant adı</span><span>Özellikler</span></div>{variants.map((variant) => <div className="inventory-variant-row" key={variant.code}><b>{variant.code}</b><span>{variant.name}</span><span>{Object.entries(variant.attributes).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span></div>)}{variants.length === 200 && <small>Önizleme en fazla 200 varyant gösterir.</small>}</div> : <div className="inventory-variant-empty">Varyant oluşturmak için özellik adı ve en az bir seçenek girin.</div>; })()}
-                      </>
-                    )}
-                  </fieldset>
-                )}
-                {itemCreateTab === "recipes" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend><IconPack.ClipboardList size={16} /> Tanımlı üretim reçeteleri</legend>
-                    {editingItem ? itemRecipes.length ? <div className="inventory-variant-list">
-                      <div className="inventory-recipe-row inventory-recipe-row--head"><span>Reçete</span><span>Çıktı miktarı</span><span>Bileşenler</span><span>Durum</span></div>
-                      {itemRecipes.map((recipe) => <div className="inventory-recipe-row" key={recipe.id}><b>{recipe.code} · {recipe.name}</b><span>{recipe.outputQuantity}</span><span>{recipe.lines.map((line) => `${line.componentName} (${line.quantity}${line.scrapPercent ? ` + %${line.scrapPercent} fire` : ""})`).join(", ") || "Bileşen yok"}</span><span>{recipe.isActive ? "Aktif" : "Pasif"}</span></div>)}
-                    </div> : <div className="inventory-variant-empty">Bu stok kartı için tanımlı reçete bulunamadı.</div> : <div className="inventory-variant-empty">Reçeteler stok kartı kaydedildikten sonra bu bölümde görüntülenir.</div>}
-                    <p className="muted">Reçeteyi düzenlemek için Üretim → Tanımlı Reçeteler bölümünü kullanın.</p>
-                  </fieldset>
-                )}
-                {itemCreateTab === "basic" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend>
-                      <IconPack.Package size={16} />
-                      Temel Bilgiler
-                    </legend>
-                    <div className="form-two">
+            {activeItemTab === "pricing" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="Liste Fiyatları">
+                  <div className="rf-pair">
+                    <label>Alış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                    <label>Satış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                  </div>
+                  <label className="rf-short">
+                    <span>Fiyat dövizi <RequiredMark /></span>
+                    <input className="rf-must rf-mono" value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" />
+                  </label>
+                  <small>Bu fiyatlar stok kartının varsayılan alış ve satış fiyatlarıdır.</small>
+                </RecordFormGroup>
+                <RecordFormGroup title="Vergi Oranları">
+                  <div className="rf-pair">
+                    <label>Alış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>
+                    <label>Satış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>
+                  </div>
+                  <div className="rf-pair">
+                    <label>ÖTV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>
+                    <label>ÖİV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>
+                  </div>
+                  <div className="rf-pair">
+                    <label>Tevkifat %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>
+                    <label>Damga vergisi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>
+                  </div>
+                </RecordFormGroup>
+                <RecordFormGroup title="Varsayılan İndirimler">
+                  <label>Varsayılan alış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>
+                  <label>Varsayılan satış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>
+                </RecordFormGroup>
+              </div>
+            )}
+            {activeItemTab === "logistics" && (
+              <div className="rf-columns">
+                <RecordFormGroup title="Ağırlık ve Boyut">
+                  <div className="rf-pair">
+                    <label>Net ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>
+                    <label>Brüt ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>
+                  </div>
+                  <div className="rf-pair">
+                    <label>Uzunluk (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>
+                    <label>Genişlik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>
+                  </div>
+                  <div className="rf-pair">
+                    <label>Yükseklik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>
+                  </div>
+                </RecordFormGroup>
+                <RecordFormGroup title="Muhasebe Hesapları">
+                  <label>Alış muhasebe hesap kodu<input className="rf-mono" value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>
+                  <label>Satış muhasebe hesap kodu<input className="rf-mono" value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>
+                  <label>Maliyet hesap kodu<input className="rf-mono" value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>
+                </RecordFormGroup>
+                <RecordFormGroup title="Görsel ve Pazaryeri">
+                  <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>
+                  <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>
+                </RecordFormGroup>
+              </div>
+            )}
+            {activeItemTab === "units" && (
+              <div className="inv-rf-stack">
+                <RecordFormGroup title="Birim Dönüşümleri">
+                  <small>
+                    1 alternatif birim = katsayı × {unitCode || "temel birim"}
+                  </small>
+                  {role === "TenantAdmin" && (
+                    <div className="inv-rf-inline-add">
                       <label>
-                        Stok kodu
+                        Alternatif birim kodu
                         <input
-                          value={code}
-                          onChange={(e) => setCode(e.target.value)}
-                          required
-                          maxLength={64}
-                          placeholder="STK-1001"
-                        />
-                      </label>
-                      <label>
-                        Birim kodu
-                        <input
-                          value={unitCode}
+                          className="rf-mono"
+                          value={itemUnitCode}
                           onChange={(e) =>
-                            setUnitCode(e.target.value.toUpperCase())
+                            setItemUnitCode(e.target.value.toUpperCase())
                           }
-                          required
                           maxLength={8}
-                          placeholder="EA"
+                          placeholder="KOLI"
                         />
                       </label>
-                      <label className="inventory-create-wide">
-                        Stok adı
+                      <label>
+                        Temel birim katsayısı
                         <input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
+                          className="rf-num"
+                          type="number"
+                          min="0.00000001"
+                          step="0.00000001"
+                          value={itemUnitFactor}
+                          onChange={(e) => setItemUnitFactor(e.target.value)}
                           required
-                          maxLength={200}
-                          placeholder="Stok adı"
                         />
                       </label>
-                      <label>
-                        Barkod
-                        <input
-                          value={barcode}
-                          onChange={(e) => setBarcode(e.target.value)}
-                          maxLength={64}
-                          placeholder="Barkod"
-                        />
-                      </label>
-                      <label>
-                        Kategori
-                        <select
-                          value={category}
-                          onChange={(e) => setCategory(e.target.value)}
-                        >
-                          <option value="">Kategori seçin</option>
-                          {stockCategoryOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={addItemUnitConversion}
+                      >
+                        Birim dönüşümü ekle
+                      </button>
+                      <small>Örnek: 1 koli = 12 {unitCode || "temel birim"}</small>
                     </div>
-                  </fieldset>
-                )}
-                {itemCreateTab === "inventory" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend>
-                      <IconPack.Boxes size={16} />
-                      Stok Yönetimi
-                    </legend>
-                    <div className="form-two">
-                      <label>
-                        Minimum stok
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.0001"
-                          value={minimumStock}
-                          onChange={(e) => setMinimumStock(e.target.value)}
-                        />
-                      </label>
-                      <label>Azami stok<input type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>
-                      <label>Yeniden sipariş noktası<input type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>
-                      <label>Güvenli stok<input type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>
-                      <label>
-                        Tedarik süresi (gün)
-                        <input
-                          type="number"
-                          min="0"
-                          max="3650"
-                          step="1"
-                          value={procurementLeadTimeDays}
-                          onChange={(e) =>
-                            setProcurementLeadTimeDays(e.target.value)
-                          }
-                        />
-                      </label>
-                      <label>
-                        Üretim süresi (gün)
-                        <input
-                          type="number"
-                          min="0"
-                          max="3650"
-                          step="1"
-                          value={manufacturingLeadTimeDays}
-                          onChange={(e) =>
-                            setManufacturingLeadTimeDays(e.target.value)
-                          }
-                        />
-                      </label>
-                      <label>
-                        Lot / seri takibi
-                        <select
-                          value={trackingMode}
-                          onChange={(e) =>
-                            setTrackingMode(
-                              e.target.value as StockItem["trackingMode"],
-                            )
-                          }
-                        >
-                          <option value="None">Kapalı</option>
-                          <option value="Lot">Lot</option>
-                          <option value="Serial">Seri numarası</option>
-                        </select>
-                        <small>
-                          Hareket geçmişi oluşunca takip türü değiştirilemez.
-                        </small>
-                      </label>
-                    </div>
-                  </fieldset>
-                )}
-                {itemCreateTab === "pricing" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend><IconPack.Package size={16} /> Fiyat ve Vergi Bilgileri</legend>
-                    <div className="form-two">
-                      <label>Alış list fiyatı<input type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
-                      <label>Satış list fiyatı<input type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
-                      <label>Fiyat dövizi<input value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" /></label>
-                      <label>Alış KDV %<input type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>
-                      <label>Satış KDV %<input type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>
-                      <label>ÖTV %<input type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>
-                      <label>ÖİV %<input type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>
-                      <label>Tevkifat %<input type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>
-                      <label>Damga vergisi %<input type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>
-                      <label>Varsayılan alış indirimi %<input type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>
-                      <label>Varsayılan satış indirimi %<input type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>
-                    </div>
-                    <p className="muted">Bu fiyatlar stok kartının varsayılan alış ve satış fiyatlarıdır.</p>
-                  </fieldset>
-                )}
-                {itemCreateTab === "logistics" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend><IconPack.Boxes size={16} /> Lojistik ve Görsel</legend>
-                    <div className="form-two">
-                      <label>Net ağırlık (kg)<input type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>
-                      <label>Brüt ağırlık (kg)<input type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>
-                      <label>Uzunluk (cm)<input type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>
-                      <label>Genişlik (cm)<input type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>
-                      <label>Yükseklik (cm)<input type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>
-                      <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>
-                    </div>
-                  </fieldset>
-                )}
-                {itemCreateTab === "accounting" && (
-                  <fieldset className="customer-create-section inventory-create-section erp-form-group">
-                    <legend><IconPack.Landmark size={16} /> Muhasebe ve Pazaryeri</legend>
-                    <div className="form-two">
-                      <label>Alış muhasebe hesap kodu<input value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>
-                      <label>Satış muhasebe hesap kodu<input value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>
-                      <label>Maliyet hesap kodu<input value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>
-                      <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>
-                    </div>
-                  </fieldset>
-                )}
-                {itemCreateTab === "units" && (
-                  <div className="inventory-create-extra-sections">
-                    <section className="panel">
-                      <div className="panel-heading">
-                        <div>
-                          <b>Birim dönüşümleri</b>
+                  )}
+                  <div className="requests-list">
+                    {itemUnitConversions.map((conversion) => (
+                      <article className="request-row" key={conversion.id}>
+                        <div className="request-info">
+                          <b>{conversion.unitCode}</b>
                           <small>
-                            1 alternatif birim = katsayı ×{" "}
-                            {unitCode || "temel birim"}
+                            1 {conversion.unitCode} ={" "}
+                            {conversion.factorToBase} {unitCode}
                           </small>
                         </div>
-                      </div>
-                      {role === "TenantAdmin" && (
-                        <>
-                          <div className="form-two">
-                            <label>
-                              Alternatif birim kodu
-                              <input
-                                value={itemUnitCode}
-                                onChange={(e) =>
-                                  setItemUnitCode(e.target.value.toUpperCase())
-                                }
-                                maxLength={8}
-                                placeholder="KOLI"
-                              />
-                            </label>
-                            <label>
-                              Temel birim katsayısı
-                              <input
-                                type="number"
-                                min="0.00000001"
-                                step="0.00000001"
-                                value={itemUnitFactor}
-                                onChange={(e) =>
-                                  setItemUnitFactor(e.target.value)
-                                }
-                                required
-                              />
-                            </label>
-                          </div>
-                          <div className="modal-foot">
-                            <span>
-                              Örnek: 1 koli = 12 {unitCode || "temel birim"}
-                            </span>
-                            <button
-                              type="button"
-                              className="secondary"
-                              disabled={busy}
-                              onClick={addItemUnitConversion}
-                            >
-                              Birim dönüşümü ekle
-                            </button>
-                          </div>
-                        </>
-                      )}
-                      <div className="requests-list">
-                        {itemUnitConversions.map((conversion) => (
-                          <article className="request-row" key={conversion.id}>
-                            <div className="request-info">
-                              <b>{conversion.unitCode}</b>
-                              <small>
-                                1 {conversion.unitCode} ={" "}
-                                {conversion.factorToBase} {unitCode}
-                              </small>
-                            </div>
-                            {role === "TenantAdmin" && (
-                              <button
-                                type="button"
-                                className="row-action danger-action"
-                                disabled={busy}
-                                onClick={() =>
-                                  removeItemUnitConversion(conversion)
-                                }
-                              >
-                                Kaldır
-                              </button>
-                            )}
-                          </article>
-                        ))}
-                        {itemUnitConversions.length === 0 && (
-                          <div className="empty-small">
-                            Henüz alternatif birim tanımlanmadı.
-                          </div>
+                        {role === "TenantAdmin" && (
+                          <button
+                            type="button"
+                            className="row-action danger-action"
+                            disabled={busy}
+                            onClick={() => removeItemUnitConversion(conversion)}
+                          >
+                            Kaldır
+                          </button>
                         )}
+                      </article>
+                    ))}
+                    {itemUnitConversions.length === 0 && (
+                      <div className="empty-small">
+                        Henüz alternatif birim tanımlanmadı.
                       </div>
-                    </section>
-                    {itemCustomFieldDefinitions.length > 0 && (
-                      <section className="panel">
-                        <div className="panel-heading">
-                          <div>
-                            <b>Özel Alanlar</b>
-                            <small>
-                              Zorunlu alanlar kaydetmeden önce doldurulmalıdır.
-                            </small>
-                          </div>
-                        </div>
-                        <div className="form-two">
-                          {itemCustomFieldDefinitions.map((field) => (
-                            <label key={field.id}>
-                              {field.label}
-                              {field.isRequired ? " *" : ""}
-                              <small>
-                                {field.code} · {field.dataType}
-                              </small>
-                              {field.dataType === "Boolean" ? (
-                                <select
-                                  required={field.isRequired}
-                                  value={
-                                    itemCustomFieldValues[field.code] || ""
-                                  }
-                                  onChange={(e) =>
-                                    setItemCustomFieldValues((current) => ({
-                                      ...current,
-                                      [field.code]: e.target.value,
-                                    }))
-                                  }
-                                >
-                                  <option value="">Seçin</option>
-                                  <option value="true">Evet</option>
-                                  <option value="false">Hayır</option>
-                                </select>
-                              ) : (
-                                <input
-                                  type={
-                                    field.dataType === "Decimal"
-                                      ? "number"
-                                      : field.dataType === "Date"
-                                        ? "date"
-                                        : "text"
-                                  }
-                                  step={
-                                    field.dataType === "Decimal"
-                                      ? "any"
-                                      : undefined
-                                  }
-                                  maxLength={
-                                    field.dataType === "Text"
-                                      ? field.maxLength
-                                      : undefined
-                                  }
-                                  required={field.isRequired}
-                                  value={
-                                    itemCustomFieldValues[field.code] || ""
-                                  }
-                                  onChange={(e) =>
-                                    setItemCustomFieldValues((current) => ({
-                                      ...current,
-                                      [field.code]: e.target.value,
-                                    }))
-                                  }
-                                />
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      </section>
                     )}
                   </div>
+                </RecordFormGroup>
+                {itemCustomFieldDefinitions.length > 0 && (
+                  <RecordFormGroup title="Özel Alanlar">
+                    <small>Zorunlu alanlar kaydetmeden önce doldurulmalıdır.</small>
+                    <div className="rf-custom-grid">
+                      {itemCustomFieldDefinitions.map((field) => (
+                        <label key={field.id}>
+                          <span>
+                            {field.label}
+                            {field.isRequired && <RequiredMark />}
+                          </span>
+                          {field.dataType === "Boolean" ? (
+                            <select
+                              required={field.isRequired}
+                              value={itemCustomFieldValues[field.code] || ""}
+                              onChange={(e) =>
+                                setItemCustomFieldValues((current) => ({
+                                  ...current,
+                                  [field.code]: e.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Seçin</option>
+                              <option value="true">Evet</option>
+                              <option value="false">Hayır</option>
+                            </select>
+                          ) : (
+                            <input
+                              type={
+                                field.dataType === "Decimal"
+                                  ? "number"
+                                  : field.dataType === "Date"
+                                    ? "date"
+                                    : "text"
+                              }
+                              step={
+                                field.dataType === "Decimal" ? "any" : undefined
+                              }
+                              maxLength={
+                                field.dataType === "Text"
+                                  ? field.maxLength
+                                  : undefined
+                              }
+                              required={field.isRequired}
+                              value={itemCustomFieldValues[field.code] || ""}
+                              onChange={(e) =>
+                                setItemCustomFieldValues((current) => ({
+                                  ...current,
+                                  [field.code]: e.target.value,
+                                }))
+                              }
+                            />
+                          )}
+                          <small>
+                            {field.code} · {field.dataType}
+                          </small>
+                        </label>
+                      ))}
+                    </div>
+                  </RecordFormGroup>
                 )}
               </div>
-            </form>
-          </div>
-        </section>
+            )}
+            {activeItemTab === "variants" && (
+              <RecordFormGroup title="Stok Varyantları">
+                {editingItem ? (
+                  <>
+                    <small>Her varyant ayrı stok kodu ve bağımsız depo bakiyesiyle izlenir. Yeni varyant grubu oluşturmak için stok kartını yeni kart olarak tanımlayın.</small>
+                    {existingVariants.length ? <div className="inventory-variant-list">
+                      <div className="inventory-variant-row inventory-variant-row--head"><span>Stok kodu</span><span>Varyant</span><span>Barkod</span><span>Durum</span></div>
+                      {existingVariants.map((variant) => <div className="inventory-variant-row" key={variant.id}><b>{variant.code}</b><span>{variant.name.replace(`${editingItem.name} · `, "")}</span><span>{variant.barcode || "—"}</span><span>{variant.isActive ? "Aktif" : "Pasif"}</span></div>)}
+                    </div> : <div className="inventory-variant-empty">Bu stok kartına bağlı varyant yok.</div>}
+                  </>
+                ) : (
+                  <>
+                    <small>Renk, beden veya ölçü gibi seçenekler tanımlayın. Seçeneklerin kombinasyonları ayrı stok kartları oluşturur; her birinin kodu ana stok kodundan türetilir.</small>
+                    <div className="inventory-variant-dimensions">
+                      {variantDimensions.map((dimension, index) => <div className="inventory-variant-dimension" key={index}>
+                        <label>Özellik adı<input value={dimension.name} maxLength={40} placeholder="Renk" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row))} /></label>
+                        <label>Seçenekler (virgülle ayırın)<input value={dimension.values} placeholder="Kırmızı, Mavi" onChange={(event) => setVariantDimensions((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, values: event.target.value } : row))} /></label>
+                        <button type="button" className="secondary small-button" aria-label="Özelliği kaldır" onClick={() => setVariantDimensions((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}><X size={14} /></button>
+                      </div>)}
+                    </div>
+                    <div>
+                      <button type="button" className="secondary" onClick={() => setVariantDimensions((rows) => [...rows, { name: "", values: "" }])}><IconPack.Plus size={15} /> Özellik ekle</button>
+                    </div>
+                    {(() => { const variants = makeVariantDrafts(code, name, variantDimensions); return variants.length ? <div className="inventory-variant-preview"><div className="inventory-variant-row inventory-variant-row--head"><span>Oluşacak stok kodu</span><span>Varyant adı</span><span>Özellikler</span></div>{variants.map((variant) => <div className="inventory-variant-row" key={variant.code}><b>{variant.code}</b><span>{variant.name}</span><span>{Object.entries(variant.attributes).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span></div>)}{variants.length === 200 && <small>Önizleme en fazla 200 varyant gösterir.</small>}</div> : <div className="inventory-variant-empty">Varyant oluşturmak için özellik adı ve en az bir seçenek girin.</div>; })()}
+                  </>
+                )}
+              </RecordFormGroup>
+            )}
+            {activeItemTab === "recipes" && (
+              <RecordFormGroup title="Tanımlı Üretim Reçeteleri">
+                {editingItem ? itemRecipes.length ? <div className="inventory-variant-list">
+                  <div className="inventory-recipe-row inventory-recipe-row--head"><span>Reçete</span><span>Çıktı miktarı</span><span>Bileşenler</span><span>Durum</span></div>
+                  {itemRecipes.map((recipe) => <div className="inventory-recipe-row" key={recipe.id}><b>{recipe.code} · {recipe.name}</b><span>{recipe.outputQuantity}</span><span>{recipe.lines.map((line) => `${line.componentName} (${line.quantity}${line.scrapPercent ? ` + %${line.scrapPercent} fire` : ""})`).join(", ") || "Bileşen yok"}</span><span>{recipe.isActive ? "Aktif" : "Pasif"}</span></div>)}
+                </div> : <div className="inventory-variant-empty">Bu stok kartı için tanımlı reçete bulunamadı.</div> : <div className="inventory-variant-empty">Reçeteler stok kartı kaydedildikten sonra bu bölümde görüntülenir.</div>}
+                <small>Reçeteyi düzenlemek için Üretim → Tanımlı Reçeteler bölümünü kullanın.</small>
+              </RecordFormGroup>
+            )}
+          </RecordFormTabs>
+        </RecordFormPage>
       )}
       {selectedTransfer && (
         <div
@@ -3820,28 +3805,46 @@ export function InventoryPage({
             if (e.target === e.currentTarget && !busy) setTransferModal(false);
           }}
         >
-          <div className="modal ledger-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">STOK & DEPO</p>
-                <h2>Depolar arası transfer</h2>
-              </div>
-              <button
-                className="icon-button"
-                disabled={busy}
-                onClick={() => setTransferModal(false)}
+          <div className="modal inv-rf-modal inv-rf-modal--wide">
+            <RecordFormPage
+              variant="dialog"
+              title="Depolar arası transfer"
+              mode="create"
+              busy={busy}
+              saveLabel="Transferi kaydet"
+              onSubmit={(event) => {
+                // Same gate the old save button had through its disabled state.
+                if (!transferReady) {
+                  event.preventDefault();
+                  return;
+                }
+                void createTransfer(event);
+              }}
+              onCancel={() => setTransferModal(false)}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    Kalem: <b>{transferSelectedItems.length} / 100</b>
+                  </span>
+                  {!transferReady && (
+                    <span className="rf-status-warning">
+                      Kaydetmek için hedef depo seçin ve en az bir kaleme miktar girin.
+                    </span>
+                  )}
+                  <span className="rf-status-end">
+                    Kaynak depo bakiyesi API tarafından kilit altında doğrulanır.
+                  </span>
+                </>
+              }
+            >
+              <RecordFormGroup
+                title="Transfer Bilgileri"
+                bodyClassName="rf-identity inv-rf-identity-3"
               >
-                <X size={19} />
-              </button>
-            </div>
-            <p className="muted">
-              Transfer tek işlemde kaynak depodan düşer ve hedef depoya ekler.
-              Aynı stok kalemi bir kez girilebilir.
-            </p>
-            <form onSubmit={createTransfer}>
-              <div className="form-two">
                 <label>
-                  Kaynak depo
+                  <span>Kaynak depo <RequiredMark /></span>
                   <SearchableRecordPicker
                     options={warehouses
                       .filter((x) => x.isActive)
@@ -3870,7 +3873,7 @@ export function InventoryPage({
                   />
                 </label>
                 <label>
-                  Hedef depo
+                  <span>Hedef depo <RequiredMark /></span>
                   <SearchableRecordPicker
                     options={warehouses
                       .filter((x) => x.isActive && x.id !== transferFrom)
@@ -3891,19 +3894,23 @@ export function InventoryPage({
                     required
                   />
                 </label>
-              </div>
-              <label>
-                Transfer tarihi
-                <input
-                  type="date"
-                  value={transferDate}
-                  onChange={(e) => setTransferDate(e.target.value)}
-                  required
-                />
-              </label>
-              <div className="quote-lines-heading">
-                <b>Transfer kalemleri · {transferSelectedItems.length}/100</b>
                 <label>
+                  <span>Transfer tarihi <RequiredMark /></span>
+                  <input
+                    className="rf-must"
+                    type="date"
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
+                    required
+                  />
+                </label>
+                <small className="inv-rf-span-all">
+                  Transfer tek işlemde kaynak depodan düşer ve hedef depoya ekler.
+                  Aynı stok kalemi bir kez girilebilir.
+                </small>
+              </RecordFormGroup>
+              <RecordFormGroup title="Transfer Kalemleri">
+                <label className="inv-rf-line-picker">
                   Stok kartı
                   <SearchableRecordPicker
                     options={items
@@ -3946,168 +3953,147 @@ export function InventoryPage({
                     disabled={transferSelectedItems.length >= 100}
                   />
                 </label>
-              </div>
-              <div className="ledger-list">
-                <table className="customer-table">
-                  <thead>
-                    <tr>
-                      <th>Stok kartı</th>
-                      <th>Miktar</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transferSelectedItems.map((stockItemId) => {
-                      const item = items.find((row) => row.id === stockItemId);
-                      if (!item) return null;
-                      return (
-                        <tr key={item.id}>
-                          <td>
-                            <b>{item.code}</b>
-                            <small className="cell-subtitle">
-                              {item.name} · {item.unitCode}
-                            </small>
-                            <button
-                              type="button"
-                              className="row-action danger-action"
-                              onClick={() => {
-                                setTransferSelectedItems((current) =>
-                                  current.filter((id) => id !== item.id),
-                                );
-                                setTransferQuantities((current) => {
-                                  const next = { ...current };
-                                  delete next[item.id];
-                                  return next;
-                                });
-                                setTransferFromLocationIds((current) => {
-                                  const next = { ...current };
-                                  delete next[item.id];
-                                  return next;
-                                });
-                                setTransferToLocationIds((current) => {
-                                  const next = { ...current };
-                                  delete next[item.id];
-                                  return next;
-                                });
-                              }}
-                            >
-                              Kaldır
-                            </button>
-                            <select
-                              aria-label={`${item.code} kaynak konumu`}
-                              value={transferFromLocationIds[item.id] || ""}
-                              onChange={(e) =>
-                                setTransferFromLocationIds((current) => ({
-                                  ...current,
-                                  [item.id]: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Kaynak konum belirtme</option>
-                              {transferFromLocations.map((location) => (
-                                <option key={location.id} value={location.id}>
-                                  {location.code} · {location.name}
-                                </option>
-                              ))}
-                            </select>
-                            <select
-                              aria-label={`${item.code} hedef konumu`}
-                              value={transferToLocationIds[item.id] || ""}
-                              onChange={(e) =>
-                                setTransferToLocationIds((current) => ({
-                                  ...current,
-                                  [item.id]: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Hedef konum belirtme</option>
-                              {transferToLocations.map((location) => (
-                                <option key={location.id} value={location.id}>
-                                  {location.code} · {location.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <select
-                              aria-label={`${item.code} transfer birimi`}
-                              value={
-                                enteredTransferUnits[item.id] || item.unitCode
-                              }
-                              onChange={(e) =>
-                                setEnteredTransferUnits((current) => ({
-                                  ...current,
-                                  [item.id]: e.target.value,
-                                }))
-                              }
-                            >
-                              <option value={item.unitCode}>
-                                {item.unitCode}
-                              </option>
-                              {(transferUnits[item.id] || [])
-                                .filter(
-                                  (x) =>
-                                    x.isActive && x.unitCode !== item.unitCode,
-                                )
-                                .map((x) => (
-                                  <option key={x.id} value={x.unitCode}>
-                                    {x.unitCode}
+                <div className="ledger-list inv-rf-lines">
+                  <table className="customer-table">
+                    <thead>
+                      <tr>
+                        <th>Stok kartı</th>
+                        <th>Miktar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transferSelectedItems.map((stockItemId) => {
+                        const item = items.find((row) => row.id === stockItemId);
+                        if (!item) return null;
+                        return (
+                          <tr key={item.id}>
+                            <td>
+                              <b>{item.code}</b>
+                              <small className="cell-subtitle">
+                                {item.name} · {item.unitCode}
+                              </small>
+                              <button
+                                type="button"
+                                className="row-action danger-action"
+                                onClick={() => {
+                                  setTransferSelectedItems((current) =>
+                                    current.filter((id) => id !== item.id),
+                                  );
+                                  setTransferQuantities((current) => {
+                                    const next = { ...current };
+                                    delete next[item.id];
+                                    return next;
+                                  });
+                                  setTransferFromLocationIds((current) => {
+                                    const next = { ...current };
+                                    delete next[item.id];
+                                    return next;
+                                  });
+                                  setTransferToLocationIds((current) => {
+                                    const next = { ...current };
+                                    delete next[item.id];
+                                    return next;
+                                  });
+                                }}
+                              >
+                                Kaldır
+                              </button>
+                              <div className="inv-rf-line-fields">
+                                <select
+                                  aria-label={`${item.code} kaynak konumu`}
+                                  value={transferFromLocationIds[item.id] || ""}
+                                  onChange={(e) =>
+                                    setTransferFromLocationIds((current) => ({
+                                      ...current,
+                                      [item.id]: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="">Kaynak konum belirtme</option>
+                                  {transferFromLocations.map((location) => (
+                                    <option key={location.id} value={location.id}>
+                                      {location.code} · {location.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  aria-label={`${item.code} hedef konumu`}
+                                  value={transferToLocationIds[item.id] || ""}
+                                  onChange={(e) =>
+                                    setTransferToLocationIds((current) => ({
+                                      ...current,
+                                      [item.id]: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="">Hedef konum belirtme</option>
+                                  {transferToLocations.map((location) => (
+                                    <option key={location.id} value={location.id}>
+                                      {location.code} · {location.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="inv-rf-line-fields">
+                                <select
+                                  aria-label={`${item.code} transfer birimi`}
+                                  value={
+                                    enteredTransferUnits[item.id] || item.unitCode
+                                  }
+                                  onChange={(e) =>
+                                    setEnteredTransferUnits((current) => ({
+                                      ...current,
+                                      [item.id]: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value={item.unitCode}>
+                                    {item.unitCode}
                                   </option>
-                                ))}
-                            </select>
-                            <input
-                              aria-label={`${item.code} transfer miktarı`}
-                              type="number"
-                              min="0"
-                              step="0.0001"
-                              value={transferQuantities[item.id] || ""}
-                              onChange={(e) =>
-                                setTransferQuantities((current) => ({
-                                  ...current,
-                                  [item.id]: e.target.value,
-                                }))
-                              }
-                            />
+                                  {(transferUnits[item.id] || [])
+                                    .filter(
+                                      (x) =>
+                                        x.isActive && x.unitCode !== item.unitCode,
+                                    )
+                                    .map((x) => (
+                                      <option key={x.id} value={x.unitCode}>
+                                        {x.unitCode}
+                                      </option>
+                                    ))}
+                                </select>
+                                <input
+                                  className="rf-num"
+                                  aria-label={`${item.code} transfer miktarı`}
+                                  type="number"
+                                  min="0"
+                                  step="0.0001"
+                                  value={transferQuantities[item.id] || ""}
+                                  onChange={(e) =>
+                                    setTransferQuantities((current) => ({
+                                      ...current,
+                                      [item.id]: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {transferSelectedItems.length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="table-empty">
+                            Arama yapıp transfer edilecek stokları ekleyin.
                           </td>
                         </tr>
-                      );
-                    })}
-                    {transferSelectedItems.length === 0 && (
-                      <tr>
-                        <td colSpan={2} className="table-empty">
-                          Arama yapıp transfer edilecek stokları ekleyin.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="modal-foot">
-                <span>
-                  Kaynak depo bakiyesi API tarafından kilit altında doğrulanır.
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setTransferModal(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={
-                      busy ||
-                      !transferTo ||
-                      !Object.values(transferQuantities).some(
-                        (x) => Number(x) > 0,
-                      )
-                    }
-                  >
-                    {busy ? "Kaydediliyor…" : "Transferi kaydet"}
-                  </button>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -4118,24 +4104,33 @@ export function InventoryPage({
             if (e.target === e.currentTarget) setWarehouseModal(false);
           }}
         >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">STOK & DEPO</p>
-                <h2>Yeni depo</h2>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setWarehouseModal(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <form onSubmit={createWarehouse}>
-              <div className="form-two">
+          <div className="modal inv-rf-modal">
+            <RecordFormPage
+              variant="dialog"
+              title="Yeni depo"
+              mode="create"
+              busy={busy}
+              saveLabel="Depo oluştur"
+              onSubmit={createWarehouse}
+              onCancel={() => setWarehouseModal(false)}
+              onSaveIntent={setStayAfterWarehouseSave}
+              onReset={resetWarehouseForm}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>Firmaya özel depo</span>
+                  {warehouseFormNotice && (
+                    <span className="rf-status-notice">{warehouseFormNotice}</span>
+                  )}
+                </>
+              }
+            >
+              <RecordFormGroup title="Depo Kimliği" bodyClassName="rf-pair">
                 <label>
-                  Depo kodu
+                  <span>Depo kodu <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={warehouseCode}
                     onChange={(e) => setWarehouseCode(e.target.value)}
                     required
@@ -4143,33 +4138,26 @@ export function InventoryPage({
                   />
                 </label>
                 <label>
-                  Depo adı
+                  <span>Depo adı <RequiredMark /></span>
                   <input
+                    className="rf-must"
                     value={warehouseName}
                     onChange={(e) => setWarehouseName(e.target.value)}
                     required
                     maxLength={120}
                   />
                 </label>
-              </div>
+              </RecordFormGroup>
               {warehouseCreateDefinitions.length > 0 && (
-                <section className="panel" style={{ marginTop: 14 }}>
-                  <div className="panel-heading">
-                    <div>
-                      <b>Depo özel alanları</b>
-                      <small>
-                        Zorunlu alanlar yeni depo ile birlikte kaydedilir.
-                      </small>
-                    </div>
-                  </div>
-                  <div className="form-two">
+                <RecordFormGroup title="Depo Özel Alanları">
+                  <small>Zorunlu alanlar yeni depo ile birlikte kaydedilir.</small>
+                  <div className="rf-custom-grid">
                     {warehouseCreateDefinitions.map((field) => (
                       <label key={field.id}>
-                        {field.label}
-                        {field.isRequired ? " *" : ""}
-                        <small>
-                          {field.code} · {field.dataType}
-                        </small>
+                        <span>
+                          {field.label}
+                          {field.isRequired && <RequiredMark />}
+                        </span>
                         {field.dataType === "Boolean" ? (
                           <select
                             required={field.isRequired}
@@ -4212,27 +4200,15 @@ export function InventoryPage({
                             }
                           />
                         )}
+                        <small>
+                          {field.code} · {field.dataType}
+                        </small>
                       </label>
                     ))}
                   </div>
-                </section>
+                </RecordFormGroup>
               )}
-              <div className="modal-foot">
-                <span>Firmaya özel depo</span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setWarehouseModal(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    Depo oluştur
-                  </button>
-                </div>
-              </div>
-            </form>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -4501,110 +4477,103 @@ export function InventoryPage({
               setWarehouseFieldTarget(null);
           }}
         >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">TENANT ÖZELLEŞTİRMESİ · DEPO</p>
-                <h2>
-                  {warehouseFieldTarget.code} · {warehouseFieldTarget.name}
-                </h2>
-              </div>
-              <button
-                className="icon-button"
-                disabled={warehouseFieldBusy}
-                onClick={() => setWarehouseFieldTarget(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <p className="muted">
-              Depo özel alanı değerleri tenant kapsamında doğrulanır ve her
-              değişiklik için geçmiş kaydı tutulur.
-            </p>
-            <form onSubmit={saveWarehouseFields}>
-              <div className="requests-list">
-                {warehouseFieldDefinitions.map((field) => (
-                  <article className="request-row expanded" key={field.id}>
-                    <div className="request-info">
-                      <label>
+          <div className="modal inv-rf-modal">
+            <RecordFormPage
+              variant="dialog"
+              title={`${warehouseFieldTarget.code} · ${warehouseFieldTarget.name}`}
+              mode="edit"
+              busy={warehouseFieldBusy}
+              saveLabel="Değerleri kaydet"
+              onSubmit={(event) => {
+                // Same gate the old save button had through its disabled state.
+                if (!warehouseFieldTarget.isActive) {
+                  event.preventDefault();
+                  return;
+                }
+                void saveWarehouseFields(event);
+              }}
+              onCancel={() => setWarehouseFieldTarget(null)}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>Geçmiş API üzerinden korunur.</span>
+                  {!warehouseFieldTarget.isActive && (
+                    <span className="rf-status-warning">
+                      Devre dışı depoda değerler kaydedilemez.
+                    </span>
+                  )}
+                </>
+              }
+            >
+              <RecordFormGroup title="Depo Özel Alan Değerleri">
+                <small>
+                  Depo özel alanı değerleri tenant kapsamında doğrulanır ve her
+                  değişiklik için geçmiş kaydı tutulur.
+                </small>
+                <div className="rf-custom-grid">
+                  {warehouseFieldDefinitions.map((field) => (
+                    <label key={field.id}>
+                      <span>
                         {field.label}
-                        <small>
-                          ({field.code} · {field.dataType} · v{field.version}
-                          {field.isRequired ? " · zorunlu" : ""})
-                        </small>
-                        {field.dataType === "Boolean" ? (
-                          <select
-                            required={field.isRequired}
-                            value={warehouseFieldValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseFieldValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Seçin</option>
-                            <option value="true">Evet</option>
-                            <option value="false">Hayır</option>
-                          </select>
-                        ) : (
-                          <input
-                            type={
-                              field.dataType === "Decimal"
-                                ? "number"
-                                : field.dataType === "Date"
-                                  ? "date"
-                                  : "text"
-                            }
-                            step={
-                              field.dataType === "Decimal" ? "any" : undefined
-                            }
-                            maxLength={
-                              field.dataType === "Text"
-                                ? field.maxLength
-                                : undefined
-                            }
-                            required={field.isRequired}
-                            value={warehouseFieldValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseFieldValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
-                      </label>
-                    </div>
-                  </article>
-                ))}
+                        {field.isRequired && <RequiredMark />}
+                      </span>
+                      {field.dataType === "Boolean" ? (
+                        <select
+                          required={field.isRequired}
+                          value={warehouseFieldValues[field.code] || ""}
+                          onChange={(e) =>
+                            setWarehouseFieldValues((current) => ({
+                              ...current,
+                              [field.code]: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Seçin</option>
+                          <option value="true">Evet</option>
+                          <option value="false">Hayır</option>
+                        </select>
+                      ) : (
+                        <input
+                          type={
+                            field.dataType === "Decimal"
+                              ? "number"
+                              : field.dataType === "Date"
+                                ? "date"
+                                : "text"
+                          }
+                          step={
+                            field.dataType === "Decimal" ? "any" : undefined
+                          }
+                          maxLength={
+                            field.dataType === "Text"
+                              ? field.maxLength
+                              : undefined
+                          }
+                          required={field.isRequired}
+                          value={warehouseFieldValues[field.code] || ""}
+                          onChange={(e) =>
+                            setWarehouseFieldValues((current) => ({
+                              ...current,
+                              [field.code]: e.target.value,
+                            }))
+                          }
+                        />
+                      )}
+                      <small>
+                        ({field.code} · {field.dataType} · v{field.version}
+                        {field.isRequired ? " · zorunlu" : ""})
+                      </small>
+                    </label>
+                  ))}
+                </div>
                 {warehouseFieldDefinitions.length === 0 && (
                   <div className="empty-small">
                     Henüz depo özel alanı tanımlanmadı.
                   </div>
                 )}
-              </div>
-              <div className="modal-foot">
-                <span>Geçmiş API üzerinden korunur.</span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setWarehouseFieldTarget(null)}
-                  >
-                    Kapat
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={
-                      warehouseFieldBusy || !warehouseFieldTarget.isActive
-                    }
-                  >
-                    Değerleri kaydet
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
             {(role === "TenantAdmin" || role === "TenantDeveloper") && (
               <form
                 onSubmit={createWarehouseField}
@@ -4708,24 +4677,173 @@ export function InventoryPage({
             }}
           >
             <div
-              className="modal ledger-modal stock-movement-modal"
+              className="modal ledger-modal stock-movement-modal inv-rf-modal inv-rf-modal--wide"
               role="dialog"
               aria-modal="true"
               aria-labelledby="stock-movement-title"
             >
-              <div className="modal-head">
-                <div>
-                  <p className="eyebrow">{movementItem.code} · STOK HAREKETİ</p>
-                  <h2 id="stock-movement-title">{movementItem.name}</h2>
-                </div>
-                <button
-                  className="icon-button"
-                  aria-label="Kapat"
-                  onClick={() => setMovementItem(null)}
+              <span id="stock-movement-title" hidden>
+                {movementItem.name}
+              </span>
+              <RecordFormPage
+                variant="dialog"
+                title={`${movementItem.code} · ${movementItem.name}`}
+                mode="create"
+                busy={busy}
+                saveLabel="Hareket ekle"
+                onSubmit={createMovement}
+                onCancel={() => setMovementItem(null)}
+                error={error}
+                onDismissError={() => setError("")}
+                status={
+                  <span>
+                    Giriş maliyetini tenant baz para biriminde girin. Maliyetsiz
+                    stok ayrı gösterilir; iptal ters kayıtla yapılır.
+                  </span>
+                }
+              >
+                <RecordFormGroup
+                  title="Stok Hareketi"
+                  bodyClassName="rf-identity inv-rf-identity-even"
                 >
-                  <X size={19} />
-                </button>
-              </div>
+                  <label>
+                    <span>Hareket yönü <RequiredMark /></span>
+                    <select
+                      className="rf-must"
+                      value={movementDirection}
+                      onChange={(e) =>
+                        setMovementDirection(
+                          e.target.value as "Receipt" | "Issue",
+                        )
+                      }
+                    >
+                      <option value="Receipt">Giriş</option>
+                      <option value="Issue">Çıkış</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Tarih <RequiredMark /></span>
+                    <input
+                      className="rf-must"
+                      type="date"
+                      value={entryDate}
+                      onChange={(e) => setEntryDate(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Hareket birimi
+                    <select
+                      value={movementUnitCode}
+                      onChange={(e) => setMovementUnitCode(e.target.value)}
+                    >
+                      <option value={movementItem.unitCode}>
+                        {movementItem.unitCode}
+                      </option>
+                      {unitConversions
+                        .filter((x) => x.isActive)
+                        .map((x) => (
+                          <option key={x.id} value={x.unitCode}>
+                            {x.unitCode}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>
+                      Miktar ({movementUnitCode || movementItem.unitCode}){" "}
+                      <RequiredMark />
+                    </span>
+                    <input
+                      className="rf-must rf-num"
+                      type="number"
+                      min="0.0001"
+                      step="0.0001"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      required
+                    />
+                  </label>
+                </RecordFormGroup>
+                <div className="rf-columns">
+                  <RecordFormGroup title="Açıklama ve Konum">
+                    <label>
+                      <span>Açıklama <RequiredMark /></span>
+                      <input
+                        className="rf-must"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        maxLength={240}
+                        required
+                        placeholder="Örn. Açılış stoğu"
+                      />
+                    </label>
+                    {storageLocations.length > 0 && (
+                      <label>
+                        Depo konumu
+                        <select
+                          value={storageLocationId}
+                          onChange={(e) => setStorageLocationId(e.target.value)}
+                        >
+                          <option value="">Depo düzeyinde / konum belirtme</option>
+                          {storageLocations.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.code} · {location.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </RecordFormGroup>
+                  {(movementDirection === "Receipt" ||
+                    items.find((x) => x.id === movementItem.stockItemId)
+                      ?.trackingMode !== "None") && (
+                    <RecordFormGroup title="Maliyet ve İzleme">
+                      {movementDirection === "Receipt" && (
+                        <label>
+                          Birim maliyet · {movementItem.baseCurrencyCode}
+                          <input
+                            className="rf-num"
+                            type="number"
+                            min="0"
+                            step="0.00000001"
+                            value={unitCostBase}
+                            onChange={(e) => setUnitCostBase(e.target.value)}
+                            placeholder="Boş bırakılırsa maliyetsiz izlenir"
+                          />
+                        </label>
+                      )}
+                      {items.find((x) => x.id === movementItem.stockItemId)
+                        ?.trackingMode !== "None" && (
+                        <>
+                          <label>
+                            <span>Lot / seri kodu <RequiredMark /></span>
+                            <textarea
+                              value={trackingCodes}
+                              onChange={(e) => setTrackingCodes(e.target.value)}
+                              required
+                              rows={2}
+                              placeholder="Seri numaralarını virgül veya yeni satırla ayırın"
+                            />
+                          </label>
+                          {items.find((x) => x.id === movementItem.stockItemId)
+                            ?.trackingMode === "Lot" && (
+                            <label>
+                              <span>Son kullanma tarihi <RequiredMark /></span>
+                              <input
+                                type="date"
+                                value={trackingExpiry}
+                                onChange={(e) => setTrackingExpiry(e.target.value)}
+                                required
+                              />
+                            </label>
+                          )}
+                        </>
+                      )}
+                    </RecordFormGroup>
+                  )}
+                </div>
+              </RecordFormPage>
               <div className="balance-banner">
                 <div>
                   <small>
@@ -4892,148 +5010,6 @@ export function InventoryPage({
                   </div>
                 </div>
               )}
-              <form onSubmit={createMovement}>
-                <label>
-                  Hareket birimi
-                  <select
-                    value={movementUnitCode}
-                    onChange={(e) => setMovementUnitCode(e.target.value)}
-                  >
-                    <option value={movementItem.unitCode}>
-                      {movementItem.unitCode}
-                    </option>
-                    {unitConversions
-                      .filter((x) => x.isActive)
-                      .map((x) => (
-                        <option key={x.id} value={x.unitCode}>
-                          {x.unitCode}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                {storageLocations.length > 0 && (
-                  <label>
-                    Depo konumu
-                    <select
-                      value={storageLocationId}
-                      onChange={(e) => setStorageLocationId(e.target.value)}
-                    >
-                      <option value="">Depo düzeyinde / konum belirtme</option>
-                      {storageLocations.map((location) => (
-                        <option key={location.id} value={location.id}>
-                          {location.code} · {location.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <div className="form-two">
-                  <label>
-                    Hareket yönü
-                    <select
-                      value={movementDirection}
-                      onChange={(e) =>
-                        setMovementDirection(
-                          e.target.value as "Receipt" | "Issue",
-                        )
-                      }
-                    >
-                      <option value="Receipt">Giriş</option>
-                      <option value="Issue">Çıkış</option>
-                    </select>
-                  </label>
-                  <label>
-                    Tarih
-                    <input
-                      type="date"
-                      value={entryDate}
-                      onChange={(e) => setEntryDate(e.target.value)}
-                      required
-                    />
-                  </label>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Miktar ({movementUnitCode || movementItem.unitCode})
-                    <input
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Açıklama
-                    <input
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      maxLength={240}
-                      required
-                      placeholder="Örn. Açılış stoğu"
-                    />
-                  </label>
-                </div>
-                {items.find((x) => x.id === movementItem.stockItemId)
-                  ?.trackingMode !== "None" && (
-                  <>
-                    <label>
-                      Lot / seri kodu
-                      <textarea
-                        value={trackingCodes}
-                        onChange={(e) => setTrackingCodes(e.target.value)}
-                        required
-                        rows={2}
-                        placeholder="Seri numaralarını virgül veya yeni satırla ayırın"
-                      />
-                    </label>
-                    {items.find((x) => x.id === movementItem.stockItemId)
-                      ?.trackingMode === "Lot" && (
-                      <label>
-                        Son kullanma tarihi
-                        <input
-                          type="date"
-                          value={trackingExpiry}
-                          onChange={(e) => setTrackingExpiry(e.target.value)}
-                          required
-                        />
-                      </label>
-                    )}
-                  </>
-                )}
-                {movementDirection === "Receipt" && (
-                  <label>
-                    Birim maliyet · {movementItem.baseCurrencyCode}
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.00000001"
-                      value={unitCostBase}
-                      onChange={(e) => setUnitCostBase(e.target.value)}
-                      placeholder="Boş bırakılırsa maliyetsiz izlenir"
-                    />
-                  </label>
-                )}
-                <div className="modal-foot">
-                  <span>
-                    Giriş maliyetini tenant baz para biriminde girin. Maliyetsiz
-                    stok ayrı gösterilir; iptal ters kayıtla yapılır.
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setMovementItem(null)}
-                    >
-                      Kapat
-                    </button>
-                    <button className="primary" disabled={busy}>
-                      Hareket ekle
-                    </button>
-                  </div>
-                </div>
-              </form>
             </div>
           </div>,
           document.body,

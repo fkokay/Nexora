@@ -37,6 +37,12 @@ import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
 import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import { confirmLocalized, promptLocalized } from "./locale";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./sales/sales-record-forms.css";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type PurchaseInvoiceSummary = AppTypes.PurchaseInvoiceSummary;
 type PurchaseOrderDetail = AppTypes.PurchaseOrderDetail;
@@ -1039,6 +1045,8 @@ export function SalesPage({
     { subtotal: 0, discount: 0, tax: 0, total: 0, taxableByRate: {} as Record<number, number>, taxByRate: {} as Record<number, number> },
   );
   const hasMissingQuoteFx = lines.some((line) => quoteLineEffectiveFxRate(line) === null);
+  const directOrderEditId = createOrderPage ? sessionStorage.getItem("nexora.sales-order.edit-id") : null;
+  const directOrderSaveBlocked = quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null);
   const quoteCurrencies = [...new Set([currencyCode, quoteExchangeRates.baseCurrencyCode, "TRY", "USD", "EUR", "GBP", ...quoteExchangeRates.rates.map((rate) => rate.currencyCode), ...stockItems.map((item) => item.priceCurrencyCode || "")])].filter(Boolean).sort();
   async function createDirectOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -1867,43 +1875,6 @@ export function SalesPage({
   }
   return (
     <div className="list-v2 sales-lv2-root">
-      {createOrderPage && (
-        <div className="page-heading customer-heading">
-          <div>
-            <p className="eyebrow">ERP CORE · SATIŞ</p>
-            <h1>Yeni Sipariş</h1>
-            <p className="muted">
-              Müşteri, teslim tarihi ve sipariş satırlarını düzenleyin.
-            </p>
-          </div>
-          <div className="heading-actions">
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => onNavigate("sales-orders")}
-            >
-              Vazgeç
-            </button>
-            <button className="primary" type="submit" form="sales-direct-order-form" disabled={busy || quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null)}>
-              {busy ? "Kaydediliyor…" : sessionStorage.getItem("nexora.sales-order.edit-id") ? "Siparişi kaydet" : "Sipariş oluştur"}
-            </button>
-          </div>
-        </div>
-      )}
-      {createQuotePage && (
-        <div className="page-heading customer-heading">
-          <div>
-            <h1>{editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}</h1>
-            <p className="muted">{editingQuoteId ? "Taslak teklif bilgilerini ve satırlarını güncelleyin." : revisesQuoteId ? "Önceki teklif korunur; değişiklikler yeni revizyon taslağı olarak kaydedilir." : "Müşteri ve teklif satırlarını girerek yeni bir satış teklifi oluşturun."}</p>
-          </div>
-          <div className="heading-actions">
-            <button className="secondary" type="button" onClick={() => onNavigate("sales-quotes")}>Vazgeç</button>
-            <button className="primary" type="submit" form="sales-quote-create-form" disabled={busy || quoteExchangeRatesLoading || hasMissingQuoteFx}>
-              {busy ? "Kaydediliyor…" : editingQuoteId ? "Değişiklikleri kaydet" : revisesQuoteId ? "Revizyon taslağını oluştur" : "Teklif taslağı oluştur"}
-            </button>
-          </div>
-        </div>
-      )}
       {!createOrderPage && !createQuotePage &&
         activeTab !== "purchases" &&
         activeTab !== "requests" &&
@@ -1988,7 +1959,7 @@ export function SalesPage({
             />
           </div>
         )}
-      {error && !createInvoicePage && (
+      {error && !createInvoicePage && !createOrderPage && !createQuotePage && (
         <div className="alert inline-alert">
           {error}
           <button onClick={() => setError("")}>
@@ -1996,7 +1967,7 @@ export function SalesPage({
           </button>
         </div>
       )}
-      {notice && !createInvoicePage && (
+      {notice && !createInvoicePage && !createOrderPage && !createQuotePage && (
         <div className="notice">
           {notice}
           <button onClick={() => setNotice("")}>
@@ -2445,19 +2416,39 @@ export function SalesPage({
         </div>
       )}{" "}
       {createOrderPage && (
-        <div className="sales-order-create-page">
-      <section className="sales-order-create-card">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">SATIŞ YÖNETİMİ</p>
-                <h2>{sessionStorage.getItem("nexora.sales-order.edit-id") ? "Sipariş düzenleme bilgileri" : "Sipariş bilgileri"}</h2>
-              </div>
-            </div>
-            <form id="sales-direct-order-form" onSubmit={createDirectOrder}>
-              <div className="form-two">
+          <RecordFormPage
+            className="sales-rf"
+            title={directOrderEditId ? "Sipariş Düzenleme" : "Yeni Sipariş"}
+            mode={directOrderEditId ? "edit" : "create"}
+            busy={busy}
+            saveLabel={directOrderEditId ? "Siparişi kaydet" : "Sipariş oluştur"}
+            formId="sales-direct-order-form"
+            onSubmit={(event) => {
+              // The old save button was disabled while rates load or a line has no rate.
+              if (directOrderSaveBlocked) {
+                event.preventDefault();
+                return;
+              }
+              void createDirectOrder(event);
+            }}
+            onCancel={() => onNavigate("sales-orders")}
+            error={error}
+            onDismissError={() => setError("")}
+            status={
+              <>
+                <span>Müşteri, teslim tarihi ve sipariş satırlarını düzenleyin.</span>
+                {quoteExchangeRatesLoading && <span className="rf-status-warning">Döviz kurları yükleniyor…</span>}
+                {!quoteExchangeRatesLoading && directOrderSaveBlocked && <span className="rf-status-warning">Kuru bulunmayan satır var; sipariş kaydedilemez.</span>}
+                {notice && <span className="rf-status-notice">{notice}</span>}
+                <span className="rf-status-end">Satır: <b>{directOrderLines.length}</b></span>
+              </>
+            }
+          >
+            <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity">
                 <label>
-                  Sipariş no
+                  <span>Sipariş no <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={directOrderCode}
                     onChange={(e) => setDirectOrderCode(e.target.value)}
                     required
@@ -2482,10 +2473,8 @@ export function SalesPage({
                     }}
                   />
                 </label>
-              </div>
-              <div className="form-two">
                 <label>
-                  Sipariş tarihi
+                  <span>Sipariş tarihi <RequiredMark /></span>
                   <input
                     type="date"
                     value={directOrderDate}
@@ -2502,8 +2491,6 @@ export function SalesPage({
                     onChange={(e) => setDirectDeliveryDate(e.target.value)}
                   />
                 </label>
-              </div>
-              <div className="form-two quote-salesperson-field">
                 <label>
                   Plasiyer
                   <SearchableRecordPicker
@@ -2522,10 +2509,9 @@ export function SalesPage({
                     clearLabel="Plasiyer seçimini kaldır"
                   />
                 </label>
-              </div>
-              <div className="quote-lines-heading">
-                <b>Sipariş satırları</b>
-              </div>
+            </RecordFormGroup>
+            <RecordFormGroup title="Sipariş Satırları">
+              <div className="sales-order-create-card sales-rf-lines">
               <div className="quote-lines-table-wrap">
                 <table className="quote-lines-table direct-order-lines-table">
                   <thead><tr><th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th><th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th><th>KDV türü</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th></tr></thead>
@@ -2559,6 +2545,10 @@ export function SalesPage({
                   </tbody>
                 </table>
               </div>
+              </div>
+            </RecordFormGroup>
+            <RecordFormGroup title="Toplamlar">
+              <div className="sales-order-create-card sales-rf-lines">
               <section className="order-grand-total quote-total-breakdown" aria-label="Sipariş toplamları">
                 <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(directOrderTotals.subtotal, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
                 <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(directOrderTotals.discount, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</span></div>
@@ -2567,19 +2557,18 @@ export function SalesPage({
                 <div><span>KDV toplamı</span>{renderOrderCurrency(directOrderTotals.vat, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
                 <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(directOrderTotals.total, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
               </section>
+              </div>
+            </RecordFormGroup>
               {orderFieldDefinitions.length > 0 && (
-                <section className="panel" style={{ marginTop: 14 }}>
-                  <div className="panel-heading">
-                    <div>
-                      <b>Sipariş özel alanları</b>
-                      <small>Tenant alan tanımlarına göre doğrulanır.</small>
-                    </div>
-                  </div>
-                  <div className="form-two">
+                <RecordFormGroup title="Sipariş Özel Alanları">
+                  <small>Tenant alan tanımlarına göre doğrulanır.</small>
+                  <div className="rf-custom-grid">
                     {orderFieldDefinitions.map((field) => (
                       <label key={field.id}>
-                        {field.label}
-                        {field.isRequired ? " *" : ""}
+                        <span>
+                          {field.label}
+                          {field.isRequired && <RequiredMark />}
+                        </span>
                         <small>
                           {field.code} · {field.dataType}
                         </small>
@@ -2628,52 +2617,55 @@ export function SalesPage({
                       </label>
                     ))}
                   </div>
-                </section>
+                </RecordFormGroup>
               )}
-              <div className="modal-foot">
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => onNavigate("sales-orders")}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy || quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null)}>
-                    {busy ? "Kaydediliyor…" : sessionStorage.getItem("nexora.sales-order.edit-id") ? "Siparişi kaydet" : "Sipariş oluştur"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </section>
-        </div>
+          </RecordFormPage>
       )}
       {createQuotePage && (
-        <div className="sales-order-create-page">
-          <section className="sales-order-create-card">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">SATIŞ YÖNETİMİ</p>
-                <h2>{editingQuoteId ? "Teklif düzenleme bilgileri" : "Teklif bilgileri"}</h2>
-              </div>
-            </div>
-            <form id="sales-quote-create-form" onSubmit={createQuote}>
-              <label className="check-row quote-prospect-toggle">
+          <RecordFormPage
+            className="sales-rf"
+            title={editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}
+            mode={editingQuoteId ? "edit" : "create"}
+            busy={busy}
+            saveLabel={editingQuoteId ? "Değişiklikleri kaydet" : revisesQuoteId ? "Revizyon taslağını oluştur" : "Teklif taslağı oluştur"}
+            formId="sales-quote-create-form"
+            onSubmit={(event) => {
+              // The old save button was disabled while rates load or a line has no rate.
+              if (quoteExchangeRatesLoading || hasMissingQuoteFx) {
+                event.preventDefault();
+                return;
+              }
+              void createQuote(event);
+            }}
+            onCancel={() => onNavigate("sales-quotes")}
+            error={error}
+            onDismissError={() => setError("")}
+            status={
+              <>
+                <span>{editingQuoteId ? "Taslak teklif bilgilerini ve satırlarını güncelleyin." : revisesQuoteId ? "Önceki teklif korunur; değişiklikler yeni revizyon taslağı olarak kaydedilir." : "Müşteri ve teklif satırlarını girerek yeni bir satış teklifi oluşturun."}</span>
+                {quoteExchangeRatesLoading && <span className="rf-status-warning">Döviz kurları yükleniyor…</span>}
+                {!quoteExchangeRatesLoading && hasMissingQuoteFx && <span className="rf-status-warning">Kuru bulunmayan satır var; teklif kaydedilemez.</span>}
+                {notice && <span className="rf-status-notice">{notice}</span>}
+                <span className="rf-status-end">Satır: <b>{lines.length}</b></span>
+              </>
+            }
+          >
+            <RecordFormGroup title="Teklif Kimliği" bodyClassName="rf-identity">
+              <label className="rf-check rf-columns-wide quote-prospect-toggle">
                 <input type="checkbox" checked={isProspectQuote} onChange={(event) => {
                   setIsProspectQuote(event.target.checked);
                   setCustomerId("");
                   setProspectCustomerName("");
                 }} />
                 <span className="quote-prospect-toggle-copy">
-                  <b>Kayıtlı cari olmadan teklif oluştur</b>
+                  <b>Kayıtlı cari olmadan teklif oluştur</b>{" "}
                   <small>Cari kartı açmadan yeni bir müşteri adına teklif hazırlayın.</small>
                 </span>
               </label>
-              <div className="form-two">
                 <label>
-                  Teklif no
+                  <span>Teklif no <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     required
@@ -2682,8 +2674,8 @@ export function SalesPage({
                   />
                 </label>
                 {isProspectQuote ? <>
-                  <label>Teklif alıcısı adı<input value={prospectCustomerName} onChange={(event) => setProspectCustomerName(event.target.value)} required maxLength={200} placeholder="Firma veya kişi adı" /></label>
-                  <label>Teklif dövizi<input value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value.toUpperCase())} required maxLength={3} minLength={3} placeholder="TRY" /></label>
+                  <label><span>Teklif alıcısı adı <RequiredMark /></span><input className="rf-must" value={prospectCustomerName} onChange={(event) => setProspectCustomerName(event.target.value)} required maxLength={200} placeholder="Firma veya kişi adı" /></label>
+                  <label><span>Teklif dövizi <RequiredMark /></span><input className="rf-must rf-mono" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value.toUpperCase())} required maxLength={3} minLength={3} placeholder="TRY" /></label>
                 </> : <label>
                   Müşteri
                   <SalesCustomerPopupSelect
@@ -2702,10 +2694,8 @@ export function SalesPage({
                     }}
                   />
                 </label>}
-              </div>
-              <div className="form-two">
                 <label>
-                  Teklif tarihi
+                  <span>Teklif tarihi <RequiredMark /></span>
                   <input
                     type="date"
                     value={quoteDate}
@@ -2714,7 +2704,7 @@ export function SalesPage({
                   />
                 </label>
                 <label>
-                  Geçerlilik tarihi
+                  <span>Geçerlilik tarihi <RequiredMark /></span>
                   <input
                     type="date"
                     value={validUntil}
@@ -2722,8 +2712,6 @@ export function SalesPage({
                     required
                   />
                 </label>
-              </div>
-              <div className="form-two quote-salesperson-field">
                 <label>
                   Plasiyer
                   <SearchableRecordPicker
@@ -2742,20 +2730,9 @@ export function SalesPage({
                     clearLabel="Plasiyer seçimini kaldır"
                   />
                 </label>
-              </div>
-              <label className="sales-quote-terms">
-                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={deliveryTerms}
-                  onChange={(e) => setDeliveryTerms(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
-                />
-              </label>
-              <div className="quote-lines-heading">
-                <b>Teklif satırları</b>
-              </div>
+            </RecordFormGroup>
+            <RecordFormGroup title="Teklif Satırları">
+              <div className="sales-order-create-card sales-rf-lines">
               <div className="quote-lines-table-wrap">
                 <table className="quote-lines-table">
                   <thead>
@@ -2864,17 +2841,35 @@ export function SalesPage({
                   </tbody>
                 </table>
               </div>
-              <div className="quote-totals-layout">
-              <label className="sales-quote-terms quote-description">
+              </div>
+            </RecordFormGroup>
+            <div className="sales-rf-totals-layout">
+            <RecordFormGroup title="Koşullar ve Açıklama">
+              <label>
+                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                <textarea
+                  value={deliveryTerms}
+                  onChange={(e) => setDeliveryTerms(e.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  className="sales-rf-tall"
+                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
+                />
+              </label>
+              <label>
                 <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   maxLength={1000}
                   rows={7}
+                  className="sales-rf-tall"
                   placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
                 />
               </label>
+            </RecordFormGroup>
+            <RecordFormGroup title="Toplamlar">
+              <div className="sales-order-create-card sales-rf-lines">
               <section className="order-grand-total quote-grand-total quote-total-breakdown" aria-label="Teklif toplamları">
                 <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(quoteTotals.subtotal, currencyCode)}</div>
                 <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(quoteTotals.discount, currencyCode)}</span></div>
@@ -2884,19 +2879,18 @@ export function SalesPage({
                 <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(quoteTotals.total, currencyCode)}</div>
               </section>
               </div>
+            </RecordFormGroup>
+            </div>
               {quoteFieldDefinitions.length > 0 && (
-              <section className="panel" style={{ marginTop: 14 }}>
-                <div className="panel-heading">
-                  <div>
-                    <b>Teklif özel alanları</b>
-                    <small>Tenant alan tanımlarına göre doğrulanır.</small>
-                  </div>
-                </div>
-                <div className="form-two">
+              <RecordFormGroup title="Teklif Özel Alanları">
+                <small>Tenant alan tanımlarına göre doğrulanır.</small>
+                <div className="rf-custom-grid">
                   {quoteFieldDefinitions.map((field) => (
                     <label key={field.id}>
-                      {field.label}
-                      {field.isRequired ? " *" : ""}
+                      <span>
+                        {field.label}
+                        {field.isRequired && <RequiredMark />}
+                      </span>
                       <small>
                         {field.code} · {field.dataType}
                       </small>
@@ -2945,11 +2939,9 @@ export function SalesPage({
                     </label>
                   ))}
                 </div>
-              </section>
+              </RecordFormGroup>
               )}
-            </form>
-          </section>
-        </div>
+          </RecordFormPage>
       )}
       {detail && createPortal(
         <div
@@ -6406,21 +6398,33 @@ function PurchasingPanel({
             if (e.target === e.currentTarget) setEditor(false);
           }}
         >
-          <div className="modal quote-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">SATIN ALMA YÖNETİMİ</p>
-                <h2>Yeni satın alma siparişi</h2>
-              </div>
-              <button className="icon-button" onClick={() => setEditor(false)}>
-                <X size={19} />
-              </button>
-            </div>
-            <form onSubmit={createOrder}>
-              <div className="form-two">
+          <div className="modal quote-modal sales-rf-host">
+            <RecordFormPage
+              variant="dialog"
+              className="sales-rf"
+              title="Yeni satın alma siparişi"
+              mode="create"
+              busy={busy}
+              saveLabel="Sipariş oluştur"
+              onSubmit={createOrder}
+              onCancel={() => setEditor(false)}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    Miktar ve fiyat seçilen birim içindir; sipariş stok kartının
+                    temel biriminde saklanır.
+                  </span>
+                  <span className="rf-status-end">Satır: <b>{lines.length}</b></span>
+                </>
+              }
+            >
+              <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity sales-rf-identity-3">
                 <label>
-                  Sipariş no
+                  <span>Sipariş no <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     required
@@ -6446,9 +6450,8 @@ function PurchasingPanel({
                     required
                   />
                 </label>
-              </div>
               <label>
-                Sipariş tarihi
+                <span>Sipariş tarihi <RequiredMark /></span>
                 <input
                   type="date"
                   value={orderDate}
@@ -6456,10 +6459,13 @@ function PurchasingPanel({
                   required
                 />
               </label>
-              <div className="form-two">
+              </RecordFormGroup>
+              <RecordFormGroup title="Teslimat" bodyClassName="rf-pair">
                 <label>
-                  Beklenen teslim tarihi{" "}
-                  <span className="optional-label">İsteğe bağlı</span>
+                  <span>
+                    Beklenen teslim tarihi{" "}
+                    <span className="optional-label">İsteğe bağlı</span>
+                  </span>
                   <input
                     type="date"
                     min={orderDate}
@@ -6468,8 +6474,10 @@ function PurchasingPanel({
                   />
                 </label>
                 <label>
-                  Hedef depo{" "}
-                  <span className="optional-label">İsteğe bağlı</span>
+                  <span>
+                    Hedef depo{" "}
+                    <span className="optional-label">İsteğe bağlı</span>
+                  </span>
                   <SearchableRecordPicker
                     options={warehouses
                       .filter((x) => x.isActive)
@@ -6485,13 +6493,10 @@ function PurchasingPanel({
                     emptyMessage="Aramanızla eşleşen aktif depo bulunamadı."
                   />
                 </label>
-              </div>
-              <p className="muted">
-                Miktar ve fiyat seçilen birim içindir; sipariş stok kartının
-                temel biriminde saklanır.
-              </p>
-              <div className="quote-lines-heading">
-                <b>Sipariş satırları</b>
+              </RecordFormGroup>
+              <RecordFormGroup title="Sipariş Satırları">
+              <div className="quote-lines-heading sales-rf-group-actions">
+                <span className="muted">Her satır için stok, miktar, birim ve fiyat girin.</span>
                 <button
                   type="button"
                   className="secondary small-button"
@@ -6637,11 +6642,10 @@ function PurchasingPanel({
                   </div>
                 </div>
               ))}
-              <label>
-                Sipariş notu{" "}
-                <span className="optional-label">İsteğe bağlı</span>
-                {orderFieldDefinitions.length > 0 && (
-                  <div className="form-two">
+              </RecordFormGroup>
+              {orderFieldDefinitions.length > 0 && (
+                <RecordFormGroup title="Sipariş Özel Alanları">
+                  <div className="rf-custom-grid">
                     {orderFieldDefinitions.map((field) => (
                       <label key={field.id}>
                         {field.label}
@@ -6692,7 +6696,14 @@ function PurchasingPanel({
                       </label>
                     ))}
                   </div>
-                )}
+                </RecordFormGroup>
+              )}
+              <RecordFormGroup title="Sipariş Notu">
+              <label>
+                <span>
+                  Sipariş notu{" "}
+                  <span className="optional-label">İsteğe bağlı</span>
+                </span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -6700,21 +6711,8 @@ function PurchasingPanel({
                   rows={3}
                 />
               </label>
-              <div className="modal-foot">
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setEditor(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Sipariş oluştur"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -6970,11 +6968,46 @@ function PurchasingPanel({
                 </tbody>
               </AdvancedDataGrid>
             </div>
-            {receiptEditor && (
-              <form className="collection-form" onSubmit={createReceipt}>
-                <div className="form-two">
+            {receiptEditor && (() => {
+              const receiptHasQuantity = detail.lines.some(
+                (x) => Number(quantities[x.lineNumber] || 0) > 0,
+              );
+              return (
+              <RecordFormPage
+                variant="dialog"
+                className="sales-rf sales-rf-embedded"
+                title="Mal kabul"
+                mode="create"
+                busy={busy}
+                saveLabel="Mal kabul kaydet"
+                onSubmit={(event) => {
+                  // The old save button was disabled until a quantity was entered.
+                  if (!receiptHasQuantity) {
+                    event.preventDefault();
+                    return;
+                  }
+                  void createReceipt(event);
+                }}
+                onCancel={() => setReceiptEditor(false)}
+                error={error}
+                onDismissError={() => setError("")}
+                status={
+                  <>
+                    <span>
+                      Konum seçimi isteğe bağlıdır; tekrar gönderim anahtarı çift
+                      stok girişini engeller.
+                    </span>
+                    {!receiptHasQuantity && (
+                      <span className="rf-status-warning">
+                        Kaydetmek için en az bir kalemde miktar girin.
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                <RecordFormGroup title="Mal Kabul Kimliği" bodyClassName="rf-pair">
                   <label>
-                    Mal kabul tarihi
+                    <span>Mal kabul tarihi <RequiredMark /></span>
                     <input
                       type="date"
                       value={receiptDate}
@@ -7004,9 +7037,10 @@ function PurchasingPanel({
                       required
                     />
                   </label>
-                </div>
+                </RecordFormGroup>
                 {receiptFieldDefinitions.length > 0 && (
-                  <div className="form-two">
+                  <RecordFormGroup title="Mal Kabul Özel Alanları">
+                  <div className="rf-custom-grid">
                     {receiptFieldDefinitions.map((field) => (
                       <label key={field.id}>
                         {field.label}
@@ -7057,8 +7091,10 @@ function PurchasingPanel({
                       </label>
                     ))}
                   </div>
+                  </RecordFormGroup>
                 )}
-                <div className="ledger-list">
+                <RecordFormGroup title="Kabul Edilen Kalemler">
+                <div className="ledger-list sales-rf-lines">
                   <table className="customer-table">
                     <thead>
                       <tr>
@@ -7155,34 +7191,10 @@ function PurchasingPanel({
                     </tbody>
                   </table>
                 </div>
-                <div className="modal-foot">
-                  <span>
-                    Konum seçimi isteğe bağlıdır; tekrar gönderim anahtarı çift
-                    stok girişini engeller.
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setReceiptEditor(false)}
-                    >
-                      Vazgeç
-                    </button>
-                    <button
-                      className="primary"
-                      disabled={
-                        busy ||
-                        !detail.lines.some(
-                          (x) => Number(quantities[x.lineNumber] || 0) > 0,
-                        )
-                      }
-                    >
-                      {busy ? "Kaydediliyor…" : "Mal kabul kaydet"}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            )}
+                </RecordFormGroup>
+              </RecordFormPage>
+              );
+            })()}
             <div className="modal-foot">
               <span>Alış faturası vade gününü tedarikçi kartından alır.</span>
               <button className="secondary" onClick={() => setDetail(null)}>
@@ -7199,25 +7211,33 @@ function PurchasingPanel({
             if (e.target === e.currentTarget && !busy) setRequestEditor(false);
           }}
         >
-          <div className="modal quote-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">SATIN ALMA</p>
-                <h2>Satın alma talebi</h2>
-              </div>
-              <button
-                className="icon-button"
-                disabled={busy}
-                onClick={() => setRequestEditor(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <form onSubmit={createRequest}>
-              <div className="form-two">
+          <div className="modal quote-modal sales-rf-host">
+            <RecordFormPage
+              variant="dialog"
+              className="sales-rf"
+              title="Satın alma talebi"
+              mode="create"
+              busy={busy}
+              saveLabel="Onaya gönder"
+              onSubmit={createRequest}
+              onCancel={() => setRequestEditor(false)}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    Talep TenantAdmin onayına gönderilir; talep sahibi kendi
+                    talebini karara bağlayamaz.
+                  </span>
+                  <span className="rf-status-end">Kalem: <b>{requestLines.length}</b></span>
+                </>
+              }
+            >
+              <RecordFormGroup title="Talep Kimliği" bodyClassName="rf-identity sales-rf-identity-even">
                 <label>
-                  Talep no
+                  <span>Talep no <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={requestCode}
                     onChange={(e) => setRequestCode(e.target.value)}
                     required
@@ -7226,7 +7246,7 @@ function PurchasingPanel({
                   />
                 </label>
                 <label>
-                  Talep tarihi
+                  <span>Talep tarihi <RequiredMark /></span>
                   <input
                     type="date"
                     value={requestDate}
@@ -7234,10 +7254,11 @@ function PurchasingPanel({
                     required
                   />
                 </label>
-              </div>
               <label>
-                İhtiyaç tarihi{" "}
-                <span className="optional-label">İsteğe bağlı</span>
+                <span>
+                  İhtiyaç tarihi{" "}
+                  <span className="optional-label">İsteğe bağlı</span>
+                </span>
                 <input
                   type="date"
                   value={neededByDate}
@@ -7245,8 +7266,8 @@ function PurchasingPanel({
                   onChange={(e) => setNeededByDate(e.target.value)}
                 />
               </label>
-              <label>
-                Talep açıklaması
+              <label className="rf-columns-wide">
+                <span>Talep açıklaması <RequiredMark /></span>
                 <textarea
                   value={requestDescription}
                   onChange={(e) => setRequestDescription(e.target.value)}
@@ -7256,17 +7277,13 @@ function PurchasingPanel({
                   placeholder="Satın alma gerekçesi"
                 />
               </label>
-              <section className="panel" style={{ marginTop: 14 }}>
-                <div className="panel-heading">
-                  <div>
-                    <b>Talep özel alanları</b>
+              </RecordFormGroup>
+              <RecordFormGroup title="Talep Özel Alanları">
                     <small>
                       Firma tarafından tanımlanmış alanlar talep ile birlikte
                       saklanır.
                     </small>
-                  </div>
-                </div>
-                <div className="form-two">
+                <div className="rf-custom-grid">
                   {requestFieldDefinitions.map((field) => (
                     <label key={field.id}>
                       {field.label}
@@ -7324,12 +7341,12 @@ function PurchasingPanel({
                     Firma yöneticisi henüz özel alan tanımlamadı.
                   </div>
                 )}
-              </section>
-              <p className="muted">
-                İstenen miktar seçilen birim üzerinden temel birime çevrilir.
-              </p>
-              <div className="quote-lines-heading">
-                <b>İstenen stok kalemleri</b>
+              </RecordFormGroup>
+              <RecordFormGroup title="İstenen Stok Kalemleri">
+              <div className="quote-lines-heading sales-rf-group-actions">
+                <span className="muted">
+                  İstenen miktar seçilen birim üzerinden temel birime çevrilir.
+                </span>
                 <button
                   type="button"
                   className="secondary small-button"
@@ -7445,25 +7462,8 @@ function PurchasingPanel({
                   </div>
                 </div>
               ))}
-              <div className="modal-foot">
-                <span>
-                  Talep TenantAdmin onayına gönderilir; talep sahibi kendi
-                  talebini karara bağlayamaz.
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setRequestEditor(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Gönderiliyor…" : "Onaya gönder"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -8451,23 +8451,29 @@ function PurchasingPanel({
             if (e.target === e.currentTarget) setInvoiceReceiptId(null);
           }}
         >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">ALIŞ FATURASI</p>
-                <h2>Mal kabulini faturala</h2>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setInvoiceReceiptId(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <form onSubmit={createPurchaseInvoice}>
+          <div className="modal sales-rf-host sales-rf-host--narrow">
+            <RecordFormPage
+              variant="dialog"
+              className="sales-rf"
+              title="Mal kabulini faturala"
+              mode="create"
+              busy={busy}
+              saveLabel="Fatura oluştur"
+              onSubmit={createPurchaseInvoice}
+              onCancel={() => setInvoiceReceiptId(null)}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <span>
+                  Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.
+                </span>
+              }
+            >
+              <RecordFormGroup title="Alış Faturası" bodyClassName="rf-identity sales-rf-identity-2">
               <label>
-                Tedarikçi fatura no
+                <span>Tedarikçi fatura no <RequiredMark /></span>
                 <input
+                  className="rf-must rf-mono"
                   value={invoiceCode}
                   onChange={(e) => setInvoiceCode(e.target.value)}
                   required
@@ -8476,32 +8482,17 @@ function PurchasingPanel({
                 />
               </label>
               <label>
-                Fatura tarihi
+                <span>Fatura tarihi <RequiredMark /></span>
                 <input
+                  className="rf-must"
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
                   required
                 />
               </label>
-              <div className="modal-foot">
-                <span>
-                  Vade, tedarikçinin kayıtlı ödeme koşulundan hesaplanır.
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setInvoiceReceiptId(null)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Fatura oluştur"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -9184,10 +9175,32 @@ function SalesOrderModal({
           )}
         </div>
         {editor && (
-          <form className="delivery-editor" onSubmit={createDelivery}>
-            <div className="form-two">
+          <RecordFormPage
+            variant="dialog"
+            className="sales-rf sales-rf-embedded"
+            title="Satış irsaliyesi"
+            mode="create"
+            busy={busy}
+            saveLabel="İrsaliye oluştur"
+            onSubmit={(event) => {
+              // The old save button was disabled until a warehouse was chosen.
+              if (!warehouseId) {
+                event.preventDefault();
+                return;
+              }
+              void createDelivery(event);
+            }}
+            onCancel={() => setEditor(false)}
+            status={
+              <span>
+                Konum seçimi isteğe bağlıdır; stok, seçilen konum ve depoda
+                doğrulanır.
+              </span>
+            }
+          >
+            <RecordFormGroup title="Sevk Bilgileri" bodyClassName="rf-pair">
               <label>
-                Depo
+                <span>Depo <RequiredMark /></span>
                 <SearchableRecordPicker
                   options={warehouses
                     .filter((x) => x.isActive)
@@ -9206,7 +9219,7 @@ function SalesOrderModal({
                 />
               </label>
               <label>
-                Sevk tarihi
+                <span>Sevk tarihi <RequiredMark /></span>
                 <input
                   type="date"
                   value={deliveryDate}
@@ -9214,7 +9227,8 @@ function SalesOrderModal({
                   required
                 />
               </label>
-            </div>
+            </RecordFormGroup>
+            <RecordFormGroup title="Teslim Edilecek Kalemler">
             {order.lines
               .filter((x) => x.remainingQuantity > 0)
               .map((line) => (
@@ -9280,25 +9294,8 @@ function SalesOrderModal({
                   </select>
                 </div>
               ))}
-            <div className="modal-foot">
-              <span>
-                Konum seçimi isteğe bağlıdır; stok, seçilen konum ve depoda
-                doğrulanır.
-              </span>
-              <div>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setEditor(false)}
-                >
-                  Vazgeç
-                </button>
-                <button className="primary" disabled={busy || !warehouseId}>
-                  {busy ? "Kaydediliyor…" : "İrsaliye oluştur"}
-                </button>
-              </div>
-            </div>
-          </form>
+            </RecordFormGroup>
+          </RecordFormPage>
         )}
         <div className="delivery-list">
           {loading ? (

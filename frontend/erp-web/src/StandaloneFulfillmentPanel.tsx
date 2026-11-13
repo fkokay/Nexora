@@ -9,6 +9,12 @@ import type {
 } from "./erp-types";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmLocalized } from "./locale";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "./record-form/RecordForm";
+import "./sales/sales-record-forms.css";
 
 export function StandaloneFulfillmentPanel({
   token,
@@ -17,6 +23,7 @@ export function StandaloneFulfillmentPanel({
   stockItems,
   warehouses,
   initialCustomerId = "",
+  onCancel,
 }: {
   token: string;
   sales?: boolean;
@@ -24,6 +31,8 @@ export function StandaloneFulfillmentPanel({
   stockItems: StockItem[];
   warehouses: Warehouse[];
   initialCustomerId?: string;
+  /** Leaves the create screen (Vazgeç). Without it Vazgeç only clears the form. */
+  onCancel?: () => void;
 }) {
   type Row = {
     id: string;
@@ -228,6 +237,11 @@ export function StandaloneFulfillmentPanel({
       setBusy(false);
     }
   }
+  function resetForm() {
+    cancelEdit();
+    setNotice("");
+    setError("");
+  }
   function cancelEdit() {
     setEditingId(null);
     setCode("");
@@ -355,33 +369,59 @@ export function StandaloneFulfillmentPanel({
     }
   }
   return (
-    <section
-      className={`panel standalone-fulfillment-panel${sales ? " sales-order-create-card sales-delivery-create-card" : ""}`}
-    >
-      <div className="panel-heading">
-        <div>
-          <b>
-            {sales
-              ? "Siparişsiz satış irsaliyesi"
-              : "Siparişsiz satın alma mal kabulü"}
-          </b>
-          <small>
-            {sales
-              ? "Kaydetme stok çıkışı oluşturur; fatura daha sonra kesilir."
-              : "Birim maliyeti girin; fatura geldiğinde maliyet farkı işlenir."}
-          </small>
-        </div>
-      </div>
-      {error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && <div className="success-banner">{notice}</div>}
-      <form id={sales ? "sales-delivery-create-form" : undefined} className="collection-form" onSubmit={createDraft}>
-        <div className="form-two">
+    <section className="sales-rf-fulfillment">
+      <RecordFormPage
+        variant={sales ? "page" : "dialog"}
+        className={sales ? "sales-rf" : "sales-rf sales-rf-embedded"}
+        title={
+          sales
+            ? "Siparişsiz satış irsaliyesi"
+            : "Siparişsiz satın alma mal kabulü"
+        }
+        mode={editingId ? "edit" : "create"}
+        busy={busy}
+        saveLabel={editingId ? "Taslağı güncelle" : "Taslak oluştur"}
+        formId={sales ? "sales-delivery-create-form" : undefined}
+        onSubmit={createDraft}
+        onCancel={editingId ? cancelEdit : (onCancel ?? resetForm)}
+        onReset={resetForm}
+        error={error}
+        onDismissError={() => setError("")}
+        status={
+          <>
+            <span>
+              {sales
+                ? "Kaydetme stok çıkışı oluşturur; fatura daha sonra kesilir."
+                : "Birim maliyeti girin; fatura geldiğinde maliyet farkı işlenir."}
+            </span>
+            {notice && <span className="rf-status-notice">{notice}</span>}
+            <span className="rf-status-end">
+              Satır: <b>{lines.length}</b>
+            </span>
+          </>
+        }
+      >
+        <RecordFormGroup
+          title={sales ? "İrsaliye Kimliği" : "Mal Kabul Kimliği"}
+          bodyClassName="rf-identity"
+        >
           <label>
-            {sales ? "Müşteri" : "Tedarikçi"}
+            <span>
+              {sales ? "İrsaliye kodu" : "Mal kabul kodu"} <RequiredMark />
+            </span>
+            <input
+              className="rf-must rf-mono"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              maxLength={40}
+              placeholder={sales ? "IRS-2026-001" : "MK-2026-001"}
+            />
+          </label>
+          <label>
+            <span>
+              {sales ? "Müşteri" : "Tedarikçi"} <RequiredMark />
+            </span>
             <SearchableRecordPicker
               options={counterparties.map((x) => ({
                 id: x.id,
@@ -398,8 +438,11 @@ export function StandaloneFulfillmentPanel({
             />
           </label>
           <label>
-            Depo
+            <span>
+              Depo <RequiredMark />
+            </span>
             <select
+              className="rf-must"
               value={warehouseId}
               onChange={(e) => {
                 setWarehouseId(e.target.value);
@@ -419,20 +462,10 @@ export function StandaloneFulfillmentPanel({
                 ))}
             </select>
           </label>
-        </div>
-        <div className="form-two">
           <label>
-            {sales ? "İrsaliye kodu" : "Mal kabul kodu"}
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              maxLength={40}
-              placeholder={sales ? "IRS-2026-001" : "MK-2026-001"}
-            />
-          </label>
-          <label>
-            Tarih
+            <span>
+              Tarih <RequiredMark />
+            </span>
             <input
               type="date"
               value={date}
@@ -440,10 +473,14 @@ export function StandaloneFulfillmentPanel({
               required
             />
           </label>
-        </div>
-        {sales && (
-          <div className="quote-lines-heading">
-            <b>İrsaliye satırları</b>
+        </RecordFormGroup>
+        <RecordFormGroup
+          title={sales ? "İrsaliye Satırları" : "Mal Kabul Satırları"}
+        >
+          <div className="quote-lines-heading sales-rf-group-actions">
+            <span className="muted">
+              Lot / seri takipli stoklarda takip kodu zorunludur.
+            </span>
             <button
               type="button"
               className="secondary small-button"
@@ -466,12 +503,8 @@ export function StandaloneFulfillmentPanel({
               Satır ekle
             </button>
           </div>
-        )}
         {lines.map((line, index) => (
-          <div
-            className={sales ? "quote-line delivery-document-line" : "form-two"}
-            key={index}
-          >
+          <div className="quote-line delivery-document-line" key={index}>
             {sales && (
               <div className="quote-line-title">
                 <b>Satır {index + 1}</b>
@@ -488,7 +521,7 @@ export function StandaloneFulfillmentPanel({
                 )}
               </div>
             )}
-            <div className="form-two delivery-document-line-fields">
+            <div className="delivery-document-line-fields">
               <label>
                 Stok kartı
                 <SearchableRecordPicker
@@ -618,49 +651,8 @@ export function StandaloneFulfillmentPanel({
             </div>
           </div>
         ))}
-        <div className="modal-foot">
-          {!sales && (
-            <button
-              type="button"
-              className="secondary"
-              data-line-add-shortcut
-              title="Ctrl+Shift+Enter ile satır ekle"
-              onClick={() =>
-                setLines((rows) => [
-                  ...rows,
-                  {
-                    stockItemId: "",
-                    quantity: "1",
-                    unitCostBase: "0",
-                    trackingCode: "",
-                    expiryDate: "",
-                    storageLocationId: "",
-                  },
-                ])
-              }
-            >
-              Satır ekle
-            </button>
-          )}
-          {editingId && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={cancelEdit}
-            >
-              Düzenlemeyi iptal et
-            </button>
-          )}
-          <button className="primary" disabled={busy}>
-            {busy
-              ? "Kaydediliyor…"
-              : editingId
-                ? "Taslağı güncelle"
-                : "Taslak oluştur"}
-          </button>
-        </div>
-      </form>
+        </RecordFormGroup>
+      </RecordFormPage>
       {items.length > 0 && (
         <div className="requests-list" style={{ marginTop: 12 }}>
           {items.map((item) => (
@@ -736,35 +728,42 @@ export function StandaloneFulfillmentPanel({
               setInvoiceDraft(null);
           }}
         >
-          <form
-            className="modal sales-detail-modal"
+          <div
+            className="modal sales-detail-modal sales-rf-host"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="standalone-invoice-title"
-            onSubmit={createInvoice}
+            aria-label={`${invoiceDraft.delivery.code} için fatura oluştur`}
           >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">SATIŞ · FATURA</p>
-                <h2 id="standalone-invoice-title">
-                  {invoiceDraft.delivery.code} için fatura oluştur
-                </h2>
-                <span className="muted">
-                  Müşteri: {invoiceDraft.delivery.customerName}
+          <RecordFormPage
+            variant="dialog"
+            className="sales-rf"
+            title={`${invoiceDraft.delivery.code} için fatura oluştur`}
+            mode="create"
+            busy={busy}
+            saveLabel="Faturayı kaydet"
+            onSubmit={createInvoice}
+            onCancel={() => {
+              if (!busy) setInvoiceDraft(null);
+            }}
+            error={error}
+            onDismissError={() => setError("")}
+            status={
+              <>
+                <span>Müşteri: {invoiceDraft.delivery.customerName}</span>
+                <span>
+                  Fatura ve cari borç kaydı oluşturulur. Sevkiyatta kaydedilen
+                  stok çıkışı değişmez.
                 </span>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                disabled={busy}
-                onClick={() => setInvoiceDraft(null)}
-              >
-                ×
-              </button>
-            </div>
+              </>
+            }
+          >
+            <RecordFormGroup title="Fatura Kimliği" bodyClassName="rf-identity">
             <label>
-              Fatura tarihi
+              <span>
+                Fatura tarihi <RequiredMark />
+              </span>
               <input
+                className="rf-must"
                 type="date"
                 value={invoiceDraft.date}
                 onChange={(event) =>
@@ -777,8 +776,11 @@ export function StandaloneFulfillmentPanel({
                 required
               />
             </label>
-            <details className="sales-delivery-lines-wrap">
+            </RecordFormGroup>
+            <RecordFormGroup title="E-belge Bilgileri">
+            <details className="sales-rf-details">
               <summary>E-belge bilgileri</summary>
+              <div className="rf-custom-grid">
               <label>Senaryo<input value={invoiceDraft.eDocument.scenario} placeholder="TEMELFATURA / EARSIVFATURA" onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, scenario: event.target.value } } : current)} /></label>
               <label>Fatura tür kodu<input value={invoiceDraft.eDocument.typeCode} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, typeCode: event.target.value } } : current)} /></label>
               <label>Alıcı e-Fatura etiketi<input value={invoiceDraft.eDocument.recipientAlias} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, recipientAlias: event.target.value } } : current)} /></label>
@@ -791,8 +793,11 @@ export function StandaloneFulfillmentPanel({
               <label>Taşıyıcı adı/ünvanı<input value={invoiceDraft.eDocument.carrierName} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, carrierName: event.target.value } } : current)} /></label>
               <label>Taşıyıcı soyadı<input value={invoiceDraft.eDocument.carrierSurname} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, carrierSurname: event.target.value } } : current)} /></label>
               <label>Sevk tarihi<input type="date" value={invoiceDraft.eDocument.sentAt} onChange={(event) => setInvoiceDraft((current) => current ? { ...current, eDocument: { ...current.eDocument, sentAt: event.target.value } } : current)} /></label>
+              </div>
             </details>
-            <div className="customer-table-wrap sales-delivery-lines-wrap">
+            </RecordFormGroup>
+            <RecordFormGroup title="Fatura Satırları">
+            <div className="customer-table-wrap sales-delivery-lines-wrap sales-rf-lines">
               <table className="customer-table">
                 <thead>
                   <tr>
@@ -852,24 +857,9 @@ export function StandaloneFulfillmentPanel({
                 </tbody>
               </table>
             </div>
-            <p className="muted">
-              Fatura ve cari borç kaydı oluşturulur. Sevkiyatta kaydedilen stok
-              çıkışı değişmez.
-            </p>
-            <div className="modal-foot">
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => setInvoiceDraft(null)}
-              >
-                Vazgeç
-              </button>
-              <button className="primary" disabled={busy}>
-                {busy ? "Kaydediliyor…" : "Faturayı kaydet"}
-              </button>
-            </div>
-          </form>
+            </RecordFormGroup>
+          </RecordFormPage>
+          </div>
         </div>
       )}
     </section>
