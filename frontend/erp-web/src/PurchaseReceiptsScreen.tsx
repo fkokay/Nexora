@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api } from "./erpApi";
-import { Package, Search, ShieldCheck, X } from "lucide-react";
+import { X } from "lucide-react";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListToolbar } from "./list-page/ListToolbar";
+import "./purchase-list-v2/purchase-list-v2.css";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
@@ -13,7 +16,6 @@ type Warehouse = AppTypes.Warehouse;
 
 export function PurchaseReceiptsScreen({
   token,
-  role,
   warehouses: warehouseOptions,
   customers,
   stockItems,
@@ -112,7 +114,8 @@ export function PurchaseReceiptsScreen({
   const visibleFields = useMemo(
     () =>
       screenFields
-        .filter((field) => field.visible)
+        // Row actions live in the detail panel below the list.
+        .filter((field) => field.visible && field.key !== "actions")
         .sort((a, b) => a.position - b.position),
     [screenFields],
   );
@@ -172,38 +175,17 @@ export function PurchaseReceiptsScreen({
             {item.status === "Posted" ? "Kabul edildi" : "İptal"}
           </span>
         );
-      case "actions":
-        return (
-          <button
-            className="row-action"
-            onClick={(event) => {
-              event.stopPropagation();
-              void open(item);
-            }}
-          >
-            Sipariş ve satırlar
-          </button>
-        );
       default:
         return null;
     }
   }
   return (
-    <div className="receipt-screen">
-      <div className="page-heading customer-heading">
-        <div>
-          <p className="eyebrow">ERP CORE · SATIN ALMA</p>
-          <h1>Mal kabulleri</h1>
-          <p className="muted">
-            Tedarikçi siparişlerinden depoya giren mal kabul belgelerini
-            inceleyin.
-          </p>
-        </div>
-        <span className="tenant-scope">
-          <ShieldCheck size={14} />
-          {role}
-        </span>
-      </div>
+    <div className="receipt-screen list-v2 purchase-lv2-stack">
+      <ListPageHeader
+        title="Mal kabulleri"
+        description="Tedarikçi siparişlerinden depoya giren mal kabul belgelerini inceleyin."
+        count={loading && total === 0 ? null : total}
+      />
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -212,50 +194,15 @@ export function PurchaseReceiptsScreen({
           </button>
         </div>
       )}
-      <div className="customer-summary">
-        <div className="customer-summary-icon">
-          <Package size={19} />
-        </div>
-        <div>
-          <b>{total} mal kabul belgesi</b>
-          <small>Siparişe bağlı mal kabulleri burada listelenir.</small>
-        </div>
-      </div>
-      <section className="panel receipt-filter-card" aria-label="Mal kabul filtreleri">
-      <div className="receipt-filter-heading">
-        <h2>Filtreler</h2>
-        <p>Mal kabullerini belge, sipariş veya depo bilgisine göre daraltın.</p>
-      </div>
-      <div className="customer-toolbar receipt-filter-toolbar">
-        <label className="customer-search">
-          <Search size={16} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Mal kabul, sipariş veya depo ara"
-          />
-        </label>
-        <span className="date-pill">
-          {loading
-            ? "Yükleniyor…"
-            : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}
-        </span>
-        <button
-          className="secondary"
-          disabled={loading}
-          onClick={() => void load()}
-        >
-          Yenile
-        </button>
-      </div>
-      </section>
-      <div className="customer-table-wrap">
-        <div className="erp-pane-heading">
-          <div>
-            <b>Mal kabul kayıtları</b>
-            <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
-          </div>
-        </div>
+      <ListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Mal kabul, sipariş veya depo ara"
+        onRefresh={() => {
+          if (!loading) void load();
+        }}
+      />
+      <div className="customer-table-wrap list-v2-list">
         <table className="customer-table quote-table">
           <thead>
             <ScreenViewGroupHeader fields={visibleFields} />
@@ -285,7 +232,14 @@ export function PurchaseReceiptsScreen({
                 <tr
                   key={item.id}
                   className={selected?.id === item.id ? "erp-selected-row" : ""}
+                  tabIndex={0}
                   onClick={() => setSelectedId(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedId(item.id);
+                    }
+                  }}
                   aria-selected={selected?.id === item.id}
                 >
                   {visibleFields.map((field) => (
@@ -299,22 +253,36 @@ export function PurchaseReceiptsScreen({
       </div>
       {selected && (
         <aside className="erp-record-pane sales-selected-record">
-          <div className="erp-record-heading">
+          <header className="list-v2-detail-head">
             <div>
-              <span className="erp-record-kind">SATINALMA · MAL KABULÜ</span>
+              <span className="list-v2-kind">SATINALMA · MAL KABULÜ</span>
               <h2>{selected.code}</h2>
-              <small>
-                Sipariş {selected.purchaseOrderCode} · {selected.warehouseName}
-              </small>
             </div>
-            <button
-              className="secondary small-button"
-              onClick={() => void open(selected)}
+            <div className="list-v2-detail-head-actions">
+              <button
+                className="secondary small-button"
+                onClick={() => void open(selected)}
+              >
+                Detayları aç
+              </button>
+            </div>
+          </header>
+          <div className="list-v2-detail-meta">
+            <span>
+              <span>Sipariş</span>{" "}
+              <span className="list-v2-detail-code">
+                {selected.purchaseOrderCode}
+              </span>
+            </span>
+            <span>{selected.warehouseName}</span>
+            <span
+              className={`list-v2-status${selected.status === "Posted" ? " is-active" : ""}`}
             >
-              Detayları aç
-            </button>
+              <i aria-hidden="true" />
+              {selected.status === "Posted" ? "Kabul edildi" : "İptal"}
+            </span>
           </div>
-          <dl className="erp-record-facts">
+          <dl className="list-v2-facts">
             <div>
               <dt>Kabul tarihi</dt>
               <dd>{selected.receiptDate}</dd>
@@ -322,10 +290,6 @@ export function PurchaseReceiptsScreen({
             <div>
               <dt>Satır sayısı</dt>
               <dd>{selected.lineCount}</dd>
-            </div>
-            <div>
-              <dt>Durum</dt>
-              <dd>{selected.status === "Posted" ? "Kabul edildi" : "İptal"}</dd>
             </div>
           </dl>
         </aside>

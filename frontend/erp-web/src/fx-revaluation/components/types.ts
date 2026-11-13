@@ -3,7 +3,8 @@ import type { FxRevaluationVoucher, FxRevaluationVoucherSummary } from '../../er
 export type FxRevaluationMoneyFormatter = (value: number, currency: string) => string
 
 export type FxRevaluationHeaderProps = {
-  onRefresh: () => void
+  /** Voucher count shown next to the title; null while unknown. */
+  count: number | null
 }
 
 export type FxRevaluationMessagesProps = {
@@ -25,6 +26,8 @@ export type FxRevaluationVoucherGridProps = {
   token: string
   vouchers: FxRevaluationVoucherSummary[]
   emptyMessage: string
+  /** Page toolbar element (list-v2) that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null
   money: FxRevaluationMoneyFormatter
   onOpen: (id: string) => void
 }

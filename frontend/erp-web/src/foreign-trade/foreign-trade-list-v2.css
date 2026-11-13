@@ -1,0 +1,15 @@
+/*
+ * list-v2 additions for the foreign trade case list. The shared kit
+ * (src/list-page/list-page-v2.css) has no rule for these page-specific parts.
+ */
+
+/* Two status indicators remain after the "total" card became a chip count. */
+#root .list-v2.foreign-trade-page .foreign-trade-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 560px;
+}
+
+/* Detail panel: the next-step action is a single full-width button. */
+#root .list-v2 .foreign-trade-detail .list-v2-quick > div {
+  grid-template-columns: minmax(0, 1fr);
+}

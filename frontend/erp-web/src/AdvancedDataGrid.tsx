@@ -15,6 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type DragEvent as ReactDragEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import "./advanced-data-grid.css";
 
 type Operator =
@@ -75,6 +76,10 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   serverData?: ServerData;
   onImportRows?: (rows: ImportedRow[]) => void | Promise<void>;
   onEditRows?: (rows: EditedRow[]) => void | Promise<void>;
+  /** Renders the toolbar into this element (e.g. a page-level toolbar row) instead of above the table. */
+  toolbarContainer?: HTMLElement | null;
+  /** Hides the grid's own XLSX/CSV buttons when the page offers export elsewhere. */
+  hideExport?: boolean;
 };
 type Row = {
   element: ReactElement<any>;
@@ -393,6 +398,8 @@ export default function AdvancedDataGrid({
   serverData,
   onImportRows,
   onEditRows,
+  toolbarContainer,
+  hideExport = false,
   ...tableProps
 }: Props) {
   const tableElement = Children.toArray(children).find(
@@ -1380,6 +1387,10 @@ export default function AdvancedDataGrid({
   const finalChildren = tableChildren.map((node) =>
     node === thead ? renderedHead : node === tbody ? renderedBody : node,
   );
+  // In fullscreen the grid covers the page, so the toolbar must come back inside it.
+  const toolbarTarget = fullscreen ? null : toolbarContainer ?? null;
+  const placeToolbar = (toolbar: ReactElement) =>
+    toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar;
   return (
     <div
       className={`advanced-grid ${settings.density} ${fullscreen ? "is-fullscreen" : ""}`}
@@ -1389,7 +1400,8 @@ export default function AdvancedDataGrid({
       role="region"
       aria-label={tableProps["aria-label"] || "Data grid"}
     >
-      <div className="advanced-grid-toolbar" ref={toolbarRef}>
+      {placeToolbar(
+      <div className={`advanced-grid-toolbar${toolbarTarget ? " is-external" : ""}`} ref={toolbarRef}>
         {!hideSearch && (
           <label className="advanced-grid-search">
             <span aria-hidden="true">⌕</span>
@@ -1620,6 +1632,8 @@ export default function AdvancedDataGrid({
             )}
           </>
         )}
+        {!hideExport && (
+          <>
         <button
           type="button"
           className="advanced-grid-action"
@@ -1636,6 +1650,8 @@ export default function AdvancedDataGrid({
         >
           CSV
         </button>
+          </>
+        )}
         {onImportRows && excelImportEnabled && (
           <>
             <button
@@ -1683,7 +1699,8 @@ export default function AdvancedDataGrid({
         >
           ⛶
         </button>
-      </div>
+      </div>,
+      )}
       {importPreview && (
         <section className="advanced-grid-import">
           <header>

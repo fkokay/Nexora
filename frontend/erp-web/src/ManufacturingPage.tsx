@@ -10,7 +10,7 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Boxes, Factory, Filter, Plus, Search } from "lucide-react";
+import { Boxes, Factory, Plus } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
@@ -27,8 +27,10 @@ import {
   RecordFormPage,
   RequiredMark,
 } from "./record-form/RecordForm";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./manufacturing.css";
 import "./manufacturing-record-forms.css";
+import "./manufacturing/manufacturing-list-v2.css";
 
 export type { ManufacturingPageKey } from "./manufacturing/types";
 import { confirmLocalized } from "./locale";
@@ -407,15 +409,24 @@ export default function ManufacturingPage({
     [orderPage, setOrderPage] = useState(1),
     [orderSearchDraft, setOrderSearchDraft] = useState(""),
     [orderSearch, setOrderSearch] = useState(""),
-    [orderStatusDraft, setOrderStatusDraft] = useState(""),
     [orderStatus, setOrderStatus] = useState("");
   const orderPageSize = 25,
     orderPageCount = Math.max(1, Math.ceil(ordersTotalCount / orderPageSize)),
     pageOrders = orders;
   const selectedOrder =
     orders.find((order) => order.id === selectedOrderId) ?? null;
+  // True when the detail panel has a next workflow step to offer for the selected order.
+  const orderDetailHasStep =
+    !!selectedOrder &&
+    (selectedOrder.status === "Planned" ||
+      (selectedOrder.status === "Released" &&
+        selectedOrder.operations.every(
+          (operation) => operation.status === "Completed",
+        )));
   const [editingBomId, setEditingBomId] = useState(""),
     [recipeSearch, setRecipeSearch] = useState(""),
+    [recipeStatus, setRecipeStatus] = useState(""),
+    [workCenterStatus, setWorkCenterStatus] = useState(""),
     [recipePage, setRecipePage] = useState(1);
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
@@ -1835,10 +1846,12 @@ export default function ManufacturingPage({
     }
   }
   const eligibleItems = items;
+  // Row actions live in the order detail panel, so the list has no actions column.
   const visibleOrderFields = orderScreenFields
-    .filter((field) => field.visible || field.fixed)
+    .filter((field) => field.key !== "actions" && (field.visible || field.fixed))
     .sort((a, b) => a.position - b.position);
   const filteredBoms = boms.filter((bom) =>
+    (!recipeStatus || bom.isActive === (recipeStatus === "Active")) &&
     `${bom.code} ${bom.name} ${bom.productName}`
       .toLocaleLowerCase("tr-TR")
       .includes(recipeSearch.trim().toLocaleLowerCase("tr-TR")),
@@ -2651,9 +2664,33 @@ export default function ManufacturingPage({
         </RecordFormPage>
       </div>
     );
+  // Record lists follow the shared list-v2 structure (see list-page/README.md).
+  const listSection =
+    section === "manufacturing-recipes" ||
+    section === "manufacturing-work-centers" ||
+    (section === "manufacturing-orders" && !createOrderPage);
+  const listCount = loading
+    ? null
+    : section === "manufacturing-recipes"
+      ? boms.length
+      : section === "manufacturing-work-centers"
+        ? workCenters.length
+        : ordersTotalCount;
+  const refreshList = () => {
+    if (!busy) void refresh();
+  };
+  const activeWorkCenterCount = workCenters.filter((x) => x.isActive).length;
+  const visibleWorkCenters = workCenters.filter(
+    (center) =>
+      !workCenterStatus || center.isActive === (workCenterStatus === "Active"),
+  );
   return (
-    <div className="manufacturing-page manufacturing-workbench">
+    <div
+      className={`manufacturing-page manufacturing-workbench${listSection ? " list-v2" : ""}`}
+    >
       <ManufacturingPageHeader
+        listMode={listSection}
+        listCount={listCount}
         title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
         description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
         showRecipeScope={false}
@@ -2686,19 +2723,27 @@ export default function ManufacturingPage({
         onBackToOrderList={() => onNavigate("manufacturing-orders")}
         onRefresh={() => void refresh()}
       />
-      {!createOrderPage && <ManufacturingSummary
+      {!createOrderPage &&
+        section !== "manufacturing-recipes" &&
+        section !== "manufacturing-orders" && <ManufacturingSummary
         workCenterMode={section === "manufacturing-work-centers"}
         workCenterMetrics={[
-          {
-            label: "İş merkezi",
-            value: workCenters.length,
-            detail: "Toplam tanım",
-          },
-          {
-            label: "Aktif iş merkezi",
-            value: workCenters.filter((x) => x.isActive).length,
-            detail: "Üretim planlamasında kullanılabilir",
-          },
+          // On the list page the counts are in the title and on the status chips;
+          // the capacity total has no filter equivalent, so its card stays.
+          ...(section === "manufacturing-work-centers"
+            ? []
+            : [
+                {
+                  label: "İş merkezi",
+                  value: workCenters.length,
+                  detail: "Toplam tanım",
+                },
+                {
+                  label: "Aktif iş merkezi",
+                  value: workCenters.filter((x) => x.isActive).length,
+                  detail: "Üretim planlamasında kullanılabilir",
+                },
+              ]),
           {
             label: "Günlük kapasite",
             value: `${workCenters
@@ -2749,6 +2794,9 @@ export default function ManufacturingPage({
             busy={busy}
             search={recipeSearch}
             setSearch={setRecipeSearch}
+            status={recipeStatus}
+            setStatus={setRecipeStatus}
+            onRefresh={refreshList}
             page={recipePage}
             setPage={setRecipePage}
             pageCount={recipePageCount}
@@ -2761,19 +2809,26 @@ export default function ManufacturingPage({
         )}
       </div>
       {section === "manufacturing-work-centers" && (
-        <section className="manufacturing-panel">
-          <div className="manufacturing-heading">
-            <div className="manufacturing-icon soft blue">
-              <Factory size={18} />
-            </div>
-            <div>
-              <h2>Tanımlı iş merkezleri</h2>
-              <p>
-                {workCenters.length} kayıt · İş merkezi takvimi ve kurulum
-                kuralları aşağıdan düzenlenir.
-              </p>
-            </div>
-          </div>
+        <ListToolbar onRefresh={refreshList}>
+          <ListChipGroup
+            label="Durum"
+            value={workCenterStatus}
+            onChange={setWorkCenterStatus}
+            allowClear
+            hideEmpty
+            options={[
+              { value: "Active", label: "Aktif", count: activeWorkCenterCount },
+              {
+                value: "Inactive",
+                label: "Pasif",
+                count: workCenters.length - activeWorkCenterCount,
+              },
+            ]}
+          />
+        </ListToolbar>
+      )}
+      {section === "manufacturing-work-centers" && (
+        <section className="manufacturing-panel" aria-label="Tanımlı iş merkezleri">
           {workCenters.length === 0 ? (
             <div className="manufacturing-empty">
               <Factory size={22} />
@@ -2784,7 +2839,7 @@ export default function ManufacturingPage({
               </span>
             </div>
           ) : (
-            <div className="manufacturing-table-wrap work-center-list-table">
+            <div className="manufacturing-table-wrap work-center-list-table list-v2-list">
               <AdvancedDataGrid
                 gridId="manufacturing-work-centers"
                 {...screenViewGridDefaults(visibleWorkCenterFields)}
@@ -2800,7 +2855,7 @@ export default function ManufacturingPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {workCenters.map((center) => (
+                  {visibleWorkCenters.map((center) => (
                     <tr key={center.id}>
                       {visibleWorkCenterFields.map((field) => (
                         <td key={field.key}>
@@ -3555,74 +3610,34 @@ export default function ManufacturingPage({
       )}
       {section === "manufacturing-orders" && !createOrderPage && (
         <div className="manufacturing-order-stack">
-          <section className="panel manufacturing-order-filter-card" aria-label="Üretim emri filtreleri">
-            <div className="manufacturing-order-filter-heading">
-              <h2>Filtreler</h2>
-              <p>Üretim emirlerini kod, bağlı kayıt veya duruma göre daraltın.</p>
-            </div>
-            <form
-              className="manufacturing-order-filterbar"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setOrderSearch(orderSearchDraft.trim());
-                setOrderStatus(orderStatusDraft);
+          <ListToolbar
+            search={orderSearchDraft}
+            onSearchChange={setOrderSearchDraft}
+            onSearchApply={() => {
+              setOrderSearch(orderSearchDraft.trim());
+              setOrderPage(1);
+            }}
+            searchLabel="Üretim emirlerinde ara"
+            searchPlaceholder="Emir, reçete, depo veya sipariş ara"
+            onRefresh={refreshList}
+          >
+            <ListChipGroup
+              label="Üretim emri durumu"
+              value={orderStatus}
+              onChange={(value) => {
+                setOrderStatus(value);
                 setOrderPage(1);
               }}
-            >
-              <label className="manufacturing-order-search">
-                <Search size={16} aria-hidden="true" />
-                <input
-                  type="search"
-                  value={orderSearchDraft}
-                  onChange={(event) => setOrderSearchDraft(event.target.value)}
-                  placeholder="Emir, reçete, depo veya sipariş ara"
-                  aria-label="Üretim emirlerinde ara"
-                />
-              </label>
-              <label className="manufacturing-order-status-filter">
-                <span>Durum</span>
-                <select
-                  value={orderStatusDraft}
-                  onChange={(event) => setOrderStatusDraft(event.target.value)}
-                  aria-label="Üretim emri durumu"
-                >
-                  <option value="">Tüm durumlar</option>
-                  <option value="Planned">Planlandı</option>
-                  <option value="Released">Serbest bırakıldı</option>
-                  <option value="Completed">Tamamlandı</option>
-                  <option value="Cancelled">İptal edildi</option>
-                </select>
-              </label>
-              <button type="submit" className="secondary small-button">
-                <Filter size={15} /> Filtrele
-              </button>
-              {(orderSearchDraft || orderStatusDraft) && (
-                <button
-                  type="button"
-                  className="secondary small-button manufacturing-order-clear"
-                  onClick={() => {
-                    setOrderSearchDraft("");
-                    setOrderStatusDraft("");
-                    setOrderSearch("");
-                    setOrderStatus("");
-                    setOrderPage(1);
-                  }}
-                >
-                  Temizle
-                </button>
+              allowClear
+              options={["Planned", "Released", "Completed", "Cancelled"].map(
+                (value) => ({ value, label: statusLabel[value] }),
               )}
-            </form>
-          </section>
-          <section className="manufacturing-panel manufacturing-order-list">
-          <div className="manufacturing-heading">
-            <div>
-              <h2>Üretim emirleri</h2>
-              <p>
-                {ordersTotalCount.toLocaleString("tr-TR")} emir · Serbest
-                bırakma öncesinde reçete bileşenleri kopyalanır.
-              </p>
-            </div>
-          </div>
+            />
+          </ListToolbar>
+          <section
+            className="manufacturing-panel manufacturing-order-list list-v2-list"
+            aria-label="Üretim emirleri"
+          >
           {orders.length === 0 ? (
             <div className="manufacturing-empty">
               <Factory size={22} />
@@ -3902,66 +3917,12 @@ export default function ManufacturingPage({
                             </span>
                           </>
                         ),
-                        actions: (
-                          <>
-                            <div className="manufacturing-actions">
-                              {x.status === "Planned" &&
-                                x.operations.length > 0 &&
-                                x.operations.some(
-                                  (op) => !op.scheduledStartDate,
-                                ) && (
-                                  <button
-                                    className="secondary small-button"
-                                    disabled={busy}
-                                    onClick={() => void scheduleOrder(x)}
-                                  >
-                                    Kapasiteye çizelgele
-                                  </button>
-                                )}
-                              {x.status === "Planned" &&
-                                (x.operations.length === 0 ||
-                                  x.operations.every(
-                                    (op) => !!op.scheduledStartDate,
-                                  )) && (
-                                  <button
-                                    className="secondary small-button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void transition(x, "release")
-                                    }
-                                  >
-                                    Serbest bırak
-                                  </button>
-                                )}
-                              {x.status === "Released" &&
-                                x.operations.every(
-                                  (op) => op.status === "Completed",
-                                ) && (
-                                  <button
-                                    className="primary small-button"
-                                    disabled={busy}
-                                    onClick={() => completeOrder(x)}
-                                  >
-                                    Üretimi tamamla
-                                  </button>
-                                )}
-                              {["Planned", "Released"].includes(x.status) && (
-                                <button
-                                  className="manufacturing-cancel"
-                                  disabled={busy}
-                                  onClick={() => void transition(x, "cancel")}
-                                >
-                                  İptal
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        ),
                       };
                       return (
                         <tr
                           key={x.id}
                           className={selectedOrderId === x.id ? "selected" : ""}
+                          onClick={() => setSelectedOrderId(x.id)}
                         >
                           {visibleOrderFields.map((field) => (
                             <td key={field.key}>
@@ -3980,11 +3941,13 @@ export default function ManufacturingPage({
               >
                 {selectedOrder ? (
                   <>
-                    <div className="manufacturing-inspector-title">
+                    <div className="list-v2-detail-head">
                       <div>
-                        <span>SEÇİLİ ÜRETİM EMRİ</span>
-                        <h3>{selectedOrder.code}</h3>
+                        <span className="list-v2-kind">SEÇİLİ ÜRETİM EMRİ</span>
+                        <h2>{selectedOrder.code}</h2>
                       </div>
+                    </div>
+                    <div className="list-v2-detail-meta">
                       <span
                         className={
                           "manufacturing-status manufacturing-" +
@@ -3995,7 +3958,57 @@ export default function ManufacturingPage({
                           selectedOrder.status}
                       </span>
                     </div>
-                    <dl>
+                    {/* Next workflow step of the order; cancelling is in the footer. */}
+                    {orderDetailHasStep && (
+                    <div className="list-v2-quick">
+                      <div>
+                      {selectedOrder.status === "Planned" &&
+                        selectedOrder.operations.length > 0 &&
+                        selectedOrder.operations.some(
+                          (operation) => !operation.scheduledStartDate,
+                        ) && (
+                          <button
+                            type="button"
+                            className="primary"
+                            disabled={busy}
+                            onClick={() => void scheduleOrder(selectedOrder)}
+                          >
+                            Kapasiteye çizelgele
+                          </button>
+                        )}
+                      {selectedOrder.status === "Planned" &&
+                        (selectedOrder.operations.length === 0 ||
+                          selectedOrder.operations.every(
+                            (operation) => !!operation.scheduledStartDate,
+                          )) && (
+                          <button
+                            type="button"
+                            className="primary"
+                            disabled={busy}
+                            onClick={() =>
+                              void transition(selectedOrder, "release")
+                            }
+                          >
+                            Serbest bırak
+                          </button>
+                        )}
+                      {selectedOrder.status === "Released" &&
+                        selectedOrder.operations.every(
+                          (operation) => operation.status === "Completed",
+                        ) && (
+                          <button
+                            type="button"
+                            className="primary"
+                            disabled={busy}
+                            onClick={() => completeOrder(selectedOrder)}
+                          >
+                            Üretimi tamamla
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    )}
+                    <dl className="list-v2-facts">
                       <div>
                         <dt>Reçete</dt>
                         <dd>{selectedOrder.billOfMaterialName}</dd>
@@ -4078,51 +4091,18 @@ export default function ManufacturingPage({
                         <small>Operasyon rotası tanımlı değil.</small>
                       )}
                     </div>
-                    <div className="manufacturing-inspector-actions">
-                      {selectedOrder.status === "Planned" &&
-                        selectedOrder.operations.length > 0 &&
-                        selectedOrder.operations.some(
-                          (operation) => !operation.scheduledStartDate,
-                        ) && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() => void scheduleOrder(selectedOrder)}
-                          >
-                            Kapasiteye çizelgele
-                          </button>
-                        )}
-                      {selectedOrder.status === "Planned" &&
-                        (selectedOrder.operations.length === 0 ||
-                          selectedOrder.operations.every(
-                            (operation) => !!operation.scheduledStartDate,
-                          )) && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() =>
-                              void transition(selectedOrder, "release")
-                            }
-                          >
-                            Serbest bırak
-                          </button>
-                        )}
-                      {selectedOrder.status === "Released" &&
-                        selectedOrder.operations.every(
-                          (operation) => operation.status === "Completed",
-                        ) && (
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => completeOrder(selectedOrder)}
-                          >
-                            Üretimi tamamla
-                          </button>
-                        )}
-                    </div>
+                    {["Planned", "Released"].includes(selectedOrder.status) && (
+                      <div className="list-v2-detail-foot">
+                        <button
+                          type="button"
+                          className="is-danger"
+                          disabled={busy}
+                          onClick={() => void transition(selectedOrder, "cancel")}
+                        >
+                          İptal
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="manufacturing-empty">

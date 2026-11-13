@@ -1,7 +1,7 @@
 /** English labels for the purchasing-customers screens. Keys are exact Turkish source texts as rendered (trimmed, single-spaced). */
 export const english: Record<string, string> = {
   // Shared / commercial contracts
-  'Seçin': 'Select', 'Sipariş': 'Order', 'Hatayı kapat': 'Dismiss error', 'Sürüm': 'Version', 'İl': 'Province',
+  'İlgili kayıtlar': 'Related records', 'Listeyi yenile': 'Refresh list','Seçin': 'Select','Sipariş': 'Order', 'Hatayı kapat': 'Dismiss error', 'Sürüm': 'Version', 'İl': 'Province',
   '· değer geçmişi': '· value history', 'Müşteri kodu veya unvanıyla ara': 'Search by customer code or name',
   'Değişiklikleri Kaydet': 'Save changes', 'Aramanızla eşleşen firma bulunamadı.': 'No company matches your search.',
   'Faturalar yükleniyor…': 'Loading invoices…', 'Tanım v': 'Definition v', 'Seçildi': 'Selected',

@@ -1,0 +1,4 @@
+/* list-v2: the order count moved to the page title, so three cost totals remain. */
+.manufacturing-cost-page.list-v2 .manufacturing-cost-summary {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}

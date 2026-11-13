@@ -30,6 +30,7 @@ type Props = {
   onStatusChange: (value: string) => void;
   onCurrencyChange: (value: string) => void;
   onClearFilters: () => void;
+  onRefresh?: () => void;
   onPreviewInterest: (facility: Facility) => void;
   onEffectiveInterestCostChange: (facilityId: string, value: string) => void;
   onPreviewEffectiveInterest: (facility: Facility) => void;
@@ -62,6 +63,7 @@ export function CreditFacilityRegister({
   onStatusChange,
   onCurrencyChange,
   onClearFilters,
+  onRefresh,
   onPreviewInterest,
   onPostPreviousMonthInterest,
   onCloseFacility,
@@ -78,37 +80,25 @@ export function CreditFacilityRegister({
   const reverseMovement = onReverseMovement;
   return (
     <>
-    <section className="panel credit-filter-panel" aria-label="Kredi kayıt filtreleri">
-      <div className="credit-records-heading">
-        <div>
-          <h2>Filtreler</h2>
-          <p>Kredi kayıtlarını kod, kurum, durum veya para birimine göre daraltın.</p>
-        </div>
-      </div>
-      <CreditFacilitiesFilters
-        search={search}
-        statusFilter={statusFilter}
-        currencyFilter={currencyFilter}
-        currencies={currencies}
-        onSearchChange={onSearchChange}
-        onStatusChange={onStatusChange}
-        onCurrencyChange={onCurrencyChange}
-        onClear={onClearFilters}
-      />
-    </section>
+    <CreditFacilitiesFilters
+      search={search}
+      statusFilter={statusFilter}
+      currencyFilter={currencyFilter}
+      currencies={currencies}
+      counts={{
+        all: facilities.length,
+        active: facilities.filter((facility) => facility.status === "Active").length,
+        closed: facilities.filter((facility) => facility.status !== "Active").length,
+      }}
+      onSearchChange={onSearchChange}
+      onStatusChange={onStatusChange}
+      onCurrencyChange={onCurrencyChange}
+      onRefresh={onRefresh}
+    />
     <section
-      className="panel credit-records-panel"
-      aria-labelledby="credit-records-title"
+      className="panel credit-records-panel list-v2-list"
+      aria-label="Kredi ve finansman kayıtları"
     >
-      <div className="credit-records-heading">
-        <div>
-          <h2 id="credit-records-title">Kredi ve finansman kayıtları</h2>
-          <p>
-            {facilities.length} kayıt · {visibleFacilities.length} gösteriliyor
-            · sadece açık taksitler gelecek tahmine eklenir
-          </p>
-        </div>
-      </div>
       {loading ? (
         <div
           className="credit-state"

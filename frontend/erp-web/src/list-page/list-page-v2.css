@@ -1,0 +1,529 @@
+/*
+ * Shared look of list pages ("list-v2"): one title row, one toolbar row (search, filter
+ * chips, grid tools), the list, and an optional record detail panel. Used through
+ * ListPageHeader / ListToolbar and the list-v2-* classes; see README.md in this folder.
+ * Everything is scoped under a .list-v2 root and uses its own class names, so the
+ * shared page-heading / reference / record-panel rules in module-workspace.css are not
+ * touched. Selectors start with #root because the shared rules they sit beside do.
+ */
+#root .list-v2 {
+  --lv2-text: var(--erp-color-text, #0a192f);
+  --lv2-muted: var(--erp-color-muted, #526174);
+  --lv2-border: var(--erp-color-border, #d8e0e8);
+  --lv2-surface: var(--erp-color-surface, #ffffff);
+  --lv2-surface-muted: var(--erp-color-surface-muted, #f8f9fa);
+  --lv2-strong: var(--erp-color-primary, #0a192f);
+  --lv2-accent: var(--nexora-gold, #f6c23e);
+}
+
+/* Header: a plain title row instead of a card, so the list starts higher. */
+#root .app-shell .list-v2 .list-v2-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .list-v2 .list-v2-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+#root .list-v2 .list-v2-title h1 {
+  margin: 0;
+  color: var(--lv2-text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+}
+#root .list-v2 .list-v2-count {
+  color: var(--lv2-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Toolbar: search, type chips, status chips, refresh. */
+#root .list-v2 .list-v2-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  min-width: 0;
+}
+#root .list-v2 .list-v2-search {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  height: 38px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 8px;
+  background: var(--lv2-surface);
+  color: var(--lv2-muted);
+}
+#root .list-v2 .list-v2-search:focus-within {
+  border-color: var(--lv2-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv2-accent) 35%, transparent);
+}
+#root .list-v2 .list-v2-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lv2-text);
+  font-size: 14px;
+}
+#root .list-v2 .list-v2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#root .list-v2 .list-v2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 16px;
+  background: var(--lv2-surface);
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#root .list-v2 .list-v2-chip:hover {
+  border-color: var(--lv2-strong);
+}
+#root .list-v2 .list-v2-chip.is-active {
+  border-color: var(--lv2-strong);
+  background: var(--lv2-strong);
+  color: var(--lv2-surface);
+}
+#root .list-v2 .list-v2-chip-count {
+  font-weight: 500;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+/* A second (third…) chip group is set apart by a hairline. */
+#root .list-v2 .list-v2-chips + .list-v2-chips {
+  padding-left: 12px;
+  border-left: 1px solid var(--lv2-border);
+}
+/* Filters that cannot be chips (long option lists, dates): a compact labelled control. */
+#root .list-v2 .list-v2-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#root .list-v2 .list-v2-filter :is(select, input) {
+  height: 32px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 8px;
+  background: var(--lv2-surface);
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+#root .list-v2 .list-v2-icon-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lv2-muted);
+  cursor: pointer;
+}
+#root .list-v2 .list-v2-icon-button:hover {
+  background: var(--lv2-surface-muted);
+  color: var(--lv2-text);
+}
+#root .list-v2 :is(.list-v2-chip, .list-v2-icon-button, .list-v2-tabs button, .list-v2-related button):focus-visible {
+  outline: 2px solid var(--lv2-strong);
+  outline-offset: 2px;
+}
+
+/* List: readable text size, clearer type pills. */
+#root .app-shell .list-v2 .list-v2-list tbody td {
+  font-size: 13px;
+}
+#root .app-shell .list-v2 .list-v2-list .customer-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+#root .app-shell .list-v2 .list-v2-list .customer-code {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+#root .app-shell .list-v2 .list-v2-list .active-pill {
+  font-size: 12px;
+}
+#root .list-v2 .list-v2-unset {
+  color: var(--lv2-muted);
+}
+#root .app-shell .list-v2 .list-v2-list .party-pill {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: #eceff4;
+  color: #3d4a5e;
+  font-size: 12px;
+  font-weight: 600;
+}
+#root .app-shell .list-v2 .list-v2-list .party-pill.customer {
+  background: #e6f0fd;
+  color: #134e9b;
+}
+#root .app-shell .list-v2 .list-v2-list .party-pill.supplier {
+  background: #fdebd8;
+  color: #8a4308;
+}
+#root .app-shell .list-v2 .list-v2-list .party-pill.dealer {
+  background: #e9e6fb;
+  color: #4a35a8;
+}
+
+/* Detail panel. */
+#root .list-v2 .list-v2-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+#root .list-v2 .list-v2-detail-head > div:first-child {
+  min-width: 0;
+}
+#root .list-v2 .list-v2-detail-head h2 {
+  margin: 4px 0 0;
+  color: var(--lv2-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#root .list-v2 .list-v2-kind {
+  color: var(--lv2-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+#root .list-v2 .list-v2-kind.is-customer { color: #134e9b; }
+#root .list-v2 .list-v2-kind.is-supplier { color: #8a4308; }
+#root .list-v2 .list-v2-kind.is-dealer { color: #4a35a8; }
+html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-customer { color: #8ab8f5; }
+html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-supplier { color: #f0b37a; }
+html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: #b5a8f2; }
+#root .list-v2 .list-v2-detail-head-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+#root .list-v2 .list-v2-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+  color: var(--lv2-muted);
+  font-size: 12.5px;
+}
+#root .list-v2 .list-v2-detail-code {
+  color: var(--lv2-text);
+  font-variant-numeric: tabular-nums;
+}
+#root .list-v2 .list-v2-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#root .list-v2 .list-v2-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8a94a6;
+}
+#root .list-v2 .list-v2-status.is-active {
+  color: #17643f;
+}
+#root .list-v2 .list-v2-status.is-active i {
+  background: #1f9d5f;
+}
+html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
+  color: #6fd3a1;
+}
+#root .list-v2 .list-v2-einvoice {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--lv2-surface-muted);
+  border: 1px solid var(--lv2-border);
+  font-size: 12px;
+}
+#root .list-v2 .list-v2-quick {
+  margin-top: 16px;
+}
+#root .list-v2 :is(.list-v2-quick, .list-v2-related) h3 {
+  margin: 0 0 8px;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+#root .list-v2 .list-v2-quick > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#root .list-v2 .list-v2-quick > div button {
+  justify-content: center;
+  min-height: 36px;
+}
+#root .list-v2 .list-v2-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--lv2-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+#root .list-v2 .list-v2-tabs button {
+  flex: none;
+  height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lv2-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#root .list-v2 .list-v2-tabs button:hover {
+  color: var(--lv2-text);
+}
+#root .list-v2 .list-v2-tabs button.is-active {
+  border-bottom-color: var(--lv2-accent);
+  color: var(--lv2-text);
+}
+#root .list-v2 .list-v2-facts {
+  display: block;
+  margin: 0;
+}
+#root .list-v2 .list-v2-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--lv2-border);
+}
+#root .list-v2 .list-v2-facts dt {
+  color: var(--lv2-muted);
+  font-size: 13px;
+}
+#root .list-v2 .list-v2-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+#root .list-v2 .list-v2-address {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+  color: var(--lv2-muted);
+}
+#root .list-v2 .list-v2-address > svg {
+  flex: none;
+  margin-top: 2px;
+}
+#root .list-v2 .list-v2-address > div {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+#root .list-v2 .list-v2-address > div > span {
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+#root .list-v2 .list-v2-address strong {
+  color: var(--lv2-text);
+  font-size: 13px;
+}
+#root .list-v2 .list-v2-address small {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+#root .list-v2 .list-v2-address button {
+  margin-top: 6px;
+}
+#root .list-v2 .list-v2-related {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+#root .list-v2 .list-v2-related button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: auto;
+  min-height: 40px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lv2-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+#root .list-v2 .list-v2-related button:hover {
+  background: var(--lv2-surface-muted);
+}
+#root .list-v2 .list-v2-related button svg {
+  flex: none;
+  color: var(--lv2-muted);
+}
+
+/* Chips are pills; the shared 4px button radius is overridden on purpose. */
+#root .list-v2 .list-v2-chip {
+  border-radius: 999px !important;
+}
+
+/* Name cell: code under the title. */
+#root .app-shell .list-v2 .list-v2-list .list-v2-name-code {
+  display: block;
+  margin-top: 2px;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The grid's own tools (column filters, columns, pivot, print, fullscreen) are rendered
+   into the page toolbar row; here they lose their card look and sit flat on the right. */
+#root .list-v2 .list-v2-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  min-width: 0;
+}
+#root .list-v2 .list-v2-grid-tools {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+#root .list-v2 .list-v2-grid-tools:empty {
+  display: none;
+}
+#root .list-v2 .list-v2-grid-tools .advanced-grid-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+#root .list-v2 .list-v2-grid-tools .advanced-grid-count {
+  display: none;
+}
+#root .list-v2 .list-v2-grid-tools :is(.advanced-grid-menu > summary, .advanced-grid-action) {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+#root .list-v2 .list-v2-grid-tools :is(.advanced-grid-menu > summary, .advanced-grid-action):hover,
+#root .list-v2 .list-v2-grid-tools .advanced-grid-action.active {
+  background: var(--lv2-surface-muted);
+}
+
+/* Detail panel footer: activate / deactivate. */
+#root .list-v2 .list-v2-detail-foot {
+  display: flex;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lv2-border);
+}
+#root .list-v2 .list-v2-detail-foot button {
+  min-height: 36px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lv2-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#root .list-v2 .list-v2-detail-foot button.is-danger {
+  color: var(--erp-color-danger, #b91c1c);
+}
+#root .list-v2 .list-v2-detail-foot button:hover {
+  background: var(--lv2-surface-muted);
+}
+#root .list-v2 .list-v2-detail-foot button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+#root .list-v2 .list-v2-grid-tools :is(.advanced-grid-menu > summary, .advanced-grid-action):not(.active):not(:hover) {
+  border-color: transparent !important;
+  background: transparent !important;
+}

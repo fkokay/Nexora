@@ -39,14 +39,13 @@ type Props = {
   caseCount: number;
   loading: boolean;
   selectedId: string | null;
-  busyId: string;
   orderMap: Map<string, TradeOrder>;
   capabilities: TradeCapabilities;
   statusLabel: (status: TradeStatus) => string;
   directionLabel: (direction: Direction) => string;
   onSelect: (item: TradeCase) => void;
-  onTransition: (item: TradeCase, status: TradeStatus) => void;
-  nextStatus: Partial<Record<TradeStatus, TradeStatus>>;
+  /** Page-level toolbar element that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
   transportLabel?: (mode: string) => string;
   fields?: ForeignTradeScreenField[];
 };
@@ -59,26 +58,19 @@ export function ForeignTradeGrid({
   caseCount,
   loading,
   selectedId,
-  busyId,
   orderMap,
   capabilities,
   statusLabel,
   directionLabel,
   onSelect,
-  onTransition,
-  nextStatus,
+  toolbarContainer,
   transportLabel = (mode) => mode,
   fields = defaultForeignTradeFields,
 }: Props) {
+  // Stage and cancel actions live in the detail panel, so "actions" gets no column here.
   const visibleFields = fields
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+    .filter((field) => field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position);
   // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
   const fieldLabel = (field: ForeignTradeScreenField) => {
     const standard = defaultForeignTradeFields.find(
@@ -147,6 +139,7 @@ export function ForeignTradeGrid({
         {...screenViewGridDefaults(visibleFields)}
         enableRowSelection={false}
         hideSearch
+        toolbarContainer={toolbarContainer}
       >
         <thead>
           <tr>
@@ -160,7 +153,6 @@ export function ForeignTradeGrid({
             const order = orderMap.get(
               item.purchaseOrderId || item.salesOrderId || "",
             );
-            const next = nextStatus[item.status];
             const renderCell = (key: string): ReactNode => {
               switch (key) {
                 case "reference":
@@ -208,36 +200,6 @@ export function ForeignTradeGrid({
                   );
                 case "transportMode":
                   return transportLabel(item.transportMode);
-                case "actions":
-                  return (
-                    <>
-                      {capabilities.canAdvance && next && (
-                        <button
-                          className="secondary small-button"
-                          disabled={busyId === item.id}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onTransition(item, next);
-                          }}
-                        >
-                          {busyId === item.id ? "…" : `${statusLabel(next)} →`}
-                        </button>
-                      )}
-                      {capabilities.canAdvance &&
-                        ["Draft", "Booked"].includes(item.status) && (
-                          <button
-                            className="row-action danger-action"
-                            disabled={busyId === item.id}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onTransition(item, "Cancelled");
-                            }}
-                          >
-                            {tr("İptal et", "Cancel")}
-                          </button>
-                        )}
-                    </>
-                  );
                 default:
                   return null;
               }

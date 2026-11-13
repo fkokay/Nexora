@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FileText, ShieldCheck, X } from "lucide-react";
+import { ShieldCheck, X } from "lucide-react";
 import { api } from "./erpApi";
 import type * as AppTypes from "./erp-types";
 import { AuditLogFilters } from "./audit-log/components/AuditLogFilters";
@@ -7,6 +7,8 @@ import { AuditRetentionSettings } from "./audit-log/components/AuditRetentionSet
 import { AuditEventGrid } from "./audit-log/components/AuditEventGrid";
 import { AuditEventDetail } from "./audit-log/components/AuditEventDetail";
 import type { AuditEvent, AuditRetentionPolicy } from "./audit-log/types";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import "./audit-log/audit-log-list-v2.css";
 type AuditEventPage = AppTypes.AuditEventPage;
 
 export function AuditLogPage({ token }: { token: string }) {
@@ -25,6 +27,9 @@ export function AuditLogPage({ token }: { token: string }) {
     [retentionBusy, setRetentionBusy] = useState(false),
     [retentionError, setRetentionError] = useState(""),
     [retentionNotice, setRetentionNotice] = useState("");
+  const [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   async function load() {
     setLoading(true);
     setError("");
@@ -91,26 +96,17 @@ export function AuditLogPage({ token }: { token: string }) {
   const selectedAudit =
     items.find((item) => item.id === selectedAuditId) ?? items[0] ?? null;
   return (
-    <div className="audit-log-page">
-      <div className="page-heading audit-page-heading">
-        <span className="audit-page-title-icon" aria-hidden="true">
-          <ShieldCheck size={19} />
-        </span>
-        <div>
-          <p className="eyebrow">
-            YÖNETİM <span>·</span> DENETİM İZİ
-          </p>
-          <h1>İşlem kayıtları</h1>
-          <p className="muted">
-            Seçili firmadaki kullanıcı ve sistem işlemlerinin değiştirilemez
-            kayıtları.
-          </p>
-        </div>
+    <div className="audit-log-page list-v2">
+      <ListPageHeader
+        title="İşlem kayıtları"
+        description="Seçili firmadaki kullanıcı ve sistem işlemlerinin değiştirilemez kayıtları."
+        count={loading && total === 0 ? null : total}
+      >
         <span className="audit-page-scope">
           <ShieldCheck size={14} />
           TenantAdmin · Seçili firma
         </span>
-      </div>
+      </ListPageHeader>
       {error && (
         <div className="alert inline-alert">
           {error}
@@ -119,57 +115,37 @@ export function AuditLogPage({ token }: { token: string }) {
           </button>
         </div>
       )}
-      <div className="customer-summary">
-        <div className="customer-summary-icon">
-          <FileText size={19} />
-        </div>
-        <div>
-          <b>{total} işlem kaydı</b>
-          <small>En yeniden eskiye · tenant kapsamlı görünüm</small>
-        </div>
-        <span className="tenant-scope">
-          <ShieldCheck size={14} />
-          Yalnız TenantAdmin
-        </span>
-      </div>
-      <section className="panel audit-filter-card" aria-label="Denetim kayıtları filtreleri">
-        <div className="audit-filter-heading">
-          <h2>Filtreler</h2>
-          <p>İşlemleri metin ve tarih aralığına göre daraltın.</p>
-        </div>
-        <AuditLogFilters
-          search={search}
-          from={from}
-          to={to}
-          onSearchChange={setSearch}
-          onFromChange={(value) => {
-            setPage(1);
-            setFrom(value);
-          }}
-          onToChange={(value) => {
-            setPage(1);
-            setTo(value);
-          }}
-          onApply={() => {
-            setPage(1);
-            setFilter(search.trim());
-          }}
-          onRefresh={() => void load()}
-        />
-      </section>
+      <AuditLogFilters
+        search={search}
+        from={from}
+        to={to}
+        onSearchChange={setSearch}
+        onFromChange={(value) => {
+          setPage(1);
+          setFrom(value);
+        }}
+        onToChange={(value) => {
+          setPage(1);
+          setTo(value);
+        }}
+        onApply={() => {
+          setPage(1);
+          setFilter(search.trim());
+        }}
+        onRefresh={() => void load()}
+        toolsSlotRef={setGridToolsSlot}
+      />
       <div className="audit-workbench">
-        <section className="erp-list-pane audit-list-pane">
-          <div className="erp-pane-heading">
-            <div>
-              <b>Denetim kayıtları</b>
-              <small>{total} kayıt · en yeniden eskiye</small>
-            </div>
-          </div>
+        <section
+          className="erp-list-pane audit-list-pane list-v2-list"
+          aria-label="Denetim kayıtları"
+        >
           <AuditEventGrid
             token={token}
             items={items}
             selectedId={selectedAudit?.id ?? null}
             loading={loading}
+            toolbarContainer={gridToolsSlot}
             onSelect={setSelectedAuditId}
           />
         </section>

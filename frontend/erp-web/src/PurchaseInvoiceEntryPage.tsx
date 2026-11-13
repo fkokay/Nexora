@@ -1,11 +1,14 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { FilePlus2, PackageCheck, Search, ShieldCheck, X } from "lucide-react";
+import { FilePlus2, X } from "lucide-react";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListToolbar } from "./list-page/ListToolbar";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import "./purchase-invoice-entry.css";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchasing-record-forms.css";
+import "./purchase-list-v2/purchase-list-v2.css";
 
 type ReceiptOption = {
   id: string;
@@ -106,13 +109,17 @@ function localDate(): string {
 
 export default function PurchaseInvoiceEntryPage({
   token,
-  role,
   onInvoiceCreated,
 }: PurchaseInvoiceEntryPageProps) {
   const [items, setItems] = useState<ReceiptOption[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState("");
+  // Search text that is applied to the query (set shortly after typing stops).
   const [query, setQuery] = useState("");
+  const [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -240,8 +247,9 @@ export default function PurchaseInvoiceEntryPage({
   }
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
+  // The invoice action lives in the detail panel, so the row action column is not shown.
   const visibleFields = screenFields.filter(
-    (field) => field.visible || field.fixed,
+    (field) => (field.visible || field.fixed) && field.key !== "actions",
   );
   const fieldValue = (item: ReceiptOption, key: string) =>
     key === "receipt" ? (
@@ -262,36 +270,14 @@ export default function PurchaseInvoiceEntryPage({
       item.lineCount
     ) : key === "purchaseOrderTotal" ? (
       `${item.purchaseOrderTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${item.currencyCode}`
-    ) : key === "actions" ? (
-      <button
-        className="pie-primary"
-        onClick={(event) => {
-          event.stopPropagation();
-          setPreviewReceipt(item);
-          setSelected(item);
-          setInvoiceCode("");
-          setInvoiceDate(localDate());
-        }}
-      >
-        <FilePlus2 size={15} /> Fatura gir
-      </button>
     ) : null;
   return (
-    <main className="purchase-invoice-entry">
-      <header className="pie-heading">
-        <div>
-          <p className="pie-eyebrow">ERP CORE · SATIN ALMA</p>
-          <h1>Alış faturası girişi</h1>
-          <p>
-            İşlenmiş mal kabullerini seçin; fatura kaydı sipariş ve stok
-            kabulüyle bağlantısını korusun.
-          </p>
-        </div>
-        <span className="pie-tenant">
-          <ShieldCheck size={15} />
-          {role} · firma kapsamı
-        </span>
-      </header>
+    <main className="purchase-invoice-entry list-v2 purchase-lv2-stack">
+      <ListPageHeader
+        title="Alış faturası girişi"
+        description="İşlenmiş mal kabullerini seçin; fatura kaydı sipariş ve stok kabulüyle bağlantısını korusun."
+        count={loading && total === 0 ? null : total}
+      />
       <p className="pie-hint">
         Bu akış yalnızca sipariş ve işlenmiş mal kabul satırlarına bağlı stok
         faturalarını destekler. Sipariş/mal kabul bağlantısı olmayan hizmet veya
@@ -310,57 +296,27 @@ export default function PurchaseInvoiceEntryPage({
           <button onClick={() => setNotice("")}>Kapat</button>
         </div>
       )}
-      <section className="pie-summary">
-        <span>
-          <PackageCheck size={20} />
-        </span>
-        <div>
-          <b>{total} faturalanabilir mal kabul</b>
-          <small>
-            İptal edilen ve daha önce faturalanmış kabuller listelenmez.
-          </small>
-        </div>
-      </section>
-      <section className="panel pie-filter-card" aria-label="Mal kabul filtreleri">
-        <div className="pie-filter-heading">
-          <h2>Filtreler</h2>
-          <p>Faturalanabilir mal kabulleri belge, sipariş, tedarikçi veya depo bilgisine göre arayın.</p>
-        </div>
-        <div className="pie-toolbar">
-          <label>
-          <Search size={16} />
-          <input
-            value={query}
-            onChange={(e) => {
-              setPage(1);
-              setQuery(e.target.value);
-            }}
-            placeholder="Mal kabul, sipariş, tedarikçi veya depo ara"
-          />
-        </label>
-        <span>
-          {loading
-            ? "Yükleniyor…"
-            : `${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / ${total}`}
-        </span>
-        <button disabled={loading} onClick={() => void load()}>
-          Yenile
-          </button>
-        </div>
-      </section>
+      <ListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchApply={() => {
+          setPage(1);
+          setQuery(search.trim());
+        }}
+        searchPlaceholder="Mal kabul, sipariş, tedarikçi veya depo ara"
+        toolsSlotRef={setGridToolsSlot}
+        onRefresh={() => {
+          if (!loading) void load();
+        }}
+      />
       <div className="pie-workbench">
-        <div className="pie-table-wrap">
-          <div className="erp-pane-heading">
-            <div>
-              <b>Faturalanabilir mal kabulleri</b>
-              <small>{loading ? "Kayıtlar yükleniyor…" : `${total} kayıt`}</small>
-            </div>
-          </div>
+        <div className="pie-table-wrap list-v2-list">
           <AdvancedDataGrid
             gridId="purchase-invoice-receipt-selection"
             hideSearch
             externalPagination
             enableRowSelection={false}
+            toolbarContainer={gridToolsSlot}
           >
             <thead>
               <ScreenViewGroupHeader fields={visibleFields} />
@@ -430,13 +386,33 @@ export default function PurchaseInvoiceEntryPage({
               >
                 <X size={18} />
               </button>
-              <small>SEÇİLİ MAL KABUL</small>
-              <h2>{previewReceipt.receiptCode}</h2>
-              <p>
-                {previewReceipt.supplierName} ·{" "}
-                {previewReceipt.purchaseOrderCode}
-              </p>
-              <dl>
+              <header className="list-v2-detail-head">
+                <div>
+                  <span className="list-v2-kind">SEÇİLİ MAL KABUL</span>
+                  <h2>{previewReceipt.receiptCode}</h2>
+                </div>
+              </header>
+              <div className="list-v2-detail-meta">
+                <span>{previewReceipt.supplierName}</span>
+                <span className="list-v2-detail-code">
+                  {previewReceipt.purchaseOrderCode}
+                </span>
+              </div>
+              <section className="list-v2-quick purchase-lv2-quick-single">
+                <div>
+                  <button
+                    className="pie-primary"
+                    onClick={() => {
+                      setSelected(previewReceipt);
+                      setInvoiceCode("");
+                      setInvoiceDate(localDate());
+                    }}
+                  >
+                    <FilePlus2 size={15} /> Bu mal kabul için fatura gir
+                  </button>
+                </div>
+              </section>
+              <dl className="list-v2-facts">
                 <div>
                   <dt>Kabul tarihi</dt>
                   <dd>
@@ -464,16 +440,6 @@ export default function PurchaseInvoiceEntryPage({
                   </dd>
                 </div>
               </dl>
-              <button
-                className="pie-primary"
-                onClick={() => {
-                  setSelected(previewReceipt);
-                  setInvoiceCode("");
-                  setInvoiceDate(localDate());
-                }}
-              >
-                <FilePlus2 size={15} /> Bu mal kabul için fatura gir
-              </button>
             </>
           ) : (
             <div className="pie-record-empty">

@@ -2,6 +2,8 @@ import { isApproved, type PlanScreenField, type PlanSummary } from "../types";
 
 type Props = {
   plans: PlanSummary[];
+  /** "" (all), "Draft" or "Approved"; narrows the listed plans. */
+  statusFilter?: string;
   fields: PlanScreenField[];
   loading: boolean;
   busy: boolean;
@@ -13,6 +15,7 @@ type Props = {
 
 export default function DirectCashBudgetPlanList({
   plans,
+  statusFilter = "",
   fields,
   loading,
   busy,
@@ -23,19 +26,9 @@ export default function DirectCashBudgetPlanList({
 }: Props) {
   return (
     <section
-      className="panel direct-cash-budget-list"
-      aria-labelledby="direct-cash-budget-list-title"
+      className="panel direct-cash-budget-list list-v2-list"
+      aria-label="Bütçe planları"
     >
-      <div className="panel-heading">
-        <div>
-          <h2 id="direct-cash-budget-list-title">Bütçe planları</h2>
-          <p>
-            {loading
-              ? "Planlar yükleniyor…"
-              : `${plans.length} kayıt · firma kapsamlı`}
-          </p>
-        </div>
-      </div>
       {loading ? (
         <div className="budget-state" role="status">
           Nakit bütçeleri yükleniyor…
@@ -51,7 +44,13 @@ export default function DirectCashBudgetPlanList({
         </div>
       ) : (
         <div className="budget-plan-list" aria-label="Nakit bütçesi planları">
-          {plans.map((plan) => (
+          {plans
+            .filter(
+              (plan) =>
+                !statusFilter ||
+                isApproved(plan.status) === (statusFilter === "Approved"),
+            )
+            .map((plan) => (
             <article
               key={plan.id}
               className={`budget-plan-item direct-cash-budget-plan-card ${selectedId === plan.id && !editing ? "active" : ""}`}

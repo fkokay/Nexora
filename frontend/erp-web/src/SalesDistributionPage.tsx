@@ -8,7 +8,9 @@ import type {
   ScreenField,
   Warehouse,
 } from "./sales-distribution/components/types";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./sales-distribution.css";
+import "./sales/sales-list-v2.css";
 
 type Props = { token: string };
 const defaultScreenFields: ScreenField[] = [
@@ -49,6 +51,7 @@ export default function SalesDistributionPage({ token }: Props) {
   const [busy, setBusy] = useState(false);
   const [screenFields, setScreenFields] =
     useState<ScreenField[]>(defaultScreenFields);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     let cancelled = false;
     request<{ fields?: ScreenField[] }>(
@@ -128,33 +131,21 @@ export default function SalesDistributionPage({ token }: Props) {
   const visibleFields = screenFields.filter((field) => field.visible);
 
   return (
-    <main className="sales-distribution-page">
-      <header className="sales-distribution-header">
-        <div>
-          <p className="eyebrow">SATIŞ OPERASYONLARI</p>
-          <h1>Dağıtım ihtiyaç planı</h1>
-          <p className="muted">
-            Açık sipariş taleplerini seçilen depodaki mevcut stok ve aktif
-            rezervasyonlarla karşılaştırın.
-          </p>
-        </div>
-      </header>
+    <main className="sales-distribution-page list-v2">
+      <ListPageHeader
+        title="Dağıtım ihtiyaç planı"
+        description="Açık sipariş taleplerini seçilen depodaki mevcut stok ve aktif rezervasyonlarla karşılaştırın."
+        count={page ? page.totalCount : null}
+      />
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
         </div>
       )}
-      <DistributionSummary
-        totalCount={page?.totalCount ?? 0}
-        totalOpenDemand={totalOpenDemand}
-        totalUncovered={totalUncovered}
-        warehouseCode={page?.warehouse?.code ?? "—"}
-      />
       <DistributionFilters
         warehouses={warehouses}
         warehouseId={warehouseId}
         query={query}
-        busy={busy}
         onWarehouseChange={(id) => {
           setWarehouseId(id);
           setPageNumber(1);
@@ -164,7 +155,14 @@ export default function SalesDistributionPage({ token }: Props) {
           setPageNumber(1);
         }}
         onRefresh={() => void load()}
+        toolsSlotRef={setToolsSlot}
       />
+      {page && (
+        <DistributionSummary
+          totalOpenDemand={totalOpenDemand}
+          totalUncovered={totalUncovered}
+        />
+      )}
       <DistributionPlanPanel
         page={page}
         busy={busy}
@@ -173,6 +171,7 @@ export default function SalesDistributionPage({ token }: Props) {
         selectedStockId={selectedStockId}
         selected={selected}
         onSelectStock={setSelectedStockId}
+        toolbarContainer={toolsSlot}
         onPreviousPage={() => setPageNumber((value) => Math.max(1, value - 1))}
         onNextPage={() => setPageNumber((value) => value + 1)}
       />

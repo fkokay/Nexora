@@ -1,7 +1,8 @@
-import { Boxes, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { Boxes, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import type { ScreenColumnPin } from "../../erp-types";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ManufacturingBom, ManufacturingPageKey } from "../types";
 
@@ -35,6 +36,10 @@ type Props = {
   busy: boolean;
   search: string;
   setSearch: (value: string) => void;
+  /** "" (all), "Active" or "Inactive"; applied by the page when it filters the recipes. */
+  status: string;
+  setStatus: (value: string) => void;
+  onRefresh: () => void;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
   pageCount: number;
@@ -54,6 +59,9 @@ export default function ManufacturingRecipeList({
   busy,
   search,
   setSearch,
+  status,
+  setStatus,
+  onRefresh,
   page,
   setPage,
   pageCount,
@@ -63,6 +71,8 @@ export default function ManufacturingRecipeList({
   onChangeState,
   onDelete,
 }: Props) {
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const activeCount = boms.filter((x) => x.isActive).length;
   const visibleFields = fields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) => {
@@ -155,59 +165,41 @@ export default function ManufacturingRecipeList({
   };
   return (
     <div className="manufacturing-recipe-stack">
-      <section className="panel manufacturing-recipe-filter-card" aria-label="Reçete filtreleri">
-        <div className="manufacturing-recipe-filter-heading">
-          <h2>Filtreler</h2>
-          <p>Reçeteleri kod, ad veya mamul bilgisine göre daraltın.</p>
-        </div>
-        <div className="manufacturing-recipe-filterbar">
-          <label className="manufacturing-recipe-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Kod, reçete veya mamul ara"
-              aria-label="Reçetelerde ara"
-            />
-          </label>
-          {search && (
-            <button
-              type="button"
-              className="secondary small-button"
-              onClick={() => {
-                setSearch("");
-                setPage(1);
-              }}
-            >
-              Temizle
-            </button>
-          )}
-        </div>
-      </section>
+      <ListToolbar
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+        searchLabel="Reçetelerde ara"
+        searchPlaceholder="Kod, reçete veya mamul ara"
+        toolsSlotRef={setToolsSlot}
+        onRefresh={onRefresh}
+      >
+        <ListChipGroup
+          label="Durum"
+          value={status}
+          onChange={(value) => {
+            setStatus(value);
+            setPage(1);
+          }}
+          allowClear
+          hideEmpty
+          options={[
+            { value: "Active", label: "Aktif", count: activeCount },
+            {
+              value: "Inactive",
+              label: "Pasif",
+              count: boms.length - activeCount,
+            },
+          ]}
+        />
+      </ListToolbar>
       <section
-        className="manufacturing-recipe-list"
+        className="manufacturing-recipe-list list-v2-list"
         aria-label="Tanımlı reçeteler"
         aria-busy={loading}
       >
-      <div className="manufacturing-recipe-list-heading">
-        <p>
-          {loading ? (
-            "Reçeteler yükleniyor…"
-          ) : (
-            <>
-              <b>{filteredBoms.length.toLocaleString("tr-TR")}</b> kayıt{" "}
-              <span>·</span>{" "}
-              <b>
-                {boms.filter((x) => x.isActive).length.toLocaleString("tr-TR")}
-              </b>{" "}
-              aktif{" "}
-            </>
-          )}
-        </p>
-      </div>
       {loading ? (
         <div className="manufacturing-empty" role="status" aria-live="polite">
           <RefreshCw size={18} aria-hidden="true" />
@@ -242,6 +234,7 @@ export default function ManufacturingRecipeList({
               {...screenViewGridDefaults(visibleFields)}
               externalPagination
               hideSearch
+              toolbarContainer={toolsSlot}
               enableRowSelection={false}
               aria-label="Ürün reçeteleri"
             >

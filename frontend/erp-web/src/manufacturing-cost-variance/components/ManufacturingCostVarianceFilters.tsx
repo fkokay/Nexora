@@ -1,32 +1,29 @@
-import type { FormEvent } from "react";
+import { ListToolbar } from "../../list-page/ListToolbar";
 
 type Props = {
   from: string;
   to: string;
   maxTo?: string;
-  loading: boolean;
   onFromChange: (value: string) => void;
   onToChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onRefresh: () => void;
 };
 
+/**
+ * Toolbar row of the cost analysis list. The report reloads as soon as a date
+ * changes, so there is no separate "apply" button.
+ */
 export function ManufacturingCostVarianceFilters({
   from,
   to,
   maxTo,
-  loading,
   onFromChange,
   onToChange,
-  onSubmit,
+  onRefresh,
 }: Props) {
   return (
-    <section className="panel manufacturing-cost-filter-card" aria-label="Üretim maliyet filtreleri">
-      <div className="manufacturing-cost-filter-heading">
-        <h2>Filtreler</h2>
-        <p>Üretim emirlerini plan tarihi aralığına göre inceleyin.</p>
-      </div>
-      <form className="manufacturing-cost-filters" onSubmit={onSubmit}>
-        <label>
+    <ListToolbar onRefresh={onRefresh}>
+      <label className="list-v2-filter">
         Plan tarihi başlangıcı
         <input
           type="date"
@@ -35,8 +32,8 @@ export function ManufacturingCostVarianceFilters({
           onChange={(event) => onFromChange(event.target.value)}
           required
         />
-        </label>
-        <label>
+      </label>
+      <label className="list-v2-filter">
         Plan tarihi bitişi
         <input
           type="date"
@@ -46,11 +43,7 @@ export function ManufacturingCostVarianceFilters({
           onChange={(event) => onToChange(event.target.value)}
           required
         />
-        </label>
-        <button className="primary" disabled={loading}>
-        {loading ? "Rapor hazırlanıyor…" : "Raporu getir"}
-        </button>
-      </form>
-    </section>
+      </label>
+    </ListToolbar>
   );
 }

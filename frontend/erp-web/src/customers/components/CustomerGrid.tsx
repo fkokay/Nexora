@@ -11,6 +11,8 @@ type Props = {
   loading: boolean;
   filter: string;
   selectedCustomerId: string | null;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
   onPageChange: (page: number) => void;
   onSelect: (item: CustomerItem) => void;
   renderCell: (
@@ -28,20 +30,13 @@ export function CustomerGrid({
   loading,
   filter,
   selectedCustomerId,
+  toolbarContainer,
   onPageChange,
   onSelect,
   renderCell,
 }: Props) {
   return (
-    <section className="erp-list-pane">
-      <div className="erp-pane-heading">
-        <div>
-          <b>Cariler</b>
-          <small>
-            {total} kayıt · sayfa {page}
-          </small>
-        </div>
-      </div>
+    <section className="erp-list-pane list-v2-list" aria-label="Cariler">
       <div className="customer-table-wrap">
         <AdvancedDataGrid
           className="customer-table customer-directory-grid"
@@ -70,6 +65,8 @@ export function CustomerGrid({
           )}
           externalPagination
           hideSearch
+          hideExport
+          toolbarContainer={toolbarContainer}
           enableRowSelection={false}
         >
           <thead>

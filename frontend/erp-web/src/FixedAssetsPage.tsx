@@ -5,6 +5,7 @@ import { authenticatedFetch } from "./authApi";
 import type { Asset, AssetField } from "./fixed-assets/types";
 import { FixedAssetRegister } from "./fixed-assets/components/FixedAssetRegister";
 import { localDateString } from "./dateUtils";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./fixed-assets.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
@@ -729,52 +730,31 @@ export default function FixedAssetsPage({
     return matchesTerm && matchesStatus;
   });
   return (
-    <div className="fixed-assets-page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">
-            {en ? "FINANCE MANAGEMENT" : "FİNANS YÖNETİMİ"}
-          </p>
-          <h1>{en ? "Fixed assets" : "Sabit kıymetler"}</h1>
-          <p className="muted">
-            {en
-              ? "Track acquisitions, depreciation, custody, and disposals in one register."
-              : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."}
-          </p>
-        </div>
-        <div className="fixed-asset-page-actions">
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              void load();
-              if (selected) void loadDetails(selected);
-            }}
-            disabled={loading || detailLoading || busy}
-          >
-            {loading || detailLoading
-              ? en
-                ? "Refreshing…"
-                : "Yenileniyor…"
-              : en
-                ? "Refresh"
-                : "Yenile"}
-          </button>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => setShowAcquisition((value) => !value)}
-          >
-            {showAcquisition
-              ? en
-                ? "Close form"
-                : "Formu kapat"
-              : en
-                ? "New acquisition"
-                : "Yeni edinim"}
-          </button>
-        </div>
-      </div>
+    <div className="fixed-assets-page list-v2">
+      <ListPageHeader
+        title={en ? "Fixed assets" : "Sabit kıymetler"}
+        description={
+          en
+            ? "Track acquisitions, depreciation, custody, and disposals in one register."
+            : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
+        }
+        count={loading && !assets.length ? null : assets.length}
+        countLabel={en ? "records" : "kayıt"}
+      >
+        <button
+          type="button"
+          className="primary"
+          onClick={() => setShowAcquisition((value) => !value)}
+        >
+          {showAcquisition
+            ? en
+              ? "Close form"
+              : "Formu kapat"
+            : en
+              ? "New acquisition"
+              : "Yeni edinim"}
+        </button>
+      </ListPageHeader>
       {error && (
         <div className="alert" role="alert">
           {error}
@@ -789,16 +769,6 @@ export default function FixedAssetsPage({
         className="fixed-asset-metrics"
         aria-label={en ? "Asset summary" : "Kıymet özeti"}
       >
-        <article>
-          <span>{en ? "Registered assets" : "Kayıtlı kıymet"}</span>
-          <strong>
-            {assets.length.toLocaleString(en ? "en-US" : "tr-TR")}
-          </strong>
-          <small>
-            {activeAssets.length.toLocaleString(en ? "en-US" : "tr-TR")}{" "}
-            {en ? "active" : "etkin"}
-          </small>
-        </article>
         <article>
           <span>{en ? "Acquisition cost" : "Edinim maliyeti"}</span>
           <strong>
@@ -833,6 +803,12 @@ export default function FixedAssetsPage({
       <FixedAssetRegister
         assets={filteredAssets}
         totalAssetCount={assets.length}
+        activeAssetCount={activeAssets.length}
+        onRefresh={() => {
+          if (loading || detailLoading || busy) return;
+          void load();
+          if (selected) void loadDetails(selected);
+        }}
         fields={assetFields}
         loading={loading}
         search={assetSearch}

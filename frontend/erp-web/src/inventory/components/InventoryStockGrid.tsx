@@ -19,6 +19,8 @@ type Props = {
     item: InventoryBalance,
   ) => ReactNode;
   pagination: ReactNode;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
 };
 
 export function InventoryStockGrid({
@@ -31,6 +33,7 @@ export function InventoryStockGrid({
   belowMinimumOnly,
   renderCell,
   pagination,
+  toolbarContainer,
 }: Props) {
   const widths: Record<string, number> = {
     code: 180,
@@ -59,14 +62,7 @@ export function InventoryStockGrid({
     actions: 165,
   };
   return (
-    <section className="panel inventory-stock-grid-panel">
-      <header className="inventory-stock-grid-heading">
-        <div>
-          <h2>Stok listesi</h2>
-          <p>{balances.length.toLocaleString("tr-TR")} kayıt</p>
-        </div>
-        <span>{balancesLoading ? "Bakiyeler yükleniyor…" : `${pageBalances.length} satır gösteriliyor`}</span>
-      </header>
+    <section className="panel inventory-stock-grid-panel list-v2-list">
       <div className="customer-table-wrap">
         <AdvancedDataGrid
           className="customer-table inventory-table"
@@ -80,6 +76,7 @@ export function InventoryStockGrid({
           )}
           externalPagination
           hideSearch
+          toolbarContainer={toolbarContainer}
           enableRowSelection={false}
           aria-label="Depo stok bakiyeleri"
         >

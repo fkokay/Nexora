@@ -1,0 +1,36 @@
+/*
+ * Purchasing-only additions to the shared list-v2 look (src/list-page/list-page-v2.css).
+ * Kept here because the purchasing pages have their own legacy root layouts; nothing in
+ * this file restyles the kit itself.
+ */
+
+/* Roots that are plain blocks (no grid gap): space the title row and the toolbar row. */
+#root .app-shell .list-v2.purchase-lv2-stack > .list-v2-heading {
+  margin-bottom: 12px;
+}
+#root .list-v2.purchase-lv2-stack > .list-v2-toolbar {
+  margin-bottom: 12px;
+}
+
+/* Delivery notes: the page becomes a two-column grid once an order is selected. */
+.purchase-delivery-notes-page.has-selected-order > .list-v2-toolbar {
+  grid-column: 1 / -1;
+}
+
+/* A detail panel with a single quick action: the button spans the panel. */
+#root .list-v2 .list-v2-quick.purchase-lv2-quick-single > div {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* A list card that sits under a form keeps its own h2 as the title. */
+#root .list-v2 .purchase-lv2-section-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+/* Invoice entry: on compact screens the detail is a dialog with an absolute close button. */
+@media (max-width: 1180px) {
+  #root .list-v2 .pie-record-detail.is-open > .list-v2-detail-head {
+    padding-right: 42px;
+  }
+}

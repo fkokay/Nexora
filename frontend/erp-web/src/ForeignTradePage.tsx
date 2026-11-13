@@ -2,11 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { localizedText } from "./locale";
 import {
-  FileText,
-  Globe2,
   PackageCheck,
   Plus,
-  RefreshCw,
   Ship,
 } from "lucide-react";
 import "./foreign-trade.css";
@@ -16,6 +13,8 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./finance-record-forms.css";
+import "./foreign-trade/foreign-trade-list-v2.css";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
 import {
   ForeignTradeGrid,
@@ -116,6 +115,8 @@ export default function ForeignTradePage({
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState<"All" | Direction>("All");
   const [query, setQuery] = useState("");
+  // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [capabilities, setCapabilities] = useState<TradeCapabilities>({
     canCreate: false,
     canUpdate: false,
@@ -403,57 +404,32 @@ export default function ForeignTradePage({
   }
 
   return (
-    <div className="page-content foreign-trade-page">
-      <header className="foreign-trade-hero screen-page-header">
-        <div className="foreign-trade-hero-icon">
-          <Globe2 size={24} />
-        </div>
-        <div>
-          <p className="eyebrow">
-            {tr("ERP CORE · DIŞ TİCARET", "ERP CORE · FOREIGN TRADE")}
-          </p>
-          <h1>
-            {tr("İthalat ve ihracat dosyaları", "Import and export cases")}
-          </h1>
-          <p>
-            {tr(
-              "Satın alma ve satış siparişlerine bağlı lojistik, gümrük referansı ve sevkiyat adımlarını izleyin.",
-              "Track logistics, customs references and shipment steps linked to purchase and sales orders.",
-            )}
-          </p>
-          <small>
-            {tr(
-              "Operasyon takibi sağlar; gümrük beyannamesi veya mevzuat uygunluğu üretmez.",
-              "For operational tracking only; it does not create customs declarations or certify regulatory compliance.",
-            )}
-          </small>
-        </div>
-        <div className="foreign-trade-hero-actions">
-          <button
-            className="secondary"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            <RefreshCw size={15} />
-            {tr("Yenile", "Refresh")}
-          </button>
-          {capabilities.canCreate && (
-            <>
-              <button
-                className="secondary"
-                onClick={() => startCreate("Import")}
-              >
-                <Plus size={15} />
-                {tr("İthalat dosyası", "Import case")}
-              </button>
-              <button className="primary" onClick={() => startCreate("Export")}>
-                <Plus size={15} />
-                {tr("İhracat dosyası", "Export case")}
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+    <div className="page-content foreign-trade-page list-v2">
+      <ListPageHeader
+        title={tr("İthalat ve ihracat dosyaları", "Import and export cases")}
+        description={tr(
+          "Satın alma ve satış siparişlerine bağlı lojistik, gümrük referansı ve sevkiyat adımlarını izleyin.",
+          "Track logistics, customs references and shipment steps linked to purchase and sales orders.",
+        )}
+        count={loading && cases.length === 0 ? null : cases.length}
+        countLabel={tr("kayıt", "records")}
+      >
+        {capabilities.canCreate && (
+          <>
+            <button
+              className="secondary"
+              onClick={() => startCreate("Import")}
+            >
+              <Plus size={15} />
+              {tr("İthalat dosyası", "Import case")}
+            </button>
+            <button className="primary" onClick={() => startCreate("Export")}>
+              <Plus size={15} />
+              {tr("İhracat dosyası", "Export case")}
+            </button>
+          </>
+        )}
+      </ListPageHeader>
       {(!capabilities.canCreate ||
         !capabilities.canUpdate ||
         !capabilities.canAdvance) &&
@@ -490,14 +466,22 @@ export default function ForeignTradePage({
           {notice}
         </div>
       )}
+      <ForeignTradeFilters
+        query={query}
+        direction={filter}
+        counts={{
+          all: cases.length,
+          imports: cases.filter((x) => x.direction === "Import").length,
+          exports: cases.filter((x) => x.direction === "Export").length,
+        }}
+        onQueryChange={setQuery}
+        onDirectionChange={setFilter}
+        onRefresh={() => {
+          if (!loading) void load();
+        }}
+        toolsSlotRef={setToolsSlot}
+      />
       <div className="foreign-trade-metrics">
-        <article className="panel">
-          <span>
-            <FileText size={17} />
-          </span>
-          <b>{cases.length}</b>
-          <small>{tr("Toplam dosya", "Total cases")}</small>
-        </article>
         <article className="panel">
           <span>
             <PackageCheck size={17} />
@@ -520,18 +504,6 @@ export default function ForeignTradePage({
           <small>{tr("Yolda", "In transit")}</small>
         </article>
       </div>
-      <section className="panel foreign-trade-filter-card" aria-label={tr("Dış ticaret filtreleri", "Foreign trade filters")}>
-        <div className="foreign-trade-filter-heading">
-          <h2>{tr("Filtreler", "Filters")}</h2>
-          <p>{tr("Dosyaları referans veya işlem yönüne göre daraltın.", "Narrow cases by reference or direction.")}</p>
-        </div>
-        <ForeignTradeFilters
-          query={query}
-          direction={filter}
-          onQueryChange={setQuery}
-          onDirectionChange={setFilter}
-        />
-      </section>
       {creating && (
         <div
           className="foreign-trade-modal-backdrop"
@@ -875,18 +847,7 @@ export default function ForeignTradePage({
           </section>
         </div>
       )}
-      <section className="panel foreign-trade-list">
-        <div className="panel-heading">
-          <div>
-            <h2>{tr("Dış ticaret kayıtları", "Foreign trade cases")}</h2>
-            <p>
-              {tr(
-                "İthalat ve ihracat dosyaları, bağlı sipariş ve güncel lojistik adım.",
-                "Import and export cases, linked orders and current logistics step.",
-              )}
-            </p>
-          </div>
-        </div>
+      <section className="panel foreign-trade-list list-v2-list">
         <div
           className={`foreign-trade-workspace${selectedCase ? " has-selection" : ""}`}
         >
@@ -896,16 +857,14 @@ export default function ForeignTradePage({
               caseCount={cases.length}
               loading={loading}
               selectedId={selectedCase?.id || null}
-              busyId={busyId}
               orderMap={orderMap}
               capabilities={capabilities}
               statusLabel={statusLabel}
               directionLabel={directionLabel}
               onSelect={setSelectedCase}
-              onTransition={(item, status) => void transition(item, status)}
-              nextStatus={nextStatus}
               transportLabel={transportLabel}
               fields={screenFields}
+              toolbarContainer={toolsSlot}
             />
           </div>
           <ForeignTradeDetail

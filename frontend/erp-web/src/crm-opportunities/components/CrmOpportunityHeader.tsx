@@ -1,21 +1,19 @@
-import { BriefcaseBusiness, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 
-type Props = { onCreate: () => void };
+type Props = {
+  onCreate: () => void;
+  /** Number of opportunities matching the current search and stage; null while unknown. */
+  total?: number | null;
+};
 
-export function CrmOpportunityHeader({ onCreate }: Props) {
+export function CrmOpportunityHeader({ onCreate, total = null }: Props) {
   return (
-    <header className="crm-hero screen-page-header">
-      <div className="crm-hero-icon" aria-hidden="true">
-        <BriefcaseBusiness size={22} />
-      </div>
-      <div>
-        <p className="eyebrow">MÜŞTERİ İLİŞKİLERİ · SATIŞ HATTI</p>
-        <h1>CRM fırsatları</h1>
-        <p>
-          Açık fırsatları aşamaları, tahmini kapanışları ve takip adımlarıyla
-          yönetin.
-        </p>
-      </div>
+    <ListPageHeader
+      title="CRM fırsatları"
+      description="Açık fırsatları aşamaları, tahmini kapanışları ve takip adımlarıyla yönetin."
+      count={total}
+    >
       <button
         className="primary crm-new-action"
         type="button"
@@ -24,6 +22,6 @@ export function CrmOpportunityHeader({ onCreate }: Props) {
         <Plus size={16} />
         Yeni fırsat
       </button>
-    </header>
+    </ListPageHeader>
   );
 }

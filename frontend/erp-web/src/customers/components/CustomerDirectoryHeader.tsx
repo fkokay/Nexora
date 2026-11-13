@@ -1,4 +1,5 @@
-import { Download, MoreHorizontal, Plus, Upload, UsersRound } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 
 type Props = {
   canImport: boolean;
@@ -9,6 +10,8 @@ type Props = {
   onCreate: () => void;
   title?: string;
   description?: string;
+  /** Total number of customer cards in the tenant; null while it is still loading. */
+  total?: number | null;
 };
 
 export function CustomerDirectoryHeader({
@@ -20,18 +23,13 @@ export function CustomerDirectoryHeader({
   onCreate,
   title = "Cari Hesaplar",
   description = "Müşteri ve tedarikçi kartlarını firma bazında yönetin.",
+  total = null,
 }: Props) {
   return (
-    <div className="page-heading customer-heading">
-      <div>
-        <div className="customer-heading-title">
-          <span className="customer-heading-icon"><UsersRound size={24} /></span>
-          <div><h1>{title}</h1>
-        <p className="muted">{description}</p>
-          </div>
-        </div>
-      </div>
-      <div className="heading-actions">
+    <ListPageHeader title={title} description={description} count={total} className="customer-heading">
+        <button className="secondary customer-desktop-action" onClick={onGroups}>
+          Gruplar
+        </button>
         {canImport && (
           <button className="secondary customer-desktop-action" onClick={onImport}>
             <Upload size={15} /> CSV / Excel içe aktar
@@ -58,9 +56,6 @@ export function CustomerDirectoryHeader({
             </button>
           </div>
         </details>
-        <button className="secondary customer-desktop-action" onClick={onGroups}>
-          Gruplar
-        </button>
         <button className="primary" onClick={onCreate}>
           <Plus size={17} /> Yeni cari kartı
         </button>
@@ -98,7 +93,6 @@ export function CustomerDirectoryHeader({
             </button>
           </div>
         </details>
-      </div>
-    </div>
+    </ListPageHeader>
   );
 }

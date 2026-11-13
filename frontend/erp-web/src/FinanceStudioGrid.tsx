@@ -33,6 +33,8 @@ export function FinanceStudioGrid({
   externalPagination = false,
   enableRowSelection = true,
   onSelectionChange,
+  toolbarContainer,
+  hideExport = false,
   children,
 }: {
   token: string;
@@ -42,6 +44,9 @@ export function FinanceStudioGrid({
   externalPagination?: boolean;
   enableRowSelection?: boolean;
   onSelectionChange?: (keys: string[]) => void;
+  /** Page toolbar element (list-v2) that hosts the grid's own tools. */
+  toolbarContainer?: HTMLElement | null;
+  hideExport?: boolean;
   children: ReactNode;
 }) {
   const [fields, setFields] = useState<BuiltInScreenLayoutField[]>(
@@ -92,6 +97,8 @@ export function FinanceStudioGrid({
         externalPagination={externalPagination}
         enableRowSelection={enableRowSelection}
         onSelectionChange={onSelectionChange}
+        toolbarContainer={toolbarContainer}
+        hideExport={hideExport}
       >
         {children}
       </AdvancedDataGrid>
@@ -218,6 +225,8 @@ export function FinanceStudioGrid({
       externalPagination={externalPagination}
       enableRowSelection={enableRowSelection}
       onSelectionChange={onSelectionChange}
+      toolbarContainer={toolbarContainer}
+      hideExport={hideExport}
     >
       {nextTable}
     </AdvancedDataGrid>

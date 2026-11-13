@@ -1,4 +1,6 @@
+import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type {
   Performance,
@@ -33,15 +35,15 @@ export default function CampaignPerformanceSection({
   onPageChange,
   onRefresh,
 }: Props) {
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const visibleFields = fields.filter((field) => field.visible);
   const performanceCell = (item: Performance, key: string) => {
     switch (key) {
       case "campaign":
         return (
           <>
-            <b>{item.code}</b>
-            <br />
-            <span className="muted">{item.name}</span>
+            <b>{item.name}</b>
+            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
           </>
         );
       case "applications":
@@ -77,43 +79,37 @@ export default function CampaignPerformanceSection({
   const linkedOrders = performance?.items.reduce((sum, item) => sum + item.linkedOrders, 0) ?? 0;
   return (
     <>
+      <ListToolbar
+        search={query}
+        onSearchChange={(value) => onQueryChange(value.slice(0, 120))}
+        searchLabel="Kampanya ara"
+        searchPlaceholder="Kod veya ad"
+        toolsSlotRef={setToolsSlot}
+        onRefresh={onRefresh}
+        refreshLabel="Raporu yenile"
+      >
+        <label className="list-v2-filter">
+          <span>Uygulama tarihi başlangıç</span>
+          <input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} />
+        </label>
+        <label className="list-v2-filter">
+          <span>Uygulama tarihi bitiş</span>
+          <input type="date" value={through} onChange={(event) => onThroughChange(event.target.value)} />
+        </label>
+      </ListToolbar>
       {performance && (
-        <section className="sales-campaign-summary" aria-label="Kampanya performans özeti">
-          <article><span>Toplam kampanya</span><b>{performance.totalCount}</b></article>
-          <article><span>Uygulanan teklif</span><b>{appliedQuotes.toLocaleString("tr-TR")}</b></article>
-          <article><span>Bağlantılı sipariş</span><b>{linkedOrders.toLocaleString("tr-TR")}</b></article>
-        </section>
+        <dl className="sales-lv2-facts" aria-label="Kampanya performans özeti">
+          <div>
+            <dt>Uygulanan teklif</dt>
+            <dd>{appliedQuotes.toLocaleString("tr-TR")}</dd>
+          </div>
+          <div>
+            <dt>Bağlantılı sipariş</dt>
+            <dd>{linkedOrders.toLocaleString("tr-TR")}</dd>
+          </div>
+        </dl>
       )}
-      <section className="panel sales-campaign-filter-card" aria-label="Kampanya performans filtreleri">
-        <div className="sales-campaign-filter-heading">
-          <h2>Filtreler</h2>
-          <p>Performans sonuçlarını kampanya ve uygulama tarihi aralığına göre daraltın.</p>
-        </div>
-        <div className="form-two sales-campaign-filters">
-          <label className="sales-campaign-filter-label">
-            Kampanya ara
-            <input value={query} maxLength={120} onChange={(event) => onQueryChange(event.target.value)} placeholder="Kod veya ad" />
-          </label>
-          <label className="sales-campaign-filter-label">
-            Uygulama tarihi başlangıç
-            <input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} />
-          </label>
-          <label className="sales-campaign-filter-label">
-            Uygulama tarihi bitiş
-            <input type="date" value={through} onChange={(event) => onThroughChange(event.target.value)} />
-          </label>
-        </div>
-      </section>
-    <section className="panel sales-campaign-performance">
-      <div className="panel-heading sales-campaign-performance-heading">
-        <div className="sales-campaign-performance-title">
-          <b>Kampanya performansı</b>
-          <small>Uygulanan indirimler ve bağlantılı siparişler</small>
-        </div>
-        <button className="secondary" onClick={onRefresh}>
-          Raporu yenile
-        </button>
-      </div>
+    <section className="panel sales-campaign-performance list-v2-list" aria-label="Kampanya performansı">
       {performance && (
         <>
           <div
@@ -124,6 +120,7 @@ export default function CampaignPerformanceSection({
           >
             <AdvancedDataGrid
               hideSearch
+              toolbarContainer={toolsSlot}
               enableRowSelection={false}
               externalPagination
               gridId="sales-campaign-performance-v2"

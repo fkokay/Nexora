@@ -1,5 +1,7 @@
+import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { RotateCw } from "lucide-react";
+import { ListToolbar } from "../../list-page/ListToolbar";
+import "../../purchase-list-v2/purchase-list-v2.css";
 import type { DraftScreenField, DraftSummary, DraftListProps } from "../types";
 
 export function InvoiceDraftList({
@@ -12,27 +14,24 @@ export function InvoiceDraftList({
   onPost,
 }: DraftListProps) {
   const visibleFields = visibleDraftFields(fields);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
-    <section className="sid-card sid-list-card">
-      <div className="sid-card-heading">
-        <div>
-          <h2>Bağımsız tedarikçi faturaları</h2>
-          <p>
-            Taslak kayıtları düzenleyebilir, hesap eşleştirmeleri tamamlandıktan
-            sonra muhasebeleştirebilirsiniz.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="sid-secondary"
-          onClick={onRefresh}
-          disabled={loading}
-        >
-          <RotateCw size={15} /> Yenile
-        </button>
-      </div>
-      <div className="sid-table-wrap">
-        <AdvancedDataGrid>
+    <section className="sid-card sid-list-card list-v2">
+      {/* The page is a form first; the list keeps its own title instead of a page header. */}
+      <h2
+        className="purchase-lv2-section-title"
+        title="Taslak kayıtları düzenleyebilir, hesap eşleştirmeleri tamamlandıktan sonra muhasebeleştirebilirsiniz."
+      >
+        Bağımsız tedarikçi faturaları
+      </h2>
+      <ListToolbar
+        toolsSlotRef={setToolsSlot}
+        onRefresh={() => {
+          if (!loading) onRefresh();
+        }}
+      />
+      <div className="sid-table-wrap list-v2-list">
+        <AdvancedDataGrid toolbarContainer={toolsSlot}>
           <thead>
             {draftFieldGroups(fields).map((group, index) => (
               <tr className="sid-group-row" key={`${group.label}-${index}`}>

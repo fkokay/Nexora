@@ -12,6 +12,8 @@ export type EmployeeGridProps = {
   busy: boolean;
   search: string;
   totalCount: number;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
   onEditEmployee: (employee: Employee) => void;
   onImportRows: (rows: Record<string, unknown>[]) => void | Promise<void>;
   onEditRows: (
@@ -30,6 +32,7 @@ export default function EmployeeGrid({
   busy,
   search,
   totalCount,
+  toolbarContainer,
   onEditEmployee,
   onImportRows,
   onEditRows,
@@ -42,6 +45,7 @@ export default function EmployeeGrid({
         hideSearch
         {...screenViewGridDefaults(fields)}
         className="hr-table hr-employee-table"
+        toolbarContainer={toolbarContainer}
         onImportRows={isAdmin ? onImportRows : undefined}
         onEditRows={isAdmin ? onEditRows : undefined}
       >

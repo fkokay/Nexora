@@ -116,6 +116,7 @@ export default function FinanceBudgetPage({
     [accounts],
   );
   const controlsLocked = loading || busy || Boolean(openingPlanId);
+  const [statusFilter, setStatusFilter] = useState("");
 
   async function load() {
     setLoading(true);
@@ -314,10 +315,14 @@ export default function FinanceBudgetPage({
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
   return (
-    <div className="finance-page finance-budget-page">
+    <div className="finance-page finance-budget-page list-v2">
       <BudgetPageChrome
         plans={plans}
-        eligibleCount={eligible.length}
+        admin={admin}
+        baseCurrency={baseCurrency}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        onNew={clearForm}
         loading={loading}
         controlsLocked={controlsLocked}
         error={error}
@@ -330,6 +335,7 @@ export default function FinanceBudgetPage({
       >
         <BudgetPlanList
           plans={plans}
+          statusFilter={statusFilter}
           selected={selected}
           editing={editing}
           loading={loading}

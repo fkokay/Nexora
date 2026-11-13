@@ -8,7 +8,8 @@ import {
   type PlanSummary,
   type PlanView,
 } from "./direct-cash-budget/types";
-import DirectCashBudgetMetrics from "./direct-cash-budget/components/DirectCashBudgetMetrics";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import DirectCashBudgetForecast from "./direct-cash-budget/components/DirectCashBudgetForecast";
 import DirectCashBudgetPlanList from "./direct-cash-budget/components/DirectCashBudgetPlanList";
 import DirectCashBudgetEditor from "./direct-cash-budget/components/DirectCashBudgetEditor";
@@ -87,6 +88,7 @@ export default function DirectCashBudgetPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [planScreenFields, setPlanScreenFields] = useState(
     defaultPlanScreenFields,
   );
@@ -299,44 +301,48 @@ export default function DirectCashBudgetPage({
   const draft = selected?.status === "Draft";
 
   return (
-    <div className="finance-page direct-cash-budget-page">
-      <header className="page-heading direct-cash-budget-hero">
-        <div>
-          <p className="eyebrow">FİNANS YÖNETİMİ · NAKİT PLANLAMA</p>
-          <h1>Doğrudan nakit bütçesi</h1>
-          <p className="muted">
-            Tahmini tahsilat ve ödemeleri aylara göre planlayın. Onaylı planlar
-            nakit tahmininde görünür; gerçek kasa, banka ve muhasebe kayıtları
-            oluşturulmaz.
-          </p>
-        </div>
-        <div className="heading-actions">
+    <div className="finance-page direct-cash-budget-page list-v2">
+      <ListPageHeader
+        title="Doğrudan nakit bütçesi"
+        description="Tahmini tahsilat ve ödemeleri aylara göre planlayın. Onaylı planlar nakit tahmininde görünür; gerçek kasa, banka ve muhasebe kayıtları oluşturulmaz."
+        count={loading && plans.length === 0 ? null : plans.length}
+      >
+        {admin && (
           <button
             type="button"
-            className="secondary"
-            onClick={() => void load()}
-            disabled={loading || busy}
+            className="primary"
+            onClick={newDraft}
+            disabled={busy}
           >
-            {loading ? "Yenileniyor…" : "Yenile"}
+            Yeni nakit bütçesi
           </button>
-          {admin && (
-            <button
-              type="button"
-              className="primary"
-              onClick={newDraft}
-              disabled={busy}
-            >
-              Yeni nakit bütçesi
-            </button>
-          )}
-        </div>
-      </header>
-      <DirectCashBudgetMetrics
-        planCount={plans.length}
-        approvedCount={plans.filter((plan) => isApproved(plan.status)).length}
-        draftCount={plans.filter((plan) => !isApproved(plan.status)).length}
-        forecastRowCount={forecastRows.length}
-      />
+        )}
+      </ListPageHeader>
+      <ListToolbar
+        onRefresh={() => {
+          if (!loading && !busy) void load();
+        }}
+      >
+        <ListChipGroup
+          label="Durum"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          hideEmpty
+          options={[
+            { value: "", label: "Tümü", count: plans.length },
+            {
+              value: "Draft",
+              label: "Taslak",
+              count: plans.filter((plan) => !isApproved(plan.status)).length,
+            },
+            {
+              value: "Approved",
+              label: "Onaylı",
+              count: plans.filter((plan) => isApproved(plan.status)).length,
+            },
+          ]}
+        />
+      </ListToolbar>
       {error && (
         <div className="alert inline-alert" role="alert">
           <span>{error}</span>
@@ -361,6 +367,7 @@ export default function DirectCashBudgetPage({
       >
         <DirectCashBudgetPlanList
           plans={plans}
+          statusFilter={statusFilter}
           fields={planScreenFields}
           loading={loading}
           busy={busy}

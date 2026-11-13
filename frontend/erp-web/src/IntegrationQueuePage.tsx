@@ -18,6 +18,7 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./platform-record-forms.css";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 
 type EDocumentSubmission = {
   operationId: string;
@@ -678,20 +679,16 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
     data?.items[0] ??
     null;
   return (
-    <div className="integration-queue-page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">
-            {tr("YÖNETİM · ENTEGRASYONLAR", "ADMINISTRATION · INTEGRATIONS")}
-          </p>
-          <h1>{tr("Entegrasyon kuyruğu", "Integration queue")}</h1>
-          <p className="muted">
-            {tr(
-              "Firma işlemlerini izleyin; yalnızca henüz çalışmamış işleri iptal edin.",
-              "Monitor company operations; cancel only work that has not started.",
-            )}
-          </p>
-        </div>
+    <div className="integration-queue-page list-v2">
+      <ListPageHeader
+        title={tr("Entegrasyon kuyruğu", "Integration queue")}
+        description={tr(
+          "Firma işlemlerini izleyin; yalnızca henüz çalışmamış işleri iptal edin.",
+          "Monitor company operations; cancel only work that has not started.",
+        )}
+        count={data?.totalCount ?? null}
+        countLabel={tr("kayıt", "records")}
+      >
         <button
           className="secondary"
           onClick={() => void load()}
@@ -700,46 +697,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           <RefreshCw size={16} className={loading ? "queue-spin" : ""} />{" "}
           {tr("Yenile", "Refresh")}
         </button>
-      </div>
-      <section
-        className="integration-queue-kpis"
-        aria-label={tr("Kuyruk özeti", "Queue summary")}
-        aria-live="polite"
-      >
-        <article>
-          <span>{tr("Filtredeki kayıt", "Filtered records")}</span>
-          <b>{data?.totalCount ?? "—"}</b>
-          <small>
-            {status
-              ? statusLabel(status as IntegrationOperation["status"])
-              : tr("Tüm durumlar", "All statuses")}
-          </small>
-        </article>
-        <article>
-          <span>{tr("Çalışıyor", "Running")}</span>
-          <b>
-            {data?.items.filter((item) => item.status === "Running").length ??
-              "—"}
-          </b>
-          <small>{tr("Bu sayfadaki kayıtlar", "Records on this page")}</small>
-        </article>
-        <article>
-          <span>{tr("Başarısız / belirsiz", "Failed / indeterminate")}</span>
-          <b>
-            {data?.items.filter((item) =>
-              ["Failed", "Indeterminate"].includes(item.status),
-            ).length ?? "—"}
-          </b>
-          <small>{tr("Operatör incelemesi", "Operator review")}</small>
-        </article>
-        <article>
-          <span>
-            {tr("Onay bekleyen belge", "Documents awaiting approval")}
-          </span>
-          <b>{submissionsLoading ? "—" : submissions.length}</b>
-          <small>{tr("E-belge taslakları", "E-document drafts")}</small>
-        </article>
-      </section>
+      </ListPageHeader>
       {error && (
         <div className="alert" role="alert">
           {error}
@@ -1056,7 +1014,7 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
           </div>
         )}
       </section>
-      <section className="panel integration-queue-panel">
+      <section className="panel integration-queue-panel list-v2-list">
         <IntegrationOperationsList
           status={status}
           statuses={statuses}

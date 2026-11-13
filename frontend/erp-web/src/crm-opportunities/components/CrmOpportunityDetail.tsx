@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Search, Target, X } from "lucide-react";
+import { BriefcaseBusiness, Pencil, Search, Target, X } from "lucide-react";
 import { nextStage, stageLabels, type Opportunity } from "../types";
 
 type Props = {
@@ -15,6 +15,7 @@ type Props = {
   onClose: () => void;
   onEdit: (item: Opportunity) => void;
   onMove: (stage: string) => void;
+  onDelete: (item: Opportunity) => void;
 };
 
 export function CrmOpportunityDetail({
@@ -31,32 +32,74 @@ export function CrmOpportunityDetail({
   onClose,
   onEdit,
   onMove,
+  onDelete,
 }: Props) {
   return (
     <aside className="crm-record-detail" aria-label="Seçili fırsat ayrıntıları">
       {selected ? (
         <>
-          <div className="crm-detail-heading">
+          <header className="list-v2-detail-head">
             <div>
-              <span className="crm-detail-code">{selected.code}</span>
-              <h3>{selected.name}</h3>
-              <p>{selected.customerName || "Müşteri bağlanmadı"}</p>
+              <h2>{selected.name}</h2>
             </div>
-            <button
-              type="button"
-              className="secondary crm-detail-close"
-              aria-label="Seçimi kaldır"
-              onClick={onClose}
+            <div className="list-v2-detail-head-actions">
+              {!["Won", "Lost"].includes(selected.stage) && (
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={busy}
+                  onClick={() => onEdit(selected)}
+                >
+                  <Pencil size={14} /> Düzenle
+                </button>
+              )}
+              <button
+                type="button"
+                className="icon-button crm-detail-close"
+                aria-label="Seçimi kaldır"
+                onClick={onClose}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </header>
+          <div className="list-v2-detail-meta">
+            <span className="list-v2-detail-code">{selected.code}</span>
+            <span
+              className={`crm-stage crm-stage-${selected.stage.toLowerCase()}`}
             >
-              <X size={16} />
-            </button>
+              {stageLabels[selected.stage] || selected.stage}
+            </span>
+            <span>{selected.customerName || "Müşteri bağlanmadı"}</span>
           </div>
-          <span
-            className={`crm-stage crm-stage-${selected.stage.toLowerCase()}`}
-          >
-            {stageLabels[selected.stage] || selected.stage}
-          </span>
-          <dl className="crm-detail-fields">
+          {!["Won", "Lost"].includes(selected.stage) && (
+            <section className="list-v2-quick" aria-label="Aşama">
+              <div>
+                {nextStage[selected.stage] && (
+                  <button
+                    type="button"
+                    className="primary small-button"
+                    disabled={busy}
+                    aria-label={`${selected.name} fırsatını ${stageLabels[nextStage[selected.stage]]} aşamasına ilerlet`}
+                    title={stageLabels[nextStage[selected.stage]]}
+                    onClick={() => onMove(nextStage[selected.stage])}
+                  >
+                    Aşamayı ilerlet
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="secondary small-button"
+                  disabled={busy}
+                  aria-label={`${selected.name} fırsatını kaybedildi olarak işaretle`}
+                  onClick={() => onMove("Lost")}
+                >
+                  Kaybedildi olarak işaretle
+                </button>
+              </div>
+            </section>
+          )}
+          <dl className="list-v2-facts">
             <div>
               <dt>Tahmini değer</dt>
               <dd>
@@ -101,32 +144,15 @@ export function CrmOpportunityDetail({
               <p>{selected.notes}</p>
             </div>
           )}
-          <div className="crm-detail-actions">
-            {!(["Won", "Lost"].includes(selected.stage)) && (
-              <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(selected)}>
-                Düzenle
-              </button>
-            )}
-            {nextStage[selected.stage] && (
-              <button
-                type="button"
-                className="primary"
-                disabled={busy}
-                onClick={() => onMove(nextStage[selected.stage])}
-              >
-                Aşamayı ilerlet
-              </button>
-            )}
-            {!["Won", "Lost"].includes(selected.stage) && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => onMove("Lost")}
-              >
-                Kaybedildi olarak işaretle
-              </button>
-            )}
+          <div className="list-v2-detail-foot">
+            <button
+              type="button"
+              className="is-danger"
+              disabled={busy}
+              onClick={() => onDelete(selected)}
+            >
+              Sil
+            </button>
           </div>
         </>
       ) : itemsCount === 0 &&

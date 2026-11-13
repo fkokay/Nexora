@@ -1,6 +1,5 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
-import EmployeeDirectoryHeader from "./human-resources/components/EmployeeDirectoryHeader";
 import EmployeeFilters from "./human-resources/components/EmployeeFilters";
 import EmployeeGrid from "./human-resources/components/EmployeeGrid";
 import type {
@@ -8,11 +7,13 @@ import type {
   EmployeeScreenField,
 } from "./human-resources/components/types";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Check, Clock3, Download, RefreshCw } from "lucide-react";
+import { Check, Download, Plus, RefreshCw } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
 import { confirmLocalized, promptLocalized } from "./locale";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
@@ -690,6 +691,12 @@ export default function HumanResourcesPage({
     [attendanceSearch, setAttendanceSearch] = useState(""),
     [compensationSearch, setCompensationSearch] = useState(""),
     [payrollRunSearch, setPayrollRunSearch] = useState("");
+  // Status chips of the list toolbars ("" = all) and the toolbar element hosting grid tools.
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState(""),
+    [leaveStatusFilter, setLeaveStatusFilter] = useState(""),
+    [attendanceStatusFilter, setAttendanceStatusFilter] = useState(""),
+    [compensationStatusFilter, setCompensationStatusFilter] = useState(""),
+    [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(null);
   const [selectedRunCalculations, setSelectedRunCalculations] = useState<
     PayrollRunCalculation[]
   >([]);
@@ -2171,6 +2178,7 @@ export default function HumanResourcesPage({
     .filter((field) => field.visible && (field.key !== "actions" || admin))
     .sort((a, b) => a.position - b.position);
   const employeeRows = employees.filter((employee) =>
+    (!employeeStatusFilter || employee.status === employeeStatusFilter) &&
     `${employee.personnelCode} ${employee.fullName} ${employee.department ?? ""} ${employee.jobTitle ?? ""} ${employee.employmentCategory ?? ""}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(
@@ -2408,6 +2416,7 @@ export default function HumanResourcesPage({
   const normalizeHrSearch = (value: string) =>
     value.trim().toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR");
   const leaveRows = leaves.filter((item) =>
+    (!leaveStatusFilter || item.status === leaveStatusFilter) &&
     `${item.employee} ${item.leaveType} ${item.startDate} ${item.endDate} ${item.status}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(normalizeHrSearch(leaveSearch)),
@@ -2450,11 +2459,13 @@ export default function HumanResourcesPage({
     return isEn && value?.[0] === field.label ? value[1] : field.label;
   };
   const attendanceRows = attendance.filter((item) =>
+    (!attendanceStatusFilter || item.approvalStatus === attendanceStatusFilter) &&
     `${item.employee} ${item.workDate} ${item.note ?? ""} ${item.approvalStatus}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(normalizeHrSearch(attendanceSearch)),
   );
   const compensationRows = compensations.filter((item) =>
+    (!compensationStatusFilter || item.status === compensationStatusFilter) &&
     `${item.employee} ${item.targetKind} ${item.currencyCode} ${item.payBasisCode} ${item.effectiveFrom} ${item.status}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(normalizeHrSearch(compensationSearch)),
@@ -2534,28 +2545,71 @@ export default function HumanResourcesPage({
         ]
       : []),
   ];
+  // Record count shown next to the page title; null on tabs that are not a record list.
+  // Those tabs have no list toolbar, so the header keeps the refresh button for them.
+  const sectionCount: number | null =
+    section === "employees"
+      ? employees.length
+      : section === "leave"
+        ? leaves.length
+        : section === "attendance"
+          ? attendance.length
+          : section === "compensation" && compensationAccess.view
+            ? compensations.length
+            : section === "runs" && compensationAccess.view
+              ? payrollRuns.length
+              : null;
+  const sectionDescription =
+    section === "employees"
+      ? tr(
+          "Yalnız temel iş bilgileri tutulur. Kimlik, banka ve sağlık bilgileri istenmez.",
+          "Only basic work details are stored. No national ID, banking or health data is requested.",
+        )
+      : section === "attendance"
+        ? tr(
+            "Dakika cinsinden puantaj kaydedilir; bordroda kullanılmadan önce başka bir yönetici tarafından onaylanmalıdır.",
+            "Work and overtime are recorded in minutes and must be approved by another administrator before payroll use.",
+          )
+        : tr(
+            "Firma personeli, izin talepleri ve puantaj kayıtları.",
+            "Tenant employees, leave requests and attendance records.",
+          );
+  const refreshList = () => {
+    if (!busy) void reload();
+  };
   return (
-    <div className="hr-page" aria-busy={loading || busy}>
-      <div className="hr-header">
-        <div className="hr-title">
-          <p className="eyebrow">{tr("İNSAN KAYNAKLARI", "HUMAN RESOURCES")}</p>
-          <h1>{tr("İnsan kaynakları", "Human resources")}</h1>
-          <p className="muted">
-            {tr(
-              "Firma personeli, izin talepleri ve puantaj kayıtları.",
-              "Tenant employees, leave requests and attendance records.",
-            )}
-          </p>
-        </div>
-        <button
-          className="secondary hr-refresh"
-          disabled={loading || busy}
-          onClick={() => void reload()}
-        >
-          <RefreshCw size={16} />
-          {tr("Yenile", "Refresh")}
-        </button>
-      </div>
+    <div className="hr-page list-v2" aria-busy={loading || busy}>
+      <ListPageHeader
+        title={tr("İnsan kaynakları", "Human resources")}
+        description={sectionDescription}
+        count={loading ? null : sectionCount}
+        countLabel={tr("kayıt", "records")}
+      >
+        {(loading || sectionCount === null) && (
+          <button
+            className="secondary"
+            disabled={loading || busy}
+            onClick={() => void reload()}
+          >
+            <RefreshCw size={16} />
+            {tr("Yenile", "Refresh")}
+          </button>
+        )}
+        {section === "employees" && admin && (
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() => {
+              setError("");
+              setCreatingEmployee(true);
+            }}
+          >
+            <Plus size={16} />
+            {tr("Personel ekle", "Add employee")}
+          </button>
+        )}
+      </ListPageHeader>
       <div
         className="hr-tabs"
         role="tablist"
@@ -2633,63 +2687,23 @@ export default function HumanResourcesPage({
           <>
             {section === "employees" && (
               <>
-                <div
-                  className="hr-kpi-strip"
-                  aria-label={tr("Personel özeti", "Employee summary")}
-                >
-                  <article>
-                    <span>{tr("Toplam personel", "Total employees")}</span>
-                    <b>{employees.length}</b>
-                  </article>
-                  <article>
-                    <span>{tr("Aktif personel", "Active employees")}</span>
-                    <b>
-                      {employees.filter((x) => x.status === "Active").length}
-                    </b>
-                  </article>
-                  <article>
-                    <span>{tr("Bekleyen izin", "Pending leave")}</span>
-                    <b>
-                      {leaves.filter((x) => x.status === "Requested").length}
-                    </b>
-                  </article>
-                  <article>
-                    <span>{tr("Departman sayısı", "Departments")}</span>
-                    <b>
-                      {
-                        new Set(
-                          employees.map((x) => x.department).filter(Boolean),
-                        ).size
-                      }
-                    </b>
-                  </article>
-                </div>
-                <section className="hr-filter-card" aria-label={tr("Personel filtreleri", "Employee filters")}>
-                  <div className="hr-filter-heading">
-                    <h2>{tr("Filtreler", "Filters")}</h2>
-                    <p>{tr("Personel kayıtlarını kod, ad, departman veya göreve göre daraltın.", "Narrow employee records by code, name, department or job title.")}</p>
-                  </div>
-                  <EmployeeFilters
-                    search={employeeSearch}
-                    onSearchChange={setEmployeeSearch}
-                    visibleCount={employeeRows.length}
-                    totalCount={employees.length}
-                    translate={tr}
-                  />
-                </section>
+                <EmployeeFilters
+                  search={employeeSearch}
+                  onSearchChange={setEmployeeSearch}
+                  statusFilter={employeeStatusFilter}
+                  onStatusChange={setEmployeeStatusFilter}
+                  activeCount={employees.filter((x) => x.status === "Active").length}
+                  terminatedCount={employees.filter((x) => x.status === "Terminated").length}
+                  isEnglish={isEn}
+                  statusLabel={hrStatusLabel}
+                  toolsSlotRef={setGridToolsSlot}
+                  onRefresh={refreshList}
+                  translate={tr}
+                />
                 <div className="hr-employee-workspace">
                   <div
-                    className={`hr-panel hr-employee-directory${employees.length === 0 ? " is-empty" : ""}`}
+                    className={`hr-panel hr-employee-directory list-v2-list${employees.length === 0 ? " is-empty" : ""}`}
                   >
-                    <EmployeeDirectoryHeader
-                      isAdmin={admin}
-                      busy={busy}
-                      onAddEmployee={() => {
-                        setError("");
-                        setCreatingEmployee(true);
-                      }}
-                      translate={tr}
-                    />
                     <EmployeeGrid
                       rows={employeeRows}
                       fields={employeeVisibleFields}
@@ -2697,8 +2711,9 @@ export default function HumanResourcesPage({
                       isEnglish={isEn}
                       isAdmin={admin}
                       busy={busy}
-                      search={employeeSearch}
+                      search={employeeSearch || employeeStatusFilter}
                       totalCount={employees.length}
+                      toolbarContainer={employees.length ? gridToolsSlot : undefined}
                       onEditEmployee={setEditingEmployee}
                       onImportRows={importEmployeeRows}
                       onEditRows={saveEmployeeGridEdits}
@@ -3024,21 +3039,30 @@ export default function HumanResourcesPage({
             )}
             {section === "leave" && (
               <>
-                <div className="hr-kpi-strip" aria-label={tr("İzin özeti", "Leave summary")}>
-                  <article><span>{tr("Toplam izin talebi", "Total requests")}</span><b>{leaves.length}</b></article>
-                  <article><span>{tr("Bekleyen", "Pending")}</span><b>{leaves.filter((item) => item.status === "Requested").length}</b></article>
-                  <article><span>{tr("Onaylanan", "Approved")}</span><b>{leaves.filter((item) => item.status === "Approved").length}</b></article>
-                </div>
-                <section className="hr-filter-card" aria-label={tr("İzin filtreleri", "Leave filters")}>
-                  <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("İzin kayıtlarını personel, tür, tarih veya duruma göre daraltın.", "Narrow leave records by employee, type, date or status.")}</p></div>
-                  <label className="hr-list-search">{tr("İzin ara", "Search leave")}
-                    <input type="search" value={leaveSearch} onChange={(event) => setLeaveSearch(event.target.value)} placeholder={tr("Personel, izin türü veya tarih", "Employee, leave type or date")} />
-                  </label>
-                </section>
-                <div className="hr-panel">
-                  <div className="panel-heading"><div><h3>{tr("İzin talepleri", "Leave requests")}</h3><p>{tr(`${leaveRows.length} kayıt gösteriliyor`, `${leaveRows.length} records shown`)}</p></div></div>
+                <ListToolbar
+                  search={leaveSearch}
+                  onSearchChange={setLeaveSearch}
+                  searchLabel={tr("İzin ara", "Search leave")}
+                  searchPlaceholder={tr("Personel, izin türü veya tarih", "Employee, leave type or date")}
+                  toolsSlotRef={setGridToolsSlot}
+                  onRefresh={refreshList}
+                >
+                  <ListChipGroup
+                    label={tr("Durum", "Status")}
+                    value={leaveStatusFilter}
+                    onChange={setLeaveStatusFilter}
+                    allowClear
+                    hideEmpty
+                    options={["Requested", "Approved", "Rejected", "Cancelled"].map((status) => ({
+                      value: status,
+                      label: hrStatusLabel(status, isEn),
+                      count: leaves.filter((item) => item.status === status).length,
+                    }))}
+                  />
+                </ListToolbar>
+                <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table">
+                    <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
                       <thead>
                         <tr>
                           {leaveVisibleFields.map((field) => (
@@ -3338,32 +3362,30 @@ export default function HumanResourcesPage({
             )}
             {section === "attendance" && (
               <>
-                <div className="hr-kpi-strip" aria-label={tr("Puantaj özeti", "Attendance summary")}>
-                  <article><span>{tr("Toplam kayıt", "Total records")}</span><b>{attendance.length}</b></article>
-                  <article><span>{tr("Onay bekleyen", "Pending approval")}</span><b>{attendance.filter((item) => item.approvalStatus === "PendingApproval").length}</b></article>
-                  <article><span>{tr("Onaylanan", "Approved")}</span><b>{attendance.filter((item) => item.approvalStatus === "Approved").length}</b></article>
-                </div>
-                <section className="hr-filter-card" aria-label={tr("Puantaj filtreleri", "Attendance filters")}>
-                  <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Puantaj kayıtlarını personel, tarih veya onay durumuna göre daraltın.", "Narrow attendance records by employee, date or approval status.")}</p></div>
-                  <label className="hr-list-search">{tr("Puantaj ara", "Search attendance")}
-                    <input type="search" value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder={tr("Personel, tarih veya not", "Employee, date or note")} />
-                  </label>
-                </section>
-                <div className="hr-panel">
-                  <div className="panel-heading">
-                    <div>
-                      <h3>{tr("Puantaj kayıtları", "Attendance records")}</h3>
-                      <p>
-                        {tr(
-                          "Dakika cinsinden puantaj kaydedilir; bordroda kullanılmadan önce başka bir yönetici tarafından onaylanmalıdır.",
-                          "Work and overtime are recorded in minutes and must be approved by another administrator before payroll use.",
-                        )}
-                      </p>
-                    </div>
-                    <Clock3 size={19} />
-                  </div>
+                <ListToolbar
+                  search={attendanceSearch}
+                  onSearchChange={setAttendanceSearch}
+                  searchLabel={tr("Puantaj ara", "Search attendance")}
+                  searchPlaceholder={tr("Personel, tarih veya not", "Employee, date or note")}
+                  toolsSlotRef={setGridToolsSlot}
+                  onRefresh={refreshList}
+                >
+                  <ListChipGroup
+                    label={tr("Durum", "Status")}
+                    value={attendanceStatusFilter}
+                    onChange={setAttendanceStatusFilter}
+                    allowClear
+                    hideEmpty
+                    options={["PendingApproval", "Approved", "Rejected"].map((status) => ({
+                      value: status,
+                      label: hrStatusLabel(status, isEn),
+                      count: attendance.filter((item) => item.approvalStatus === status).length,
+                    }))}
+                  />
+                </ListToolbar>
+                <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table">
+                    <AdvancedDataGrid className="hr-table" hideSearch toolbarContainer={gridToolsSlot}>
                       <thead>
                         <tr>
                           {attendanceVisibleFields.map((field) => (
@@ -3882,19 +3904,28 @@ export default function HumanResourcesPage({
                 )}
                 {compensationAccess.view && (
                   <>
-                  <div className="hr-kpi-strip" aria-label={tr("Ücret özeti", "Compensation summary")}>
-                    <article><span>{tr("Ücret kaydı", "Compensation records")}</span><b>{compensations.length}</b></article>
-                    <article><span>{tr("Bekleyen onay", "Pending approval")}</span><b>{compensations.filter((item) => item.status === "PendingApproval").length}</b></article>
-                    <article><span>{tr("Etkin", "Active")}</span><b>{compensations.filter((item) => item.status === "Approved").length}</b></article>
-                  </div>
-                  <section className="hr-filter-card" aria-label={tr("Ücret filtreleri", "Compensation filters")}>
-                    <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Yetki kapsamındaki ücret kayıtlarını personel, tür, para birimi veya duruma göre daraltın.", "Narrow authorized compensation records by employee, type, currency or status.")}</p></div>
-                    <label className="hr-list-search">{tr("Ücret kaydı ara", "Search compensation")}
-                      <input type="search" value={compensationSearch} onChange={(event) => setCompensationSearch(event.target.value)} placeholder={tr("Personel, para birimi veya durum", "Employee, currency or status")} />
-                    </label>
-                  </section>
-                  <div className="hr-panel">
-                    <div className="panel-heading"><div><h3>{tr("Gizli ücret kayıtları", "Confidential compensation records")}</h3><p>{tr(`${compensationRows.length} kayıt gösteriliyor`, `${compensationRows.length} records shown`)}</p></div></div>
+                  <ListToolbar
+                    search={compensationSearch}
+                    onSearchChange={setCompensationSearch}
+                    searchLabel={tr("Ücret kaydı ara", "Search compensation")}
+                    searchPlaceholder={tr("Personel, para birimi veya durum", "Employee, currency or status")}
+                    toolsSlotRef={setGridToolsSlot}
+                    onRefresh={refreshList}
+                  >
+                    <ListChipGroup
+                      label={tr("Durum", "Status")}
+                      value={compensationStatusFilter}
+                      onChange={setCompensationStatusFilter}
+                      allowClear
+                      hideEmpty
+                      options={["PendingApproval", "Approved", "Rejected"].map((status) => ({
+                        value: status,
+                        label: hrStatusLabel(status, isEn),
+                        count: compensations.filter((item) => item.status === status).length,
+                      }))}
+                    />
+                  </ListToolbar>
+                  <div className="hr-panel list-v2-list">
                     <p className="hr-footnote">
                       {tr(
                         "Yalnız onaylı kayıtlar yürürlüğe girer. Yeni tutar değişiklikleri ikinci yetkili onayı bekler.",
@@ -3906,6 +3937,8 @@ export default function HumanResourcesPage({
                         className="hr-table"
                         gridId="hr-compensation-records"
                         {...screenViewGridDefaults(compensationVisibleFields)}
+                        hideSearch
+                        toolbarContainer={gridToolsSlot}
                       >
                         <thead>
                           <tr>
@@ -4693,24 +4726,22 @@ export default function HumanResourcesPage({
                 )}
                 {compensationAccess.view && (
                   <>
-                  <div className="hr-kpi-strip" aria-label={tr("Bordro özeti", "Payroll summary")}>
-                    <article><span>{tr("Taslak snapshot", "Draft snapshots")}</span><b>{payrollRuns.length}</b></article>
-                    <article><span>{tr("Kapsanan personel", "Employees covered")}</span><b>{payrollRuns.reduce((sum, run) => sum + run.employeeCount, 0)}</b></article>
-                    <article><span>{tr("Farklı dönem", "Distinct periods")}</span><b>{new Set(payrollRuns.map((run) => `${run.periodStart}:${run.periodEnd}`)).size}</b></article>
-                  </div>
-                  <section className="hr-filter-card" aria-label={tr("Bordro taslak filtreleri", "Payroll draft filters")}>
-                    <div className="hr-filter-heading"><h2>{tr("Filtreler", "Filters")}</h2><p>{tr("Taslakları dönem, profil veya snapshot özetine göre daraltın.", "Narrow drafts by period, profile or snapshot hash.")}</p></div>
-                    <label className="hr-list-search">{tr("Taslak ara", "Search drafts")}
-                      <input type="search" value={payrollRunSearch} onChange={(event) => setPayrollRunSearch(event.target.value)} placeholder={tr("Dönem veya profil", "Period or profile")} />
-                    </label>
-                  </section>
-                  <div className="hr-panel">
-                    <div className="panel-heading"><div><h3>{tr("Bordro taslak snapshotları", "Payroll draft snapshots")}</h3><p>{tr(`${payrollRunRows.length} kayıt gösteriliyor`, `${payrollRunRows.length} records shown`)}</p></div></div>
+                  <ListToolbar
+                    search={payrollRunSearch}
+                    onSearchChange={setPayrollRunSearch}
+                    searchLabel={tr("Taslak ara", "Search drafts")}
+                    searchPlaceholder={tr("Dönem veya profil", "Period or profile")}
+                    toolsSlotRef={setGridToolsSlot}
+                    onRefresh={refreshList}
+                  />
+                  <div className="hr-panel list-v2-list">
                     <div className="hr-table-wrap">
                       <AdvancedDataGrid
                         className="hr-table"
                         gridId="hr-payroll-drafts"
                         {...screenViewGridDefaults(payrollDraftVisibleFields)}
+                        hideSearch
+                        toolbarContainer={gridToolsSlot}
                       >
                         <thead>
                           <tr>

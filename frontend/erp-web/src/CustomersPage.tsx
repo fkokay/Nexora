@@ -1,16 +1,8 @@
-import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2,
-  CircleArrowUp,
-  FileText,
-  MoreHorizontal,
   Pencil,
   Trash2,
   Users,
-  UserRound,
-  UserRoundPlus,
-  UserRoundCheck,
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
@@ -39,6 +31,7 @@ import MasterDataImportDialog from "./MasterDataImportDialog";
 import { CustomerDirectoryHeader } from "./customers/components/CustomerDirectoryHeader";
 import { CustomerFilters } from "./customers/components/CustomerFilters";
 import { CustomerGrid } from "./customers/components/CustomerGrid";
+import "./list-page/list-page-v2.css";
 import {
   CustomerDetailPanel,
   type CustomerDetailTab,
@@ -57,200 +50,6 @@ import "./purchasing-record-forms.css";
 
 type CustomerPageSettings = { title: string; description: string; searchLabel: string; searchPlaceholder: string; typeFilterLabel: string; statusFilterLabel: string; applyLabel: string; showTypeFilter: boolean; showStatusFilter: boolean };
 const defaultCustomerPageSettings: CustomerPageSettings = { title: "Cari Hesaplar", description: "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", searchLabel: "Cari ara", searchPlaceholder: "Cari kodu, unvanı veya vergi no ile ara", typeFilterLabel: "Cari türü", statusFilterLabel: "Durum", applyLabel: "Filtrele", showTypeFilter: true, showStatusFilter: true };
-
-function CustomerActionsMenu({
-  item,
-  busy,
-  onEdit,
-  onInvoices,
-  onPurchaseInvoices,
-  onLedger,
-  onAddresses,
-  onFields,
-  onToggleActive,
-}: {
-  item: CustomerItem;
-  busy: boolean;
-  onEdit: () => void;
-  onInvoices: () => void;
-  onPurchaseInvoices: () => void;
-  onLedger: () => void;
-  onAddresses: () => void;
-  onFields: () => void;
-  onToggleActive: () => void;
-}) {
-  const [open, setOpen] = useState(false),
-    [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 230 });
-  const triggerRef = useRef<HTMLButtonElement>(null),
-    menuRef = useRef<HTMLDivElement>(null);
-  function showMenu() {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect(),
-      width = 190,
-      gap = 6,
-      padding = 8;
-    const left = Math.max(
-      padding,
-      Math.min(rect.right - width, window.innerWidth - width - padding),
-    );
-    const below = Math.max(0, window.innerHeight - rect.bottom - gap - padding),
-      above = Math.max(0, rect.top - gap - padding);
-    const maxHeight = Math.min(230, Math.max(80, Math.max(below, above))),
-      estimatedHeight = (item.type === "Both" || item.type === "Dealer" || item.type === "Employee" ? 7 : 6) * 36 + 12;
-    const top =
-      below >= estimatedHeight || below >= above
-        ? rect.bottom + gap
-        : Math.max(padding, rect.top - gap - maxHeight);
-    setPosition({ top, left, maxHeight });
-    setOpen(true);
-  }
-  useLayoutEffect(() => {
-    if (!open || !menuRef.current || !triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect(),
-      menu = menuRef.current.getBoundingClientRect(),
-      gap = 6,
-      padding = 8;
-    const below = Math.max(0, window.innerHeight - rect.bottom - gap - padding),
-      above = Math.max(0, rect.top - gap - padding),
-      placeBelow = below >= menu.height || below >= above;
-    const top = placeBelow
-      ? Math.min(rect.bottom + gap, window.innerHeight - menu.height - padding)
-      : Math.max(padding, rect.top - gap - menu.height);
-    const left = Math.max(
-      padding,
-      Math.min(
-        rect.right - menu.width,
-        window.innerWidth - menu.width - padding,
-      ),
-    );
-    setPosition((current) =>
-      current.top === top && current.left === left
-        ? current
-        : {
-            ...current,
-            top,
-            left,
-            maxHeight: Math.min(230, Math.max(80, Math.max(below, above))),
-          },
-    );
-  }, [open, item.type]);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (
-        !triggerRef.current?.contains(target) &&
-        !menuRef.current?.contains(target)
-      )
-        setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    const viewportResize = () => setOpen(false);
-    const pageScroll = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    window.addEventListener("resize", viewportResize);
-    window.addEventListener("scroll", pageScroll, true);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-      window.removeEventListener("resize", viewportResize);
-      window.removeEventListener("scroll", pageScroll, true);
-    };
-  }, [open]);
-  const run = (action: () => void) => {
-    setOpen(false);
-    action();
-  };
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="customer-actions-trigger"
-        aria-label={`${item.code} ${item.name} için işlemler`}
-        aria-expanded={open}
-        title="Cari işlemleri"
-        disabled={busy}
-        onClick={() => (open ? setOpen(false) : showMenu())}
-      >
-        <MoreHorizontal size={17} />
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={menuRef}
-            className="customer-actions-popover customer-actions-portal"
-            role="group"
-            aria-label={`${item.name} işlemleri`}
-            style={{
-              position: "fixed",
-              top: position.top,
-              left: position.left,
-              right: "auto",
-              bottom: "auto",
-              height: "auto",
-              maxHeight: position.maxHeight,
-              overflowY: "auto",
-            }}
-          >
-            <button type="button" disabled={busy} onClick={() => run(onEdit)}>
-              <Pencil size={14} />
-              Düzenle
-            </button>
-            {item.type !== "Supplier" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(onInvoices)}
-              >
-                <FileText size={14} />
-                Satış faturaları
-              </button>
-            )}
-            {item.type !== "Customer" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(onPurchaseInvoices)}
-              >
-                <FileText size={14} />
-                Alış faturaları
-              </button>
-            )}
-            <button type="button" disabled={busy} onClick={() => run(onLedger)}>
-              Hareketler
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(onAddresses)}
-            >
-              Adresler
-            </button>
-            <button type="button" disabled={busy} onClick={() => run(onFields)}>
-              Özel alanlar
-            </button>
-            <button
-              type="button"
-              className="danger"
-              disabled={busy}
-              onClick={() => run(onToggleActive)}
-            >
-              {item.isActive ? "Pasife al" : "Etkinleştir"}
-            </button>
-          </div>,
-          document.body,
-        )}
-    </>
-  );
-}
 
 function parseCustomerStatementCsv(source: string): ExternalStatementLine[] {
   const firstLine = source.split(/\r?\n/, 1)[0] || "";
@@ -381,10 +180,13 @@ function CustomersPage({
     total: number;
     customers: number;
     suppliers: number;
+    dealers: number;
+    employees: number;
+    others: number;
     active: number;
     inactive: number;
   } | null>(null);
-  const [directoryMetricsLoading, setDirectoryMetricsLoading] = useState(true);
+  const [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(null);
   const [locationDefinitions, setLocationDefinitions] =
     useState<CustomerLocationDefinitions>({ provinces: [], districts: [] });
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
@@ -827,9 +629,17 @@ function CustomersPage({
   }
   const visibleScreenFields = useMemo(
     () =>
-      screenFields
+    {
+      const visible = screenFields
         .filter((field) => field.visible)
-        .sort((a, b) => a.position - b.position),
+        .sort((a, b) => a.position - b.position);
+      // The code is shown under the name, and row actions live in the detail panel,
+      // so neither gets a column of its own. The code column stays if the name is hidden.
+      const hasName = visible.some((field) => field.key === "name");
+      return visible.filter(
+        (field) => field.key !== "actions" && !(hasName && field.key === "code"),
+      );
+    },
     [screenFields],
   );
   const visibleScreenGroups = useMemo(
@@ -897,9 +707,9 @@ function CustomersPage({
   }, [token, filter, page, typeFilter, statusFilter]);
   useEffect(() => {
     let active = true;
-    setDirectoryMetricsLoading(true);
     const count = async (options: { type?: string; status?: string } = {}) => {
       const params = new URLSearchParams({ page: "1", pageSize: "1" });
+      if (filter) params.set("q", filter);
       if (options.type) params.set("type", options.type);
       if (options.status) params.set("status", options.status);
       const result = await api<{ totalCount: number }>(
@@ -912,29 +722,32 @@ function CustomersPage({
       count(),
       count({ type: "Customer" }),
       count({ type: "Supplier" }),
+      count({ type: "Dealer" }),
+      count({ type: "Employee" }),
+      count({ type: "Both" }),
       count({ status: "Active" }),
       count({ status: "Inactive" }),
     ])
-      .then(([all, customers, suppliers, activeCount, inactive]) => {
+      .then(([all, customers, suppliers, dealers, employees, others, activeCount, inactive]) => {
         if (active)
           setDirectoryMetrics({
             total: all,
             customers,
             suppliers,
+            dealers,
+            employees,
+            others,
             active: activeCount,
             inactive,
           });
       })
       .catch(() => {
         if (active) setDirectoryMetrics(null);
-      })
-      .finally(() => {
-        if (active) setDirectoryMetricsLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, filter]);
   useEffect(() => {
     let cancelled = false;
     api<CustomerCompanyOption[]>("/api/customers/company-options", token)
@@ -2022,15 +1835,11 @@ function CustomersPage({
         return (
           <>
             <b className="customer-name">{item.name}</b>
-            {item.riskLimit != null && (
-              <small className="cell-subtitle">
-                Risk {item.riskLimit.toLocaleString("tr-TR")}
-              </small>
-            )}
+            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
           </>
         );
       case "groupName":
-        return item.groupName || "Grup atanmamış";
+        return item.groupName || <span className="list-v2-unset">Grup atanmamış</span>;
       case "type":
         return (
           <span className={`party-pill ${item.type.toLowerCase()}`}>
@@ -2065,22 +1874,6 @@ function CustomersPage({
             <i />
             {item.isActive ? "Aktif" : "Pasif"}
           </span>
-        );
-      case "actions":
-        return (
-          <CustomerActionsMenu
-            item={item}
-            busy={busy}
-            onEdit={() => openEditCustomer(item)}
-            onInvoices={() => setSalesInvoicesCustomer(item)}
-            onPurchaseInvoices={() =>
-              onOpenPurchaseInvoices({ id: item.id, name: item.name })
-            }
-            onLedger={() => void openLedger(item)}
-            onAddresses={() => void openAddresses(item)}
-            onFields={() => void openCustomerFields(item)}
-            onToggleActive={() => void toggleActive(item)}
-          />
         );
       default:
         return "—";
@@ -2185,7 +1978,7 @@ function CustomersPage({
     customerCreatePage
   ) : (
     <>
-      <div className="customer-page-main">
+      <div className="customer-page-main list-v2">
       <CustomerDirectoryHeader
         canImport={role === "TenantAdmin"}
         exportBusy={exportBusy}
@@ -2201,6 +1994,7 @@ function CustomersPage({
         onCreate={() => onNavigate("customer-create")}
         title={pageSettings.title}
         description={pageSettings.description}
+        total={directoryMetrics?.total ?? null}
       />
       {error && (
         <div className="alert inline-alert">
@@ -2218,32 +2012,6 @@ function CustomersPage({
           </button>
         </div>
       )}
-      <section className="reference-summary-grid customer-reference-summary" aria-label="Cari özeti">
-        <div className="reference-summary-card violet">
-          <span><Users size={21} /></span>
-          <div><small>Toplam cari</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.total.toLocaleString("tr-TR") ?? "—"}</strong></div>
-        </div>
-        <div className="reference-summary-card green">
-          <span><UserRound size={21} /></span>
-          <div><small>Müşteri</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.customers.toLocaleString("tr-TR") ?? "—"}</strong></div>
-        </div>
-        <div className="reference-summary-card blue">
-          <span><Building2 size={21} /></span>
-          <div><small>Tedarikçi</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.suppliers.toLocaleString("tr-TR") ?? "—"}</strong></div>
-        </div>
-        <div className="reference-summary-card amber">
-          <span><CircleArrowUp size={21} /></span>
-          <div><small>Cari grubu</small><strong>{loading ? "…" : groups.length.toLocaleString("tr-TR")}</strong></div>
-        </div>
-        <div className="reference-summary-card red">
-          <span><UserRoundCheck size={21} /></span>
-          <div><small>Aktif</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.active.toLocaleString("tr-TR") ?? "—"}</strong></div>
-        </div>
-        <div className="reference-summary-card teal">
-          <span><UserRoundPlus size={21} /></span>
-          <div><small>Pasif</small><strong>{directoryMetricsLoading ? "…" : directoryMetrics?.inactive.toLocaleString("tr-TR") ?? "—"}</strong></div>
-        </div>
-      </section>
       <CustomerFilters
         search={search}
         typeFilter={typeFilter}
@@ -2262,6 +2030,8 @@ function CustomersPage({
           setFilter(search.trim());
         }}
         onRefresh={() => void load()}
+        counts={directoryMetrics}
+        toolsSlotRef={setGridToolsSlot}
         searchLabel={pageSettings.searchLabel}
         searchPlaceholder={pageSettings.searchPlaceholder}
         typeFilterLabel={pageSettings.typeFilterLabel}
@@ -2284,6 +2054,7 @@ function CustomersPage({
             onPageChange={setPage}
             onSelect={(item) => setSelectedCustomerId(item.id)}
             renderCell={renderScreenCell}
+            toolbarContainer={gridToolsSlot}
           />
         </div>
         <CustomerDetailPanel
@@ -2313,6 +2084,14 @@ function CustomersPage({
           onFields={() =>
             selectedCustomer && void openCustomerFields(selectedCustomer)
           }
+          onPurchaseInvoices={() =>
+            selectedCustomer &&
+            onOpenPurchaseInvoices({ id: selectedCustomer.id, name: selectedCustomer.name })
+          }
+          onToggleActive={() =>
+            selectedCustomer && void toggleActive(selectedCustomer)
+          }
+          busy={busy}
         />
       </div>
       </div>

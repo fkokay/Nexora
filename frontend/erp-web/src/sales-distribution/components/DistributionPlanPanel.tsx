@@ -10,6 +10,8 @@ type Props = {
   selectedStockId: string;
   selected: Need | null;
   onSelectStock: (stockId: string) => void;
+  /** Page-level toolbar element that hosts the grid's column and pivot tools. */
+  toolbarContainer?: HTMLElement | null;
   onPreviousPage: () => void;
   onNextPage: () => void;
 };
@@ -17,8 +19,8 @@ type Props = {
 function fieldValue(item: Need, key: string) {
   return key === "stock" ? (
     <>
-      <b>{item.stockCode}</b>
-      <small>{item.stockName}</small>
+      <b>{item.stockName}</b>
+      <small className="cell-subtitle list-v2-name-code">{item.stockCode}</small>
     </>
   ) : key === "openDemand" ? (
     `${item.openDemand.toLocaleString("tr-TR")} ${item.unitCode}`
@@ -43,9 +45,15 @@ function StockNeedsTable({
   visibleFields,
   selectedStockId,
   onSelectStock,
+  toolbarContainer,
 }: Pick<
   Props,
-  "page" | "busy" | "visibleFields" | "selectedStockId" | "onSelectStock"
+  | "page"
+  | "busy"
+  | "visibleFields"
+  | "selectedStockId"
+  | "onSelectStock"
+  | "toolbarContainer"
 >) {
   return (
     <div className="sales-distribution-table-wrap">
@@ -53,6 +61,7 @@ function StockNeedsTable({
         gridId="sales-distribution-plan-v2"
         hideSearch
         externalPagination
+        toolbarContainer={toolbarContainer}
         enableRowSelection={false}
         className="compact"
         initialColumnWidths={[160, 95, 105, 100, 105, 105, 80]}
@@ -116,10 +125,16 @@ function SelectedStockDetail({ selected }: { selected: Need | null }) {
     <aside className="sales-distribution-detail" aria-label="Seçili stok özeti">
       {selected ? (
         <>
-          <small>SEÇİLİ STOK</small>
-          <h3>{selected.stockCode}</h3>
-          <p>{selected.stockName}</p>
-          <dl>
+          <div className="list-v2-detail-head">
+            <div>
+              <span className="list-v2-kind">SEÇİLİ STOK</span>
+              <h2>{selected.stockName}</h2>
+            </div>
+          </div>
+          <div className="list-v2-detail-meta">
+            <span className="list-v2-detail-code">{selected.stockCode}</span>
+          </div>
+          <dl className="list-v2-facts">
             <div>
               <dt>Açık talep</dt>
               <dd>
@@ -192,6 +207,7 @@ function DistributionPagination({
           1,
           Math.ceil((page?.totalCount ?? 0) / (page?.pageSize ?? 25)),
         )}
+        {busy ? " · Yükleniyor…" : page?.method ? ` · ${page.method}` : ""}
       </span>
       <div>
         <button
@@ -223,22 +239,16 @@ export default function DistributionPlanPanel({
   selectedStockId,
   selected,
   onSelectStock,
+  toolbarContainer,
   onPreviousPage,
   onNextPage,
 }: Props) {
   return (
-    <section className="sales-distribution-panel" aria-busy={busy}>
-      <div className="sales-distribution-panel-heading">
-        <div>
-          <h2>Stok ihtiyaçları</h2>
-          <p>
-            {page?.warehouse
-              ? `${page.warehouse.code} · ${page.totalCount} stok kalemi · yalnız açık siparişler`
-              : "Önce depo seçin"}
-          </p>
-        </div>
-        <span>{busy ? "Yükleniyor…" : (page?.method ?? "")}</span>
-      </div>
+    <section
+      className="sales-distribution-panel list-v2-list"
+      aria-label="Stok ihtiyaçları"
+      aria-busy={busy}
+    >
       <div className="sales-distribution-workspace">
         <StockNeedsTable
           page={page}
@@ -246,6 +256,7 @@ export default function DistributionPlanPanel({
           visibleFields={visibleFields}
           selectedStockId={selectedStockId}
           onSelectStock={onSelectStock}
+          toolbarContainer={toolbarContainer}
         />
         <SelectedStockDetail selected={selected} />
       </div>

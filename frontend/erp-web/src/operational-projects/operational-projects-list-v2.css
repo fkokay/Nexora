@@ -1,0 +1,8 @@
+/* list-v2 spacing for the projects page: its root is not a grid, so the shared title and
+   toolbar rows (which carry no margins of their own) get their gaps here. */
+#root .app-shell .operational-projects.list-v2 > .list-v2-heading {
+  margin-bottom: 12px;
+}
+#root .operational-projects.list-v2 > .list-v2-toolbar {
+  margin-bottom: 12px;
+}

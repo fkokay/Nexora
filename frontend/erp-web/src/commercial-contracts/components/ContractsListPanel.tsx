@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type {
   Contract,
@@ -11,8 +12,13 @@ import type {
 
 type Props = {
   tx: Translate;
+  /** Text typed into the search box. */
+  search: string;
+  setSearch: (value: string) => void;
+  /** Search text applied to the list query. */
   query: string;
   setQuery: (value: string) => void;
+  onRefresh: () => void;
   typeFilter: string;
   setTypeFilter: (value: string) => void;
   statusFilter: string;
@@ -36,8 +42,11 @@ type Props = {
 export default function ContractsListPanel(props: Props) {
   const {
     tx,
+    search,
+    setSearch,
     query,
     setQuery,
+    onRefresh,
     typeFilter,
     setTypeFilter,
     statusFilter,
@@ -57,77 +66,51 @@ export default function ContractsListPanel(props: Props) {
     setGridSort,
     renderField,
   } = props;
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
     <>
-      <section className="contracts-filter-card" aria-label={tx("Sözleşme filtreleri")}>
-        <div className="contracts-filter-heading">
-          <h2>{tx("Filtreler")}</h2>
-          <p>{tx("Sözleşme listesini tür, durum veya cari hesaba göre daraltın.")}</p>
-        </div>
-        <div className="contracts-filters">
-          <label className="contracts-search">
-            <span className="sr-only">{tx("Sözleşme ara")}</span>
-            <input
-              type="search"
-              aria-label={tx("Kod veya cari hesapta ara")}
-              placeholder={tx("Kod veya cari ara")}
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPageNumber(1);
-              }}
-            />
-          </label>
-          <label>
-            <span className="sr-only">
-              {tx("Sözleşme türüne göre filtrele")}
-            </span>
-            <select
-              aria-label={tx("Tür filtresi")}
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value);
-                setPageNumber(1);
-              }}
-            >
-              <option value="">{tx("Tüm türler")}</option>
-              <option value="Sales">{tx("Satış")}</option>
-              <option value="Purchase">{tx("Satın alma")}</option>
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">
-              {tx("Sözleşme durumuna göre filtrele")}
-            </span>
-            <select
-              aria-label={tx("Durum filtresi")}
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPageNumber(1);
-              }}
-            >
-              <option value="">{tx("Tüm durumlar")}</option>
-              {Object.entries(labels).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-      <section className="contracts-panel" aria-labelledby="contracts-list-title">
-        <div className="contracts-toolbar">
-          <div>
-            <h2 id="contracts-list-title">{tx("Sözleşme listesi")}</h2>
-            <p>
-              {tx(
-                "Satış ve satın alma sözleşmeleri aynı firma kapsamında listelenir.",
-              )}
-            </p>
-          </div>
-        </div>
+      <ListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        onSearchApply={() => {
+          setQuery(search);
+          setPageNumber(1);
+        }}
+        searchLabel={tx("Kod veya cari hesapta ara")}
+        searchPlaceholder={tx("Kod veya cari ara")}
+        toolsSlotRef={setToolsSlot}
+        onRefresh={() => {
+          if (!loading) onRefresh();
+        }}
+      >
+        <ListChipGroup
+          label={tx("Tür filtresi")}
+          value={typeFilter}
+          onChange={(value) => {
+            setTypeFilter(value);
+            setPageNumber(1);
+          }}
+          options={[
+            { value: "", label: tx("Tüm türler") },
+            { value: "Sales", label: tx("Satış") },
+            { value: "Purchase", label: tx("Satın alma") },
+          ]}
+        />
+        <ListChipGroup
+          label={tx("Durum filtresi")}
+          value={statusFilter}
+          onChange={(value) => {
+            setStatusFilter(value);
+            setPageNumber(1);
+          }}
+          allowClear
+          options={Object.entries(labels).map(([key, label]) => ({
+            value: key,
+            label,
+          }))}
+        />
+      </ListToolbar>
+      <section className="contracts-panel list-v2-list">
       <div
         className="contracts-table-wrap"
         role="region"
@@ -138,6 +121,7 @@ export default function ContractsListPanel(props: Props) {
         <AdvancedDataGrid
           hideSearch
           className="customer-table"
+          toolbarContainer={toolsSlot}
           serverData={{
             page: page?.page ?? pageNumber,
             pageSize: page?.pageSize ?? pageSize,
@@ -200,6 +184,7 @@ export default function ContractsListPanel(props: Props) {
                       type="button"
                       className="contracts-clear-filters"
                       onClick={() => {
+                        setSearch("");
                         setQuery("");
                         setTypeFilter("");
                         setStatusFilter("");
@@ -223,20 +208,15 @@ export default function ContractsListPanel(props: Props) {
           </tbody>
         </AdvancedDataGrid>
       </div>
-      <footer className="contracts-foot">
-        <span>
-          {loading
-            ? tx("Kayıtlar alınıyor…")
-            : `${filtered.length} ${tx("görüntüleniyor")} · ${page?.total ?? 0} ${tx("eşleşen kayıt")}`}
-        </span>
-        {canEdit && (
+      {canEdit && (
+        <footer className="contracts-foot">
           <span>
             {tx(
               "Oluşturma ve durum değiştirme işlemleri firma yöneticisine açıktır.",
             )}
           </span>
-        )}
-      </footer>
+        </footer>
+      )}
       </section>
     </>
   );

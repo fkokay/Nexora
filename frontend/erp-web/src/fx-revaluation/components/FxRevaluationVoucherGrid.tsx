@@ -6,6 +6,7 @@ export default function FxRevaluationVoucherGrid({
   token,
   vouchers,
   emptyMessage,
+  toolbarContainer,
   money,
   onOpen,
 }: FxRevaluationVoucherGridProps) {
@@ -15,6 +16,8 @@ export default function FxRevaluationVoucherGrid({
         token={token}
         screenKey="finance-fx-revaluations"
         defaults={financeGridDefaults["finance-fx-revaluations"]}
+        hideSearch
+        toolbarContainer={toolbarContainer}
       >
         <table className="customer-table">
           <thead>
