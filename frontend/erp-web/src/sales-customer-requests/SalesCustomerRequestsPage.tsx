@@ -23,13 +23,13 @@ const pageSize = 25;
 const basePath = "/api/sales/requests";
 
 const fields: AppTypes.BuiltInScreenLayoutField[] = [
-  { key: "code", label: "Talep no" },
-  { key: "requestDate", label: "Tarih" },
-  { key: "customerName", label: "Müşteri" },
-  { key: "neededByDate", label: "İhtiyaç tarihi" },
-  { key: "lineCount", label: "Satır" },
-  { key: "quoteCount", label: "Teklif" },
-  { key: "status", label: "Durum" },
+  { key: "code", label: "Talep no", width: 150 },
+  { key: "requestDate", label: "Tarih", width: 110 },
+  { key: "customerName", label: "Müşteri", width: 280 },
+  { key: "neededByDate", label: "İhtiyaç tarihi", width: 120 },
+  { key: "lineCount", label: "Satır", width: 80 },
+  { key: "quoteCount", label: "Teklif", width: 80 },
+  { key: "status", label: "Durum", width: 140 },
 ].map((field, position) => ({ ...field, visible: true, position }));
 
 /** Satış talepleri: müşteriden gelen ürün talepleri listelenir, kaydedilir ve teklife dönüştürülür. */
@@ -143,7 +143,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
     switch (field.key) {
       case "code":
         return (
-          <button type="button" className="row-action" aria-label={`${item.code} talep ayrıntılarını aç`} onClick={(event) => { event.stopPropagation(); void openDetail(item.id); }}>
+          <button type="button" className="erp-link-button customer-code" aria-haspopup="dialog" aria-label={`${item.code} talep ayrıntılarını aç`} onClick={(event) => { event.stopPropagation(); void openDetail(item.id); }}>
             {item.code}
           </button>
         );

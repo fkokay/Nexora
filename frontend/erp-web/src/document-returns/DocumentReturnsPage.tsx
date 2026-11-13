@@ -47,14 +47,14 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
   const [warehouses, setWarehouses] = useState<AppTypes.Warehouse[]>([]);
 
   const fields: AppTypes.BuiltInScreenLayoutField[] = [
-    { key: "code", label: "İade no" },
-    { key: "returnDate", label: "Tarih" },
-    { key: "partyName", label: config.partyLabel },
-    { key: "invoiceCode", label: "Fatura" },
-    { key: "warehouseName", label: "Depo" },
-    { key: "lineCount", label: "Satır" },
-    { key: "grandTotal", label: "Tutar" },
-    { key: "status", label: "Durum" },
+    { key: "code", label: "İade no", width: 130 },
+    { key: "returnDate", label: "Tarih", width: 105 },
+    { key: "partyName", label: config.partyLabel, width: 220 },
+    { key: "invoiceCode", label: "Fatura", width: 130 },
+    { key: "warehouseName", label: "Depo", width: 120 },
+    { key: "lineCount", label: "Satır", width: 65 },
+    { key: "grandTotal", label: "Tutar", width: 140 },
+    { key: "status", label: "Durum", width: 110 },
   ].map((field, position) => ({ ...field, visible: true, position }));
 
   async function load() {
@@ -122,7 +122,7 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
     switch (field.key) {
       case "code":
         return (
-          <button type="button" className="row-action" aria-label={`${item.code} iade ayrıntılarını aç`} onClick={(event) => { event.stopPropagation(); void openDetail(item.id); }}>
+          <button type="button" className="erp-link-button customer-code" aria-haspopup="dialog" aria-label={`${item.code} iade ayrıntılarını aç`} onClick={(event) => { event.stopPropagation(); void openDetail(item.id); }}>
             {item.code}
           </button>
         );

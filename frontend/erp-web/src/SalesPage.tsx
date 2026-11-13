@@ -3013,8 +3013,9 @@ export function SalesPage({
             <section className="sales-quote-readonly-form" aria-label="Teklif üst bilgileri">
               <label><span>Teklif alıcısı</span><input readOnly value={`${detail.customerCode ? `${detail.customerCode} · ` : ""}${detail.customerName}`} /></label>
               <label><span>Durum</span><input readOnly value={statusName(detail.status)} /></label>
-              <label><span>Teklif tarihi</span><input readOnly value={detail.quoteDate} /></label>
-              <label><span>Geçerlilik tarihi</span><input readOnly value={detail.validUntil} /></label>
+              <label><span>Teklif tarihi</span><input readOnly value={new Date(`${detail.quoteDate}T00:00:00`).toLocaleDateString("tr-TR")} /></label>
+              <label><span>Geçerlilik tarihi</span><input readOnly value={new Date(`${detail.validUntil}T00:00:00`).toLocaleDateString("tr-TR")} /></label>
+              {detail.salesRequestCode && <label><span>Kaynak talep</span><input readOnly value={detail.salesRequestCode} /></label>}
               <label><span>Para birimi</span><input readOnly value={detail.currencyCode} /></label>
               <label><span>Plasiyer</span><input readOnly value={detail.salespersonName || "—"} /></label>
               {detail.deliveryTerms && <label className="wide"><span>Teslimat koşulları</span><textarea readOnly rows={2} value={detail.deliveryTerms} /></label>}

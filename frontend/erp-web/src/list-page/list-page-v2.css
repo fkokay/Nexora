@@ -83,10 +83,12 @@
   height: 100%;
   margin: 0;
   padding: 0;
-  border: 0;
+  /* Kabuktaki genel form kuralı girişlere !important çerçeve verir; arama kutusunun
+     çerçevesi dış formdadır, içteki giriş çerçevesiz kalmalı. */
+  border: 0 !important;
   outline: 0;
-  background: transparent;
-  box-shadow: none;
+  background: transparent !important;
+  box-shadow: none !important;
   color: var(--lv2-text);
   font-size: 14px;
 }
