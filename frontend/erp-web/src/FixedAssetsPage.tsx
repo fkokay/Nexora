@@ -1,11 +1,13 @@
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import AdvancedDataGrid from "./AdvancedDataGrid";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import type { Asset, AssetField } from "./fixed-assets/types";
 import { FixedAssetRegister } from "./fixed-assets/components/FixedAssetRegister";
 import { localDateString } from "./dateUtils";
 import "./fixed-assets.css";
+import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
+import { RecordFormGroup } from "./record-form/RecordForm";
 
 type LedgerAccount = {
   id: string;
@@ -220,6 +222,7 @@ export default function FixedAssetsPage({
   const [assetSearch, setAssetSearch] = useState(""),
     [assetStatus, setAssetStatus] = useState("all"),
     [showAcquisition, setShowAcquisition] = useState(false);
+  const stayAfterCreate = useRef(false);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -501,7 +504,7 @@ export default function FixedAssetsPage({
           ? "Asset acquisition recorded. Link a posted purchase invoice when it already owns the accounting entry."
           : "Sabit kıymet edinimi kaydedildi. Muhasebe kaydı alış faturasındaysa faturayı bağlayın.",
       );
-      setShowAcquisition(false);
+      if (!stayAfterCreate.current) setShowAcquisition(false);
       setCode("");
       setName("");
       setCategory("");
@@ -845,29 +848,36 @@ export default function FixedAssetsPage({
         formatField={(asset, key) => formatAssetField(asset, key, en)}
       />
       {showAcquisition && (
-        <section className="panel" aria-labelledby="acquisition-heading">
-          <div className="panel-heading">
-            <div>
-              <h3 id="acquisition-heading">
-                {en ? "Register an acquisition" : "Edinim kaydı oluştur"}
-              </h3>
-              <p>
-                {en
-                  ? "Start with the asset details, then add its cost and accounting source. Amounts use the company base currency."
-                  : "Önce kıymet bilgilerini, ardından maliyet ve muhasebe kaynağını girin. Tutarlar firma baz para birimindedir."}
-              </p>
-            </div>
-            <span className="fixed-asset-step">
-              {en ? "New asset" : "Yeni kıymet"}
-            </span>
-          </div>
-          <form
-            className="collection-form fixed-asset-form"
+        <section
+          className="hrp-form-section"
+          aria-label={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
+        >
+          <ModuleRecordForm
+            title={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
+            className="hrp-wide"
+            mode="create"
+            busy={busy}
+            saveLabel={en ? "Save acquisition" : "Edinimi kaydet"}
             onSubmit={createAsset}
+            onCancel={() => setShowAcquisition(false)}
+            onSaveIntent={(stay) => {
+              stayAfterCreate.current = stay;
+            }}
+            status={
+              <>
+                <span>
+                  {en
+                    ? "Start with the asset details, then add its cost and accounting source. Amounts use the company base currency."
+                    : "Önce kıymet bilgilerini, ardından maliyet ve muhasebe kaynağını girin. Tutarlar firma baz para birimindedir."}
+                </span>
+                {notice && <span className="rf-status-notice">{notice}</span>}
+              </>
+            }
           >
-            <div className="fixed-asset-form-section">
-              <h4>{en ? "Asset details" : "Kıymet bilgileri"}</h4>
-              <div className="form-three">
+            <RecordFormGroup
+              title={en ? "Asset details" : "Kıymet bilgileri"}
+              bodyClassName="rf-identity hrp-identity-3"
+            >
                 <label>
                   {en ? "Asset code" : "Kıymet kodu"}
                   <input
@@ -894,13 +904,11 @@ export default function FixedAssetsPage({
                     maxLength={80}
                   />
                 </label>
-              </div>
-            </div>
-            <div className="fixed-asset-form-section">
-              <h4>
-                {en ? "Dates and useful life" : "Tarihler ve faydalı ömür"}
-              </h4>
-              <div className="form-three">
+            </RecordFormGroup>
+            <div className="rf-columns">
+              <RecordFormGroup
+                title={en ? "Dates and useful life" : "Tarihler ve faydalı ömür"}
+              >
                 <label>
                   {en ? "Acquisition date" : "Edinim tarihi"}
                   <input
@@ -930,7 +938,6 @@ export default function FixedAssetsPage({
                     required
                   />
                 </label>
-              </div>
               {vukLimit && (
                 <p className="fixed-asset-inline-note" role="status">
                   {en
@@ -938,14 +945,87 @@ export default function FixedAssetsPage({
                     : `GİB VUK ${vukLimit.taxYear} amortisman alt sınırı: ${vukLimit.lowerLimitTry.toLocaleString("tr-TR")} TL (Tebliğ ${vukLimit.communiqueNumber}). Bilgilendirme amaçlıdır; otomatik gider yazma kararı değildir.`}
                 </p>
               )}
-            </div>
-            <div className="fixed-asset-form-section">
-              <h4>
+              </RecordFormGroup>
+
+              <RecordFormGroup
+                title={en ? "Cost and reference" : "Maliyet ve referans"}
+              >
+                <label>
+                  {en ? "Acquisition cost" : "Edinim maliyeti"}
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  {en ? "Residual value" : "Kalıntı değer"}
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={residual}
+                    onChange={(e) => setResidual(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  {en ? "Source reference" : "Kaynak referansı"}
+                  <input
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    maxLength={120}
+                  />
+                </label>
+              </RecordFormGroup>
+              <RecordFormGroup
+                title={en ? "Accounting source" : "Muhasebe kaynağı"}
+              >
+              <label>
                 {en
-                  ? "Optional VUK tax profile"
-                  : "İsteğe bağlı VUK vergi profili"}
-              </h4>
-              <label className="fixed-asset-vuk-toggle">
+                  ? "Linked purchase invoice (optional)"
+                  : "Bağlı alış faturası (isteğe bağlı)"}
+                <select
+                  value={purchaseInvoiceId}
+                  onChange={(e) => setPurchaseInvoiceId(e.target.value)}
+                >
+                  <option value="">
+                    {en ? "No invoice link" : "Fatura bağlantısı yok"}
+                  </option>
+                  {purchaseInvoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      {invoice.code} · {formatDate(invoice.invoiceDate, en)} ·{" "}
+                      {invoice.grandTotal.toLocaleString(
+                        en ? "en-US" : "tr-TR",
+                        { minimumFractionDigits: 2 },
+                      )}
+                      {invoice.journalEntryId
+                        ? en
+                          ? " · journaled"
+                          : " · yevmiye kayıtlı"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  {en
+                    ? "When linked, this invoice remains the accounting source; the separate acquisition journal is blocked to prevent double posting."
+                    : "Fatura bağlandığında muhasebe kaynağı alış faturası olur; çift kayıt olmaması için ayrı edinim fişi engellenir."}
+                </small>
+              </label>
+              </RecordFormGroup>
+              <div className="rf-columns-wide">
+                <RecordFormGroup
+                  title={
+                    en
+                      ? "Optional VUK tax profile"
+                      : "İsteğe bağlı VUK vergi profili"
+                  }
+                >
+              <label className="fixed-asset-vuk-toggle rf-check">
                 <input
                   type="checkbox"
                   checked={includeVukProfile}
@@ -971,7 +1051,7 @@ export default function FixedAssetsPage({
                         : "GİB resmi amortisman tablosu"}
                     </a>
                   </p>
-                  <div className="form-three">
+                  <div className="hrp-grid">
                     <label>
                       {en ? "Table code" : "Tablo kodu"}
                       <input
@@ -1066,7 +1146,7 @@ export default function FixedAssetsPage({
                       />
                     </label>
                   </div>
-                  <label className="fixed-asset-vuk-confirm">
+                  <label className="fixed-asset-vuk-confirm rf-check">
                     <input
                       type="checkbox"
                       checked={vukConfirmed}
@@ -1079,88 +1159,10 @@ export default function FixedAssetsPage({
                   </label>
                 </>
               )}
-            </div>
-            <div className="fixed-asset-form-section">
-              <h4>{en ? "Cost and reference" : "Maliyet ve referans"}</h4>
-              <div className="form-three">
-                <label>
-                  {en ? "Acquisition cost" : "Edinim maliyeti"}
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  {en ? "Residual value" : "Kalıntı değer"}
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={residual}
-                    onChange={(e) => setResidual(e.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  {en ? "Source reference" : "Kaynak referansı"}
-                  <input
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    maxLength={120}
-                  />
-                </label>
+                </RecordFormGroup>
               </div>
             </div>
-            <div className="form-two">
-              <label>
-                {en
-                  ? "Linked purchase invoice (optional)"
-                  : "Bağlı alış faturası (isteğe bağlı)"}
-                <select
-                  value={purchaseInvoiceId}
-                  onChange={(e) => setPurchaseInvoiceId(e.target.value)}
-                >
-                  <option value="">
-                    {en ? "No invoice link" : "Fatura bağlantısı yok"}
-                  </option>
-                  {purchaseInvoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.code} · {formatDate(invoice.invoiceDate, en)} ·{" "}
-                      {invoice.grandTotal.toLocaleString(
-                        en ? "en-US" : "tr-TR",
-                        { minimumFractionDigits: 2 },
-                      )}
-                      {invoice.journalEntryId
-                        ? en
-                          ? " · journaled"
-                          : " · yevmiye kayıtlı"
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-                <small>
-                  {en
-                    ? "When linked, this invoice remains the accounting source; the separate acquisition journal is blocked to prevent double posting."
-                    : "Fatura bağlandığında muhasebe kaynağı alış faturası olur; çift kayıt olmaması için ayrı edinim fişi engellenir."}
-                </small>
-              </label>
-            </div>
-            <div className="modal-foot">
-              <button className="primary" disabled={busy}>
-                {busy
-                  ? en
-                    ? "Saving…"
-                    : "Kaydediliyor…"
-                  : en
-                    ? "Save acquisition"
-                    : "Edinimi kaydet"}
-              </button>
-            </div>
-          </form>
+          </ModuleRecordForm>
         </section>
       )}
 
@@ -1613,8 +1615,22 @@ export default function FixedAssetsPage({
               </div>
             ) : (
               <>
-                <form className="collection-form" onSubmit={disposeAsset}>
-                  <div className="form-three">
+                <ModuleRecordForm
+                  title={en ? "Disposal record" : "Elden çıkarma kaydı"}
+                  mode="create"
+                  busy={busy}
+                  saveDisabled={
+                    detailLoading ||
+                    !!detailError ||
+                    selected.status !== "Active"
+                  }
+                  saveLabel={en ? "Record disposal" : "Elden çıkarmayı kaydet"}
+                  onSubmit={disposeAsset}
+                >
+                  <RecordFormGroup
+                    title={en ? "Disposal" : "Elden Çıkarma"}
+                    bodyClassName="rf-identity hrp-identity-3"
+                  >
                     <label>
                       {en ? "Disposal date" : "Elden çıkarma tarihi"}
                       <input
@@ -1646,27 +1662,8 @@ export default function FixedAssetsPage({
                         required
                       />
                     </label>
-                  </div>
-                  <div className="modal-foot">
-                    <button
-                      className="primary"
-                      disabled={
-                        busy ||
-                        detailLoading ||
-                        !!detailError ||
-                        selected.status !== "Active"
-                      }
-                    >
-                      {busy
-                        ? en
-                          ? "Saving…"
-                          : "Kaydediliyor…"
-                        : en
-                          ? "Record disposal"
-                          : "Elden çıkarmayı kaydet"}
-                    </button>
-                  </div>
-                </form>
+                  </RecordFormGroup>
+                </ModuleRecordForm>
                 {!detailLoading &&
                   !detailError &&
                   selected.status !== "Active" && (
@@ -1695,8 +1692,18 @@ export default function FixedAssetsPage({
                 {en ? "05 · Custody" : "05 · Zimmet"}
               </span>
             </div>
-            <form className="collection-form" onSubmit={assign}>
-              <div className="form-three">
+            <ModuleRecordForm
+              title={en ? "Custody assignment" : "Zimmet kaydı"}
+              mode="create"
+              busy={busy}
+              saveDisabled={detailLoading || !!detailError || !employees.length}
+              saveLabel={en ? "Assign asset" : "Zimmetle"}
+              onSubmit={assign}
+            >
+              <RecordFormGroup
+                title={en ? "Custody" : "Zimmet"}
+                bodyClassName="rf-identity hrp-identity-even"
+              >
                 <label>
                   {en ? "Employee" : "Personel"}
                   <SearchableRecordPicker
@@ -1740,24 +1747,8 @@ export default function FixedAssetsPage({
                     maxLength={160}
                   />
                 </label>
-              </div>
-              <div className="modal-foot">
-                <button
-                  className="primary"
-                  disabled={
-                    busy || detailLoading || !!detailError || !employees.length
-                  }
-                >
-                  {busy
-                    ? en
-                      ? "Saving…"
-                      : "Kaydediliyor…"
-                    : en
-                      ? "Assign asset"
-                      : "Zimmetle"}
-                </button>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </ModuleRecordForm>
             {!detailLoading && !detailError && !employees.length && (
               <p className="fixed-asset-inline-note">
                 {en
