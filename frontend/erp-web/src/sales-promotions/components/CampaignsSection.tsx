@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import type { Campaign, CampaignScreenField } from "./types";
 
@@ -94,7 +95,7 @@ export default function CampaignsSection({
             toolbarContainer={toolsSlot}
             enableRowSelection={false}
             gridId="sales-campaigns-v2"
-            initialColumnWidths={visibleFields.map(
+            {...screenViewGridDefaults(visibleFields,
               (field) =>
                 ({
                   code: 100,

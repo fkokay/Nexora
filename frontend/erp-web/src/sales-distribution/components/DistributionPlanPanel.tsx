@@ -1,6 +1,18 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { DistributionPage, Need, ScreenField } from "./types";
+
+/** Default [initial, minimum] widths per column key, used when the tenant layout sets none. */
+const defaultColumnWidths: Record<string, [number, number]> = {
+  stock: [160, 130],
+  openDemand: [95, 80],
+  onHand: [105, 85],
+  activeReserved: [100, 85],
+  available: [105, 85],
+  uncovered: [105, 90],
+  openOrderCount: [80, 70],
+};
 
 type Props = {
   page: DistributionPage | null;
@@ -64,8 +76,13 @@ function StockNeedsTable({
         toolbarContainer={toolbarContainer}
         enableRowSelection={false}
         className="compact"
-        initialColumnWidths={[160, 95, 105, 100, 105, 105, 80]}
-        minimumColumnWidths={[130, 80, 85, 85, 85, 90, 70]}
+        {...screenViewGridDefaults(
+          visibleFields,
+          (field) => defaultColumnWidths[field.key]?.[0],
+        )}
+        minimumColumnWidths={visibleFields.map(
+          (field) => defaultColumnWidths[field.key]?.[1] ?? 70,
+        )}
       >
         <thead>
           <ScreenViewGroupHeader fields={visibleFields} />

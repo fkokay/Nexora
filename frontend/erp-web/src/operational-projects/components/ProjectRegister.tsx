@@ -2,6 +2,7 @@ import { FolderKanban, Plus, RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ProjectPage, ProjectScreenField, ProjectSummary } from "../types";
 
 type Props = {
@@ -96,6 +97,8 @@ export function ProjectRegister({
             hideSearch
             toolbarContainer={toolbarContainer}
             className="op-project-register"
+            gridId="operational-projects"
+            {...screenViewGridDefaults(fields)}
             serverData={{
               page: page.page ?? pageNumber,
               pageSize: page.pageSize ?? 100,

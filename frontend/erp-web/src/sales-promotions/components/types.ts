@@ -1,3 +1,4 @@
+import type { ScreenColumnPin } from "../../erp-types";
 export type Campaign = {
   id: string
   code: string
@@ -9,8 +10,8 @@ export type Campaign = {
   applicationCount: number
 }
 
-export type CampaignScreenField = { key: string; label: string; visible: boolean; position: number }
-export type PerformanceScreenField = { key: string; label: string; visible: boolean; position: number }
+export type CampaignScreenField = { key: string; label: string; visible: boolean; position: number; width?: number | null; pinned?: ScreenColumnPin | null }
+export type PerformanceScreenField = { key: string; label: string; visible: boolean; position: number; width?: number | null; pinned?: ScreenColumnPin | null }
 
 export type Quote = {
   id: string

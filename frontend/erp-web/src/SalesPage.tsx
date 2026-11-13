@@ -9017,7 +9017,7 @@ function SalesOrderModal({
           </form>
         )}
         <div className="ledger-list sales-quote-lines">
-          <AdvancedDataGrid className="customer-table quote-detail-table" enableRowSelection={false}>
+          <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
               <ScreenViewGroupHeader fields={visibleOrderLineFields} />
               <tr>

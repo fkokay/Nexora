@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
@@ -66,6 +67,8 @@ export function DeliveryNotesListPanel({
           hideSearch
           externalPagination
           className="customer-table"
+          gridId="purchase-delivery-notes"
+          {...screenViewGridDefaults(fields)}
           toolbarContainer={toolsSlot}
         >
           <thead>

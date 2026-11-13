@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import type { ScreenColumnPin } from "./erp-types";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
@@ -43,6 +45,8 @@ type ForecastScreenField = {
   visible: boolean;
   position: number;
   section?: string | null;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 const defaultForecastScreenFields: ForecastScreenField[] = [
   { key: "periodStart", label: "Dönem", visible: true, position: 0 },
@@ -190,6 +194,8 @@ export default function CashForecastPanel({ token }: { token: string }) {
             visible: boolean;
             position: number;
             section?: string | null;
+            width?: number | null;
+            pinned?: ScreenColumnPin | null;
           }>;
         }>;
       })
@@ -451,6 +457,8 @@ export default function CashForecastPanel({ token }: { token: string }) {
                 <AdvancedDataGrid
                   enableRowSelection={false}
                   className="customer-table cash-forecast-table"
+                  gridId="finance-cash-flow-forecast"
+                  {...screenViewGridDefaults(visibleFields)}
                 >
                   <caption className="cash-forecast-sr-only">
                     {currency.currencyCode} bazında aylık nakit tahmini
