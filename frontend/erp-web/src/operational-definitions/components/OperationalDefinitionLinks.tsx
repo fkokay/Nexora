@@ -1,57 +1,43 @@
-import { ArrowRight } from "lucide-react";
+import { ChevronRight, MapPin, Warehouse } from "lucide-react";
 import type { Translate } from "../types";
 
 type Props = { tx: Translate; onNavigate: (page: string) => void };
 
 export function OperationalDefinitionLinks({ tx, onNavigate }: Props) {
+  const links = [
+    {
+      page: "inventory-warehouses",
+      icon: <Warehouse size={18} />,
+      title: tx("Depo tanımları", "Warehouse definitions"),
+      hint: tx("Stok, transfer ve raf konumları", "Stock, transfers and storage locations"),
+    },
+    {
+      page: "address-definitions",
+      icon: <MapPin size={18} />,
+      title: tx("Adres tanımları", "Address definitions"),
+      hint: tx("Cari adreslerindeki il ve ilçeler", "Provinces and districts in account addresses"),
+    },
+  ];
   return (
-    <>
-      <section className="panel op-definitions-warehouse-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{tx("Depo tanımları", "Warehouse definitions")}</h2>
-            <p>
-              {tx(
-                "Stok bakiyesi, depo transferleri ve raf/konum yönetimi için depoları açın ve düzenleyin.",
-                "Create and edit warehouses for inventory, transfers, and storage locations.",
-              )}
-            </p>
-          </div>
+    <section className="op-def-related" aria-labelledby="op-def-related-title">
+      <h2 id="op-def-related-title">{tx("Diğer tanımlar", "Other definitions")}</h2>
+      <div className="op-def-related-cards">
+        {links.map((link) => (
           <button
-            className="primary"
-            onClick={() => onNavigate("inventory-warehouses")}
+            key={link.page}
+            type="button"
+            className="op-def-related-card"
+            onClick={() => onNavigate(link.page)}
           >
-            {tx("Depo tanımlarını aç", "Open warehouse definitions")}
-            <ArrowRight size={15} />
+            <span className="op-def-related-icon" aria-hidden="true">{link.icon}</span>
+            <span className="op-def-related-text">
+              <b>{link.title}</b>
+              <span>{link.hint}</span>
+            </span>
+            <ChevronRight size={16} className="op-def-related-chevron" aria-hidden="true" />
           </button>
-        </div>
-        <div className="op-definitions-warehouse-note">
-          {tx(
-            "Depolar, iş yeri ve şube kartlarından ayrı tutulur; stok ve raf konumlarıyla birlikte yönetilir.",
-            "Warehouses are separate from workplace and branch records and are managed with inventory and storage locations.",
-          )}
-        </div>
-      </section>
-      <section className="panel op-definitions-address-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{tx("Adres tanımları", "Address definitions")}</h2>
-            <p>
-              {tx(
-                "Cari adreslerinde kullanılan il ve ilçe kayıtlarını yönetin.",
-                "Manage provinces and districts used in customer and supplier addresses.",
-              )}
-            </p>
-          </div>
-          <button
-            className="secondary"
-            onClick={() => onNavigate("address-definitions")}
-          >
-            {tx("Adres tanımlarını aç", "Open address definitions")}
-            <ArrowRight size={15} />
-          </button>
-        </div>
-      </section>
-    </>
+        ))}
+      </div>
+    </section>
   );
 }

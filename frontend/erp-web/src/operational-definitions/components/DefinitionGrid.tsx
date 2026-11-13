@@ -1,3 +1,4 @@
+import { Building2 } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ScreenColumnPin } from "../../erp-types";
@@ -31,6 +32,8 @@ type Props = {
   onToggle: (row: Definition) => void;
   fields?: DefinitionScreenField[];
   toolbarContainer?: HTMLElement | null;
+  /** False when the company has no definitions at all (not just none matching the filters). */
+  hasRecords?: boolean;
 };
 
 export function DefinitionGrid({
@@ -43,6 +46,7 @@ export function DefinitionGrid({
   onToggle,
   fields = defaultDefinitionFields,
   toolbarContainer,
+  hasRecords = true,
 }: Props) {
   const visibleFields = fields
     .filter((field) => field.key === "actions" || field.visible)
@@ -133,7 +137,22 @@ export function DefinitionGrid({
           {!loading && rows.length === 0 && (
             <tr>
               <td colSpan={columnSpan} className="table-empty">
-                {tx("Seçili filtrelerle eşleşen tanım yok.", "No definitions match these filters.")}
+                {hasRecords ? (
+                  tx("Seçili filtrelerle eşleşen tanım yok.", "No definitions match these filters.")
+                ) : (
+                  <div className="op-def-empty">
+                    <span className="op-def-empty-icon" aria-hidden="true">
+                      <Building2 size={22} />
+                    </span>
+                    <b>{tx("Henüz tanım yok", "No definitions yet")}</b>
+                    <span>
+                      {tx(
+                        "İş yeri, şube veya fabrikalarınızı ekleyin.",
+                        "Add your workplaces, branches or factories.",
+                      )}
+                    </span>
+                  </div>
+                )}
               </td>
             </tr>
           )}

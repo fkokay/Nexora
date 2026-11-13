@@ -108,6 +108,84 @@ function buildLedgerAccountTree(
   return rows;
 }
 
+/** Tek Düzen Hesap Planı classes, keyed by the first digit of the account code. */
+const ledgerAccountClassLabels: Record<string, string> = {
+  "1": "Dönen varlıklar",
+  "2": "Duran varlıklar",
+  "3": "Kısa vadeli yabancı kaynaklar",
+  "4": "Uzun vadeli yabancı kaynaklar",
+  "5": "Özkaynaklar",
+  "6": "Gelir tablosu hesapları",
+  "7": "Maliyet hesapları",
+  "8": "Serbest",
+  "9": "Nazım hesaplar",
+};
+const ledgerAccountTypeLabels: Record<string, string> = {
+  Unclassified: "Sınıflandırılmamış",
+  Asset: "Aktif",
+  Liability: "Pasif",
+  Equity: "Özkaynak",
+  Revenue: "Gelir",
+  Expense: "Gider",
+  OffBalanceSheet: "Nazım",
+};
+const ledgerNormalBalanceLabels: Record<string, string> = {
+  Debit: "Borç çalışır",
+  Credit: "Alacak çalışır",
+  Both: "Çift çalışır",
+};
+const ledgerAccountClassOf = (code: string) => code.trim().charAt(0);
+const ledgerAccountGroupOf = (code: string) => code.trim().slice(0, 2);
+
+type LedgerAccountGroupedRow = LedgerAccountTreeRow & {
+  group: string;
+  /** First visible row of its 2-digit group: carries the group toggle. */
+  groupStart: boolean;
+  /** The account whose code is exactly the 2-digit group code. */
+  isGroupAccount: boolean;
+  /** Rows of the group hidden while the group is collapsed. */
+  hiddenCount: number;
+  /** The group has dotted sub-accounts, so rows reserve room for the tree toggle. */
+  groupHasTree: boolean;
+};
+/**
+ * Orders the accounts by their 2-digit group (e.g. "10", "11") and builds the dotted
+ * sub-account tree inside each group. The grid keeps plain data rows (header rows with
+ * colSpan would be dropped by AdvancedDataGrid and pollute export), so the group is
+ * shown on the first row of each group; a collapsed group keeps only that row.
+ */
+function buildLedgerAccountGroups(
+  accounts: LedgerAccount[],
+  collapsedCodes: Set<string>,
+  collapsedGroups: Set<string>,
+): LedgerAccountGroupedRow[] {
+  const groups = new Map<string, LedgerAccount[]>();
+  for (const account of accounts) {
+    const key = ledgerAccountGroupOf(account.code);
+    groups.set(key, [...(groups.get(key) || []), account]);
+  }
+  const rows: LedgerAccountGroupedRow[] = [];
+  [...groups.keys()]
+    .sort((a, b) => a.localeCompare(b, "tr", { numeric: true, sensitivity: "base" }))
+    .forEach((group) => {
+      const tree = buildLedgerAccountTree(groups.get(group) || [], collapsedCodes);
+      const collapsed = collapsedGroups.has(group);
+      const visible = collapsed ? tree.slice(0, 1) : tree;
+      const groupHasTree = tree.some((row) => row.hasChildren);
+      visible.forEach((row, index) =>
+        rows.push({
+          ...row,
+          group,
+          groupStart: index === 0,
+          isGroupAccount: row.account.code.trim() === group,
+          hiddenCount: index === 0 && collapsed ? tree.length - 1 : 0,
+          groupHasTree,
+        }),
+      );
+    });
+  return rows;
+}
+
 export default function GeneralLedgerPage({
   token,
   role,
@@ -193,6 +271,13 @@ export default function GeneralLedgerPage({
       () => new Set(),
     ),
     [accountQuery, setAccountQuery] = useState("");
+  // Chart of accounts: class filter (first code digit), collapsed 2-digit groups and the
+  // account shown in the detail panel — all client-side only.
+  const [accountClass, setAccountClass] = useState(""),
+    [collapsedAccountGroups, setCollapsedAccountGroups] = useState<Set<string>>(
+      () => new Set(),
+    ),
+    [selectedAccountId, setSelectedAccountId] = useState("");
   const stayAfterAccountSave = useRef(false);
   const [mappingAccountQueries, setMappingAccountQueries] = useState<
     Record<string, string>
@@ -812,10 +897,60 @@ export default function GeneralLedgerPage({
         (account) => account.isActive === (accountStatus === "active"),
       )
     : searchedAccounts;
-  const accountTreeRows = buildLedgerAccountTree(
-    filteredAccounts,
+  const accountClassOptions = Object.keys(ledgerAccountClassLabels)
+    .filter((key) =>
+      accounts.some((account) => ledgerAccountClassOf(account.code) === key),
+    )
+    .map((key) => ({
+      value: key,
+      label: `${key} ${ledgerAccountClassLabels[key]}`,
+      count: filteredAccounts.filter(
+        (account) => ledgerAccountClassOf(account.code) === key,
+      ).length,
+    }));
+  const classFilteredAccounts = accountClass
+    ? filteredAccounts.filter(
+        (account) => ledgerAccountClassOf(account.code) === accountClass,
+      )
+    : filteredAccounts;
+  const accountTreeRows = buildLedgerAccountGroups(
+    classFilteredAccounts,
     collapsedAccountCodes,
+    collapsedAccountGroups,
   );
+  const selectedAccount =
+    accounts.find((account) => account.id === selectedAccountId) || null;
+  const selectedAccountParent = selectedAccount
+    ? (() => {
+        const separator = selectedAccount.code.lastIndexOf(".");
+        const parentCode =
+          separator > 0 ? selectedAccount.code.slice(0, separator) : "";
+        return parentCode
+          ? accounts.find(
+              (account) =>
+                account.code.toLocaleLowerCase("tr-TR") ===
+                parentCode.toLocaleLowerCase("tr-TR"),
+            ) || null
+          : null;
+      })()
+    : null;
+  const selectedAccountGroup = selectedAccount
+    ? ledgerAccountGroupOf(selectedAccount.code)
+    : "";
+  const selectedAccountGroupAccount = selectedAccountGroup
+    ? accounts.find((account) => account.code.trim() === selectedAccountGroup)
+    : undefined;
+  const canDeleteAccount = (account: LedgerAccount) =>
+    !account.hasMovements &&
+    !accounts.some((row) => row.code.startsWith(`${account.code}.`));
+  function toggleAccountGroup(group: string) {
+    setCollapsedAccountGroups((current) => {
+      const next = new Set(current);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }
   function toggleAccountTree(code: string) {
     setCollapsedAccountCodes((current) => {
       const next = new Set(current);
@@ -1082,6 +1217,20 @@ export default function GeneralLedgerPage({
                 { value: "inactive", label: "Pasif", count: searchedAccounts.filter((account) => !account.isActive).length },
               ]}
             />
+            <label className="ledger-class-select">
+              <select
+                aria-label="Hesap sınıfı"
+                value={accountClass}
+                onChange={(e) => setAccountClass(e.target.value)}
+              >
+                <option value="">Tüm sınıflar</option>
+                {accountClassOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} ({option.count})
+                  </option>
+                ))}
+              </select>
+            </label>
           </ListToolbar>
           {role === "TenantAdmin" && (
             <>
@@ -1128,176 +1277,312 @@ export default function GeneralLedgerPage({
               )}
             </>
           )}
-          <div className="ledger-list list-v2-list" id="ledger-chart">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-ledger-accounts"
-              defaults={financeGridDefaults["finance-ledger-accounts"]}
-              hideSearch
-              toolbarContainer={listToolsSlot}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Kod</th>
-                    <th>Hesap</th>
-                    <th>Finansal tablo sınıfı</th>
-                    <th>Durum</th>
-                    {role === "TenantAdmin" && <th></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {accountTreeRows.map(({ account: a, depth, hasChildren }) => (
-                    <tr
-                      key={a.id}
-                      className={depth > 0 ? "ledger-account-child" : undefined}
-                    >
-                      {editingAccountId === a.id ? (
-                        <>
-                          <td
-                            style={{
-                              paddingInlineStart: `${depth * 22 + 8}px`,
+          <div className="ledger-chart-layout">
+            <nav className="ledger-class-nav" aria-label="Hesap sınıfı">
+              <h3>Hesap sınıfı</h3>
+              <button
+                type="button"
+                className={accountClass === "" ? "is-active" : undefined}
+                aria-pressed={accountClass === ""}
+                onClick={() => setAccountClass("")}
+              >
+                <span className="ledger-class-name">Tüm sınıflar</span>
+                <span className="ledger-class-count">
+                  {filteredAccounts.length}
+                </span>
+              </button>
+              {accountClassOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={
+                    accountClass === option.value ? "is-active" : undefined
+                  }
+                  aria-pressed={accountClass === option.value}
+                  onClick={() => setAccountClass(option.value)}
+                >
+                  <span className="ledger-class-digit">{option.value}</span>
+                  <span className="ledger-class-name">
+                    {ledgerAccountClassLabels[option.value]}
+                  </span>
+                  <span className="ledger-class-count">{option.count}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="ledger-list list-v2-list" id="ledger-chart">
+              <FinanceStudioGrid
+                token={token}
+                screenKey="finance-ledger-accounts"
+                defaults={financeGridDefaults["finance-ledger-accounts"]}
+                hideSearch
+                toolbarContainer={listToolsSlot}
+              >
+                <table className="customer-table">
+                  <thead>
+                    <tr>
+                      <th>Kod</th>
+                      <th>Hesap</th>
+                      <th>Finansal tablo sınıfı</th>
+                      <th>Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accountTreeRows.map(
+                      ({
+                        account: a,
+                        depth,
+                        hasChildren,
+                        group,
+                        groupStart,
+                        isGroupAccount,
+                        hiddenCount,
+                        groupHasTree,
+                      }) => {
+                        const groupCollapsed = collapsedAccountGroups.has(group);
+                        return (
+                          <tr
+                            key={a.id}
+                            className={[
+                              "ledger-account-row",
+                              depth > 0 ? "ledger-account-child" : "",
+                              groupStart ? "ledger-account-group-start" : "",
+                              isGroupAccount ? "ledger-account-group-account" : "",
+                              selectedAccountId === a.id
+                                ? "ledger-account-selected"
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            aria-selected={selectedAccountId === a.id}
+                            tabIndex={0}
+                            onClick={(e) => {
+                              if (
+                                (e.target as HTMLElement).closest(
+                                  "button,input,select,a",
+                                )
+                              )
+                                return;
+                              setSelectedAccountId(a.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return;
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedAccountId(a.id);
+                              }
                             }}
                           >
-                            <input
-                              value={editingAccountCode}
-                              onChange={(e) =>
-                                setEditingAccountCode(e.target.value)
-                              }
-                              maxLength={32}
-                              required
-                            />
-                          </td>
-                          <td>
-                            <input
-                              value={editingAccountName}
-                              onChange={(e) =>
-                                setEditingAccountName(e.target.value)
-                              }
-                              maxLength={160}
-                              required
-                            />
-                          </td>
-                          <td>
-                            <select
-                              value={editingAccountSection}
-                              onChange={(e) =>
-                                setEditingAccountSection(
-                                  e.target.value as LedgerStatementSection,
-                                )
-                              }
-                            >
-                              {Object.entries(ledgerStatementLabels).map(
-                                ([value, label]) => (
-                                  <option key={value} value={value}>
-                                    {label}
-                                  </option>
-                                ),
-                              )}
-                            </select>
-                          </td>
-                          <td>{a.isActive ? "Aktif" : "Pasif"}</td>
-                          <td>
-                            <button
-                              className="row-action"
-                              disabled={busy}
-                              onClick={() => void saveAccount(a)}
-                            >
-                              Kaydet
-                            </button>
-                            <button
-                              className="row-action"
-                              disabled={busy}
-                              onClick={() => setEditingAccountId("")}
-                            >
-                              Vazgeç
-                            </button>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td>
-                            <div
-                              className="ledger-account-code-cell"
-                              style={{ paddingInlineStart: `${depth * 22}px` }}
-                            >
-                              {hasChildren ? (
-                                <button
-                                  type="button"
-                                  className="ledger-account-tree-toggle"
-                                  aria-label={`${a.code} alt hesaplarını ${collapsedAccountCodes.has(a.code) ? "göster" : "gizle"}`}
-                                  aria-expanded={
-                                    !collapsedAccountCodes.has(a.code)
-                                  }
-                                  onClick={() => toggleAccountTree(a.code)}
-                                >
-                                  {collapsedAccountCodes.has(a.code) ? (
-                                    <ChevronRight size={15} />
-                                  ) : (
-                                    <ChevronDown size={15} />
-                                  )}
-                                </button>
-                              ) : (
-                                <span
-                                  className="ledger-account-tree-spacer"
-                                  aria-hidden="true"
-                                />
-                              )}
-                              <span className="customer-code">{a.code}</span>
-                            </div>
-                          </td>
-                          <td>{a.name}</td>
-                          <td>{ledgerStatementLabels[a.statementSection]}</td>
-                          <td>{a.isActive ? "Aktif" : "Pasif"}</td>
-                          {role === "TenantAdmin" && (
                             <td>
-                              <button
-                                className="row-action"
-                                disabled={busy}
-                                onClick={() => startEditAccount(a)}
-                              >
-                                Düzenle
-                              </button>
-                              <button
-                                className="row-action"
-                                disabled={busy}
-                                onClick={() => void toggleAccount(a)}
-                              >
-                                {a.isActive ? "Pasifleştir" : "Etkinleştir"}
-                              </button>
-                              {!a.hasMovements &&
-                                !accounts.some((account) =>
-                                  account.code.startsWith(`${a.code}.`),
-                                ) && (
-                                  <button
-                                    className="row-action danger-action"
-                                    disabled={busy}
-                                    onClick={() => void deleteAccount(a)}
-                                  >
-                                    Sil
-                                  </button>
-                                )}
+                              <div className="ledger-account-code-cell">
+                                <span className="ledger-account-group-slot">
+                                  {groupStart && (
+                                    <button
+                                      type="button"
+                                      className="ledger-account-group-toggle"
+                                      data-group={isGroupAccount ? undefined : group}
+                                      aria-label={`${group} grubunu ${groupCollapsed ? "göster" : "gizle"}`}
+                                      aria-expanded={!groupCollapsed}
+                                      onClick={() => toggleAccountGroup(group)}
+                                    >
+                                      {groupCollapsed ? (
+                                        <ChevronRight size={14} />
+                                      ) : (
+                                        <ChevronDown size={14} />
+                                      )}
+                                    </button>
+                                  )}
+                                </span>
+                                <span
+                                  className={`ledger-account-code-tree${isGroupAccount ? "" : " is-in-group"}`}
+                                  style={{
+                                    paddingInlineStart: `${depth * 22}px`,
+                                  }}
+                                >
+                                  {hasChildren ? (
+                                    <button
+                                      type="button"
+                                      className="ledger-account-tree-toggle"
+                                      aria-label={`${a.code} alt hesaplarını ${collapsedAccountCodes.has(a.code) ? "göster" : "gizle"}`}
+                                      aria-expanded={
+                                        !collapsedAccountCodes.has(a.code)
+                                      }
+                                      onClick={() => toggleAccountTree(a.code)}
+                                    >
+                                      {collapsedAccountCodes.has(a.code) ? (
+                                        <ChevronRight size={15} />
+                                      ) : (
+                                        <ChevronDown size={15} />
+                                      )}
+                                    </button>
+                                  ) : groupHasTree ? (
+                                    <span
+                                      className="ledger-account-tree-spacer"
+                                      aria-hidden="true"
+                                    />
+                                  ) : null}
+                                  <span className="customer-code">{a.code}</span>
+                                  {hiddenCount > 0 && (
+                                    <span
+                                      className="ledger-account-group-more"
+                                      data-more={`+${hiddenCount}`}
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                </span>
+                              </div>
                             </td>
-                          )}
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                  {accountTreeRows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={role === "TenantAdmin" ? 5 : 4}
-                        className="table-empty"
+                            <td>{a.name}</td>
+                            <td>{ledgerStatementLabels[a.statementSection]}</td>
+                            <td>{a.isActive ? "Aktif" : "Pasif"}</td>
+                          </tr>
+                        );
+                      },
+                    )}
+                    {accountTreeRows.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="table-empty">
+                          {normalizedAccountQuery || accountStatus || accountClass
+                            ? "Aramayla eşleşen hesap bulunamadı."
+                            : "Tenant hesabı eklenmedi."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </FinanceStudioGrid>
+            </div>
+            <aside className="ledger-account-detail" aria-label="Seçili hesap">
+              {selectedAccount ? (
+                <>
+                  <div className="list-v2-detail-head">
+                    <div>
+                      <span className="list-v2-kind">Seçili hesap</span>
+                      <h2>
+                        <span className="ledger-account-detail-code">
+                          {selectedAccount.code}
+                        </span>{" "}
+                        · {selectedAccount.name}
+                      </h2>
+                    </div>
+                  </div>
+                  <div className="list-v2-detail-meta">
+                    <span
+                      className={`list-v2-status${selectedAccount.isActive ? " is-active" : ""}`}
+                    >
+                      <i aria-hidden="true" />
+                      {selectedAccount.isActive ? "Aktif" : "Pasif"}
+                    </span>
+                  </div>
+                  <dl className="ledger-account-detail-fields">
+                    <div>
+                      <dt>Finansal tablo sınıfı</dt>
+                      <dd>{ledgerStatementLabels[selectedAccount.statementSection]}</dd>
+                    </div>
+                    {ledgerAccountClassLabels[ledgerAccountClassOf(selectedAccount.code)] && (
+                      <div>
+                        <dt>Hesap sınıfı</dt>
+                        <dd>
+                          {ledgerAccountClassOf(selectedAccount.code)}{" "}
+                          {ledgerAccountClassLabels[ledgerAccountClassOf(selectedAccount.code)]}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedAccountGroup.length === 2 && (
+                      <div>
+                        <dt>Hesap grubu</dt>
+                        <dd>
+                          {selectedAccountGroup}
+                          {selectedAccountGroupAccount &&
+                            selectedAccountGroupAccount.id !== selectedAccount.id &&
+                            ` · ${selectedAccountGroupAccount.name}`}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedAccountParent && (
+                      <div>
+                        <dt>Üst hesap</dt>
+                        <dd>
+                          {selectedAccountParent.code} · {selectedAccountParent.name}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedAccount.accountType && (
+                      <div>
+                        <dt>Hesap tipi</dt>
+                        <dd>
+                          {ledgerAccountTypeLabels[selectedAccount.accountType] ||
+                            selectedAccount.accountType}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedAccount.normalBalance && (
+                      <div>
+                        <dt>Çalışma şekli</dt>
+                        <dd>
+                          {ledgerNormalBalanceLabels[selectedAccount.normalBalance] ||
+                            selectedAccount.normalBalance}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedAccount.currencyCode && (
+                      <div>
+                        <dt>Döviz takibi</dt>
+                        <dd>{selectedAccount.currencyCode}</dd>
+                      </div>
+                    )}
+                    {selectedAccount.ifrsAccountCode && (
+                      <div>
+                        <dt>IFRS / UFRS hesabı</dt>
+                        <dd>
+                          {selectedAccount.ifrsAccountCode}
+                          {selectedAccount.ifrsAccountName &&
+                            ` · ${selectedAccount.ifrsAccountName}`}
+                        </dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>Hareket</dt>
+                      <dd>
+                        {selectedAccount.hasMovements ? "Hareket var" : "Hareket yok"}
+                      </dd>
+                    </div>
+                  </dl>
+                  {role === "TenantAdmin" && (
+                    <div className="ledger-account-detail-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => startEditAccount(selectedAccount)}
                       >
-                        {normalizedAccountQuery || accountStatus
-                          ? "Aramayla eşleşen hesap bulunamadı."
-                          : "Tenant hesabı eklenmedi."}
-                      </td>
-                    </tr>
+                        Düzenle
+                      </button>
+                      <div className="list-v2-detail-foot">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void toggleAccount(selectedAccount)}
+                        >
+                          {selectedAccount.isActive ? "Pasifleştir" : "Aktifleştir"}
+                        </button>
+                        {canDeleteAccount(selectedAccount) && (
+                          <button
+                            type="button"
+                            className="is-danger"
+                            disabled={busy}
+                            onClick={() => void deleteAccount(selectedAccount)}
+                          >
+                            Sil
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
+                </>
+              ) : (
+                <p className="ledger-account-detail-empty">Bir hesap seçin</p>
+              )}
+            </aside>
           </div>
         </section>
       )}

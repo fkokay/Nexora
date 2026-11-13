@@ -60,6 +60,7 @@ export default function OperationalDefinitionsPage({
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Definition | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -106,6 +107,14 @@ export default function OperationalDefinitionsPage({
     setName("");
     setKind("Workplace");
   }
+  function openCreate() {
+    clearForm();
+    setFormOpen(true);
+  }
+  function closeForm() {
+    clearForm();
+    setFormOpen(false);
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -125,7 +134,7 @@ export default function OperationalDefinitionsPage({
           : "/api/definitions/workplaces/",
         { method: editing ? "PUT" : "POST", body: JSON.stringify(body) },
       );
-      clearForm();
+      closeForm();
       setNotice(tx("Tanım kaydedildi.", "Definition saved."));
       await load();
     } catch (e) {
@@ -176,6 +185,7 @@ export default function OperationalDefinitionsPage({
       <OperationalDefinitionsHeader
         tx={tx}
         total={loading && rows.length === 0 ? null : rows.length}
+        onCreate={openCreate}
       />
       {error && (
         <div className="alert inline-alert" role="alert">
@@ -232,41 +242,46 @@ export default function OperationalDefinitionsPage({
           ]}
         />
       </ListToolbar>
-      <section
-        className="panel op-definitions-panel list-v2-list"
-        aria-label={tx("Tanım listesi", "Definition list")}
-      >
-        <DefinitionGrid
-          rows={filteredRows}
-          loading={loading}
-          busy={busy}
-          tx={tx}
-          kindName={kindName}
-          fields={screenFields}
-          toolbarContainer={toolsSlot}
-          onEdit={(row) => {
-            setEditing(row);
-            setKind(row.kind);
-            setCode(row.code);
-            setName(row.name);
-          }}
-          onToggle={(row) => void toggle(row)}
-        />
-        <div className="panel-heading op-definitions-form-heading"><div><h2>{editing ? tx("Tanımı düzenle", "Edit definition") : tx("Tanım ekle", "Add definition")}</h2><p>{tx("İş yeri, şube veya fabrika tanımı oluşturun.", "Create a workplace, branch or factory definition.")}</p></div></div>
-        <DefinitionForm
-          tx={tx}
-          kind={kind}
-          code={code}
-          name={name}
-          editing={editing}
-          busy={busy}
-          onSubmit={save}
-          onKindChange={setKind}
-          onCodeChange={setCode}
-          onNameChange={setName}
-          onCancel={clearForm}
-        />
-      </section>
+      <div className={`op-def-workspace${formOpen ? " is-form-open" : ""}`}>
+        <section
+          className="panel op-definitions-panel list-v2-list"
+          aria-label={tx("Tanım listesi", "Definition list")}
+        >
+          <DefinitionGrid
+            rows={filteredRows}
+            loading={loading}
+            busy={busy}
+            tx={tx}
+            kindName={kindName}
+            fields={screenFields}
+            toolbarContainer={toolsSlot}
+            hasRecords={rows.length > 0}
+            onEdit={(row) => {
+              setEditing(row);
+              setKind(row.kind);
+              setCode(row.code);
+              setName(row.name);
+              setFormOpen(true);
+            }}
+            onToggle={(row) => void toggle(row)}
+          />
+        </section>
+        {formOpen && (
+          <DefinitionForm
+            tx={tx}
+            kind={kind}
+            code={code}
+            name={name}
+            editing={editing}
+            busy={busy}
+            onSubmit={save}
+            onKindChange={setKind}
+            onCodeChange={setCode}
+            onNameChange={setName}
+            onCancel={closeForm}
+          />
+        )}
+      </div>
       <OperationalDefinitionLinks tx={tx} onNavigate={onNavigate} />
     </div>
   );

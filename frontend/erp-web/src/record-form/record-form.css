@@ -286,3 +286,22 @@ html[data-theme="dark"] .record-form .rf-status-notice { color: #7ddba8; }
   .record-form .rf-columns, .record-form .rf-custom-grid, .record-form .rf-identity { grid-template-columns: minmax(0, 1fr); }
   .record-form .rf-btn kbd { display: none; }
 }
+
+/* Full-page forms: the title row and status line sit on the page background (no full-bleed white band
+   above a grey form area); groups stay as the white cards. Dialog and embedded forms keep their bars. */
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) { background: transparent; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-toolbar {
+  padding: 2px 0 14px;
+  border-bottom: 0;
+  background: transparent;
+}
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-form { padding: 0 0 20px; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-status {
+  padding-inline: 2px;
+  border-top: 1px solid var(--rf-border-soft);
+  background: transparent;
+}
+/* A sticky title row needs an opaque page-coloured background so content doesn't show through it. */
+#root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #f3f5fb; }
+html[data-theme='dark'] #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > :is(.rf-toolbar, .rf-status) { background: transparent; }
+html[data-theme='dark'] #root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #0f1828; }
