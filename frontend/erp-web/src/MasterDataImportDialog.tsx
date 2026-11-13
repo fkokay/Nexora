@@ -603,7 +603,9 @@ export default function MasterDataImportDialog({
               <Upload size={15} />
               {busy
                 ? "Aktarılıyor…"
-                : ` ${rows.length.toLocaleString("tr-TR")} kaydı aktar`}
+                : rows.length === 0
+                  ? " Aktar"
+                  : ` ${rows.length.toLocaleString("tr-TR")} kaydı aktar`}
             </button>
           </div>
         </footer>
