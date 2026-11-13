@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
+import type { ScreenColumnPin } from "./erp-types";
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { FilePlus2, X } from "lucide-react";
@@ -49,6 +51,8 @@ type ReceiptScreenField = {
   position: number;
   section?: string | null;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 const defaultReceiptFields: ReceiptScreenField[] = [
   { key: "receipt", label: "Mal kabul / sipariş", visible: true, position: 0 },
@@ -313,6 +317,7 @@ export default function PurchaseInvoiceEntryPage({
         <div className="pie-table-wrap list-v2-list">
           <AdvancedDataGrid
             gridId="purchase-invoice-receipt-selection"
+            {...screenViewGridDefaults(visibleFields)}
             hideSearch
             externalPagination
             enableRowSelection={false}

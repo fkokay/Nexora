@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { Balance, ScreenField } from "../types";
 
@@ -43,6 +44,8 @@ export default function InventoryTrackingBalanceTable({
           toolbarContainer={toolbarContainer}
           enableRowSelection={false}
           className="customer-table quote-table inventory-tracking-table"
+          gridId="inventory-trace-balances"
+          {...screenViewGridDefaults(fields)}
         >
           <caption className="inventory-tracking-sr-only">
             Lot ve seri bazında stok bakiyesi, depo, son kullanma ve son hareket

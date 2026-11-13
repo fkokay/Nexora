@@ -3648,7 +3648,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         Assert.Equal(320, active!.GetProperty("fields").EnumerateArray()
             .Single(field => field.GetProperty("key").GetString() == "name").GetProperty("width").GetInt32());
 
-        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/customer-details/draft", new { name = "Cari detay kartı" });
         Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
         using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
         var stockDraftId = unsupportedDraft.RootElement.GetProperty("id").GetGuid();
@@ -3659,11 +3659,12 @@ public sealed class CustomFormEndpointsIntegrationTests
                 label = field.GetProperty("label").GetString()!,
                 visible = field.GetProperty("visible").GetBoolean(),
                 position = field.GetProperty("position").GetInt32(),
-                width = field.GetProperty("key").GetString() == "currencyCode" ? 320 : (int?)null
+                width = field.GetProperty("key").GetString() == "currencyCode" ? 320 : (int?)null,
+                section = field.TryGetProperty("section", out var section) ? section.GetString() : null
             }).ToArray();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{stockDraftId}", new
         {
-            expectedRevision = 1, name = "Döviz kurları", fields = stockFields
+            expectedRevision = 1, name = "Cari detay kartı", fields = stockFields
         })).StatusCode);
 
         SetIdentity(client, TenantB, UserB, "TenantAdmin");
@@ -3698,6 +3699,45 @@ public sealed class CustomFormEndpointsIntegrationTests
     [InlineData("customer-provinces")]
     [InlineData("customer-districts")]
     [InlineData("operational-definitions")]
+    [InlineData("audit-events")]
+    [InlineData("customers")]
+    [InlineData("hr-attendance")]
+    [InlineData("hr-employee-calendar-overrides")]
+    [InlineData("hr-leave-requests")]
+    [InlineData("hr-workplace-assignments")]
+    [InlineData("hr-workplace-calendars")]
+    [InlineData("commercial-contracts")]
+    [InlineData("customer-sales-invoices")]
+    [InlineData("exchange-rates")]
+    [InlineData("finance-budget-scenarios")]
+    [InlineData("finance-cash-flow-forecast")]
+    [InlineData("finance-credit-movements")]
+    [InlineData("finance-credit-schedules")]
+    [InlineData("fixed-asset-assignments")]
+    [InlineData("fixed-asset-depreciation")]
+    [InlineData("inventory-stock-movements")]
+    [InlineData("inventory-trace-balances")]
+    [InlineData("inventory-warehouse-locations")]
+    [InlineData("inventory-warehouse-reconciliation")]
+    [InlineData("manufacturing-mrp-lines")]
+    [InlineData("manufacturing-orders")]
+    [InlineData("operational-project-tasks")]
+    [InlineData("operational-project-time-entries")]
+    [InlineData("operational-projects")]
+    [InlineData("payment-instruments")]
+    [InlineData("purchase-delivery-note-lines")]
+    [InlineData("purchase-delivery-notes")]
+    [InlineData("purchase-delivery-order-lines")]
+    [InlineData("purchase-invoice-receipt-selection")]
+    [InlineData("purchase-order-delivery-notes")]
+    [InlineData("purchase-receipts")]
+    [InlineData("sales-campaign-performance")]
+    [InlineData("sales-deliveries")]
+    [InlineData("sales-distribution-plan")]
+    [InlineData("sales-order-lines")]
+    [InlineData("sales-promotions")]
+    [InlineData("standalone-invoice-drafts")]
+    [InlineData("warehouse-location-balances")]
     public async Task Grid_backed_list_screens_publish_tenant_column_widths_and_frozen_columns(string screenKey)
     {
         await using var app = await StartApplicationAsync();
@@ -3756,9 +3796,9 @@ public sealed class CustomFormEndpointsIntegrationTests
         var purchaseOrders = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-orders");
         Assert.True(purchaseOrders.GetProperty("supportsColumnPinning").GetBoolean());
         Assert.True(purchaseOrders.GetProperty("supportsColumnWidth").GetBoolean());
-        var exchangeRates = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "exchange-rates");
-        Assert.False(exchangeRates.GetProperty("supportsColumnPinning").GetBoolean());
-        Assert.False(exchangeRates.GetProperty("supportsColumnWidth").GetBoolean());
+        var customerDetails = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "customer-details");
+        Assert.False(customerDetails.GetProperty("supportsColumnPinning").GetBoolean());
+        Assert.False(customerDetails.GetProperty("supportsColumnWidth").GetBoolean());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/sales-orders/draft", new { name = "Sipariş listesi" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
@@ -3817,7 +3857,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         using var restoredDraft = JsonDocument.Parse(await restored.Content.ReadAsStringAsync());
         Assert.Equal("right", PinOf(restoredDraft.RootElement, "actions"));
 
-        var unsupported = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Döviz kurları" });
+        var unsupported = await client.PostAsJsonAsync("/api/screen-views/customer-details/draft", new { name = "Cari detay kartı" });
         Assert.Equal(HttpStatusCode.Created, unsupported.StatusCode);
         using var unsupportedDraft = JsonDocument.Parse(await unsupported.Content.ReadAsStringAsync());
         var unsupportedFields = unsupportedDraft.RootElement.GetProperty("fields").EnumerateArray()
@@ -3827,10 +3867,11 @@ public sealed class CustomFormEndpointsIntegrationTests
                 label = field.GetProperty("label").GetString()!,
                 visible = field.GetProperty("visible").GetBoolean(),
                 position = field.GetProperty("position").GetInt32(),
-                pinned = field.GetProperty("key").GetString() == "currencyCode" ? "left" : null
+                pinned = field.GetProperty("key").GetString() == "currencyCode" ? "left" : null,
+                section = field.TryGetProperty("section", out var section) ? section.GetString() : null
             }).ToArray();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/screen-views/{unsupportedDraft.RootElement.GetProperty("id").GetGuid()}",
-            new { expectedRevision = 1, name = "Döviz kurları", fields = unsupportedFields })).StatusCode);
+            new { expectedRevision = 1, name = "Cari detay kartı", fields = unsupportedFields })).StatusCode);
 
         var purchaseInvoice = await client.PostAsJsonAsync("/api/screen-views/purchase-invoices/draft", new { name = "Alış faturaları" });
         Assert.Equal(HttpStatusCode.Created, purchaseInvoice.StatusCode);

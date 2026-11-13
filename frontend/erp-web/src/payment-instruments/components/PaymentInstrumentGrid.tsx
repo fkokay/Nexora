@@ -2,7 +2,23 @@ import type { ReactNode } from "react";
 import { Banknote } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Item, ScreenField } from "../paymentInstrumentTypes";
+
+/** Default [initial, minimum] widths per column key; tenant layout widths win. */
+const defaultColumnWidths: Record<string, [number, number]> = {
+  instrumentNumber: [210, 180],
+  code: [150, 120],
+  type: [85, 75],
+  direction: [95, 85],
+  counterpartyName: [220, 160],
+  bankName: [180, 140],
+  dueDate: [125, 110],
+  amount: [135, 110],
+  currencyCode: [85, 75],
+  status: [130, 110],
+  actions: [360, 330],
+};
 
 type Props = {
   fields: ScreenField[];
@@ -39,12 +55,14 @@ export function PaymentInstrumentGrid({
         externalPagination
         enableRowSelection={false}
         toolbarContainer={toolbarContainer}
-        initialColumnWidths={[
-          210, 150, 85, 95, 220, 180, 125, 135, 85, 130, 360,
-        ]}
-        minimumColumnWidths={[
-          180, 120, 75, 85, 160, 140, 110, 110, 75, 110, 330,
-        ]}
+        gridId="payment-instruments"
+        {...screenViewGridDefaults(
+          fields,
+          (field) => defaultColumnWidths[field.key]?.[0],
+        )}
+        minimumColumnWidths={fields.map(
+          (field) => defaultColumnWidths[field.key]?.[1] ?? 0,
+        )}
         className="payment-instrument-table"
       >
         <thead>

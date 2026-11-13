@@ -1,4 +1,6 @@
 import AdvancedDataGrid from "./AdvancedDataGrid";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
+import type { ScreenColumnPin } from "./erp-types";
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { FileText, ReceiptText, RotateCcw, ShieldCheck, X } from "lucide-react";
@@ -30,6 +32,8 @@ type InvoiceScreenField = {
   visible: boolean;
   position: number;
   fixed?: boolean;
+  width?: number | null;
+  pinned?: ScreenColumnPin | null;
 };
 const defaultInvoiceFields: InvoiceScreenField[] = [
   { key: "code", label: "Fatura", visible: true, position: 0 },
@@ -239,7 +243,8 @@ export default function CustomerSalesInvoicesPanel({
             gridId="customer-sales-invoices"
             enableRowSelection={false}
             fillColumns
-            initialColumnWidths={visibleFields.map(
+            {...screenViewGridDefaults(
+              visibleFields,
               (field) => invoiceColumnWidths[field.key] ?? 120,
             )}
           >

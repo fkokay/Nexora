@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type {
   Contract,
   ContractStatus,
@@ -121,6 +122,8 @@ export default function ContractsListPanel(props: Props) {
         <AdvancedDataGrid
           hideSearch
           className="customer-table"
+          gridId="commercial-contracts"
+          {...screenViewGridDefaults(visibleFields)}
           toolbarContainer={toolsSlot}
           serverData={{
             page: page?.page ?? pageNumber,

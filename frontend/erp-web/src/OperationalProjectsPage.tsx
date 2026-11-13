@@ -3,6 +3,7 @@ import AdvancedDataGrid from "./AdvancedDataGrid";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
+import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { authenticatedFetch } from "./authApi";
 import { localDateString } from "./dateUtils";
 import "./operational-projects.css";
@@ -817,6 +818,8 @@ export default function OperationalProjectsPage({
                   <AdvancedDataGrid
                     hideSearch
                     className="op-project-detail-grid"
+                    gridId="operational-project-tasks"
+                    {...screenViewGridDefaults(visibleTaskFields)}
                   >
                     <thead>
                       <ScreenViewGroupHeader
@@ -1135,7 +1138,12 @@ export default function OperationalProjectsPage({
                     </p>
                   </div>
                 </div>
-                <AdvancedDataGrid hideSearch className="op-project-detail-grid">
+                <AdvancedDataGrid
+                  hideSearch
+                  className="op-project-detail-grid"
+                  gridId="operational-project-time-entries"
+                  {...screenViewGridDefaults(visibleTimeFields)}
+                >
                   <thead>
                     <ScreenViewGroupHeader
                       fields={visibleTimeFields}

@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { Pencil, Warehouse } from "lucide-react";
 import type { Balance, Location, Reconciliation, ScreenField } from "../types";
@@ -71,6 +72,8 @@ export function LocationListPanel({
             hideSearch
             toolbarContainer={toolbarContainer}
             className="customer-table"
+            gridId="inventory-warehouse-locations"
+            {...screenViewGridDefaults(fields)}
             aria-label="Depo raf ve bölmeler"
           >
             <thead>
@@ -270,6 +273,8 @@ export function LocationBalancePanel({
           <AdvancedDataGrid
             enableRowSelection={false}
             className="customer-table"
+            gridId="warehouse-location-balances"
+            {...screenViewGridDefaults(visibleFields)}
             aria-label={`${selected.code} konumundaki stok bakiyeleri`}
           >
             <thead>
@@ -375,6 +380,8 @@ export function ReconciliationPanel({
           <AdvancedDataGrid
             enableRowSelection={false}
             className="customer-table"
+            gridId="inventory-warehouse-reconciliation"
+            {...screenViewGridDefaults(visibleFields)}
             aria-label="Konumlandırma denetimi"
           >
             <thead>

@@ -1,3 +1,4 @@
+import type { ScreenColumnPin } from '../erp-types'
 import type { FormEvent } from 'react'
 
 export type Supplier = { id: string; code: string; name: string; currencyCode: string }
@@ -8,7 +9,7 @@ export type DraftInput = { requestId: string; supplierId: string; invoiceNumber:
 export type DraftSummary = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; grandTotal: number; lineCount: number; status: string; createdAt: string }
 export type DraftPage = { items: DraftSummary[]; page: number; pageSize: number; totalCount: number }
 export type ReceiptOption = { lineId: string; receiptId: string; receiptCode: string; receiptDate: string; stockCode: string; stockName: string; quantity: number; unitCode: string; unitCostBase: number }
-export type DraftScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null }
+export type DraftScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null; width?: number | null; pinned?: ScreenColumnPin | null }
 export type DraftDetail = { id: string; supplierId: string; supplierName: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; currencyCode: string; notes: string | null; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; status: string; rowVersion: string; lines: Array<{ lineNumber: number; description: string; quantity: number | null; unitCode: string | null; unitPrice: number | null; subtotal: number; discountAmount: number; taxAmount: number; total: number; expenseAccountId: string | null; vatRate: number | null; standalonePurchaseReceiptLineId: string | null }> }
 export type StandaloneSupplierInvoiceDraftPageProps = { token: string; role: string }
 

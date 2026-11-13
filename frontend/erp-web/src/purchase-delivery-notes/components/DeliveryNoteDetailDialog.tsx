@@ -1,4 +1,5 @@
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { DocumentSurface } from "../../document-page/DocumentSurface";
 import type { Note, ScreenField } from "../types";
@@ -40,7 +41,11 @@ export function DeliveryNoteDetailDialog({
               </span>
             </div>
             <div className="ledger-list">
-              <AdvancedDataGrid className="customer-table">
+              <AdvancedDataGrid
+                className="customer-table"
+                gridId="purchase-delivery-note-lines"
+                {...screenViewGridDefaults(fields)}
+              >
                 <thead>
                   <ScreenViewGroupHeader fields={fields} />
                   <tr>

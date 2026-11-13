@@ -4871,6 +4871,8 @@ export function InventoryPage({
                   hideSearch
                   externalPagination
                   className="customer-table"
+                  gridId="inventory-stock-movements"
+                  {...screenViewGridDefaults(visibleMovementFields)}
                 >
                   <thead>
                     <ScreenViewGroupHeader fields={visibleMovementFields} />

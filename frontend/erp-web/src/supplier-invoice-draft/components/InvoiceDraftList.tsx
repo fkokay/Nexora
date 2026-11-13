@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import "../../purchase-list-v2/purchase-list-v2.css";
 import type { DraftScreenField, DraftSummary, DraftListProps } from "../types";
@@ -31,7 +32,11 @@ export function InvoiceDraftList({
         }}
       />
       <div className="sid-table-wrap list-v2-list">
-        <AdvancedDataGrid toolbarContainer={toolsSlot}>
+        <AdvancedDataGrid
+          gridId="standalone-invoice-drafts"
+          {...screenViewGridDefaults(visibleFields)}
+          toolbarContainer={toolsSlot}
+        >
           <thead>
             {draftFieldGroups(fields).map((group, index) => (
               <tr className="sid-group-row" key={`${group.label}-${index}`}>

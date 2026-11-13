@@ -1,5 +1,6 @@
+import type { ScreenColumnPin } from "../erp-types";
 export type ProjectSummary = { id:string; code:string; name:string; customerAccountId:string|null; startDate:string|null; endDate:string|null; status:string; budgetAmount:number; currencyCode:string; createdAt:string; updatedAt:string; taskCount:number; allocatedHours:number; actualHours:number; completedTaskCount:number; overdueTaskCount:number; nextTaskDate:string|null; timeEntryCount:number; latestTimeEntryDate:string|null }
-export type ProjectScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null }
+export type ProjectScreenField = { key:string; label:string; visible:boolean; position:number; fixed?:boolean; section?:string|null; width?:number|null; pinned?:ScreenColumnPin|null }
 export type ProjectPage = { items:ProjectSummary[]; page:number; pageSize:number; total:number }
 export type ProjectDashboardSummary = { projectCount:number; activeProjectCount:number; taskCount:number; completedTaskCount:number; overdueTaskCount:number; projectsEndingIn30Days:number; timeEntryHours:number; timeEntryCount:number }
 export type ProjectCostSummary = { projectId:string; projectCode:string; projectName:string; status:string; budgetAmount:number; budgetCurrencyCode:string; plannedCosts:{currencyCode:string;allocatedHours:number;pricedHours:number;unpricedHours:number;plannedCost:number;allocationCount:number}[]; actualHours:number; actualTimeEntryCount:number; actualLaborCost:number|null; limitation:string }
