@@ -650,6 +650,7 @@ export default function ManufacturingPage({
       ),
     ).size < setupRules.length;
   const instanceId = useRef(Math.random().toString(36).slice(2));
+  const silentRefresh = useRef(false);
   const request = useCallback(
     async <T,>(url: string, init?: RequestInit): Promise<T> => {
       const method = (init?.method ?? "GET").toUpperCase(),
@@ -860,7 +861,8 @@ export default function ManufacturingPage({
       sourceOrders.error,
     ].filter((x): x is string => Boolean(x));
     if (!isCurrent()) return;
-    setError(failures.join(" · "));
+    // A background refresh triggered by another tab stays silent; the user didn't ask for it.
+    if (!silentRefresh.current) setError(failures.join(" · "));
     if (stock.data) setItems(stock.data.filter((x) => x.isActive));
     else if (needItems) setItems([]);
     if (wh.data) setWarehouses(wh.data.filter((x) => x.isActive));
@@ -920,7 +922,13 @@ export default function ManufacturingPage({
       const source = (event as CustomEvent<{ source?: string }>).detail?.source;
       if (source === instanceId.current) return;
       // Lists only: form inputs live in their own state and are not reset by refresh().
-      void refreshRef.current().catch(() => undefined);
+      silentRefresh.current = true;
+      void refreshRef
+        .current()
+        .catch(() => undefined)
+        .finally(() => {
+          silentRefresh.current = false;
+        });
     };
     window.addEventListener(MANUFACTURING_CHANGED_EVENT, onChanged);
     return () => window.removeEventListener(MANUFACTURING_CHANGED_EVENT, onChanged);

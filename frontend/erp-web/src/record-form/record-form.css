@@ -305,3 +305,15 @@ html[data-theme="dark"] .record-form .rf-status-notice { color: #7ddba8; }
 #root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #f3f5fb; }
 html[data-theme='dark'] #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > :is(.rf-toolbar, .rf-status) { background: transparent; }
 html[data-theme='dark'] #root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #0f1828; }
+/* Forms rendered inside their own white card keep the card's inner padding (title and fields must not
+   touch the card edge); only forms sitting directly on the page background drop it. */
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-toolbar {
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--rf-border-soft);
+}
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-form { padding: 24px 32px; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-status { padding-inline: 32px; }
+@media (max-width: 700px) {
+  #root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > :is(.rf-toolbar, .rf-status) { padding-inline: 16px; }
+  #root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-form { padding: 16px; }
+}
