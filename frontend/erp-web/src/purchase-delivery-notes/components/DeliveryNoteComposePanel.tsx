@@ -1,8 +1,9 @@
 import type { FormEvent } from "react";
-import { FileText, Plus } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { OrderDetail, Note, ScreenField } from "../types";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
+import "../../purchasing-record-forms.css";
 
 export function DeliveryNoteComposePanel({
   detail,
@@ -35,22 +36,30 @@ export function DeliveryNoteComposePanel({
 }) {
   return (
     <section className="panel purchase-note-compose-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">YENİ BELGE</p>
-          <b>İrsaliye kaydet</b>
-          <small>
-            {detail.code} · {detail.supplierName} · miktarlar sipariş satırının
-            temel biriminde girilir.
-          </small>
-        </div>
-        <FileText size={18} />
-      </div>
-      <form onSubmit={onSubmit}>
-        <div className="form-two">
+      <RecordFormPage
+        variant="dialog"
+        className="prf-embedded prf-no-cancel"
+        title="İrsaliye Kaydet"
+        mode="create"
+        busy={busy}
+        saveLabel="İrsaliyeyi kaydet"
+        onSubmit={onSubmit}
+        onCancel={() => undefined}
+        status={
+          <>
+            <span>
+              {detail.code} · {detail.supplierName} · miktarlar sipariş satırının
+              temel biriminde girilir.
+            </span>
+            <span className="rf-status-end">Bu kayıt stok veya muhasebe hareketi oluşturmaz.</span>
+          </>
+        }
+      >
+        <RecordFormGroup title="Belge Kimliği" bodyClassName="rf-identity prf-identity-3">
           <label>
-            Tedarikçi irsaliye numarası
+            <span>Tedarikçi irsaliye numarası <RequiredMark /></span>
             <input
+              className="rf-must rf-mono"
               value={documentNumber}
               onChange={(event) => onDocumentNumberChange(event.target.value)}
               maxLength={80}
@@ -58,35 +67,37 @@ export function DeliveryNoteComposePanel({
             />
           </label>
           <label>
-            Belge tarihi
+            <span>Belge tarihi <RequiredMark /></span>
             <input
+              className="rf-must"
               type="date"
               value={documentDate}
               onChange={(event) => onDocumentDateChange(event.target.value)}
               required
             />
           </label>
-        </div>
-        <label>
-          Mevcut mal kabul (isteğe bağlı)
-          <select
-            value={receiptId}
-            onChange={(event) => onReceiptChange(event.target.value)}
-          >
-            <option value="">Sonradan bağlayacağım</option>
-            {detail.receipts
-              .filter(
-                (receipt) =>
-                  receipt.status === "Posted" &&
-                  !notes.some((note) => note.purchaseReceiptId === receipt.id),
-              )
-              .map((receipt) => (
-                <option key={receipt.id} value={receipt.id}>
-                  {receipt.code} · {receipt.receiptDate}
-                </option>
-              ))}
-          </select>
-        </label>
+          <label>
+            Mevcut mal kabul (isteğe bağlı)
+            <select
+              value={receiptId}
+              onChange={(event) => onReceiptChange(event.target.value)}
+            >
+              <option value="">Sonradan bağlayacağım</option>
+              {detail.receipts
+                .filter(
+                  (receipt) =>
+                    receipt.status === "Posted" &&
+                    !notes.some((note) => note.purchaseReceiptId === receipt.id),
+                )
+                .map((receipt) => (
+                  <option key={receipt.id} value={receipt.id}>
+                    {receipt.code} · {receipt.receiptDate}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </RecordFormGroup>
+        <RecordFormGroup title="İrsaliye Satırları">
         <div className="ledger-list">
           <AdvancedDataGrid className="customer-table">
             <thead>
@@ -110,6 +121,7 @@ export function DeliveryNoteComposePanel({
                         `${line.quantity.toLocaleString("tr-TR")} ${line.unitCode}`
                       ) : (
                         <input
+                          className="rf-num"
                           aria-label={`${line.stockCode} irsaliye miktarı`}
                           type="number"
                           min="0"
@@ -132,18 +144,13 @@ export function DeliveryNoteComposePanel({
           </AdvancedDataGrid>
         </div>
         {receiptId && (
-          <p className="muted">
+          <p className="muted prf-note">
             Mal kabul bağlantısında tüm irsaliye satırları ile mal kabul
             satırları ve temel birim miktarları bire bir eşleşmelidir.
           </p>
         )}
-        <div className="modal-foot">
-          <span>Bu kayıt stok veya muhasebe hareketi oluşturmaz.</span>
-          <button className="primary" disabled={busy}>
-            <Plus size={16} /> İrsaliyeyi kaydet
-          </button>
-        </div>
-      </form>
+        </RecordFormGroup>
+      </RecordFormPage>
     </section>
   );
 }

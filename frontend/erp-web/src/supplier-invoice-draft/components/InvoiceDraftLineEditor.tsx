@@ -6,6 +6,7 @@ import type {
   ExpenseAccount,
   ReceiptOption,
 } from "../types";
+import { RecordFormGroup, RequiredMark } from "../../record-form/RecordForm";
 
 type Props = {
   draft: DraftInput;
@@ -31,15 +32,12 @@ export function InvoiceDraftLineEditor({
   onRemoveLine,
 }: Props) {
   return (
-    <section className="sid-card">
-      <div className="sid-card-heading">
-        <div>
-          <h2>Fatura satırları</h2>
-          <p>
-            Miktar ve birim fiyat isteğe bağlıdır; satır tutarları kaynak
-            belgeden girilir, yeniden hesaplanmaz.
-          </p>
-        </div>
+    <RecordFormGroup title="Fatura Satırları">
+      <div className="prf-group-toolbar">
+        <small>
+          Miktar ve birim fiyat isteğe bağlıdır; satır tutarları kaynak
+          belgeden girilir, yeniden hesaplanmaz.
+        </small>
         <button type="button" className="sid-secondary" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={onAddLine}>
           <Plus size={15} /> Satır ekle
         </button>
@@ -79,7 +77,7 @@ export function InvoiceDraftLineEditor({
               />
             </label>
             <label className="sid-wide">
-              Açıklama *
+              <span>Açıklama <RequiredMark /></span>
               <input
                 value={line.description}
                 onChange={(e) =>
@@ -92,6 +90,7 @@ export function InvoiceDraftLineEditor({
             <label>
               Miktar
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.0001"
@@ -114,6 +113,7 @@ export function InvoiceDraftLineEditor({
             <label>
               Birim fiyat
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.0001"
@@ -124,8 +124,9 @@ export function InvoiceDraftLineEditor({
               />
             </label>
             <label>
-              Ara toplam *
+              <span>Ara toplam <RequiredMark /></span>
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -137,8 +138,9 @@ export function InvoiceDraftLineEditor({
               />
             </label>
             <label>
-              İskonto *
+              <span>İskonto <RequiredMark /></span>
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -150,8 +152,9 @@ export function InvoiceDraftLineEditor({
               />
             </label>
             <label>
-              Vergi tutarı *
+              <span>Vergi tutarı <RequiredMark /></span>
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -165,6 +168,7 @@ export function InvoiceDraftLineEditor({
             <label>
               Belgedeki KDV oranı (%)
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 max="100"
@@ -192,8 +196,9 @@ export function InvoiceDraftLineEditor({
               </label>
             )}
             <label>
-              Satır toplamı *
+              <span>Satır toplamı <RequiredMark /></span>
               <input
+                className="rf-num"
                 type="number"
                 min="0"
                 step="0.01"
@@ -210,6 +215,6 @@ export function InvoiceDraftLineEditor({
           </div>
         ))}
       </div>
-    </section>
+    </RecordFormGroup>
   );
 }

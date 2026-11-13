@@ -50,6 +50,8 @@ import {
 import CustomerCreatePage from "./customers/components/CustomerCreatePage";
 import CustomerEditPage from "./customers/components/CustomerEditPage";
 import type { CustomerCreatePageProps } from "./customers/components/CustomerCreatePage";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
+import "./purchasing-record-forms.css";
 
 type CustomerPageSettings = { title: string; description: string; searchLabel: string; searchPlaceholder: string; typeFilterLabel: string; statusFilterLabel: string; applyLabel: string; showTypeFilter: boolean; showStatusFilter: boolean };
 const defaultCustomerPageSettings: CustomerPageSettings = { title: "Cari Hesaplar", description: "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", searchLabel: "Cari ara", searchPlaceholder: "Cari kodu, unvanı veya vergi no ile ara", typeFilterLabel: "Cari türü", statusFilterLabel: "Durum", applyLabel: "Filtrele", showTypeFilter: true, showStatusFilter: true };
@@ -1045,6 +1047,19 @@ function CustomersPage({
   }, [initialEdit, token]);
   /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
   const stayAfterSave = useRef(false);
+  /**
+   * Set by "Kaydet ve Yeni" on the group, custom field definition and account movement forms;
+   * read once by the next successful save, which then keeps that form open for another record.
+   */
+  const stayOpenAfterSave = useRef(false);
+  const setStayOpenAfterSave = (value: boolean) => {
+    stayOpenAfterSave.current = value;
+  };
+  function takeStayOpenAfterSave() {
+    const stay = stayOpenAfterSave.current;
+    stayOpenAfterSave.current = false;
+    return stay;
+  }
   /** Returns every field of the new-card form to its default, including the address. */
   function resetCustomerForm() {
     setCode("");
@@ -1287,7 +1302,7 @@ function CustomersPage({
       setGroupCode("");
       setGroupName("");
       setEditingGroup(null);
-      setGroupModal(false);
+      if (!takeStayOpenAfterSave()) setGroupModal(false);
       setNotice(
         editingGroup ? "Cari grubu güncellendi." : "Cari grubu oluşturuldu.",
       );
@@ -1430,7 +1445,7 @@ function CustomersPage({
       setCustomerFieldMaxLength("200");
       setCustomerFieldRequired(false);
       if (fieldCustomer) await openCustomerFields(fieldCustomer);
-      setCustomerFieldDefinitionScreen("list");
+      if (!takeStayOpenAfterSave()) setCustomerFieldDefinitionScreen("list");
       setNotice("Cari özel alan tanımı oluşturuldu.");
     } catch (e) {
       setError((e as Error).message);
@@ -1926,7 +1941,7 @@ function CustomersPage({
       );
       setMovementAmount("");
       setMovementDescription("");
-      setCustomerMovementOpen(false);
+      if (!takeStayOpenAfterSave()) setCustomerMovementOpen(false);
       await openLedger(ledgerCustomer);
       setNotice("Cari hareketi kaydedildi.");
     } catch (e) {
@@ -2276,14 +2291,31 @@ function CustomersPage({
           }}
         >
           <div className="modal customer-fields-modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">CARİ ÖZELLEŞTİRMESİ</p>
-                <h2>
-                  {fieldCustomer.code} · {fieldCustomer.name}
-                </h2>
-              </div>
-              <div className="customer-field-modal-actions">
+            <RecordFormPage
+              variant="dialog"
+              className="prf-flush"
+              title="Cari Özel Alan Değerleri"
+              mode="edit"
+              busy={busy}
+              saveLabel="Değerleri kaydet"
+              onSubmit={saveCustomerFieldValues}
+              onCancel={() => {
+                if (!busy) setFieldCustomer(null);
+              }}
+              status={
+                <>
+                  <span>
+                    {fieldCustomer.code} · {fieldCustomer.name}
+                  </span>
+                  <span className="rf-status-end">Değerler tenant kapsamında saklanır.</span>
+                </>
+              }
+            >
+              <div className="prf-group-toolbar">
+                <small>
+                  Firma tanımları müşteri ve tedarikçi cari kartlarında kullanılır.
+                  Değerler veri türüne göre doğrulanır.
+                </small>
                 {canDesignCustomerFields && (
                   <button
                     type="button"
@@ -2294,35 +2326,21 @@ function CustomersPage({
                     Alan tanımları
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Kapat"
-                  disabled={busy}
-                  onClick={() => setFieldCustomer(null)}
-                >
-                  <X size={19} />
-                </button>
               </div>
-            </div>
-            <p className="muted customer-fields-description">
-              Firma tanımları müşteri ve tedarikçi cari kartlarında kullanılır.
-              Değerler veri türüne göre doğrulanır.
-            </p>
-            <form
-              className="customer-field-values-form"
-              onSubmit={saveCustomerFieldValues}
-            >
+              <RecordFormGroup title="Özel Alanlar">
               <div className="requests-list customer-field-values-list">
                 {customerFields.map((field) => (
                   <article className="request-row expanded" key={field.id}>
                     <div className="request-info">
                       <label>
-                        {field.label}{" "}
-                        <small>
-                          ({field.code} · {field.dataType} · v{field.version}
-                          {field.isRequired ? " · zorunlu" : ""})
-                        </small>
+                        <span>
+                          {field.label}
+                          {field.isRequired && <RequiredMark />}{" "}
+                          <small>
+                            ({field.code} · {field.dataType} · v{field.version}
+                            {field.isRequired ? " · zorunlu" : ""})
+                          </small>
+                        </span>
                         {field.dataType === "Boolean" ? (
                           <select
                             required={field.isRequired}
@@ -2387,23 +2405,8 @@ function CustomersPage({
                   </div>
                 )}
               </div>
-              <div className="modal-foot customer-field-values-footer">
-                <span>Değerler tenant kapsamında saklanır.</span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => setFieldCustomer(null)}
-                  >
-                    Kapat
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    Değerleri kaydet
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
             {customerFieldValueHistoryDefinition && (
               <section className="panel customer-field-history">
                 <div className="panel-heading">
@@ -2475,16 +2478,17 @@ function CustomersPage({
               className="modal customer-fields-modal customer-field-definition-modal"
               role="dialog"
               aria-modal="true"
-              aria-labelledby="customer-field-definition-title"
+              aria-label={
+                customerFieldDefinitionScreen === "list"
+                  ? "Alan tanımları"
+                  : "Yeni alan tanımı"
+              }
             >
+              {customerFieldDefinitionScreen === "list" && (
               <div className="modal-head">
                 <div>
                   <p className="eyebrow">CARİ ÖZEL ALAN TANIMLARI</p>
-                  <h2 id="customer-field-definition-title">
-                    {customerFieldDefinitionScreen === "list"
-                      ? "Alan tanımları"
-                      : "Yeni alan tanımı"}
-                  </h2>
+                  <h2 id="customer-field-definition-title">Alan tanımları</h2>
                 </div>
                 <button
                   type="button"
@@ -2496,7 +2500,8 @@ function CustomersPage({
                   <X size={19} />
                 </button>
               </div>
-              {error && (
+              )}
+              {error && customerFieldDefinitionScreen === "list" && (
                 <div className="alert inline-alert" role="alert">
                   {error}
                 </div>
@@ -2587,23 +2592,43 @@ function CustomersPage({
                   </div>
                 </>
               ) : (
-                <form
+                <RecordFormPage
+                  variant="dialog"
+                  className="prf-flush"
+                  title="Yeni Alan Tanımı"
+                  mode="create"
+                  busy={busy}
+                  saveLabel="Alan tanımını kaydet"
                   onSubmit={createCustomerField}
-                  className="customer-field-create-form"
-                >
-                  <div className="panel-heading">
-                    <div>
-                      <b>Alan bilgileri</b>
-                      <small>
+                  onCancel={() => {
+                    if (!busy) setCustomerFieldDefinitionScreen("list");
+                  }}
+                  onSaveIntent={setStayOpenAfterSave}
+                  onReset={() => {
+                    setCustomerFieldCode("");
+                    setCustomerFieldLabel("");
+                    setCustomerFieldMaxLength("200");
+                    setCustomerFieldRequired(false);
+                    setError("");
+                  }}
+                  error={error}
+                  status={
+                    <>
+                      <span>
                         Tanım firma içindeki müşteri ve tedarikçi kartlarında
                         kullanılabilir.
-                      </small>
-                    </div>
-                  </div>
-                  <div className="form-two">
+                      </span>
+                      <span className="rf-status-warning">
+                        Mevcut kayıtlar yeni zorunlu değer isteyebilir.
+                      </span>
+                    </>
+                  }
+                >
+                  <RecordFormGroup title="Alan Kimliği" bodyClassName="rf-identity prf-identity-2">
                     <label>
-                      Alan kodu
+                      <span>Alan kodu <RequiredMark /></span>
                       <input
+                        className="rf-must rf-mono"
                         value={customerFieldCode}
                         onChange={(e) =>
                           setCustomerFieldCode(e.target.value.toUpperCase())
@@ -2614,16 +2639,18 @@ function CustomersPage({
                       />
                     </label>
                     <label>
-                      Ekran etiketi
+                      <span>Ekran etiketi <RequiredMark /></span>
                       <input
+                        className="rf-must"
                         value={customerFieldLabel}
                         onChange={(e) => setCustomerFieldLabel(e.target.value)}
                         required
                         maxLength={120}
                       />
                     </label>
-                  </div>
-                  <div className="form-two">
+                  </RecordFormGroup>
+                  <RecordFormGroup title="Veri Türü ve Kurallar">
+                    <div className="rf-pair">
                     <label>
                       Veri türü
                       <select
@@ -2643,8 +2670,9 @@ function CustomersPage({
                     </label>
                     {customerFieldType === "Text" && (
                       <label>
-                        En fazla karakter
+                        <span>En fazla karakter <RequiredMark /></span>
                         <input
+                          className="rf-num"
                           type="number"
                           min="1"
                           max="500"
@@ -2656,9 +2684,9 @@ function CustomersPage({
                         />
                       </label>
                     )}
-                  </div>
+                    </div>
                   {canManageCustomerFieldPolicy ? (
-                    <label className="check-row">
+                    <label className="rf-check">
                       <input
                         type="checkbox"
                         checked={customerFieldRequired}
@@ -2669,28 +2697,13 @@ function CustomersPage({
                       Bu alanı zorunlu yap
                     </label>
                   ) : (
-                    <p className="muted customer-fields-description">
+                    <small>
                       Zorunluluk ve devre dışı bırakma ayarlarını firma
                       yöneticisi yönetir.
-                    </p>
+                    </small>
                   )}
-                  <div className="modal-foot">
-                    <span>Mevcut kayıtlar yeni zorunlu değer isteyebilir.</span>
-                    <div>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => setCustomerFieldDefinitionScreen("list")}
-                      >
-                        Geri
-                      </button>
-                      <button className="primary" disabled={busy}>
-                        {busy ? "Kaydediliyor…" : "Alan tanımını kaydet"}
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                  </RecordFormGroup>
+                </RecordFormPage>
               )}
               {customerFieldMetadataDefinition && (
                 <section className="panel customer-field-history">
@@ -2829,28 +2842,35 @@ function CustomersPage({
                 </div>
               )}
             </div>
-            <form className="group-form" onSubmit={createGroup}>
-              <div className="group-form-heading">
-                <b>{editingGroup ? "Grubu düzenle" : "Yeni grup"}</b>
-                {editingGroup && (
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => {
-                      setEditingGroup(null);
-                      setGroupCode("");
-                      setGroupName("");
-                      setGroupError("");
-                    }}
-                  >
-                    Düzenlemeyi iptal et
-                  </button>
-                )}
-              </div>
-              <div className="form-two">
+            <RecordFormPage
+              variant="dialog"
+              className="prf-embedded"
+              title={editingGroup ? "Grubu Düzenle" : "Yeni Grup"}
+              mode={editingGroup ? "edit" : "create"}
+              busy={busy}
+              saveLabel={editingGroup ? "Değişiklikleri kaydet" : "Grup ekle"}
+              onSubmit={createGroup}
+              onCancel={() => {
+                if (editingGroup) {
+                  setEditingGroup(null);
+                  setGroupCode("");
+                  setGroupName("");
+                  setGroupError("");
+                } else setGroupModal(false);
+              }}
+              onSaveIntent={setStayOpenAfterSave}
+              onReset={() => {
+                setGroupCode("");
+                setGroupName("");
+                setGroupError("");
+              }}
+              status={<span>Yalnızca bu firmada kullanılır.</span>}
+            >
+              <RecordFormGroup title="Grup Kimliği" bodyClassName="rf-identity prf-identity-code-name">
                 <label>
-                  Grup kodu
+                  <span>Grup kodu <RequiredMark /></span>
                   <input
+                    className="rf-must rf-mono"
                     value={groupCode}
                     onChange={(e) => setGroupCode(e.target.value)}
                     maxLength={40}
@@ -2859,8 +2879,9 @@ function CustomersPage({
                   />
                 </label>
                 <label>
-                  Grup adı
+                  <span>Grup adı <RequiredMark /></span>
                   <input
+                    className="rf-must"
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     maxLength={120}
@@ -2868,27 +2889,8 @@ function CustomersPage({
                     placeholder="Örn. Kurumsal müşteriler"
                   />
                 </label>
-              </div>
-              <div className="modal-foot">
-                <span>Yalnızca bu firmada kullanılır.</span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setGroupModal(false)}
-                  >
-                    Kapat
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy
-                      ? "Kaydediliyor…"
-                      : editingGroup
-                        ? "Değişiklikleri kaydet"
-                        : "Grup ekle"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -2950,8 +2952,18 @@ function CustomersPage({
                 <p className="muted">Bu cari için henüz adres yok.</p>
               )}
             </div>
-            <form onSubmit={createAddress}>
-              <div className="form-two">
+            <RecordFormPage
+              variant="dialog"
+              className="prf-embedded"
+              title="Yeni Adres"
+              mode="create"
+              busy={busy}
+              saveLabel="Adres ekle"
+              onSubmit={createAddress}
+              onCancel={() => setAddressCustomer(null)}
+              status={<span>Varsayılan adres ilk kayıtta atanır.</span>}
+            >
+              <RecordFormGroup title="Adres Kimliği" bodyClassName="rf-identity prf-identity-code-name">
                 <label>
                   Adres türü
                   <select
@@ -2968,8 +2980,9 @@ function CustomersPage({
                   </select>
                 </label>
                 <label>
-                  Adres etiketi
+                  <span>Adres etiketi <RequiredMark /></span>
                   <input
+                    className="rf-must"
                     value={addressLabel}
                     onChange={(e) => setAddressLabel(e.target.value)}
                     required
@@ -2977,17 +2990,19 @@ function CustomersPage({
                     placeholder="Merkez ofis"
                   />
                 </label>
-              </div>
+              </RecordFormGroup>
+              <RecordFormGroup title="Adres">
               <label>
-                Adres
+                <span>Adres <RequiredMark /></span>
                 <input
+                  className="rf-must"
                   value={addressLine}
                   onChange={(e) => setAddressLine(e.target.value)}
                   required
                   maxLength={400}
                 />
               </label>
-              <div className="form-two">
+              <div className="rf-pair">
                 <CustomerLocationInput
                   id="customer-address-province"
                   label="İl"
@@ -3018,15 +3033,7 @@ function CustomersPage({
                   onChange={setAddressDistrict}
                 />
               </div>
-              <CustomerLocationMap
-                latitude={addressLatitude}
-                longitude={addressLongitude}
-                onChange={(latitude, longitude) => {
-                  setAddressLatitude(latitude);
-                  setAddressLongitude(longitude);
-                }}
-              />
-              <div className="form-two">
+              <div className="rf-pair">
                 <label>
                   Posta kodu
                   <input
@@ -3044,22 +3051,16 @@ function CustomersPage({
                   }}
                 />
               </div>
-              <div className="modal-foot">
-                <span>Varsayılan adres ilk kayıtta atanır.</span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setAddressCustomer(null)}
-                  >
-                    Kapat
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    Adres ekle
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+              <CustomerLocationMap
+                latitude={addressLatitude}
+                longitude={addressLongitude}
+                onChange={(latitude, longitude) => {
+                  setAddressLatitude(latitude);
+                  setAddressLongitude(longitude);
+                }}
+              />
+            </RecordFormPage>
           </div>
         </div>
       )}
@@ -3437,40 +3438,40 @@ function CustomersPage({
             className="modal customer-movement-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="customer-movement-title"
+            aria-label="Yeni hareket"
           >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">{ledgerCustomer.code} · CARİ HAREKET</p>
-                <h2 id="customer-movement-title">Yeni hareket</h2>
-                <p className="muted">
-                  {ledgerCustomer.name} · {ledgerCustomer.currencyCode}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                disabled={busy}
-                aria-label="Hareket penceresini kapat"
-                onClick={() => setCustomerMovementOpen(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            {error && (
-              <div className="alert inline-alert" role="alert">
-                {error}
-                <button
-                  type="button"
-                  aria-label="Hatayı kapat"
-                  onClick={() => setError("")}
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            )}
-            <form onSubmit={createMovement}>
-              <div className="form-two">
+            <RecordFormPage
+              variant="dialog"
+              className="prf-flush"
+              title="Yeni Hareket"
+              mode="create"
+              busy={busy}
+              saveLabel="Hareketi kaydet"
+              onSubmit={createMovement}
+              onCancel={() => {
+                if (!busy) setCustomerMovementOpen(false);
+              }}
+              onSaveIntent={setStayOpenAfterSave}
+              onReset={() => {
+                setMovementAmount("");
+                setMovementDescription("");
+                setError("");
+              }}
+              error={error}
+              onDismissError={() => setError("")}
+              status={
+                <>
+                  <span>
+                    {ledgerCustomer.code} · {ledgerCustomer.name} ·{" "}
+                    {ledgerCustomer.currencyCode}
+                  </span>
+                  <span className="rf-status-warning">
+                    Kaydedilen hareket silinemez; iptal ters kayıtla yapılır.
+                  </span>
+                </>
+              }
+            >
+              <RecordFormGroup title="Hareket Kimliği" bodyClassName="rf-identity prf-identity-3">
                 <label>
                   Hareket yönü
                   <select
@@ -3486,19 +3487,19 @@ function CustomersPage({
                   </select>
                 </label>
                 <label>
-                  Tarih
+                  <span>Tarih <RequiredMark /></span>
                   <input
+                    className="rf-must"
                     type="date"
                     value={movementDate}
                     onChange={(e) => setMovementDate(e.target.value)}
                     required
                   />
                 </label>
-              </div>
-              <div className="form-two">
                 <label>
-                  Tutar ({ledgerCustomer.currencyCode})
+                  <span>Tutar ({ledgerCustomer.currencyCode}) <RequiredMark /></span>
                   <input
+                    className="rf-must rf-num"
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -3507,9 +3508,12 @@ function CustomersPage({
                     required
                   />
                 </label>
+              </RecordFormGroup>
+              <RecordFormGroup title="Açıklama">
                 <label>
-                  Açıklama
+                  <span>Açıklama <RequiredMark /></span>
                   <input
+                    className="rf-must"
                     value={movementDescription}
                     onChange={(e) => setMovementDescription(e.target.value)}
                     maxLength={240}
@@ -3517,26 +3521,8 @@ function CustomersPage({
                     placeholder="Örn. Açılış bakiyesi"
                   />
                 </label>
-              </div>
-              <div className="modal-foot">
-                <span>
-                  Kaydedilen hareket silinemez; iptal ters kayıtla yapılır.
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => setCustomerMovementOpen(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button className="primary" disabled={busy}>
-                    {busy ? "Kaydediliyor…" : "Hareketi kaydet"}
-                  </button>
-                </div>
-              </div>
-            </form>
+              </RecordFormGroup>
+            </RecordFormPage>
           </section>
         </div>
       )}

@@ -1,38 +1,25 @@
-import { FilePlus2 } from "lucide-react";
 import type { DraftInput } from "../types";
+import { RecordFormGroup, RequiredMark } from "../../record-form/RecordForm";
 
 type Props = {
   draft: DraftInput;
-  editing: boolean;
-  busy: boolean;
-  supplierCount: number;
   onUpdate: <K extends keyof DraftInput>(
     field: K,
     value: DraftInput[K],
   ) => void;
-  onCancelEdit: () => void;
 };
 
 export function InvoiceDraftTotals({
   draft,
-  editing,
-  busy,
-  supplierCount,
   onUpdate,
-  onCancelEdit,
 }: Props) {
   return (
-    <section className="sid-card">
-      <div className="sid-card-heading">
-        <div>
-          <h2>Belge toplamları</h2>
-          <p>Toplamları tedarikçi belgesinden aynen aktarın.</p>
-        </div>
-      </div>
-      <div className="sid-fields sid-totals">
+    <RecordFormGroup title="Belge Toplamları" bodyClassName="prf-totals">
+      <small className="rf-columns-wide">Toplamları tedarikçi belgesinden aynen aktarın.</small>
         <label>
-          Ara toplam *
+          <span>Ara toplam <RequiredMark /></span>
           <input
+            className="rf-num"
             type="number"
             min="0"
             step="0.01"
@@ -42,8 +29,9 @@ export function InvoiceDraftTotals({
           />
         </label>
         <label>
-          İskonto toplamı *
+          <span>İskonto toplamı <RequiredMark /></span>
           <input
+            className="rf-num"
             type="number"
             min="0"
             step="0.01"
@@ -53,8 +41,9 @@ export function InvoiceDraftTotals({
           />
         </label>
         <label>
-          Vergi toplamı *
+          <span>Vergi toplamı <RequiredMark /></span>
           <input
+            className="rf-num"
             type="number"
             min="0"
             step="0.01"
@@ -64,8 +53,9 @@ export function InvoiceDraftTotals({
           />
         </label>
         <label>
-          Genel toplam *
+          <span>Genel toplam <RequiredMark /></span>
           <input
+            className="rf-num"
             type="number"
             min="0"
             step="0.01"
@@ -74,38 +64,6 @@ export function InvoiceDraftTotals({
             required
           />
         </label>
-      </div>
-      <footer className="sid-form-footer">
-        <span>
-          Tutarlar kaydedildiği haliyle korunur; bu işlem muhasebe veya stok
-          kaydı oluşturmaz.
-        </span>
-        <div className="sid-form-actions">
-          {editing && (
-            <button
-              type="button"
-              className="sid-secondary"
-              disabled={busy}
-              onClick={onCancelEdit}
-            >
-              Düzenlemeyi iptal et
-            </button>
-          )}
-          <button
-            className="sid-primary"
-            disabled={busy || supplierCount === 0}
-          >
-            {busy ? (
-              "Kaydediliyor…"
-            ) : (
-              <>
-                <FilePlus2 size={16} />{" "}
-                {editing ? "Taslağı güncelle" : "Taslağı kaydet"}
-              </>
-            )}
-          </button>
-        </div>
-      </footer>
-    </section>
+    </RecordFormGroup>
   );
 }
