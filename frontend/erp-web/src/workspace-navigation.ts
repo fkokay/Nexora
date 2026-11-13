@@ -30,6 +30,37 @@ const salesPageTitlesEn: Record<SalesPageKey, string> = {
 export const salesNavigationPages: SalesPageKey[] = ['sales-customer-requests','sales-quotes','sales-orders','sales-deliveries','sales-invoices','sales-returns','sales-distribution','sales-promotions']
 export const purchasingNavigationPages: SalesPageKey[] = ['sales-requests','sales-purchase-quotes','sales-purchasing','sales-purchase-delivery-notes','sales-purchase-receipts','sales-purchase-invoices','sales-purchase-returns','sales-purchase-invoice-entry','sales-purchase-invoice-drafts','commercial-contracts']
 
+/**
+ * Arama sonuçlarında (menüde) yer almayan, profil menüsü, ayarlar veya geliştirici
+ * modu panelinden açılan ekranların sekme başlıkları. Burada olmayan bir ekran,
+ * sekme başlığı olarak ham sayfa anahtarını gösterir.
+ */
+const standalonePageTitles: Record<string, Record<Locale, string>> = {
+  modules: { tr: 'Modül pazaryeri', en: 'Module marketplace' },
+  'screen-views': { tr: 'Ekran Düzenleri', en: 'Screen layouts' },
+  'custom-lists': { tr: 'Dinamik Listeler', en: 'Dynamic lists' },
+  'custom-menus': { tr: 'Özel Menüler', en: 'Custom menus' },
+  'custom-forms': { tr: 'Özel Formlar', en: 'Custom forms' },
+  'business-rules': { tr: 'İş Kuralları', en: 'Business rules' },
+  workflows: { tr: 'İş Akışları', en: 'Workflows' },
+  reports: { tr: 'Rapor oluşturucu', en: 'Report builder' },
+  'company-settings': { tr: 'Firma Ayarları', en: 'Company settings' },
+  'license-settings': { tr: 'Firma Lisansı', en: 'Company license' },
+  settings: { tr: 'Ayarlar', en: 'Settings' },
+  'ai-settings': { tr: 'AI sağlayıcı ayarları', en: 'AI provider settings' },
+  audit: { tr: 'İşlem kayıtları', en: 'Audit log' },
+  access: { tr: 'İzin politikaları', en: 'Permission policies' },
+  integrations: { tr: 'Entegrasyonlar', en: 'Integrations' },
+  projects: { tr: 'Projeler', en: 'Projects' },
+  'foreign-trade': { tr: 'Dış Ticaret', en: 'Foreign trade' },
+  'human-resources': { tr: 'İnsan Kaynakları', en: 'Human resources' },
+  'fixed-assets': { tr: 'Duran Varlıklar', en: 'Fixed assets' },
+}
+
+export function standalonePageTitle(page: string, locale: Locale): string | undefined {
+  return standalonePageTitles[page]?.[locale]
+}
+
 export function salesPageTitle(page: SalesPageKey, locale: Locale) {
   return locale === 'en' ? salesPageTitlesEn[page] : salesPageTitles[page]
 }
