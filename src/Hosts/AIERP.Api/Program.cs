@@ -5977,6 +5977,13 @@ purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestD
     if (errors is not null) return Results.ValidationProblem(errors);
     var reviewerId = GetUserId(principal);
     if (reviewerId is null) return Results.Forbid();
+    // Öz-onay engeli: talebi açan kullanıcı (yönetici olsa da) kendi talebini onaylayamaz veya reddedemez.
+    // Talep sahibi değişmediği için kilitli okumadan önce denetlenir.
+    var requesterId = await db.PurchaseRequests.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => (Guid?)x.RequestedByUserId).SingleOrDefaultAsync();
+    if (requesterId is null) return Results.NotFound();
+    if (requesterId == reviewerId)
+        return Results.Conflict(new { error = "Talebi oluşturan kullanıcı kendi talebini onaylayamaz veya reddedemez; kararı başka bir yetkili verir." });
     await using var transaction = await db.Database.BeginTransactionAsync();
     var request = await db.PurchaseRequests.FromSqlInterpolated($"SELECT * FROM [dbo].[PurchaseRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (request is null) return Results.NotFound();
@@ -5984,8 +5991,6 @@ purchaseRequests.MapPost("/{id:guid}/decision", async (Guid id, PurchaseRequestD
     if (await db.TenantWorkflowInstances.AnyAsync(x => x.TenantId == tenantId && x.SubjectType == "PurchaseRequest"
         && x.SubjectId == request.Id && x.Status == "Pending"))
         return Results.Conflict(new { error = "Bu talep için iş akışı onayı bekleniyor. Kararı İş Akışları ekranından verin." });
-    if (request.RequestedByUserId == reviewerId && !decision.Approved)
-        return Results.Conflict(new { error = "Admin kullanıcılar kendi taleplerini onaylayabilir; kendi taleplerini reddedemez." });
     request.Status = decision.Approved ? PurchaseRequestStatus.Approved : PurchaseRequestStatus.Rejected;
     request.ReviewedByUserId = reviewerId; request.ReviewedAt = DateTimeOffset.UtcNow;
     request.ReviewNote = string.IsNullOrWhiteSpace(decision.Note) ? null : decision.Note.Trim();

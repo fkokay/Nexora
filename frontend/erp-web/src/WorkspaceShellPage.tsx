@@ -163,16 +163,8 @@ function WorkspaceRail({
               className={`workspace-rail-item${activePage(item.page) ? " active" : ""}`}
               aria-current={activePage(item.page) ? "page" : undefined}
               title={item.id === "customer-create" ? (locale === "en" ? "Create customer card" : "Cari Kart Oluştur") : label}
-              onClick={() =>
-                onNavigate(
-                  item.page,
-                  item.id === "customers"
-                    ? locale === "en"
-                      ? "Customer Accounts"
-                      : "Cari Hesaplar"
-                    : label,
-                )
-              }
+              // Sekme, menüdeki modül adını ("Satış") değil açılan ekranın kendi başlığını ("Satış Faturaları") taşır.
+              onClick={() => onNavigate(item.page)}
             >
               <Icon size={20} strokeWidth={1.9} />
               <span>{label}</span>

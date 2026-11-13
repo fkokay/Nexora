@@ -8365,19 +8365,25 @@ function PurchasingPanel({
               </span>
               <div>
                 {role === "TenantAdmin" &&
-                  requestDetail.status === "Submitted" && (
+                  requestDetail.status === "Submitted" &&
+                  requestDetail.requestedByUserId === currentUserId && (
+                    <span className="cell-subtitle">
+                      Kendi talebinizi onaylayamaz veya reddedemezsiniz; kararı başka bir yetkili verir.
+                    </span>
+                  )}
+                {role === "TenantAdmin" &&
+                  requestDetail.status === "Submitted" &&
+                  requestDetail.requestedByUserId !== currentUserId && (
                     <>
-                      {requestDetail.requestedByUserId !== currentUserId && (
-                        <button
-                          className="secondary danger-action"
-                          disabled={busy}
-                          onClick={() =>
-                            void decideRequest(requestDetail, false)
-                          }
-                        >
-                          Reddet
-                        </button>
-                      )}
+                      <button
+                        className="secondary danger-action"
+                        disabled={busy}
+                        onClick={() =>
+                          void decideRequest(requestDetail, false)
+                        }
+                      >
+                        Reddet
+                      </button>
                       <button
                         className="primary"
                         disabled={busy}
