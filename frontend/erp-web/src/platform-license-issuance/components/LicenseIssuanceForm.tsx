@@ -1,14 +1,18 @@
-import type { FormEventHandler, Ref } from "react";
+import type { FormEvent, FormEventHandler, Ref } from "react";
 import {
-  BadgeCheck,
   Check,
   ChevronDown,
-  KeyRound,
   LoaderCircle,
   Search,
   ShieldCheck,
 } from "lucide-react";
 import type { LicenseIssuer, Tenant } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 
 type Props = {
   issuer: LicenseIssuer | null;
@@ -55,6 +59,8 @@ export function LicenseIssuanceForm({
   onTierChange,
   onExpiresOnChange,
 }: Props) {
+  const blocked =
+    !issuer?.ready || !tenantId || !expiresOn || !activeTenants.length;
   return (
     <>
       {issuer && !issuer.ready && (
@@ -70,27 +76,46 @@ export function LicenseIssuanceForm({
           </span>
         </div>
       )}
-      <section className="panel platform-license-card">
-        <div className="panel-heading">
-          <div>
-            <h3>
-              <BadgeCheck size={17} /> Lisans bilgileri
-            </h3>
-            <p>Firma seçin, paket ve bitiş tarihini belirleyin.</p>
-          </div>
-          {issuer?.ready && (
-            <span className="platform-license-key-id">
-              İmzalama anahtarı · {issuer.keyId}
-            </span>
-          )}
-        </div>
-        {loading ? (
+      {loading ? (
+        <section className="panel platform-license-card">
           <div className="platform-license-loading" role="status">
             <LoaderCircle size={17} /> Firma ve imzalayıcı bilgileri yükleniyor…
           </div>
-        ) : (
-          <form className="platform-license-form" onSubmit={onSubmit}>
-            <div className="platform-license-company-field">
+        </section>
+      ) : (
+        <RecordFormPage
+          variant="dialog"
+          className="prf-embedded prf-no-cancel prf-three"
+          title="Lisans bilgileri"
+          mode="create"
+          busy={busy}
+          saveLabel="Lisans kodu üret"
+          onSubmit={(event) => {
+            if (blocked) {
+              event.preventDefault();
+              return;
+            }
+            onSubmit(event as FormEvent<HTMLFormElement>);
+          }}
+          onCancel={() => undefined}
+          status={
+            <>
+              <span>Firma seçin, paket ve bitiş tarihini belirleyin.</span>
+              {blocked && issuer?.ready && activeTenants.length > 0 && (
+                <span className="rf-status-warning">
+                  Lisans üretmek için firma ve bitiş tarihi seçin.
+                </span>
+              )}
+              {issuer?.ready && (
+                <span className="rf-status-end">
+                  İmzalama anahtarı · {issuer.keyId}
+                </span>
+              )}
+            </>
+          }
+        >
+          <RecordFormGroup title="Lisans Kimliği" bodyClassName="rf-identity">
+            <div className="platform-license-company-field prf-field">
               <span
                 className="platform-license-field-label"
                 id="license-company-label"
@@ -174,7 +199,6 @@ export function LicenseIssuanceForm({
               </div>
               <small>Hazırlığı tamamlanmış firmalar listelenir.</small>
             </div>
-            <div className="form-two">
               <label>
                 Lisans paketi
                 <select
@@ -189,55 +213,33 @@ export function LicenseIssuanceForm({
                 </select>
               </label>
               <label>
-                Bitiş tarihi
+                <span>
+                  Bitiş tarihi <RequiredMark />
+                </span>
                 <input
+                  className="rf-must"
                   type="date"
                   required
                   value={expiresOn}
                   onChange={(event) => onExpiresOnChange(event.target.value)}
                 />
               </label>
-            </div>
+          </RecordFormGroup>
             {tier === "Large" && (
-              <p className="platform-license-note">
+              <p className="platform-license-note prf-note">
                 Large paketi sınırsız kullanıcı/modül kotası ve 250 GB SQL
                 depolama kotası uygular. HA işareti lisans metadata'sıdır;
                 altyapı veya SLA sağlamaz.
               </p>
             )}
             {!activeTenants.length && (
-              <p className="platform-license-note">
+              <p className="platform-license-note prf-note">
                 Lisans üretmek için önce en az bir firmanın hazırlığı
                 tamamlanmış olmalı.
               </p>
             )}
-            <div className="platform-license-actions">
-              <button
-                className="primary"
-                disabled={
-                  busy ||
-                  !issuer?.ready ||
-                  !tenantId ||
-                  !expiresOn ||
-                  !activeTenants.length
-                }
-              >
-                {busy ? (
-                  <>
-                    <LoaderCircle size={16} />
-                    İmzalanıyor…
-                  </>
-                ) : (
-                  <>
-                    <KeyRound size={16} />
-                    Lisans kodu üret
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-      </section>
+        </RecordFormPage>
+      )}
     </>
   );
 }

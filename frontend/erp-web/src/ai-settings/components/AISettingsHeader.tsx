@@ -54,15 +54,7 @@ export default function AISettingsHeader({
         <span className="ai-commandbar-scope">
           <ShieldCheck size={14} /> Tenant kapsamında
         </span>
-        <button
-          className="primary"
-          type="submit"
-          form="ai-provider-settings-form"
-          disabled={busy || !settings}
-        >
-          {busy ? "Kaydediliyor…" : "Ayarları kaydet"}{" "}
-          <span aria-hidden="true">→</span>
-        </button>
+        {busy && <span role="status">Kaydediliyor…</span>}
       </div>
     </>
   );

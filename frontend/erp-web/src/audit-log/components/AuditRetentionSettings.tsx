@@ -1,6 +1,11 @@
 import type { FormEvent } from "react";
-import { CalendarClock } from "lucide-react";
 import type { AuditRetentionPolicy } from "../types";
+import {
+  RecordFormGroup,
+  RecordFormPage,
+  RequiredMark,
+} from "../../record-form/RecordForm";
+import "../../platform-record-forms.css";
 
 type Props = {
   retention: AuditRetentionPolicy | null;
@@ -28,42 +33,49 @@ export function AuditRetentionSettings({
   const minimumDays = retention?.minimumRetentionDays ?? 30;
   const maximumDays = retention?.maximumRetentionDays ?? 3650;
   return (
-    <section className="panel audit-retention-panel">
-      <div className="panel-heading">
-        <span className="audit-retention-icon" aria-hidden="true">
-          <CalendarClock size={17} />
-        </span>
-        <div>
-          <h3>Audit kayıtlarının saklanması</h3>
-          <p>
-            Süre tenant bazındadır. Süresi dolan kayıtlar her gün 02.00 UTC’de
-            denetlenebilir temizlik işiyle silinir.
-          </p>
-        </div>
-      </div>
-      {error && (
-        <div className="alert inline-alert">
-          {error}
-          <button type="button" onClick={onClearError}>
-            ×
-          </button>
-        </div>
-      )}
-      {notice && (
-        <div className="notice">
-          {notice}
-          <button type="button" onClick={onClearNotice}>
-            ×
-          </button>
-        </div>
-      )}
-      <form className="audit-retention-form" onSubmit={onSubmit}>
-        <label className="audit-retention-field" htmlFor="audit-retention-days">
-          <span className="audit-retention-label">Saklama süresi</span>
-          <span className="audit-retention-control">
+    <RecordFormPage
+      variant="dialog"
+      className="prf-embedded prf-no-cancel prf-two"
+      title="Audit kayıtlarının saklanması"
+      mode="edit"
+      busy={busy}
+      saveLabel="Politikayı kaydet"
+      onSubmit={onSubmit}
+      onCancel={() => undefined}
+      error={error}
+      onDismissError={onClearError}
+      status={
+        <>
+          <span id="audit-retention-help">
+            {retention?.lastPurgeAt
+              ? `Son temizlik: ${new Date(retention.lastPurgeAt).toLocaleString("tr-TR")}`
+              : "Henüz temizlik çalışmadı."}{" "}
+            · İzin verilen aralık: {minimumDays}–{maximumDays} gün
+          </span>
+          {notice && (
+            <span className="rf-status-notice">
+              {notice}
+              <button
+                type="button"
+                className="prf-status-dismiss"
+                onClick={onClearNotice}
+              >
+                ×
+              </button>
+            </span>
+          )}
+        </>
+      }
+    >
+      <RecordFormGroup title="Saklama Politikası" bodyClassName="rf-identity">
+        <label htmlFor="audit-retention-days">
+          <span>
+            Saklama süresi <RequiredMark />
+          </span>
+          <span className="prf-unit">
             <input
               id="audit-retention-days"
-              className="audit-retention-input"
+              className="rf-must rf-num"
               type="number"
               min={minimumDays}
               max={maximumDays}
@@ -76,18 +88,11 @@ export function AuditRetentionSettings({
             <span aria-hidden="true">gün</span>
           </span>
         </label>
-        <div className="audit-retention-meta">
-          <span id="audit-retention-help">
-            {retention?.lastPurgeAt
-              ? `Son temizlik: ${new Date(retention.lastPurgeAt).toLocaleString("tr-TR")}`
-              : "Henüz temizlik çalışmadı."}{" "}
-            · İzin verilen aralık: {minimumDays}–{maximumDays} gün
-          </span>
-          <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Kaydediliyor…" : "Politikayı kaydet"}
-          </button>
-        </div>
-      </form>
-    </section>
+        <p className="prf-field-note">
+          Süre tenant bazındadır. Süresi dolan kayıtlar her gün 02.00 UTC’de
+          denetlenebilir temizlik işiyle silinir.
+        </p>
+      </RecordFormGroup>
+    </RecordFormPage>
   );
 }
