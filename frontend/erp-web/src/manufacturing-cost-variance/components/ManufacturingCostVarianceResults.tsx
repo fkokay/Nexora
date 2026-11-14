@@ -55,6 +55,7 @@ type Props = {
   loading: boolean;
   onPageChange: (page: number) => void;
   fields?: CostVarianceScreenViewField[];
+  toolbarContainer?: HTMLElement | null;
 };
 
 const renderCell = (order: CostOrder, key: string, currency: string) => {
@@ -108,6 +109,7 @@ export function ManufacturingCostVarianceResults({
   loading,
   onPageChange,
   fields = defaultCostVarianceFields,
+  toolbarContainer,
 }: Props) {
   const visibleFields = fields
     .filter((field) => field.visible || field.fixed)
@@ -124,6 +126,7 @@ export function ManufacturingCostVarianceResults({
           externalPagination
           hideSearch
           enableRowSelection={false}
+          toolbarContainer={toolbarContainer}
         >
           <thead>
             <tr>

@@ -282,7 +282,8 @@ export function InventoryPage({
   // List-page toolbar state: status chips filter the loaded rows; the slot hosts the stock grid's tools.
   const [warehouseStatusFilter, setWarehouseStatusFilter] = useState(""),
     [transferStatusFilter, setTransferStatusFilter] = useState(""),
-    [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null);
+    [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null),
+    [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const [transferModal, setTransferModal] = useState(false),
     [transferSelectedItems, setTransferSelectedItems] = useState<string[]>([]),
     [transferSearch, setTransferSearch] = useState(""),
@@ -2659,6 +2660,7 @@ export function InventoryPage({
                 searchLabel="Depo ara"
                 searchPlaceholder="Depo kodu veya adıyla ara"
                 onRefresh={() => void loadBase()}
+                toolsSlotRef={setListToolsSlot}
               >
                 <ListChipGroup
                   label="Durum"
@@ -2675,7 +2677,7 @@ export function InventoryPage({
                 {loading ? (
                   <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
                 ) : visibleWarehouses.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}
@@ -2690,6 +2692,7 @@ export function InventoryPage({
                 searchLabel="Transfer ara"
                 searchPlaceholder="Kod veya depo adıyla ara"
                 onRefresh={() => void loadTransfers()}
+                toolsSlotRef={setListToolsSlot}
               >
                 <ListChipGroup
                   label="Durum"
@@ -2704,7 +2707,7 @@ export function InventoryPage({
               </ListToolbar>
               <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
                 {visibleTransfers.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
                 )}

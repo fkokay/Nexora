@@ -10,14 +10,17 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Boxes, Factory, Plus } from "lucide-react";
+import { Factory, Info } from "lucide-react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
+import {
+  StickyFormBar,
+  ToolbarMoreMenu,
+} from "./manufacturing/components/ManufacturingFormMenu";
 import ManufacturingRecipeList, {
   defaultRecipeFields,
 } from "./manufacturing/components/ManufacturingRecipeList";
-import ManufacturingSummary from "./manufacturing/components/ManufacturingSummary";
 import type {
   ManufacturingBom as Bom,
   ManufacturingPageKey,
@@ -352,6 +355,8 @@ const timeMinute = (time: string) => {
   return hour * 60 + minute;
 };
 
+const MANUFACTURING_CHANGED_EVENT = "nexora:manufacturing-changed";
+
 export default function ManufacturingPage({
   token,
   section,
@@ -416,7 +421,7 @@ export default function ManufacturingPage({
     [sourceSalesOrderId, setSourceSalesOrderId] = useState(""),
     [sourceSalesOrderLineNumber, setSourceSalesOrderLineNumber] = useState(""),
     [ordersTotalCount, setOrdersTotalCount] = useState(0),
-    [openOrdersCount, setOpenOrdersCount] = useState(0);
+    [, setOpenOrdersCount] = useState(0);
   const [selectedOrderId, setSelectedOrderId] = useState(""),
     [orderPage, setOrderPage] = useState(1),
     [orderSearchDraft, setOrderSearchDraft] = useState(""),
@@ -439,7 +444,20 @@ export default function ManufacturingPage({
     [recipeSearch, setRecipeSearch] = useState(""),
     [recipeStatus, setRecipeStatus] = useState(""),
     [workCenterStatus, setWorkCenterStatus] = useState(""),
+    [workCenterSearch, setWorkCenterSearch] = useState(""),
+    [completingOperationId, setCompletingOperationId] = useState(""),
+    [expandedBomOperations, setExpandedBomOperations] = useState<
+      Record<number, boolean>
+    >({}),
+    [workCenterTab, setWorkCenterTab] = useState<
+      "calendar" | "general" | "exceptions"
+    >("calendar"),
     [recipePage, setRecipePage] = useState(1);
+  const [workCenterToolsSlot, setWorkCenterToolsSlot] =
+    useState<HTMLDivElement | null>(null);
+  const [orderToolsSlot, setOrderToolsSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [product, setProduct] = useState(""),
@@ -464,6 +482,7 @@ export default function ManufacturingPage({
     [wcCapacity, setWcCapacity] = useState("480"),
     [wcLabor, setWcLabor] = useState("0"),
     [wcOverhead, setWcOverhead] = useState("0");
+  const [calendarReloadKey, setCalendarReloadKey] = useState(0);
   const [calendarCenterId, setCalendarCenterId] = useState(""),
     [calendarMask, setCalendarMask] = useState(127),
     [calendarShiftStart, setCalendarShiftStart] = useState("08:00"),
@@ -630,6 +649,8 @@ export default function ManufacturingPage({
           `${x.fromSetupFamilyCode.trim().toUpperCase()}|${x.toSetupFamilyCode.trim().toUpperCase()}`,
       ),
     ).size < setupRules.length;
+  const instanceId = useRef(Math.random().toString(36).slice(2));
+  const silentRefresh = useRef(false);
   const request = useCallback(
     async <T,>(url: string, init?: RequestInit): Promise<T> => {
       const method = (init?.method ?? "GET").toUpperCase(),
@@ -703,7 +724,15 @@ export default function ManufacturingPage({
           body?.title;
         throw new Error(detail || `İstek başarısız (${r.status})`);
       }
-      return r.status === 204 ? (undefined as T) : (r.json() as Promise<T>);
+      const result =
+        r.status === 204 ? (undefined as T) : await (r.json() as Promise<T>);
+      // Other open manufacturing tabs (keep-alive views) refresh their lists after a successful write,
+      // e.g. a work center created in one tab appears in the recipe form's picker in another.
+      if (method !== "GET" && method !== "HEAD" && url.startsWith("/api/manufacturing/"))
+        window.dispatchEvent(
+          new CustomEvent(MANUFACTURING_CHANGED_EVENT, { detail: { source: instanceId.current } }),
+        );
+      return result;
     },
     [token],
   );
@@ -832,7 +861,8 @@ export default function ManufacturingPage({
       sourceOrders.error,
     ].filter((x): x is string => Boolean(x));
     if (!isCurrent()) return;
-    setError(failures.join(" · "));
+    // A background refresh triggered by another tab stays silent; the user didn't ask for it.
+    if (!silentRefresh.current) setError(failures.join(" · "));
     if (stock.data) setItems(stock.data.filter((x) => x.isActive));
     else if (needItems) setItems([]);
     if (wh.data) setWarehouses(wh.data.filter((x) => x.isActive));
@@ -885,6 +915,24 @@ export default function ManufacturingPage({
         sectionLoadGeneration.current++;
     };
   }, [refresh]);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      const source = (event as CustomEvent<{ source?: string }>).detail?.source;
+      if (source === instanceId.current) return;
+      // Lists only: form inputs live in their own state and are not reset by refresh().
+      silentRefresh.current = true;
+      void refreshRef
+        .current()
+        .catch(() => undefined)
+        .finally(() => {
+          silentRefresh.current = false;
+        });
+    };
+    window.addEventListener(MANUFACTURING_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(MANUFACTURING_CHANGED_EVENT, onChanged);
+  }, []);
   useEffect(() => {
     if (!ordersTotalCount) {
       setSelectedOrderId("");
@@ -1021,7 +1069,7 @@ export default function ManufacturingPage({
     return () => {
       active = false;
     };
-  }, [request, section, calendarCenterId]);
+  }, [request, section, calendarCenterId, calendarReloadKey]);
   useEffect(() => {
     if (section !== "manufacturing-work-centers" || !calendarCenterId) return;
     let active = true;
@@ -1592,7 +1640,7 @@ export default function ManufacturingPage({
     setBusy(true);
     setError("");
     try {
-      await request<Order>(
+      const updated = await request<Order>(
         `/api/manufacturing/orders/${order.id}/operations/${operation.id}/complete`,
         {
           method: "POST",
@@ -1606,6 +1654,10 @@ export default function ManufacturingPage({
         },
       );
       if (!mutationIsCurrent(captured)) return;
+      // Show the completed operation at once from the response; the list refresh follows.
+      if (updated?.id)
+        setOrders((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      setCompletingOperationId("");
       setNotice(
         `${operation.workCenterCode} operasyonunun fiili süre, enerji tüketimi ve maliyeti kaydedildi.`,
       );
@@ -1887,10 +1939,63 @@ export default function ManufacturingPage({
     ? (boms.find((x) => x.id === trackingOrder.billOfMaterialId)
         ?.productTrackingMode ?? "None")
     : "None";
-  if (section === "manufacturing-recipe-create")
+  if (section === "manufacturing-recipe-create") {
+    const cancelBom = () => {
+      if (busy) return;
+      resetBomForm();
+      onNavigate("manufacturing-recipes");
+    };
+    const clearBom = () => {
+      resetBomForm();
+      setError("");
+      setNotice("");
+    };
+    const bomCreateMode = !editingBomId;
+    const canAddBomOperation =
+      workCenters.some((x) => x.isActive) && bomOperations.length < 50;
+    const addBomOperation = () =>
+      setBomOperations((rows) => [
+        ...rows,
+        {
+          workCenterId: workCenters.find((x) => x.isActive)?.id || "",
+          setupMinutes: "0",
+          runMinutesPerOutputUnit: "1",
+          minimumWaitDaysAfterPrevious: "0",
+          setupFamilyCode: "",
+          plannedEnergyKwhPerOutput: "0",
+          plannedEnergyCostPerKwhBase: "0",
+          alternateWorkCenterIds: [],
+        },
+      ]);
+    const updateBomOperation = (
+      index: number,
+      change: (row: (typeof bomOperations)[number]) => (typeof bomOperations)[number],
+    ) =>
+      setBomOperations((rows) =>
+        rows.map((row, i) => (i === index ? change(row) : row)),
+      );
+    const recipeMaterialCost = components.reduce((sum, line) => {
+      const quantity = Number(line.quantity),
+        scrap = Number(line.scrap),
+        cost = Number(line.standardUnitCostBase);
+      return Number.isFinite(quantity) &&
+        Number.isFinite(scrap) &&
+        Number.isFinite(cost)
+        ? sum + quantity * (1 + scrap / 100) * cost
+        : sum;
+    }, 0);
+    const recipeChecklist = [
+      { label: "Reçete kodu", done: code.trim().length > 0 },
+      { label: "Mamul seçimi", done: !!product },
+      {
+        label: "En az bir bileşen",
+        done: components.some((line) => !!line.stockItemId),
+      },
+    ];
     return (
       <div className="manufacturing-page manufacturing-record-form-host">
         <RecordFormPage
+          className="mfg-rf"
           title={editingBomId ? "Ürün Reçetesini Düzenle" : "Ürün Reçetesi Tanımlama"}
           mode={editingBomId ? "edit" : "create"}
           busy={busy}
@@ -1902,18 +2007,9 @@ export default function ManufacturingPage({
             }
             void saveBom(event);
           }}
-          onCancel={() => {
-            if (busy) return;
-            resetBomForm();
-            onNavigate("manufacturing-recipes");
-          }}
+          onCancel={cancelBom}
           onSaveIntent={(stay) => {
             stayAfterBomSave.current = stay;
-          }}
-          onReset={() => {
-            resetBomForm();
-            setError("");
-            setNotice("");
           }}
           error={error}
           onDismissError={() => setError("")}
@@ -1935,85 +2031,87 @@ export default function ManufacturingPage({
             </>
           }
         >
-          <RecordFormGroup title="Reçete Kimliği" bodyClassName="rf-identity">
-            <label>
-              <span>Reçete kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                maxLength={48}
-                placeholder="REC-URUN-001"
-              />
-            </label>
-            <label>
-              <span>Reçete adı <RequiredMark /></span>
-              <input
-                className="rf-must"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                maxLength={160}
-                placeholder="Standart montaj reçetesi"
-              />
-            </label>
-            <label>
-              <span>Mamul <RequiredMark /></span>
-                <SearchableRecordPicker
-                  options={eligibleItems.map((x) => ({
-                    id: x.id,
-                    label: `${x.code} · ${x.name}`,
-                    description:
-                      x.trackingMode !== "None"
-                        ? `İzlemeli: ${x.trackingMode === "Lot" ? "Lot" : "Seri"}`
-                        : x.unitCode,
-                    searchText: x.unitCode,
-                  }))}
-                  selectedId={product}
-                  onSelect={(id) => {
-                    setProduct(id);
-                    setComponents((rows) =>
-                      rows.map((row) =>
-                        row.stockItemId === id
-                          ? { ...row, stockItemId: "" }
-                          : row,
-                      ),
-                    );
-                  }}
-                  onSearchChange={searchStockItems}
-                  title="Mamul seçin"
-                  placeholder="Mamul seçin"
-                  searchPlaceholder="Stok kodu veya adıyla ara"
-                  emptyMessage="Aramanızla eşleşen aktif stok kartı bulunamadı."
-                  required
-                />
-            </label>
-            <label>
-              <span>Çıktı miktarı <RequiredMark /></span>
-              <input
-                className="rf-must rf-num"
-                type="number"
-                min="0.0001"
-                step="0.0001"
-                value={output}
-                onChange={(e) => setOutput(e.target.value)}
-                required
-              />
-            </label>
-          </RecordFormGroup>
-          <RecordFormGroup title="Bileşenler">
-              <div className="manufacturing-lines manufacturing-component-section">
-                <div className="manufacturing-lines-title">
-                  <div>
-                    <small>
-                      {components.length} satır · miktar, fire ve birim maliyeti
-                      tanımlayın
-                    </small>
-                  </div>
+          {bomCreateMode && (
+            <ToolbarMoreMenu
+              items={[{ label: "Temizle", onSelect: clearBom, disabled: busy }]}
+            />
+          )}
+          <div className="mfg-rf-layout">
+            <section className="mfg-rf-card mfg-rf-main">
+              <div className="mfg-rf-row">
+                <label>
+                  <span>Reçete kodu <RequiredMark /></span>
+                  <input
+                    className="rf-mono"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                    maxLength={48}
+                    placeholder="REC-URUN-001"
+                  />
+                </label>
+                <label>
+                  <span>Reçete adı <RequiredMark /></span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    maxLength={160}
+                    placeholder="Standart montaj reçetesi"
+                  />
+                </label>
+              </div>
+              <div className="mfg-rf-row mfg-rf-row--wide">
+                <label>
+                  <span>Mamul <RequiredMark /></span>
+                  <SearchableRecordPicker
+                    options={eligibleItems.map((x) => ({
+                      id: x.id,
+                      label: `${x.code} · ${x.name}`,
+                      description:
+                        x.trackingMode !== "None"
+                          ? `İzlemeli: ${x.trackingMode === "Lot" ? "Lot" : "Seri"}`
+                          : x.unitCode,
+                      searchText: x.unitCode,
+                    }))}
+                    selectedId={product}
+                    onSelect={(id) => {
+                      setProduct(id);
+                      setComponents((rows) =>
+                        rows.map((row) =>
+                          row.stockItemId === id
+                            ? { ...row, stockItemId: "" }
+                            : row,
+                        ),
+                      );
+                    }}
+                    onSearchChange={searchStockItems}
+                    title="Mamul seçin"
+                    placeholder="Mamul seçin"
+                    searchPlaceholder="Stok kodu veya adıyla ara"
+                    emptyMessage="Aramanızla eşleşen aktif stok kartı bulunamadı."
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Çıktı miktarı <RequiredMark /></span>
+                  <input
+                    className="rf-num"
+                    type="number"
+                    min="0.0001"
+                    step="0.0001"
+                    value={output}
+                    onChange={(e) => setOutput(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="mfg-rf-section">
+                <div className="mfg-rf-section-head">
+                  <h2>Bileşenler</h2>
                   <button
                     type="button"
-                    className="secondary small-button"
+                    className="mfg-rf-link"
                     onClick={() =>
                       setComponents((x) => [
                         ...x,
@@ -2026,409 +2124,515 @@ export default function ManufacturingPage({
                       ])
                     }
                   >
-                    <Plus size={14} /> Bileşen ekle
+                    + Bileşen ekle
                   </button>
                 </div>
-                <div className="manufacturing-line-labels" aria-hidden="true">
-                  <span>Bileşen stok kartı</span>
-                  <span>Miktar / çıktı</span>
-                  <span>Fire %</span>
-                  <span>Birim maliyet</span>
-                  <span></span>
-                </div>
-                {components.map((line, index) => (
-                  <div className="manufacturing-line" key={index}>
-                    <SearchableRecordPicker
-                      options={eligibleItems
-                        .filter((x) => x.id !== product)
-                        .map((x) => ({
-                          id: x.id,
-                          label: `${x.code} · ${x.name}`,
-                          description: x.unitCode,
-                          searchText: x.unitCode,
-                        }))}
-                      selectedId={line.stockItemId}
-                      onSelect={(id) =>
-                        setComponents((rows) =>
-                          rows.map((x, i) =>
-                            i === index ? { ...x, stockItemId: id } : x,
-                          ),
-                        )
-                      }
-                      onSearchChange={searchStockItems}
-                      title="Bileşen stok kartı seçin"
-                      placeholder="Bileşen seçin"
-                      searchPlaceholder="Stok kodu veya adıyla ara"
-                      emptyMessage="Aramanızla eşleşen bileşen bulunamadı."
-                      required
-                    />
-                    <input
-                      aria-label="Bileşen miktarı"
-                      title="Reçete çıktısı başına gereken miktar"
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      value={line.quantity}
-                      onChange={(e) =>
-                        setComponents((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? { ...x, quantity: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      required
-                    />
-                    <input
-                      aria-label="Fire yüzdesi"
-                      title="Reçete çıktısı başına fire yüzdesi"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={line.scrap}
-                      onChange={(e) =>
-                        setComponents((rows) =>
-                          rows.map((x, i) =>
-                            i === index ? { ...x, scrap: e.target.value } : x,
-                          ),
-                        )
-                      }
-                      required
-                    />
-                    <input
-                      aria-label="Standart birim maliyeti baz para"
-                      title="Firma baz para biriminde bileşenin standart birim maliyeti"
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={line.standardUnitCostBase}
-                      onChange={(e) =>
-                        setComponents((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? { ...x, standardUnitCostBase: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="manufacturing-remove"
-                      aria-label="Bileşeni kaldır"
-                      disabled={components.length === 1}
-                      onClick={() =>
-                        setComponents((rows) =>
-                          rows.filter((_, i) => i !== index),
-                        )
-                      }
-                    >
-                      ×
-                    </button>
+                <div className="mfg-rf-table mfg-rf-components">
+                  <div className="mfg-rf-thead" aria-hidden="true">
+                    <span>Stok kartı</span>
+                    <span>Miktar</span>
+                    <span>Fire %</span>
+                    <span>Birim maliyet</span>
+                    <span></span>
                   </div>
-                ))}
-                <small>
-                  Stok kartını kod veya adla arayın; uzun kataloglar seçim
-                  penceresinde sayfa sayfa indirilmez. Sıra: bileşen, reçete
-                  çıktısı başına miktar, fire %, baz para biriminde standart
-                  birim maliyeti.
+                  {components.map((line, index) => (
+                    <div className="mfg-rf-tr" key={index}>
+                      <SearchableRecordPicker
+                        options={eligibleItems
+                          .filter((x) => x.id !== product)
+                          .map((x) => ({
+                            id: x.id,
+                            label: `${x.code} · ${x.name}`,
+                            description: x.unitCode,
+                            searchText: x.unitCode,
+                          }))}
+                        selectedId={line.stockItemId}
+                        onSelect={(id) =>
+                          setComponents((rows) =>
+                            rows.map((x, i) =>
+                              i === index ? { ...x, stockItemId: id } : x,
+                            ),
+                          )
+                        }
+                        onSearchChange={searchStockItems}
+                        title="Bileşen stok kartı seçin"
+                        placeholder="Bileşen seçin"
+                        searchPlaceholder="Stok kodu veya adıyla ara"
+                        emptyMessage="Aramanızla eşleşen bileşen bulunamadı."
+                        required
+                      />
+                      <input
+                        className="rf-num"
+                        aria-label="Bileşen miktarı"
+                        title="Reçete çıktısı başına gereken miktar"
+                        type="number"
+                        min="0.0001"
+                        step="0.0001"
+                        value={line.quantity}
+                        onChange={(e) =>
+                          setComponents((rows) =>
+                            rows.map((x, i) =>
+                              i === index
+                                ? { ...x, quantity: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <input
+                        className="rf-num"
+                        aria-label="Fire yüzdesi"
+                        title="Reçete çıktısı başına fire yüzdesi"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={line.scrap}
+                        onChange={(e) =>
+                          setComponents((rows) =>
+                            rows.map((x, i) =>
+                              i === index ? { ...x, scrap: e.target.value } : x,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <input
+                        className="rf-num"
+                        aria-label="Standart birim maliyeti baz para"
+                        title="Firma baz para biriminde bileşenin standart birim maliyeti"
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={line.standardUnitCostBase}
+                        onChange={(e) =>
+                          setComponents((rows) =>
+                            rows.map((x, i) =>
+                              i === index
+                                ? { ...x, standardUnitCostBase: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="manufacturing-remove"
+                        aria-label="Bileşeni kaldır"
+                        disabled={components.length === 1}
+                        onClick={() =>
+                          setComponents((rows) =>
+                            rows.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <small className="mfg-rf-hint">
+                  Miktar reçete çıktısı başınadır; birim maliyet baz para
+                  birimindedir.
                 </small>
               </div>
-          </RecordFormGroup>
-          <RecordFormGroup title="Operasyon Rotası">
-              <div className="manufacturing-lines manufacturing-operation-section">
-                <div className="manufacturing-lines-title">
-                  <div>
-                    <small>
-                      {bomOperations.length} adım · kurulum, süre ve enerji
-                      standartları
-                    </small>
+              <div className="mfg-rf-section">
+                <div className="mfg-rf-section-head">
+                  <h2>Rota / operasyonlar</h2>
+                  {bomOperations.length > 0 && (
+                    <button
+                      type="button"
+                      className="mfg-rf-link"
+                      disabled={!canAddBomOperation}
+                      onClick={addBomOperation}
+                    >
+                      {`+ Operasyon ekle (${bomOperations.length}/50)`}
+                    </button>
+                  )}
+                </div>
+                {bomOperations.length === 0 ? (
+                  <div className="mfg-rf-empty">
+                    <small>Rota isteğe bağlıdır; henüz operasyon yok.</small>
+                    <button
+                      type="button"
+                      className="mfg-rf-link"
+                      disabled={!canAddBomOperation}
+                      onClick={addBomOperation}
+                    >
+                      + Operasyon ekle
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    disabled={
-                      !workCenters.some((x) => x.isActive) ||
-                      bomOperations.length >= 50
-                    }
-                    onClick={() =>
-                      setBomOperations((rows) => [
-                        ...rows,
-                        {
-                          workCenterId:
-                            workCenters.find((x) => x.isActive)?.id || "",
-                          setupMinutes: "0",
-                          runMinutesPerOutputUnit: "1",
-                          minimumWaitDaysAfterPrevious: "0",
-                          setupFamilyCode: "",
-                          plannedEnergyKwhPerOutput: "0",
-                          plannedEnergyCostPerKwhBase: "0",
-                          alternateWorkCenterIds: [],
-                        },
-                      ])
-                    }
-                  >
-                    <Plus size={14} /> Operasyon ekle ({bomOperations.length}
-                    /50)
-                  </button>
-                </div>
-                <div
-                  className="manufacturing-operation-labels"
-                  aria-hidden="true"
-                >
-                  <span></span>
-                  <span>İş merkezi</span>
-                  <span>Kurulum ailesi</span>
-                  <span>Kurulum (dk)</span>
-                  <span>Birim süre (dk)</span>
-                  <span>Enerji (kWh/birim)</span>
-                  <span>Enerji bedeli (baz para/kWh)</span>
-                  <span>Bekleme (gün)</span>
-                  <span>Alternatif iş merkezleri</span>
-                  <span></span>
-                </div>
-                {bomOperations.map((operation, index) => (
-                  <div className="manufacturing-operation" key={index}>
-                    <span>{index + 1}</span>
-                    <select
-                      aria-label="İş merkezi"
-                      value={operation.workCenterId}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  workCenterId: e.target.value,
-                                  alternateWorkCenterIds:
-                                    x.alternateWorkCenterIds.filter(
-                                      (id) => id !== e.target.value,
-                                    ),
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      required
-                    >
-                      <option value="">İş merkezi seçin</option>
-                      {workCenters
-                        .filter((x) => x.isActive)
-                        .map((x) => (
-                          <option key={x.id} value={x.id}>
-                            {x.code} · {x.name}
-                          </option>
-                        ))}
-                    </select>
-                    <input
-                      aria-label="Kurulum ailesi"
-                      title="Benzer kurulum gerektiren ürünleri aynı aile koduyla gruplayın; harf, rakam, nokta, alt çizgi ve tire kullanın. Örnek: BOYA-ACIK"
-                      value={operation.setupFamilyCode}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? { ...x, setupFamilyCode: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Kurulum ailesi"
-                      maxLength={48}
-                    />
-                    <input
-                      aria-label="Kurulum süresi dakika"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={operation.setupMinutes}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? { ...x, setupMinutes: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Kurulum dk"
-                      required
-                    />
-                    <input
-                      aria-label="Birim üretim süresi dakika"
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={operation.runMinutesPerOutputUnit}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  runMinutesPerOutputUnit: e.target.value,
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Birim dk"
-                      required
-                    />
-                    <input
-                      aria-label="Planlanan enerji kWh / mamul birimi"
-                      title="Bu operasyonun bir mamul birimi için standart elektrik tüketimi"
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={operation.plannedEnergyKwhPerOutput}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  plannedEnergyKwhPerOutput: e.target.value,
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Plan kWh/birim"
-                    />
-                    <input
-                      aria-label="Planlanan enerji bedeli baz para / kWh"
-                      title="Firma baz para biriminde standart elektrik bedeli"
-                      type="number"
-                      min="0"
-                      step="0.000001"
-                      value={operation.plannedEnergyCostPerKwhBase}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  plannedEnergyCostPerKwhBase: e.target.value,
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Baz para/kWh"
-                    />
-                    <input
-                      aria-label="Önceki operasyondan sonra bekleme günü"
-                      title="Önceki operasyon bitince bu operasyon başlamadan beklenecek en az takvim günü"
-                      type="number"
-                      min="0"
-                      max="365"
-                      step="1"
-                      value={operation.minimumWaitDaysAfterPrevious}
-                      onChange={(e) =>
-                        setBomOperations((rows) =>
-                          rows.map((x, i) =>
-                            i === index
-                              ? {
-                                  ...x,
-                                  minimumWaitDaysAfterPrevious: e.target.value,
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      placeholder="Bekleme gün"
-                      required
-                    />
-                    <div
-                      className="manufacturing-alternates"
-                      role="group"
-                      aria-label="Alternatif iş merkezleri"
-                    >
-                      <small>
-                        {operation.alternateWorkCenterIds.length}/19 alternatif
-                      </small>
-                      <div>
-                        {workCenters
-                          .filter(
-                            (x) =>
-                              x.isActive && x.id !== operation.workCenterId,
-                          )
-                          .map((x) => {
-                            const checked =
-                              operation.alternateWorkCenterIds.includes(x.id);
-                            return (
-                              <label key={x.id} title={`${x.code} · ${x.name}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  disabled={
-                                    !checked &&
-                                    operation.alternateWorkCenterIds.length >=
-                                      19
-                                  }
-                                  onChange={(e) =>
-                                    setBomOperations((rows) =>
-                                      rows.map((row, i) =>
-                                        i === index
-                                          ? {
-                                              ...row,
-                                              alternateWorkCenterIds: e.target
-                                                .checked
-                                                ? [
-                                                    ...row.alternateWorkCenterIds,
-                                                    x.id,
-                                                  ]
-                                                : row.alternateWorkCenterIds.filter(
-                                                    (id) => id !== x.id,
-                                                  ),
-                                            }
-                                          : row,
+                ) : (
+                  <div className="mfg-rf-op-list">
+                    {bomOperations.map((operation, index) => {
+                      const waitDays = operation.minimumWaitDaysAfterPrevious;
+                      const advancedInvalid =
+                        waitDays.trim() === "" ||
+                        !Number.isInteger(Number(waitDays)) ||
+                        Number(waitDays) < 0 ||
+                        Number(waitDays) > 365 ||
+                        Number(operation.plannedEnergyKwhPerOutput) < 0 ||
+                        Number(operation.plannedEnergyCostPerKwhBase) < 0;
+                      const advancedSet =
+                        operation.setupFamilyCode.trim() !== "" ||
+                        Number(operation.plannedEnergyKwhPerOutput) !== 0 ||
+                        Number(operation.plannedEnergyCostPerKwhBase) !== 0 ||
+                        Number(waitDays) !== 0 ||
+                        operation.alternateWorkCenterIds.length > 0;
+                      const expanded =
+                        advancedInvalid ||
+                        (expandedBomOperations[index] ?? advancedSet);
+                      return (
+                        <div className="mfg-rf-op" key={index}>
+                          <div className="mfg-rf-op-main">
+                            <span className="mfg-rf-seq">{index + 1}</span>
+                            <label>
+                              İş merkezi
+                              <select
+                                value={operation.workCenterId}
+                                onChange={(e) =>
+                                  updateBomOperation(index, (x) => ({
+                                    ...x,
+                                    workCenterId: e.target.value,
+                                    alternateWorkCenterIds:
+                                      x.alternateWorkCenterIds.filter(
+                                        (id) => id !== e.target.value,
                                       ),
-                                    )
+                                  }))
+                                }
+                                required
+                              >
+                                <option value="">İş merkezi seçin</option>
+                                {workCenters
+                                  .filter((x) => x.isActive)
+                                  .map((x) => (
+                                    <option key={x.id} value={x.id}>
+                                      {x.code} · {x.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                            <label>
+                              Birim süre (dk)
+                              <input
+                                className="rf-num"
+                                type="number"
+                                min="0"
+                                step="0.0001"
+                                value={operation.runMinutesPerOutputUnit}
+                                onChange={(e) =>
+                                  updateBomOperation(index, (x) => ({
+                                    ...x,
+                                    runMinutesPerOutputUnit: e.target.value,
+                                  }))
+                                }
+                                required
+                              />
+                            </label>
+                            <label>
+                              Kurulum (dk)
+                              <input
+                                className="rf-num"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={operation.setupMinutes}
+                                onChange={(e) =>
+                                  updateBomOperation(index, (x) => ({
+                                    ...x,
+                                    setupMinutes: e.target.value,
+                                  }))
+                                }
+                                required
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="manufacturing-remove"
+                              aria-label="Operasyonu kaldır"
+                              onClick={() => {
+                                setBomOperations((rows) =>
+                                  rows.filter((_, i) => i !== index),
+                                );
+                                setExpandedBomOperations({});
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="mfg-rf-disclosure"
+                            aria-expanded={expanded}
+                            disabled={advancedInvalid}
+                            onClick={() =>
+                              setExpandedBomOperations((state) => ({
+                                ...state,
+                                [index]: !expanded,
+                              }))
+                            }
+                          >
+                            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                            Gelişmiş
+                          </button>
+                          {expanded && (
+                            <div className="mfg-rf-op-details">
+                              <label>
+                                Kurulum ailesi
+                                <input
+                                  title="Benzer kurulum gerektiren ürünleri aynı aile koduyla gruplayın; harf, rakam, nokta, alt çizgi ve tire kullanın. Örnek: BOYA-ACIK"
+                                  value={operation.setupFamilyCode}
+                                  onChange={(e) =>
+                                    updateBomOperation(index, (x) => ({
+                                      ...x,
+                                      setupFamilyCode: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Kurulum ailesi"
+                                  maxLength={48}
+                                />
+                              </label>
+                              <label>
+                                Enerji (kWh/birim)
+                                <input
+                                  className="rf-num"
+                                  title="Bu operasyonun bir mamul birimi için standart elektrik tüketimi"
+                                  type="number"
+                                  min="0"
+                                  step="0.001"
+                                  value={operation.plannedEnergyKwhPerOutput}
+                                  onChange={(e) =>
+                                    updateBomOperation(index, (x) => ({
+                                      ...x,
+                                      plannedEnergyKwhPerOutput: e.target.value,
+                                    }))
                                   }
                                 />
-                                <span>{x.code}</span>
                               </label>
-                            );
-                          })}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="manufacturing-remove"
-                      aria-label="Operasyonu kaldır"
-                      onClick={() =>
-                        setBomOperations((rows) =>
-                          rows.filter((_, i) => i !== index),
-                        )
-                      }
-                    >
-                      ×
-                    </button>
+                              <label>
+                                Enerji bedeli (baz para/kWh)
+                                <input
+                                  className="rf-num"
+                                  title="Firma baz para biriminde standart elektrik bedeli"
+                                  type="number"
+                                  min="0"
+                                  step="0.000001"
+                                  value={operation.plannedEnergyCostPerKwhBase}
+                                  onChange={(e) =>
+                                    updateBomOperation(index, (x) => ({
+                                      ...x,
+                                      plannedEnergyCostPerKwhBase:
+                                        e.target.value,
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Bekleme (gün)
+                                <input
+                                  className="rf-num"
+                                  title="Önceki operasyon bitince bu operasyon başlamadan beklenecek en az takvim günü"
+                                  type="number"
+                                  min="0"
+                                  max="365"
+                                  step="1"
+                                  value={operation.minimumWaitDaysAfterPrevious}
+                                  onChange={(e) =>
+                                    updateBomOperation(index, (x) => ({
+                                      ...x,
+                                      minimumWaitDaysAfterPrevious:
+                                        e.target.value,
+                                    }))
+                                  }
+                                  required
+                                />
+                              </label>
+                              <div
+                                className="manufacturing-alternates mfg-rf-alternates"
+                                role="group"
+                                aria-label="Alternatif iş merkezleri"
+                              >
+                                <small>
+                                  {`Alternatif iş merkezleri · ${operation.alternateWorkCenterIds.length}/19`}
+                                </small>
+                                <div>
+                                  {workCenters
+                                    .filter(
+                                      (x) =>
+                                        x.isActive &&
+                                        x.id !== operation.workCenterId,
+                                    )
+                                    .map((x) => {
+                                      const checked =
+                                        operation.alternateWorkCenterIds.includes(
+                                          x.id,
+                                        );
+                                      return (
+                                        <label
+                                          key={x.id}
+                                          title={`${x.code} · ${x.name}`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            disabled={
+                                              !checked &&
+                                              operation.alternateWorkCenterIds
+                                                .length >= 19
+                                            }
+                                            onChange={(e) =>
+                                              updateBomOperation(
+                                                index,
+                                                (row) => ({
+                                                  ...row,
+                                                  alternateWorkCenterIds: e
+                                                    .target.checked
+                                                    ? [
+                                                        ...row.alternateWorkCenterIds,
+                                                        x.id,
+                                                      ]
+                                                    : row.alternateWorkCenterIds.filter(
+                                                        (id) => id !== x.id,
+                                                      ),
+                                                }),
+                                              )
+                                            }
+                                          />
+                                          <span>{x.code}</span>
+                                        </label>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-                <small>
-                  Enerji standartları mamul birimi başına kWh ve firma baz para
-                  biriminde kWh bedeliyle girilir; üretim emri oluşturulurken
-                  miktara göre sabitlenir. Operasyon başına en fazla 20 uygun iş
-                  merkezi vardır (tercih edilen merkez dahil). Aynı iş
-                  merkezinde art arda yapılacak ürünleri kurulum ailesiyle
-                  gruplayın. Geçiş süresi ve yasak geçişleri İş Merkezi
-                  ayarlarından tanımlanır.
+                )}
+                <small className="mfg-rf-hint">
+                  Enerji, bekleme ve alternatif merkezler 'Gelişmiş' altında.
+                  <span
+                    className="mfg-rf-info"
+                    role="img"
+                    aria-label="Operasyon rotası hakkında"
+                    title="Enerji standartları mamul birimi başına kWh ve firma baz para biriminde kWh bedeliyle girilir; üretim emri oluşturulurken miktara göre sabitlenir. Operasyon başına en fazla 20 uygun iş merkezi vardır (tercih edilen merkez dahil). Aynı iş merkezinde art arda yapılacak ürünleri kurulum ailesiyle gruplayın. Geçiş süresi ve yasak geçişleri İş Merkezi ayarlarından tanımlanır."
+                  >
+                    <Info size={13} aria-hidden="true" />
+                  </span>
                 </small>
               </div>
-          </RecordFormGroup>
+            </section>
+            <aside className="mfg-rf-side">
+              <section className="mfg-rf-card" aria-labelledby="mfg-recipe-summary">
+                <h2 id="mfg-recipe-summary">Özet</h2>
+                <dl className="mfg-rf-facts">
+                  <div>
+                    <dt>Bileşen</dt>
+                    <dd>{components.length.toLocaleString("tr-TR")}</dd>
+                  </div>
+                  <div>
+                    <dt>Operasyon</dt>
+                    <dd>{bomOperations.length.toLocaleString("tr-TR")}</dd>
+                  </div>
+                </dl>
+                <div className="mfg-rf-total">
+                  <small>Planlanan malzeme</small>
+                  <output aria-live="polite">
+                    {recipeMaterialCost.toLocaleString("tr-TR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </output>
+                  <small>
+                    Miktar × (1 + fire) × birim maliyet · reçete çıktısı başına,
+                    baz para
+                  </small>
+                </div>
+              </section>
+              <section
+                className="mfg-rf-card"
+                aria-labelledby="mfg-recipe-checklist"
+              >
+                <h2 id="mfg-recipe-checklist">Kaydetmeden önce</h2>
+                <ul className="mfg-rf-checklist">
+                  {recipeChecklist.map((item) => (
+                    <li key={item.label} className={item.done ? "is-done" : ""}>
+                      <span aria-hidden="true">{item.done ? "✓" : "○"}</span>
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </aside>
+          </div>
+          <StickyFormBar
+            saveLabel={
+              editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"
+            }
+            busy={busy}
+            onSave={() => {
+              stayAfterBomSave.current = false;
+            }}
+            items={[
+              ...(bomCreateMode
+                ? [
+                    {
+                      label: "Kaydet ve Yeni",
+                      submit: true,
+                      disabled: busy,
+                      onSelect: () => {
+                        stayAfterBomSave.current = true;
+                      },
+                    },
+                    { label: "Temizle", onSelect: clearBom, disabled: busy },
+                  ]
+                : []),
+              { label: "Vazgeç", onSelect: cancelBom },
+            ]}
+          />
         </RecordFormPage>
       </div>
     );
-  if (section === "manufacturing-orders" && createOrderPage)
+  }
+  if (section === "manufacturing-orders" && createOrderPage) {
+    const orderBom = boms.find((x) => x.id === bomId) ?? null;
+    const orderUnit = orderBom
+      ? items.find((x) => x.id === orderBom.productStockItemId)?.unitCode ?? ""
+      : "";
+    const orderQuantity = Number(plannedQuantity);
+    const orderFactor =
+      orderBom && orderBom.outputQuantity > 0 && Number.isFinite(orderQuantity)
+        ? orderQuantity / orderBom.outputQuantity
+        : 0;
+    const orderMinutes = orderBom
+      ? orderBom.operations.reduce(
+          (sum, op) =>
+            sum +
+            op.setupMinutes +
+            op.runMinutesPerOutputUnit *
+              (Number.isFinite(orderQuantity) ? orderQuantity : 0),
+          0,
+        )
+      : 0;
+    const orderMaterial = orderBom
+      ? orderBom.lines.reduce(
+          (sum, line) =>
+            sum +
+            line.quantity *
+              (1 + line.scrapPercent / 100) *
+              line.standardUnitCostBase *
+              orderFactor,
+          0,
+        )
+      : 0;
     return (
       <div className="manufacturing-page manufacturing-record-form-host">
         <RecordFormPage
+          className="mfg-rf"
           title="Üretim Emri Planlama"
           mode="create"
           busy={busy}
@@ -2456,85 +2660,113 @@ export default function ManufacturingPage({
             </>
           }
         >
-          <RecordFormGroup title="Emir Kimliği" bodyClassName="rf-identity">
-            <label>
-              <span>Emir kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={orderCode}
-                onChange={(e) => setOrderCode(e.target.value)}
-                required
-                maxLength={48}
-                placeholder="URE-2026-001"
-              />
-            </label>
-            <label>
-              <span>Reçete <RequiredMark /></span>
-              <select
-                className="rf-must"
-                value={bomId}
-                onChange={(e) => setBomId(e.target.value)}
-                required
-              >
-                <option value="">Reçete seçin</option>
-                {boms
-                  .filter((x) => x.isActive)
-                  .map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.code} · {x.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              <span>Üretim deposu <RequiredMark /></span>
-                <SearchableRecordPicker
-                  options={warehouses.map((x) => ({
-                    id: x.id,
-                    label: `${x.code} · ${x.name}`,
-                  }))}
-                  selectedId={warehouseId}
-                  onSelect={setWarehouseId}
-                  title="Üretim deposu seçin"
-                  placeholder="Depo seçin"
-                  searchPlaceholder="Depo kodu veya adıyla ara"
-                  emptyMessage="Aramanızla eşleşen depo bulunamadı."
-                  required
-                />
-            </label>
-            <label>
-              <span>Plan tarihi <RequiredMark /></span>
-              <input
-                className="rf-must"
-                type="date"
-                value={plannedDate}
-                onChange={(e) => setPlannedDate(e.target.value)}
-                required
-              />
-            </label>
-          </RecordFormGroup>
-          <div className="rf-columns">
-            <RecordFormGroup title="Üretim Kaynağı">
-              <label>
-                Üretim türü
+          <div className="mfg-rf-layout">
+            <section className="mfg-rf-card mfg-rf-main">
+              <label className="mfg-rf-lead">
+                <span>Reçete <RequiredMark /></span>
                 <select
-                  value={productionMode}
-                  onChange={(e) => {
-                    const mode = e.target.value as "Stock" | "SalesOrder";
-                    setProductionMode(mode);
-                    if (mode === "Stock") {
-                      setSourceSalesOrderId("");
-                      setSourceSalesOrderLineNumber("");
-                      setSourceSalesOrderLines([]);
-                    }
-                  }}
+                  value={bomId}
+                  onChange={(e) => setBomId(e.target.value)}
+                  required
                 >
-                  <option value="Stock">Stoka üretim</option>
-                  <option value="SalesOrder">Satış siparişine üretim</option>
+                  <option value="">Reçete seçin</option>
+                  {boms
+                    .filter((x) => x.isActive)
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.code} · {x.name}
+                      </option>
+                    ))}
                 </select>
               </label>
+              <div className="mfg-rf-row">
+                <label>
+                  <span>Planlanan miktar <RequiredMark /></span>
+                  <div className="mfg-rf-suffix">
+                    <input
+                      className="rf-num"
+                      type="number"
+                      min="0.0001"
+                      step="0.0001"
+                      value={plannedQuantity}
+                      onChange={(e) => setPlannedQuantity(e.target.value)}
+                      required
+                    />
+                    {orderUnit && <span>{orderUnit}</span>}
+                  </div>
+                </label>
+                <label>
+                  <span>Üretim deposu <RequiredMark /></span>
+                  <SearchableRecordPicker
+                    options={warehouses.map((x) => ({
+                      id: x.id,
+                      label: `${x.code} · ${x.name}`,
+                    }))}
+                    selectedId={warehouseId}
+                    onSelect={setWarehouseId}
+                    title="Üretim deposu seçin"
+                    placeholder="Depo seçin"
+                    searchPlaceholder="Depo kodu veya adıyla ara"
+                    emptyMessage="Aramanızla eşleşen depo bulunamadı."
+                    required
+                  />
+                </label>
+              </div>
+              <div className="mfg-rf-row">
+                <label>
+                  <span>Plan tarihi <RequiredMark /></span>
+                  <input
+                    type="date"
+                    value={plannedDate}
+                    onChange={(e) => setPlannedDate(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Emir kodu <RequiredMark /></span>
+                  <input
+                    className="rf-mono"
+                    value={orderCode}
+                    onChange={(e) => setOrderCode(e.target.value)}
+                    required
+                    maxLength={48}
+                    placeholder="URE-2026-001"
+                  />
+                </label>
+              </div>
+              <div className="mfg-rf-field">
+                <span>Üretim türü</span>
+                <div
+                  className="mfg-rf-segments"
+                  role="group"
+                  aria-label="Üretim türü"
+                >
+                  {(
+                    [
+                      ["Stock", "Stoka üretim"],
+                      ["SalesOrder", "Satış siparişine üretim"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={productionMode === mode}
+                      onClick={() => {
+                        setProductionMode(mode);
+                        if (mode === "Stock") {
+                          setSourceSalesOrderId("");
+                          setSourceSalesOrderLineNumber("");
+                          setSourceSalesOrderLines([]);
+                        }
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {productionMode === "SalesOrder" && (
-                <>
+                <div className="mfg-rf-row">
                   <label>
                     Satış siparişi
                     <select
@@ -2569,31 +2801,73 @@ export default function ManufacturingPage({
                   {sourceSalesOrderId && sourceSalesOrderLines.length === 0 && (
                     <small>Açık siparişte üretime bağlanabilecek kalan satır yok.</small>
                   )}
-                </>
+                </div>
               )}
-            </RecordFormGroup>
-            <RecordFormGroup title="Planlama">
-              <label className="rf-short">
-                <span>Planlanan miktar <RequiredMark /></span>
-                <input
-                  className="rf-must rf-num"
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  value={plannedQuantity}
-                  onChange={(e) => setPlannedQuantity(e.target.value)}
-                  required
-                />
-              </label>
-            </RecordFormGroup>
+            </section>
+            <aside className="mfg-rf-side">
+              <section className="mfg-rf-card" aria-labelledby="mfg-order-summary">
+                <h2 id="mfg-order-summary">Reçete özeti</h2>
+                {!orderBom ? (
+                  <small>Reçete seçilmeden özet boş kalır.</small>
+                ) : (
+                  <>
+                    <dl className="mfg-rf-facts">
+                      <div>
+                        <dt>Mamul</dt>
+                        <dd>{orderBom.productName}</dd>
+                      </div>
+                      <div>
+                        <dt>Bileşen</dt>
+                        <dd>{orderBom.lines.length.toLocaleString("tr-TR")}</dd>
+                      </div>
+                      <div>
+                        <dt>Operasyon</dt>
+                        <dd>
+                          {orderBom.operations.length.toLocaleString("tr-TR")}
+                          {orderBom.operations.length > 0 &&
+                            ` · ${orderMinutes.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} dk`}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mfg-rf-total">
+                      <small>Planlanan malzeme</small>
+                      <output aria-live="polite">
+                        {orderMaterial.toLocaleString("tr-TR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </output>
+                      <small>
+                        Seçilen miktar için standart maliyetle, baz para
+                      </small>
+                    </div>
+                  </>
+                )}
+              </section>
+            </aside>
           </div>
         </RecordFormPage>
       </div>
     );
-  if (section === "manufacturing-work-center-create")
+  }
+  if (section === "manufacturing-work-center-create") {
+    const wcCurrency = "TRY";
+    const wcCapacityMinutes = Number(wcCapacity);
+    const wcHourly =
+      (Number.isFinite(Number(wcLabor)) ? Number(wcLabor) : 0) +
+      (Number.isFinite(Number(wcOverhead)) ? Number(wcOverhead) : 0);
+    const wcDaily = Number.isFinite(wcCapacityMinutes)
+      ? (wcHourly * wcCapacityMinutes) / 60
+      : 0;
+    const money = (value: number) =>
+      value.toLocaleString("tr-TR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
     return (
       <div className="manufacturing-page manufacturing-record-form-host">
         <RecordFormPage
+          className="mfg-rf"
           title="İş Merkezi Tanımlama"
           mode="create"
           busy={busy}
@@ -2603,83 +2877,112 @@ export default function ManufacturingPage({
           error={error}
           onDismissError={() => setError("")}
           status={
-            <>
-              <span>
-                Tanım kaydedildikten sonra iş merkezleri listesinde görünür.
-              </span>
-              {notice && <span className="rf-status-notice">{notice}</span>}
-            </>
+            notice ? (
+              <span className="rf-status-notice">{notice}</span>
+            ) : undefined
           }
         >
-          <RecordFormGroup title="İş Merkezi Kimliği" bodyClassName="rf-identity">
-            <label>
-              <span>Kod <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={wcCode}
-                onChange={(e) => setWcCode(e.target.value)}
-                required
-                maxLength={48}
-                placeholder="WC-MONTAJ"
-              />
-            </label>
-            <label>
-              <span>Ad <RequiredMark /></span>
-              <input
-                className="rf-must"
-                value={wcName}
-                onChange={(e) => setWcName(e.target.value)}
-                required
-                maxLength={160}
-                placeholder="Montaj hattı"
-              />
-            </label>
-            <label>
-              <span>Günlük kapasite (dk) <RequiredMark /></span>
-              <input
-                className="rf-must rf-num"
-                type="number"
-                min="1"
-                max="1440"
-                value={wcCapacity}
-                onChange={(e) => setWcCapacity(e.target.value)}
-                required
-              />
-            </label>
-          </RecordFormGroup>
-          <div className="rf-columns">
-            <RecordFormGroup title="Saatlik Maliyetler">
-              <div className="rf-pair">
+          <div className="mfg-rf-layout">
+            <section className="mfg-rf-card mfg-rf-main">
+              <label className="mfg-rf-lead">
+                <span>İş merkezi adı <RequiredMark /></span>
+                <input
+                  value={wcName}
+                  onChange={(e) => setWcName(e.target.value)}
+                  required
+                  maxLength={160}
+                  placeholder="Montaj hattı"
+                />
+              </label>
+              <div className="mfg-rf-row">
+                <label>
+                  <span>Kod <RequiredMark /></span>
+                  <input
+                    className="rf-mono"
+                    value={wcCode}
+                    onChange={(e) => setWcCode(e.target.value)}
+                    required
+                    maxLength={48}
+                    placeholder="WC-MONTAJ"
+                  />
+                </label>
+                <label>
+                  <span>Günlük kapasite <RequiredMark /></span>
+                  <div className="mfg-rf-suffix">
+                    <input
+                      className="rf-num"
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={wcCapacity}
+                      onChange={(e) => setWcCapacity(e.target.value)}
+                      required
+                    />
+                    <span>dk</span>
+                  </div>
+                  <small>
+                    {`= ${(Number.isFinite(wcCapacityMinutes) ? wcCapacityMinutes / 60 : 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} saat`}
+                  </small>
+                </label>
+              </div>
+              <div className="mfg-rf-divider">
+                <span>Saatlik maliyetler</span>
+              </div>
+              <div className="mfg-rf-row">
                 <label>
                   <span>İşçilik / saat <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-num"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={wcLabor}
-                    onChange={(e) => setWcLabor(e.target.value)}
-                    required
-                  />
+                  <div className="mfg-rf-suffix">
+                    <input
+                      className="rf-num"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={wcLabor}
+                      onChange={(e) => setWcLabor(e.target.value)}
+                      required
+                    />
+                    <span>{wcCurrency}</span>
+                  </div>
                 </label>
                 <label>
                   <span>Genel gider / saat <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-num"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={wcOverhead}
-                    onChange={(e) => setWcOverhead(e.target.value)}
-                    required
-                  />
+                  <div className="mfg-rf-suffix">
+                    <input
+                      className="rf-num"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={wcOverhead}
+                      onChange={(e) => setWcOverhead(e.target.value)}
+                      required
+                    />
+                    <span>{wcCurrency}</span>
+                  </div>
                 </label>
               </div>
-            </RecordFormGroup>
+            </section>
+            <aside className="mfg-rf-side">
+              <section className="mfg-rf-card" aria-labelledby="mfg-wc-total">
+                <h2 id="mfg-wc-total">Saatlik toplam maliyet</h2>
+                <div className="mfg-rf-total">
+                  <output aria-live="polite">
+                    {`${money(wcHourly)} ${wcCurrency}`}
+                  </output>
+                  <small>
+                    {`Dakika başına ${money(wcHourly / 60)} · günlük ${money(wcDaily)}`}
+                  </small>
+                </div>
+              </section>
+              <p className="mfg-rf-tip">
+                Kaydettikten sonra çalışma takvimini iş merkezleri listesinden
+                ayarlayın.
+              </p>
+            </aside>
           </div>
         </RecordFormPage>
       </div>
     );
+  }
   // Record lists follow the shared list-v2 structure (see list-page/README.md).
   const listSection =
     section === "manufacturing-recipes" ||
@@ -2696,17 +2999,56 @@ export default function ManufacturingPage({
     if (!busy) void refresh();
   };
   const activeWorkCenterCount = workCenters.filter((x) => x.isActive).length;
+  const workCenterQuery = workCenterSearch.trim().toLocaleLowerCase("tr-TR");
   const visibleWorkCenters = workCenters.filter(
     (center) =>
-      !workCenterStatus || center.isActive === (workCenterStatus === "Active"),
+      (!workCenterStatus ||
+        center.isActive === (workCenterStatus === "Active")) &&
+      (!workCenterQuery ||
+        center.code.toLocaleLowerCase("tr-TR").includes(workCenterQuery) ||
+        center.name.toLocaleLowerCase("tr-TR").includes(workCenterQuery)),
   );
+  const selectedWorkCenter =
+    workCenters.find((center) => center.id === calendarCenterId) ?? null;
+  const activeWorkCenterCapacity = workCenters
+    .filter((x) => x.isActive)
+    .reduce((sum, x) => sum + x.capacityMinutesPerDay, 0);
+  const mrpSection = section === "manufacturing-mrp";
+  const mrpLatestPlanAt =
+    mrpPlan?.plannedAt ??
+    mrpHistory.reduce<string | null>(
+      (latest, x) => (!latest || x.createdAt > latest ? x.createdAt : latest),
+      null,
+    );
+  const mrpCounts = mrpPlan
+    ? {
+        make: mrpPlan.lines.filter((x) => x.recommendation === "Üret").length,
+        buy: mrpPlan.lines.filter((x) => x.recommendation === "Satın al")
+          .length,
+        issues: mrpPlan.lines.filter((x) => x.issue !== null).length,
+      }
+    : null;
+  const mrpRunDisabled =
+    busy ||
+    !warehouseId ||
+    filledMrpDemands.length === 0 ||
+    hasDuplicateMrpDemand;
   return (
     <div
-      className={`manufacturing-page manufacturing-workbench${listSection ? " list-v2" : ""}`}
+      className={`manufacturing-page manufacturing-workbench${listSection || mrpSection ? " list-v2" : ""}${mrpSection ? " mrp-v2" : ""}`}
     >
       <ManufacturingPageHeader
         listMode={listSection}
         listCount={listCount}
+        listMeta={
+          section === "manufacturing-work-centers"
+            ? `· günlük kapasite ${activeWorkCenterCapacity.toLocaleString("tr-TR")} dk`
+            : mrpSection
+              ? `${boms.length.toLocaleString("tr-TR")} reçete · ${workCenters.length.toLocaleString("tr-TR")} iş merkezi · ${warehouses.length.toLocaleString("tr-TR")} depo`
+              : undefined
+        }
+        compactMode={mrpSection}
+        onShowHistory={mrpSection ? () => void loadMrpHistory() : undefined}
         title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
         description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
         showRecipeScope={false}
@@ -2739,59 +3081,6 @@ export default function ManufacturingPage({
         onBackToOrderList={() => onNavigate("manufacturing-orders")}
         onRefresh={() => void refresh()}
       />
-      {!createOrderPage &&
-        section !== "manufacturing-recipes" &&
-        section !== "manufacturing-orders" && <ManufacturingSummary
-        workCenterMode={section === "manufacturing-work-centers"}
-        workCenterMetrics={[
-          // On the list page the counts are in the title and on the status chips;
-          // the capacity total has no filter equivalent, so its card stays.
-          ...(section === "manufacturing-work-centers"
-            ? []
-            : [
-                {
-                  label: "İş merkezi",
-                  value: workCenters.length,
-                  detail: "Toplam tanım",
-                },
-                {
-                  label: "Aktif iş merkezi",
-                  value: workCenters.filter((x) => x.isActive).length,
-                  detail: "Üretim planlamasında kullanılabilir",
-                },
-              ]),
-          {
-            label: "Günlük kapasite",
-            value: `${workCenters
-              .filter((x) => x.isActive)
-              .reduce((sum, x) => sum + x.capacityMinutesPerDay, 0)
-              .toLocaleString("tr-TR")} dk`,
-            detail: "Aktif merkezlerin toplamı",
-          },
-        ]}
-        generalMetrics={[
-          {
-            label: "Ürün reçetesi",
-            value: boms.length,
-            detail: `${boms.filter((x) => x.isActive).length} aktif`,
-          },
-          {
-            label: "Açık üretim emri",
-            value: openOrdersCount,
-            detail: `${ordersTotalCount.toLocaleString("tr-TR")} toplam kayıt`,
-          },
-          {
-            label: "İş merkezi",
-            value: workCenters.length,
-            detail: `${workCenters.filter((x) => x.isActive).length} aktif`,
-          },
-          {
-            label: "Üretim deposu",
-            value: warehouses.length,
-            detail: "Firma kapsamındaki depolar",
-          },
-        ]}
-      />}
       {error && !trackingOrder && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -2825,13 +3114,19 @@ export default function ManufacturingPage({
         )}
       </div>
       {section === "manufacturing-work-centers" && (
-        <ListToolbar onRefresh={refreshList}>
+        <ListToolbar
+          search={workCenterSearch}
+          onSearchChange={setWorkCenterSearch}
+          searchLabel="İş merkezlerinde ara"
+          searchPlaceholder="Kod veya ad ara"
+          onRefresh={refreshList}
+          toolsSlotRef={setWorkCenterToolsSlot}
+        >
           <ListChipGroup
             label="Durum"
             value={workCenterStatus}
             onChange={setWorkCenterStatus}
             allowClear
-            hideEmpty
             options={[
               { value: "Active", label: "Aktif", count: activeWorkCenterCount },
               {
@@ -2844,785 +3139,890 @@ export default function ManufacturingPage({
         </ListToolbar>
       )}
       {section === "manufacturing-work-centers" && (
-        <section className="manufacturing-panel" aria-label="Tanımlı iş merkezleri">
-          {workCenters.length === 0 ? (
-            <div className="manufacturing-empty">
-              <Factory size={22} />
-              <b>Henüz iş merkezi tanımlanmamış</b>
-              <span>
-                Üretim kapasitesini planlamak için önce bir iş merkezi
-                tanımlayın.
-              </span>
-            </div>
-          ) : (
-            <div className="manufacturing-table-wrap work-center-list-table list-v2-list">
-              <AdvancedDataGrid
-                gridId="manufacturing-work-centers"
-                {...screenViewGridDefaults(visibleWorkCenterFields)}
-                externalPagination
-                hideSearch
-                enableRowSelection={false}
-              >
-                <thead>
-                  <tr>
-                    {visibleWorkCenterFields.map((field) => (
-                      <th key={field.key}>{field.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleWorkCenters.map((center) => (
-                    <tr key={center.id}>
+        <div className="work-center-layout">
+          <section
+            className="work-center-card work-center-list-card"
+            aria-label="Tanımlı iş merkezleri"
+          >
+            {workCenters.length === 0 ? (
+              <div className="manufacturing-empty">
+                <Factory size={22} />
+                <b>Henüz iş merkezi tanımlanmamış</b>
+                <span>
+                  Üretim kapasitesini planlamak için önce bir iş merkezi
+                  tanımlayın.
+                </span>
+              </div>
+            ) : (
+              <div className="manufacturing-table-wrap work-center-list-table list-v2-list">
+                <AdvancedDataGrid
+                  gridId="manufacturing-work-centers"
+                  {...screenViewGridDefaults(visibleWorkCenterFields)}
+                  externalPagination
+                  hideSearch
+                  enableRowSelection={false}
+                  toolbarContainer={workCenterToolsSlot}
+                >
+                  <thead>
+                    <tr>
                       {visibleWorkCenterFields.map((field) => (
-                        <td key={field.key}>
-                          {renderWorkCenterCell(center, field.key)}
-                        </td>
+                        <th key={field.key}>{field.label}</th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </AdvancedDataGrid>
-            </div>
-          )}
-          <section
-            className="work-center-calendar"
-            aria-labelledby="work-center-calendar-title"
-          >
-            <div className="calendar-title">
-              <div>
-                <h3 id="work-center-calendar-title">Çalışma takvimi</h3>
-                <p>
-                  Haftalık günleri, tarih istisnalarını ve her yıl tekrarlanan
-                  kapasite kurallarını ayarlayın. Öncelik: tarih istisnası,
-                  yıllık kural, haftalık takvim.
-                </p>
+                  </thead>
+                  <tbody>
+                    {visibleWorkCenters.map((center) => (
+                      <tr
+                        key={center.id}
+                        className={
+                          center.id === calendarCenterId ? "selected" : ""
+                        }
+                        aria-selected={center.id === calendarCenterId}
+                        onClick={() => changeCalendarCenter(center.id)}
+                      >
+                        {visibleWorkCenterFields.map((field) => (
+                          <td key={field.key}>
+                            {renderWorkCenterCell(center, field.key)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </AdvancedDataGrid>
               </div>
-              <label>
-                İş merkezi
-                <select
-                  value={calendarCenterId}
-                  onChange={(e) => changeCalendarCenter(e.target.value)}
-                  disabled={!workCenters.length}
-                >
-                  {workCenters.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.code} · {x.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {!workCenters.length ? (
+            )}
+          </section>
+          <aside
+            className="work-center-card work-center-detail"
+            aria-label="Seçili iş merkezi ayrıntısı"
+          >
+            {!selectedWorkCenter ? (
               <div className="manufacturing-empty" role="status">
                 Çalışma takvimi ayarları için önce bir iş merkezi tanımlayın.
               </div>
-            ) : calendarLoading ? (
-              <div className="manufacturing-empty">Takvim yükleniyor…</div>
             ) : (
               <>
-                {!calendarReady && (
-                  <div className="manufacturing-empty" role="alert">
-                    Takvim yüklenemedi; güvenli düzenleme için yeniden seçip
-                    tekrar deneyin.
+                <div className="list-v2-detail-head">
+                  <div>
+                    <span className="list-v2-kind">İş merkezi</span>
+                    <h2>{selectedWorkCenter.name}</h2>
+                    <small className="work-center-detail-code">
+                      {selectedWorkCenter.code}
+                    </small>
                   </div>
-                )}
+                </div>
                 <div
-                  className="work-calendar-days"
-                  role="group"
-                  aria-label="Haftalık çalışma günleri"
+                  className="list-v2-tabs"
+                  role="tablist"
+                  aria-label="İş merkezi ayrıntı sekmeleri"
                 >
-                  {[
-                    { label: "Pazartesi", bit: 1 },
-                    { label: "Salı", bit: 2 },
-                    { label: "Çarşamba", bit: 3 },
-                    { label: "Perşembe", bit: 4 },
-                    { label: "Cuma", bit: 5 },
-                    { label: "Cumartesi", bit: 6 },
-                    { label: "Pazar", bit: 0 },
-                  ].map((day) => (
-                    <label key={day.bit}>
-                      <input
-                        type="checkbox"
-                        disabled={!calendarReady}
-                        checked={(calendarMask & (1 << day.bit)) !== 0}
-                        onChange={() =>
-                          setCalendarMask((mask) => mask ^ (1 << day.bit))
-                        }
-                      />
-                      {day.label}
-                    </label>
+                  {(
+                    [
+                      ["calendar", "Çalışma takvimi"],
+                      ["general", "Genel"],
+                      ["exceptions", "İstisnalar"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={workCenterTab === key}
+                      className={workCenterTab === key ? "is-active" : ""}
+                      onClick={() => setWorkCenterTab(key)}
+                    >
+                      {label}
+                    </button>
                   ))}
                 </div>
-                <div className="calendar-override-form">
-                  <label>
-                    Vardiya başlangıcı
-                    <input
-                      type="time"
-                      disabled={!calendarReady}
-                      value={calendarShiftStart}
-                      onChange={(e) => setCalendarShiftStart(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Vardiya bitişi
-                    <input
-                      type="time"
-                      disabled={!calendarReady}
-                      value={calendarShiftEnd}
-                      onChange={(e) => setCalendarShiftEnd(e.target.value)}
-                    />
-                    <small>Gün içi çizelgeleme bu saat aralığına sığar.</small>
-                  </label>
-                </div>
-                <form
-                  className="calendar-override-form"
-                  onSubmit={addCapacityOverride}
-                >
-                  <label>
-                    Tarih
-                    <input
-                      type="date"
-                      disabled={!calendarReady}
-                      value={calendarDate}
-                      onChange={(e) => setCalendarDate(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Kapasite (dk)
-                    <input
-                      type="number"
-                      min="0"
-                      max="1440"
-                      disabled={!calendarReady}
-                      value={calendarCapacity}
-                      onChange={(e) => setCalendarCapacity(e.target.value)}
-                      required
-                    />
-                    <small>0 dakika, o günün kapalı olduğunu belirtir.</small>
-                  </label>
-                  <label>
-                    Açıklama
-                    <input
-                      disabled={!calendarReady}
-                      value={calendarNote}
-                      onChange={(e) => setCalendarNote(e.target.value)}
-                      maxLength={200}
-                      placeholder="Bakım, tatil veya ek vardiya"
-                    />
-                  </label>
-                  <button
-                    className="secondary"
-                    disabled={
-                      !calendarReady ||
-                      (calendarOverrides.length >= 366 &&
-                        !calendarOverrides.some(
-                          (x) => x.workDate === calendarDate,
-                        ))
-                    }
-                  >
-                    İstisna ekle
-                  </button>
-                </form>
-                {calendarOverrides.length > 0 ? (
-                  <div
-                    className="calendar-override-list"
-                    aria-label="Tarih bazlı kapasite istisnaları"
-                  >
-                    {calendarOverrides.map((row) => (
-                      <div className="calendar-override-row" key={row.workDate}>
-                        <b>
-                          {new Date(
-                            `${row.workDate}T12:00:00`,
-                          ).toLocaleDateString("tr-TR")}
-                        </b>
-                        <span>
-                          {row.capacityMinutes === 0
-                            ? "Kapalı"
-                            : `${row.capacityMinutes} dk kapasite`}
-                        </span>
-                        <small>{row.note || "Açıklama yok"}</small>
-                        <button
-                          type="button"
-                          disabled={!calendarReady}
-                          className="manufacturing-remove"
-                          aria-label={`${row.workDate} istisnasını sil`}
-                          onClick={() =>
-                            setCalendarOverrides((rows) =>
-                              rows.filter((x) => x.workDate !== row.workDate),
-                            )
-                          }
-                        >
-                          ×
-                        </button>
+                {workCenterTab === "general" ? (
+                  <div className="work-center-tab-body">
+                    <dl className="list-v2-facts">
+                      <div>
+                        <dt>Günlük kapasite</dt>
+                        <dd>
+                          {selectedWorkCenter.capacityMinutesPerDay.toLocaleString(
+                            "tr-TR",
+                          )}{" "}
+                          dk
+                        </dd>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="manufacturing-empty">
-                    Tarih bazlı kapasite istisnası yok.
-                  </div>
-                )}
-                <div className="calendar-title">
-                  <div>
-                    <h3>Her yıl tekrarlanan kapasite kuralı</h3>
-                    <p>
-                      Örneğin resmî tatil veya bakım günü tanımlayın. 29 Şubat
-                      kuralı yalnızca artık yıllarda uygulanır.
-                    </p>
-                  </div>
-                </div>
-                <form
-                  className="calendar-override-form annual-capacity-form"
-                  onSubmit={addAnnualCapacityRule}
-                >
-                  <label>
-                    Ay
-                    <input
-                      type="number"
-                      min="1"
-                      max="12"
-                      disabled={!calendarReady}
-                      value={annualMonth}
-                      onChange={(e) => setAnnualMonth(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Gün
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      disabled={!calendarReady}
-                      value={annualDay}
-                      onChange={(e) => setAnnualDay(e.target.value)}
-                      required
-                    />
-                    <small>
-                      29 Şubat desteklenir; geçersiz günler reddedilir.
-                    </small>
-                  </label>
-                  <label>
-                    Kapasite (dk)
-                    <input
-                      type="number"
-                      min="0"
-                      max="1440"
-                      disabled={!calendarReady}
-                      value={annualCapacity}
-                      onChange={(e) => setAnnualCapacity(e.target.value)}
-                      required
-                    />
-                    <small>0 dakika, her yıl o günü kapatır.</small>
-                  </label>
-                  <label>
-                    Açıklama
-                    <input
-                      disabled={!calendarReady}
-                      value={annualNote}
-                      onChange={(e) => setAnnualNote(e.target.value)}
-                      maxLength={200}
-                      placeholder="Yıllık bakım veya tatil"
-                    />
-                  </label>
-                  <button
-                    className="secondary"
-                    disabled={
-                      !calendarReady ||
-                      (annualCapacityRules.length >= 366 &&
-                        !annualCapacityRules.some(
-                          (x) =>
-                            x.month === Number(annualMonth) &&
-                            x.day === Number(annualDay),
-                        ))
-                    }
-                  >
-                    Yıllık kural ekle
-                  </button>
-                </form>
-                {annualCapacityRules.length > 0 ? (
-                  <div
-                    className="calendar-override-list"
-                    aria-label="Yıllık kapasite kuralları"
-                  >
-                    {annualCapacityRules.map((row) => (
-                      <div
-                        className="calendar-override-row"
-                        key={`${row.month}-${row.day}`}
-                      >
-                        <b>
-                          {String(row.day).padStart(2, "0")}.
-                          {String(row.month).padStart(2, "0")} · her yıl
-                        </b>
-                        <span>
-                          {row.capacityMinutes === 0
-                            ? "Kapalı"
-                            : `${row.capacityMinutes} dk kapasite`}
-                        </span>
-                        <small>
-                          {row.note || "Açıklama yok"}
-                          {row.month === 2 && row.day === 29
-                            ? " · yalnızca artık yıllarda"
-                            : ""}
-                        </small>
-                        <button
-                          type="button"
-                          disabled={!calendarReady}
-                          className="manufacturing-remove"
-                          aria-label={`${row.day}.${row.month} yıllık kuralını sil`}
-                          onClick={() =>
-                            setAnnualCapacityRules((rows) =>
-                              rows.filter(
-                                (x) =>
-                                  x.month !== row.month || x.day !== row.day,
-                              ),
-                            )
-                          }
-                        >
-                          ×
-                        </button>
+                      <div>
+                        <dt>İşçilik / saat</dt>
+                        <dd>
+                          {selectedWorkCenter.laborCostPerHourBase.toLocaleString(
+                            "tr-TR",
+                          )}
+                        </dd>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="manufacturing-empty">
-                    Yıllık tekrar kuralı yok.
-                  </div>
-                )}
-                <div className="calendar-title">
-                  <div>
-                    <h3>Dönüşümlü vardiya planları</h3>
-                    <p>
-                      Başlangıç tarihinden itibaren gün sırasıyla tekrar eden
-                      vardiya döngüleri tanımlayın. Kesin tarih kapasite
-                      istisnası ve yıllık kapasite kuralı günlük kapasiteyi
-                      öncelikli belirler; vardiya aralığı dönüşümlü plandan
-                      alınır.
-                    </p>
-                  </div>
-                </div>
-                <form
-                  className="calendar-override-form annual-capacity-form"
-                  onSubmit={addShiftRotation}
-                >
-                  <label>
-                    Etkin başlangıç
-                    <input
-                      type="date"
-                      disabled={!calendarReady}
-                      value={rotationFrom}
-                      onChange={(e) => setRotationFrom(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Etkin bitiş (isteğe bağlı)
-                    <input
-                      type="date"
-                      disabled={!calendarReady}
-                      value={rotationTo}
-                      onChange={(e) => setRotationTo(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Döngü gün sayısı
-                    <input
-                      type="number"
-                      min="1"
-                      max="366"
-                      disabled={!calendarReady}
-                      value={rotationLength}
-                      onChange={(e) => setRotationLength(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Vardiya başlangıcı
-                    <input
-                      type="time"
-                      disabled={!calendarReady}
-                      value={rotationStart}
-                      onChange={(e) => setRotationStart(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Vardiya bitişi
-                    <input
-                      type="time"
-                      disabled={!calendarReady}
-                      value={rotationEnd}
-                      onChange={(e) => setRotationEnd(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Günlük kapasite (dk)
-                    <input
-                      type="number"
-                      min="0"
-                      max="1440"
-                      disabled={!calendarReady}
-                      value={rotationCapacity}
-                      onChange={(e) => setRotationCapacity(e.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Açıklama
-                    <input
-                      disabled={!calendarReady}
-                      value={rotationNote}
-                      onChange={(e) => setRotationNote(e.target.value)}
-                      maxLength={200}
-                      placeholder="Örn. 2 vardiyalı döngü"
-                    />
-                  </label>
-                  <button
-                    className="secondary"
-                    disabled={!calendarReady || shiftRotations.length >= 100}
+                      <div>
+                        <dt>Genel gider / saat</dt>
+                        <dd>
+                          {selectedWorkCenter.overheadCostPerHourBase.toLocaleString(
+                            "tr-TR",
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Durum</dt>
+                        <dd>
+                          {renderWorkCenterCell(selectedWorkCenter, "status")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Vardiya</dt>
+                        <dd>
+                          {minuteOfDayLabel(
+                            selectedWorkCenter.shiftStartMinuteOfDay,
+                          )}{" "}
+                          –{" "}
+                          {minuteOfDayLabel(
+                            selectedWorkCenter.shiftEndMinuteOfDay,
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  <section
+                    className="work-center-calendar"
+                    aria-labelledby="setup-rules-title"
                   >
-                    Döngü ekle
-                  </button>
-                </form>
-                {shiftRotations.length > 0 ? (
-                  <div
-                    className="calendar-override-list"
-                    aria-label="Dönüşümlü vardiya planları"
-                  >
-                    {shiftRotations.map((rotation, rotationIndex) => (
-                      <div
-                        className="calendar-override-row rotation-row"
-                        key={`${rotation.effectiveFromDate}-${rotationIndex}`}
-                      >
-                        <div className="rotation-header">
-                          <b>
-                            {rotation.effectiveFromDate} –{" "}
-                            {rotation.effectiveToDate || "süresiz"}
-                          </b>
-                          <small>
-                            {rotation.note ||
-                              `${rotation.days.length} günlük döngü`}
-                          </small>
-                          <button
-                            type="button"
-                            disabled={!calendarReady}
-                            className="manufacturing-remove"
-                            aria-label="Vardiya planını sil"
-                            onClick={() =>
-                              setShiftRotations((rows) =>
-                                rows.filter((_, i) => i !== rotationIndex),
-                              )
-                            }
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="rotation-days">
-                          {rotation.days.map((day, index) => (
-                            <div className="rotation-day" key={day.dayIndex}>
-                              <b>Döngü günü {day.dayIndex + 1}</b>
+                    <div className="calendar-title">
+                      <div>
+                        <h3 id="setup-rules-title">Sıralı kurulum kuralları</h3>
+                        <p>
+                          Kurulum aileleri arasındaki dakika süresini veya üretimi
+                          engelleyen geçişleri tanımlayın. Kurallar yeni emir
+                          oluşturulurken anlık görüntüye alınır.
+                        </p>
+                      </div>
+                    </div>
+                    {!workCenters.length ? (
+                      <div className="manufacturing-empty" role="status">
+                        Kurulum kuralı eklemek için önce bir iş merkezi tanımlayın.
+                      </div>
+                    ) : !setupRulesReady ? (
+                      <div className="manufacturing-empty">
+                        Kurulum kuralları yükleniyor…
+                      </div>
+                    ) : (
+                      <>
+                        <div className="calendar-override-list">
+                          {setupRules.map((rule, index) => (
+                            <div
+                              className="calendar-override-row"
+                              key={`${rule.fromSetupFamilyCode}-${rule.toSetupFamilyCode}`}
+                            >
                               <label>
-                                Kapasite (dk)
+                                Önceki aile
+                                <input
+                                  value={rule.fromSetupFamilyCode}
+                                  maxLength={48}
+                                  onChange={(e) =>
+                                    setSetupRules((rows) =>
+                                      rows.map((x, i) =>
+                                        i === index
+                                          ? {
+                                              ...x,
+                                              fromSetupFamilyCode: e.target.value,
+                                            }
+                                          : x,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Sonraki aile
+                                <input
+                                  value={rule.toSetupFamilyCode}
+                                  maxLength={48}
+                                  onChange={(e) =>
+                                    setSetupRules((rows) =>
+                                      rows.map((x, i) =>
+                                        i === index
+                                          ? { ...x, toSetupFamilyCode: e.target.value }
+                                          : x,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Geçiş dk
                                 <input
                                   type="number"
                                   min="0"
-                                  max="1440"
-                                  disabled={!calendarReady}
-                                  value={day.capacityMinutes}
+                                  step="0.01"
+                                  disabled={!rule.isTransitionAllowed}
+                                  value={rule.setupMinutes}
                                   onChange={(e) =>
-                                    setShiftRotations((rows) =>
-                                      rows.map((r, i) =>
-                                        i === rotationIndex
+                                    setSetupRules((rows) =>
+                                      rows.map((x, i) =>
+                                        i === index
                                           ? {
-                                              ...r,
-                                              days: r.days.map((d, j) =>
-                                                j === index
-                                                  ? {
-                                                      ...d,
-                                                      capacityMinutes: Number(
-                                                        e.target.value,
-                                                      ),
-                                                    }
-                                                  : d,
-                                              ),
+                                              ...x,
+                                              setupMinutes: Number(e.target.value),
                                             }
-                                          : r,
+                                          : x,
                                       ),
                                     )
                                   }
                                 />
                               </label>
                               <label>
-                                Başlangıç
+                                İzin ver
                                 <input
-                                  type="time"
-                                  disabled={!calendarReady}
-                                  value={minuteTime(day.shiftStartMinuteOfDay)}
+                                  type="checkbox"
+                                  checked={rule.isTransitionAllowed}
                                   onChange={(e) =>
-                                    setShiftRotations((rows) =>
-                                      rows.map((r, i) =>
-                                        i === rotationIndex
+                                    setSetupRules((rows) =>
+                                      rows.map((x, i) =>
+                                        i === index
                                           ? {
-                                              ...r,
-                                              days: r.days.map((d, j) =>
-                                                j === index
-                                                  ? {
-                                                      ...d,
-                                                      shiftStartMinuteOfDay:
-                                                        timeMinute(
-                                                          e.target.value,
-                                                        ),
-                                                    }
-                                                  : d,
-                                              ),
+                                              ...x,
+                                              isTransitionAllowed: e.target.checked,
+                                              setupMinutes: e.target.checked
+                                                ? x.setupMinutes
+                                                : 0,
                                             }
-                                          : r,
+                                          : x,
                                       ),
                                     )
                                   }
                                 />
                               </label>
-                              <label>
-                                Bitiş
-                                <input
-                                  type="time"
-                                  disabled={!calendarReady}
-                                  value={minuteTime(day.shiftEndMinuteOfDay)}
-                                  onChange={(e) =>
-                                    setShiftRotations((rows) =>
-                                      rows.map((r, i) =>
-                                        i === rotationIndex
-                                          ? {
-                                              ...r,
-                                              days: r.days.map((d, j) =>
-                                                j === index
-                                                  ? {
-                                                      ...d,
-                                                      shiftEndMinuteOfDay:
-                                                        timeMinute(
-                                                          e.target.value,
-                                                        ),
-                                                    }
-                                                  : d,
-                                              ),
-                                            }
-                                          : r,
-                                      ),
-                                    )
-                                  }
-                                />
-                              </label>
+                              <button
+                                type="button"
+                                className="manufacturing-remove"
+                                aria-label="Geçiş kuralını kaldır"
+                                onClick={() =>
+                                  setSetupRules((rows) =>
+                                    rows.filter((_, i) => i !== index),
+                                  )
+                                }
+                              >
+                                ×
+                              </button>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    ))}
+                        {hasDuplicateSetupRule && (
+                          <small className="mrp-demand-error" role="alert">
+                            Aynı önceki/sonraki aile çifti bir kez tanımlanabilir;
+                            baştaki/sondaki boşluk ve harf büyüklüğü dikkate alınmaz.
+                          </small>
+                        )}
+                        {setupRules.some(
+                          (rule) =>
+                            !rule.fromSetupFamilyCode.trim() &&
+                            !rule.toSetupFamilyCode.trim(),
+                        ) && (
+                          <small className="mrp-demand-error" role="alert">
+                            En az bir aile kodu girin; iki aile kodu aynı anda boş
+                            bırakılamaz.
+                          </small>
+                        )}
+                        <div className="calendar-save-row">
+                          <button
+                            className="secondary"
+                            type="button"
+                            disabled={busy || setupRules.length >= 500}
+                            onClick={() =>
+                              setSetupRules((rows) => [
+                                ...rows,
+                                {
+                                  fromSetupFamilyCode: "",
+                                  toSetupFamilyCode: "",
+                                  setupMinutes: 0,
+                                  isTransitionAllowed: true,
+                                },
+                              ])
+                            }
+                          >
+                            Geçiş ekle
+                          </button>
+                          <button
+                            className="primary"
+                            type="button"
+                            disabled={
+                              busy ||
+                              !calendarCenterId ||
+                              hasDuplicateSetupRule ||
+                              setupRules.some(
+                                (rule) =>
+                                  !rule.fromSetupFamilyCode.trim() &&
+                                  !rule.toSetupFamilyCode.trim(),
+                              )
+                            }
+                            onClick={() => void saveSetupRules()}
+                          >
+                            Kuralları kaydet
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </section>
                   </div>
+                ) : calendarLoading ? (
+                  <div className="manufacturing-empty">Takvim yükleniyor…</div>
                 ) : (
-                  <div className="manufacturing-empty">
-                    Dönüşümlü vardiya planı yok.
-                  </div>
-                )}
-                <div className="calendar-save-row">
-                  <small>
-                    Kaydedilen takvim bu iş merkezinin üretim emirlerini
-                    çizelgelerken uygulanır.
-                  </small>
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={busy || !calendarReady || !calendarCenterId}
-                    onClick={() => void saveWorkCenterCalendar()}
-                  >
-                    {busy ? "Kaydediliyor…" : "Takvimi kaydet"}
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
-          <section
-            className="work-center-calendar"
-            aria-labelledby="setup-rules-title"
-          >
-            <div className="calendar-title">
-              <div>
-                <h3 id="setup-rules-title">Sıralı kurulum kuralları</h3>
-                <p>
-                  Kurulum aileleri arasındaki dakika süresini veya üretimi
-                  engelleyen geçişleri tanımlayın. Kurallar yeni emir
-                  oluşturulurken anlık görüntüye alınır.
-                </p>
-              </div>
-            </div>
-            {!workCenters.length ? (
-              <div className="manufacturing-empty" role="status">
-                Kurulum kuralı eklemek için önce bir iş merkezi tanımlayın.
-              </div>
-            ) : !setupRulesReady ? (
-              <div className="manufacturing-empty">
-                Kurulum kuralları yükleniyor…
-              </div>
-            ) : (
-              <>
-                <div className="calendar-override-list">
-                  {setupRules.map((rule, index) => (
-                    <div
-                      className="calendar-override-row"
-                      key={`${rule.fromSetupFamilyCode}-${rule.toSetupFamilyCode}`}
-                    >
-                      <label>
-                        Önceki aile
-                        <input
-                          value={rule.fromSetupFamilyCode}
-                          maxLength={48}
-                          onChange={(e) =>
-                            setSetupRules((rows) =>
-                              rows.map((x, i) =>
-                                i === index
-                                  ? {
-                                      ...x,
-                                      fromSetupFamilyCode: e.target.value,
+                  <div className="work-center-tab-body">
+                    {!calendarReady && (
+                      <div className="manufacturing-empty work-center-calendar-retry" role="alert">
+                        <span>Takvim yüklenemedi.</span>
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          onClick={() => setCalendarReloadKey((key) => key + 1)}
+                        >
+                          Yeniden dene
+                        </button>
+                      </div>
+                    )}
+                    {workCenterTab === "calendar" ? (
+                      <>
+                        <div className="work-center-field">
+                          <span>Çalışma günleri</span>
+                          <div
+                            className="work-calendar-segments"
+                            role="group"
+                            aria-label="Haftalık çalışma günleri"
+                          >
+                            {[
+                              { label: "Pt", title: "Pazartesi", bit: 1 },
+                              { label: "Sa", title: "Salı", bit: 2 },
+                              { label: "Ça", title: "Çarşamba", bit: 3 },
+                              { label: "Pe", title: "Perşembe", bit: 4 },
+                              { label: "Cu", title: "Cuma", bit: 5 },
+                              { label: "Ct", title: "Cumartesi", bit: 6 },
+                              { label: "Pz", title: "Pazar", bit: 0 },
+                            ].map((day) => {
+                              const on = (calendarMask & (1 << day.bit)) !== 0;
+                              return (
+                                <button
+                                  key={day.bit}
+                                  type="button"
+                                  title={day.title}
+                                  aria-label={day.title}
+                                  aria-pressed={on}
+                                  className={on ? "is-on" : ""}
+                                  disabled={!calendarReady}
+                                  onClick={() =>
+                                    setCalendarMask(
+                                      (mask) => mask ^ (1 << day.bit),
+                                    )
+                                  }
+                                >
+                                  {day.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="work-center-shift-row">
+                          <label>
+                            Vardiya başlangıcı
+                            <input
+                              type="time"
+                              disabled={!calendarReady}
+                              value={calendarShiftStart}
+                              onChange={(e) =>
+                                setCalendarShiftStart(e.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            Vardiya bitişi
+                            <input
+                              type="time"
+                              disabled={!calendarReady}
+                              value={calendarShiftEnd}
+                              onChange={(e) =>
+                                setCalendarShiftEnd(e.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+                        <small className="work-center-note">
+                          Öncelik: tarih istisnası › yıllık kural › haftalık
+                          takvim
+                        </small>
+                      </>
+                    ) : (
+                      <>
+                        <form
+                          className="calendar-override-form"
+                          onSubmit={addCapacityOverride}
+                        >
+                          <label>
+                            Tarih
+                            <input
+                              type="date"
+                              disabled={!calendarReady}
+                              value={calendarDate}
+                              onChange={(e) => setCalendarDate(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Kapasite (dk)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1440"
+                              disabled={!calendarReady}
+                              value={calendarCapacity}
+                              onChange={(e) => setCalendarCapacity(e.target.value)}
+                              required
+                            />
+                            <small>0 dakika, o günün kapalı olduğunu belirtir.</small>
+                          </label>
+                          <label>
+                            Açıklama
+                            <input
+                              disabled={!calendarReady}
+                              value={calendarNote}
+                              onChange={(e) => setCalendarNote(e.target.value)}
+                              maxLength={200}
+                              placeholder="Bakım, tatil veya ek vardiya"
+                            />
+                          </label>
+                          <button
+                            className="secondary"
+                            disabled={
+                              !calendarReady ||
+                              (calendarOverrides.length >= 366 &&
+                                !calendarOverrides.some(
+                                  (x) => x.workDate === calendarDate,
+                                ))
+                            }
+                          >
+                            İstisna ekle
+                          </button>
+                        </form>
+                        {calendarOverrides.length > 0 ? (
+                          <div
+                            className="calendar-override-list"
+                            aria-label="Tarih bazlı kapasite istisnaları"
+                          >
+                            {calendarOverrides.map((row) => (
+                              <div className="calendar-override-row" key={row.workDate}>
+                                <b>
+                                  {new Date(
+                                    `${row.workDate}T12:00:00`,
+                                  ).toLocaleDateString("tr-TR")}
+                                </b>
+                                <span>
+                                  {row.capacityMinutes === 0
+                                    ? "Kapalı"
+                                    : `${row.capacityMinutes} dk kapasite`}
+                                </span>
+                                <small>{row.note || "Açıklama yok"}</small>
+                                <button
+                                  type="button"
+                                  disabled={!calendarReady}
+                                  className="manufacturing-remove"
+                                  aria-label={`${row.workDate} istisnasını sil`}
+                                  onClick={() =>
+                                    setCalendarOverrides((rows) =>
+                                      rows.filter((x) => x.workDate !== row.workDate),
+                                    )
+                                  }
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="manufacturing-empty">
+                            Tarih bazlı kapasite istisnası yok.
+                          </div>
+                        )}
+                        <div className="calendar-title">
+                          <div>
+                            <h3>Her yıl tekrarlanan kapasite kuralı</h3>
+                            <p>
+                              Örneğin resmî tatil veya bakım günü tanımlayın. 29 Şubat
+                              kuralı yalnızca artık yıllarda uygulanır.
+                            </p>
+                          </div>
+                        </div>
+                        <form
+                          className="calendar-override-form annual-capacity-form"
+                          onSubmit={addAnnualCapacityRule}
+                        >
+                          <label>
+                            Ay
+                            <input
+                              type="number"
+                              min="1"
+                              max="12"
+                              disabled={!calendarReady}
+                              value={annualMonth}
+                              onChange={(e) => setAnnualMonth(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Gün
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              disabled={!calendarReady}
+                              value={annualDay}
+                              onChange={(e) => setAnnualDay(e.target.value)}
+                              required
+                            />
+                            <small>
+                              29 Şubat desteklenir; geçersiz günler reddedilir.
+                            </small>
+                          </label>
+                          <label>
+                            Kapasite (dk)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1440"
+                              disabled={!calendarReady}
+                              value={annualCapacity}
+                              onChange={(e) => setAnnualCapacity(e.target.value)}
+                              required
+                            />
+                            <small>0 dakika, her yıl o günü kapatır.</small>
+                          </label>
+                          <label>
+                            Açıklama
+                            <input
+                              disabled={!calendarReady}
+                              value={annualNote}
+                              onChange={(e) => setAnnualNote(e.target.value)}
+                              maxLength={200}
+                              placeholder="Yıllık bakım veya tatil"
+                            />
+                          </label>
+                          <button
+                            className="secondary"
+                            disabled={
+                              !calendarReady ||
+                              (annualCapacityRules.length >= 366 &&
+                                !annualCapacityRules.some(
+                                  (x) =>
+                                    x.month === Number(annualMonth) &&
+                                    x.day === Number(annualDay),
+                                ))
+                            }
+                          >
+                            Yıllık kural ekle
+                          </button>
+                        </form>
+                        {annualCapacityRules.length > 0 ? (
+                          <div
+                            className="calendar-override-list"
+                            aria-label="Yıllık kapasite kuralları"
+                          >
+                            {annualCapacityRules.map((row) => (
+                              <div
+                                className="calendar-override-row"
+                                key={`${row.month}-${row.day}`}
+                              >
+                                <b>
+                                  {String(row.day).padStart(2, "0")}.
+                                  {String(row.month).padStart(2, "0")} · her yıl
+                                </b>
+                                <span>
+                                  {row.capacityMinutes === 0
+                                    ? "Kapalı"
+                                    : `${row.capacityMinutes} dk kapasite`}
+                                </span>
+                                <small>
+                                  {row.note || "Açıklama yok"}
+                                  {row.month === 2 && row.day === 29
+                                    ? " · yalnızca artık yıllarda"
+                                    : ""}
+                                </small>
+                                <button
+                                  type="button"
+                                  disabled={!calendarReady}
+                                  className="manufacturing-remove"
+                                  aria-label={`${row.day}.${row.month} yıllık kuralını sil`}
+                                  onClick={() =>
+                                    setAnnualCapacityRules((rows) =>
+                                      rows.filter(
+                                        (x) =>
+                                          x.month !== row.month || x.day !== row.day,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="manufacturing-empty">
+                            Yıllık tekrar kuralı yok.
+                          </div>
+                        )}
+                        <div className="calendar-title">
+                          <div>
+                            <h3>Dönüşümlü vardiya planları</h3>
+                            <p>
+                              Başlangıç tarihinden itibaren gün sırasıyla tekrar eden
+                              vardiya döngüleri tanımlayın. Kesin tarih kapasite
+                              istisnası ve yıllık kapasite kuralı günlük kapasiteyi
+                              öncelikli belirler; vardiya aralığı dönüşümlü plandan
+                              alınır.
+                            </p>
+                          </div>
+                        </div>
+                        <form
+                          className="calendar-override-form annual-capacity-form"
+                          onSubmit={addShiftRotation}
+                        >
+                          <label>
+                            Etkin başlangıç
+                            <input
+                              type="date"
+                              disabled={!calendarReady}
+                              value={rotationFrom}
+                              onChange={(e) => setRotationFrom(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Etkin bitiş (isteğe bağlı)
+                            <input
+                              type="date"
+                              disabled={!calendarReady}
+                              value={rotationTo}
+                              onChange={(e) => setRotationTo(e.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Döngü gün sayısı
+                            <input
+                              type="number"
+                              min="1"
+                              max="366"
+                              disabled={!calendarReady}
+                              value={rotationLength}
+                              onChange={(e) => setRotationLength(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Vardiya başlangıcı
+                            <input
+                              type="time"
+                              disabled={!calendarReady}
+                              value={rotationStart}
+                              onChange={(e) => setRotationStart(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Vardiya bitişi
+                            <input
+                              type="time"
+                              disabled={!calendarReady}
+                              value={rotationEnd}
+                              onChange={(e) => setRotationEnd(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Günlük kapasite (dk)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1440"
+                              disabled={!calendarReady}
+                              value={rotationCapacity}
+                              onChange={(e) => setRotationCapacity(e.target.value)}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Açıklama
+                            <input
+                              disabled={!calendarReady}
+                              value={rotationNote}
+                              onChange={(e) => setRotationNote(e.target.value)}
+                              maxLength={200}
+                              placeholder="Örn. 2 vardiyalı döngü"
+                            />
+                          </label>
+                          <button
+                            className="secondary"
+                            disabled={!calendarReady || shiftRotations.length >= 100}
+                          >
+                            Döngü ekle
+                          </button>
+                        </form>
+                        {shiftRotations.length > 0 ? (
+                          <div
+                            className="calendar-override-list"
+                            aria-label="Dönüşümlü vardiya planları"
+                          >
+                            {shiftRotations.map((rotation, rotationIndex) => (
+                              <div
+                                className="calendar-override-row rotation-row"
+                                key={`${rotation.effectiveFromDate}-${rotationIndex}`}
+                              >
+                                <div className="rotation-header">
+                                  <b>
+                                    {rotation.effectiveFromDate} –{" "}
+                                    {rotation.effectiveToDate || "süresiz"}
+                                  </b>
+                                  <small>
+                                    {rotation.note ||
+                                      `${rotation.days.length} günlük döngü`}
+                                  </small>
+                                  <button
+                                    type="button"
+                                    disabled={!calendarReady}
+                                    className="manufacturing-remove"
+                                    aria-label="Vardiya planını sil"
+                                    onClick={() =>
+                                      setShiftRotations((rows) =>
+                                        rows.filter((_, i) => i !== rotationIndex),
+                                      )
                                     }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Sonraki aile
-                        <input
-                          value={rule.toSetupFamilyCode}
-                          maxLength={48}
-                          onChange={(e) =>
-                            setSetupRules((rows) =>
-                              rows.map((x, i) =>
-                                i === index
-                                  ? { ...x, toSetupFamilyCode: e.target.value }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Geçiş dk
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          disabled={!rule.isTransitionAllowed}
-                          value={rule.setupMinutes}
-                          onChange={(e) =>
-                            setSetupRules((rows) =>
-                              rows.map((x, i) =>
-                                i === index
-                                  ? {
-                                      ...x,
-                                      setupMinutes: Number(e.target.value),
-                                    }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        İzin ver
-                        <input
-                          type="checkbox"
-                          checked={rule.isTransitionAllowed}
-                          onChange={(e) =>
-                            setSetupRules((rows) =>
-                              rows.map((x, i) =>
-                                i === index
-                                  ? {
-                                      ...x,
-                                      isTransitionAllowed: e.target.checked,
-                                      setupMinutes: e.target.checked
-                                        ? x.setupMinutes
-                                        : 0,
-                                    }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                                <div className="rotation-days">
+                                  {rotation.days.map((day, index) => (
+                                    <div className="rotation-day" key={day.dayIndex}>
+                                      <b>Döngü günü {day.dayIndex + 1}</b>
+                                      <label>
+                                        Kapasite (dk)
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="1440"
+                                          disabled={!calendarReady}
+                                          value={day.capacityMinutes}
+                                          onChange={(e) =>
+                                            setShiftRotations((rows) =>
+                                              rows.map((r, i) =>
+                                                i === rotationIndex
+                                                  ? {
+                                                      ...r,
+                                                      days: r.days.map((d, j) =>
+                                                        j === index
+                                                          ? {
+                                                              ...d,
+                                                              capacityMinutes: Number(
+                                                                e.target.value,
+                                                              ),
+                                                            }
+                                                          : d,
+                                                      ),
+                                                    }
+                                                  : r,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Başlangıç
+                                        <input
+                                          type="time"
+                                          disabled={!calendarReady}
+                                          value={minuteTime(day.shiftStartMinuteOfDay)}
+                                          onChange={(e) =>
+                                            setShiftRotations((rows) =>
+                                              rows.map((r, i) =>
+                                                i === rotationIndex
+                                                  ? {
+                                                      ...r,
+                                                      days: r.days.map((d, j) =>
+                                                        j === index
+                                                          ? {
+                                                              ...d,
+                                                              shiftStartMinuteOfDay:
+                                                                timeMinute(
+                                                                  e.target.value,
+                                                                ),
+                                                            }
+                                                          : d,
+                                                      ),
+                                                    }
+                                                  : r,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Bitiş
+                                        <input
+                                          type="time"
+                                          disabled={!calendarReady}
+                                          value={minuteTime(day.shiftEndMinuteOfDay)}
+                                          onChange={(e) =>
+                                            setShiftRotations((rows) =>
+                                              rows.map((r, i) =>
+                                                i === rotationIndex
+                                                  ? {
+                                                      ...r,
+                                                      days: r.days.map((d, j) =>
+                                                        j === index
+                                                          ? {
+                                                              ...d,
+                                                              shiftEndMinuteOfDay:
+                                                                timeMinute(
+                                                                  e.target.value,
+                                                                ),
+                                                            }
+                                                          : d,
+                                                      ),
+                                                    }
+                                                  : r,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="manufacturing-empty">
+                            Dönüşümlü vardiya planı yok.
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="calendar-save-row">
+                      <small>
+                        Kaydedilen takvim bu iş merkezinin üretim emirlerini
+                        çizelgelerken uygulanır.
+                      </small>
                       <button
+                        className="primary"
                         type="button"
-                        className="manufacturing-remove"
-                        aria-label="Geçiş kuralını kaldır"
-                        onClick={() =>
-                          setSetupRules((rows) =>
-                            rows.filter((_, i) => i !== index),
-                          )
-                        }
+                        disabled={busy || !calendarReady || !calendarCenterId}
+                        onClick={() => void saveWorkCenterCalendar()}
                       >
-                        ×
+                        {busy ? "Kaydediliyor…" : "Takvimi kaydet"}
                       </button>
                     </div>
-                  ))}
-                </div>
-                {hasDuplicateSetupRule && (
-                  <small className="mrp-demand-error" role="alert">
-                    Aynı önceki/sonraki aile çifti bir kez tanımlanabilir;
-                    baştaki/sondaki boşluk ve harf büyüklüğü dikkate alınmaz.
-                  </small>
+                  </div>
                 )}
-                {setupRules.some(
-                  (rule) =>
-                    !rule.fromSetupFamilyCode.trim() &&
-                    !rule.toSetupFamilyCode.trim(),
-                ) && (
-                  <small className="mrp-demand-error" role="alert">
-                    En az bir aile kodu girin; iki aile kodu aynı anda boş
-                    bırakılamaz.
-                  </small>
-                )}
-                <div className="calendar-save-row">
-                  <button
-                    className="secondary"
-                    type="button"
-                    disabled={busy || setupRules.length >= 500}
-                    onClick={() =>
-                      setSetupRules((rows) => [
-                        ...rows,
-                        {
-                          fromSetupFamilyCode: "",
-                          toSetupFamilyCode: "",
-                          setupMinutes: 0,
-                          isTransitionAllowed: true,
-                        },
-                      ])
-                    }
-                  >
-                    Geçiş ekle
-                  </button>
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={
-                      busy ||
-                      !calendarCenterId ||
-                      hasDuplicateSetupRule ||
-                      setupRules.some(
-                        (rule) =>
-                          !rule.fromSetupFamilyCode.trim() &&
-                          !rule.toSetupFamilyCode.trim(),
-                      )
-                    }
-                    onClick={() => void saveSetupRules()}
-                  >
-                    Kuralları kaydet
-                  </button>
-                </div>
               </>
             )}
-          </section>
-        </section>
+          </aside>
+        </div>
       )}
       {section === "manufacturing-orders" && !createOrderPage && (
         <div className="manufacturing-order-stack">
@@ -3636,6 +4036,7 @@ export default function ManufacturingPage({
             searchLabel="Üretim emirlerinde ara"
             searchPlaceholder="Emir, reçete, depo veya sipariş ara"
             onRefresh={refreshList}
+            toolsSlotRef={setOrderToolsSlot}
           >
             <ListChipGroup
               label="Üretim emri durumu"
@@ -3673,6 +4074,7 @@ export default function ManufacturingPage({
                   externalPagination
                   hideSearch
                   enableRowSelection={false}
+                  toolbarContainer={orderToolsSlot}
                 >
                   <thead>
                     <ScreenViewGroupHeader fields={visibleOrderFields} />
@@ -3884,113 +4286,128 @@ export default function ManufacturingPage({
                       </div>
                     </div>
                     )}
-                    <div className="manufacturing-inspector-stats">
-                      <div>
-                        <span>Miktar</span>
-                        <b>
-                          {selectedOrder.plannedQuantity.toLocaleString(
-                            "tr-TR",
+                    {(() => {
+                      const orderBomRecord = boms.find(
+                        (bom) => bom.id === selectedOrder.billOfMaterialId,
+                      );
+                      const orderUnitCode = orderBomRecord
+                        ? items.find(
+                            (item) =>
+                              item.id === orderBomRecord.productStockItemId,
+                          )?.unitCode ?? ""
+                        : "";
+                      const [year, month, day] =
+                        selectedOrder.plannedDate.split("-");
+                      const planDateText =
+                        year && month && day
+                          ? `${day.slice(0, 2)}.${month}.${year}`
+                          : selectedOrder.plannedDate;
+                      return (
+                        <div className="manufacturing-inspector-summary">
+                          <span>
+                            {`${selectedOrder.plannedQuantity.toLocaleString("tr-TR")}${orderUnitCode ? ` ${orderUnitCode}` : ""} · ${planDateText} · ${selectedOrder.warehouseName}`}
+                          </span>
+                          <span
+                            className="is-ellipsis"
+                            title={selectedOrder.billOfMaterialName}
+                          >
+                            {/* The API name is already "code · name"; prefix the code only when it isn't there. */}
+                            {orderBomRecord &&
+                            !selectedOrder.billOfMaterialName.startsWith(orderBomRecord.code)
+                              ? `${orderBomRecord.code} · ${selectedOrder.billOfMaterialName}`
+                              : selectedOrder.billOfMaterialName}
+                          </span>
+                          {selectedOrder.sourceSalesOrderCode && (
+                            <span>
+                              {`Siparişe özel · ${selectedOrder.sourceSalesOrderCode} / satır ${selectedOrder.sourceSalesOrderLineNumber}`}
+                            </span>
                           )}
-                        </b>
-                      </div>
-                      <div>
-                        <span>Plan tarihi</span>
-                        <b>{selectedOrder.plannedDate}</b>
-                      </div>
-                    </div>
-                    <dl className="list-v2-facts">
-                      <div>
-                        <dt>Reçete</dt>
-                        <dd>{selectedOrder.billOfMaterialName}</dd>
-                      </div>
-                      <div>
-                        <dt>Depo</dt>
-                        <dd>{selectedOrder.warehouseName}</dd>
-                      </div>
-                      <div>
-                        <dt>Üretim türü</dt>
-                        <dd>{selectedOrder.sourceSalesOrderCode
-                          ? `Siparişe özel · ${selectedOrder.sourceSalesOrderCode} / satır ${selectedOrder.sourceSalesOrderLineNumber}`
-                          : "Stoka üretim"}</dd>
-                      </div>
-                      {selectedOrder.actualGoodQuantity !== null && (
-                        <>
-                          <div>
-                            <dt>İyi ürün</dt>
-                            <dd>{selectedOrder.actualGoodQuantity.toLocaleString("tr-TR")}</dd>
-                          </div>
-                          <div>
-                            <dt>Fire</dt>
-                            <dd>
-                              {selectedOrder.scrapQuantity?.toLocaleString("tr-TR") ?? "0"}
-                              {selectedOrder.scrapReason ? ` · ${selectedOrder.scrapReason}` : ""}
-                            </dd>
-                          </div>
-                        </>
-                      )}
-                    </dl>
+                          {selectedOrder.actualGoodQuantity !== null && (
+                            <span>
+                              {`İyi ürün ${selectedOrder.actualGoodQuantity.toLocaleString("tr-TR")} · fire ${selectedOrder.scrapQuantity?.toLocaleString("tr-TR") ?? "0"}${selectedOrder.scrapReason ? ` · ${selectedOrder.scrapReason}` : ""}`}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="manufacturing-inspector-section">
-                      <b>Operasyonlar</b>
+                      <h3>Operasyonlar</h3>
                       {selectedOrder.operations.length ? (
-                        <ul className="manufacturing-op-cards">
+                        <ul className="manufacturing-op-rows">
                           {selectedOrder.operations.map((op) => {
                             const isCompleted = op.status === "Completed";
                             const windowText = op.scheduledStartDate
                               ? `${op.scheduledStartDate} ${secondTime(op.scheduledStartSecondOfDay ?? (op.scheduledStartMinuteOfDay ?? 0) * 60)}–${op.scheduledEndDate} ${secondTime(op.scheduledEndSecondOfDay ?? (op.scheduledEndMinuteOfDay ?? 0) * 60)}`
                               : "";
+                            const meta = (
+                              isCompleted
+                                ? [
+                                    `${decimalText(op.actualEnergyQuantityKwh ?? 0, 3)} kWh enerji`,
+                                    `fiili ${decimalText(op.actualCostBase ?? 0)} baz para`,
+                                    op.performedByEmployeeName
+                                      ? `Operatör: ${op.performedByEmployeeName}`
+                                      : "",
+                                  ]
+                                : [
+                                    `${decimalText(op.plannedEnergyQuantityKwh, 3)} kWh enerji`,
+                                    `plan ${decimalText(op.plannedCostBase)} baz para`,
+                                    windowText,
+                                    ...(op.capacityDays.length > 1
+                                      ? op.capacityDays.map(
+                                          (slot) =>
+                                            `${slot.date} ${secondTime(slot.startSecondOfDay ?? slot.startMinuteOfDay * 60)}–${secondTime(slot.endSecondOfDay ?? slot.endMinuteOfDay * 60)} (${slot.minutes} dk)`,
+                                        )
+                                      : []),
+                                  ]
+                            )
+                              .filter(Boolean)
+                              .join("\n");
                             return (
                               <li
                                 key={op.id}
-                                className={`manufacturing-op-card is-${op.status.toLowerCase()}`}
+                                className={`manufacturing-op-row is-${op.status.toLowerCase()}`}
                               >
-                                <div className="manufacturing-op-card-head">
-                                  <span>{`${op.sequence} · ${op.workCenterCode}`}</span>
-                                  <b>{`${decimalText(operationMinutes(op))} dk`}</b>
-                                </div>
-                                <small className="manufacturing-op-card-meta">
-                                  <span className="manufacturing-op-card-status">
-                                    {operationStatusLabel[op.status] || op.status}
+                                <div className="manufacturing-op-row-main" title={meta}>
+                                  <span className="manufacturing-op-row-name">
+                                    <i aria-hidden="true" />
+                                    <span>{`${op.sequence} · ${op.workCenterCode}`}</span>
+                                    <small>
+                                      {operationStatusLabel[op.status] || op.status}
+                                    </small>
                                   </span>
-                                  {isCompleted ? (
-                                    <>
-                                      <span>{`${decimalText(op.actualEnergyQuantityKwh ?? 0, 3)} kWh enerji`}</span>
-                                      <span>{`fiili ${decimalText(op.actualCostBase ?? 0)} baz para`}</span>
-                                      {op.performedByEmployeeName && (
-                                        <span>{`Operatör: ${op.performedByEmployeeName}`}</span>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span>{`${decimalText(op.plannedEnergyQuantityKwh, 3)} kWh enerji`}</span>
-                                      <span>{`plan ${decimalText(op.plannedCostBase)} baz para`}</span>
-                                      {windowText && <span>{windowText}</span>}
-                                    </>
-                                  )}
-                                </small>
-                                {!isCompleted && op.capacityDays.length > 1 && (
-                                  <small className="manufacturing-op-card-meta">
-                                    {op.capacityDays.map((slot) => (
-                                      <span key={slot.date}>
-                                        {`${slot.date} ${secondTime(slot.startSecondOfDay ?? slot.startMinuteOfDay * 60)}–${secondTime(slot.endSecondOfDay ?? slot.endMinuteOfDay * 60)} (${slot.minutes} dk)`}
-                                      </span>
-                                    ))}
-                                  </small>
-                                )}
+                                  <b>{`${decimalText(operationMinutes(op))} dk`}</b>
+                                  {selectedOrder.status === "Released" &&
+                                    op.status === "Planned" && (
+                                      <button
+                                        type="button"
+                                        className="secondary small-button"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void startOperation(selectedOrder, op)
+                                        }
+                                      >
+                                        Operasyonu başlat
+                                      </button>
+                                    )}
+                                  {selectedOrder.status === "Released" &&
+                                    op.status === "InProgress" && (
+                                      <button
+                                        type="button"
+                                        className="primary small-button"
+                                        aria-expanded={completingOperationId === op.id}
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setCompletingOperationId((id) =>
+                                            id === op.id ? "" : op.id,
+                                          )
+                                        }
+                                      >
+                                        Operasyonu tamamla
+                                      </button>
+                                    )}
+                                </div>
                                 {selectedOrder.status === "Released" &&
-                                  op.status === "Planned" && (
-                                    <button
-                                      type="button"
-                                      className="secondary small-button"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void startOperation(selectedOrder, op)
-                                      }
-                                    >
-                                      Operasyonu başlat
-                                    </button>
-                                  )}
-                                {selectedOrder.status === "Released" &&
-                                  op.status === "InProgress" && (
+                                  op.status === "InProgress" && completingOperationId === op.id && (
                                     <div className="actual-time-entry">
                                       <label>
                                         Kurulum dk
@@ -4091,19 +4508,16 @@ export default function ManufacturingPage({
                       )}
                     </div>
                     <div className="manufacturing-inspector-section">
-                      <b>Bileşenler</b>
+                      <h3>Bileşenler</h3>
                       {selectedOrder.lines.length ? (
-                        <ul>
+                        <ul className="manufacturing-component-rows">
                           {selectedOrder.lines.map((line) => (
                             <li
                               key={line.componentStockItemId}
-                              className="manufacturing-component-row"
+                              title={`${decimalText(line.requiredQuantity, 4)} × ${decimalText(line.standardUnitCostBaseSnapshot, 4)} = ${decimalText(line.plannedCostBase, 4)} baz para`}
                             >
                               <span>
                                 {line.componentCode} · {line.componentName}
-                                <small>
-                                  {`${decimalText(line.requiredQuantity, 4)} × ${decimalText(line.standardUnitCostBaseSnapshot, 4)} = ${decimalText(line.plannedCostBase, 4)} baz para`}
-                                </small>
                               </span>
                               <b>
                                 {line.requiredQuantity.toLocaleString("tr-TR")}
@@ -4181,78 +4595,49 @@ export default function ManufacturingPage({
         </div>
       )}
       {section === "manufacturing-mrp" && (
-        <section className="manufacturing-panel mrp-panel">
-          <div className="manufacturing-heading">
-            <div className="manufacturing-icon soft">
-              <Boxes size={18} />
-            </div>
-            <div>
-              <h2>Malzeme ihtiyaç planı</h2>
-              <p>
-                Açık satış siparişlerini ve ek talepleri reçetelerde çok
-                seviyeli patlatıp stok ve tedarikle netleyin.
-              </p>
-            </div>
-            <button
-              className="secondary small-button"
-              type="button"
-              disabled={busy}
-              onClick={() => void loadMrpHistory()}
-            >
-              Plan geçmişi
-            </button>
-          </div>
-          <form className="mrp-form" onSubmit={runMrp}>
-            <label>
-              Planlama deposu
-              <SearchableRecordPicker
-                options={warehouses.map((x) => ({
-                  id: x.id,
-                  label: `${x.code} · ${x.name}`,
-                }))}
-                selectedId={warehouseId}
-                onSelect={setWarehouseId}
-                title="Planlama deposu seçin"
-                placeholder="Depo seçin"
-                searchPlaceholder="Depo kodu veya adıyla ara"
-                emptyMessage="Aramanızla eşleşen depo bulunamadı."
-                required
-              />
-            </label>
-            <label>
-              Plan tarihi
-              <input
-                type="date"
-                value={mrpPlanDate}
-                onChange={(e) => setMrpPlanDate(e.target.value)}
-                required
-              />
-            </label>
-            <div className="mrp-demands">
-              <div className="manufacturing-lines-title">
-                <b>Ek talepler</b>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={mrpDemands.length >= 100}
-                  onClick={() =>
-                    setMrpDemands((rows) => [
-                      ...rows,
-                      {
-                        stockItemId: "",
-                        quantity: "1",
-                        requiredByDate: mrpPlanDate,
-                      },
-                    ])
-                  }
-                >
-                  Talep ekle ({mrpDemands.length}/100)
-                </button>
+        <div className="mrp-layout">
+          <section className="mrp-card mrp-inputs" aria-labelledby="mrp-inputs-title">
+            <h2 id="mrp-inputs-title">Plan girdileri</h2>
+            <form className="mrp-input-form" onSubmit={runMrp}>
+              <div className="mrp-input-row">
+                <label>
+                  Planlama deposu
+                  <SearchableRecordPicker
+                    options={warehouses.map((x) => ({
+                      id: x.id,
+                      label: `${x.code} · ${x.name}`,
+                    }))}
+                    selectedId={warehouseId}
+                    onSelect={setWarehouseId}
+                    title="Planlama deposu seçin"
+                    placeholder="Depo seçin"
+                    searchPlaceholder="Depo kodu veya adıyla ara"
+                    emptyMessage="Aramanızla eşleşen depo bulunamadı."
+                    required
+                  />
+                </label>
+                <label>
+                  Plan tarihi
+                  <input
+                    type="date"
+                    value={mrpPlanDate}
+                    onChange={(e) => setMrpPlanDate(e.target.value)}
+                    required
+                  />
+                </label>
               </div>
-              {mrpDemands.map((demand, index) => (
-                <div className="mrp-demand-row" key={index}>
-                  <label>
-                    Stok kartı
+              <small className="mrp-muted">
+                Kapsam: açık satış siparişleri + ek talepler
+              </small>
+              <div className="mrp-demand-table" role="table" aria-label="Ek talepler">
+                <div className="mrp-demand-head" role="row">
+                  <span role="columnheader">Ek talep · stok kartı</span>
+                  <span role="columnheader">Miktar</span>
+                  <span role="columnheader">İhtiyaç</span>
+                  <span role="columnheader" aria-label="Kaldır" />
+                </div>
+                {mrpDemands.map((demand, index) => (
+                  <div className="mrp-demand-line" role="row" key={index}>
                     <SearchableRecordPicker
                       options={items.map((x) => ({
                         id: x.id,
@@ -4275,13 +4660,11 @@ export default function ManufacturingPage({
                       emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
                       required
                     />
-                  </label>
-                  <label>
-                    Miktar
                     <input
                       type="number"
                       min="0.0001"
                       step="0.0001"
+                      aria-label="Miktar"
                       value={demand.quantity}
                       onChange={(e) =>
                         setMrpDemands((rows) =>
@@ -4294,11 +4677,9 @@ export default function ManufacturingPage({
                       }
                       required
                     />
-                  </label>
-                  <label>
-                    İhtiyaç tarihi
                     <input
                       type="date"
+                      aria-label="İhtiyaç tarihi"
                       value={demand.requiredByDate}
                       onChange={(e) =>
                         setMrpDemands((rows) =>
@@ -4311,268 +4692,317 @@ export default function ManufacturingPage({
                       }
                       required
                     />
-                  </label>
+                    <button
+                      type="button"
+                      className="manufacturing-remove"
+                      aria-label="Talebi kaldır"
+                      disabled={mrpDemands.length <= 1}
+                      onClick={() =>
+                        setMrpDemands((rows) =>
+                          rows.filter((_, i) => i !== index),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <div className="mrp-demand-foot">
                   <button
                     type="button"
-                    className="manufacturing-remove"
-                    aria-label="Talebi kaldır"
-                    disabled={mrpDemands.length <= 1}
+                    className="mrp-link-button"
+                    disabled={mrpDemands.length >= 100}
                     onClick={() =>
-                      setMrpDemands((rows) =>
-                        rows.filter((_, i) => i !== index),
-                      )
+                      setMrpDemands((rows) => [
+                        ...rows,
+                        {
+                          stockItemId: "",
+                          quantity: "1",
+                          requiredByDate: mrpPlanDate,
+                        },
+                      ])
                     }
                   >
-                    ×
+                    {`+ Talep ekle (${mrpDemands.length}/100)`}
                   </button>
                 </div>
-              ))}
-            </div>
-            {hasDuplicateMrpDemand && (
-              <small className="mrp-demand-error" role="alert">
-                Aynı stok kartı ve ihtiyaç tarihi bir kez eklenebilir.
+              </div>
+              {hasDuplicateMrpDemand && (
+                <small className="mrp-demand-error" role="alert">
+                  Aynı stok kartı ve ihtiyaç tarihi bir kez eklenebilir.
+                </small>
+              )}
+              <button className="primary mrp-run-button" disabled={mrpRunDisabled}>
+                Planı hesapla ve kaydet
+              </button>
+              {mrpRunDisabled && !busy && !hasDuplicateMrpDemand && (
+                <small className="mrp-muted">
+                  Depo ve en az bir talep seçildiğinde etkin olur.
+                </small>
+              )}
+            </form>
+          </section>
+          <section className="mrp-card mrp-results" aria-labelledby="mrp-results-title">
+            <div className="mrp-results-head">
+              <h2 id="mrp-results-title">Plan sonucu</h2>
+              <small className="mrp-muted">
+                Son plan:{" "}
+                {mrpLatestPlanAt
+                  ? new Date(mrpLatestPlanAt).toLocaleString("tr-TR")
+                  : "—"}
               </small>
-            )}
-            <button
-              className="primary"
-              disabled={
-                busy ||
-                !warehouseId ||
-                filledMrpDemands.length === 0 ||
-                hasDuplicateMrpDemand
-              }
-            >
-              Planı hesapla ve kaydet
-            </button>
-          </form>
-          {mrpHistory.length > 0 && (
-            <div
-              className="work-center-chips"
-              aria-label="Kaydedilmiş MRP planları"
-            >
-              {mrpHistory.map((x) => (
-                <button
-                  className="secondary small-button"
-                  type="button"
-                  key={x.id}
-                  disabled={busy}
-                  onClick={() => void openMrpPlan(x.id)}
-                >
-                  {x.planDate} · {new Date(x.createdAt).toLocaleString("tr-TR")}
-                </button>
-              ))}
             </div>
-          )}
-          {mrpPlan && (
-            <>
-              <p className="mrp-caveat">
-                Kaydedilmiş plan {mrpPlan.planId?.slice(0, 8)} · Açık satış
-                siparişleri dahil. {mrpPlan.supplyCaveat}
-              </p>
-              {mrpPlan.lines.length === 0 ? (
-                <div className="manufacturing-empty">
-                  Karşılanmamış malzeme ihtiyacı bulunamadı.
+            {mrpCounts && (
+              <div className="mrp-stat-tiles">
+                <div>
+                  <span>Üretim önerisi</span>
+                  <b>{mrpCounts.make.toLocaleString("tr-TR")}</b>
                 </div>
-              ) : (
-                <div className="manufacturing-table-wrap">
-                  <AdvancedDataGrid
-                    hideSearch
-                    gridId="manufacturing-mrp-lines"
-                    {...screenViewGridDefaults(visibleMrpFields)}
+                <div>
+                  <span>Satın alma önerisi</span>
+                  <b>{mrpCounts.buy.toLocaleString("tr-TR")}</b>
+                </div>
+                <div>
+                  <span>Eksik / sorunlu</span>
+                  <b>{mrpCounts.issues.toLocaleString("tr-TR")}</b>
+                </div>
+              </div>
+            )}
+            {mrpHistory.length > 0 && (
+              <div
+                className="work-center-chips"
+                aria-label="Kaydedilmiş MRP planları"
+              >
+                {mrpHistory.map((x) => (
+                  <button
+                    className="secondary small-button"
+                    type="button"
+                    key={x.id}
+                    disabled={busy}
+                    onClick={() => void openMrpPlan(x.id)}
                   >
-                    <thead>
-                      <ScreenViewGroupHeader fields={visibleMrpFields} />
-                      <tr>
-                        {visibleMrpFields.map((field) => (
-                          <th key={field.key}>{field.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mrpPlan.lines.map((x, i) => (
-                        <tr
-                          key={`${x.stockItemId}-${x.level}-${i}-${x.requiredByDate}`}
-                        >
+                    {x.planDate} · {new Date(x.createdAt).toLocaleString("tr-TR")}
+                  </button>
+                ))}
+              </div>
+            )}
+            {mrpPlan && (
+              <>
+                <p className="mrp-caveat">
+                  Kaydedilmiş plan {mrpPlan.planId?.slice(0, 8)} · Açık satış
+                  siparişleri dahil. {mrpPlan.supplyCaveat}
+                </p>
+                {mrpPlan.lines.length === 0 ? (
+                  <div className="manufacturing-empty">
+                    Karşılanmamış malzeme ihtiyacı bulunamadı.
+                  </div>
+                ) : (
+                  <div className="manufacturing-table-wrap">
+                    <AdvancedDataGrid
+                      hideSearch
+                      gridId="manufacturing-mrp-lines"
+                      {...screenViewGridDefaults(visibleMrpFields)}
+                    >
+                      <thead>
+                        <ScreenViewGroupHeader fields={visibleMrpFields} />
+                        <tr>
                           {visibleMrpFields.map((field) => (
-                            <td key={field.key}>
-                              {field.key === "stockItem" ? (
-                                <>
-                                  <span
-                                    className="mrp-item"
-                                    style={{ paddingLeft: `${x.level * 18}px` }}
-                                  >
-                                    <b>{x.stockCode}</b>
-                                    <small>{x.stockName}</small>
-                                  </span>
-                                  {x.issue && (
-                                    <small className="mrp-issue">
-                                      {x.issue}
-                                    </small>
-                                  )}
-                                </>
-                              ) : field.key === "level" ? (
-                                x.level
-                              ) : field.key === "grossRequirement" ? (
-                                `${x.grossRequirement.toLocaleString("tr-TR")} ${x.unitCode}`
-                              ) : field.key === "onHandAndReserved" ? (
-                                `${x.fromOnHand.toLocaleString("tr-TR")} / ${x.reserved.toLocaleString("tr-TR")}`
-                              ) : field.key === "openPurchaseOrders" ? (
-                                x.fromOpenPurchaseOrders.toLocaleString("tr-TR")
-                              ) : field.key === "openManufacturingOrders" ? (
-                                x.fromOpenManufacturingOrders.toLocaleString(
-                                  "tr-TR",
-                                )
-                              ) : field.key === "netRequirement" ? (
-                                <b>
-                                  {x.netRequirement.toLocaleString("tr-TR")}{" "}
-                                  {x.unitCode}
-                                </b>
-                              ) : field.key === "requiredByDate" ? (
-                                x.requiredByDate
-                              ) : field.key === "recommendedOrderDate" ? (
-                                x.recommendedOrderDate
-                              ) : field.key === "recommendation" ? (
-                                <span
-                                  className={`mrp-recommendation ${x.recommendation === "Üret" ? "make" : x.recommendation === "Satın al" ? "buy" : "covered"}`}
-                                >
-                                  {x.recommendation}
-                                </span>
-                              ) : null}
-                            </td>
+                            <th key={field.key}>{field.label}</th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </AdvancedDataGrid>
-                </div>
-              )}
-              {mrpPlan.lines.some(
-                (x, i) =>
-                  x.issue === null &&
-                  ["Üret", "Satın al"].includes(x.recommendation) &&
-                  !mrpPlan.convertedLineIndexes?.includes(i),
-              ) && (
-                <div className="mrp-conversion">
-                  <h3>Önerileri uygulamaya hazırla</h3>
-                  <p>
-                    Üretim önerileri taslak emir, satın alma önerileri onaya
-                    gönderilen talep oluşturur. Her satır ayrı seçilebilir.
-                  </p>
-                  {mrpPlan.lines.map((line, i) => {
-                    if (
-                      line.issue !== null ||
-                      !["Üret", "Satın al"].includes(line.recommendation) ||
-                      mrpPlan.convertedLineIndexes?.includes(i)
-                    )
-                      return null;
-                    const checked = mrpSelected.includes(i);
-                    return (
-                      <div
-                        className="mrp-conversion-row"
-                        key={`${i}-${line.stockItemId}`}
-                      >
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) =>
-                              setMrpSelected((rows) =>
-                                e.target.checked
-                                  ? [...rows, i]
-                                  : rows.filter((x) => x !== i),
-                              )
-                            }
-                          />
-                          <span>
-                            <b>
-                              {line.stockCode} · {line.stockName}
-                            </b>
-                            <small>
-                              {line.recommendation}{" "}
-                              {line.netRequirement.toLocaleString("tr-TR")}{" "}
-                              {line.unitCode} · ihtiyaç {line.requiredByDate}
-                            </small>
-                            {line.sourceSalesOrder ? (
-                              <small>
-                                Kaynak sipariş: {line.sourceSalesOrder.salesOrderCode} · satır {line.sourceSalesOrder.salesOrderLineNumber}
-                              </small>
-                            ) : line.sources.some((source) => source.startsWith("Satış ")) ? (
-                              <small>Birden fazla talep birleşti; sipariş satırı bağlantısı kurulmayacak.</small>
-                            ) : null}
-                          </span>
-                        </label>
-                        {line.recommendation === "Üret" && (
-                          <select
-                            aria-label={`${line.stockCode} reçetesi`}
-                            disabled={!checked}
-                            value={mrpBomSelections[i] ?? ""}
-                            onChange={(e) =>
-                              setMrpBomSelections((x) => ({
-                                ...x,
-                                [i]: e.target.value,
-                              }))
-                            }
+                      </thead>
+                      <tbody>
+                        {mrpPlan.lines.map((x, i) => (
+                          <tr
+                            key={`${x.stockItemId}-${x.level}-${i}-${x.requiredByDate}`}
                           >
-                            <option value="">Ürün reçetesi seçin</option>
-                            {boms
-                              .filter(
-                                (b) =>
-                                  b.isActive &&
-                                  b.productStockItemId === line.stockItemId,
-                              )
-                              .map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.code} · {b.name}
-                                </option>
-                              ))}
-                          </select>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {mrpSelected.some(
-                    (i) => mrpPlan.lines[i]?.recommendation === "Satın al",
-                  ) &&
-                    purchaseRequestFields
-                      .filter((x) => x.isRequired)
-                      .map((field) => (
-                        <label className="mrp-field" key={field.code}>
-                          {field.label}
-                          {field.isRequired ? " *" : ""}
-                          <input
-                            value={purchaseRequestFieldValues[field.code] ?? ""}
-                            onChange={(e) =>
-                              setPurchaseRequestFieldValues((x) => ({
-                                ...x,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                            required
-                            maxLength={field.maxLength || 500}
-                          />
-                        </label>
-                      ))}
-                  <button
-                    className="primary"
-                    type="button"
-                    disabled={
-                      busy ||
-                      mrpSelected.length === 0 ||
-                      mrpSelected.some(
-                        (i) =>
-                          mrpPlan.lines[i]?.recommendation === "Üret" &&
-                          !mrpBomSelections[i],
+                            {visibleMrpFields.map((field) => (
+                              <td key={field.key}>
+                                {field.key === "stockItem" ? (
+                                  <>
+                                    <span
+                                      className="mrp-item"
+                                      style={{ paddingLeft: `${x.level * 18}px` }}
+                                    >
+                                      <b>{x.stockCode}</b>
+                                      <small>{x.stockName}</small>
+                                    </span>
+                                    {x.issue && (
+                                      <small className="mrp-issue">
+                                        {x.issue}
+                                      </small>
+                                    )}
+                                  </>
+                                ) : field.key === "level" ? (
+                                  x.level
+                                ) : field.key === "grossRequirement" ? (
+                                  `${x.grossRequirement.toLocaleString("tr-TR")} ${x.unitCode}`
+                                ) : field.key === "onHandAndReserved" ? (
+                                  `${x.fromOnHand.toLocaleString("tr-TR")} / ${x.reserved.toLocaleString("tr-TR")}`
+                                ) : field.key === "openPurchaseOrders" ? (
+                                  x.fromOpenPurchaseOrders.toLocaleString("tr-TR")
+                                ) : field.key === "openManufacturingOrders" ? (
+                                  x.fromOpenManufacturingOrders.toLocaleString(
+                                    "tr-TR",
+                                  )
+                                ) : field.key === "netRequirement" ? (
+                                  <b>
+                                    {x.netRequirement.toLocaleString("tr-TR")}{" "}
+                                    {x.unitCode}
+                                  </b>
+                                ) : field.key === "requiredByDate" ? (
+                                  x.requiredByDate
+                                ) : field.key === "recommendedOrderDate" ? (
+                                  x.recommendedOrderDate
+                                ) : field.key === "recommendation" ? (
+                                  <span
+                                    className={`mrp-recommendation ${x.recommendation === "Üret" ? "make" : x.recommendation === "Satın al" ? "buy" : "covered"}`}
+                                  >
+                                    {x.recommendation}
+                                  </span>
+                                ) : null}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </AdvancedDataGrid>
+                  </div>
+                )}
+                {mrpPlan.lines.some(
+                  (x, i) =>
+                    x.issue === null &&
+                    ["Üret", "Satın al"].includes(x.recommendation) &&
+                    !mrpPlan.convertedLineIndexes?.includes(i),
+                ) && (
+                  <div className="mrp-conversion">
+                    <h3>Önerileri uygulamaya hazırla</h3>
+                    <p>
+                      Üretim önerileri taslak emir, satın alma önerileri onaya
+                      gönderilen talep oluşturur. Her satır ayrı seçilebilir.
+                    </p>
+                    {mrpPlan.lines.map((line, i) => {
+                      if (
+                        line.issue !== null ||
+                        !["Üret", "Satın al"].includes(line.recommendation) ||
+                        mrpPlan.convertedLineIndexes?.includes(i)
                       )
-                    }
-                    onClick={() => void convertMrpPlan()}
-                  >
-                    Seçili önerileri dönüştür
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
+                        return null;
+                      const checked = mrpSelected.includes(i);
+                      return (
+                        <div
+                          className="mrp-conversion-row"
+                          key={`${i}-${line.stockItemId}`}
+                        >
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) =>
+                                setMrpSelected((rows) =>
+                                  e.target.checked
+                                    ? [...rows, i]
+                                    : rows.filter((x) => x !== i),
+                                )
+                              }
+                            />
+                            <span>
+                              <b>
+                                {line.stockCode} · {line.stockName}
+                              </b>
+                              <small>
+                                {line.recommendation}{" "}
+                                {line.netRequirement.toLocaleString("tr-TR")}{" "}
+                                {line.unitCode} · ihtiyaç {line.requiredByDate}
+                              </small>
+                              {line.sourceSalesOrder ? (
+                                <small>
+                                  Kaynak sipariş: {line.sourceSalesOrder.salesOrderCode} · satır {line.sourceSalesOrder.salesOrderLineNumber}
+                                </small>
+                              ) : line.sources.some((source) => source.startsWith("Satış ")) ? (
+                                <small>Birden fazla talep birleşti; sipariş satırı bağlantısı kurulmayacak.</small>
+                              ) : null}
+                            </span>
+                          </label>
+                          {line.recommendation === "Üret" && (
+                            <select
+                              aria-label={`${line.stockCode} reçetesi`}
+                              disabled={!checked}
+                              value={mrpBomSelections[i] ?? ""}
+                              onChange={(e) =>
+                                setMrpBomSelections((x) => ({
+                                  ...x,
+                                  [i]: e.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Ürün reçetesi seçin</option>
+                              {boms
+                                .filter(
+                                  (b) =>
+                                    b.isActive &&
+                                    b.productStockItemId === line.stockItemId,
+                                )
+                                .map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.code} · {b.name}
+                                  </option>
+                                ))}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {mrpSelected.some(
+                      (i) => mrpPlan.lines[i]?.recommendation === "Satın al",
+                    ) &&
+                      purchaseRequestFields
+                        .filter((x) => x.isRequired)
+                        .map((field) => (
+                          <label className="mrp-field" key={field.code}>
+                            {field.label}
+                            {field.isRequired ? " *" : ""}
+                            <input
+                              value={purchaseRequestFieldValues[field.code] ?? ""}
+                              onChange={(e) =>
+                                setPurchaseRequestFieldValues((x) => ({
+                                  ...x,
+                                  [field.code]: e.target.value,
+                                }))
+                              }
+                              required
+                              maxLength={field.maxLength || 500}
+                            />
+                          </label>
+                        ))}
+                    <button
+                      className="primary"
+                      type="button"
+                      disabled={
+                        busy ||
+                        mrpSelected.length === 0 ||
+                        mrpSelected.some(
+                          (i) =>
+                            mrpPlan.lines[i]?.recommendation === "Üret" &&
+                            !mrpBomSelections[i],
+                        )
+                      }
+                      onClick={() => void convertMrpPlan()}
+                    >
+                      Seçili önerileri dönüştür
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+            {!mrpPlan && (
+              <div className="mrp-empty-state">
+                Planı hesapladığınızda öneriler ve MRP satırları burada
+                listelenir.
+              </div>
+            )}
+          </section>
+        </div>
       )}{" "}
       {trackingOrder && (
         <div

@@ -7,6 +7,8 @@ type Props = {
   onFromChange: (value: string) => void;
   onToChange: (value: string) => void;
   onRefresh: () => void;
+  /** Receives the toolbar slot the list grid renders its own tools into. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
 /**
@@ -20,9 +22,10 @@ export function ManufacturingCostVarianceFilters({
   onFromChange,
   onToChange,
   onRefresh,
+  toolsSlotRef,
 }: Props) {
   return (
-    <ListToolbar onRefresh={onRefresh}>
+    <ListToolbar onRefresh={onRefresh} toolsSlotRef={toolsSlotRef}>
       <label className="list-v2-filter">
         Plan tarihi başlangıcı
         <input

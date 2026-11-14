@@ -1820,3 +1820,83 @@ html[data-theme="dark"] .ledger-account-form-heading p:not(.eyebrow) { color: va
 .ledger-basis-toolbar select { min-width:190px;border:1px solid #d3deed;border-radius:7px;padding:8px 10px;background:#fff;color:#17243b; }
 @media(max-width:600px){.ledger-basis-toolbar{align-items:stretch;flex-direction:column}.ledger-basis-toolbar label{justify-content:space-between}.ledger-basis-toolbar select{min-width:0;flex:1}}
 .ledger-basis-badge{display:inline-flex;margin-left:7px;padding:2px 6px;border-radius:999px;background:#f0edff;color:#6045db;font-size:10px;font-weight:700;vertical-align:middle}
+
+/* Hesap planı (list-v2): sınıf filtresi | gruplanmış hesap listesi | seçili hesap detayı. */
+.general-ledger-panel.finance-workbench .ledger-chart-layout { display: grid; grid-template-columns: 170px minmax(0, 1fr) 260px; align-items: start; gap: 14px; }
+.general-ledger-panel.finance-workbench .ledger-chart-layout > .ledger-list { min-width: 0; max-height: min(62vh, 620px); overflow: auto; overscroll-behavior: contain; }
+.general-ledger-panel.finance-workbench .ledger-class-nav,
+.general-ledger-panel.finance-workbench .ledger-account-detail { box-sizing: border-box; min-width: 0; border: 1px solid #dfe5ee; border-radius: 12px; background: #fff; }
+.general-ledger-panel.finance-workbench .ledger-class-nav { display: grid; gap: 2px; padding: 10px 8px; }
+.general-ledger-panel.finance-workbench .ledger-class-nav h3 { margin: 0 6px 6px; color: #687b92; font-size: 12px; font-weight: 600; }
+.general-ledger-panel.finance-workbench .ledger-class-nav button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; margin: 0; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: #172b45; font-size: 12.5px; font-weight: 500; text-align: left; cursor: pointer; }
+.general-ledger-panel.finance-workbench .ledger-class-nav button:hover { background: #f3f6fa; }
+.general-ledger-panel.finance-workbench .ledger-class-nav button.is-active { background: #eaf2fb; color: #12508a; font-weight: 600; }
+.general-ledger-panel.finance-workbench .ledger-class-nav button:focus-visible { outline: 2px solid #1769aa; outline-offset: 1px; }
+.general-ledger-panel.finance-workbench .ledger-class-digit { flex: 0 0 auto; min-width: 12px; color: #687b92; font-variant-numeric: tabular-nums; font-weight: 700; }
+.general-ledger-panel.finance-workbench .ledger-class-name { flex: 1 1 auto; min-width: 0; line-height: 1.3; }
+.general-ledger-panel.finance-workbench .ledger-class-count { flex: 0 0 auto; color: #687b92; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.general-ledger-panel.finance-workbench .ledger-class-select { display: none; }
+.general-ledger-panel.finance-workbench .ledger-class-select select { min-height: 34px; max-width: 260px; padding: 0 8px; border-radius: 8px; font-size: 13px; }
+
+/* Grup (2 haneli kod) satırları ve satır seçimi. */
+.general-ledger-panel.finance-workbench tr.ledger-account-row { cursor: pointer; }
+.general-ledger-panel.finance-workbench tr.ledger-account-row:focus-visible { outline: 2px solid #1769aa; outline-offset: -2px; }
+.general-ledger-panel.finance-workbench tr.ledger-account-group-start:not(:first-child) > td { border-top: 1px solid #c9d5e3; }
+.general-ledger-panel.finance-workbench tr.ledger-account-group-account > td { background: #f6f8fb; font-weight: 700; }
+.general-ledger-panel.finance-workbench tr.ledger-account-selected > td,
+.general-ledger-panel.finance-workbench tr.ledger-account-selected:hover > td { background: #eaf2fb; }
+.general-ledger-panel.finance-workbench tr.ledger-account-selected > td:first-child { box-shadow: inset 3px 0 0 #1769aa; }
+.general-ledger-panel.finance-workbench .ledger-chart-layout .ledger-account-code-cell { display: inline-flex; gap: 0; vertical-align: middle; white-space: nowrap; }
+.general-ledger-panel.finance-workbench .ledger-account-group-slot { display: inline-flex; flex: 0 0 38px; width: 38px; align-items: center; }
+.general-ledger-panel.finance-workbench .ledger-account-group-toggle { display: inline-flex; align-items: center; gap: 2px; height: 22px; min-height: 22px; margin: 0; padding: 0 4px 0 2px; border: 0; border-radius: 5px; background: transparent; box-shadow: none; color: #526983; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.general-ledger-panel.finance-workbench .ledger-account-group-toggle[data-group]::after { content: attr(data-group); }
+.general-ledger-panel.finance-workbench .ledger-account-group-toggle:hover { background: #f0f6fc; color: #1769aa; }
+.general-ledger-panel.finance-workbench .ledger-account-code-tree { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.general-ledger-panel.finance-workbench .ledger-account-code-tree.is-in-group { margin-inline-start: 8px; }
+.general-ledger-panel.finance-workbench .ledger-account-group-more::after { content: attr(data-more); padding: 1px 5px; border-radius: 999px; background: #eef2f7; color: #526983; font-size: 11px; font-weight: 600; }
+
+/* Seçili hesap paneli. */
+.general-ledger-panel.finance-workbench .ledger-account-detail { position: sticky; top: 12px; padding: 16px; }
+.general-ledger-panel.finance-workbench .ledger-account-detail h2 { font-size: 17px; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-code { font-variant-numeric: tabular-nums; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-fields { display: grid; gap: 10px; margin: 14px 0 0; padding: 14px 0 0; border-top: 1px solid #dfe5ee; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-fields > div { display: grid; gap: 2px; min-width: 0; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-fields dt { color: #687b92; font-size: 11.5px; font-weight: 600; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-fields dd { margin: 0; color: #172b45; font-size: 13px; overflow-wrap: anywhere; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-actions { margin-top: 14px; padding-top: 14px; border-top: 1px solid #dfe5ee; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-actions > .secondary { width: 100%; min-height: 36px; justify-content: center; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-actions > .list-v2-detail-foot { gap: 16px; margin-top: 8px; padding: 0 8px; border-top: 0; }
+.general-ledger-panel.finance-workbench .ledger-account-detail-empty { margin: 0; padding: 28px 0; color: #687b92; font-size: 13px; text-align: center; }
+
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-nav,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail { border-color: var(--erp-border); background: var(--erp-surface); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-nav button,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail-fields dd { color: var(--erp-text); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-nav h3,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-digit,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-count,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail-fields dt,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail-empty,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-group-toggle { color: var(--erp-text-muted); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-nav button:hover,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-group-toggle:hover,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench tr.ledger-account-group-account > td { background: rgba(255, 255, 255, .04); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-class-nav button.is-active { background: rgba(96, 165, 250, .14); color: var(--erp-text); }
+/* !important: the shared dark grid surface rules paint every cell with !important. */
+html[data-theme="dark"] .general-ledger-panel.finance-workbench tr.ledger-account-selected > td,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench tr.ledger-account-selected:hover > td { background: #1f3350 !important; color: var(--erp-text); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench tr.ledger-account-group-account:not(.ledger-account-selected) > td { background: #1d2333 !important; }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench tr.ledger-account-group-start:not(:first-child) > td,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail-fields,
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-detail-actions { border-color: var(--erp-border); }
+html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-account-group-more::after { background: rgba(255, 255, 255, .08); color: var(--erp-text-muted); }
+
+@media (max-width: 1100px) {
+  .general-ledger-panel.finance-workbench .ledger-chart-layout { grid-template-columns: minmax(0, 1fr) 260px; }
+  .general-ledger-panel.finance-workbench .ledger-class-nav { display: none; }
+  .general-ledger-panel.finance-workbench .ledger-class-select { display: inline-flex; }
+}
+@media (max-width: 900px) {
+  .general-ledger-panel.finance-workbench .ledger-chart-layout { grid-template-columns: minmax(0, 1fr); }
+  .general-ledger-panel.finance-workbench .ledger-account-detail { position: static; }
+}

@@ -665,6 +665,13 @@ export const english: Record<string, string> = {
   'Liste tasarımı': 'List design',
   'Eşleşen alan yok.': 'No matching fields.',
   'Yenile': 'Refresh',
+  'Yeni tanım': 'New definition',
+  'Tanımı düzenle': 'Edit definition',
+  'Henüz tanım yok': 'No definitions yet',
+  'İş yeri, şube veya fabrikalarınızı ekleyin.': 'Add your workplaces, branches or factories.',
+  'Diğer tanımlar': 'Other definitions',
+  'Stok, transfer ve raf konumları': 'Stock, transfers and storage locations',
+  'Cari adreslerindeki il ve ilçeler': 'Provinces and districts in account addresses',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

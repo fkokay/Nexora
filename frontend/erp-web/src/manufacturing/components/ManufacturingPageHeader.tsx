@@ -1,4 +1,4 @@
-import { Factory, Plus, RefreshCw } from "lucide-react";
+import { Factory, History, Plus, RefreshCw } from "lucide-react";
 import { ListPageHeader } from "../../list-page/ListPageHeader";
 
 type Props = {
@@ -11,6 +11,14 @@ type Props = {
   listMode?: boolean;
   /** Record count shown next to the title in list mode; null while unknown. */
   listCount?: number | null;
+  /** Muted text after the record count (list mode), e.g. "· günlük kapasite 480 dk". */
+  listMeta?: string;
+  /**
+   * Compact list-v2 title row without a record count (material planning): title,
+   * muted meta line, plan history and an icon refresh button.
+   */
+  compactMode?: boolean;
+  onShowHistory?: () => void;
   showRecipeScope: boolean;
   showCreateRecipe: boolean;
   showRecipeListBack: boolean;
@@ -35,6 +43,9 @@ export default function ManufacturingPageHeader({
   description,
   listMode = false,
   listCount = null,
+  listMeta,
+  compactMode = false,
+  onShowHistory,
   showRecipeScope,
   showCreateRecipe,
   showRecipeListBack,
@@ -53,6 +64,64 @@ export default function ManufacturingPageHeader({
   onBackToOrderList,
   onRefresh,
 }: Props) {
+  if (compactMode)
+    return (
+      <div className="page-heading list-v2-heading">
+        <div className="list-v2-title">
+          <h1 title={description}>{title}</h1>
+          {listMeta && <span className="list-v2-count">{listMeta}</span>}
+        </div>
+        <div className="heading-actions">
+          {onShowHistory && (
+            <button
+              className="secondary"
+              type="button"
+              disabled={busy}
+              onClick={onShowHistory}
+            >
+              <History size={15} /> Plan geçmişi
+            </button>
+          )}
+          <button
+            className="list-v2-icon-button"
+            type="button"
+            onClick={onRefresh}
+            disabled={busy}
+            aria-label="Yenile"
+            title="Yenile"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  if (listMode && listMeta)
+    return (
+      <div className="page-heading list-v2-heading">
+        <div className="list-v2-title">
+          <h1 title={description}>{title}</h1>
+          {listCount != null && (
+            <span className="list-v2-count">
+              <span>{listCount.toLocaleString("tr-TR")}</span> <span>kayıt</span>{" "}
+              <span>{listMeta}</span>
+            </span>
+          )}
+        </div>
+        <div className="heading-actions">
+          {/* AdvancedDataGrid portals its XLSX/CSV buttons here. */}
+          <span className="list-v2-export-slot" />
+          {showCreateWorkCenter && (
+            <button
+              className="primary"
+              type="button"
+              onClick={onCreateWorkCenter}
+            >
+              <Plus size={15} /> İş merkezi tanımla
+            </button>
+          )}
+        </div>
+      </div>
+    );
   if (listMode)
     return (
       <ListPageHeader title={title} description={description} count={listCount}>

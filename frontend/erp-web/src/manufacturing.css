@@ -439,3 +439,312 @@ html[data-theme="dark"] .manufacturing-recipe-filter-card{border-color:var(--erp
 html[data-theme="dark"] .manufacturing-recipe-filter-heading h2{color:var(--erp-text,#e4e7ed)}
 html[data-theme="dark"] .manufacturing-recipe-filter-heading p{color:var(--erp-muted,#a7afbf)}
 @media(max-width:700px){.manufacturing-recipe-filter-card{grid-template-columns:1fr;gap:10px;padding:12px}}
+
+/* Orders: the list and the selected-order inspector are two separate cards with a gap,
+   instead of one card holding both (which made the table run straight into the inspector). */
+#root .app-shell .list-v2 .manufacturing-order-list.list-v2-list:has(.manufacturing-order-inspector) {
+  overflow: visible;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
+  overflow: hidden;
+  border: 1px solid #dfe5ee !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+}
+#root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-inspector { border-radius: 12px; }
+html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
+  border-color: #35435b !important;
+  background: #1a263a !important;
+}
+
+/* Work centers: list | selected work center detail (calendar, general, exceptions tabs). */
+#root .manufacturing-page .work-center-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; gap: 16px; min-width: 0; }
+#root .manufacturing-page :is(.work-center-card, .mrp-card) { min-width: 0; margin: 0; padding: 16px; border: 1px solid #dfe5ee; border-radius: 12px; background: #fff; box-shadow: none; }
+#root .manufacturing-page .work-center-list-card { padding: 0; overflow: hidden; }
+#root .manufacturing-page .work-center-list-card .manufacturing-table-wrap { margin: 0; border: 0; border-radius: 0; }
+#root .manufacturing-page .work-center-list-card .manufacturing-empty { margin: 16px; }
+#root .manufacturing-page .work-center-list-card tbody tr { cursor: pointer; }
+#root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: #f3f6fb; }
+#root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 #0a192f; }
+#root .manufacturing-page .work-center-detail { display: grid; gap: 14px; }
+#root .manufacturing-page .work-center-detail .list-v2-detail-head h2 { font-size: 20px; }
+#root .manufacturing-page .work-center-detail-code { color: var(--lv2-muted, #526174); font-size: 12px; }
+#root .manufacturing-page .work-center-detail .list-v2-tabs { margin-top: 0; }
+#root .manufacturing-page .work-center-tab-body { display: grid; gap: 14px; min-width: 0; }
+#root .manufacturing-page .work-center-field { display: grid; gap: 6px; color: var(--lv2-muted, #526174); font-size: 12px; font-weight: 650; }
+#root .manufacturing-page .work-calendar-segments { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 8px; }
+#root .manufacturing-page .work-calendar-segments button { min-width: 40px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-right: 1px solid #dfe5ee; border-radius: 0; background: #fff; box-shadow: none; color: var(--lv2-muted, #526174); font-size: 12px; font-weight: 650; cursor: pointer; }
+#root .manufacturing-page .work-calendar-segments button:last-child { border-right: 0; }
+#root .manufacturing-page .work-calendar-segments button.is-on { background: #0a192f; color: #fff; }
+#root .manufacturing-page .work-calendar-segments button:disabled { cursor: not-allowed; opacity: .6; }
+#root .manufacturing-page .work-center-shift-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#root .manufacturing-page .work-center-shift-row label { display: grid; gap: 6px; min-width: 0; color: var(--lv2-muted, #526174); font-size: 12px; font-weight: 650; }
+#root .manufacturing-page .work-center-shift-row input { width: 100%; min-width: 0; height: 38px; }
+#root .manufacturing-page :is(.work-center-note, .mrp-muted) { color: var(--lv2-muted, #6b7689); font-size: 12px; }
+/* Inside the detail card the moved calendar/setup blocks drop their own frames. */
+#root .manufacturing-page .work-center-detail .work-center-calendar { margin: 0; padding: 0; border: 0; background: transparent; }
+#root .manufacturing-page .work-center-detail .calendar-override-form { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; border: 0; background: transparent; }
+#root .manufacturing-page .work-center-detail .calendar-override-form > button { align-self: end; }
+#root .manufacturing-page .work-center-detail .calendar-override-list { display: grid; gap: 0; }
+#root .manufacturing-page .work-center-detail .calendar-override-row { border: 0; border-bottom: 1px solid #edf0f5; border-radius: 0; background: transparent; padding: 8px 0; }
+#root .manufacturing-page .work-center-detail .calendar-title h3 { margin: 6px 0 0; font-size: 13px; }
+#root .manufacturing-page .work-center-detail .calendar-title p { margin: 4px 0 0; font-size: 12px; }
+#root .manufacturing-page .work-center-detail .calendar-save-row { padding-top: 12px; border-top: 1px solid #edf0f5; }
+@media (max-width: 1100px) {
+  #root .manufacturing-page .work-center-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  #root .manufacturing-page .work-center-detail .calendar-override-form,
+  #root .manufacturing-page .work-center-shift-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Material planning: plan inputs | plan result. */
+#root .manufacturing-page.mrp-v2 { display: grid; gap: 16px; }
+#root .manufacturing-page .mrp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: start; gap: 16px; min-width: 0; }
+#root .manufacturing-page .mrp-card { display: grid; gap: 14px; }
+#root .manufacturing-page .mrp-card h2 { margin: 0; color: var(--lv2-text, #0a192f); font-size: 15px; font-weight: 700; }
+#root .manufacturing-page .mrp-input-form { display: grid; gap: 12px; min-width: 0; }
+#root .manufacturing-page .mrp-input-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#root .manufacturing-page .mrp-input-row label { display: grid; gap: 6px; min-width: 0; color: var(--lv2-muted, #526174); font-size: 12px; font-weight: 650; }
+#root .manufacturing-page .mrp-input-form input { width: 100%; min-width: 0; height: 38px; }
+#root .manufacturing-page .mrp-demand-table { display: grid; min-width: 0; border-top: 1px solid #edf0f5; }
+#root .manufacturing-page :is(.mrp-demand-head, .mrp-demand-line) { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(70px, .6fr) minmax(120px, .9fr) 30px; align-items: center; gap: 8px; min-width: 0; }
+#root .manufacturing-page .mrp-demand-head { padding: 8px 0; border-bottom: 1px solid #edf0f5; color: var(--lv2-muted, #6b7689); font-size: 11px; font-weight: 700; }
+#root .manufacturing-page .mrp-demand-line { padding: 8px 0; border-bottom: 1px solid #edf0f5; }
+#root .manufacturing-page .mrp-demand-line > * { min-width: 0; }
+#root .manufacturing-page .mrp-demand-foot { padding-top: 8px; }
+#root .manufacturing-page .mrp-link-button { min-height: 0; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: #1f5fbf; font-size: 13px; font-weight: 650; cursor: pointer; }
+#root .manufacturing-page .mrp-link-button:disabled { color: var(--lv2-muted, #6b7689); cursor: not-allowed; }
+#root .manufacturing-page .mrp-run-button { width: 100%; min-height: 40px; }
+#root .manufacturing-page .mrp-results-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+#root .manufacturing-page .mrp-stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+#root .manufacturing-page .mrp-stat-tiles > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: #f5f7fa; }
+#root .manufacturing-page .mrp-stat-tiles span { color: var(--lv2-muted, #6b7689); font-size: 11px; font-weight: 650; }
+#root .manufacturing-page .mrp-stat-tiles b { color: var(--lv2-text, #0a192f); font-size: 18px; font-variant-numeric: tabular-nums; }
+#root .manufacturing-page .mrp-empty-state { display: grid; place-items: center; min-height: 160px; padding: 24px; border: 1px dashed #cfd7e3; border-radius: 10px; color: var(--lv2-muted, #6b7689); font-size: 13px; text-align: center; }
+#root .manufacturing-page .mrp-results .manufacturing-table-wrap { margin: 0; }
+@media (max-width: 1100px) {
+  #root .manufacturing-page .mrp-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  #root .manufacturing-page .mrp-input-row,
+  #root .manufacturing-page .mrp-stat-tiles { grid-template-columns: minmax(0, 1fr); }
+  #root .manufacturing-page :is(.mrp-demand-head, .mrp-demand-line) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px; }
+  #root .manufacturing-page .mrp-demand-line > :first-child,
+  #root .manufacturing-page .mrp-demand-head > :first-child { grid-column: 1 / -1; }
+  #root .manufacturing-page .mrp-demand-head > :last-child { display: none; }
+}
+html[data-theme='dark'] #root .manufacturing-page :is(.work-center-card, .mrp-card) { border-color: #35435b; background: #1a263a; }
+html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: #22314a; }
+html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 #f6c23e; }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments { border-color: #35435b; }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button { border-color: #35435b; background: #1a263a; color: #a7afbf; }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button.is-on { background: #e4e7ed; color: #0f1726; }
+html[data-theme='dark'] #root .manufacturing-page :is(.work-center-detail .calendar-override-row, .work-center-detail .calendar-save-row, .mrp-demand-table, .mrp-demand-head, .mrp-demand-line) { border-color: #2c3a50; }
+html[data-theme='dark'] #root .manufacturing-page .work-center-detail :is(.calendar-override-form, .calendar-override-row, .work-center-calendar) { background: transparent; }
+html[data-theme='dark'] #root .manufacturing-page .mrp-link-button { color: #8ab8f5; }
+html[data-theme='dark'] #root .manufacturing-page .mrp-stat-tiles > div { background: #22314a; }
+html[data-theme='dark'] #root .manufacturing-page .mrp-empty-state { border-color: #3a4a63; }
+#root .manufacturing-page > .manufacturing-grid:empty { display: none; }
+#root .app-shell .manufacturing-page .work-center-detail .list-v2-tabs button { min-height: 0; background: transparent !important; box-shadow: none !important; }
+#root .app-shell .manufacturing-page .work-center-detail .list-v2-tabs button.is-active { color: var(--lv2-text, #0a192f); }
+#root .manufacturing-page .work-center-detail .calendar-save-row > button { flex: none; white-space: nowrap; }
+
+/* Create forms (recipe, production order, work center): one main card + summary column,
+   following the CRM opportunity form. Title row sits on the page background. */
+#root .record-form.mfg-rf {
+  --mfg-rf-border: #dfe5ee;
+  --mfg-rf-card: #fff;
+  --mfg-rf-soft: #f5f7fb;
+  --mfg-rf-label: #33465d;
+  --mfg-rf-muted: #65758a;
+  --mfg-rf-text: #172b45;
+  --mfg-rf-divider: #edf0f5;
+  background: transparent;
+}
+html[data-theme="dark"] #root .record-form.mfg-rf {
+  --mfg-rf-border: #33405a;
+  --mfg-rf-card: #171d2b;
+  --mfg-rf-soft: #1f2738;
+  --mfg-rf-label: #c7d1df;
+  --mfg-rf-muted: #9aa9bd;
+  --mfg-rf-text: #edf3fb;
+  --mfg-rf-divider: #2a3448;
+}
+#root .record-form.mfg-rf > .rf-form { padding: 0 0 24px; background: transparent; }
+#root .mfg-rf .mfg-rf-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+#root .mfg-rf .mfg-rf-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 20px; border: 1px solid var(--mfg-rf-border); border-radius: 12px; background: var(--mfg-rf-card); box-shadow: none; }
+#root .mfg-rf .mfg-rf-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+#root .mfg-rf .mfg-rf-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#root .mfg-rf .mfg-rf-row--wide { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+#root .mfg-rf .mfg-rf-row > small { grid-column: 1 / -1; color: var(--mfg-rf-muted); font-size: 12px; }
+#root .app-shell .record-form.mfg-rf .rf-form label { color: var(--mfg-rf-label); font-size: 13px; }
+#root .mfg-rf .rf-form label > small { color: var(--mfg-rf-muted); font-size: 12px; font-weight: 400; }
+#root .mfg-rf .rf-form .mfg-rf-lead :is(input, select) { height: 44px; min-height: 44px; font-size: 14px; font-weight: 500; }
+#root .mfg-rf .mfg-rf-suffix { display: flex; min-width: 0; }
+#root .mfg-rf .rf-form .mfg-rf-suffix > input { flex: 1; min-width: 0; border-radius: 6px 0 0 6px; }
+#root .mfg-rf .mfg-rf-suffix > span { display: inline-flex; flex: none; align-items: center; margin-left: -1px; padding: 0 10px; border: 1px solid var(--mfg-rf-border); border-radius: 0 6px 6px 0; background: var(--mfg-rf-soft); color: var(--mfg-rf-muted); font-size: 12px; font-weight: 600; }
+#root .mfg-rf .rf-form .mfg-rf-suffix > input:only-child { border-radius: 6px; }
+#root .mfg-rf .mfg-rf-divider { display: flex; align-items: center; gap: 10px; color: var(--mfg-rf-muted); font-size: 12px; font-weight: 700; }
+#root .mfg-rf .mfg-rf-divider::after { content: ""; flex: 1; height: 1px; background: var(--mfg-rf-divider); }
+#root .mfg-rf .mfg-rf-field { display: grid; gap: 6px; color: var(--mfg-rf-label); font-size: 13px; }
+#root .mfg-rf .mfg-rf-segments { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; }
+#root .app-shell .mfg-rf .mfg-rf-segments > button { height: 36px; min-height: 36px; margin: 0 0 0 -1px; padding: 0 14px; border: 1px solid var(--mfg-rf-border); border-radius: 0; background: var(--mfg-rf-card); box-shadow: none; color: var(--mfg-rf-label); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+#root .app-shell .mfg-rf .mfg-rf-segments > button:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
+#root .app-shell .mfg-rf .mfg-rf-segments > button:last-child { border-radius: 0 8px 8px 0; }
+#root .app-shell .mfg-rf .mfg-rf-segments > button[aria-pressed="true"] { position: relative; z-index: 1; border-color: #b98206; background: #f5b731; color: #2b1d00; }
+#root .app-shell .mfg-rf .mfg-rf-card > h2,
+#root .app-shell .mfg-rf .mfg-rf-section-head > h2 { margin: 0; color: var(--mfg-rf-text) !important; font-size: 13px !important; font-weight: 700 !important; letter-spacing: 0 !important; line-height: 1.4 !important; text-transform: none; }
+#root .mfg-rf .rf-form .mfg-rf-card small { color: var(--mfg-rf-muted); font-size: 12px; }
+#root .mfg-rf .mfg-rf-section { display: grid; gap: 8px; min-width: 0; padding-top: 16px; border-top: 1px solid var(--mfg-rf-divider); }
+#root .mfg-rf .mfg-rf-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#root .app-shell .mfg-rf .mfg-rf-link { min-height: 0; height: auto; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: #1f5fbf; font-size: 13px; font-weight: 650; cursor: pointer; }
+#root .app-shell .mfg-rf .mfg-rf-link:disabled { color: var(--mfg-rf-muted); cursor: not-allowed; }
+html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { color: #8ab8f5; }
+#root .mfg-rf .mfg-rf-hint { display: flex; align-items: center; gap: 6px; }
+#root .mfg-rf .mfg-rf-info { display: inline-flex; color: var(--mfg-rf-muted); cursor: help; }
+#root .mfg-rf .mfg-rf-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
+/* Component table */
+#root .mfg-rf .mfg-rf-table { display: grid; min-width: 0; }
+#root .mfg-rf .mfg-rf-components :is(.mfg-rf-thead, .mfg-rf-tr) { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(70px, .6fr) minmax(64px, .5fr) minmax(90px, .7fr) 30px; align-items: center; gap: 8px; }
+#root .mfg-rf .mfg-rf-thead { padding: 0 0 6px; border-bottom: 1px solid var(--mfg-rf-divider); color: var(--mfg-rf-muted); font-size: 11px; font-weight: 700; }
+#root .mfg-rf .mfg-rf-tr { padding: 6px 0; border-bottom: 1px solid var(--mfg-rf-divider); }
+#root .mfg-rf .mfg-rf-tr > * { min-width: 0; }
+#root .mfg-rf .rf-form .mfg-rf-tr :is(input, select) { width: 100%; height: 36px; min-height: 36px; }
+#root .mfg-rf .rf-form .manufacturing-remove { width: 30px; height: 36px; padding: 0; font-size: 17px; cursor: pointer; }
+/* Operations: compact row + "Gelişmiş" disclosure */
+#root .mfg-rf .mfg-rf-op-list { display: grid; min-width: 0; }
+#root .mfg-rf .mfg-rf-op { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--mfg-rf-divider); }
+#root .mfg-rf .mfg-rf-op-main { display: grid; grid-template-columns: 22px minmax(0, 1.6fr) minmax(80px, .7fr) minmax(80px, .7fr) 30px; align-items: end; gap: 8px; }
+#root .mfg-rf .mfg-rf-op-main > label { display: grid; gap: 4px; min-width: 0; font-size: 12px !important; }
+#root .mfg-rf .rf-form .mfg-rf-op-main :is(input, select) { width: 100%; height: 36px; min-height: 36px; }
+#root .mfg-rf .mfg-rf-seq { align-self: center; padding-top: 18px; color: var(--mfg-rf-muted); font-size: 12px; font-weight: 700; text-align: center; }
+#root .app-shell .mfg-rf .mfg-rf-disclosure { justify-self: start; display: inline-flex; align-items: center; gap: 4px; min-height: 0; height: auto; margin: 0 0 0 30px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--mfg-rf-muted); font-size: 12px; font-weight: 650; cursor: pointer; }
+#root .app-shell .mfg-rf .mfg-rf-disclosure:disabled { cursor: default; opacity: 1; }
+#root .mfg-rf .mfg-rf-op-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin-left: 30px; padding: 10px 12px; border-radius: 8px; background: var(--mfg-rf-soft); }
+#root .mfg-rf .mfg-rf-op-details > label { display: grid; gap: 4px; min-width: 0; font-size: 12px !important; }
+#root .mfg-rf .rf-form .mfg-rf-op-details input:not([type="checkbox"]) { width: 100%; height: 36px; min-height: 36px; }
+#root .mfg-rf .mfg-rf-alternates { grid-column: 1 / -1; margin: 0; padding: 0; border: 0; background: transparent; }
+#root .mfg-rf .mfg-rf-alternates > div { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+#root .mfg-rf .mfg-rf-alternates label { display: inline-flex !important; flex-direction: row; align-items: center; gap: 4px; font-size: 12px; }
+/* Summary column */
+#root .mfg-rf .mfg-rf-facts { display: block; margin: 0; }
+#root .mfg-rf .mfg-rf-facts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--mfg-rf-divider); }
+#root .mfg-rf .mfg-rf-facts dt { color: var(--mfg-rf-muted); font-size: 13px; }
+#root .mfg-rf .mfg-rf-facts dd { margin: 0; min-width: 0; color: var(--mfg-rf-text); font-size: 13px; font-weight: 600; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+#root .mfg-rf .mfg-rf-total { display: grid; gap: 4px; }
+#root .mfg-rf .mfg-rf-total output { color: var(--mfg-rf-text); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
+#root .mfg-rf .mfg-rf-checklist { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; color: var(--mfg-rf-muted); font-size: 13px; }
+#root .mfg-rf .mfg-rf-checklist li { display: flex; align-items: center; gap: 8px; }
+#root .mfg-rf .mfg-rf-checklist li > span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--mfg-rf-border); font-size: 11px; }
+#root .mfg-rf .mfg-rf-checklist li.is-done { color: var(--mfg-rf-text); }
+#root .mfg-rf .mfg-rf-checklist li.is-done > span { border-color: #11845f; background: #11845f; color: #fff; }
+#root .mfg-rf .mfg-rf-tip { margin: 0; padding: 12px 14px; border: 1px solid var(--mfg-rf-border); border-radius: 10px; background: var(--mfg-rf-soft); color: var(--mfg-rf-muted); font-size: 12px; line-height: 1.5; }
+/* No yellow "must" backgrounds in these forms; the asterisk marks required fields. */
+#root .app-shell .mfg-rf .rf-form :is(input, select).rf-must { background-color: var(--mfg-rf-card) !important; }
+/* "⋯" menu (toolbar and sticky bar) */
+#root .mfg-more-menu { position: relative; display: inline-flex; }
+#root .mfg-more-menu .mfg-more-trigger { padding: 0 10px; }
+#root .mfg-more-list { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: grid; min-width: 170px; padding: 4px; border: 1px solid #dfe5ee; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(15, 23, 42, .12); }
+#root .mfg-more-menu.is-up .mfg-more-list { top: auto; bottom: calc(100% + 4px); }
+#root .app-shell .mfg-more-list > button { justify-content: flex-start; min-height: 34px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: #172b45; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; }
+#root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: #f5f7fb; }
+html[data-theme="dark"] #root .mfg-more-list { border-color: #33405a; background: #171d2b; }
+html[data-theme="dark"] #root .app-shell .mfg-more-list > button { color: #edf3fb; }
+html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: #1f2738; }
+#root .mfg-rf .mfg-sticky-bar { display: none; }
+@media (max-width: 900px) {
+  #root .mfg-rf .mfg-rf-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  /* Only forms that render their own sticky action bar hide the toolbar actions. */
+  #root .record-form.mfg-rf:has(.mfg-sticky-bar) > .rf-toolbar .rf-actions { display: none; }
+  #root .mfg-rf .mfg-sticky-bar { position: sticky; bottom: 0; z-index: 20; display: flex; gap: 8px; margin: 16px -16px -24px; padding: 10px 16px; border-top: 1px solid var(--mfg-rf-border); background: var(--mfg-rf-card); }
+  #root .mfg-rf .mfg-sticky-bar > .rf-btn--primary { flex: 1; justify-content: center; }
+}
+@media (max-width: 640px) {
+  #root .mfg-rf :is(.mfg-rf-row, .mfg-rf-row--wide, .mfg-rf-op-details) { grid-template-columns: minmax(0, 1fr); }
+  #root .mfg-rf .mfg-rf-card { padding: 16px; }
+  #root .mfg-rf .mfg-rf-components .mfg-rf-thead { display: none; }
+  #root .mfg-rf .mfg-rf-components .mfg-rf-tr { grid-template-columns: repeat(3, minmax(0, 1fr)) 30px; }
+  #root .mfg-rf .mfg-rf-components .mfg-rf-tr > :first-child { grid-column: 1 / -1; }
+  #root .mfg-rf .mfg-rf-op-main { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 30px; }
+  #root .mfg-rf .mfg-rf-op-main > label:first-of-type { grid-column: 2 / -1; }
+  #root .mfg-rf :is(.mfg-rf-op-details, .mfg-rf-disclosure) { margin-left: 0 !important; }
+}
+
+/* Order inspector: one summary line, plain rows with thin dividers. */
+#root .manufacturing-page .manufacturing-inspector-summary { display: grid; gap: 2px; min-width: 0; color: var(--lv2-muted, #6b7689); font-size: 12px; }
+#root .manufacturing-page .manufacturing-inspector-summary > span:first-child { color: var(--lv2-text, #25324a); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#root .manufacturing-page .manufacturing-inspector-summary .is-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .manufacturing-page .manufacturing-inspector-section > h3 { margin: 0; color: var(--lv2-muted, #647087); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+#root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) { gap: 0; }
+#root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { display: grid; gap: 6px; padding: 8px 0; border: 0; border-bottom: 1px solid #edf0f5; border-radius: 0; background: transparent; color: var(--lv2-text, #25324a); font-size: 12px; }
+#root .manufacturing-page .manufacturing-inspector-section .manufacturing-component-rows > li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; cursor: default; }
+#root .manufacturing-page .manufacturing-inspector-section .manufacturing-component-rows > li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li:last-child { border-bottom: 0; }
+#root .manufacturing-page .manufacturing-op-row-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#root .manufacturing-page .manufacturing-op-row-name { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; }
+#root .manufacturing-page .manufacturing-op-row-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#root .manufacturing-page .manufacturing-op-row-name > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #9aa5b5; }
+#root .manufacturing-page .manufacturing-op-row-name > small { flex: none; color: var(--lv2-muted, #6b7689); font-size: 10.5px; }
+#root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: #3f7fd0; }
+#root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: #11845f; }
+#root .manufacturing-page .manufacturing-op-row-main > b { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .app-shell .manufacturing-page .manufacturing-op-row-main > button { flex: none; height: 26px; min-height: 26px; padding: 0 8px; font-size: 11px; }
+#root .manufacturing-page .manufacturing-op-row .actual-time-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+#root .manufacturing-page .manufacturing-op-row .actual-time-entry label { min-width: 0; font-size: 10px; }
+#root .manufacturing-page .manufacturing-op-row .actual-time-entry :is(input, select) { width: 100%; min-width: 0; height: 30px; }
+#root .manufacturing-page .manufacturing-op-row .actual-time-entry :is(.is-wide, button) { grid-column: 1 / -1; justify-content: center; }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { border-color: #2c3a50; background: transparent; }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: #6ea8ec; }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: #4cc996; }
+
+/* Orders: when the inspector sits beside the list, the list card is as tall as the inspector. */
+@media (min-width: 1361px) {
+  #root .app-shell .manufacturing-page .manufacturing-order-workbench:has(> .manufacturing-order-inspector) { align-items: stretch; }
+  #root .app-shell .manufacturing-page .manufacturing-order-workbench:has(> .manufacturing-order-inspector) > .manufacturing-table-wrap { display: flex; flex-direction: column; min-height: 0; }
+  #root .app-shell .manufacturing-page .manufacturing-order-workbench:has(> .manufacturing-order-inspector) > .manufacturing-table-wrap > .advanced-grid { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+  #root .app-shell .manufacturing-page .manufacturing-order-workbench:has(> .manufacturing-order-inspector) > .manufacturing-table-wrap > .advanced-grid > .advanced-grid-scroll { flex: 1; height: 100%; max-height: none; }
+  #root .app-shell .manufacturing-page .manufacturing-order-workbench:has(> .manufacturing-order-inspector) > .manufacturing-order-inspector { position: static; align-self: stretch; }
+}
+
+/* Inspector polish found in browser test: small section titles; operation name gets the full row,
+   the action button moves under it so the work-center code isn't truncated in the 300px panel. */
+#root .manufacturing-order-inspector h3 {
+  margin: 4px 0 2px;
+  color: #5b6b80;
+  font-size: 11px !important; /* beats the global `.app-shell h3 { font-size: 16px !important }` */
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+#root .manufacturing-order-inspector .manufacturing-op-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+}
+#root .manufacturing-order-inspector .manufacturing-op-row-main > button { grid-column: 1 / -1; justify-self: start; }
+#root .manufacturing-order-inspector .manufacturing-op-row-name { min-width: 0; }
+#root .manufacturing-order-inspector .manufacturing-op-row-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: #a7b4c6; }
+
+/* Work centers: list card as tall as the detail card while side by side; calendar retry row. */
+@media (min-width: 1101px) {
+  #root .manufacturing-page .work-center-layout { align-items: stretch; }
+  #root .manufacturing-page .work-center-list-card { display: flex; flex-direction: column; }
+  #root .manufacturing-page .work-center-list-card > .manufacturing-table-wrap { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+  #root .manufacturing-page .work-center-list-card > .manufacturing-table-wrap > .advanced-grid { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+  #root .manufacturing-page .work-center-list-card > .manufacturing-table-wrap > .advanced-grid > .advanced-grid-scroll { height: 100%; max-height: none; }
+}
+#root .manufacturing-page .work-center-calendar-retry { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#root .manufacturing-page .work-center-detail :is(.calendar-override-form, .annual-capacity-form, .shift-rotation-form) { align-items: start; }
+#root .manufacturing-page .work-center-detail :is(.calendar-override-form, .annual-capacity-form, .shift-rotation-form) > label { display: grid; align-content: start; gap: 5px; }
+/* On phones the workspace rail becomes a 68px bottom bar (z-index 45); keep the form action bar above it. */
+@media (max-width: 760px) {
+  #root .mfg-rf .mfg-sticky-bar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); z-index: 46; }
+}

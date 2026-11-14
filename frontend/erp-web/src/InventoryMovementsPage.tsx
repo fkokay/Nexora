@@ -50,6 +50,7 @@ export default function InventoryMovementsPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultMovementFields);
   const visibleFields = useMemo(
     () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
@@ -174,6 +175,7 @@ export default function InventoryMovementsPage({
       <ListToolbar
         onRefresh={() => setRefreshKey((current) => current + 1)}
         refreshLabel={en ? "Refresh" : "Yenile"}
+        toolsSlotRef={setToolsSlot}
       >
         <div className="list-v2-filter is-wide inventory-movements-stock-filter">
           <span>{en ? "Stock item" : "Stok kartı"}</span>
@@ -215,6 +217,7 @@ export default function InventoryMovementsPage({
             externalPagination
             hideSearch
             enableRowSelection={false}
+            toolbarContainer={toolsSlot}
           >
             <thead><tr>{visibleFields.map((field) => <th key={field.key}>{fieldLabel(field)}</th>)}</tr></thead>
             <tbody>
