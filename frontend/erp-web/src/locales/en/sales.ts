@@ -182,14 +182,33 @@ export const english: Record<string, string> = {
   'Bu durumda satın alma siparişi yok.': 'No purchase orders in this status.', 'Alan türleri': 'Field types',
   'Teklif, sipariş ve mal kabul kayıtlarına eklenen tenant özel alanları.': 'Tenant custom fields added to quote, order and goods receipt records.',
   'Alanlar penceresini kapat': 'Close the fields window', 'Alan tanımları sürümlenir; geçmiş kayıtların değerleri korunur.': 'Field definitions are versioned; values on earlier records are kept.',
+  // Purchase requests list (Satınalma talepleri)
+  'Satınalma talepleri': 'Purchase requests', 'talep': 'requests', 'Talep': 'Request', 'Teklif': 'Quote', 'Talep sahibi': 'Requester',
+  'Satınalma talebi listesi': 'Purchase request list', 'Satınalma talepleri yükleniyor…': 'Loading purchase requests…', 'Seçili talep': 'Selected request',
+  'Reddeden': 'Rejected by', 'Onaylayan': 'Approved by', 'Teklifler yüklenemedi.': 'Could not load quotes.', 'En iyi teklif': 'Best quote', 'Teklif ekle': 'Add quote',
+  'Karar notu': 'Decision note', 'Onaylarken isteğe bağlı, reddederken zorunlu': 'Optional when approving, required when rejecting',
+  'Ret gerekçesi zorunludur.': 'A rejection reason is required.', 'Kararı onaylayın': 'Confirm the decision', 'Evet, onayla': 'Yes, approve', 'Evet, reddet': 'Yes, reject',
+  'Talep kararı': 'Request decision', 'bugün': 'today', 'Talep ve tedarikçi teklifi kayıtlarına eklenen tenant özel alanları.': 'Tenant custom fields added to request and supplier quote records.',
   // Words captured by patterns below
-  'güncellendi': 'updated', 'oluşturuldu': 'created', 'Döviz': 'Currency'
+  'güncellendi': 'updated', 'oluşturuldu': 'created', 'Döviz': 'Currency', 'reddedildi': 'rejected'
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^KDV %(\d+(?:[.,]\d+)?)$/, 'VAT %$1'],
   [/^(\d+) gün kaldı$/, '$1 days left'],
+  [/^(\d+) gün geçti$/, '$1 days overdue'],
+  [/^(\d+) gün$/, '$1 days'],
+  [/^· (\d+) gün geçti$/, '· $1 days overdue'],
+  [/^· (\d+) gün$/, '· $1 days'],
+  [/^· bugün$/, '· today'],
+  [/^(\d+) kalem$/, '$1 items'],
+  [/^(.+) · (\d+) kalem$/, '$1 · $2 items'],
+  [/^(\d+) teklif$/, '$1 quotes'],
+  [/^(\d+) · en iyi (.+)$/, '$1 · best $2'],
+  [/^Seçili talep · (.+)$/, 'Selected request · $1'],
+  [/^Teklifler · (\d+)$/, 'Quotes · $1'],
+  [/^(.+?) talebi (onaylandı|reddedildi)\.$/, 'Request $1 $2.'],
   [/^(\d+) gün gecikti$/, '$1 days overdue'],
   [/^Satış teklifi · Revizyon (\d+)$/, 'Sales quote · Revision $1'],
   [/^Revizyon (\d+) aç$/, 'Open revision $1'],

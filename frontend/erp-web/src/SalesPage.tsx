@@ -3,14 +3,17 @@ import { createPortal } from "react-dom";
 import {
   Ban,
   Banknote,
+  Check,
   ChevronDown,
+  ExternalLink,
   Eye,
   PackageCheck,
   Plus,
   Printer,
   Search,
   Settings,
-  ShieldCheck,
+  ShoppingCart,
+  Trophy,
   Undo2,
   X,
 } from "lucide-react";
@@ -3848,14 +3851,16 @@ function PurchaseInvoicesScreen({
 const PURCHASE_ORDERS_CHANGED_EVENT = "nexora:purchase-orders-changed";
 const SALES_CHANGED_EVENT = "nexora:sales-changed";
 const createdPurchaseOrderStorageKey = "nexora.purchase-order.created";
-function takeCreatedPurchaseOrder(): { id: string; code: string } | null {
+/** Order hand-off to the "Satınalma siparişleri" tab: the create page stores a new order, the request
+ * list an existing one to open (`intent: "open"`, no "oluşturuldu" notice). */
+function takeCreatedPurchaseOrder(): { id: string; code: string; openOnly: boolean } | null {
   try {
     const raw = sessionStorage.getItem(createdPurchaseOrderStorageKey);
     if (!raw) return null;
     sessionStorage.removeItem(createdPurchaseOrderStorageKey);
-    const value = JSON.parse(raw) as { id?: unknown; code?: unknown };
+    const value = JSON.parse(raw) as { id?: unknown; code?: unknown; intent?: unknown };
     return typeof value.id === "string"
-      ? { id: value.id, code: typeof value.code === "string" ? value.code : "" }
+      ? { id: value.id, code: typeof value.code === "string" ? value.code : "", openOnly: value.intent === "open" }
       : null;
   } catch {
     return null;
@@ -4513,26 +4518,32 @@ function PurchasingPanel({
   const [orderScreenFields, setOrderScreenFields] = useState<
     BuiltInScreenLayoutField[]
   >(defaultOrderScreenFields);
+  // Default layout (used while the tenant has no published screen view): the request cell carries its
+  // description and line count, "İhtiyaç" its remaining days. "quotes" is a client-side column
+  // (supplier quotes of approved/ordered requests); it is not in the server screen-view catalog yet.
   const defaultRequestScreenFields: BuiltInScreenLayoutField[] = [
-    { key: "code", label: "Talep no", visible: true, position: 0 },
-    { key: "description", label: "Açıklama", visible: true, position: 1 },
-    { key: "requestedByName", label: "Talep sahibi", visible: true, position: 2 },
-    { key: "requestDate", label: "Talep tarihi", visible: true, position: 3 },
-    { key: "neededByDate", label: "İhtiyaç tarihi", visible: true, position: 4 },
-    { key: "lineCount", label: "Kalem", visible: true, position: 5 },
-    { key: "status", label: "Durum", visible: true, position: 6 },
+    { key: "code", label: "Talep", visible: true, position: 0 },
+    { key: "requestedByName", label: "Talep sahibi", visible: true, position: 1 },
+    { key: "neededByDate", label: "İhtiyaç", visible: true, position: 2 },
+    { key: "quotes", label: "Teklif", visible: true, position: 3 },
+    { key: "status", label: "Durum", visible: true, position: 4 },
+    { key: "description", label: "Açıklama", visible: false, position: 5 },
+    { key: "requestDate", label: "Talep tarihi", visible: false, position: 6 },
+    { key: "lineCount", label: "Kalem", visible: false, position: 7 },
     {
       key: "purchaseOrderCode",
       label: "Bağlı sipariş",
       visible: false,
-      position: 7,
+      position: 8,
     },
     {
       key: "actions",
       label: "İşlemler",
       visible: true,
-      position: 8,
+      position: 9,
       fixed: true,
+      pinned: "right",
+      width: 64,
     },
   ];
   const [requestScreenFields, setRequestScreenFields] = useState<
@@ -4694,6 +4705,27 @@ function PurchasingPanel({
   const [requestSearch, setRequestSearch] = useState(""),
     [requestStatus, setRequestStatus] = useState(""),
     [orderSearch, setOrderSearch] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
+    null,
+  );
+  /** Request status chip counts: one `pageSize=1` call per status (the list API filters by status). */
+  const [requestStatusCounts, setRequestStatusCounts] = useState<Record<
+      "all" | PurchaseRequestSummary["status"],
+      number
+    > | null>(null),
+    [requestCountsVersion, setRequestCountsVersion] = useState(0),
+    [requestFieldsTab, setRequestFieldsTab] = useState<"request" | "quote">("request"),
+    [requestGridToolsSlot, setRequestGridToolsSlot] = useState<HTMLDivElement | null>(null);
+  /** Supplier quotes of the visible approved/ordered requests ("Teklif" column, side panel); cleared on every list load. */
+  const requestQuoteCache = useRef(new Map<string, PurchaseSupplierQuote[] | "error">());
+  const [requestQuoteCacheVersion, setRequestQuoteCacheVersion] = useState(0);
+  /** Inline approve/reject flow shared by the side panel and the request detail; bound to one request id. */
+  const [decision, setDecision] = useState<{
+    requestId: string;
+    note: string;
+    confirm: "approve" | "reject" | null;
+    error: string;
+  } | null>(null);
   const [orderGridToolsSlot, setOrderGridToolsSlot] =
     useState<HTMLDivElement | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null),
@@ -4733,10 +4765,27 @@ function PurchasingPanel({
         requestParams.set("search", requestSearch.trim());
       if (requestStatus) requestParams.set("status", requestStatus);
       if (requestsOnly) {
-        const requests = await api<PurchaseRequestPage>(
-          `/api/purchasing/requests/?${requestParams}`,
-          token,
-        );
+        // Field definitions feed the "Alanlar" dialog, the quote form and the order conversion form;
+        // each is optional, so a failed definition read never blanks the list.
+        // Order and quote definitions are only used by TenantAdmin/TenantDeveloper (dialog, quote and order forms).
+        const optionalDefinitions = <T,>(url: string) => api<T[]>(url, token).catch(() => null);
+        const managesFields = role === "TenantAdmin" || role === "TenantDeveloper";
+        const [requests, fields, poFields, quoteFields] = await Promise.all([
+          api<PurchaseRequestPage>(`/api/purchasing/requests/?${requestParams}`, token),
+          optionalDefinitions<PurchaseRequestFieldDefinition>("/api/purchasing/requests/custom-fields"),
+          managesFields
+            ? optionalDefinitions<PurchaseOrderFieldDefinition>("/api/purchasing/orders/custom-fields")
+            : Promise.resolve(null),
+          managesFields
+            ? optionalDefinitions<PurchaseSupplierQuoteFieldDefinition>("/api/purchasing/supplier-quotes/custom-fields")
+            : Promise.resolve(null),
+        ]);
+        if (fields) setRequestFieldDefinitions(fields);
+        if (poFields) setOrderFieldDefinitions(poFields);
+        if (quoteFields) setSupplierQuoteFieldDefinitions(quoteFields);
+        requestQuoteCache.current.clear();
+        setRequestQuoteCacheVersion((value) => value + 1);
+        setRequestCountsVersion((value) => value + 1);
         setPurchaseRequests(requests.items);
         setRequestPage(requests.page);
         setRequestTotal(requests.totalCount);
@@ -4811,7 +4860,7 @@ function PurchasingPanel({
     void load(requestPage, 1);
     const created = takeCreatedPurchaseOrder();
     if (created) {
-      setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
+      if (!created.openOnly) setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
       void openOrder(created.id);
     }
   };
@@ -4819,7 +4868,7 @@ function PurchasingPanel({
     if (requestsOnly) return;
     const created = takeCreatedPurchaseOrder();
     if (created) {
-      setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
+      if (!created.openOnly) setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
       void openOrder(created.id);
     }
     const onChanged = () => purchaseOrdersChangedHandler.current();
@@ -4956,12 +5005,13 @@ function PurchasingPanel({
   useEffect(() => {
     if (!requestsOnly) return;
     let cancelled = false;
-    api<{ fields: BuiltInScreenLayoutField[] }>(
+    api<{ id?: string | null; fields: BuiltInScreenLayoutField[] }>(
       "/api/screen-views/purchase-requests/active",
       token,
     )
       .then((view) => {
-        if (!cancelled && view.fields?.length)
+        // Without a published tenant view the server returns its catalog default; keep this screen's own default.
+        if (!cancelled && view.id && view.fields?.length)
           setRequestScreenFields(view.fields);
       })
       .catch(() => {});
@@ -4969,6 +5019,33 @@ function PurchasingPanel({
       cancelled = true;
     };
   }, [token, requestsOnly]);
+  // Chip counts follow the current search but not the active chip; rebuilt after every list load.
+  useEffect(() => {
+    if (!requestsOnly || requestCountsVersion === 0) return;
+    let active = true;
+    const statuses = ["", "Submitted", "Approved", "Ordered", "Rejected"] as const;
+    void Promise.all(
+      statuses.map(async (status) => {
+        const params = new URLSearchParams({ page: "1", pageSize: "1" });
+        if (requestSearch.trim()) params.set("search", requestSearch.trim());
+        if (status) params.set("status", status);
+        const page = await api<PurchaseRequestPage>(`/api/purchasing/requests/?${params}`, token);
+        return [status || "all", page.totalCount] as const;
+      }),
+    )
+      .then((rows) => {
+        if (active)
+          setRequestStatusCounts(
+            Object.fromEntries(rows) as Record<"all" | PurchaseRequestSummary["status"], number>,
+          );
+      })
+      .catch(() => {
+        if (active) setRequestStatusCounts(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, requestsOnly, requestCountsVersion]);
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;
@@ -4995,9 +5072,23 @@ function PurchasingPanel({
             : b.key === "actions"
               ? -1
               : a.position - b.position,
+        )
+        // Keep the ⋯ menu reachable without scrolling sideways unless the tenant layout pins it elsewhere.
+        .map((field) =>
+          field.key === "actions" && !field.pinned
+            ? { ...field, pinned: "right" as const, width: field.width || 64 }
+            : field,
         ),
     [requestScreenFields],
   );
+  const requestFieldVisible = (key: string) => visibleRequestScreenFields.some((field) => field.key === key);
+  /** "N gün" until the need date, red "N gün geçti" after it; only while the request is still open. */
+  const requestNeedHint = (request: PurchaseRequestSummary) => {
+    if (!request.neededByDate || (request.status !== "Submitted" && request.status !== "Approved")) return null;
+    const days = daysFromToday(request.neededByDate);
+    if (days < 0) return { text: `${-days} gün geçti`, overdue: true };
+    return { text: days === 0 ? "bugün" : `${days} gün`, overdue: false };
+  };
   const visibleReceiptScreenFields = useMemo(
     () =>
       receiptScreenFields
@@ -5016,26 +5107,102 @@ function PurchasingPanel({
     request: PurchaseRequestSummary,
   ) {
     switch (field.key) {
-      case "code":
-        return <td key={field.key}><button type="button" className="purchase-request-code" onClick={(event) => { event.stopPropagation(); setSelectedRequestId(request.id); }}>{request.code}</button></td>;
+      case "code": {
+        // Description and line count sit under the code unless the layout shows them as their own columns.
+        const parts = [
+          !requestFieldVisible("description") ? request.description : "",
+          !requestFieldVisible("lineCount") ? `${request.lineCount} kalem` : "",
+        ].filter(Boolean);
+        return (
+          <span className="po-list-code-cell">
+            <b className="customer-code">{request.code}</b>
+            {parts.length > 0 && (
+              <small className="cell-subtitle pr-list-subtitle" title={request.description}>
+                {parts.join(" · ")}
+              </small>
+            )}
+          </span>
+        );
+      }
       case "description":
-        return <td key={field.key} className="purchase-request-description">{request.description}</td>;
+        return <span className="pr-list-description" title={request.description}>{request.description}</span>;
       case "requestedByName":
-        return <td key={field.key}>{request.requestedByName || "—"}</td>;
+        return request.requestedByName || "—";
       case "requestDate":
-        return <td key={field.key}>{request.requestDate.split("-").reverse().join(".")}</td>;
-      case "neededByDate":
-        return <td key={field.key}>{request.neededByDate?.split("-").reverse().join(".") || "—"}</td>;
+        return formatDate(request.requestDate);
+      case "neededByDate": {
+        if (!request.neededByDate) return "—";
+        const hint = requestNeedHint(request);
+        return (
+          <span className="po-list-code-cell">
+            <span>{formatDate(request.neededByDate)}</span>
+            {hint && (
+              <small className={`cell-subtitle${hint.overdue ? " po-list-overdue" : ""}`}>{hint.text}</small>
+            )}
+          </span>
+        );
+      }
+      case "quotes": {
+        if (!requestHasQuotes(request.status)) return "—";
+        const quotes = cachedRequestQuotes(request.id);
+        if (!quotes)
+          return requestQuoteCache.current.get(request.id) === "error" ? "—" : <span className="po-list-muted">…</span>;
+        if (quotes.length === 0) return "—";
+        const best = bestRequestQuote(quotes);
+        return (
+          <span className="pr-list-quotes">
+            {best && best.comparableGrandTotal !== null
+              ? `${quotes.length} · en iyi ${formatAmount(best.comparableGrandTotal, best.baseCurrencyCode)}`
+              : `${quotes.length} teklif`}
+          </span>
+        );
+      }
       case "lineCount":
-        return <td key={field.key}>{request.lineCount}</td>;
+        return request.lineCount;
       case "status":
-        return <td key={field.key}><DocumentStatusBadge status={purchaseRequestStatus(request.status)} /></td>;
+        return <DocumentStatusBadge status={purchaseRequestStatus(request.status)} />;
       case "purchaseOrderCode":
-        return <td key={field.key}>{request.purchaseOrderCode || "—"}</td>;
+        return request.purchaseOrderCode || "—";
       case "actions":
-        return <td key={field.key}><button className="row-action" onClick={(event) => { event.stopPropagation(); void openRequest(request.id); }}>İncele</button></td>;
+        return (
+          <SalesRowActionsMenu label={request.code}>
+            <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void openRequest(request.id)}>
+              <Eye size={15} aria-hidden="true" /> İncele
+            </button>
+            {canDecideRequest(request) && (
+              <>
+                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => focusDecision(request, true)}>
+                  <Check size={15} aria-hidden="true" /> Onayla
+                </button>
+                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => focusDecision(request, false)}>
+                  <Ban size={15} aria-hidden="true" /> Reddet
+                </button>
+              </>
+            )}
+            {role === "TenantAdmin" && request.status === "Approved" && (
+              <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void beginRequestQuoteFromList(request.id)}>
+                <Plus size={15} aria-hidden="true" /> Teklif ekle
+              </button>
+            )}
+            {role === "TenantAdmin" && request.status === "Approved" && !request.purchaseOrderId && (
+              <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void beginRequestConversionFromList(request.id)}>
+                <ShoppingCart size={15} aria-hidden="true" /> Siparişe dönüştür
+              </button>
+            )}
+            {request.status === "Ordered" && request.purchaseOrderId && (
+              <button
+                type="button"
+                role="menuitem"
+                className="sales-row-menu-item"
+                onClick={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
+              >
+                <ExternalLink size={15} aria-hidden="true" /> Siparişi aç
+              </button>
+            )}
+          </SalesRowActionsMenu>
+        );
       default:
-        return <td key={field.key}>—</td>;
+        return null;
     }
   }
   function renderPurchaseReceiptCell(
@@ -5331,8 +5498,10 @@ function PurchasingPanel({
             token,
           ),
         );
+      return request;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     }
   }
   async function loadRequestUnits(itemId: string) {
@@ -5749,20 +5918,17 @@ function PurchasingPanel({
       setBusy(false);
     }
   }
+  /** Called from the inline decision flow (side panel or detail), after its own confirm step. */
   async function decideRequest(
     request: PurchaseRequestSummary | PurchaseRequestDetail,
     approved: boolean,
+    rawNote: string,
   ) {
-    const note = approved
-      ? promptLocalized("Onay notu (isteğe bağlı):")?.trim() || null
-      : promptLocalized("Ret gerekçesi:")?.trim();
-    if (!approved && !note) return;
-    if (
-      !confirmLocalized(
-        approved ? "Bu talep onaylansın mı?" : "Bu talep reddedilsin mi?",
-      )
-    )
+    const note = rawNote.trim() || null;
+    if (!approved && !note) {
+      setDecision({ requestId: request.id, note: rawNote, confirm: null, error: "Ret gerekçesi zorunludur." });
       return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -5774,6 +5940,8 @@ function PurchasingPanel({
       setNotice(
         `${request.code} talebi ${approved ? "onaylandı" : "reddedildi"}.`,
       );
+      setDecision(null);
+      setSelectedRequestId(request.id);
       setRequestDetail(null);
       await load();
     } catch (e) {
@@ -5923,12 +6091,13 @@ function PurchasingPanel({
       );
       // The POST response has no base-currency comparison, which the list then showed as
       // "Baz para birimine çevrilemedi"; reload the request's quotes as the detail view does.
-      setSupplierQuotes(
-        await api<PurchaseSupplierQuote[]>(
-          `/api/purchasing/requests/${requestDetail.id}/supplier-quotes`,
-          token,
-        ),
+      const refreshedQuotes = await api<PurchaseSupplierQuote[]>(
+        `/api/purchasing/requests/${requestDetail.id}/supplier-quotes`,
+        token,
       );
+      setSupplierQuotes(refreshedQuotes);
+      requestQuoteCache.current.set(requestDetail.id, refreshedQuotes);
+      setRequestQuoteCacheVersion((value) => value + 1);
       setQuoteEditor(false);
       setNotice(`${quote.supplierName} için ${quote.code} teklifi kaydedildi.`);
     } catch (e) {
@@ -6291,14 +6460,396 @@ function PurchasingPanel({
   );
   const selectedOrderSummary =
     displayedOrders.find((item) => item.id === selectedOrderId) ?? displayedOrders[0] ?? null;
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
-    null,
-  );
   const selectedRequestSummary =
     purchaseRequests.find((item) => item.id === selectedRequestId) ??
     purchaseRequests[0] ??
     null;
+  const requestHasQuotes = (status: PurchaseRequestSummary["status"]) =>
+    status === "Approved" || status === "Ordered";
+  // Quotes exist only after approval, so only approved/ordered rows are fetched (5 at a time).
+  const requestQuoteTargets = requestsOnly
+    ? (requestFieldVisible("quotes")
+        ? purchaseRequests
+        : selectedRequestSummary
+          ? [selectedRequestSummary]
+          : []
+      )
+        .filter((item) => requestHasQuotes(item.status))
+        .map((item) => item.id)
+    : [];
+  useEffect(() => {
+    if (!requestsOnly) return;
+    const ids = requestQuoteTargets.filter((id) => !requestQuoteCache.current.has(id));
+    if (!ids.length) return;
+    let active = true;
+    void (async () => {
+      for (let start = 0; start < ids.length && active; start += 5) {
+        await Promise.all(
+          ids.slice(start, start + 5).map(async (id) => {
+            try {
+              requestQuoteCache.current.set(
+                id,
+                await api<PurchaseSupplierQuote[]>(`/api/purchasing/requests/${id}/supplier-quotes`, token),
+              );
+            } catch {
+              requestQuoteCache.current.set(id, "error");
+            }
+          }),
+        );
+        if (active) setRequestQuoteCacheVersion((value) => value + 1);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [token, requestsOnly, requestQuoteTargets.join(","), requestQuoteCacheVersion]);
+  const cachedRequestQuotes = (id: string) => {
+    const value = requestQuoteCache.current.get(id);
+    return value && value !== "error" ? value : null;
+  };
+  /** Lowest base-currency total among the quotes that can be compared; null when none can. */
+  const bestRequestQuote = (quotes: PurchaseSupplierQuote[]) =>
+    quotes.reduce<PurchaseSupplierQuote | null>(
+      (best, quote) =>
+        quote.comparableGrandTotal !== null &&
+        (best === null || quote.comparableGrandTotal < (best.comparableGrandTotal ?? Infinity))
+          ? quote
+          : best,
+      null,
+    );
+  // A note typed for one request never posts for another: the flow resets when the selection moves.
+  useEffect(() => {
+    setDecision((current) =>
+      current && current.requestId !== selectedRequestSummary?.id && current.requestId !== requestDetail?.id
+        ? null
+        : current,
+    );
+  }, [selectedRequestSummary?.id, requestDetail?.id]);
+  const canDecideRequest = (request: Pick<PurchaseRequestSummary, "status" | "requestedByUserId">) =>
+    role === "TenantAdmin" && request.status === "Submitted" && request.requestedByUserId !== currentUserId;
+  /** Opens the purchase order in the "Satınalma siparişleri" tab (it reads the same hand-off as the create page). */
+  function openLinkedPurchaseOrder(id: string, code: string) {
+    try {
+      sessionStorage.setItem(createdPurchaseOrderStorageKey, JSON.stringify({ id, code, intent: "open" }));
+    } catch {
+      /* Session storage is optional; a mounted orders tab still reacts to the event. */
+    }
+    window.dispatchEvent(new CustomEvent(PURCHASE_ORDERS_CHANGED_EVENT, { detail: { id } }));
+    onNavigate?.("sales-purchasing");
+  }
+  async function beginRequestQuoteFromList(id: string) {
+    const request = await openRequest(id);
+    if (!request || request.status !== "Approved") return;
+    beginQuoteCapture(request);
+    focusRequestDetailForm();
+  }
+  async function beginRequestConversionFromList(id: string) {
+    const request = await openRequest(id);
+    if (!request || request.status !== "Approved" || request.purchaseOrderId) return;
+    beginOrderConversion(request);
+    focusRequestDetailForm();
+  }
+  function focusRequestDetailForm() {
+    window.setTimeout(() => {
+      const form = document.querySelector<HTMLElement>(".doc-surface .pr-detail-form-target form");
+      form?.scrollIntoView({ block: "start", behavior: "smooth" });
+      form?.querySelector<HTMLElement>("input:not([type='hidden']):not([readonly]), select")?.focus({ preventScroll: true });
+    }, 120);
+  }
+  function startDecision(request: PurchaseRequestSummary | PurchaseRequestDetail, approved?: boolean) {
+    setSelectedRequestId(request.id);
+    setDecision((current) => {
+      const base = current?.requestId === request.id ? current : { requestId: request.id, note: "", confirm: null, error: "" };
+      if (approved === undefined) return base;
+      if (!approved && !base.note.trim()) return { ...base, confirm: null, error: "Ret gerekçesi zorunludur." };
+      return { ...base, confirm: approved ? "approve" : "reject", error: "" };
+    });
+  }
+  /** Row menu "Onayla"/"Reddet": select the row and continue in the side panel's inline flow. */
+  function focusDecision(request: PurchaseRequestSummary, approved: boolean) {
+    startDecision(request, approved);
+    window.setTimeout(() => {
+      const panel = document.querySelector<HTMLElement>(".purchase-requests-page .pr-list-aside .pr-decision");
+      panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      panel
+        ?.querySelector<HTMLElement>(approved ? ".pr-decision-confirm button.primary" : "textarea")
+        ?.focus({ preventScroll: true });
+    }, 60);
+  }
+  function renderDecisionControls(request: PurchaseRequestSummary | PurchaseRequestDetail, idPrefix: string) {
+    if (role !== "TenantAdmin" || request.status !== "Submitted") return null;
+    if (request.requestedByUserId === currentUserId)
+      return (
+        <p className="pr-decision-own">
+          Kendi talebinizi onaylayamaz veya reddedemezsiniz; kararı başka bir yetkili verir.
+        </p>
+      );
+    const state =
+      decision?.requestId === request.id ? decision : { requestId: request.id, note: "", confirm: null, error: "" };
+    const noteId = `${idPrefix}-decision-note-${request.id}`;
+    return (
+      <div className="pr-decision">
+        <label htmlFor={noteId}>Karar notu</label>
+        <textarea
+          id={noteId}
+          rows={2}
+          maxLength={500}
+          value={state.note}
+          disabled={busy}
+          placeholder="Onaylarken isteğe bağlı, reddederken zorunlu"
+          aria-invalid={state.error ? true : undefined}
+          aria-describedby={state.error ? `${noteId}-error` : undefined}
+          onChange={(e) =>
+            setDecision({ requestId: request.id, note: e.target.value, confirm: null, error: "" })
+          }
+        />
+        {state.error && (
+          <p className="pr-decision-error" id={`${noteId}-error`} role="alert">
+            {state.error}
+          </p>
+        )}
+        {state.confirm ? (
+          <div className="pr-decision-confirm" role="group" aria-label="Kararı onaylayın">
+            <span>{state.confirm === "approve" ? "Bu talep onaylansın mı?" : "Bu talep reddedilsin mi?"}</span>
+            <div className="pr-decision-actions">
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => setDecision({ ...state, confirm: null })}
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                className={state.confirm === "approve" ? "primary" : "primary danger-action"}
+                disabled={busy}
+                onClick={() => void decideRequest(request, state.confirm === "approve", state.note)}
+              >
+                {busy ? "Kaydediliyor…" : state.confirm === "approve" ? "Evet, onayla" : "Evet, reddet"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="pr-decision-actions">
+            <button
+              type="button"
+              className="secondary danger-action"
+              disabled={busy}
+              onClick={() => startDecision(request, false)}
+            >
+              Reddet
+            </button>
+            <button type="button" className="primary" disabled={busy} onClick={() => startDecision(request, true)}>
+              Onayla
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
   const canManagePurchaseFields = role === "TenantAdmin" || role === "TenantDeveloper";
+  const requestFieldsSection = (
+    <section className="panel request-field-settings po-fields-section">
+      <div className="panel-heading">
+        <div>
+          <b>Talep alanları</b>
+          <small>
+            Tanımlar tenant kapsamındadır; yeni taleplerde doldurulur ve
+            sürüm geçmişi korunur.
+          </small>
+        </div>
+      </div>
+      <div className="requests-list">
+        {requestFieldDefinitions.map((field) => (
+          <article className="request-row" key={field.id}>
+            <div className="request-info">
+              <b>
+                {field.label} · {field.code}
+              </b>
+              <small>
+                {field.dataType}
+                {field.dataType === "Text"
+                  ? ` · en fazla ${field.maxLength} karakter`
+                  : ""}{" "}
+                · v{field.version}
+                {field.isRequired ? " · zorunlu" : ""}
+              </small>
+            </div>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void editRequestCustomField(field)}
+            >
+              Düzenle
+            </button>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void openRequestFieldHistory(field)}
+            >
+              Sürüm geçmişi
+            </button>
+            {role === "TenantAdmin" && (
+              <button
+                className="row-action danger-action"
+                disabled={busy}
+                onClick={() => void deactivateRequestCustomField(field)}
+              >
+                Devre dışı bırak
+              </button>
+            )}
+          </article>
+        ))}
+        {requestFieldDefinitions.length === 0 && (
+          <div className="empty-small">Henüz talep özel alanı yok.</div>
+        )}
+      </div>
+      {requestFieldHistoryDefinition && (
+        <section className="panel" style={{ marginTop: 14 }}>
+          <div className="panel-heading">
+            <div>
+              <b>
+                {requestFieldHistoryDefinition.code} · tanım geçmişi
+              </b>
+              <small>Geri yükleme yeni bir sürüm ekler.</small>
+            </div>
+            <button
+              type="button"
+              className="secondary small-button"
+              onClick={() => setRequestFieldHistoryDefinition(null)}
+            >
+              Kapat
+            </button>
+          </div>
+          <div className="requests-list">
+            {requestFieldMetadataHistory.map((revision) => (
+              <article className="request-row" key={revision.id}>
+                <div className="request-info">
+                  <b>
+                    v{revision.version} · {revision.label}
+                  </b>
+                  <small>
+                    {revision.dataType}
+                    {revision.dataType === "Text"
+                      ? ` · en fazla ${revision.maxLength} karakter`
+                      : ""}
+                    {revision.isRequired ? " · zorunlu" : ""} ·{" "}
+                    {revision.isActive ? "Etkin" : "Devre dışı"} ·{" "}
+                    {revision.changeKind} ·{" "}
+                    {new Date(revision.createdAt).toLocaleString(
+                      "tr-TR",
+                    )}
+                  </small>
+                </div>
+                {role === "TenantAdmin" && (
+                  <button
+                    type="button"
+                    className="secondary small-button"
+                    disabled={busy}
+                    onClick={() =>
+                      void restoreRequestFieldRevision(revision)
+                    }
+                  >
+                    Bu sürümü geri yükle
+                  </button>
+                )}
+              </article>
+            ))}
+            {requestFieldMetadataHistory.length === 0 && (
+              <div className="empty-small">
+                Tanım geçmişi bulunmuyor.
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+      <form
+        className="collection-form"
+        onSubmit={createRequestCustomField}
+      >
+        <div className="form-two">
+          <label>
+            Alan kodu
+            <input
+              value={requestFieldCode}
+              onChange={(e) =>
+                setRequestFieldCode(e.target.value.toUpperCase())
+              }
+              required
+              maxLength={40}
+              placeholder="PROJE_KODU"
+            />
+          </label>
+          <label>
+            Ekran etiketi
+            <input
+              value={requestFieldLabel}
+              onChange={(e) => setRequestFieldLabel(e.target.value)}
+              required
+              maxLength={120}
+              placeholder="Proje kodu"
+            />
+          </label>
+        </div>
+        <div className="form-two">
+          <label>
+            Veri türü
+            <select
+              value={requestFieldType}
+              onChange={(e) =>
+                setRequestFieldType(
+                  e.target
+                    .value as PurchaseRequestFieldDefinition["dataType"],
+                )
+              }
+            >
+              <option value="Text">Metin</option>
+              <option value="Decimal">Ondalık sayı</option>
+              <option value="Date">Tarih</option>
+              <option value="Boolean">Evet/Hayır</option>
+            </select>
+          </label>
+          {requestFieldType === "Text" && (
+            <label>
+              En fazla karakter
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={requestFieldMaxLength}
+                onChange={(e) =>
+                  setRequestFieldMaxLength(e.target.value)
+                }
+                required
+              />
+            </label>
+          )}
+        </div>
+        {role === "TenantAdmin" ? (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={requestFieldRequired}
+              onChange={(e) => setRequestFieldRequired(e.target.checked)}
+            />{" "}
+            Yeni taleplerde zorunlu olsun
+          </label>
+        ) : (
+          <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+        )}
+        <div className="modal-foot">
+          <span>
+            Zorunlu alanı mevcut talepler varken açmak için önce
+            taleplere değer girilmelidir.
+          </span>
+          <button className="secondary" disabled={busy}>
+            Alan tanımı ekle
+          </button>
+        </div>
+      </form>
+    </section>
+  );
   const supplierQuoteFieldsSection = (
     <section className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-heading">
@@ -6733,14 +7284,18 @@ function PurchasingPanel({
       <div className="sales-lv2-stack">
         <ListPageHeader
           className="customer-heading"
-          title={requestsOnly ? "Satınalma Talepleri" : "Satınalma siparişleri"}
+          title={requestsOnly ? "Satınalma talepleri" : "Satınalma siparişleri"}
           description={
             requestsOnly
               ? "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin."
               : "Tedarikçi siparişlerini, kısmi mal kabulleri ve depo stok girişlerini yönetin."
           }
-          count={requestsOnly ? requestTotal : orderTotal}
-          countLabel={requestsOnly ? undefined : "sipariş"}
+          count={
+            requestsOnly
+              ? (requestStatusCounts?.all ?? (requestStatus ? null : requestTotal))
+              : orderTotal
+          }
+          countLabel={requestsOnly ? "talep" : "sipariş"}
         >
           {!requestsOnly && canManagePurchaseFields && (
             <button
@@ -6751,16 +7306,17 @@ function PurchasingPanel({
               <Settings size={14} aria-hidden="true" /> Alanlar
             </button>
           )}
-          {requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
+          {requestsOnly && canManagePurchaseFields && (
             <button
+              type="button"
               className="secondary"
               onClick={() => setRequestFieldSettingsOpen(true)}
             >
-              <Settings size={14} /> Talep alanları
+              <Settings size={14} aria-hidden="true" /> Alanlar
             </button>
           )}
           {requestsOnly && (
-            <button className="primary" onClick={beginRequestCreate}>
+            <button type="button" className="primary" onClick={beginRequestCreate}>
               <Plus size={17} /> Talep oluştur
             </button>
           )}
@@ -6789,6 +7345,7 @@ function PurchasingPanel({
             onSearchChange={setRequestSearch}
             searchLabel="Satın alma taleplerinde ara"
             searchPlaceholder="Talep no, açıklama veya talep sahibi"
+            toolsSlotRef={setRequestGridToolsSlot}
             onRefresh={() => void load()}
           >
             <ListChipGroup
@@ -6796,11 +7353,11 @@ function PurchasingPanel({
               value={requestStatus}
               onChange={setRequestStatus}
               options={[
-                { value: "", label: "Tümü" },
-                { value: "Submitted", label: "Onay bekliyor" },
-                { value: "Approved", label: "Onaylandı" },
-                { value: "Ordered", label: "Siparişe dönüştü" },
-                { value: "Rejected", label: "Reddedildi" },
+                { value: "", label: "Tümü", count: requestStatusCounts?.all },
+                { value: "Submitted", label: "Onay bekliyor", count: requestStatusCounts?.Submitted },
+                { value: "Approved", label: "Onaylandı", count: requestStatusCounts?.Approved },
+                { value: "Ordered", label: "Siparişe dönüştü", count: requestStatusCounts?.Ordered },
+                { value: "Rejected", label: "Reddedildi", count: requestStatusCounts?.Rejected },
               ]}
             />
           </ListToolbar>
@@ -6853,315 +7410,246 @@ function PurchasingPanel({
         </div>
       )}
       {requestsOnly && (
-        <>
-          <section className="panel purchase-request-list-card list-v2-list" style={{ marginBottom: 16 }}>
-          <div className="requests-list purchase-request-table-wrap">
-            <AdvancedDataGrid
-              className="purchase-request-table"
-              gridId="purchase-requests"
-              {...screenViewGridDefaults(visibleRequestScreenFields)}
-              externalPagination
-              hideSearch
-              enableRowSelection={false}
-            >
-              <thead><tr>{visibleRequestScreenFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead>
-              <tbody>
-                {purchaseRequests.map((request) => (
-                  <tr key={request.id} className={selectedRequestSummary?.id === request.id ? "erp-selected-request" : ""} onClick={() => setSelectedRequestId(request.id)}>
-                    {visibleRequestScreenFields.map((field) => renderPurchaseRequestCell(field, request))}
-                  </tr>
-                ))}
-                {purchaseRequests.length === 0 && <tr><td colSpan={visibleRequestScreenFields.length} className="purchase-request-empty">{requestStatus === "Approved" ? "Onaylanmış satın alma talebi yok." : requestSearch.trim() || requestStatus ? "Filtrelerle eşleşen satın alma talebi yok." : "Henüz satın alma talebi yok."}</td></tr>}
-              </tbody>
-            </AdvancedDataGrid>
+        <div className="po-list-layout">
+          <div className="po-list-main">
+            <section className="panel purchase-request-list-card list-v2-list" aria-label="Satınalma talebi listesi">
+              <div className="customer-table-wrap">
+                <AdvancedDataGrid
+                  className="customer-table quote-table"
+                  gridId="purchase-requests-v2"
+                  {...screenViewGridDefaults(visibleRequestScreenFields)}
+                  externalPagination
+                  hideSearch
+                  toolbarContainer={requestGridToolsSlot}
+                  enableRowSelection={false}
+                >
+                  <thead>
+                    <ScreenViewGroupHeader fields={visibleRequestScreenFields} />
+                    <tr>
+                      {visibleRequestScreenFields.map((field) => (
+                        <th key={field.key}>{field.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && purchaseRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={visibleRequestScreenFields.length} className="table-empty">
+                          Satınalma talepleri yükleniyor…
+                        </td>
+                      </tr>
+                    ) : purchaseRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={visibleRequestScreenFields.length} className="table-empty">
+                          {requestStatus === "Approved"
+                            ? "Onaylanmış satın alma talebi yok."
+                            : requestSearch.trim() || requestStatus
+                              ? "Filtrelerle eşleşen satın alma talebi yok."
+                              : "Henüz satın alma talebi yok."}
+                        </td>
+                      </tr>
+                    ) : (
+                      purchaseRequests.map((request) => (
+                        <tr
+                          key={request.id}
+                          className={selectedRequestSummary?.id === request.id ? "erp-selected-row" : ""}
+                          onClick={() => setSelectedRequestId(request.id)}
+                          aria-selected={selectedRequestSummary?.id === request.id}
+                        >
+                          {visibleRequestScreenFields.map((field) => (
+                            <td key={field.key}>{renderPurchaseRequestCell(field, request)}</td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </AdvancedDataGrid>
+              </div>
+            </section>
+            <ListPagination
+              page={requestPage}
+              total={requestTotal}
+              pageSize={purchasePageSize}
+              loading={loading}
+              onPageChange={(next) => void load(next)}
+            />
           </div>
-          <ListPagination
-            page={requestPage}
-            total={requestTotal}
-            pageSize={purchasePageSize}
-            loading={loading}
-            onPageChange={(next) => void load(next)}
-          />
-          {selectedRequestSummary && (
-            <aside className="erp-record-pane purchase-request-selection sales-lv2-detail">
-              <div className="list-v2-detail-head">
-                <div>
-                  <span className="list-v2-kind">SATIN ALMA · TALEP</span>
-                  <h2>{selectedRequestSummary.code}</h2>
+          {selectedRequestSummary && (() => {
+            const request = selectedRequestSummary;
+            const quotes = requestHasQuotes(request.status) ? cachedRequestQuotes(request.id) : null;
+            const best = quotes ? bestRequestQuote(quotes) : null;
+            const hint = requestNeedHint(request);
+            return (
+              <aside className="po-list-aside pr-list-aside" aria-label="Seçili talep">
+                <span className="pr-list-aside-kicker">{`Seçili talep · ${request.requestedByName || "—"}`}</span>
+                <div className="po-list-aside-head">
+                  <h2>{request.code}</h2>
+                  <DocumentStatusBadge status={purchaseRequestStatus(request.status)} />
                 </div>
-                <div className="list-v2-detail-head-actions">
-                  <button
-                    className="secondary small-button"
-                    onClick={() => void openRequest(selectedRequestSummary.id)}
-                  >
-                    Talebi aç
+                {request.description && <p className="po-list-aside-party">{request.description}</p>}
+                <dl className="po-list-aside-facts">
+                  <div>
+                    <dt>Talep tarihi</dt>
+                    <dd>{formatDate(request.requestDate)}</dd>
+                  </div>
+                  <div>
+                    <dt>İhtiyaç</dt>
+                    <dd>
+                      {formatDate(request.neededByDate)}
+                      {hint && <small className={hint.overdue ? "po-list-overdue" : "po-list-muted"}>{` · ${hint.text}`}</small>}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Kalem</dt>
+                    <dd>{request.lineCount}</dd>
+                  </div>
+                  {request.reviewedByName && request.status !== "Submitted" && (
+                    <div>
+                      <dt>{request.status === "Rejected" ? "Reddeden" : "Onaylayan"}</dt>
+                      <dd>{request.reviewedByName}</dd>
+                    </div>
+                  )}
+                  {request.reviewNote && (
+                    <div className="pr-list-aside-note">
+                      <dt>Not</dt>
+                      <dd>{request.reviewNote}</dd>
+                    </div>
+                  )}
+                  {request.status === "Ordered" && (
+                    <div>
+                      <dt>Sipariş</dt>
+                      <dd>
+                        {request.purchaseOrderId ? (
+                          <button
+                            type="button"
+                            className="pr-list-link"
+                            onClick={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
+                          >
+                            {request.purchaseOrderCode || "Siparişi aç"}
+                          </button>
+                        ) : (
+                          request.purchaseOrderCode || "—"
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                {requestHasQuotes(request.status) && (
+                  <section className="pr-list-quotes-box" aria-label="Tedarikçi teklifleri">
+                    <h3>{quotes ? `Teklifler · ${quotes.length}` : "Teklifler"}</h3>
+                    {!quotes ? (
+                      <p className="po-list-muted">
+                        {requestQuoteCache.current.get(request.id) === "error" ? "Teklifler yüklenemedi." : "Teklifler yükleniyor…"}
+                      </p>
+                    ) : quotes.length === 0 ? (
+                      <p className="po-list-muted">Henüz tedarikçi teklifi kaydedilmedi.</p>
+                    ) : (
+                      <ul>
+                        {quotes.map((quote) => (
+                          <li key={quote.id} className={best?.id === quote.id ? "is-best" : undefined}>
+                            <span className="pr-list-quote-supplier" title={quote.supplierName}>
+                              {best?.id === quote.id && <Trophy size={13} aria-label="En iyi teklif" />}
+                              <span>{quote.supplierName}</span>
+                            </span>
+                            <span className="pr-list-quote-amount">
+                              {quote.comparableGrandTotal !== null
+                                ? formatAmount(quote.comparableGrandTotal, quote.baseCurrencyCode)
+                                : formatAmount(quote.grandTotal, quote.currencyCode)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
+                {renderDecisionControls(request, "panel")}
+                <div className="po-list-aside-actions">
+                  {role === "TenantAdmin" && request.status === "Approved" && (
+                    <button type="button" className="secondary" disabled={busy} onClick={() => void beginRequestQuoteFromList(request.id)}>
+                      <Plus size={14} aria-hidden="true" /> Teklif ekle
+                    </button>
+                  )}
+                  {role === "TenantAdmin" && request.status === "Approved" && !request.purchaseOrderId && (
+                    <button type="button" className="primary" disabled={busy} onClick={() => void beginRequestConversionFromList(request.id)}>
+                      Siparişe dönüştür
+                    </button>
+                  )}
+                  {request.status === "Ordered" && request.purchaseOrderId && (
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
+                    >
+                      Siparişi aç
+                    </button>
+                  )}
+                  <button type="button" className="secondary" onClick={() => void openRequest(request.id)}>
+                    <Eye size={14} aria-hidden="true" /> İncele
                   </button>
                 </div>
-              </div>
-              <div className="list-v2-detail-meta">
-                <span>{selectedRequestSummary.requestedByName}</span>
-                <span
-                  className={`list-v2-status${selectedRequestSummary.status === "Approved" || selectedRequestSummary.status === "Ordered" ? " is-active" : ""}`}
-                >
-                  <i />
-                  {selectedRequestSummary.status === "Submitted"
-                    ? "Onay bekliyor"
-                    : selectedRequestSummary.status === "Approved"
-                      ? "Onaylandı"
-                      : selectedRequestSummary.status === "Ordered"
-                        ? "Siparişe dönüştü"
-                        : "Reddedildi"}
-                </span>
-              </div>
-              <dl className="list-v2-facts">
-                <div>
-                  <dt>Talep tarihi</dt>
-                  <dd>{selectedRequestSummary.requestDate}</dd>
-                </div>
-                <div>
-                  <dt>İhtiyaç tarihi</dt>
-                  <dd>{selectedRequestSummary.neededByDate || "—"}</dd>
-                </div>
-                <div>
-                  <dt>Kalem</dt>
-                  <dd>{selectedRequestSummary.lineCount}</dd>
-                </div>
-                <div>
-                  <dt>Bağlı sipariş</dt>
-                  <dd>{selectedRequestSummary.purchaseOrderCode || "—"}</dd>
-                </div>
-              </dl>
-            </aside>
-          )}
-        </section>
-        </>
+              </aside>
+            );
+          })()}
+        </div>
       )}
-      {requestFieldSettingsOpen && (role === "TenantAdmin" || role === "TenantDeveloper") && (
+      {requestsOnly && requestFieldSettingsOpen && canManagePurchaseFields && (
         <div
           className="modal-backdrop"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy)
-              setRequestFieldSettingsOpen(false);
+            if (e.target === e.currentTarget && !busy) setRequestFieldSettingsOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !busy) setRequestFieldSettingsOpen(false);
           }}
         >
-          <div className="modal request-field-modal">
-            <section className="panel request-field-settings">
-              <div className="panel-heading">
-                <div>
-                  <b>Talep alanları</b>
-                  <small>
-                    Tanımlar tenant kapsamındadır; yeni taleplerde doldurulur ve
-                    sürüm geçmişi korunur.
-                  </small>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Talep alanlarını kapat"
-                  onClick={() => setRequestFieldSettingsOpen(false)}
-                >
-                  <X size={18} />
-                </button>
+          <div className="modal po-fields-modal" role="dialog" aria-modal="true" aria-labelledby="pr-fields-title">
+            <div className="modal-head">
+              <div>
+                <h2 id="pr-fields-title">Alanlar</h2>
+                <p>Talep ve tedarikçi teklifi kayıtlarına eklenen tenant özel alanları.</p>
               </div>
-              <div className="requests-list">
-                {requestFieldDefinitions.map((field) => (
-                  <article className="request-row" key={field.id}>
-                    <div className="request-info">
-                      <b>
-                        {field.label} · {field.code}
-                      </b>
-                      <small>
-                        {field.dataType}
-                        {field.dataType === "Text"
-                          ? ` · en fazla ${field.maxLength} karakter`
-                          : ""}{" "}
-                        · v{field.version}
-                        {field.isRequired ? " · zorunlu" : ""}
-                      </small>
-                    </div>
-                    <button
-                      className="row-action"
-                      disabled={busy}
-                      onClick={() => void editRequestCustomField(field)}
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      className="row-action"
-                      disabled={busy}
-                      onClick={() => void openRequestFieldHistory(field)}
-                    >
-                      Sürüm geçmişi
-                    </button>
-                    {role === "TenantAdmin" && (
-                      <button
-                        className="row-action danger-action"
-                        disabled={busy}
-                        onClick={() => void deactivateRequestCustomField(field)}
-                      >
-                        Devre dışı bırak
-                      </button>
-                    )}
-                  </article>
-                ))}
-                {requestFieldDefinitions.length === 0 && (
-                  <div className="empty-small">Henüz talep özel alanı yok.</div>
-                )}
-              </div>
-              {requestFieldHistoryDefinition && (
-                <section className="panel" style={{ marginTop: 14 }}>
-                  <div className="panel-heading">
-                    <div>
-                      <b>
-                        {requestFieldHistoryDefinition.code} · tanım geçmişi
-                      </b>
-                      <small>Geri yükleme yeni bir sürüm ekler.</small>
-                    </div>
-                    <button
-                      type="button"
-                      className="secondary small-button"
-                      onClick={() => setRequestFieldHistoryDefinition(null)}
-                    >
-                      Kapat
-                    </button>
-                  </div>
-                  <div className="requests-list">
-                    {requestFieldMetadataHistory.map((revision) => (
-                      <article className="request-row" key={revision.id}>
-                        <div className="request-info">
-                          <b>
-                            v{revision.version} · {revision.label}
-                          </b>
-                          <small>
-                            {revision.dataType}
-                            {revision.dataType === "Text"
-                              ? ` · en fazla ${revision.maxLength} karakter`
-                              : ""}
-                            {revision.isRequired ? " · zorunlu" : ""} ·{" "}
-                            {revision.isActive ? "Etkin" : "Devre dışı"} ·{" "}
-                            {revision.changeKind} ·{" "}
-                            {new Date(revision.createdAt).toLocaleString(
-                              "tr-TR",
-                            )}
-                          </small>
-                        </div>
-                        {role === "TenantAdmin" && (
-                          <button
-                            type="button"
-                            className="secondary small-button"
-                            disabled={busy}
-                            onClick={() =>
-                              void restoreRequestFieldRevision(revision)
-                            }
-                          >
-                            Bu sürümü geri yükle
-                          </button>
-                        )}
-                      </article>
-                    ))}
-                    {requestFieldMetadataHistory.length === 0 && (
-                      <div className="empty-small">
-                        Tanım geçmişi bulunmuyor.
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
-              <form
-                className="collection-form"
-                onSubmit={createRequestCustomField}
-              >
-                <div className="form-two">
-                  <label>
-                    Alan kodu
-                    <input
-                      value={requestFieldCode}
-                      onChange={(e) =>
-                        setRequestFieldCode(e.target.value.toUpperCase())
-                      }
-                      required
-                      maxLength={40}
-                      placeholder="PROJE_KODU"
-                    />
-                  </label>
-                  <label>
-                    Ekran etiketi
-                    <input
-                      value={requestFieldLabel}
-                      onChange={(e) => setRequestFieldLabel(e.target.value)}
-                      required
-                      maxLength={120}
-                      placeholder="Proje kodu"
-                    />
-                  </label>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Veri türü
-                    <select
-                      value={requestFieldType}
-                      onChange={(e) =>
-                        setRequestFieldType(
-                          e.target
-                            .value as PurchaseRequestFieldDefinition["dataType"],
-                        )
-                      }
-                    >
-                      <option value="Text">Metin</option>
-                      <option value="Decimal">Ondalık sayı</option>
-                      <option value="Date">Tarih</option>
-                      <option value="Boolean">Evet/Hayır</option>
-                    </select>
-                  </label>
-                  {requestFieldType === "Text" && (
-                    <label>
-                      En fazla karakter
-                      <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={requestFieldMaxLength}
-                        onChange={(e) =>
-                          setRequestFieldMaxLength(e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  )}
-                </div>
-                {role === "TenantAdmin" ? (
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={requestFieldRequired}
-                      onChange={(e) => setRequestFieldRequired(e.target.checked)}
-                    />{" "}
-                    Yeni taleplerde zorunlu olsun
-                  </label>
-                ) : (
-                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-                )}
-                <div className="modal-foot">
-                  <span>
-                    Zorunlu alanı mevcut talepler varken açmak için önce
-                    taleplere değer girilmelidir.
-                  </span>
-                  <button className="secondary" disabled={busy}>
-                    Alan tanımı ekle
-                  </button>
-                </div>
-              </form>
-            </section>
-            <div className="modal-foot">
-              <span>
-                Yeni talep alanları kaydedildiğinde yeni taleplerde
-                kullanılabilir.
-              </span>
               <button
                 type="button"
-                className="secondary"
+                className="icon-button"
+                aria-label="Alanlar penceresini kapat"
+                autoFocus
                 onClick={() => setRequestFieldSettingsOpen(false)}
               >
+                <X size={18} />
+              </button>
+            </div>
+            {error && (
+              <div className="alert inline-alert" role="alert">
+                {error}
+                <button type="button" aria-label="Hatayı kapat" onClick={() => setError("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            {notice && (
+              <div className="notice">
+                {notice}
+                <button type="button" aria-label="Bildirimi kapat" onClick={() => setNotice("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <DetailTabs<"request" | "quote">
+              label="Alan türleri"
+              value={requestFieldsTab}
+              onChange={setRequestFieldsTab}
+              tabs={[
+                { key: "request", label: "Talep alanları", count: requestFieldDefinitions.length },
+                { key: "quote", label: "Teklif alanları", count: supplierQuoteFieldDefinitions.length },
+              ]}
+            />
+            <div className="po-fields-body" role="tabpanel">
+              {requestFieldsTab === "request" && requestFieldsSection}
+              {requestFieldsTab === "quote" && supplierQuoteFieldsSection}
+            </div>
+            <div className="modal-foot">
+              <span>Alan tanımları sürümlenir; geçmiş kayıtların değerleri korunur.</span>
+              <button type="button" className="secondary" onClick={() => setRequestFieldSettingsOpen(false)}>
                 Kapat
               </button>
             </div>
@@ -7317,7 +7805,6 @@ function PurchasingPanel({
           })()}
         </div>
       )}
-      {requestsOnly && canManagePurchaseFields && supplierQuoteFieldsSection}
       {!requestsOnly && orderFieldsOpen && canManagePurchaseFields && (
         <div
           className="modal-backdrop"
@@ -7382,16 +7869,6 @@ function PurchasingPanel({
               </button>
             </div>
           </div>
-        </div>
-      )}
-      {requestsOnly && (
-        <div className="boundary-note">
-          <ShieldCheck size={17} />
-          <span>
-            <b>Tedarikçi borcu</b>Mal kabulden alış faturası oluşturun; fatura
-            tedarikçi vadesini ve cari borcu yazar. Kısmi ödemeler borçtan düşer;
-            iptaller ters kayıtla korunur.
-          </span>
         </div>
       )}
       {detail && (
@@ -8367,7 +8844,7 @@ function PurchasingPanel({
             {(supplierQuotes.length > 0 ||
               requestDetail.status === "Approved") && (
               <section
-                className="panel"
+                className="panel pr-detail-form-target"
                 style={{ margin: "18px 0", padding: 16 }}
               >
                 <div className="panel-heading">
@@ -8757,7 +9234,7 @@ function PurchasingPanel({
               requestDetail.status === "Approved" &&
               !requestDetail.purchaseOrderId && (
                 <div
-                  className="panel"
+                  className="panel pr-detail-form-target"
                   style={{ margin: "18px 0", padding: 16 }}
                 >
                   <div className="panel-heading">
@@ -9042,40 +9519,16 @@ function PurchasingPanel({
                   )}
                 </div>
               )}
+            {role === "TenantAdmin" && requestDetail.status === "Submitted" && (
+              <section className="panel pr-detail-decision" aria-label="Talep kararı">
+                {renderDecisionControls(requestDetail, "detail")}
+              </section>
+            )}
             <div className="modal-foot">
               <span>
                 Onay, sipariş ve finans kaydı birbirinden ayrı adımlardır.
               </span>
               <div>
-                {role === "TenantAdmin" &&
-                  requestDetail.status === "Submitted" &&
-                  requestDetail.requestedByUserId === currentUserId && (
-                    <span className="cell-subtitle">
-                      Kendi talebinizi onaylayamaz veya reddedemezsiniz; kararı başka bir yetkili verir.
-                    </span>
-                  )}
-                {role === "TenantAdmin" &&
-                  requestDetail.status === "Submitted" &&
-                  requestDetail.requestedByUserId !== currentUserId && (
-                    <>
-                      <button
-                        className="secondary danger-action"
-                        disabled={busy}
-                        onClick={() =>
-                          void decideRequest(requestDetail, false)
-                        }
-                      >
-                        Reddet
-                      </button>
-                      <button
-                        className="primary"
-                        disabled={busy}
-                        onClick={() => void decideRequest(requestDetail, true)}
-                      >
-                        Onayla
-                      </button>
-                    </>
-                  )}
                 <button
                   className="secondary"
                   onClick={() => setRequestDetail(null)}
