@@ -32,6 +32,7 @@ import { ModuleMarketplaceMetrics } from "./module-marketplace/components/Module
 import { ModuleMarketplaceToolbar } from "./module-marketplace/components/ModuleMarketplaceToolbar";
 import { MarketplaceModuleCard } from "./module-marketplace/components/MarketplaceModuleCard";
 import { MarketplaceModuleInspector } from "./module-marketplace/components/MarketplaceModuleInspector";
+import { problemDetail } from "./erpApi";
 export type { ModuleMenuSelection } from "./module-marketplace/types";
 type ActivatedModule = {
   moduleCode: string;
@@ -62,7 +63,7 @@ async function request<T>(
     throw new Error(
       [
         payload?.error ||
-          payload?.title ||
+          problemDetail(payload) ||
           localizedText(
             `İstek başarısız (${response.status}).`,
             `Request failed (${response.status}).`,

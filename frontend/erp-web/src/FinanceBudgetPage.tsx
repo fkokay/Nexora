@@ -15,6 +15,7 @@ import type {
   Plan,
   PlanView,
 } from "./finance-budget/types";
+import { problemDetail } from "./erpApi";
 
 const defaultBudgetFields: BudgetLayoutField[] = [
   { key: "periodStart", label: "Dönem", visible: true, position: 0 },
@@ -56,7 +57,7 @@ async function request<T>(
         : `İstek başarısız (${response.status})`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {}
     throw new Error(message);
   }

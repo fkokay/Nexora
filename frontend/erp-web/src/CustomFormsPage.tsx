@@ -19,6 +19,7 @@ import {
   isFieldRequired,
   getDefaultFieldValues,
 } from "./custom-forms/types";
+import { problemDetail } from "./erpApi";
 
 function isHttpUrl(value: string) {
   try {
@@ -86,7 +87,7 @@ export default function CustomFormsPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             `İstek başarısız (${response.status})`,
         );
       }

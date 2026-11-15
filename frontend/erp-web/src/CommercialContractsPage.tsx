@@ -24,6 +24,7 @@ import {
   type Transition,
 } from "./commercial-contracts/types";
 import "./commercial-contracts.css";
+import { problemDetail } from "./erpApi";
 
 async function request<T>(
   url: string,
@@ -55,7 +56,7 @@ async function request<T>(
           : "Bu işlem için yetkiniz yok."
         : body?.error ||
           validation ||
-          body?.title ||
+          problemDetail(body) ||
           (locale === "en"
             ? `Request failed (${response.status}).`
             : `İstek başarısız (${response.status}).`),

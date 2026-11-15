@@ -29,6 +29,7 @@ import {
   type Page,
   type ScreenField,
 } from "./crm-opportunities/types";
+import { problemDetail } from "./erpApi";
 
 export default function CrmOpportunitiesPage({
   token,
@@ -103,7 +104,7 @@ export default function CrmOpportunitiesPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             `İstek başarısız (${response.status})`,
         );
       }

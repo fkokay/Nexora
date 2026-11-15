@@ -35,6 +35,7 @@ import type {
   CasePage,
   AdvanceInputs,
 } from "./foreign-trade/types";
+import { problemDetail } from "./erpApi";
 
 const blankDraft = (): Draft => ({
   direction: "Import",
@@ -182,7 +183,7 @@ export default function ForeignTradePage({
         validationMessages.length
           ? validationMessages.join(" ")
           : body?.error ||
-            body?.title ||
+            problemDetail(body) ||
             tr(
               `İstek başarısız (${response.status}).`,
               `Request failed (${response.status}).`,

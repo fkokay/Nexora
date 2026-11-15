@@ -25,6 +25,7 @@ import type {
 import { statusText } from "./payment-instruments/paymentInstrumentTypes";
 import { PaymentInstrumentCreateForm } from "./payment-instruments/components/PaymentInstrumentCreateForm";
 import { confirmLocalized, promptLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 const initial = (): Draft => ({
   type: "Check",
@@ -200,7 +201,7 @@ export default function PaymentInstrumentsPage({
       } | null;
       throw new Error(
         payload?.error ||
-          payload?.title ||
+          problemDetail(payload) ||
           (response.status === 403
             ? "Erişim reddedildi (403). Bu çek/senet işlemi için firma yöneticisi (TenantAdmin) rolü gerekir."
             : `İstek başarısız (${response.status}).`),

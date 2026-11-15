@@ -15,6 +15,7 @@ import type {
   Definition,
   DefinitionKind,
 } from "./operational-definitions/types";
+import { problemDetail } from "./erpApi";
 
 async function request<T>(
   token: string,
@@ -35,7 +36,7 @@ async function request<T>(
       title?: string;
     } | null;
     throw new Error(
-      body?.error ?? body?.title ?? "İstek başarısız (" + response.status + ")",
+      body?.error ?? problemDetail(body) ?? "İstek başarısız (" + response.status + ")",
     );
   }
   return response.json() as Promise<T>;

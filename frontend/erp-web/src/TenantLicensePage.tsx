@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import "./license.css";
 import "./tenant-license.css";
+import { problemDetail } from "./erpApi";
 
 type License = {
   status: "Unlicensed" | "Active" | "Expired" | "Invalid";
@@ -108,7 +109,7 @@ export default function TenantLicensePage({
         response.status === 403
           ? "Bu işlem için firma yöneticisi yetkisi gerekir."
           : payload?.error ||
-            payload?.title ||
+            problemDetail(payload) ||
             `İstek başarısız (${response.status}).`,
       );
     }

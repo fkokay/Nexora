@@ -14,6 +14,7 @@ import type {
   QuotePage,
   ScreenField,
 } from "./purchase-supplier-quotes/types";
+import { problemDetail } from "./erpApi";
 
 type Props = { token: string; onOpenRequests: () => void };
 
@@ -25,7 +26,7 @@ async function request<T>(url: string, token: string): Promise<T> {
     let message = `İstek başarısız (${response.status})`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {
       // Response may be empty.
     }

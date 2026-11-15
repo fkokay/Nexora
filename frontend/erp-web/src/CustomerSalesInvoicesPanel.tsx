@@ -4,6 +4,7 @@ import type { ScreenColumnPin } from "./erp-types";
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { FileText, ReceiptText, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { problemDetail } from "./erpApi";
 
 type InvoiceSummary = {
   id: string;
@@ -69,7 +70,7 @@ async function request<T>(path: string, token: string): Promise<T> {
         error?: string;
         title?: string;
       };
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {
       /* keep the status message */
     }

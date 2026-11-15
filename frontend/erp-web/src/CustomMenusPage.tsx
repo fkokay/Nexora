@@ -9,6 +9,7 @@ import { CustomMenuList } from "./custom-menus/components/CustomMenuList";
 import { CustomMenuInspector } from "./custom-menus/components/CustomMenuInspector";
 import { StandardMenuEditor } from "./custom-menus/components/StandardMenuEditor";
 import { confirmLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 export default function CustomMenusPage({
   token,
@@ -55,7 +56,7 @@ export default function CustomMenusPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             `İstek başarısız (${response.status})`,
         );
       }

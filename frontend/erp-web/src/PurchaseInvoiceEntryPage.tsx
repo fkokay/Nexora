@@ -12,6 +12,7 @@ import "./purchasing-record-forms.css";
 import "./purchase-list-v2/purchase-list-v2.css";
 import "./purchase-invoice-entry.css";
 import { ListPagination } from "./list-page/ListPagination";
+import { problemDetail } from "./erpApi";
 
 type ReceiptOption = {
   id: string;
@@ -127,7 +128,7 @@ async function request<T>(
     let message = `İstek başarısız (${response.status}).`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {
       /* preserve the status message */
     }

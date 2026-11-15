@@ -17,6 +17,7 @@ import type {
   WorkflowStep,
 } from "./workflows/types";
 import "./workflow.css";
+import { problemDetail } from "./erpApi";
 
 const roles = ["TenantAdmin", "TenantDeveloper", "TenantUser"];
 
@@ -70,7 +71,7 @@ export default function WorkflowPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             localizedText(
               `İstek başarısız (${response.status})`,
               `Request failed (${response.status})`,

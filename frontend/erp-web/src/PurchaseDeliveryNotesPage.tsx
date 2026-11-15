@@ -22,6 +22,7 @@ import type {
   OrderSummary,
   ScreenField,
 } from "./purchase-delivery-notes/types";
+import { problemDetail } from "./erpApi";
 
 async function request<T>(
   url: string,
@@ -42,7 +43,7 @@ async function request<T>(
       title?: string;
     } | null;
     throw new Error(
-      body?.error || body?.title || `İstek başarısız (${response.status}).`,
+      body?.error || problemDetail(body) || `İstek başarısız (${response.status}).`,
     );
   }
   if (response.status === 204) return undefined as T;

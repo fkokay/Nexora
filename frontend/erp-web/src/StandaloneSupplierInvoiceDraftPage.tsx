@@ -21,6 +21,7 @@ import {
 } from "./supplier-invoice-draft/components/InvoiceDraftHeader";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
 import { confirmLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 const blankLine = (): DraftLineInput => ({
   description: "",
@@ -89,7 +90,7 @@ async function request<T>(
     let message = `İstek başarısız (${response.status}).`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {
       /* retain the status message */
     }
