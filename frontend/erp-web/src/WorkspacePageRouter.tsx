@@ -412,7 +412,13 @@ export function WorkspacePageRouter({
       />
     );
   if (page === "finance-exposure")
-    return <FxExposurePage token={token} role={tenant.role} />;
+    return (
+      <FxExposurePage
+        token={token}
+        role={tenant.role}
+        onNavigate={onNavigate}
+      />
+    );
   if (page === "finance-maturities")
     return <MaturityTrackingPage token={token} role={tenant.role} />;
   if (page === "finance-credit-facilities")

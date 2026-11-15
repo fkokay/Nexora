@@ -399,5 +399,55 @@ html[data-theme="dark"] #root .fh-page {
 #root .app-shell .fh-page td.fh-rate-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #root .fh-page .fh-reval-list { margin-top: 12px; }
 #root .fh-page .fh-reval-detail { margin-top: 14px; }
+/* Döviz pozisyonu: gain/loss colouring, per-currency boxes, calm empty state */
+#root .app-shell .fh-page .fh-pos { color: var(--fh-success) !important; }
+#root .app-shell .fh-page .fh-neg { color: var(--fh-danger) !important; }
+#root .fh-page .fh-ccys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 899px) {
+  #root .fh-page .fh-ccys { grid-template-columns: minmax(0, 1fr); }
+}
+#root .fh-page .fh-ccy { display: flex; flex-direction: column; gap: 10px; }
+#root .fh-page .fh-ccy-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12.5px;
+}
+#root .fh-page .fh-ccy-head b { color: var(--fh-ink); font-variant-numeric: tabular-nums; }
+#root .fh-page .fh-ccy-head .fh-ccy-code { font-size: 17px; letter-spacing: 0.02em; }
+#root .fh-page .fh-ccy-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+#root .fh-page .fh-ccy-rows > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .fh-page .fh-ccy-rows dt { color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .fh-page .fh-ccy-rows dd {
+  margin: 0;
+  color: var(--fh-ink);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .fh-page .fh-ccy-rows .is-total dd { font-weight: 700; }
+#root .fh-page .fh-ccy-rows dd small { color: var(--fh-muted); font-size: 11.5px; font-weight: 600; }
+#root .fh-page .fh-ccy-sens {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--fh-line-soft);
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+#root .fh-page .fh-calm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 16px;
+  text-align: center;
+}
+#root .fh-page .fh-calm b { color: var(--fh-ink); font-size: 15px; }
+#root .fh-page .fh-calm .fh-muted { font-size: 13px; }
+
 /* The legacy finance-workbench-page root (kept for the embedded panels) spaces its heading itself. */
 #root .fh-page > .page-heading { margin: 0; }

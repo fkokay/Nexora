@@ -220,6 +220,27 @@ export const english: Record<string, string> = {
   'Maruziyet özeti için kayıtlı kredi yok.': 'No facilities recorded for the exposure summary.',
   'XLSX dosyası oluşturulamadı.': 'Could not create the XLSX file.',
   'Filtreleri temizle': 'Clear filters',
+  // FX position (Döviz pozisyonu)
+  'Döviz pozisyonu': 'FX position',
+  'Açık dövizli alacak ve borç faturalarını güncel kurla inceleyin.': 'Review open foreign-currency receivable and payable invoices at the current rate.',
+  'baz para': 'base currency',
+  'Net pozisyon': 'Net position',
+  'Alacak − borç, güncel kurla': 'Receivables − payables, at the current rate',
+  'Dövizli alacak': 'FX receivables',
+  'Dövizli borç': 'FX payables',
+  'Tahmini kur farkı': 'Estimated FX difference',
+  'kayıt oluşturmaz': 'does not post entries',
+  'fatura kursuz, toplamlara dahil değil': 'invoices without a rate, not included in the totals',
+  'Net': 'Net',
+  "Güncel kur yok — Kur ve değerleme'den kur girin": 'No current rate — enter one in Rates and revaluation',
+  'Fatura · cari': 'Invoice · account',
+  'Tahmini fark': 'Estimated difference',
+  'Kur farkı geliri': 'FX gain',
+  'Kur farkı gideri': 'FX loss',
+  'Fatura no veya cari': 'Invoice no or account',
+  'Filtreye uygun fatura bulunamadı.': 'No invoice matches the filter.',
+  'Açık döviz pozisyonu yok': 'No open FX position',
+  'Tahmini görünümdür; güncel kurla hesaplanır ve muhasebe kaydı oluşturmaz.': 'Estimated view; calculated at the current rate and does not post accounting entries.',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
@@ -242,4 +263,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^· (\d+) gecikmiş$/, '· $1 overdue'],
   [/^(\d+) vadesi geçmiş teminat$/, '$1 expired securities'],
   [/^(\d+) teminat 30 gün içinde$/, '$1 securities due within 30 days'],
+  // FX position
+  [/^Kur %5 artarsa ([+−]?[\d.,]+) ([A-Z]{3}) · %5 düşerse ([+−]?[\d.,]+) ([A-Z]{3})$/, 'If the rate rises 5%: $1 $2 · if it falls 5%: $3 $4'],
+  [/^Tüm açık faturalar ([A-Z]{3}) \((\d+) fatura\)$/, 'All open invoices are in $1 ($2 invoices)'],
 ]
