@@ -52,6 +52,7 @@ const NativePlatformTool = lazy(
 import "./studio-dashboard.css";
 import "./studio-adaptation-reference.css";
 import "./studio-analytics-reference.css";
+import { resolvePlatformOrigin } from "./platformOrigin";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type DevelopmentProject = {
@@ -261,25 +262,11 @@ export default function App() {
     .trim()
     .slice(0, 100);
   const configuredPlatformOrigin = import.meta.env.VITE_PLATFORM_URL?.trim();
-  const platformOrigin = (() => {
-    for (const candidate of [
-      contextParams.get("platformOrigin"),
-      configuredPlatformOrigin,
-    ]) {
-      if (!candidate) continue;
-      try {
-        const url = new URL(candidate);
-        if (
-          (url.protocol === "http:" || url.protocol === "https:") &&
-          url.origin !== window.location.origin
-        )
-          return url.origin;
-      } catch {
-        /* Try the configured origin, then keep the current origin. */
-      }
-    }
-    return window.location.origin;
-  })();
+  const platformOrigin = resolvePlatformOrigin(
+    contextParams.get("platformOrigin"),
+    configuredPlatformOrigin,
+    window.location.origin,
+  );
   const contextualScreen = (
     contextParams.get("contextLabel") ||
     contextPage

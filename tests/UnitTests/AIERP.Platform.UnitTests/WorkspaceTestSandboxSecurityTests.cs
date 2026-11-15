@@ -209,4 +209,16 @@ public sealed class WorkspaceTestSandboxSecurityTests
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("S (sleeping)", "65532\t65532\t65532\t65532", true)]
+    [InlineData("Z (zombie)", "65532\t65532\t65532\t65532", false)]
+    [InlineData("R (running)", "0\t0\t0\t0", false)]
+    [InlineData("S (sleeping)", "1654\t65532\t65532\t65532", false)]
+    public void Sandbox_process_sweep_targets_only_live_sandbox_user_processes(string state, string uids, bool expected)
+        => Assert.Equal(expected, TestJobWorker.IsLiveSandboxUserProcess($"Name:\tproc\nState:\t{state}\nUid:\t{uids}\n"));
+
+    [Fact]
+    public void Sandbox_process_sweep_ignores_unparseable_status()
+        => Assert.False(TestJobWorker.IsLiveSandboxUserProcess(""));
 }

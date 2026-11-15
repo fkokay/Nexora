@@ -131,6 +131,10 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("github-webhook", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    // Anonymous GitHub setup callback: keep installation id guessing impractical.
+    options.AddPolicy("github-setup-callback", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
 });
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod()));
@@ -588,6 +592,11 @@ app.MapGet("/studio/github/setup-callback", async (long? installation_id, string
         var authorization = await db.GitHubInstallationAuthorizationStates.AsNoTracking()
             .SingleOrDefaultAsync(x => x.StateHash == stateHash && x.ExpiresAt > now && x.ConsumedAt == null, cancellationToken);
         if (authorization is null) return Results.Redirect(Return("expired"));
+        // A state is single-use whatever the outcome, so a failed attempt with a guessed
+        // installation id cannot be retried with the same state.
+        var consumed = await db.GitHubInstallationAuthorizationStates.Where(x => x.Id == authorization.Id && x.ExpiresAt > now && x.ConsumedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ConsumedAt, now), cancellationToken);
+        if (consumed != 1) return Results.Redirect(Return("expired"));
         var project = await db.DevelopmentProjects.Include(x => x.AccessGrants)
             .SingleOrDefaultAsync(x => x.TenantId == authorization.TenantId && x.Id == authorization.ProjectId && x.IsActive, cancellationToken);
         var membership = await platformDb.TenantMemberships.Include(x => x.User)
@@ -599,14 +608,9 @@ app.MapGet("/studio/github/setup-callback", async (long? installation_id, string
         var repository = GetGitHubRepositoryIdentifier(project.RepositoryUrl);
         if (repository is null) return Results.Redirect(Return("unsupported", project.Id));
         _ = await tokenProvider.CreateRepositoryReadTokenAsync(installation_id.Value, repository, cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var consumed = await db.GitHubInstallationAuthorizationStates.Where(x => x.Id == authorization.Id && x.ExpiresAt > now && x.ConsumedAt == null)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ConsumedAt, now), cancellationToken);
-        if (consumed != 1) return Results.Redirect(Return("expired", project.Id));
         project.GitHubInstallationId = installation_id.Value;
         db.AuditEvents.Add(new AuditEvent { TenantId = authorization.TenantId, UserId = authorization.UserId, Action = "studio.project.github.authorization.connected", Resource = project.Id.ToString() });
         await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return Results.Redirect(Return("connected", project.Id));
     }
     catch (GitHubAppConfigurationException) { return Results.Redirect(Return("not-configured")); }
@@ -619,7 +623,7 @@ app.MapGet("/studio/github/setup-callback", async (long? installation_id, string
         logger.LogError("GitHub App setup callback failed ({FailureType}); sensitive callback parameters were omitted.", exception.GetType().Name);
         return Results.Redirect(Return("setup-failed"));
     }
-}).AllowAnonymous();
+}).AllowAnonymous().RequireRateLimiting("github-setup-callback");
 projects.MapPost("/", async (CreateProject body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
     if (!TryScope(user, out var tenantId, out var userId)) return Results.Forbid();
@@ -2531,7 +2535,7 @@ app.MapGet("/studio/projects/{projectId:guid}/workspace-requests/{requestId:guid
         return new ReleaseCandidateView(candidate.Id, candidate.WorkspaceRequestId, candidate.BranchName, candidate.CommitSha, candidate.TestJobId,
             candidate.TestTargetPath, candidate.TestSnapshotSha256, candidate.TestCompletedAt, candidate.CreatedAt, candidate.CreatedByUserId,
             review?.Decision, review?.Note, review?.CreatedAt, review?.ReviewedByUserId,
-            CanManageProject(user, project.AccessGrants, userId) && review is null,
+            CanManageProject(user, project.AccessGrants, userId) && review is null && candidate.CreatedByUserId != userId,
             candidate.GitHubPullRequestNumber, candidate.GitHubPullRequestUrl, candidate.GitHubPullRequestState);
     }));
 }).RequireAuthorization().RequireRateLimiting("workspace-read");
@@ -2686,6 +2690,19 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         .Where(x => x.TenantId == tenantId && x.ProjectId == projectId && x.Environment == StudioReleaseDeploymentRules.Staging && x.Status == StudioReleaseDeploymentRules.Succeeded)
         .OrderByDescending(x => x.CompletedAt).FirstOrDefaultAsync(cancellationToken);
     var existing = await db.StudioReleaseDeploymentRecords.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.IdempotencyKey == body.IdempotencyKey, cancellationToken);
+    if (existing is not null)
+    {
+        if (existing.ProjectId != projectId || existing.ReleasePackageId != packageId || existing.Environment != StudioReleaseDeploymentRules.Staging)
+            return Results.Conflict(new { error = "Idempotency anahtarı farklı dağıtım metadata'sıyla kullanılmış." });
+        switch (StudioReleaseDeploymentRules.ClassifyIdempotentReplay(existing.Status))
+        {
+            case DeploymentReplayDecision.InProgress:
+                return Results.Conflict(new { error = "Bu staging dağıtımı hâlâ sürüyor; tamamlanınca geçmişi yenileyin." });
+            case DeploymentReplayDecision.Completed:
+                // A retry after a lost response must not re-deploy (or supersede) the same deployment.
+                return Results.Ok(new StudioStagingDeploymentOperationResult(ToReleaseDeploymentView(existing), "", ""));
+        }
+    }
     if (activeDeployment?.Id != body.ExpectedActiveDeploymentId &&
         !(existing is not null && existing.ProjectId == projectId && existing.ReleasePackageId == packageId && existing.RollbackOfDeploymentId == body.ExpectedActiveDeploymentId))
         return Results.Conflict(new { error = "Staging dağıtımı değişti; geçmişi yenileyip tekrar deneyin." });
@@ -2744,7 +2761,7 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         }
         deployment.Status = StudioReleaseDeploymentRules.Succeeded; deployment.ProviderDeploymentId = result.ProviderDeploymentId;
         deployment.EnvironmentUrl = result.Url; deployment.CompletedAt = result.CreatedAt;
-        if (activeDeployment is not null) activeDeployment.Status = StudioReleaseDeploymentRules.Superseded;
+        if (activeDeployment is not null && activeDeployment.Id != deployment.Id) activeDeployment.Status = StudioReleaseDeploymentRules.Superseded;
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.staging.succeeded", Resource = $"{deployment.Id:D}:{package.PackageSha256}" });
         await db.SaveChangesAsync(CancellationToken.None);
         var showBootstrapCredentials = body.ExpectedActiveDeploymentId is null;
@@ -3381,7 +3398,9 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == projectId && x.IsActive, cancellationToken);
     if (project is null) return Results.NotFound();
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
-    var githubInstallationId = project.GitHubInstallationId ?? body.GitHubInstallationId;
+    // Only an installation bound through the signed setup callback may be used; a
+    // client-supplied installation id would let a caller pick another account's installation.
+    var githubInstallationId = project.GitHubInstallationId ?? 0;
     if (githubInstallationId <= 0) return Results.Problem("Önce Studio’da bu proje için GitHub yetkilendirmesi yapın.", statusCode: StatusCodes.Status403Forbidden);
     var candidate = await db.ReleaseCandidateRecords
         .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
@@ -3425,10 +3444,6 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
             !string.Equals(test.CommitSha, candidate.CommitSha, StringComparison.OrdinalIgnoreCase) || !string.Equals(test.SnapshotSha256, candidate.TestSnapshotSha256, StringComparison.OrdinalIgnoreCase) || test.TargetPath != candidate.TestTargetPath)
             return Results.Conflict(new { error = "Aynı commit için başarılı sandbox test kanıtı doğrulanamadı." });
         var installationToken = await tokenProvider.CreateRepositoryTokenAsync(githubInstallationId, repository, cancellationToken);
-        // A PR can be published with an installation ID supplied by the approval dialog
-        // even when the project was not connected through the setup callback. Persist that
-        // validated installation so later release and review actions can use it.
-        project.GitHubInstallationId = githubInstallationId;
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.release.pull-request.requested", Resource = $"{requestId:D}:{candidateId:D}" });
         await db.SaveChangesAsync(cancellationToken);
         using var push = new HttpRequestMessage(HttpMethod.Post, $"/internal/workspaces/{workspaceRequest.Id:D}/push-approved-branch");
@@ -3754,6 +3769,11 @@ app.MapPost("/studio/projects/{projectId:guid}/workspace-requests/{requestId:gui
     if (!CanManageProject(user, project.AccessGrants, userId)) return Results.Forbid();
     var candidate = await db.ReleaseCandidateRecords.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && x.WorkspaceRequestId == requestId && x.Id == candidateId, cancellationToken);
     if (candidate is null) return Results.NotFound();
+    // Four-eyes rule with no role exemption: an approved candidate unlocks packaging,
+    // staging and the TenantAdmin-only web-image-update of the host, so its creator
+    // (TenantAdmin included) can never record the review decision.
+    if (candidate.CreatedByUserId == userId)
+        return Results.Conflict(new { error = "Sürüm adayını oluşturan kişi kendi adayını inceleyemez; başka bir yetkili kullanıcı karar vermeli." });
     if (await db.ReleaseCandidateReviewRecords.AnyAsync(x => x.TenantId == tenantId && x.ReleaseCandidateId == candidateId, cancellationToken))
         return Results.Conflict(new { error = "Bu aday için karar zaten kaydedilmiş. Yeni inceleme için yeni sürüm adayı oluşturun." });
     var request = await db.DevelopmentWorkspaceRequests.AsNoTracking()
