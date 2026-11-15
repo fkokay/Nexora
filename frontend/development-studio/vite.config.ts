@@ -18,20 +18,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: { host: '0.0.0.0', port: 4174 },
-    build: {
-      rolldownOptions: {
-        output: {
-          codeSplitting: {
-            groups: [{
-              name: 'monaco-editor',
-              test: /[\\/]node_modules[\\/]monaco-editor[\\/]/,
-              priority: 10,
-              maxSize: 450_000,
-              maxModuleSize: 450_000,
-            }],
-          },
-        },
-      },
-    },
+    // Monaco için elle parça grubu tanımlanmaz: WorkspaceCodeEditor onu dinamik
+    // import ile yükler, varsayılan bölme ilk yüklemenin dışında tutar. Eski
+    // `maxSize` grubu Monaco'yu döngüsel parçalara bölüp üretimde
+    // "c is not a constructor" hatasıyla çalışmaz hale getiriyordu ve
+    // önyükleme yardımcısını bu gruba koyduğu için index.html'e sızıyordu.
   }
 })
