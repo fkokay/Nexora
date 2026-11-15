@@ -2398,14 +2398,17 @@ export default function App() {
                   </div>
                 }
               >
-                <DevelopmentRequestsPage
-                  requests={requests}
-                  projects={projects}
-                  busy={busy}
-                  onCreate={openNewRequest}
-                  onEdit={openRequestForEdit}
-                  onDelete={(item) => void deleteRequest(item)}
-                />
+                {/* Bileşen bir fragment döndürür; düz blok kap, iç boşluklarının eskisi gibi kalmasını sağlar. */}
+                <div className="st-embed">
+                  <DevelopmentRequestsPage
+                    requests={requests}
+                    projects={projects}
+                    busy={busy}
+                    onCreate={openNewRequest}
+                    onEdit={openRequestForEdit}
+                    onDelete={(item) => void deleteRequest(item)}
+                  />
+                </div>
               </Suspense>
             </>
           ) : activeSection === "analytics" ? (
