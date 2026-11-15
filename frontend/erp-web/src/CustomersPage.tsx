@@ -31,6 +31,7 @@ import MasterDataImportDialog from "./MasterDataImportDialog";
 import { CustomerDirectoryHeader } from "./customers/components/CustomerDirectoryHeader";
 import { CustomerFilters } from "./customers/components/CustomerFilters";
 import { CustomerGrid } from "./customers/components/CustomerGrid";
+import { validateCustomerIdentifiers } from "./customers/identifierValidation";
 import "./list-page/list-page-v2.css";
 import {
   CustomerDetailPanel,
@@ -953,8 +954,23 @@ function CustomersPage({
     setAddressLongitude(null);
     setCustomerCreateValues({});
   }
+  /** Blocks submit on invalid VKN/TCKN/IBAN and opens the tab holding the first invalid field. */
+  function identifierErrorsBlockSubmit(stored: CustomerItem | null): boolean {
+    const addressSent = !!(addressLine.trim() || addressCity.trim() || addressDistrict.trim() || addressPostalCode.trim());
+    const errors = validateCustomerIdentifiers(
+      { taxNumber, identityNumber, iban, countryCode: addressSent ? addressCountry : null },
+      stored,
+    );
+    const messages = Object.values(errors);
+    if (messages.length === 0) return false;
+    setCustomerCreateTab(errors.taxNumber || errors.identityNumber ? "other" : "finance");
+    // The inline field errors list every problem; the banner names the first so it stays translatable.
+    setError(messages[0]);
+    return true;
+  }
   async function create(e: React.FormEvent) {
     e.preventDefault();
+    if (identifierErrorsBlockSubmit(null)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -1094,6 +1110,7 @@ function CustomersPage({
   async function saveCustomerEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingCustomer) return;
+    if (identifierErrorsBlockSubmit(editingCustomer)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -1215,22 +1232,31 @@ function CustomersPage({
     setError("");
     setNotice("");
     try {
+      // PUT replaces the card's contact, bank and e-invoice fields; send the stored values so
+      // toggling the status does not wipe them (address and custom fields are kept when omitted).
+      const full = await api<CustomerItem>(`/api/customers/${item.id}`, token);
       await api<CustomerItem>(`/api/customers/${item.id}`, token, {
         method: "PUT",
         body: JSON.stringify({
-          code: item.code,
-          name: item.name,
-          type: item.type,
-          taxNumber: item.taxNumber,
-          identityNumber: item.identityNumber,
-          taxOffice: item.taxOffice,
-          isActive: !item.isActive,
-          rowVersion: item.rowVersion,
-          groupId: item.groupId,
-          parentCompanyId: item.parentCompanyId || null,
-          currencyCode: item.currencyCode,
-          riskLimit: item.riskLimit,
-          paymentTermDays: item.paymentTermDays,
+          code: full.code,
+          name: full.name,
+          type: full.type,
+          taxNumber: full.taxNumber,
+          identityNumber: full.identityNumber,
+          taxOffice: full.taxOffice,
+          isEInvoiceRegistered: full.isEInvoiceRegistered,
+          eInvoiceRecipientAlias: full.eInvoiceRecipientAlias,
+          phone: full.phone, email: full.email, website: full.website,
+          contactName: full.contactName, contactPhone: full.contactPhone, contactEmail: full.contactEmail,
+          priceListCode: full.priceListCode, receivableAccountCode: full.receivableAccountCode, payableAccountCode: full.payableAccountCode,
+          bankName: full.bankName, bankBranchCode: full.bankBranchCode, iban: full.iban,
+          isActive: !full.isActive,
+          rowVersion: full.rowVersion,
+          groupId: full.groupId,
+          parentCompanyId: full.parentCompanyId || null,
+          currencyCode: full.currencyCode,
+          riskLimit: full.riskLimit,
+          paymentTermDays: full.paymentTermDays,
         }),
       });
       setNotice(

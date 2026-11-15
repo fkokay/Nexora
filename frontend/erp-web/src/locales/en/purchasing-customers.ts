@@ -275,6 +275,11 @@ export const english: Record<string, string> = {
   'T.C. kimlik no': 'National ID no.', 'Vergi dairesi': 'Tax office', 'Posta kodu': 'Postal code',
   'E-Fatura mükellefi için vergi no veya T.C. kimlik no girilmedi.': 'No tax number or national ID entered for an e-invoice taxpayer.',
   'E-Fatura mükellefi için alıcı etiketi girilmedi.': 'No recipient alias entered for an e-invoice taxpayer.',
+  'Vergi numarası 10 haneli olmalı ve geçerli bir VKN olmalıdır.': 'The tax number must be 10 digits and a valid Turkish tax ID (VKN).',
+  'T.C. kimlik numarası geçersiz.': 'The national ID number is invalid.', 'T.C. kimlik numarası 11 rakam olmalıdır.': 'The national ID number must be 11 digits.',
+  'IBAN geçersiz; ülke kodu, uzunluk ve kontrol basamaklarını kontrol edin.': 'Invalid IBAN; check the country code, length and check digits.',
+  'Vergi numarası en fazla 32 karakter olabilir.': 'The tax number can be at most 32 characters.', '10 haneli VKN': '10-digit tax ID', 'VKN': 'Tax ID',
+  '11 haneli TCKN': '11-digit national ID',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

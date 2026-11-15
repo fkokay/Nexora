@@ -179,6 +179,8 @@ html[data-theme="dark"] .record-form .rf-badge { border-color: #2f5f8f; backgrou
 .record-form .rf-form input.rf-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 .record-form .rf-form label.rf-short { max-width: 160px; }
 .record-form .rf-form small { color: var(--rf-muted); font-size: 12px; font-weight: 400; line-height: 1.4; }
+.record-form .rf-form small.rf-field-error { color: #b42318; }
+html[data-theme="dark"] .record-form .rf-form small.rf-field-error { color: #ff8a80; }
 .record-form .rf-req { color: #b42318; font-weight: 700; }
 html[data-theme="dark"] .record-form .rf-req { color: #ff8a80; }
 .record-form .rf-form label.rf-check { flex-direction: row; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; }

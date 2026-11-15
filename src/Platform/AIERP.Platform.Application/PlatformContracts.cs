@@ -678,9 +678,21 @@ public static class FinancialAccountValidation
     }
 }
 
+/// <summary>Identifier values already stored on a customer card; used so legacy values can be kept unchanged on update.</summary>
+public sealed record CustomerStoredIdentifiers(string? TaxNumber, string? IdentityNumber, string? Iban);
+
 public static class CustomerValidation
 {
-    public static Dictionary<string, string[]>? Validate(CustomerWriteRequest request)
+    public const string InvalidVknMessage = "Vergi numarası 10 haneli olmalı ve geçerli bir VKN olmalıdır.";
+    public const string InvalidTcknMessage = "T.C. kimlik numarası geçersiz.";
+    public const string InvalidIbanMessage = "IBAN geçersiz; ülke kodu, uzunluk ve kontrol basamaklarını kontrol edin.";
+
+    /// <summary>
+    /// Validates a customer write. Create and bulk import pass no <paramref name="previous"/> and get every rule.
+    /// Update passes the stored identifiers: the VKN/TCKN/IBAN checksum rules then apply only to a field whose
+    /// value changes, so cards holding legacy values can still be edited for other fields.
+    /// </summary>
+    public static Dictionary<string, string[]>? Validate(CustomerWriteRequest request, CustomerStoredIdentifiers? previous = null)
     {
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 64)
@@ -689,11 +701,22 @@ public static class CustomerValidation
             errors["name"] = ["Unvan zorunludur ve en fazla 200 karakter olabilir."];
         if (!Enum.IsDefined(request.Type))
             errors["type"] = ["Cari türü Customer, Supplier, Both, Dealer veya Employee olmalıdır."];
-        if (request.TaxNumber?.Trim().Length > 32)
+        var taxNumber = TrimToNull(request.TaxNumber);
+        if (taxNumber?.Length > 32)
             errors["taxNumber"] = ["Vergi numarası en fazla 32 karakter olabilir."];
+        else if (taxNumber is not null && IsTurkishCustomer(request) && Changed(taxNumber, previous?.TaxNumber, previous)
+            && !TurkishIdentifierValidation.IsValidVkn(taxNumber))
+            errors["taxNumber"] = [InvalidVknMessage];
         if (request.IdentityNumber?.Trim().Length > 11 || (request.IdentityNumber is not null && request.IdentityNumber.Trim().Length > 0 &&
-            (request.IdentityNumber.Trim().Length != 11 || request.IdentityNumber.Any(c => !char.IsAsciiDigit(c)))))
+            (request.IdentityNumber.Trim().Length != 11 || request.IdentityNumber.Trim().Any(c => !char.IsAsciiDigit(c)))))
             errors["identityNumber"] = ["T.C. kimlik numarası 11 rakam olmalıdır."];
+        else if (TrimToNull(request.IdentityNumber) is { } identityNumber && Changed(identityNumber, previous?.IdentityNumber, previous)
+            && !TurkishIdentifierValidation.IsValidTckn(identityNumber))
+            errors["identityNumber"] = [InvalidTcknMessage];
+        var iban = TurkishIdentifierValidation.NormalizeIban(request.Iban);
+        if (iban is not null && Changed(iban, TurkishIdentifierValidation.NormalizeIban(previous?.Iban), previous)
+            && !TurkishIdentifierValidation.IsValidIban(iban))
+            errors["iban"] = [InvalidIbanMessage];
         if (request.TaxOffice?.Trim().Length > 120)
             errors["taxOffice"] = ["Vergi dairesi en fazla 120 karakter olabilir."];
         if (request.EInvoiceRecipientAlias?.Trim().Length > 255)
@@ -702,7 +725,7 @@ public static class CustomerValidation
         if (request.Email?.Trim().Length > 254 || request.ContactEmail?.Trim().Length > 254) errors["email"] = ["E-posta adresleri en fazla 254 karakter olabilir."];
         if (request.Website?.Trim().Length > 255 || request.ContactName?.Trim().Length > 160) errors["contact"] = ["Web adresi en fazla 255, yetkili kişi adı en fazla 160 karakter olabilir."];
         if (request.PriceListCode?.Trim().Length > 40 || request.ReceivableAccountCode?.Trim().Length > 40 || request.PayableAccountCode?.Trim().Length > 40) errors["accounting"] = ["Fiyat listesi ve muhasebe kodları en fazla 40 karakter olabilir."];
-        if (request.BankName?.Trim().Length > 120 || request.BankBranchCode?.Trim().Length > 40 || request.Iban?.Trim().Length > 34) errors["bank"] = ["Banka adı 120, şube kodu 40, IBAN en fazla 34 karakter olabilir."];
+        if (request.BankName?.Trim().Length > 120 || request.BankBranchCode?.Trim().Length > 40 || iban?.Length > 34) errors["bank"] = ["Banka adı 120, şube kodu 40, IBAN en fazla 34 karakter olabilir."];
         if (request.Address is not null)
         {
             var addressErrors = CustomerAddressValidation.Validate(request.Address);
@@ -717,6 +740,16 @@ public static class CustomerValidation
             errors["paymentTermDays"] = ["Vade günü 0 ile 3650 arasında olmalıdır."];
         return errors.Count == 0 ? null : errors;
     }
+
+    /// <summary>A card is Turkish when its address country is TR or no address/country is given.</summary>
+    private static bool IsTurkishCustomer(CustomerWriteRequest request) =>
+        string.IsNullOrWhiteSpace(request.Address?.CountryCode)
+        || string.Equals(request.Address.CountryCode.Trim(), "TR", StringComparison.OrdinalIgnoreCase);
+
+    private static bool Changed(string value, string? stored, CustomerStoredIdentifiers? previous) =>
+        previous is null || !string.Equals(value, TrimToNull(stored), StringComparison.Ordinal);
+
+    private static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public static class CustomerAddressValidation

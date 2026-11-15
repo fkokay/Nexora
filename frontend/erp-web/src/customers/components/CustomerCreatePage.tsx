@@ -1,4 +1,5 @@
-import type { Dispatch, FormEvent, SetStateAction } from "react";
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { isTurkishCountry, normalizeIban, validateCustomerIdentifiers } from "../identifierValidation";
 import type {
   CustomerItem,
   CustomerGroupItem,
@@ -172,7 +173,21 @@ export default function CustomerCreatePage({
       : !eInvoiceRecipientAlias.trim()
         ? "E-Fatura mükellefi için alıcı etiketi girilmedi."
         : "";
-  tabs[2].warning = !!eInvoiceWarning;
+  // Same country rule as the payload: the address country counts only when an address is sent.
+  const addressSent = !!(addressLine.trim() || addressCity.trim() || addressDistrict.trim() || addressPostalCode.trim());
+  const sentCountry = addressSent ? addressCountry : null;
+  const turkishTaxNumber = isTurkishCountry(sentCountry);
+  const identifierErrors = validateCustomerIdentifiers(
+    { taxNumber, identityNumber, iban, countryCode: sentCountry },
+    editingCustomer,
+  );
+  // Inline errors appear once a field was left or a save was attempted, not while the first digits are typed.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const touch = (field: string) => setTouched((current) => ({ ...current, [field]: true }));
+  const fieldError = (field: "taxNumber" | "identityNumber" | "iban") =>
+    touched[field] ? identifierErrors[field] : undefined;
+  tabs[1].warning = !!fieldError("iban");
+  tabs[2].warning = !!eInvoiceWarning || !!fieldError("taxNumber") || !!fieldError("identityNumber");
   const hasUnsavedInput = !isEdit && !!(code.trim() || name.trim());
 
   return (
@@ -182,7 +197,10 @@ export default function CustomerCreatePage({
       busy={busy}
       saveLabel={isEdit ? "Değişiklikleri Kaydet" : "Cari Kartı Kaydet"}
       formId="customer-create-form"
-      onSubmit={create}
+      onSubmit={(event) => {
+        setTouched({ taxNumber: true, identityNumber: true, iban: true });
+        create(event);
+      }}
       onCancel={() => setModal(false)}
       onSaveIntent={setStayAfterSave}
       onReset={onReset}
@@ -401,7 +419,19 @@ export default function CustomerCreatePage({
                       <label>Banka adı<input value={bankName} onChange={(event) => setBankName(event.target.value)} maxLength={120} /></label>
                       <label>Şube kodu<input value={bankBranchCode} onChange={(event) => setBankBranchCode(event.target.value)} maxLength={40} /></label>
                     </div>
-                    <label>IBAN<input className="rf-mono" value={iban} onChange={(event) => setIban(event.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={34} placeholder="TR…" /></label>
+                    <label>
+                      IBAN
+                      <input
+                        className="rf-mono"
+                        value={iban}
+                        onChange={(event) => setIban(normalizeIban(event.target.value))}
+                        onBlur={() => touch("iban")}
+                        maxLength={34}
+                        placeholder="TR…"
+                        aria-invalid={fieldError("iban") ? true : undefined}
+                      />
+                      {fieldError("iban") && <small className="rf-field-error" role="alert">{fieldError("iban")}</small>}
+                    </label>
                                   </RecordFormGroup>
                 <RecordFormGroup title="Bağlı Firma">
                     <label>
@@ -448,12 +478,17 @@ export default function CustomerCreatePage({
                       Vergi numarası
                       <input
                         className="rf-mono"
-                        inputMode="numeric"
+                        inputMode={turkishTaxNumber ? "numeric" : "text"}
                         value={taxNumber}
-                        onChange={(e) => setTaxNumber(e.target.value)}
-                        maxLength={32}
-                        placeholder="VKN"
+                        onChange={(e) =>
+                          setTaxNumber(turkishTaxNumber ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)
+                        }
+                        onBlur={() => touch("taxNumber")}
+                        maxLength={turkishTaxNumber ? 10 : 32}
+                        placeholder={turkishTaxNumber ? "10 haneli VKN" : "VKN"}
+                        aria-invalid={fieldError("taxNumber") ? true : undefined}
                       />
+                      {fieldError("taxNumber") && <small className="rf-field-error" role="alert">{fieldError("taxNumber")}</small>}
                     </label>
                     <label>
                       T.C. kimlik no
@@ -464,9 +499,12 @@ export default function CustomerCreatePage({
                         onChange={(e) =>
                           setIdentityNumber(e.target.value.replace(/\D/g, "").slice(0, 11))
                         }
+                        onBlur={() => touch("identityNumber")}
                         maxLength={11}
                         placeholder="11 haneli TCKN"
+                        aria-invalid={fieldError("identityNumber") ? true : undefined}
                       />
+                      {fieldError("identityNumber") && <small className="rf-field-error" role="alert">{fieldError("identityNumber")}</small>}
                     </label>
                                   </RecordFormGroup>
                 <RecordFormGroup title="E-Fatura">
