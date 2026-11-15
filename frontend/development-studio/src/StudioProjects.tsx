@@ -87,6 +87,27 @@ function projectAccessLabel(level: string) {
         ? "Katılımcı"
         : "Görüntüleyici";
 }
+function deploymentStatusLabel(status: string) {
+  switch (status) {
+    case "Succeeded":
+      return "Başarılı";
+    case "Failed":
+      return "Başarısız";
+    case "Running":
+    case "InProgress":
+      return "Çalışıyor";
+    case "Queued":
+    case "Pending":
+      return "Sırada";
+    case "Superseded":
+      return "Önceki sürüm";
+    case "Deleted":
+    case "Removed":
+      return "Silindi";
+    default:
+      return status;
+  }
+}
 function workspaceStatusTone(status: string) {
   switch (status) {
     case "Ready":
@@ -6394,7 +6415,7 @@ export function StudioProjects({
                                                         0,
                                                         12,
                                                       )}{" "}
-                                                    · {deployment.status}
+                                                    · {deploymentStatusLabel(deployment.status)}
                                                   </b>
                                                   <small>
                                                     {deployment.environmentUrl ??
@@ -6719,7 +6740,7 @@ export function StudioProjects({
                                                   "TenantAdmin" &&
                                                   deployment.canRestoreDatabase && (
                                                     <button
-                                                      className="ns-btn ns-btn-sm ns-btn-danger danger-action"
+                                                      className="ns-btn ns-btn-sm ns-btn-danger"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6746,7 +6767,7 @@ export function StudioProjects({
                                       <div className="boundary-note">
                                         <ShieldCheck size={17} />
                                         <span>
-                                          <b>Rollback davranışı</b>Eski uygulama
+                                          <b>Geri alma davranışı</b>Eski uygulama
                                           sürümü aynı staging SQL veritabanıyla
                                           yeniden başlatılır. Veritabanı şeması
                                           otomatik geri alınmaz; yıkıcı
