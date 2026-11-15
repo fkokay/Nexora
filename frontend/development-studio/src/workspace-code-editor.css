@@ -1,0 +1,305 @@
+/*
+ * Çalışma alanı kod düzenleyicisi (Monaco). Renkler tokens.css'teki --ns-code-* değerlerinden gelir.
+ * Kök öğe, üst yerleşimin boyut kuralları için .studio-vscode sınıfını da taşır; eski studio.css
+ * kurallarını ezmek için seçiciler .studio-vscode.ns-code-editor ile başlar.
+ */
+.studio-vscode.ns-code-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 390px;
+  overflow: hidden;
+  border: 1px solid var(--ns-code-line);
+  border-radius: var(--ns-radius-md);
+  background: var(--ns-code-bg);
+  box-shadow: none;
+  color: var(--ns-code-text);
+  font-family: var(--ns-font-body);
+}
+
+/* Üst çubuk: dosya yolu + araçlar */
+.studio-vscode.ns-code-editor .ns-code-editor__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ns-space-3);
+  min-height: 40px;
+  padding: 0 var(--ns-space-2) 0 var(--ns-space-4);
+  border-bottom: 1px solid var(--ns-code-line);
+  background: var(--ns-code-panel);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-2);
+  min-width: 0;
+  font-size: var(--ns-text-sm);
+  color: var(--ns-code-muted);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__folders {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__sep {
+  flex: none;
+  opacity: 0.7;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ns-code-text);
+  font-weight: 600;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__file svg {
+  flex: none;
+  color: #b4a1ff;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-1);
+  flex: none;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--ns-control-h-sm);
+  height: var(--ns-control-h-sm);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ns-radius-xs);
+  background: transparent;
+  color: var(--ns-code-muted);
+  cursor: pointer;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__icon-btn:hover:not(:disabled) {
+  background: var(--ns-code-line);
+  color: var(--ns-code-text);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__icon-btn.is-on {
+  border-color: rgb(104 68 223 / 0.55);
+  background: rgb(104 68 223 / 0.22);
+  color: #d9d0fb;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ns-control-h-sm);
+  margin-left: var(--ns-space-1);
+  padding: 0 var(--ns-space-3);
+  border: 1px solid var(--ns-accent);
+  border-radius: var(--ns-radius-xs);
+  background: var(--ns-accent);
+  color: var(--ns-on-accent);
+  font: 600 var(--ns-text-sm) var(--ns-font-body);
+  cursor: pointer;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__save:hover:not(:disabled) {
+  border-color: var(--ns-accent-hover);
+  background: var(--ns-accent-hover);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__save:disabled,
+.studio-vscode.ns-code-editor .ns-code-editor__icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__icon-btn:focus-visible,
+.studio-vscode.ns-code-editor .ns-code-editor__save:focus-visible {
+  outline: 2px solid #9d86f0;
+  outline-offset: 1px;
+}
+
+/* Kod yüzeyi */
+.studio-vscode.ns-code-editor .ns-code-editor__canvas {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ns-code-bg);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__canvas > section,
+.studio-vscode.ns-code-editor .ns-code-editor__canvas > div:not(.ns-code-editor__skeleton):not(.ns-code-editor__error) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* studio.css:513 Monaco arka planını !important ile eziyor; token rengine geri döndür. */
+.studio-vscode.ns-code-editor .monaco-editor,
+.studio-vscode.ns-code-editor .monaco-editor-background,
+.studio-vscode.ns-code-editor .monaco-editor .margin {
+  background: var(--ns-code-bg) !important;
+}
+
+.studio-vscode.ns-code-editor .monaco-editor,
+.studio-vscode.ns-code-editor .monaco-editor .overflow-guard {
+  border-radius: 0;
+}
+
+/* Yükleme iskeleti */
+.studio-vscode.ns-code-editor .ns-code-editor__skeleton {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 20px;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__skeleton-row i,
+.studio-vscode.ns-code-editor .ns-code-editor__skeleton-row b {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--ns-code-panel) 0%, var(--ns-code-line) 50%, var(--ns-code-panel) 100%);
+  background-size: 200% 100%;
+  animation: ns-code-editor-shimmer 1.4s ease-in-out infinite;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__skeleton-row i {
+  flex: none;
+  width: 22px;
+  opacity: 0.6;
+}
+
+@keyframes ns-code-editor-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-vscode.ns-code-editor .ns-code-editor__skeleton-row i,
+  .studio-vscode.ns-code-editor .ns-code-editor__skeleton-row b {
+    animation: none;
+  }
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__error {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--ns-space-2);
+  width: 100%;
+  padding: var(--ns-space-5);
+  color: var(--ns-code-text);
+  font-size: var(--ns-text-md);
+  text-align: center;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__error span {
+  color: var(--ns-code-muted);
+  font-size: var(--ns-text-sm);
+}
+
+/* Durum çubuğu: yalnız gerçek bilgiler */
+.studio-vscode.ns-code-editor .ns-code-editor__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ns-space-3);
+  min-height: 26px;
+  padding: 0 var(--ns-space-3);
+  border-top: 1px solid var(--ns-code-line);
+  background: var(--ns-code-panel);
+  color: var(--ns-code-muted);
+  font-size: var(--ns-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__status-group {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-4);
+  min-width: 0;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__language {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ns-code-text);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__pill.is-readonly {
+  background: var(--ns-code-line);
+  color: var(--ns-code-text);
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__pill.is-dirty {
+  background: rgb(254 223 137 / 0.16);
+  color: #fedf89;
+}
+
+.studio-vscode.ns-code-editor .ns-code-editor__pill.is-saving {
+  background: rgb(104 68 223 / 0.3);
+  color: #d9d0fb;
+}
+
+.ns-code-editor__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 760px) {
+  .studio-vscode.ns-code-editor {
+    min-height: 320px;
+  }
+
+  .studio-vscode.ns-code-editor .ns-code-editor__bar {
+    padding-left: var(--ns-space-3);
+  }
+
+  .studio-vscode.ns-code-editor .ns-code-editor__folders,
+  .studio-vscode.ns-code-editor .ns-code-editor__sep {
+    display: none;
+  }
+
+  .studio-vscode.ns-code-editor .ns-code-editor__file {
+    max-width: none;
+  }
+}
