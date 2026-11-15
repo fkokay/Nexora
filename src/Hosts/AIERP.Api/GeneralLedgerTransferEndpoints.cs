@@ -59,7 +59,8 @@ internal static class GeneralLedgerTransferEndpoints
         var draft = await BuildJournalTransferAsync(db, tenantId, tenant.BaseCurrencyCode, sourceType, request.SourceId);
         if (draft.NotFound) return Results.NotFound();
         if (draft.BlockingReason is not null) return Results.Conflict(new { error = draft.BlockingReason });
-        var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = draft.EntryDate!.Value,
+        var entryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, draft.EntryDate!.Value, CancellationToken.None);
+        var entry = new JournalEntry { TenantId = tenantId, Code = entryCode, EntryDate = draft.EntryDate!.Value,
             Description = draft.Description!, SourceType = sourceType, SourceId = request.SourceId, CreatedByUserId = GetUserId(principal) };
         foreach (var line in draft.Lines) entry.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = entry.Id, AccountId = line.AccountId,
             LineNumber = line.LineNumber, Description = line.Description, Debit = line.Debit, Credit = line.Credit });

@@ -1490,7 +1490,7 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
     customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
     customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
-    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = TurkishIdentifierValidation.NormalizeIban(request.Iban);
     db.CustomerAccounts.Add(customer);
     if (request.Address is { } addressRequest)
     {
@@ -1524,7 +1524,11 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
 customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var validation = CustomerValidation.Validate(request);
+    // Stored identifiers let legacy VKN/TCKN/IBAN values stay as they are while other fields are edited.
+    var storedIdentifiers = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => new CustomerStoredIdentifiers(x.TaxNumber, x.IdentityNumber, x.Iban)).SingleOrDefaultAsync();
+    if (storedIdentifiers is null) return Results.NotFound();
+    var validation = CustomerValidation.Validate(request, storedIdentifiers);
     if (validation is not null) return Results.ValidationProblem(validation);
     if (request.Address is { } updatedAddressRequest)
     {
@@ -1611,7 +1615,7 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
     customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
     customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
-    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = TurkishIdentifierValidation.NormalizeIban(request.Iban);
     if (request.Address is { } addressRequest)
     {
         var address = await db.CustomerAddresses.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == id && x.Kind == addressRequest.Kind && x.IsDefault);
@@ -2782,7 +2786,7 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
         }
     }
 
-    var code = $"TR-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryTransfer, null, request.TransferDate, CancellationToken.None);
     var transferRecord = new InventoryTransfer { TenantId = tenantId, RequestId = request.RequestId, FromWarehouseId = fromWarehouse.Id,
         ToWarehouseId = toWarehouse.Id, Code = code, TransferDate = request.TransferDate };
     db.InventoryTransfers.Add(transferRecord);
@@ -3250,7 +3254,8 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/revaluations", 
         .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
     if (rows.Value + priorAdjustments + request.AmountBase < 0m)
         return Results.Conflict(new { error = "Yeniden değerleme stok değerini negatife düşüremez.", currentValueBase = rows.Value + priorAdjustments });
-    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RV-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var revaluationCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryRevaluation, null, request.EntryDate, CancellationToken.None);
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = revaluationCode,
         EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.Revaluation, Description = request.Reason.Trim(), CreatedByUserId = GetUserId(principal) };
     record.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = record, WarehouseId = warehouseId, StockItemId = stockItemId,
         QuantitySnapshot = rows.Quantity, UnitCostSnapshotBase = decimal.Round((rows.Value + priorAdjustments) / rows.Quantity, 8, MidpointRounding.AwayFromZero), AmountBase = request.AmountBase });
@@ -3275,7 +3280,8 @@ warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, Invent
     if (original is null || original.Kind != InventoryCostAdjustmentKind.Revaluation || original.ReversalOfId is not null) return Results.NotFound();
     if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu yeniden değerleme daha önce ters kayıtla iptal edilmiştir." });
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
-    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RVX-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var revaluationReversalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryRevaluationReversal, null, reversalDate, CancellationToken.None);
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = revaluationReversalCode,
         EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", ReversalOfId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
@@ -5077,7 +5083,8 @@ salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollecti
     var outstanding = Math.Max(0m, invoice.GrandTotal - paid - returned);
     if (outstanding <= 0) return Results.Conflict(new { error = "Fatura tamamen tahsil edilmiş.", outstandingAmount = 0m });
     if (request.Amount > outstanding) return Results.Conflict(new { error = "Tahsilat tutarı kalan fatura bakiyesini aşamaz.", outstandingAmount = outstanding });
-    var code = $"RCPT-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.CustomerCollection, null, request.CollectionDate, CancellationToken.None);
+    var collectionJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.CollectionDate, CancellationToken.None);
     var collection = new CustomerCollection { TenantId = tenantId, CustomerId = customer.Id, RequestId = request.RequestId, Code = code,
         CollectionDate = request.CollectionDate, CurrencyCode = invoice.CurrencyCode, Amount = request.Amount,
         PaymentMethod = method!, Reference = string.IsNullOrWhiteSpace(reference) ? null : reference,
@@ -5093,7 +5100,7 @@ salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollecti
         Direction = FinancialDirection.Inflow, CashFlowCategory = CashFlowCategory.Operating, Amount = request.Amount, Description = $"Müşteri tahsilatı {code}",
         Reference = string.IsNullOrWhiteSpace(reference) ? null : reference, CustomerCollection = collection });
     var collectionJournal = await InvoiceSettlementJournalPosting.CreateAsync(db, tenantId, "CustomerCollection", collection.Id,
-        code, customer.Name, request.CollectionDate, invoice.CurrencyCode, request.Amount, method!, financialAccount?.Id, GetUserId(principal));
+        code, customer.Name, request.CollectionDate, invoice.CurrencyCode, request.Amount, method!, financialAccount?.Id, GetUserId(principal), journalCode: collectionJournalCode);
     if (!collectionJournal.Succeeded) return Results.Conflict(new { error = collectionJournal.Error });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer-collection.posted", Resource = code });
     await db.SaveChangesAsync();
@@ -5211,7 +5218,7 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
     try { totals = SalesQuoteValidation.Sum(returnAmounts.Select(x => x.Amounts)); }
     catch (OverflowException) { return Results.Conflict(new { error = "İade toplamı desteklenen decimal(18,2) sınırını aşıyor." }); }
     if (totals.GrandTotal <= 0) return Results.Conflict(new { error = "İade cari alacak kaydı oluşturabilmek için sıfırdan büyük olmalıdır." });
-    var returnCode = $"RET-{Guid.NewGuid():N}".ToUpperInvariant();
+    var returnCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SalesReturn, null, request.ReturnDate, CancellationToken.None);
     var salesReturn = new SalesReturn { TenantId = tenantId, RequestId = request.RequestId, SalesInvoiceId = invoice.Id,
         CustomerId = customer.Id, WarehouseId = warehouse.Id, Code = returnCode, ReturnDate = request.ReturnDate,
         Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
@@ -6553,7 +6560,7 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     }
     var purchaseRate = await GetTenantRateAsync(db, tenantId, order.CurrencyCode, request.ReceiptDate);
     if (purchaseRate is null) return Results.Conflict(new { error = $"{order.CurrencyCode} için {request.ReceiptDate:yyyy-MM-dd} tarihinde veya öncesinde tenant baz para birimine çevrilebilen kur yok. Önce Finans ekranından kuru kaydedin." });
-    var code = $"GR-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.PurchaseReceipt, null, request.ReceiptDate, CancellationToken.None);
     var receipt = new PurchaseReceipt { TenantId = tenantId, RequestId = request.RequestId, PurchaseOrderId = id, WarehouseId = warehouse.Id, Code = code, ReceiptDate = request.ReceiptDate };
     foreach (var (definitionId, value) in receiptFieldValues)
     {
@@ -6664,7 +6671,8 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs", async (Guid id, LandedCostWr
     }).ToArray();
     var totalWeight = weights.Sum();
     if (totalWeight <= 0m) return Results.Conflict(new { error = "Maliyet dağıtımı için pozitif bir ağırlık toplamı bulunamadı." });
-    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LC-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var landedCostCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.LandedCost, null, request.EntryDate, CancellationToken.None);
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = landedCostCode,
         EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.LandedCost, PurchaseReceiptId = id,
         Description = request.Description.Trim(), CreatedByUserId = GetUserId(principal) };
     var assigned = 0m;
@@ -6706,7 +6714,8 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs/{adjustmentId:guid}/reverse", 
     if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu ek maliyet daha önce ters kayıtla iptal edilmiştir." });
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
     if (lines.Count == 0) return Results.Conflict(new { error = "Ek maliyet dağıtım satırları bulunamadı." });
-    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LCV-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var landedCostReversalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.LandedCostReversal, null, reversalDate, CancellationToken.None);
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = landedCostReversalCode,
         EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         PurchaseReceiptId = id, ReversalOfId = original.Id, Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
@@ -7039,7 +7048,8 @@ purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentW
     if (outstanding <= 0) return Results.Conflict(new { error = "Alış faturası tamamen ödendi.", outstandingAmount = 0m });
     if (request.Amount > outstanding) return Results.Conflict(new { error = "Ödeme tutarı kalan tedarikçi bakiyesini aşamaz.", outstandingAmount = outstanding });
     var method = request.PaymentMethod.Trim(); var reference = request.Reference?.Trim();
-    var code = $"PAY-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SupplierPayment, null, request.PaymentDate, CancellationToken.None);
+    var paymentJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.PaymentDate, CancellationToken.None);
     var payment = new SupplierPayment { TenantId = tenantId, RequestId = request.RequestId, PurchaseInvoiceId = invoice.Id,
         SupplierId = supplier.Id, Code = code, PaymentDate = request.PaymentDate, CurrencyCode = invoice.CurrencyCode,
         Amount = request.Amount, PaymentMethod = method, Reference = string.IsNullOrWhiteSpace(reference) ? null : reference,
@@ -7053,7 +7063,7 @@ purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentW
         Direction = FinancialDirection.Outflow, CashFlowCategory = CashFlowCategory.Operating, Amount = payment.Amount, Description = $"Tedarikçi ödemesi {code}",
         Reference = string.IsNullOrWhiteSpace(reference) ? null : reference, SupplierPayment = payment });
     var paymentJournal = await InvoiceSettlementJournalPosting.CreateAsync(db, tenantId, "SupplierPayment", payment.Id,
-        code, supplier.Name, request.PaymentDate, invoice.CurrencyCode, request.Amount, method, financialAccount?.Id, GetUserId(principal));
+        code, supplier.Name, request.PaymentDate, invoice.CurrencyCode, request.Amount, method, financialAccount?.Id, GetUserId(principal), journalCode: paymentJournalCode);
     if (!paymentJournal.Succeeded) return Results.Conflict(new { error = paymentJournal.Error });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "supplier-payment.posted", Resource = code });
     try { await db.SaveChangesAsync(); }
@@ -7188,7 +7198,7 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
             return Results.Conflict(new { error = "Seçilen konumdaki kullanılabilir stok, alış iadesi miktarını karşılamıyor.", stockItemId = group.Key.StockItemId,
                 storageLocationId = group.Key.LocationId, locationBalance, requestedQuantity });
     }
-    var code = $"SRT-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SupplierReturn, null, request.ReturnDate, CancellationToken.None);
     var supplierReturn = new SupplierReturn { TenantId = tenantId, RequestId = request.RequestId, PurchaseInvoiceId = invoice.Id,
         SupplierId = supplier.Id, WarehouseId = warehouse.Id, Code = code, ReturnDate = request.ReturnDate };
     var amountsList = new List<SalesQuoteLineAmounts>();
@@ -8082,7 +8092,8 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
     if (closedPeriod is { } closed)
         return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bu tarihe yevmiye eklenemez." });
-    var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
+    var manualEntryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.EntryDate, CancellationToken.None);
+    var entry = new JournalEntry { TenantId = tenantId, Code = manualEntryCode, EntryDate = request.EntryDate,
         Description = description, AccountingBasis = entryBasis, SourceType = "Manual", SourceId = Guid.NewGuid(), CreatedByUserId = GetUserId(principal) };
     for (var i = 0; i < request.Lines.Count; i++)
     {
@@ -8117,7 +8128,8 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
     if (original.Lines.Count < 2) return Results.Conflict(new { error = "Ters çevrilecek fişte yeterli yevmiye satırı bulunamadı." });
     var reversalDescription = $"Ters kayıt · {original.Code} · {reason}";
     if (reversalDescription.Length > 240) reversalDescription = reversalDescription[..240];
-    var reversal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
+    var reversalEntryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.EntryDate, CancellationToken.None);
+    var reversal = new JournalEntry { TenantId = tenantId, Code = reversalEntryCode, EntryDate = request.EntryDate,
         Description = reversalDescription,
         AccountingBasis = original.AccountingBasis, SourceType = "ManualReversal", SourceId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in original.Lines.OrderBy(x => x.LineNumber))
@@ -8461,8 +8473,9 @@ financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest requ
             .SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount)) ?? 0m;
         if (balance < request.Amount) return Results.Conflict(new { error = "Kaynak kasa bakiyesi transfer için yetersiz." });
     }
+    var transferCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.FinancialTransfer, null, request.TransferDate, CancellationToken.None);
     var transfer = new FinancialAccountTransfer { TenantId = tenantId, RequestId = request.RequestId,
-        Code = $"TR-{Guid.NewGuid():N}".ToUpperInvariant(), FromAccountId = fromAccount.Id, ToAccountId = toAccount.Id,
+        Code = transferCode, FromAccountId = fromAccount.Id, ToAccountId = toAccount.Id,
         CurrencyCode = fromAccount.CurrencyCode, ToCurrencyCode = toAccount.CurrencyCode, TransferDate = request.TransferDate,
         Amount = request.Amount, DestinationAmount = destinationAmount, ExchangeRate = request.ExchangeRate,
         Reference = reference, Description = description };

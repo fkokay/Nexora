@@ -1,3 +1,4 @@
+using AIERP.Api;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -210,6 +211,7 @@ public static partial class HumanResourcesEndpoints
             if (original.Lines.Count < 2)
                 return Results.Conflict(new { error = "Ters çevrilecek bordro fişinde yeterli yevmiye satırı bulunamadı." });
 
+            var reversalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.EntryDate, ct);
             var reversalId = Guid.NewGuid();
             var description = $"Bordro ters kayıt · {original.Code} · {reason}";
             if (description.Length > 240) description = description[..240];
@@ -217,7 +219,7 @@ public static partial class HumanResourcesEndpoints
             {
                 Id = reversalId,
                 TenantId = tenantId,
-                Code = $"YV-{reversalId:N}",
+                Code = reversalCode,
                 EntryDate = request.EntryDate,
                 Description = description,
                 SourceType = "ManualReversal",

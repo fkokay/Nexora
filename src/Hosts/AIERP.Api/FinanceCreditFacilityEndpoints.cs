@@ -1,3 +1,4 @@
+using AIERP.Api;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -471,6 +472,7 @@ public static class FinanceCreditFacilityEndpoints
             var currentPrincipal = await OutstandingPrincipal(db, tenantId, id, ct);
             if (currentPrincipal + request.PrincipalAmount > facility.ApprovedLimit)
                 return Results.Conflict(new { error = "Kullandırım onaylı kredi limitini aşamaz." });
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.TransactionDate, ct);
             var accountMovement = new FinancialAccountTransaction { TenantId = tenantId, FinancialAccount = account,
                 CurrencyCode = account.CurrencyCode, TransactionDate = request.TransactionDate, Direction = FinancialDirection.Inflow,
                 CashFlowCategory = CashFlowCategory.Financing, Amount = request.PrincipalAmount,
@@ -480,7 +482,7 @@ public static class FinanceCreditFacilityEndpoints
                 TransactionDate = request.TransactionDate, PrincipalAmount = request.PrincipalAmount, RequestId = request.RequestId,
                 Notes = note, FinancialAccountTransaction = accountMovement };
             db.CreditFacilityMovements.Add(movement);
-            var journal = CreateMovementJournal(tenantId, facility.Code, movement, "CreditFacilityMovement", mappedAccounts.CashAccountId,
+            var journal = CreateMovementJournal(tenantId, journalCode, facility.Code, movement, "CreditFacilityMovement", mappedAccounts.CashAccountId,
                 mappedAccounts.PrincipalAccountId, request.PrincipalAmount, debitCash: true, GetUserId(user));
             db.JournalEntries.Add(journal);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(user), Action = "finance.credit-facility.drawdown-posted", Resource = facility.Code });
@@ -557,6 +559,7 @@ public static class FinanceCreditFacilityEndpoints
                     .SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount), ct) ?? 0m;
                 if (balance < total) return Results.Conflict(new { error = "Kasa bakiyesi kredi ödemesi için yetersiz." });
             }
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.TransactionDate, ct);
             var accountMovement = new FinancialAccountTransaction { TenantId = tenantId, FinancialAccount = account,
                 CurrencyCode = account.CurrencyCode, TransactionDate = request.TransactionDate, Direction = FinancialDirection.Outflow,
                 CashFlowCategory = CashFlowCategory.Financing, Amount = total,
@@ -567,7 +570,7 @@ public static class FinanceCreditFacilityEndpoints
                 FeeAmount = request.FeeAmount, RequestId = request.RequestId, CreditFacilityScheduleId = schedule?.Id,
                 Notes = note, FinancialAccountTransaction = accountMovement };
             db.CreditFacilityMovements.Add(movement);
-            var journal = CreateMovementJournal(tenantId, facility.Code, movement, "CreditFacilityMovement", mappedAccounts.CashAccountId,
+            var journal = CreateMovementJournal(tenantId, journalCode, facility.Code, movement, "CreditFacilityMovement", mappedAccounts.CashAccountId,
                 mappedAccounts.PrincipalAccountId, request.PrincipalAmount, debitCash: false, GetUserId(user),
                 mappedAccounts.InterestExpenseAccountId, request.InterestAmount, mappedAccounts.FeeExpenseAccountId, request.FeeAmount);
             db.JournalEntries.Add(journal);
@@ -640,6 +643,8 @@ public static class FinanceCreditFacilityEndpoints
                 return Results.Conflict(new { error = "Önce bu kullandırımı kullanan geri ödeme hareketlerini ters kayıtla kapatın." });
             if (principalAfter > facility.ApprovedLimit)
                 return Results.Conflict(new { error = "Ters ödeme kaydı açık anaparayı onaylı kredi limitinin üzerine çıkarır." });
+            // Reserve the number before the schedule is touched: reserving saves pending changes.
+            var reversalJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.TransactionDate, ct);
             if (original.Type == CreditFacilityMovementType.Repayment && original.CreditFacilityScheduleId is { } scheduleId)
             {
                 var schedule = original.CreditFacilitySchedule;
@@ -671,7 +676,7 @@ public static class FinanceCreditFacilityEndpoints
                 PrincipalAmount = original.PrincipalAmount, InterestAmount = original.InterestAmount, FeeAmount = original.FeeAmount,
                 RequestId = request.RequestId, ReversesMovementId = original.Id, Notes = note, FinancialAccountTransaction = reversalTransaction };
             db.CreditFacilityMovements.Add(reversal);
-            var reversalJournal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.TransactionDate,
+            var reversalJournal = new JournalEntry { TenantId = tenantId, Code = reversalJournalCode, EntryDate = request.TransactionDate,
                 Description = $"Kredi hareketi ters kaydı · {facility.Code} · {original.Id:N}", SourceType = "CreditFacilityMovementReversal",
                 SourceId = reversal.Id, CreatedByUserId = GetUserId(user) };
             foreach (var line in originalJournal.Lines.OrderBy(x => x.LineNumber))
@@ -794,7 +799,8 @@ public static class FinanceCreditFacilityEndpoints
             expense.Id == accrued.Id)
             return Results.Conflict(new { error = "Firma ayarlarında farklı ve etkin faiz gideri ile tahakkuk etmiş faiz borcu hesaplarını eşleyin." });
 
-        var journal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = monthEnd,
+        var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, monthEnd, ct);
+        var journal = new JournalEntry { TenantId = tenantId, Code = journalCode, EntryDate = monthEnd,
             Description = $"Kredi aylık faiz tahakkuku · {facility.Code} · {year:D4}-{month:D2}",
             SourceType = "CreditFacilityInterestAccrual", SourceId = sourceId, CreatedByUserId = userId };
         journal.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = journal.Id, AccountId = expense.Id,
@@ -809,7 +815,8 @@ public static class FinanceCreditFacilityEndpoints
         {
             var replayJournalId = await FindJournalId(db, tenantId, "CreditFacilityInterestAccrual", sourceId, ct);
             if (replayJournalId is null) throw;
-            if (transaction is not null) await transaction.CommitAsync(ct);
+            // Roll back so the journal number reserved for this attempt is not consumed by a replay.
+            if (transaction is not null) await transaction.RollbackAsync(ct);
             return Results.Ok(new { Id = replayJournalId.Value, EntryDate = monthEnd, accruedInterest = amount, replayed = true });
         }
         if (transaction is not null) await transaction.CommitAsync(ct);
@@ -905,11 +912,11 @@ public static class FinanceCreditFacilityEndpoints
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"credit-facility-interest-accrual|{tenantId:D}|{facilityId:D}|{year:D4}-{month:D2}"));
         return new Guid(bytes.AsSpan(0, 16));
     }
-    private static JournalEntry CreateMovementJournal(Guid tenantId, string facilityCode, CreditFacilityMovement movement, string sourceType,
+    private static JournalEntry CreateMovementJournal(Guid tenantId, string code, string facilityCode, CreditFacilityMovement movement, string sourceType,
         Guid cashAccountId, Guid principalAccountId, decimal principalAmount, bool debitCash, Guid? userId,
         Guid? interestExpenseAccountId = null, decimal interestAmount = 0, Guid? feeExpenseAccountId = null, decimal feeAmount = 0)
     {
-        var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = movement.TransactionDate,
+        var entry = new JournalEntry { TenantId = tenantId, Code = code, EntryDate = movement.TransactionDate,
             Description = $"Kredi {(debitCash ? "kullandırım" : "anapara geri ödemesi")} · {facilityCode}", SourceType = sourceType,
             SourceId = movement.Id, CreatedByUserId = userId };
         var number = 1;

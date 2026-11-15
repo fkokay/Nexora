@@ -65,6 +65,7 @@ public sealed class GeneralLedgerTransferPreviewIntegrationTests
         Assert.Equal(HttpStatusCode.Created, transferResponse.StatusCode);
         using var transferred = JsonDocument.Parse(await transferResponse.Content.ReadAsStringAsync());
         var entryId = transferred.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal("YV-2026-000001", transferred.RootElement.GetProperty("code").GetString());
 
         await using (var scope = app.Services.CreateAsyncScope())
         {
