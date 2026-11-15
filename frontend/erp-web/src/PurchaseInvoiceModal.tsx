@@ -3,7 +3,7 @@ import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import { Ban, Plus, Undo2, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import { useRecordFormShortcutScope } from "./customers/components/useRecordFormShortcutScope";
 import "./purchasing-record-forms.css";
@@ -247,9 +247,12 @@ export function PurchaseInvoiceModal({
   }
   async function voidPayment(payment: SupplierPayment) {
     if (
-      !confirmLocalized(
-        `${payment.code} ödemesi iptal edilsin mi? Tedarikçi cari hareketi ters kaydedilecek.`,
-      )
+      !(await confirmDialog({
+        title: "Ödeme iptal edilsin mi?",
+        message: `${payment.code} ödemesi iptal edilecek. Tedarikçi cari hareketi ters kaydedilecek.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -273,9 +276,12 @@ export function PurchaseInvoiceModal({
   async function voidInvoice() {
     if (
       !invoice ||
-      !confirmLocalized(
-        `${invoice.code} alış faturası iptal edilsin mi? Cari borç ters kayıtla kapatılacak.`,
-      )
+      !(await confirmDialog({
+        title: "Alış faturası iptal edilsin mi?",
+        message: `${invoice.code} alış faturası iptal edilecek. Cari borç ters kayıtla kapatılacak.`,
+        tone: "danger",
+        confirmLabel: "Faturayı iptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -361,9 +367,12 @@ export function PurchaseInvoiceModal({
   }
   async function voidReturn(item: SupplierReturn) {
     if (
-      !confirmLocalized(
-        `${item.code} alış iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.`,
-      )
+      !(await confirmDialog({
+        title: "Alış iadesi iptal edilsin mi?",
+        message: `${item.code} alış iadesi iptal edilecek. Stok ve cari hareketleri ters kaydedilecek.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);

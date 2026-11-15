@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import "./list-page/list-page-v2.css";
+import "./document-detail/document-detail.css";
+import "./finance-hub.css";
+import "./credit-facilities.css";
 import "./finance-budget.css";
 import {
   BudgetBoundaryNote,
   BudgetPageChrome,
 } from "./finance-budget/BudgetPageChrome";
-import BudgetPlanList from "./finance-budget/BudgetPlanList";
+import BudgetPlanList, { budgetUsage, isApproved } from "./finance-budget/BudgetPlanList";
 import BudgetEditor from "./finance-budget/BudgetEditor";
 import BudgetDetail from "./finance-budget/BudgetDetail";
 import type {
@@ -138,6 +142,9 @@ export default function FinanceBudgetPage({
       setBaseCurrency(base);
       setPlans(p);
       setAccounts(a);
+      if (!selected && p.length > 0) {
+        setSelected(await request<PlanView>(`/api/finance/budgets/${p[0].id}`, token));
+      }
       if (selected) {
         const updated = p.find((x) => x.id === selected.plan.id);
         if (updated)
@@ -259,7 +266,7 @@ export default function FinanceBudgetPage({
     );
     setSelected(plan);
     setEditing(true);
-    setNotice("Taslak düzenleme için yüklendi.");
+    setNotice("");
     setError("");
   }
   async function approve() {
@@ -315,28 +322,74 @@ export default function FinanceBudgetPage({
   const visibleBudgetFields = budgetFields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
+  const tilePlan = selected?.plan ?? plans[0] ?? null;
+  const tileUsage = tilePlan ? budgetUsage(tilePlan, baseCurrency) : null;
+  const tileVariance =
+    tilePlan && tilePlan.currencyCode === baseCurrency
+      ? tilePlan.actualTotal - tilePlan.plannedTotal
+      : null;
+  const pendingApproval = plans.filter((plan) => !isApproved(plan.status)).length;
   return (
-    <div className="finance-page finance-budget-page list-v2">
+    <div className="finance-page finance-budget-page list-v2 fh-page cf-page">
       <BudgetPageChrome
         plans={plans}
         admin={admin}
         baseCurrency={baseCurrency}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
         onNew={clearForm}
         loading={loading}
         controlsLocked={controlsLocked}
         error={error}
         notice={notice}
-        onRefresh={() => void load()}
         onRetry={() => void load()}
       />
-      <div
-        className={`budget-layout ${plans.length === 0 && !loading && !loadError && !editing ? "is-empty" : ""}`}
-      >
+      {tilePlan && (
+        <section className="fh-tiles" aria-label="Seçili bütçe özeti">
+          <div className="fh-tile">
+            <span className="fh-tile-label">{`Plan · ${tilePlan.name}`}</span>
+            <span className="fh-tile-value">
+              {money(tilePlan.plannedTotal, tilePlan.currencyCode)}
+            </span>
+            <span className="fh-tile-hint">{`${tilePlan.fiscalYear} · ${tilePlan.lineCount} satır`}</span>
+          </div>
+          <div className="fh-tile">
+            <span className="fh-tile-label">Yevmiye gerçekleşeni</span>
+            <span className="fh-tile-value">
+              {money(tilePlan.actualTotal, baseCurrency || tilePlan.currencyCode)}
+            </span>
+            {tileUsage !== null && (
+              <>
+                <span className="cf-bar" aria-hidden="true">
+                  <i style={{ width: `${Math.min(1, Math.max(0, tileUsage)) * 100}%` }} />
+                </span>
+                <span className="fh-tile-hint">
+                  {`Planın %${(tileUsage * 100).toLocaleString("tr-TR", { maximumFractionDigits: 0 })} gerçekleşti`}
+                </span>
+              </>
+            )}
+          </div>
+          <div className={`fh-tile${tileVariance !== null && tileVariance < 0 ? " is-warning" : ""}`}>
+            <span className="fh-tile-label">Fark (gerçekleşen − plan)</span>
+            <span className={`fh-tile-value${tileVariance === null ? " is-muted-value" : ""}`}>
+              {tileVariance === null ? "—" : money(tileVariance, baseCurrency)}
+            </span>
+            <span className="fh-tile-hint">
+              {tileVariance === null
+                ? "Para birimleri farklı; fark hesaplanmaz"
+                : "Satır bazında yön için tabloya bakın"}
+            </span>
+          </div>
+          <div className="fh-tile">
+            <span className="fh-tile-label">Onay bekleyen</span>
+            <span className="fh-tile-value">{pendingApproval}</span>
+            <span className="fh-tile-hint">{`${plans.length} bütçe senaryosu`}</span>
+          </div>
+        </section>
+      )}
+      <div className="cf-layout budget-layout">
         <BudgetPlanList
           plans={plans}
           statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
           selected={selected}
           editing={editing}
           loading={loading}
@@ -348,9 +401,10 @@ export default function FinanceBudgetPage({
           onOpen={(plan) => void open(plan)}
           onNew={clearForm}
           onRetry={() => void load()}
+          onRefresh={() => void load()}
           money={money}
         />
-        {admin && editing && (
+        {admin && editing ? (
           <BudgetEditor
             selected={selected}
             name={name}
@@ -380,23 +434,30 @@ export default function FinanceBudgetPage({
             onNew={clearForm}
             onSubmit={save}
           />
+        ) : selected ? (
+          <BudgetDetail
+            selected={selected}
+            draft={Boolean(draft)}
+            admin={admin}
+            currencyMismatch={currencyMismatch}
+            baseCurrency={baseCurrency}
+            visibleFields={visibleBudgetFields}
+            controlsLocked={controlsLocked}
+            busy={busy}
+            onEdit={edit}
+            onApprove={() => void approve()}
+            money={money}
+          />
+        ) : (
+          <section className="cf-detail">
+            <p className="fh-empty">
+              {plans.length
+                ? "Ayrıntıları görmek için soldan bir bütçe seçin."
+                : "Bütçe oluşturulduğunda ayrıntıları burada görünür."}
+            </p>
+          </section>
         )}
       </div>
-      {selected && (
-        <BudgetDetail
-          selected={selected}
-          draft={Boolean(draft)}
-          admin={admin}
-          currencyMismatch={currencyMismatch}
-          baseCurrency={baseCurrency}
-          visibleFields={visibleBudgetFields}
-          controlsLocked={controlsLocked}
-          busy={busy}
-          onEdit={edit}
-          onApprove={() => void approve()}
-          money={money}
-        />
-      )}
       <BudgetBoundaryNote baseCurrency={baseCurrency} />
     </div>
   );

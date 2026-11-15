@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
-import { promptLocalized } from "../locale";
+import { promptDialog } from "../confirmDialog";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import { ListPagination } from "../list-page/ListPagination";
 import { ListToolbar } from "../list-page/ListToolbar";
@@ -83,7 +83,17 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
 
   async function cancelRequest() {
     if (!detail) return;
-    const reason = promptLocalized("İptal gerekçesi:")?.trim();
+    const reason = (
+      await promptDialog({
+        title: "Talep iptal edilsin mi?",
+        message: detail.code ? `${detail.code} talebi iptal edilecek.` : undefined,
+        label: "İptal gerekçesi",
+        required: true,
+        multiline: true,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      })
+    )?.trim();
     if (!reason) return;
     setDetailBusy(true);
     setDetailError("");

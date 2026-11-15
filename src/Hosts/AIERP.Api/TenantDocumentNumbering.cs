@@ -72,6 +72,7 @@ public static class TenantDocumentNumbering
         public const string LandedCost = "LandedCost";
         public const string LandedCostReversal = "LandedCostReversal";
         public const string InvoiceCostDifference = "InvoiceCostDifference";
+        public const string BankStatement = "BankStatement";
     }
 
     /// <summary>
@@ -130,6 +131,7 @@ public static class TenantDocumentNumbering
         Internal.InventoryRevaluation => "RV-{YYYY}-{SEQ:6}", Internal.InventoryRevaluationReversal => "RVX-{YYYY}-{SEQ:6}",
         Internal.LandedCost => "LC-{YYYY}-{SEQ:6}", Internal.LandedCostReversal => "LCV-{YYYY}-{SEQ:6}",
         Internal.InvoiceCostDifference => "IC-{YYYY}-{SEQ:6}",
+        Internal.BankStatement => "BS-{YYYY}-{SEQ:6}",
         _ => "NXR{YYYY}{SEQ:6}"
     };
     private static bool IsElectronic(string type) => type is "EInvoice" or "EDelivery" or "EArchive";

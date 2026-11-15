@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import type { Account, Entry, PlanView } from "./types";
 import {
   RecordFormGroup,
@@ -22,7 +23,8 @@ type Props = {
   onUpdateLine: (index: number, patch: Partial<Entry>) => void;
   onRemoveLine: (index: number) => void;
   onCancel: () => void;
-  onNew: () => void;
+  /** Kept for callers; the editor no longer shows a separate "Yeni" button (the page header has one). */
+  onNew?: () => void;
   onSubmit: (event: React.FormEvent) => void;
 };
 
@@ -41,7 +43,6 @@ export default function BudgetEditor({
   onUpdateLine,
   onRemoveLine,
   onCancel,
-  onNew,
   onSubmit,
 }: Props) {
   const saveBlocked =
@@ -87,21 +88,6 @@ export default function BudgetEditor({
           </>
         }
       >
-        <div className="fin-rf-bar">
-          <p className="fin-rf-hint">
-            Yalnız aktif gelir ve gider hesapları seçilebilir.
-          </p>
-          {selected && (
-            <button
-              type="button"
-              className="row-action"
-              onClick={onNew}
-              disabled={controlsLocked}
-            >
-              Yeni
-            </button>
-          )}
-        </div>
         <RecordFormGroup title="Bütçe Kimliği" bodyClassName="rf-identity">
           <label>
             <span>
@@ -173,17 +159,21 @@ export default function BudgetEditor({
               Henüz satır yok. Devam etmek için bir bütçe satırı ekleyin.
             </div>
           )}
-          <div className="fin-rf-lines">
-            {entries.map((line, index) => (
-              <fieldset className="fin-rf-line fin-rf-line--budget" key={index}>
-                <legend>Satır {index + 1}</legend>
-                <label>
-                  Gelir / gider hesabı
+          {entries.length > 0 && (
+            <div className="budget-lines" role="table" aria-label="Bütçe satırları">
+              <div className="budget-lines-head" role="row">
+                <span role="columnheader">Gelir / gider hesabı <RequiredMark /></span>
+                <span role="columnheader">Ay <RequiredMark /></span>
+                <span role="columnheader" className="is-num">Plan tutarı <RequiredMark /></span>
+                <span role="columnheader">Not</span>
+                <span role="columnheader" aria-label="İşlem" />
+              </div>
+              {entries.map((line, index) => (
+                <div className="budget-lines-row" role="row" key={index}>
                   <select
+                    aria-label={`Satır ${index + 1} hesap`}
                     value={line.accountId}
-                    onChange={(e) =>
-                      onUpdateLine(index, { accountId: e.target.value })
-                    }
+                    onChange={(e) => onUpdateLine(index, { accountId: e.target.value })}
                     required
                     disabled={controlsLocked}
                   >
@@ -191,66 +181,63 @@ export default function BudgetEditor({
                     {eligible.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.code} · {account.name} (
-                        {account.statementSection === "Revenue"
-                          ? "Gelir"
-                          : "Gider"}
-                        )
+                        {account.statementSection === "Revenue" ? "Gelir" : "Gider"})
                       </option>
                     ))}
                   </select>
-                </label>
-                <label>
-                  Ay
                   <input
+                    aria-label={`Satır ${index + 1} ay`}
                     type="month"
                     value={line.periodStart.slice(0, 7)}
-                    onChange={(e) =>
-                      onUpdateLine(index, { periodStart: `${e.target.value}-01` })
-                    }
+                    onChange={(e) => onUpdateLine(index, { periodStart: `${e.target.value}-01` })}
                     required
                     disabled={controlsLocked}
                   />
-                </label>
-                <label>
-                  Planlanan tahakkuk tutarı
                   <input
+                    aria-label={`Satır ${index + 1} plan tutarı`}
                     className="rf-num"
                     type="number"
                     min="0"
                     step="0.01"
                     value={line.plannedAmount}
-                    onChange={(e) =>
-                      onUpdateLine(index, {
-                        plannedAmount: Number(e.target.value),
-                      })
-                    }
+                    onChange={(e) => onUpdateLine(index, { plannedAmount: Number(e.target.value) })}
                     required
                     disabled={controlsLocked}
                   />
-                </label>
-                <label>
-                  Not{" "}
                   <input
+                    aria-label={`Satır ${index + 1} not`}
                     value={line.notes || ""}
                     maxLength={240}
-                    onChange={(e) =>
-                      onUpdateLine(index, { notes: e.target.value || null })
-                    }
+                    placeholder="İsteğe bağlı"
+                    onChange={(e) => onUpdateLine(index, { notes: e.target.value || null })}
                     disabled={controlsLocked}
                   />
-                </label>
-                <button
-                  type="button"
-                  className="row-action danger"
-                  aria-label={`Satır ${index + 1} sil`}
-                  disabled={controlsLocked || entries.length === 1}
-                  onClick={() => onRemoveLine(index)}
-                >
-                  Sil
-                </button>
-              </fieldset>
-            ))}
-          </div>
+                  <button
+                    type="button"
+                    className="budget-line-remove"
+                    aria-label={`Satır ${index + 1} sil`}
+                    title={entries.length === 1 ? "En az bir satır kalmalı" : "Satırı sil"}
+                    disabled={controlsLocked || entries.length === 1}
+                    onClick={() => onRemoveLine(index)}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+              <div className="budget-lines-foot">
+                <span>
+                  Toplam plan:{" "}
+                  <b>
+                    {entries
+                      .reduce((sum, line) => sum + (Number(line.plannedAmount) || 0), 0)
+                      .toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                    {baseCurrency}
+                  </b>{" "}
+                  · {entries.length} satır
+                </span>
+              </div>
+            </div>
+          )}
         </RecordFormGroup>
       </RecordFormPage>
     </section>

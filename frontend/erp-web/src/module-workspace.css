@@ -4135,3 +4135,19 @@ html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { backgrou
 /* The page background runs to the bottom of the viewport instead of ending under short pages. */
 #root .app-shell:not(.standalone-studio) .main-area { display: flex; flex-direction: column; min-height: 100dvh; }
 #root .app-shell:not(.standalone-studio) .main-area > .workspace-content { flex: 1 0 auto; }
+
+/* Shared in-app confirm / prompt dialog (confirmDialog.tsx) on top of the workspace confirm styles. */
+.app-confirm.is-danger .workspace-confirm-icon { background: #fde8ea; color: #b93c4a; }
+.app-confirm.is-default .workspace-confirm-icon { background: #e7f0fb; color: #315f8b; }
+.app-confirm-field { display: grid; gap: 5px; margin-top: 12px; color: #4a5a72; font-size: 12px; font-weight: 600; }
+.app-confirm-field input,
+.app-confirm-field textarea { width: 100%; min-height: 36px; padding: 8px 10px; border: 1px solid #d5dde8; border-radius: 8px; background: #fff; color: #14213a; font: inherit; font-size: 13px; font-weight: 400; box-sizing: border-box; }
+.app-confirm-field [aria-invalid="true"] { border-color: #b93c4a; }
+.app-confirm-error { color: #b93c4a; font-size: 11px; font-weight: 600; }
+.workspace-confirm-actions button.app-confirm-primary { border-color: #f2b632; background: #f6c445; color: #2a1d00; }
+.workspace-confirm-actions button.app-confirm-primary:hover { border-color: #e0a51d; background: #f0b829; }
+html[data-theme="dark"] .app-confirm.is-danger .workspace-confirm-icon { background: #3a1d23; color: #f2a3ad; }
+html[data-theme="dark"] .app-confirm.is-default .workspace-confirm-icon { background: #1c2a3d; color: #93c5fd; }
+html[data-theme="dark"] .app-confirm-field { color: #aebbd0; }
+html[data-theme="dark"] .app-confirm-field input,
+html[data-theme="dark"] .app-confirm-field textarea { border-color: #46556e; background: #111c2e; color: #e4eaf3; }

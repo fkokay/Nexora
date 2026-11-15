@@ -5,7 +5,7 @@ import { PermissionRuleForm } from "./access-control/components/PermissionRuleFo
 import { PermissionRulesPanel } from "./access-control/components/PermissionRulesPanel";
 import { api } from "./erpApi";
 import type * as AppTypes from "./erp-types";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 type PermissionDefinition = AppTypes.PermissionDefinition;
 type PermissionMember = AppTypes.PermissionMember;
 type PermissionRule = AppTypes.PermissionRule;
@@ -140,9 +140,12 @@ export function AccessControlPage({
   }
   async function remove(rule: PermissionRule) {
     if (
-      !confirmLocalized(
-        `${rule.permissionCode} · ${rule.effect} kuralı silinsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "İzin kuralı silinsin mi?",
+        message: `${rule.permissionCode} · ${rule.effect} kuralı silinecek.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -256,9 +259,12 @@ export function AccessControlPage({
   }
   async function removeMember(member: PermissionMember) {
     if (
-      !confirmLocalized(
-        `${member.displayName} (${member.email}) bu firmadan çıkarılsın mı?`,
-      )
+      !(await confirmDialog({
+        title: "Kullanıcı firmadan çıkarılsın mı?",
+        message: `${member.displayName} (${member.email}) bu firmadan çıkarılacak.`,
+        tone: "danger",
+        confirmLabel: "Firmadan çıkar",
+      }))
     )
       return;
     setBusy(true);

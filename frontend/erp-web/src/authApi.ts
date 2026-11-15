@@ -129,11 +129,24 @@ export async function authenticatedFetch(url: string, token?: string, init?: Req
   }
 
   let response = await send(accessToken)
-  if (response.status !== 401 || !accessToken || (url.startsWith('/api/auth/') && !platformSelectRequest)) return addTraceIdentifierToError(response)
+  if (response.status !== 401 || !accessToken || (url.startsWith('/api/auth/') && !platformSelectRequest)) return markWorkspaceSaved(url, init, addTraceIdentifierToError(response))
 
   const currentToken = localStorage.getItem(accessTokenKey)
   const refreshedToken = currentToken && currentToken !== accessToken ? currentToken : await refreshAccessToken()
   if (refreshedToken) response = await send(refreshedToken)
   if (response.status === 401) window.dispatchEvent(new CustomEvent('aierp:session-expired', { detail: accessToken }))
-  return addTraceIdentifierToError(response)
+  return markWorkspaceSaved(url, init, addTraceIdentifierToError(response))
+}
+
+/**
+ * A successful write means the active workspace tab's form was saved, so its unsaved-changes mark is cleared.
+ * Pages call this helper through their own fetch wrappers too, not only through erpApi's `api`.
+ */
+function markWorkspaceSaved<T extends Response | Promise<Response>>(url: string, init: RequestInit | undefined, response: T): T {
+  const method = init?.method?.toUpperCase()
+  if (!method || method === 'GET' || method === 'HEAD' || url.startsWith('/api/auth/')) return response
+  void Promise.resolve(response).then(result => {
+    if (result.ok) window.dispatchEvent(new CustomEvent('nexora:workspace-clean'))
+  })
+  return response
 }

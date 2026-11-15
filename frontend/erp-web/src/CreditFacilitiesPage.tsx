@@ -29,7 +29,7 @@ import type {
   Security,
   SecuritySummary,
 } from "./credit-facilities/types";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 
 async function request<T>(
   url: string,
@@ -507,9 +507,15 @@ export default function CreditFacilitiesPage({
   }
   async function closeSecurity(item: Security, status: "Released" | "Called") {
     if (
-      !confirmLocalized(
-        `${item.code} kaydı ${status === "Released" ? "serbest bırakılmış" : "nakde/zarara çağrılmış"} olarak işaretlensin mi? Bu işlem nakit veya muhasebe kaydı oluşturmaz.`,
-      )
+      !(await confirmDialog({
+        title:
+          status === "Released"
+            ? "Teminat serbest bırakılmış olarak işaretlensin mi?"
+            : "Teminat nakde/zarara çağrılmış olarak işaretlensin mi?",
+        message: `${item.code} kaydının durumu değişecek. Bu işlem nakit veya muhasebe kaydı oluşturmaz.`,
+        tone: "warning",
+        confirmLabel: status === "Released" ? "Serbest bırak" : "Çağrılmış işaretle",
+      }))
     )
       return;
     setBusy(true);
@@ -683,9 +689,12 @@ export default function CreditFacilitiesPage({
       month = previous.getMonth() + 1;
     const period = `${year}-${String(month).padStart(2, "0")}`;
     if (
-      !confirmLocalized(
-        `${f.code} için ${period} Actual/365 faiz tahakkuku muhasebeleştirilsin mi? Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez.`,
-      )
+      !(await confirmDialog({
+        title: "Faiz tahakkuku muhasebeleştirilsin mi?",
+        message: `${f.code} için ${period} Actual/365 faiz tahakkuku muhasebeleştirilecek. Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez.`,
+        tone: "default",
+        confirmLabel: "Muhasebeleştir",
+      }))
     )
       return;
     setBusy(true);
@@ -771,9 +780,12 @@ export default function CreditFacilitiesPage({
   async function reverseMovement(f: Facility, m: Movement) {
     const date = today() < m.transactionDate ? m.transactionDate : today();
     if (
-      !confirmLocalized(
-        `${m.transactionDate} tarihli ${m.type === "Drawdown" ? "kullandırım" : "geri ödeme"} hareketi için ${date} tarihli ters kayıt oluşturulsun mu? Özgün kayıt korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Ters kayıt oluşturulsun mu?",
+        message: `${m.transactionDate} tarihli ${m.type === "Drawdown" ? "kullandırım" : "geri ödeme"} hareketi için ${date} tarihli ters kayıt oluşturulacak. Özgün kayıt korunur.`,
+        tone: "warning",
+        confirmLabel: "Ters kaydı oluştur",
+      }))
     )
       return;
     setBusy(true);

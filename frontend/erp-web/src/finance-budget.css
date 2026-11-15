@@ -494,3 +494,85 @@ html[data-theme="dark"] .finance-budget-page .budget-overview-card strong { colo
 #root .main-area .finance-budget-page > .budget-hero .eyebrow {
   color: #86c4ff !important;
 }
+
+/* Bütçe (Taslak): credit-style list column + selected budget with tabs; layout classes come from credit-facilities.css. */
+#root .cf-page.finance-budget-page { gap: 14px; }
+#root .cf-page .budget-layout > .budget-editor { min-width: 0; }
+#root .cf-page .budget-detail .budget-ledger-wrap { min-width: 0; }
+#root .cf-page .budget-account-summary { overflow: auto; border: 1px solid var(--fh-line); border-radius: 6px; }
+#root .cf-page .budget-account-summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#root .cf-page .budget-account-summary th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fh-line);
+  background: var(--fh-band);
+  color: var(--fh-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+#root .cf-page .budget-account-summary td { padding: 8px 10px; border-bottom: 1px solid var(--fh-line-soft); vertical-align: top; }
+#root .cf-page .budget-account-summary .amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .cf-page .budget-account-summary .positive { color: var(--fh-success); }
+#root .cf-page .budget-account-summary .negative { color: var(--fh-danger); }
+#root .cf-page .budget-account-summary .cell-subtitle { display: block; color: var(--fh-muted); font-size: 12px; }
+#root .cf-page .finance-budget-page .cf-search-row .list-v2-chips,
+#root .cf-page.finance-budget-page .cf-search-row .list-v2-chips { flex: 1 1 auto; flex-wrap: wrap; }
+#root .cf-page .budget-lines { display: grid; border: 1px solid var(--fh-line); border-radius: 8px; overflow: hidden; }
+#root .cf-page .budget-lines-head,
+#root .cf-page .budget-lines-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2.2fr) 150px 130px minmax(120px, 1.2fr) 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
+#root .cf-page .budget-lines-head { background: var(--fh-band); color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .cf-page .budget-lines-head .is-num { text-align: right; }
+#root .cf-page .budget-lines-row { border-top: 1px solid var(--fh-line-soft); }
+#root .app-shell .cf-page .budget-lines-row :is(select, input) {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+#root .app-shell .cf-page .budget-lines-row input.rf-num { text-align: right; font-variant-numeric: tabular-nums; }
+#root .app-shell .cf-page .budget-line-remove {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-danger);
+  cursor: pointer;
+}
+#root .app-shell .cf-page .budget-line-remove:disabled { color: var(--fh-muted); cursor: not-allowed; opacity: .55; }
+#root .cf-page .budget-lines-foot {
+  justify-content: flex-end !important;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--fh-line);
+  background: var(--fh-band);
+  color: var(--fh-muted);
+  font-size: 12.5px;
+}
+#root .cf-page .budget-lines-foot b { color: var(--fh-ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  #root .cf-page .budget-lines-head { display: none; }
+  #root .cf-page .budget-lines-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px; }
+  #root .cf-page .budget-lines-row > select,
+  #root .cf-page .budget-lines-row > input:last-of-type { grid-column: 1 / -1; }
+}

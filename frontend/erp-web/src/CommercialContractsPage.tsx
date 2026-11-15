@@ -2,29 +2,39 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { authenticatedFetch } from "./authApi";
 import { X } from "lucide-react";
 import { localDateString } from "./dateUtils";
-import ContractsListPanel from "./commercial-contracts/components/ContractsListPanel";
-import ContractDetailDialog from "./commercial-contracts/components/ContractDetailDialog";
+import ContractRegister, {
+  type ContractTab,
+} from "./commercial-contracts/components/ContractRegister";
 import ContractCreateDialog from "./commercial-contracts/components/ContractCreateDialog";
 import ContractsPageHeader from "./commercial-contracts/components/ContractsPageHeader";
 import {
   dateLabel,
-  defaultScreenFields,
-  statusClass,
   statusLabel,
   statusLabelsEn,
   type Contract,
+  type ContractStatus,
+  type ContractType,
   type Counterparty,
   type CounterpartyPage,
   type Detail,
   type Page,
-  type ScreenField,
   type SourceKind,
   type SourceOption,
   type SourcePage,
   type Transition,
 } from "./commercial-contracts/types";
+import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
+import "./list-page/list-page-v2.css";
+import "./document-detail/document-detail.css";
+import "./finance-hub.css";
+import "./credit-facilities.css";
 import "./commercial-contracts.css";
+import "./commercial-contracts/commercial-contracts.css";
 import { problemDetail } from "./erpApi";
+
+/** The list endpoint pages at most 100 rows; the register loads every contract of the company. */
+const LIST_PAGE_SIZE = 100;
+const MAX_LIST_PAGES = 100;
 
 async function request<T>(
   url: string,
@@ -183,6 +193,24 @@ const englishUi: Record<string, string> = {
   Feshedildi: "Terminated",
   İptal: "Cancelled",
   kayıt: "records",
+  "Sözleşmeleri yenile": "Refresh contracts",
+  "İlk sözleşmeyi cari hesap ve geçerlilik tarihleriyle taslak olarak oluşturun.":
+    "Create the first contract as a draft with an account and validity dates.",
+  "Sözleşmeler firma yöneticisi tarafından oluşturulur.":
+    "Contracts are created by company administrators.",
+  "Ayrıntıları görmek için soldan bir sözleşme seçin.":
+    "Select a contract on the left to see its details.",
+  "süresi doldu": "expired",
+  "bugün bitiyor": "ends today",
+  "Satış sözleşmesi": "Sales contract",
+  "Satın alma sözleşmesi": "Purchase contract",
+  "Sözleşme ayrıntıları": "Contract details",
+  Özet: "Summary",
+  "Listelenen sözleşmeleri XLSX olarak indir": "Download listed contracts as XLSX",
+  "Listelenen sözleşmeleri CSV olarak indir": "Download listed contracts as CSV",
+  "Dışa aktarma dosyası oluşturulamadı.": "The export file could not be created.",
+  Sözleşmeler: "Contracts",
+  "Durum geçmişi alınamadı.": "Status history could not be loaded.",
 };
 const translateUi = (value: string, en: boolean) =>
   en ? (englishUi[value] ?? value) : value;
@@ -199,7 +227,7 @@ export default function CommercialContractsPage({
   const en = locale === "en";
   const labels = en ? statusLabelsEn : statusLabel;
   const tx = (value: string) => translateUi(value, en);
-  const [page, setPage] = useState<Page | null>(null),
+  const [contracts, setContracts] = useState<Contract[]>([]),
     [counterpartyPageData, setCounterpartyPageData] =
       useState<CounterpartyPage | null>(null),
     [counterpartyLoading, setCounterpartyLoading] = useState(false),
@@ -209,26 +237,17 @@ export default function CommercialContractsPage({
       useState<Counterparty | null>(null),
     [sourcePageData, setSourcePageData] = useState<SourcePage | null>(null),
     [sourceLoading, setSourceLoading] = useState(false);
-  const [selected, setSelected] = useState<Detail | null>(null),
+  const [selectedId, setSelectedId] = useState(""),
+    [detail, setDetail] = useState<Detail | null>(null),
     [detailLoading, setDetailLoading] = useState(false),
+    [tab, setTab] = useState<ContractTab>("summary"),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [screenFields, setScreenFields] = useState<ScreenField[]>(
-    defaultScreenFields.map((field) => ({ ...field, label: tx(field.label) })),
-  );
-  const [typeFilter, setTypeFilter] = useState(""),
-    [statusFilter, setStatusFilter] = useState(""),
-    // `search` is the typed text; `query` is what the list request uses.
+  const [typeFilter, setTypeFilter] = useState<ContractType | "">(""),
+    [statusFilter, setStatusFilter] = useState<ContractStatus | "">(""),
     [search, setSearch] = useState(""),
-    [query, setQuery] = useState(""),
-    [pageNumber, setPageNumber] = useState(1),
-    [pageSize, setPageSize] = useState(25),
-    [gridSort, setGridSort] = useState<{
-      field: string;
-      direction: "asc" | "desc";
-    }>({ field: "createdAt", direction: "desc" }),
     [showCreate, setShowCreate] = useState(false);
   const [type, setType] = useState<"Sales" | "Purchase">("Sales"),
     [counterpartyId, setCounterpartyId] = useState(""),
@@ -242,73 +261,39 @@ export default function CommercialContractsPage({
     [sourcePage, setSourcePage] = useState(1),
     [selectedSource, setSelectedSource] = useState<SourceOption | null>(null);
   const canEdit = role === "TenantAdmin";
+  const today = localDateString();
+  // Loads every contract (newest first) so the status chips can show exact counts.
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({
-        page: String(pageNumber),
-        pageSize: String(pageSize),
-        sortBy: gridSort.field,
-        sortDirection: gridSort.direction,
-      });
-      if (typeFilter) params.set("type", typeFilter);
-      if (statusFilter) params.set("status", statusFilter);
-      if (query.trim()) params.set("search", query.trim());
-      const result = await request<Page>(
-        `/api/commercial-contracts?${params}`,
-        token,
-        undefined,
-        locale,
-      );
-      setPage(result);
+      const items: Contract[] = [];
+      for (let pageNumber = 1; pageNumber <= MAX_LIST_PAGES; pageNumber += 1) {
+        const params = new URLSearchParams({
+          page: String(pageNumber),
+          pageSize: String(LIST_PAGE_SIZE),
+          sortBy: "createdAt",
+          sortDirection: "desc",
+        });
+        const result = await request<Page>(
+          `/api/commercial-contracts?${params}`,
+          token,
+          undefined,
+          locale,
+        );
+        items.push(...result.items);
+        if (result.items.length < LIST_PAGE_SIZE || items.length >= result.total) break;
+      }
+      setContracts(items);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [
-    token,
-    typeFilter,
-    statusFilter,
-    query,
-    pageNumber,
-    pageSize,
-    gridSort,
-    locale,
-  ]);
+  }, [token, locale]);
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    let active = true;
-    setScreenFields(
-      defaultScreenFields.map((field) => ({
-        ...field,
-        label: tx(field.label),
-      })),
-    );
-    void request<{ fields: ScreenField[] }>(
-      "/api/screen-views/commercial-contracts/active",
-      token,
-      undefined,
-      locale,
-    )
-      .then((view) => {
-        if (active && view.fields?.length)
-          setScreenFields(
-            view.fields.map((field, index) => ({
-              ...field,
-              fixed: field.key === "actions",
-              position: field.position ?? index,
-            })),
-          );
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [token, locale]);
   useEffect(() => {
     let cancelled = false;
     setCounterpartyPageData(null);
@@ -402,24 +387,49 @@ export default function CommercialContractsPage({
     token,
     locale,
   ]);
-  async function openDetail(id: string) {
-    setError("");
-    setDetailLoading(true);
-    try {
-      setSelected(
-        await request<Detail>(
-          `/api/commercial-contracts/${id}`,
-          token,
-          undefined,
-          locale,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
+  const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
+  const visibleContracts = contracts.filter(
+    (item) =>
+      (!typeFilter || item.type === typeFilter) &&
+      (!statusFilter || item.status === statusFilter) &&
+      `${item.code} ${item.counterpartyName}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(normalizedSearch),
+  );
+  const selectedContract =
+    visibleContracts.find((item) => item.id === selectedId) ??
+    visibleContracts[0] ??
+    null;
+  const selectedContractId = selectedContract?.id ?? "";
+  // The list row's revision changes after every status change, so it also refreshes the detail.
+  const selectedRevision = selectedContract?.revision ?? 0;
+  useEffect(() => {
+    if (!selectedContractId) {
+      setDetail(null);
       setDetailLoading(false);
+      return;
     }
-  }
+    let cancelled = false;
+    setDetailLoading(true);
+    void request<Detail>(
+      `/api/commercial-contracts/${selectedContractId}`,
+      token,
+      undefined,
+      locale,
+    )
+      .then((result) => {
+        if (!cancelled) setDetail(result);
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedContractId, selectedRevision, token, locale]);
   async function create(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -454,16 +464,22 @@ export default function CommercialContractsPage({
       );
       setShowCreate(false);
       setNotice(tx("Sözleşme taslak olarak oluşturuldu."));
+      // Clear the filters so the new draft is listed and selected.
+      setSearch("");
+      setTypeFilter("");
+      setStatusFilter("");
+      setSelectedId(created.id);
+      setTab("summary");
       await load();
-      await openDetail(created.id);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  async function transition(status: Contract["status"]) {
-    if (!selected) return;
+  async function transition(status: ContractStatus) {
+    // Only act on the detail that belongs to the contract on screen (its id and revision).
+    if (!detail || detail.contract.id !== selectedContractId) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -472,7 +488,7 @@ export default function CommercialContractsPage({
         contract: Contract;
         transition: Transition;
       }>(
-        `/api/commercial-contracts/${selected.contract.id}/transitions`,
+        `/api/commercial-contracts/${detail.contract.id}/transitions`,
         token,
         {
           method: "POST",
@@ -480,19 +496,22 @@ export default function CommercialContractsPage({
             status,
             reason: "",
             idempotencyKey: crypto.randomUUID(),
-            revision: selected.contract.revision,
+            revision: detail.contract.revision,
           }),
         },
         locale,
       );
-      setSelected((current) =>
-        current
+      setDetail((current) =>
+        current && current.contract.id === result.contract.id
           ? {
               contract: result.contract,
               transitions: [...current.transitions, result.transition],
             }
           : current,
       );
+      // Keep the changed contract selected even when it leaves the active status filter.
+      setSelectedId(result.contract.id);
+      if (statusFilter && statusFilter !== result.contract.status) setStatusFilter("");
       setNotice(
         en
           ? `Contract status updated to “${labels[status]}”.`
@@ -505,72 +524,47 @@ export default function CommercialContractsPage({
       setBusy(false);
     }
   }
-  const filtered = page?.items ?? [];
-  const hasFilters = Boolean(query.trim() || typeFilter || statusFilter);
-  const visibleFields = [...screenFields]
-    .filter((field) => field.fixed || field.visible)
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
-  function renderField(item: Contract, field: ScreenField) {
-    switch (field.key) {
-      case "code":
-        return <b className="customer-code">{item.code}</b>;
-      case "type":
-        return item.type === "Sales" ? tx("Satış") : tx("Satın alma");
-      case "counterpartyName":
-        return <b className="customer-name">{item.counterpartyName}</b>;
-      case "effectiveFrom":
-        return dateLabel(item.effectiveFrom, en);
-      case "effectiveThrough":
-        return dateLabel(item.effectiveThrough, en);
-      case "currencyCode":
-        return item.currencyCode;
-      case "status":
-        return (
-          <span className={`quote-status ${statusClass(item.status)}`}>
-            {labels[item.status]}
-          </span>
-        );
-      case "revision":
-        return `v${item.revision}`;
-      case "actions":
-        return (
-          <button
-            type="button"
-            className="row-action"
-            disabled={detailLoading}
-            onClick={() => void openDetail(item.id)}
-            aria-label={`${item.code} ${tx("sözleşmesinin detaylarını aç")}`}
-          >
-            {detailLoading ? tx("Açılıyor…") : tx("Detay")}
-          </button>
-        );
-      default:
-        return null;
-    }
+  function exportRows() {
+    return [
+      [
+        tx("Sözleşme kodu"),
+        tx("Tür"),
+        tx("Cari hesap"),
+        tx("Başlangıç"),
+        tx("Bitiş"),
+        tx("Döviz"),
+        tx("Durum"),
+        tx("Sürüm"),
+      ],
+      ...visibleContracts.map((item) => [
+        item.code,
+        item.type === "Sales" ? tx("Satış") : tx("Satın alma"),
+        item.counterpartyName,
+        dateLabel(item.effectiveFrom, en),
+        dateLabel(item.effectiveThrough, en),
+        item.currencyCode,
+        labels[item.status],
+        `v${item.revision}`,
+      ]),
+    ];
   }
-  const availableTransitions: Contract["status"][] =
-    selected?.contract.status === "Draft"
-      ? ["Active", "Cancelled"]
-      : selected?.contract.status === "Active"
-        ? ["Suspended", "Completed", "Terminated"]
-        : selected?.contract.status === "Suspended"
-          ? ["Active", "Completed", "Terminated"]
-          : [];
+  const exportName = `${en ? "commercial-contracts" : "ticari-sozlesmeler"}-${today}`;
   return (
-    <div className="contracts-page list-v2">
+    <main className="contracts-page commercial-contracts-page list-v2 fh-page cf-page">
       <ContractsPageHeader
-        total={page?.total}
+        total={loading && contracts.length === 0 ? undefined : visibleContracts.length}
         canEdit={canEdit}
+        canExport={visibleContracts.length > 0}
         tx={tx}
         onCreate={() => setShowCreate(true)}
+        onExportXlsx={() =>
+          void downloadXlsx(`${exportName}.xlsx`, tx("Sözleşmeler"), exportRows()).catch(
+            () => setError(tx("Dışa aktarma dosyası oluşturulamadı.")),
+          )
+        }
+        onExportCsv={() => downloadCsv(`${exportName}.csv`, exportRows())}
       />
-      {error && !showCreate && !selected && (
+      {error && !showCreate && (
         <div className="contracts-alert" role="alert">
           {error}
           <button
@@ -594,47 +588,39 @@ export default function CommercialContractsPage({
           </button>
         </div>
       )}
-      <ContractsListPanel
-        tx={tx}
-        search={search}
-        setSearch={setSearch}
-        query={query}
-        setQuery={setQuery}
-        onRefresh={() => void load()}
-        typeFilter={typeFilter}
-        setTypeFilter={setTypeFilter}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        labels={labels}
-        pageNumber={pageNumber}
-        setPageNumber={setPageNumber}
-        pageSize={pageSize}
-        setPageSize={setPageSize}
-        page={page}
-        loading={loading}
+      <ContractRegister
+        contracts={contracts}
+        visibleContracts={visibleContracts}
+        selected={selectedContract}
+        detail={detail}
         detailLoading={detailLoading}
-        visibleFields={visibleFields}
-        filtered={filtered}
-        hasFilters={hasFilters}
+        loading={loading}
+        today={today}
+        tab={tab}
+        search={search}
+        typeFilter={typeFilter}
+        statusFilter={statusFilter}
+        labels={labels}
+        en={en}
         canEdit={canEdit}
-        setGridSort={setGridSort}
-        renderField={renderField}
+        busy={busy}
+        tx={tx}
+        onSearchChange={setSearch}
+        onTypeFilterChange={setTypeFilter}
+        onStatusFilterChange={setStatusFilter}
+        onRefresh={() => {
+          if (!loading) void load();
+        }}
+        onSelect={(contract) => setSelectedId(contract.id)}
+        onTabChange={setTab}
+        onTransition={(status) => void transition(status)}
+        onClearFilters={() => {
+          setSearch("");
+          setTypeFilter("");
+          setStatusFilter("");
+        }}
+        onCreate={() => setShowCreate(true)}
       />
-      {selected && (
-        <ContractDetailDialog
-          selected={selected}
-          error={error}
-          setError={setError}
-          tx={tx}
-          labels={labels}
-          en={en}
-          canEdit={canEdit}
-          busy={busy}
-          setSelected={setSelected}
-          availableTransitions={availableTransitions}
-          transition={transition}
-        />
-      )}
       {showCreate && (
         <ContractCreateDialog
           error={error}
@@ -677,6 +663,6 @@ export default function CommercialContractsPage({
           setThrough={setThrough}
         />
       )}
-    </div>
+    </main>
   );
 }

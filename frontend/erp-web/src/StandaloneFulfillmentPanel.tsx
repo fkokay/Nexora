@@ -8,7 +8,7 @@ import type {
   WarehouseLocationOption,
 } from "./erp-types";
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -348,11 +348,25 @@ export function StandaloneFulfillmentPanel({
     }
   }
   async function remove(item: Row) {
-    const action =
-      item.status === "Draft"
-        ? "silinsin"
-        : "ters stok hareketiyle iptal edilsin";
-    if (!confirmLocalized(`${item.code} ${action} mi?`)) return;
+    const isDraft = item.status === "Draft";
+    if (
+      !(await confirmDialog(
+        isDraft
+          ? {
+              title: "Taslak silinsin mi?",
+              message: `${item.code} silinecek.`,
+              tone: "danger",
+              confirmLabel: "Sil",
+            }
+          : {
+              title: "Belge iptal edilsin mi?",
+              message: `${item.code} ters stok hareketiyle iptal edilecek.`,
+              tone: "danger",
+              confirmLabel: "İptal et",
+            },
+      ))
+    )
+      return;
     setBusy(true);
     setError("");
     try {

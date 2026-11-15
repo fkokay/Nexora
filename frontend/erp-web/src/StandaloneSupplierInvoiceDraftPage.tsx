@@ -20,7 +20,7 @@ import {
   InvoiceDraftMessages,
 } from "./supplier-invoice-draft/components/InvoiceDraftHeader";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 const blankLine = (): DraftLineInput => ({
@@ -455,9 +455,12 @@ export default function StandaloneSupplierInvoiceDraftPage({
 
   async function postDraft(item: DraftSummary) {
     if (item.status !== "Draft" || busy) return;
-    const confirmed = confirmLocalized(
-      `${item.invoiceNumber} numaralı tedarikçi faturası muhasebeleştirilsin mi? Bu işlem gider veya mal kabule bağlı stok maliyeti, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturur. Stok miktar hareketi veya ödeme kaydı oluşturmaz.`,
-    );
+    const confirmed = await confirmDialog({
+      title: "Tedarikçi faturası muhasebeleştirilsin mi?",
+      message: `${item.invoiceNumber} numaralı fatura için gider veya mal kabule bağlı stok maliyeti, varsa indirilecek KDV, tedarikçi borcu ve yevmiye kaydı oluşturulur. Stok miktar hareketi veya ödeme kaydı oluşturmaz.`,
+      tone: "warning",
+      confirmLabel: "Muhasebeleştir",
+    });
     if (!confirmed) return;
     setBusy(true);
     setError("");

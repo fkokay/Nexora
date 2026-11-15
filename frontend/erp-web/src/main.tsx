@@ -12,6 +12,7 @@ import "./page-design-polish.css";
 import "./dark-theme-surfaces.css";
 import "./modal-usability.css";
 import { installModalBehavior } from "./modalBehavior";
+import { ConfirmDialogHost } from "./confirmDialog";
 
 installModalBehavior();
 
@@ -77,5 +78,6 @@ window.addEventListener("vite:preloadError", (event) => {
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
+    <ConfirmDialogHost />
   </React.StrictMode>,
 );

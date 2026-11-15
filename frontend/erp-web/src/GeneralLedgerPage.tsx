@@ -32,7 +32,7 @@ import type {
   LedgerSource,
   JournalEntryView,
 } from "./erp-types";
-import { confirmLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -369,9 +369,12 @@ export default function GeneralLedgerPage({
   async function applyStandardChart() {
     if (
       !chartPreview ||
-      !confirmLocalized(
-        `Türkiye Tek Düzen Hesap Planı'ndaki ${chartPreview.accountsToAdd} eksik hesap bu firmaya eklensin mi? Var olan hesaplar ve muhasebe eşleştirmeleri değiştirilmez.`,
-      )
+      !(await confirmDialog({
+        title: "Eksik hesaplar eklensin mi?",
+        message: `Türkiye Tek Düzen Hesap Planı'ndaki ${chartPreview.accountsToAdd} eksik hesap bu firmaya eklenecek. Var olan hesaplar ve muhasebe eşleştirmeleri değiştirilmez.`,
+        tone: "default",
+        confirmLabel: "Hesapları ekle",
+      }))
     )
       return;
     setBusy(true);
@@ -467,9 +470,12 @@ export default function GeneralLedgerPage({
   async function deleteAccount(account: LedgerAccount) {
     if (
       account.hasMovements ||
-      !confirmLocalized(
-        `${account.code} · ${account.name} hesabı silinsin mi? Hesaba bağlı eşleştirme varsa kaldırılır.`,
-      )
+      !(await confirmDialog({
+        title: "Hesap silinsin mi?",
+        message: `${account.code} · ${account.name} hesabı silinecek. Hesaba bağlı eşleştirme varsa kaldırılır.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -527,7 +533,15 @@ export default function GeneralLedgerPage({
     rows: Array<{ sourceType: LedgerTransferSourceType; source: LedgerSource }>,
   ) {
     if (!rows.length || busy) return;
-    if (!confirmLocalized(`${rows.length} kaynak, değiştirilemez yevmiye fişleri olarak aktarılsın mı? Lütfen borç ve alacak hesap eşleştirmelerini kontrol edin.`)) return;
+    if (
+      !(await confirmDialog({
+        title: "Kaynaklar muhasebeye aktarılsın mı?",
+        message: `${rows.length} kaynak, değiştirilemez yevmiye fişleri olarak aktarılacak. Lütfen borç ve alacak hesap eşleştirmelerini kontrol edin.`,
+        tone: "warning",
+        confirmLabel: "Aktar",
+      }))
+    )
+      return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -595,16 +609,19 @@ export default function GeneralLedgerPage({
     }
   }
   async function reverseJournalEntry(entry: JournalEntryView) {
-    const reason = window
-      .prompt(`${entry.code} fişi için ters kayıt gerekçesi:`)
-      ?.trim();
+    // One dialog asks for the reason and confirms the reversal (the reason is required by the API).
+    const reason = (
+      await promptDialog({
+        title: "Fiş ters çevrilsin mi?",
+        message: `${entry.code} fişinin borç/alacak satırları ters çevrilerek yeni bir fiş oluşturulur. Özgün fiş korunur.`,
+        label: "Ters kayıt gerekçesi",
+        required: true,
+        multiline: true,
+        tone: "warning",
+        confirmLabel: "Ters kaydı oluştur",
+      })
+    )?.trim();
     if (!reason) return;
-    if (
-      !confirmLocalized(
-        `${entry.code} fişinin borç/alacak satırları ${reason} gerekçesiyle ters çevrilsin mi?`,
-      )
-    )
-      return;
     setBusy(true);
     setError("");
     setNotice("");

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
-import { confirmLocalized } from "../locale";
+import { confirmDialog } from "../confirmDialog";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import { ListPagination } from "../list-page/ListPagination";
 import { ListToolbar } from "../list-page/ListToolbar";
@@ -96,7 +96,16 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
     }
   }
   async function voidReturn() {
-    if (!detail || !confirmLocalized(config.voidConfirm(detail.code))) return;
+    if (
+      !detail ||
+      !(await confirmDialog({
+        title: "İade iptal edilsin mi?",
+        message: config.voidConfirm(detail.code),
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
+    )
+      return;
     setDetailBusy(true);
     setDetailError("");
     setDetailNotice("");

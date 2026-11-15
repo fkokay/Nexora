@@ -12,7 +12,7 @@ import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
-import { confirmLocalized, promptLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
@@ -1634,12 +1634,19 @@ export default function HumanResourcesPage({
   }
   async function postPayrollVoucher(runId: string, calculationId: string) {
     if (
-      !confirmLocalized(
-        tr(
-          "Kesinleşmiş iç bordro sonucunu şirket yevmiyesine kaydetmek istiyor musunuz? Bu işlem resmi bordro tahakkuku veya beyan değildir.",
-          "Post this finalized internal payroll result to the company ledger? This is not a statutory payroll accrual or filing.",
+      !(await confirmDialog({
+        title: tr(
+          "İç bordro sonucu yevmiyeye kaydedilsin mi?",
+          "Post internal payroll result to the ledger?",
         ),
-      )
+        message: tr(
+          "Kesinleşmiş iç bordro sonucu şirket yevmiyesine kaydedilecek. Bu işlem resmi bordro tahakkuku veya beyan değildir.",
+          "The finalized internal payroll result will be posted to the company ledger. This is not a statutory payroll accrual or filing.",
+        ),
+        tone: "warning",
+        confirmLabel: tr("Yevmiyeye kaydet", "Post to ledger"),
+        cancelLabel: tr("Vazgeç", "Cancel"),
+      }))
     )
       return;
     setBusy(true);
@@ -1671,17 +1678,30 @@ export default function HumanResourcesPage({
   }
   async function reversePayrollVoucher(runId: string, calculationId: string) {
     if (
-      !confirmLocalized(
-        tr(
-          "Kesinleşmiş iç bordro yevmiyesine ters kayıt ekleyip yeni bir düzeltme taslağı oluşturmak istiyor musunuz? Ters kayıt resmi tahakkuku iptal etmez.",
-          "Post a reversing entry for this finalized internal payroll voucher and create a new correction draft? Reversal does not cancel a statutory accrual.",
+      !(await confirmDialog({
+        title: tr(
+          "Bordro yevmiyesi ters kaydedilsin mi?",
+          "Reverse the payroll voucher?",
         ),
-      )
+        message: tr(
+          "Kesinleşmiş iç bordro yevmiyesine ters kayıt eklenecek ve yeni bir düzeltme taslağı oluşturulacak. Ters kayıt resmi tahakkuku iptal etmez.",
+          "A reversing entry will be posted for this finalized internal payroll voucher and a new correction draft will be created. Reversal does not cancel a statutory accrual.",
+        ),
+        tone: "warning",
+        confirmLabel: tr("Devam", "Continue"),
+        cancelLabel: tr("Vazgeç", "Cancel"),
+      }))
     )
       return;
-    const reason = promptLocalized(
-      tr("Ters kayıt gerekçesi", "Reason for reversal"),
-    );
+    const reason = await promptDialog({
+      title: tr("Ters kayıt gerekçesi", "Reason for reversal"),
+      label: tr("Gerekçe", "Reason"),
+      required: true,
+      multiline: true,
+      tone: "warning",
+      confirmLabel: tr("Ters kaydı oluştur", "Post reversal"),
+      cancelLabel: tr("Vazgeç", "Cancel"),
+    });
     if (!reason?.trim()) return;
     setBusy(true);
     setError("");

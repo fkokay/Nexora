@@ -5,7 +5,7 @@ import AdvancedDataGrid from "./AdvancedDataGrid";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import FxRevaluationHeader from "./fx-revaluation/components/FxRevaluationHeader";
 import FxRevaluationVoucherGrid from "./fx-revaluation/components/FxRevaluationVoucherGrid";
 import FxRevaluationVoucherDetail from "./fx-revaluation/components/FxRevaluationVoucherDetail";
@@ -243,9 +243,12 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
   }
   async function createRevaluation() {
     if (
-      !confirmLocalized(
-        `${revalDate} tarihi için değerleme fişi oluşturulsun mu? Fiş kaydedildikten sonra değiştirilemez.`,
-      )
+      !(await confirmDialog({
+        title: "Değerleme fişi oluşturulsun mu?",
+        message: `${revalDate} tarihi için değerleme fişi oluşturulacak. Fiş kaydedildikten sonra değiştirilemez.`,
+        tone: "warning",
+        confirmLabel: "Fişi oluştur",
+      }))
     )
       return;
     setRevalBusy(true);
