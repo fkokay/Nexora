@@ -10,7 +10,8 @@ public static class TenantUserPreferenceEndpoints
     private static readonly string[] AllowedPages =
     [
         "dashboard", "customers", "customer-create", "inventory", "sales",
-        "purchasing", "finance", "warehouse", "manufacturing", "reports", "modules"
+        "purchasing", "finance", "warehouse", "manufacturing", "human-resources",
+        "fixed-assets", "foreign-trade", "reports", "modules"
     ];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

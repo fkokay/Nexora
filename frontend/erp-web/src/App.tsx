@@ -391,6 +391,22 @@ export default function App() {
             : "Genel Muhasebe"
           : tx("finance"),
       })),
+      // Built-in modules without their own page-title map; they were reachable only by URL/tab.
+      {
+        page: "human-resources",
+        label: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
+        page: "fixed-assets",
+        label: locale === "en" ? "Fixed assets" : "Duran Varlıklar",
+        description: tx("finance"),
+      },
+      {
+        page: "foreign-trade",
+        label: locale === "en" ? "Foreign trade" : "Dış Ticaret",
+        description: locale === "en" ? "Foreign trade" : "Dış Ticaret",
+      },
       ...Object.keys(manufacturingPageTitles).map((key) => ({
         page: key,
         label: manufacturingPageTitle(key as ManufacturingPageKey, locale),
