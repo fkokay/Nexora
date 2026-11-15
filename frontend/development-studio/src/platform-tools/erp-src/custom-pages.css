@@ -1,6 +1,6 @@
 /* Page designer: top bar, three panes (components/layers · canvas · inspector).
    The canvas is the only place the page is drawn, so what you select is what you edit. */
-.pd-shell{--pd-ink:#14213d;--pd-muted:#66758c;--pd-faint:#8a96aa;--pd-line:#dfe5ef;--pd-soft:#f5f7fb;--pd-accent:#6844df;--pd-accent-soft:#f3f0ff;--pd-accent-line:#d9d0fb;--pd-danger:#b42318;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-height:calc(100vh - 120px);color:var(--pd-ink);font-size:13px}
+.pd-shell{container-type:inline-size;container-name:pd;--pd-ink:#14213d;--pd-muted:#66758c;--pd-faint:#8a96aa;--pd-line:#dfe5ef;--pd-soft:#f5f7fb;--pd-accent:#6844df;--pd-accent-soft:#f3f0ff;--pd-accent-line:#d9d0fb;--pd-danger:#b42318;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;min-height:calc(100vh - 120px);color:var(--pd-ink);font-size:13px}
 .pd-shell *,.pd-shell *::before,.pd-shell *::after{box-sizing:border-box}
 .pd-shell button{font:inherit;cursor:pointer}
 .pd-shell button:disabled{cursor:not-allowed}
@@ -20,7 +20,7 @@
 .pd-button-group .pd-icon-button{min-height:30px;width:30px;border-color:transparent}
 .pd-count{min-width:18px;padding:1px 6px;border-radius:999px;background:#eef1f7;color:#55647c;font-size:11px;font-weight:700;text-align:center}
 
-.pd-topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--pd-line);border-radius:12px;background:#fff;box-shadow:0 4px 14px #18244708}
+.pd-topbar{position:relative;z-index:20;display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--pd-line);border-radius:12px;background:#fff;box-shadow:0 4px 14px #18244708}
 .pd-title{display:grid;gap:3px;min-width:0;flex:1}
 .pd-title>div{display:flex;align-items:center;gap:8px;min-width:0}
 .pd-title h2{margin:0;overflow:hidden;font-size:16px;line-height:1.25;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
@@ -43,7 +43,7 @@
 .pd-message.readonly{border-color:#e3dcfb;background:#faf8ff;color:#4c3a99}
 
 .pd-workspace{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;gap:10px;min-height:0;align-items:start}
-.pd-left,.pd-right{position:sticky;top:68px;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100vh - 96px);overflow:hidden;border:1px solid var(--pd-line);border-radius:12px;background:#fff}
+.pd-left,.pd-right{position:sticky;top:70px;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100vh - 82px);overflow:hidden;border:1px solid var(--pd-line);border-radius:12px;background:#fff}
 .pd-right{grid-template-rows:minmax(0,1fr)}
 .pd-left-body,.pd-right-body{min-height:0;overflow:auto;padding:10px;scrollbar-width:thin}
 .pd-tabs{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--pd-line);background:var(--pd-soft)}
@@ -238,13 +238,14 @@ body.pd-resizing,body.pd-resizing *{cursor:ew-resize!important;user-select:none}
 .custom-pages-form-popup>section>header small{color:#718099;font-size:12px}
 .custom-pages-form-popup>section>header button{padding:7px 12px;border:1px solid #dce4f2;border-radius:7px;background:#fff;color:#596780;font-size:12px;font-weight:700;cursor:pointer}
 
-@media(max-width:1280px){.pd-workspace{grid-template-columns:224px minmax(0,1fr) 270px}}
-@media(max-width:1080px){
+/* Breakpoints follow the designer's own width (Studio adds a fixed sidebar), not the viewport. */
+@container pd (max-width:1180px){.pd-workspace{grid-template-columns:224px minmax(0,1fr) 270px}}
+@container pd (max-width:980px){
   .pd-workspace{grid-template-columns:224px minmax(0,1fr)}
   .pd-right{position:static;grid-column:1/-1;max-height:none}
 }
-@media(max-width:760px){
-  .pd-topbar{position:static;flex-wrap:wrap}
+@container pd (max-width:700px){
+  .pd-topbar{flex-wrap:wrap}
   .pd-topbar-actions{justify-content:flex-start;width:100%}
   .pd-workspace{grid-template-columns:minmax(0,1fr)}
   .pd-left{position:static;max-height:340px}

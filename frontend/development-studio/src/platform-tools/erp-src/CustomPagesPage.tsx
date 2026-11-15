@@ -175,6 +175,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const redoStack = useRef<PageDefinition[]>([]);
   const lastCommit = useRef<{ key: string; at: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const resizing = useRef(false);
   const canEdit = current
     ? !current.isPublished && !!capabilities?.canUpdate
     : creating && !!capabilities?.canCreate;
@@ -487,10 +488,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         commit((state) => ({ ...state, components: state.components.map((item) => item.id === component.id ? { ...item, props: { ...item.props, width: span } } : item) }), key);
       }
     };
-    const stop = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); document.body.classList.remove("pd-resizing"); };
+    const stop = () => {
+      resizing.current = false;
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); window.removeEventListener("pointercancel", stop);
+      document.body.classList.remove("pd-resizing");
+    };
+    resizing.current = true;
     document.body.classList.add("pd-resizing");
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
   };
   const saveDraft = async () => {
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
@@ -752,7 +759,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
-                  onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
+                  onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
                   onDragEnd={() => { setDragging(null); setDropTarget(null); }}
                   onDragOver={(event) => dragOverBlock(index, component, event)}
                   onDrop={(event) => dropAt(drop === "after" ? index + 1 : index, event)}>
@@ -764,7 +771,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(component.id)}><Trash2 size={13}/></button>
                   </div>}
                   <div className="pd-block-render">{rendered[index]}</div>
-                  {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" title="Genişliği sürükleyerek değiştirin" onPointerDown={(event) => startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
+                  {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
                 </div>;
               })}
             </div>
