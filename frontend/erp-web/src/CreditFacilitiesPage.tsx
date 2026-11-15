@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import "./list-page/list-page-v2.css";
+import "./document-detail/document-detail.css";
+import "./finance-hub.css";
 import "./credit-facilities.css";
 import { CreditFacilitiesSummary } from "./credit-facilities/components/CreditFacilitiesSummary";
 import { CreditExposurePanel } from "./credit-facilities/components/CreditExposurePanel";
-import { CreditFacilityRegister } from "./credit-facilities/components/CreditFacilityRegister";
+import {
+  CreditFacilityRegister,
+  drawnShare,
+  facilityTypeLabel,
+  type CreditTab,
+} from "./credit-facilities/components/CreditFacilityRegister";
 import { CreditFacilitiesPageStatus } from "./credit-facilities/components/CreditFacilitiesPageStatus";
 import { CreditFacilitySetup } from "./credit-facilities/components/CreditFacilitySetup";
 import { CreditMovementForm } from "./credit-facilities/components/CreditMovementForm";
@@ -62,6 +70,30 @@ const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+const daysAhead = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/** Selected credit on the list; kept for the session so returning from an operation page reselects it. */
+const SELECTED_KEY = "credit-facility-selected";
+const SELECTED_TAB_KEY = "credit-facility-selected-tab";
+/** Credit preselected by "Hareket kaydet", "Taksit planla" or "Teminat ekle" on the list. */
+const OPERATION_DRAFT_KEY = "credit-facility-operation-draft";
+function readSession(key: string) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeSession(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable: the selection simply is not remembered */
+  }
+}
 
 type CreditFacilitiesView =
   | "list"
@@ -119,6 +151,13 @@ export default function CreditFacilitiesPage({
   const [search, setSearch] = useState(""),
     [statusFilter, setStatusFilter] = useState("All"),
     [currencyFilter, setCurrencyFilter] = useState("All");
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(
+    () => readSession(SELECTED_KEY),
+  ),
+    [creditTab, setCreditTabState] = useState<CreditTab>(
+      () => (readSession(SELECTED_TAB_KEY) as CreditTab | null) || "summary",
+    ),
+    [exposureOpen, setExposureOpen] = useState(false);
   const [scheduleFields, setScheduleFields] = useState<ScreenField[]>([
     { key: "dueDate", label: "Vade", visible: true, position: 0 },
     { key: "principalAmount", label: "Anapara", visible: true, position: 1 },
@@ -232,6 +271,26 @@ export default function CreditFacilitiesPage({
   useEffect(() => {
     if (view === "movement-create") setMovementType("Drawdown");
     if (view === "repayment-create") setMovementType("Repayment");
+  }, [view]);
+  useEffect(() => {
+    // Operation pages opened from the selected credit start with that credit chosen.
+    if (view === "list") return;
+    const raw = readSession(OPERATION_DRAFT_KEY);
+    if (!raw) return;
+    try {
+      sessionStorage.removeItem(OPERATION_DRAFT_KEY);
+      const draft = JSON.parse(raw) as { facilityId?: string; view?: string };
+      if (!draft.facilityId || draft.view !== view) return;
+      if (view === "schedule-create") setFacilityId(draft.facilityId);
+      if (view === "movement-create" || view === "repayment-create") {
+        setMovementFacilityId(draft.facilityId);
+        setAccountId("");
+        setMovementScheduleId("");
+      }
+      if (view === "security-create") setSecurityFacilityId(draft.facilityId);
+    } catch {
+      /* a malformed draft is ignored */
+    }
   }, [view]);
   useEffect(() => {
     if (view !== "repayment-create") return;
@@ -728,7 +787,8 @@ export default function CreditFacilitiesPage({
   const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
   const visibleFacilities = facilities.filter(
     (f) =>
-      (statusFilter === "All" || f.status === statusFilter) &&
+      (statusFilter === "All" ||
+        (statusFilter === "Closed" ? f.status !== "Active" : f.status === statusFilter)) &&
       (currencyFilter === "All" || f.currencyCode === currencyFilter) &&
       (!normalizedSearch ||
         [f.code, f.lenderName, f.facilityType, f.notes || ""].some((value) =>
@@ -769,6 +829,92 @@ export default function CreditFacilitiesPage({
       (summary) => currencyFilter === "All" || summary.code === currencyFilter,
     );
   const isList = view === "list";
+  const selectedFacility =
+    visibleFacilities.find((f) => f.id === selectedFacilityId) ??
+    visibleFacilities[0] ??
+    null;
+  const tileFacilities = facilities.filter(
+    (f) => currencyFilter === "All" || f.currencyCode === currencyFilter,
+  );
+  function setCreditTab(tab: CreditTab) {
+    setCreditTabState(tab);
+    writeSession(SELECTED_TAB_KEY, tab);
+  }
+  function selectFacility(f: Facility) {
+    setSelectedFacilityId(f.id);
+    writeSession(SELECTED_KEY, f.id);
+  }
+  /** Opens an operation page (kept as its own route) with the selected credit preselected. */
+  function openOperation(
+    f: Facility,
+    target: "schedule-create" | "movement-create" | "security-create",
+  ) {
+    selectFacility(f);
+    writeSession(
+      OPERATION_DRAFT_KEY,
+      JSON.stringify({ facilityId: f.id, view: target }),
+    );
+    if (target === "schedule-create") {
+      setFacilityId(f.id);
+      onNavigate?.("finance-credit-schedule-create", "Taksit planla");
+    } else if (target === "movement-create") {
+      setMovementFacilityId(f.id);
+      setAccountId("");
+      setMovementScheduleId("");
+      onNavigate?.("finance-credit-movement-create", "Kredi kullandırımı");
+    } else {
+      setSecurityFacilityId(f.id);
+      onNavigate?.("finance-credit-security-create", "Teminat kaydı");
+    }
+  }
+  async function exportCredits() {
+    try {
+      const XLSX = await import("xlsx");
+      const rows = [
+        [
+          "Kredi",
+          "Tür",
+          "Banka / kurum",
+          "Para birimi",
+          "Onaylı limit",
+          "Toplam kullandırım",
+          "Limit kullanımı %",
+          "Geri ödenen anapara",
+          "Açık anapara",
+          "Açık taksit",
+          "Açık taksit toplamı",
+          "Yıllık faiz %",
+          "Başlangıç",
+          "Vade",
+          "Durum",
+        ],
+        ...visibleFacilities.map((f) => [
+          f.code,
+          facilityTypeLabel(f.facilityType),
+          f.lenderName,
+          f.currencyCode,
+          f.approvedLimit,
+          f.totalDrawdown,
+          Math.round(drawnShare(f) * 10000) / 100,
+          f.principalRepaid,
+          f.outstandingPrincipal,
+          f.openScheduleCount,
+          f.openScheduleTotal,
+          f.annualInterestRatePercent ?? "",
+          f.startDate,
+          f.maturityDate ?? "",
+          f.status === "Active" ? "Aktif" : "Kapalı",
+        ]),
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), "Krediler");
+      XLSX.writeFileXLSX(workbook, `krediler-${today()}.xlsx`);
+    } catch {
+      setError("XLSX dosyası oluşturulamadı.");
+    }
+  }
+  const facilitySecurities = (f: Facility) =>
+    securities.filter((item) => item.creditFacilityId === f.id);
   const pageTitle =
     view === "facility-create"
       ? "Yeni kredi / limit"
@@ -781,7 +927,7 @@ export default function CreditFacilitiesPage({
             : "Kredi kullandırımı kaydet";
   return (
     <div
-      className={`finance-page credit-facilities-page${isList ? " list-v2" : " credit-operation-screen"}`}
+      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " credit-operation-screen"}`}
     >
       {isList ? (
         <CreditFacilitiesPageStatus
@@ -793,12 +939,8 @@ export default function CreditFacilitiesPage({
           onCreateFacility={() =>
             onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit")
           }
-          onCreateSchedule={() =>
-            onNavigate?.("finance-credit-schedule-create", "Taksit planla")
-          }
-          onCreateMovement={() =>
-            onNavigate?.("finance-credit-movement-create", "Kredi kullandırımı")
-          }
+          onExport={() => void exportCredits()}
+          exportDisabled={visibleFacilities.length === 0}
           onRefresh={() => void load()}
           onDismissNotice={() => setNotice("")}
         />
@@ -837,17 +979,12 @@ export default function CreditFacilitiesPage({
         </div>
       )}
       {isList && (
-        <>
-          <CreditFacilitiesSummary
-            summaries={currencySummaries}
-            formatMoney={money}
-          />
-          <CreditExposurePanel
-            exposure={exposure}
-            formatMoney={money}
-            visibleFacilityFields={visibleExposureFields}
-          />
-        </>
+        <CreditFacilitiesSummary
+          summaries={currencySummaries}
+          facilities={tileFacilities}
+          today={today()}
+          horizon={daysAhead(30)}
+        />
       )}
       <CreditFacilitySetup
         isAdmin={admin}
@@ -983,6 +1120,54 @@ export default function CreditFacilitiesPage({
           <CreditFacilityRegister
             facilities={facilities}
             visibleFacilities={visibleFacilities}
+            selected={selectedFacility}
+            tab={creditTab}
+            onSelect={selectFacility}
+            onTabChange={setCreditTab}
+            securityCount={(f) => facilitySecurities(f).length}
+            onRecordMovement={(f) => openOperation(f, "movement-create")}
+            onPlanSchedule={(f) => openOperation(f, "schedule-create")}
+            renderSecurities={(f) => {
+              const rows = facilitySecurities(f);
+              return (
+                <CreditSecuritiesPanel
+                  embedded
+                  isAdmin={admin}
+                  facilities={facilities}
+                  securities={rows}
+                  expiringCount={rows.filter((item) => item.alert === "Expiring").length}
+                  expiredCount={rows.filter((item) => item.alert === "Expired").length}
+                  busy={busy}
+                  showCreateForm={false}
+                  visibleFields={visibleSecurityFields}
+                  onNavigate={onNavigate}
+                  onCreate={() => openOperation(f, "security-create")}
+                  facilityId={securityFacilityId}
+                  type={securityType}
+                  code={securityCode}
+                  issuer={securityIssuer}
+                  beneficiary={securityBeneficiary}
+                  amount={securityAmount}
+                  commission={securityCommission}
+                  issueDate={securityIssueDate}
+                  expiryDate={securityExpiryDate}
+                  notes={securityNotes}
+                  formatMoney={money}
+                  onSubmit={submitSecurity}
+                  onClose={(item, status) => void closeSecurity(item, status)}
+                  onFacilityChange={setSecurityFacilityId}
+                  onTypeChange={setSecurityType}
+                  onCodeChange={setSecurityCode}
+                  onIssuerChange={setSecurityIssuer}
+                  onBeneficiaryChange={setSecurityBeneficiary}
+                  onAmountChange={setSecurityAmount}
+                  onCommissionChange={setSecurityCommission}
+                  onIssueDateChange={setSecurityIssueDate}
+                  onExpiryDateChange={setSecurityExpiryDate}
+                  onNotesChange={setSecurityNotes}
+                />
+              );
+            }}
             loading={loading}
             admin={admin}
             search={search}
@@ -1027,45 +1212,43 @@ export default function CreditFacilitiesPage({
               void reverseMovement(facility, movement)
             }
           />
-          <CreditSecuritiesPanel
-            isAdmin={admin}
-            facilities={facilities}
-            securities={securities}
-            expiringCount={expiringSecurities}
-            expiredCount={expiredSecurities}
-            busy={busy}
-            showCreateForm={false}
-            visibleFields={visibleSecurityFields}
-            onNavigate={onNavigate}
-            facilityId={securityFacilityId}
-            type={securityType}
-            code={securityCode}
-            issuer={securityIssuer}
-            beneficiary={securityBeneficiary}
-            amount={securityAmount}
-            commission={securityCommission}
-            issueDate={securityIssueDate}
-            expiryDate={securityExpiryDate}
-            notes={securityNotes}
-            formatMoney={money}
-            onSubmit={submitSecurity}
-            onClose={(item, status) => void closeSecurity(item, status)}
-            onFacilityChange={setSecurityFacilityId}
-            onTypeChange={setSecurityType}
-            onCodeChange={setSecurityCode}
-            onIssuerChange={setSecurityIssuer}
-            onBeneficiaryChange={setSecurityBeneficiary}
-            onAmountChange={setSecurityAmount}
-            onCommissionChange={setSecurityCommission}
-            onIssueDateChange={setSecurityIssueDate}
-            onExpiryDateChange={setSecurityExpiryDate}
-            onNotesChange={setSecurityNotes}
-          />
-          <div className="boundary-note">
+          <details
+            className="cf-exposure"
+            open={exposureOpen}
+            onToggle={(event) => setExposureOpen(event.currentTarget.open)}
+          >
+            <summary>
+              <span>Para birimi bazında maruziyet</span>
+              {(expiredSecurities > 0 || expiringSecurities > 0) && (
+                <small>
+                  {expiredSecurities > 0 && (
+                    <span className="is-danger">{`${expiredSecurities} vadesi geçmiş teminat`}</span>
+                  )}
+                  {expiredSecurities > 0 && expiringSecurities > 0 && " · "}
+                  {expiringSecurities > 0 && (
+                    <span>{`${expiringSecurities} teminat 30 gün içinde`}</span>
+                  )}
+                </small>
+              )}
+            </summary>
+            <p className="fh-note">
+              Para birimleri ayrı gösterilir; kur çevrimi yapılmaz. Çağrılmış
+              teminat nakit hareketi sayılmaz.
+            </p>
+            {/* A closed <details> has no width: the grid mounts only while the section is open. */}
+            {exposureOpen && (
+              <CreditExposurePanel
+                exposure={exposure}
+                formatMoney={money}
+                visibleFacilityFields={visibleExposureFields}
+              />
+            )}
+          </details>
+          <p className="fh-note">
             Faiz tahakkuku ve finansman hareketlerinin muhasebe/nakit etkileri
             kayıt türüne göre doğrulanır. Maruziyet özeti limitleri, açık
             anaparayı ve teminatları para birimi bazında ayrı gösterir.
-          </div>
+          </p>
         </>
       )}
     </div>

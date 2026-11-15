@@ -10,6 +10,9 @@ type Props = {
   searchDraft: string;
   filter: StatusFilter;
   kindFilter: KindFilter;
+  /** Counts for the active direction tab (with the type and search filters); omit while unknown. */
+  statusCounts?: Partial<Record<Status, number>>;
+  totalCount?: number;
   onSearchDraftChange: (value: string) => void;
   /** Applies the typed search text; called while typing (debounced) and on Enter. */
   onSearch: () => void;
@@ -24,6 +27,8 @@ export function PaymentInstrumentListToolbar({
   searchDraft,
   filter,
   kindFilter,
+  statusCounts,
+  totalCount,
   onSearchDraftChange,
   onSearch,
   onFilterChange,
@@ -42,25 +47,27 @@ export function PaymentInstrumentListToolbar({
       onRefresh={onRefresh}
     >
       <ListChipGroup
-        label="Türe göre filtrele"
-        value={kindFilter}
-        onChange={(value) => onKindFilterChange(value as KindFilter)}
-        options={[
-          { value: "All", label: "Çek ve senet" },
-          { value: "Check", label: "Çekler" },
-          { value: "PromissoryNote", label: "Senetler" },
-        ]}
-      />
-      <ListChipGroup
         label="Duruma göre filtrele"
         value={filter}
         onChange={(value) => onFilterChange(value as StatusFilter)}
+        hideEmpty={!!statusCounts}
         options={[
-          { value: "All", label: "Tüm durumlar" },
+          { value: "All", label: "Tümü", count: totalCount },
           ...(Object.keys(statusText) as Status[]).map((value) => ({
             value,
             label: statusText[value],
+            count: statusCounts ? (statusCounts[value] ?? 0) : undefined,
           })),
+        ]}
+      />
+      <ListChipGroup
+        label="Türe göre filtrele"
+        value={kindFilter === "All" ? "" : kindFilter}
+        allowClear
+        onChange={(value) => onKindFilterChange((value || "All") as KindFilter)}
+        options={[
+          { value: "Check", label: "Çek" },
+          { value: "PromissoryNote", label: "Senet" },
         ]}
       />
     </ListToolbar>

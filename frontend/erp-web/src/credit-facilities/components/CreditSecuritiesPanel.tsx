@@ -25,6 +25,10 @@ type Props = {
   showCreateForm?: boolean;
   visibleFields?: ScreenField[];
   onNavigate?: (page: string, label?: string) => void;
+  /** Replaces the default "Teminat ekle" navigation (e.g. to preselect the credit). */
+  onCreate?: () => void;
+  /** Rendered inside the selected credit's "Teminatlar" tab: no outer box. */
+  embedded?: boolean;
   facilities: Facility[];
   securities: Security[];
   expiringCount: number;
@@ -136,13 +140,19 @@ export function CreditSecuritiesPanel(props: Props) {
   };
   return (
     <section
-      className={`panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`}
+      className={
+        props.embedded
+          ? "cf-securities"
+          : `panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`
+      }
       aria-labelledby="credit-securities-title"
     >
-      <div className="credit-records-heading">
+      <div className={props.embedded ? "cf-pane-head" : "credit-records-heading"}>
         <div>
-          <h2 id="credit-securities-title">Teminat ve garantiler</h2>
-          <p>
+          {!props.embedded && (
+            <h2 id="credit-securities-title">Teminat ve garantiler</h2>
+          )}
+          <p id={props.embedded ? "credit-securities-title" : undefined}>
             Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına
             veya muhasebeye otomatik tutar eklemez.
           </p>
@@ -167,10 +177,12 @@ export function CreditSecuritiesPanel(props: Props) {
               type="button"
               className="primary small-button"
               onClick={() =>
-                props.onNavigate?.(
-                  "finance-credit-security-create",
-                  "Teminat kaydı",
-                )
+                props.onCreate
+                  ? props.onCreate()
+                  : props.onNavigate?.(
+                      "finance-credit-security-create",
+                      "Teminat kaydı",
+                    )
               }
             >
               Teminat ekle
