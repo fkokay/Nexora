@@ -68,8 +68,8 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         <div className="low-code-designer-mark"><LayoutTemplate size={24} /></div>
         <div className="low-code-designer-title">
           <span>LOW-CODE STUDIO</span>
-          <h1>Sayfa Tasarımcısı</h1>
-          <p>Özel sayfalar oluşturun, ızgaralar ekleyin ve veri kolonlarını düzenleyin.</p>
+          <h1>{active === "pages" ? "Sayfa Tasarımcısı" : sections.find((item) => item.id === active)?.label ?? "Sayfa Tasarımcısı"}</h1>
+          <p>{active === "pages" ? "Özel sayfalar oluşturun, ızgaralar ekleyin ve veri kolonlarını düzenleyin." : sections.find((item) => item.id === active)?.description}</p>
         </div>
         <div className="low-code-designer-state"><i /> Taslaklar güvenle kaydedilir</div>
       </header>
