@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { authenticatedFetch } from "./authApi";
@@ -761,8 +762,12 @@ export function TenantModuleNavigation({
       }),
     [modules],
   );
+  // The parent passes a fresh callback on every render; depending on it would re-publish the
+  // items, re-render the parent and loop. Only a change in the entries publishes them again.
+  const onSearchItemsRef = useRef(onSearchItems);
+  onSearchItemsRef.current = onSearchItems;
   useEffect(() => {
-    onSearchItems?.(
+    onSearchItemsRef.current?.(
       entries.map((item) => ({
         page: `module:${item.moduleCode}:${item.entry.code}`,
         label: item.entry.label,
@@ -770,7 +775,7 @@ export function TenantModuleNavigation({
         selection: item,
       })),
     );
-  }, [entries, onSearchItems]);
+  }, [entries]);
   if (!entries.length) return null;
   return (
     <>
