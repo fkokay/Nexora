@@ -124,7 +124,12 @@
     font-weight: 600;
   }
   #root .record-form.purchase-order-create .po-create-lines td.po-col-stock { grid-column: 1 / -1; }
-  #root .record-form.purchase-order-create .po-create-lines td.po-col-remove { align-items: flex-end; justify-content: flex-end; }
+  /* Cards: cells grow with their content (a global td height clipped the stock picker),
+     and the remove button sits in the card's top-right corner instead of floating mid-card. */
+  #root .record-form.purchase-order-create .po-create-lines tr { position: relative; }
+  #root .record-form.purchase-order-create .po-create-lines td { height: auto !important; min-height: 0; }
+  #root .record-form.purchase-order-create .po-create-lines td.po-col-stock { padding-right: 40px; }
+  #root .record-form.purchase-order-create .po-create-lines td.po-col-remove { position: absolute; top: 10px; right: 10px; }
 }
 
 /* Not ve toplamlar: dar ekranda tek kolon. */

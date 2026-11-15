@@ -7176,7 +7176,7 @@ function PurchasingPanel({
           <div className="customer-table-wrap">
             <AdvancedDataGrid
               className="customer-table quote-table"
-              gridId="purchase-orders"
+              gridId="purchase-orders-v2"
               {...screenViewGridDefaults(visibleOrderScreenFields)}
               externalPagination
               hideSearch

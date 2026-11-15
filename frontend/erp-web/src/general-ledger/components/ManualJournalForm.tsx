@@ -17,6 +17,8 @@ export type ManualJournalFormProps = {
   role: string;
   busy: boolean;
   accounts: LedgerAccount[];
+  /** False until the first account load finishes; hides the empty-chart warning meanwhile. */
+  accountsLoaded?: boolean;
   manualDate: string;
   setManualDate: Dispatch<SetStateAction<string>>;
   manualAccountingBasis: "TDHP" | "IFRS";
@@ -41,6 +43,7 @@ export function ManualJournalForm({
   role,
   busy,
   accounts,
+  accountsLoaded,
   manualDate,
   setManualDate,
   manualAccountingBasis,
@@ -295,7 +298,7 @@ export function ManualJournalForm({
                 </button>
               </div>
             )}
-            {activeAccounts.length === 0 && (
+            {accountsLoaded !== false && activeAccounts.length === 0 && (
               <div className="gl-voucher-error" role="status">
                 <span>Aktif hesap yok; fiş kaydedilemez. Önce hesap planına hesap ekleyin.</span>
               </div>

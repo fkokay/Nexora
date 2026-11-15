@@ -177,7 +177,7 @@ export function ForeignTradeGrid({
   return (
     <div className="table-wrap">
       <AdvancedDataGrid
-        gridId="foreign-trade-files"
+        gridId="foreign-trade-files-v2"
         {...screenViewGridDefaults(visibleFields)}
         enableRowSelection={false}
         hideSearch

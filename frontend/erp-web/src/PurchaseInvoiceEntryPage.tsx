@@ -524,7 +524,7 @@ export default function PurchaseInvoiceEntryPage({
         <div className="pie-list-column">
           <div className="pie-table-wrap list-v2-list">
             <AdvancedDataGrid
-              gridId="purchase-invoice-receipt-selection"
+              gridId="purchase-invoice-receipt-selection-v2"
               {...screenViewGridDefaults(visibleFields)}
               hideSearch
               externalPagination

@@ -374,3 +374,12 @@ html[data-theme="dark"] .dd-tabs {
   #root .doc-surface.doc-detail .dd-drawer,
   #root .doc-surface.doc-detail .dd-drawer-scrim { display: none; }
 }
+
+/* Dar ekranda satır tablosu sayfayı yana taşırmaz; kendi içinde kayar. */
+@media (max-width: 700px) {
+  #root .doc-surface.doc-detail table.dd-lines {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

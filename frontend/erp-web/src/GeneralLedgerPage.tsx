@@ -262,6 +262,8 @@ export default function GeneralLedgerPage({
   view?: LedgerView;
   onNavigate?: (page: string) => void;
 }) {
+  // The "no active account" warning must wait for the first load, not flash while it runs.
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [accounts, setAccounts] = useState<LedgerAccount[]>([]),
     [mappings, setMappings] = useState<LedgerMapping[]>([]),
     [entries, setEntries] = useState<JournalEntrySummary[]>([]),
@@ -432,6 +434,7 @@ export default function GeneralLedgerPage({
             : Promise.resolve(mappings),
         ]);
         setAccounts(a);
+        setAccountsLoaded(true);
         setMappings(m);
       }
       if (view === "journal-ledger") {
@@ -1891,6 +1894,7 @@ export default function GeneralLedgerPage({
           role={role}
           busy={busy}
           accounts={accounts}
+          accountsLoaded={accountsLoaded}
           manualDate={manualDate}
           setManualDate={setManualDate}
           manualAccountingBasis={manualAccountingBasis}
