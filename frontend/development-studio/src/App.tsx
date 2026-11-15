@@ -53,6 +53,7 @@ import "./studio-dashboard.css";
 import "./studio-adaptation-reference.css";
 import "./studio-analytics-reference.css";
 import { resolvePlatformOrigin } from "./platformOrigin";
+import { confirmDialog } from "./ui/confirmDialog";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type DevelopmentProject = {
@@ -472,9 +473,11 @@ export default function App() {
   ) {
     if (
       remove &&
-      !window.confirm(
-        `${item.manifest?.displayName || item.moduleCode} modülünü tenant kataloğunuzdan çıkarmak istiyor musunuz?`,
-      )
+      !(await confirmDialog({
+        title: `${item.manifest?.displayName || item.moduleCode} kataloğunuzdan çıkarılsın mı?`,
+        message: "Modül bu firmanın kataloğundan kaldırılır. Daha sonra pazaryerinden yeniden ekleyebilirsiniz.",
+        confirmLabel: "Kataloğdan çıkar",
+      }))
     )
       return;
     setMarketplaceBusy(item.moduleCode);
@@ -744,9 +747,12 @@ export default function App() {
   async function deleteRequest(request: DevelopmentRequest) {
     if (!request.canEdit || request.status !== "Submitted") return;
     if (
-      !window.confirm(
-        `“${request.title}” talebini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
-      )
+      !(await confirmDialog({
+        title: "Talep silinsin mi?",
+        message: `“${request.title}” kalıcı olarak silinir. Bu işlem geri alınamaz.`,
+        tone: "danger",
+        confirmLabel: "Talebi sil",
+      }))
     )
       return;
     setBusy(true);

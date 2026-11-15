@@ -1,0 +1,85 @@
+/*
+ * Nexora Studio tasarım token'ları. Tüm Studio stilleri renk, yazı, boşluk ve köşe değerlerini buradan alır.
+ * Vurgu ve mürekkep rengi sayfa tasarımcısıyla (custom-pages / low-code-designer, --pd-*) aynıdır.
+ * Studio yalnız açık temada çalışır; editör ve terminal yüzeyleri koyu token'ları kullanır.
+ */
+:root {
+  --ns-accent: #6844df;
+  --ns-accent-hover: #5733cc;
+  --ns-accent-soft: #f3f0ff;
+  --ns-accent-line: #d9d0fb;
+  --ns-on-accent: #ffffff;
+
+  --ns-ink: #14213d;
+  --ns-text: #2b3650;
+  --ns-muted: #66758c;
+  --ns-faint: #8a96aa;
+
+  --ns-line: #dfe5ef;
+  --ns-line-strong: #c9d2e0;
+  --ns-soft: #f5f7fb;
+  --ns-surface: #ffffff;
+  --ns-canvas: #f7f8fb;
+
+  --ns-success: #067647;
+  --ns-success-soft: #ecfdf3;
+  --ns-success-line: #abefc6;
+  --ns-warning: #b54708;
+  --ns-warning-soft: #fffaeb;
+  --ns-warning-line: #fedf89;
+  --ns-danger: #b42318;
+  --ns-danger-hover: #912018;
+  --ns-danger-soft: #fef3f2;
+  --ns-danger-line: #fecdca;
+  --ns-info: #175cd3;
+  --ns-info-soft: #eff8ff;
+  --ns-info-line: #b2ddff;
+
+  --ns-code-bg: #1e1e2a;
+  --ns-code-panel: #262636;
+  --ns-code-line: #34344a;
+  --ns-code-text: #d4d7e3;
+  --ns-code-muted: #8b8fa6;
+
+  --ns-backdrop: rgb(12 18 38 / 0.56);
+  --ns-shadow-pop: 0 24px 64px rgb(11 16 32 / 0.28);
+  --ns-shadow-menu: 0 8px 24px rgb(11 16 32 / 0.12);
+  --ns-focus: 0 0 0 3px var(--ns-accent-soft), 0 0 0 1px var(--ns-accent);
+
+  --ns-font-body: "DM Sans", Inter, system-ui, sans-serif;
+  --ns-font-display: Manrope, "DM Sans", system-ui, sans-serif;
+  --ns-font-mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+
+  --ns-text-xs: 11px;
+  --ns-text-sm: 12px;
+  --ns-text-md: 13px;
+  --ns-text-lg: 15px;
+  --ns-text-xl: 20px;
+  --ns-text-2xl: 26px;
+
+  --ns-space-1: 4px;
+  --ns-space-2: 8px;
+  --ns-space-3: 12px;
+  --ns-space-4: 16px;
+  --ns-space-5: 24px;
+  --ns-space-6: 32px;
+
+  --ns-radius-xs: 6px;
+  --ns-radius-sm: 8px;
+  --ns-radius-md: 12px;
+  --ns-radius-lg: 14px;
+
+  --ns-control-h: 34px;
+  --ns-control-h-sm: 28px;
+
+  /* Sayfa tasarımcısının (PR #49) değişkenleri bu token'lara bağlanır. */
+  --pd-accent: var(--ns-accent);
+  --pd-accent-soft: var(--ns-accent-soft);
+  --pd-accent-line: var(--ns-accent-line);
+  --pd-ink: var(--ns-ink);
+  --pd-muted: var(--ns-muted);
+  --pd-faint: var(--ns-faint);
+  --pd-line: var(--ns-line);
+  --pd-soft: var(--ns-soft);
+  --pd-danger: var(--ns-danger);
+}

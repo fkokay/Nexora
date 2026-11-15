@@ -1,12 +1,15 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { ConfirmDialogHost } from "./ui/confirmDialog";
+import "./tokens.css";
 import "./base.css";
 import "./studio.css";
 import "./studio-analytics.css";
 import "./studio-reference.css";
 import "./studio-dashboard-reference.css";
 import "./release-workflow.css";
+import "./ui/ui.css";
 
 // A deployment can replace fingerprinted chunks while an older Studio tab is
 // still open. Recover once from Vite's failed lazy-import event by loading the
@@ -31,5 +34,6 @@ if (url.searchParams.get("app") !== "studio") {
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
+    <ConfirmDialogHost />
   </React.StrictMode>,
 );
