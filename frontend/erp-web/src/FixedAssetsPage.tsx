@@ -659,10 +659,18 @@ export default function FixedAssetsPage({
       setDisposal(result);
       setDisposalKey("");
       setPanelMode("summary");
+      // The API posts the disposal journal when the ledger mappings are complete; say so instead of
+      // always claiming nothing was posted.
+      const gainLoss = result.gainLossBase.toLocaleString(en ? "en-US" : "tr-TR", { minimumFractionDigits: 2 });
+      const bookValue = result.bookValueBase.toLocaleString(en ? "en-US" : "tr-TR", { minimumFractionDigits: 2 });
       setNotice(
-        en
-          ? `Asset disposed. Operational book value: ${result.bookValueBase.toLocaleString("en-US", { minimumFractionDigits: 2 })}. No journal entry was posted.`
-          : `Kıymet elden çıkarıldı. Operasyonel defter değeri: ${result.bookValueBase.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}. Yevmiye kaydı oluşturulmadı.`,
+        result.journalEntryId
+          ? en
+            ? `Asset disposed. Book value ${bookValue}, gain/loss ${gainLoss}. The disposal journal entry was posted.`
+            : `Kıymet elden çıkarıldı. Defter değeri ${bookValue}, kâr/zarar ${gainLoss}. Elden çıkarma yevmiye fişi oluşturuldu.`
+          : en
+            ? `Asset disposed. Operational book value: ${bookValue}. No journal entry was posted.`
+            : `Kıymet elden çıkarıldı. Operasyonel defter değeri: ${bookValue}. Yevmiye kaydı oluşturulmadı.`,
       );
       await load();
     } catch (e) {
