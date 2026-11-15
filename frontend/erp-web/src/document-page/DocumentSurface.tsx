@@ -24,6 +24,14 @@ export type DocumentSurfaceProps = {
   className?: string;
   /** Gövdeye eklenir; eski pencere kutusuna bağlı stiller için ("ledger-modal sales-detail-modal" gibi). */
   bodyClassName?: string;
+  /**
+   * "detail": yeniden tasarlanan belge detayı (document-detail/DocumentDetailLayout.tsx). Başlıkta küçük
+   * üst satır (`eyebrow`, verilmezse `title`), büyük belge numarası ve yanında durum etiketi, altında
+   * cari bağlantısı (`subtitle`) yer alır; gövde çerçevesiz akar.
+   */
+  variant?: "legacy" | "detail";
+  /** Yalnızca "detail" görünümünde: belge türü satırı ("Satış teklifi · Revizyon 2"). */
+  eyebrow?: ReactNode;
   children: ReactNode;
 };
 
@@ -43,8 +51,11 @@ export function DocumentSurface({
   actions,
   className,
   bodyClassName,
+  variant = "legacy",
+  eyebrow,
   children,
 }: DocumentSurfaceProps) {
+  const detail = variant === "detail";
   const titleId = useId();
   const anchorRef = useRef<HTMLSpanElement | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
@@ -84,7 +95,7 @@ export function DocumentSurface({
   const surface = (
     <section
       style={{ "--doc-sticky-top": `${stickyTop}px` } as CSSProperties}
-      className={`doc-surface${floating ? " doc-surface-floating" : ""}${className ? ` ${className}` : ""}`}
+      className={`doc-surface${detail ? " doc-detail" : ""}${floating ? " doc-surface-floating" : ""}${className ? ` ${className}` : ""}`}
       role={floating ? "dialog" : "region"}
       aria-modal={floating ? true : undefined}
       aria-labelledby={titleId}
@@ -93,14 +104,28 @@ export function DocumentSurface({
         <button type="button" className="doc-surface-back" onClick={onClose} aria-label={closeLabel} title={closeLabel}>
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
-        <div className="doc-surface-title">
-          <h1 id={titleId}>
-            <span>{title}</span>
-            {code && <b>{code}</b>}
-          </h1>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-        {status && <span className={`doc-surface-status is-${status.tone}`}>{status.label}</span>}
+        {detail ? (
+          <div className="doc-surface-title">
+            <p className="doc-surface-eyebrow">{eyebrow ?? title}</p>
+            <div className="doc-surface-code-row">
+              <h1 id={titleId}>
+                <span className="doc-surface-sr">{title} </span>
+                <b>{code || "…"}</b>
+              </h1>
+              {status && <span className={`doc-surface-status is-${status.tone}`}>{status.label}</span>}
+            </div>
+            {subtitle && <div className="doc-surface-party">{subtitle}</div>}
+          </div>
+        ) : (
+          <div className="doc-surface-title">
+            <h1 id={titleId}>
+              <span>{title}</span>
+              {code && <b>{code}</b>}
+            </h1>
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+        )}
+        {!detail && status && <span className={`doc-surface-status is-${status.tone}`}>{status.label}</span>}
         {actions && <div className="doc-surface-actions">{actions}</div>}
       </header>
       <div className={`doc-surface-body${bodyClassName ? ` ${bodyClassName}` : ""}`}>{children}</div>

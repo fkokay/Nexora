@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ScreenColumnPin } from "../../erp-types";
-import { ArrowRight, Globe2, RefreshCw } from "lucide-react";
+import { Globe2, RefreshCw } from "lucide-react";
 import { localizedText } from "../../locale";
 import type {
   Direction,
@@ -25,14 +25,52 @@ export type ForeignTradeScreenField = {
 export const defaultForeignTradeFields: (ForeignTradeScreenField & {
   enLabel: string;
 })[] = [
-  { key: "reference", label: "Referans", enLabel: "Reference", visible: true, position: 0 },
-  { key: "direction", label: "Yön", enLabel: "Direction", visible: true, position: 1 },
-  { key: "linkedOrder", label: "Bağlı sipariş", enLabel: "Linked order", visible: true, position: 2 },
-  { key: "countries", label: "Ülkeler", enLabel: "Countries", visible: true, position: 3 },
-  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 4 },
-  { key: "transportMode", label: "Taşıma şekli", enLabel: "Transport mode", visible: false, position: 5 },
-  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 6, fixed: true },
+  { key: "reference", label: "Dosya", enLabel: "Case", visible: true, position: 0 },
+  { key: "direction", label: "Yön", enLabel: "Direction", visible: false, position: 1 },
+  { key: "linkedOrder", label: "Sipariş / cari", enLabel: "Order / account", visible: true, position: 2 },
+  { key: "countries", label: "Rota", enLabel: "Route", visible: true, position: 3 },
+  { key: "dates", label: "Sevk → varış", enLabel: "Ship → arrival", visible: true, position: 4 },
+  { key: "status", label: "Durum", enLabel: "Status", visible: true, position: 5 },
+  { key: "transportMode", label: "Taşıma şekli", enLabel: "Transport mode", visible: false, position: 6 },
+  { key: "actions", label: "İşlem", enLabel: "Action", visible: true, position: 7, fixed: true },
 ];
+
+/** Standard labels from the backend screen-view catalog (TenantScreenViewEndpoints) before the redesign. */
+const legacyStandardLabels: Record<string, string> = {
+  reference: "Referans",
+  linkedOrder: "Bağlı sipariş",
+  countries: "Ülkeler",
+};
+
+/**
+ * A tenant-published layout only knows the backend catalog keys; the frontend-only
+ * "dates" column is added right after the route column so published views still get it.
+ */
+export function withFrontendForeignTradeFields(
+  fields: ForeignTradeScreenField[],
+): ForeignTradeScreenField[] {
+  if (fields.some((field) => field.key === "dates")) return fields;
+  const route = fields.find((field) => field.key === "countries");
+  const standard = defaultForeignTradeFields.find((field) => field.key === "dates")!;
+  return [
+    ...fields,
+    {
+      key: "dates",
+      label: standard.label,
+      visible: true,
+      position: (route?.position ?? fields.length) + 0.5,
+    },
+  ];
+}
+
+// Intl renders day+month as "15/11" for tr in some engines; the app writes dates as "15.11".
+const shortDate = (value: string | null, locale: string) => {
+  if (!value) return "—";
+  const [, month, day] = value.slice(0, 10).split("-");
+  return locale.startsWith("en") ? `${month}/${day}` : `${day}.${month}`;
+};
+const fullDate = (value: string | null, locale: string) =>
+  value ? new Date(`${value}T00:00:00`).toLocaleDateString(locale) : "—";
 
 type Props = {
   items: TradeCase[];
@@ -43,6 +81,7 @@ type Props = {
   capabilities: TradeCapabilities;
   statusLabel: (status: TradeStatus) => string;
   directionLabel: (direction: Direction) => string;
+  /** Called with the clicked case; the page deselects when it is already selected. */
   onSelect: (item: TradeCase) => void;
   /** Page-level toolbar element that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
@@ -52,6 +91,7 @@ type Props = {
 
 const tr = (turkish: string, english: string) =>
   localizedText(turkish, english);
+const locale = () => localizedText("tr-TR", "en-US");
 
 export function ForeignTradeGrid({
   items,
@@ -78,7 +118,9 @@ export function ForeignTradeGrid({
     );
     return standard && standard.label === field.label
       ? tr(standard.label, standard.enLabel)
-      : field.label;
+      : standard && legacyStandardLabels[field.key] === field.label
+        ? tr(standard.label, standard.enLabel)
+        : field.label;
   };
   if (loading)
     return (
@@ -114,8 +156,8 @@ export function ForeignTradeGrid({
         <span>
           {caseCount
             ? tr(
-                "Arama metnini veya yön filtresini değiştirerek tekrar deneyin.",
-                "Change the search text or direction filter and try again.",
+                "Arama metnini, yön veya aşama filtresini değiştirerek tekrar deneyin.",
+                "Change the search text, direction or stage filter and try again.",
               )
             : tr(
                 "İthalat veya ihracat siparişine bağlı yeni dosya oluşturarak sevkiyat sürecini izlemeye başlayın.",
@@ -157,14 +199,14 @@ export function ForeignTradeGrid({
               switch (key) {
                 case "reference":
                   return (
-                    <>
+                    <span className="foreign-trade-file-cell">
                       <b>{item.referenceCode}</b>
-                      <small>
-                        {item.customsReference ||
-                          item.carrierReference ||
-                          tr("Referans bekleniyor", "Awaiting reference")}
-                      </small>
-                    </>
+                      <span
+                        className={`trade-direction ${item.direction.toLowerCase()}`}
+                      >
+                        {directionLabel(item.direction)}
+                      </span>
+                    </span>
                   );
                 case "direction":
                   return (
@@ -181,15 +223,40 @@ export function ForeignTradeGrid({
                       <small>{order.counterpartyName}</small>
                     </>
                   ) : (
-                    <span>{tr("Sipariş", "Order")}</span>
+                    <span className="list-v2-unset">—</span>
                   );
                 case "countries":
                   return (
                     <>
-                      {item.originCountryCode} <ArrowRight size={13} />{" "}
-                      {item.destinationCountryCode}
+                      <b className="foreign-trade-route">
+                        {item.originCountryCode} → {item.destinationCountryCode}
+                      </b>
+                      <small>
+                        {item.incotermsCode || "—"} ·{" "}
+                        {item.transportMode
+                          ? transportLabel(item.transportMode)
+                          : "—"}
+                      </small>
                     </>
                   );
+                case "dates": {
+                  const ship = item.actualShipDate || item.plannedShipDate;
+                  const arrival =
+                    item.actualArrivalDate || item.plannedArrivalDate;
+                  if (!ship && !arrival)
+                    return <span className="list-v2-unset">—</span>;
+                  const title = [
+                    `${tr("Planlanan sevk", "Planned shipment")}: ${fullDate(item.plannedShipDate, locale())}`,
+                    `${tr("Gerçek sevk", "Actual shipment")}: ${fullDate(item.actualShipDate, locale())}`,
+                    `${tr("Planlanan varış", "Planned arrival")}: ${fullDate(item.plannedArrivalDate, locale())}`,
+                    `${tr("Gerçek varış", "Actual arrival")}: ${fullDate(item.actualArrivalDate, locale())}`,
+                  ].join("\n");
+                  return (
+                    <span className="foreign-trade-dates" title={title}>
+                      {shortDate(ship, locale())} → {shortDate(arrival, locale())}
+                    </span>
+                  );
+                }
                 case "status":
                   return (
                     <span

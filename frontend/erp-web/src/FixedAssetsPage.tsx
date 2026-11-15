@@ -1,10 +1,12 @@
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import AdvancedDataGrid from "./AdvancedDataGrid";
-import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import type { Asset, AssetField } from "./fixed-assets/types";
-import { FixedAssetRegister } from "./fixed-assets/components/FixedAssetRegister";
+import {
+  FixedAssetRegister,
+  type FixedAssetRowAction,
+} from "./fixed-assets/components/FixedAssetRegister";
+import { Plus } from "lucide-react";
 import { localDateString } from "./dateUtils";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./fixed-assets.css";
@@ -125,7 +127,8 @@ type Page<T> = {
   pageSize: number;
   totalCount: number;
 };
-type ScreenView = { fields: AssetField[] };
+type ScreenView = { id?: string | null; fields: AssetField[] };
+type PanelMode = "summary" | "acquire" | "dispose" | "assign" | "depreciate";
 
 async function request<T>(
   url: string,
@@ -147,13 +150,24 @@ async function request<T>(
       : `İstek başarısız (${response.status})`;
     try {
       const body = await response.json();
+      // ProblemDetails: the field messages are the useful part; the title is a generic English text.
+      const fieldMessages =
+        body?.errors && typeof body.errors === "object"
+          ? Object.values(body.errors as Record<string, unknown>)
+              .flat()
+              .filter((value): value is string => typeof value === "string" && !!value.trim())
+              .join(" ")
+          : "";
+      const text = (value: unknown) =>
+        typeof value === "string" && value.trim() ? value : "";
+      const title =
+        text(body?.title) === "One or more validation errors occurred."
+          ? en
+            ? "Please check the entered information."
+            : "Girilen bilgileri kontrol edin."
+          : text(body?.title);
       message =
-        body.error ||
-        body.title ||
-        Object.values(body.errors || {})
-          .flat()
-          .join(" ") ||
-        message;
+        fieldMessages || text(body?.detail) || text(body?.error) || title || message;
     } catch {}
     throw new Error(message);
   }
@@ -223,7 +237,9 @@ export default function FixedAssetsPage({
     [assignmentView, setAssignmentView] = useState<ScreenView | null>(null);
   const [assetSearch, setAssetSearch] = useState(""),
     [assetStatus, setAssetStatus] = useState("all"),
-    [showAcquisition, setShowAcquisition] = useState(false);
+    [panelMode, setPanelMode] = useState<PanelMode>("summary"),
+    [assetListViewLoaded, setAssetListViewLoaded] = useState(false);
+  const showAcquisition = panelMode === "acquire";
   const stayAfterCreate = useRef(false);
   const load = useCallback(async () => {
     setLoading(true);
@@ -259,8 +275,10 @@ export default function FixedAssetsPage({
           ? page.items.find((x) => x.id === current.id) || null
           : page.items[0] || null,
       );
+      return page.items;
     } catch (e) {
       setError((e as Error).message);
+      return undefined;
     } finally {
       setLoading(false);
     }
@@ -322,6 +340,11 @@ export default function FixedAssetsPage({
           ),
         ]);
         setSchedule(nextSchedule);
+        // Offer the first period that is not posted yet.
+        setPeriod(
+          nextSchedule.rows.find((row) => !row.isPosted)?.periodStart.slice(0, 7) ??
+            "",
+        );
         setAssignments(nextAssignments);
         setDisposal(nextDisposal);
         setAcquisitionPosting(nextAcquisitionPosting);
@@ -364,6 +387,9 @@ export default function FixedAssetsPage({
       })
       .catch((e) => {
         if (active) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (active) setAssetListViewLoaded(true);
       });
     return () => {
       active = false;
@@ -506,7 +532,7 @@ export default function FixedAssetsPage({
           ? "Asset acquisition recorded. Link a posted purchase invoice when it already owns the accounting entry."
           : "Sabit kıymet edinimi kaydedildi. Muhasebe kaydı alış faturasındaysa faturayı bağlayın.",
       );
-      if (!stayAfterCreate.current) setShowAcquisition(false);
+      if (!stayAfterCreate.current) setPanelMode("summary");
       setCode("");
       setName("");
       setCategory("");
@@ -572,7 +598,11 @@ export default function FixedAssetsPage({
           ? "Depreciation posted to the general ledger."
           : "Amortisman deftere kaydedildi.",
       );
-      await load();
+      setPanelMode("summary");
+      // Reload the list (accumulated depreciation) and then the selected asset's schedule.
+      const items = await load();
+      const fresh = items?.find((item) => item.id === selected.id);
+      if (fresh) await loadDetails(fresh);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -628,6 +658,7 @@ export default function FixedAssetsPage({
       );
       setDisposal(result);
       setDisposalKey("");
+      setPanelMode("summary");
       setNotice(
         en
           ? `Asset disposed. Operational book value: ${result.bookValueBase.toLocaleString("en-US", { minimumFractionDigits: 2 })}. No journal entry was posted.`
@@ -662,6 +693,7 @@ export default function FixedAssetsPage({
         en,
       );
       setNotice(en ? "Custody assigned." : "Zimmet kaydedildi.");
+      setPanelMode("summary");
       setEmployeeId("");
       setLocation("");
       await loadDetails(selected);
@@ -705,8 +737,14 @@ export default function FixedAssetsPage({
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
   const assignmentFields = (assignmentView?.fields || defaultAssignmentFields)
-    .filter((field) => field.visible)
+    .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
+  const numberLocale = en ? "en-US" : "tr-TR";
+  const money = (value: number) =>
+    value.toLocaleString(numberLocale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   const activeAssets = assets.filter((asset) => asset.status === "Active");
   const totalCost = assets.reduce(
     (sum, asset) => sum + asset.acquisitionCostBase,
@@ -716,6 +754,27 @@ export default function FixedAssetsPage({
     (sum, asset) => sum + asset.accumulatedDepreciationBase,
     0,
   );
+  // Straight-line estimate for the current month: depreciation starts the month after the
+  // in-service month and runs for the useful life, until the depreciable base is used up.
+  const currentMonthIndex = (() => {
+    const [year, month] = localDateString().split("-").map(Number);
+    return year * 12 + month - 1;
+  })();
+  const thisMonthDepreciation = activeAssets.reduce((sum, asset) => {
+    const match = asset.inServiceDate.match(/^(\d{4})-(\d{2})/);
+    if (!match) return sum;
+    const elapsed =
+      currentMonthIndex - (Number(match[1]) * 12 + Number(match[2]) - 1);
+    const base = asset.acquisitionCostBase - asset.residualValueBase;
+    if (
+      elapsed < 1 ||
+      elapsed > asset.usefulLifeMonths ||
+      base <= 0 ||
+      asset.accumulatedDepreciationBase >= base
+    )
+      return sum;
+    return sum + monthlyDepreciation(asset);
+  }, 0);
   const filteredAssets = assets.filter((asset) => {
     const term = assetSearch.trim().toLocaleLowerCase(en ? "en-US" : "tr-TR");
     const matchesTerm =
@@ -730,6 +789,52 @@ export default function FixedAssetsPage({
         : asset.status !== "Active");
     return matchesTerm && matchesStatus;
   });
+  const selectedMonthly = selected ? monthlyDepreciation(selected) : 0;
+  const selectedMonthsDone =
+    selected && selectedMonthly > 0
+      ? Math.min(
+          selected.usefulLifeMonths,
+          Math.round(selected.accumulatedDepreciationBase / selectedMonthly),
+        )
+      : 0;
+  const currentHolder = assignments.find((item) => !item.returnedDate);
+  const linkedInvoice = selected?.purchaseInvoiceId
+    ? acquisitionPosting?.purchaseInvoiceCode ||
+      purchaseInvoices.find((item) => item.id === selected.purchaseInvoiceId)
+        ?.code ||
+      (en ? "Linked" : "Bağlı")
+    : "—";
+  const canAct = !!selected && !busy && !detailLoading && !detailError;
+  const selectedActive = selected?.status === "Active";
+  function openPanel(mode: PanelMode) {
+    setError("");
+    setNotice("");
+    if (mode === "assign" && !assignedDate) setAssignedDate(localDateString());
+    setPanelMode(mode);
+  }
+  function handleRowAction(asset: Asset, action: FixedAssetRowAction) {
+    setSelected(asset);
+    openPanel(
+      action === "depreciate"
+        ? "depreciate"
+        : action === "assign"
+          ? "assign"
+          : action === "dispose"
+            ? "dispose"
+            : "summary",
+    );
+  }
+  const assetFieldLabel = (key: string, label: string) => {
+    // The redesigned register uses shorter headings for the catalog defaults; tenant renames stay.
+    const short: Record<string, [string, string, string]> = {
+      acquisitionCostBase: ["Edinim maliyeti", "Maliyet", "Cost"],
+      remainingBookValueBase: ["Kalan defter değeri", "Net defter", "Net book value"],
+    };
+    const entry = short[key];
+    if (entry && entry[0] === label) return en ? entry[2] : entry[1];
+    return en ? assetFieldEnglish[key] || label : label;
+  };
+  const panelTitleId = "fixed-asset-panel-title";
   return (
     <div className="fixed-assets-page list-v2">
       <ListPageHeader
@@ -740,20 +845,16 @@ export default function FixedAssetsPage({
             : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
         }
         count={loading && !assets.length ? null : assets.length}
-        countLabel={en ? "records" : "kayıt"}
+        countLabel={en ? "assets" : "kıymet"}
       >
         <button
           type="button"
           className="primary"
-          onClick={() => setShowAcquisition((value) => !value)}
+          disabled={panelMode === "acquire"}
+          onClick={() => openPanel("acquire")}
         >
-          {showAcquisition
-            ? en
-              ? "Close form"
-              : "Formu kapat"
-            : en
-              ? "New acquisition"
-              : "Yeni edinim"}
+          <Plus size={16} aria-hidden="true" />
+          {en ? "New acquisition" : "Yeni edinim"}
         </button>
       </ListPageHeader>
       {error && (
@@ -761,7 +862,7 @@ export default function FixedAssetsPage({
           {error}
         </div>
       )}
-      {notice && (
+      {notice && panelMode !== "acquire" && (
         <div className="notice" role="status" aria-live="polite">
           {notice}
         </div>
@@ -772,63 +873,67 @@ export default function FixedAssetsPage({
       >
         <article>
           <span>{en ? "Acquisition cost" : "Edinim maliyeti"}</span>
-          <strong>
-            {totalCost.toLocaleString(en ? "en-US" : "tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-          </strong>
-          <small>
-            {en ? "Company base currency" : "Firma baz para birimi"}
-          </small>
+          <strong>{money(totalCost)}</strong>
         </article>
         <article>
           <span>{en ? "Accumulated depreciation" : "Birikmiş amortisman"}</span>
-          <strong>
-            {accumulatedDepreciation.toLocaleString(en ? "en-US" : "tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-          </strong>
-          <small>{en ? "Book total" : "Defter toplamı"}</small>
+          <strong>{money(accumulatedDepreciation)}</strong>
         </article>
         <article>
           <span>{en ? "Net book value" : "Net defter değeri"}</span>
-          <strong>
-            {(totalCost - accumulatedDepreciation).toLocaleString(
-              en ? "en-US" : "tr-TR",
-              { minimumFractionDigits: 2 },
-            )}
-          </strong>
-          <small>{en ? "Operational value" : "Operasyonel değer"}</small>
+          <strong>{money(totalCost - accumulatedDepreciation)}</strong>
+        </article>
+        <article>
+          <span>{en ? "Depreciation this month" : "Bu ay amortisman"}</span>
+          <strong>{money(thisMonthDepreciation)}</strong>
         </article>
       </section>
-      <FixedAssetRegister
-        assets={filteredAssets}
-        totalAssetCount={assets.length}
-        activeAssetCount={activeAssets.length}
-        onRefresh={() => {
-          if (loading || detailLoading || busy) return;
-          void load();
-          if (selected) void loadDetails(selected);
-        }}
-        fields={assetFields}
-        loading={loading}
-        search={assetSearch}
-        status={assetStatus}
-        selectedId={selected?.id ?? null}
-        locale={locale}
-        onSearchChange={setAssetSearch}
-        onStatusChange={setAssetStatus}
-        onSelect={setSelected}
-        fieldLabel={(key, label) =>
-          en ? assetFieldEnglish[key] || label : label
-        }
-        formatField={(asset, key) => formatAssetField(asset, key, en)}
-      />
-      {showAcquisition && (
-        <section
-          className="hrp-form-section"
-          aria-label={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
+      <div
+        className={`fixed-asset-workspace${panelMode === "acquire" ? " is-wide-panel" : ""}`}
+      >
+        <div className="fixed-asset-main">
+          <FixedAssetRegister
+            assets={filteredAssets}
+            totalAssetCount={assets.length}
+            activeAssetCount={activeAssets.length}
+            onRefresh={() => {
+              if (loading || detailLoading || busy) return;
+              void load();
+              if (selected) void loadDetails(selected);
+            }}
+            fields={assetFields}
+            layoutReady={assetListViewLoaded}
+            defaultLayout={!assetListView?.id}
+            loading={loading}
+            busy={busy}
+            search={assetSearch}
+            status={assetStatus}
+            selectedId={selected?.id ?? null}
+            locale={locale}
+            onSearchChange={setAssetSearch}
+            onStatusChange={setAssetStatus}
+            onSelect={(asset) => handleRowAction(asset, "details")}
+            onAction={handleRowAction}
+            fieldLabel={assetFieldLabel}
+            formatField={(asset, key) => formatAssetField(asset, key, en)}
+          />
+        </div>
+        <aside
+          className="fixed-asset-panel"
+          aria-labelledby={panelMode === "summary" ? panelTitleId : undefined}
+          aria-label={
+            panelMode === "summary"
+              ? undefined
+              : en
+                ? "Asset form"
+                : "Kıymet formu"
+          }
         >
+          {panelMode === "acquire" && (
+            <section
+              className="hrp-form-section"
+              aria-label={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
+            >
           <ModuleRecordForm
             title={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
             className="hrp-wide"
@@ -836,7 +941,7 @@ export default function FixedAssetsPage({
             busy={busy}
             saveLabel={en ? "Save acquisition" : "Edinimi kaydet"}
             onSubmit={createAsset}
-            onCancel={() => setShowAcquisition(false)}
+            onCancel={() => setPanelMode("summary")}
             onSaveIntent={(stay) => {
               stayAfterCreate.current = stay;
             }}
@@ -1140,48 +1245,437 @@ export default function FixedAssetsPage({
               </div>
             </div>
           </ModuleRecordForm>
-        </section>
-      )}
-
-      {selected && (
-        <>
-          <div
-            className="fixed-asset-detail-status"
-            role={detailError ? "alert" : "status"}
-            aria-live="polite"
-          >
-            {detailLoading
-              ? en
-                ? `Loading details for ${selected.assetCode}…`
-                : `${selected.assetCode} ayrıntıları yükleniyor…`
-              : detailError
-                ? en
-                  ? "Could not load the selected asset details. Use Refresh to try again."
-                  : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."
-                : en
-                  ? `Selected asset: ${selected.assetCode} · ${selected.name}`
-                  : `Seçili kıymet: ${selected.assetCode} · ${selected.name}`}
-          </div>
-          <section
-            className="panel"
-            aria-labelledby="acquisition-accounting-heading"
-          >
-            <div className="panel-heading">
-              <div>
-                <h3 id="acquisition-accounting-heading">
-                  {en ? "Acquisition accounting" : "Edinim muhasebesi"} ·{" "}
-                  {selected.assetCode}
-                </h3>
+            </section>
+          )}
+          {panelMode === "depreciate" && selected && (
+            <ModuleRecordForm
+              title={en ? "Post depreciation" : "Amortismanı kaydet"}
+              mode="create"
+              busy={busy}
+              saveDisabled={detailLoading || !!detailError || !selectedActive}
+              saveLabel={en ? "Post depreciation" : "Amortismanı kaydet"}
+              onSubmit={postDepreciation}
+              onCancel={() => setPanelMode("summary")}
+              status={
+                <span>
+                  {selected.assetCode} · {selected.name}
+                </span>
+              }
+            >
+              <RecordFormGroup title={en ? "Period" : "Dönem"}>
+                <label>
+                  {en ? "Post period" : "Kaydedilecek dönem"}
+                  <input
+                    type="month"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                    required
+                  />
+                </label>
+                <p className="fixed-asset-inline-note">
+                  {en
+                    ? "Monthly straight-line estimate begins in the month after service; posting requires ledger mappings."
+                    : "Aylık doğrusal tahmin kullanıma giriş ayını izleyen ay başlar; kayıt için defter eşleştirmeleri gerekir."}
+                </p>
+              </RecordFormGroup>
+            </ModuleRecordForm>
+          )}
+          {panelMode === "dispose" && selected && (
+            <>
+                <ModuleRecordForm
+                  title={en ? "Disposal record" : "Elden çıkarma kaydı"}
+                  mode="create"
+                  onCancel={() => setPanelMode("summary")}
+                  busy={busy}
+                  saveDisabled={
+                    detailLoading ||
+                    !!detailError ||
+                    selected.status !== "Active"
+                  }
+                  saveLabel={en ? "Record disposal" : "Elden çıkarmayı kaydet"}
+                  onSubmit={disposeAsset}
+                >
+                  <RecordFormGroup
+                    title={en ? "Disposal" : "Elden Çıkarma"}
+                    bodyClassName="rf-identity hrp-identity-3"
+                  >
+                    <label>
+                      {en ? "Disposal date" : "Elden çıkarma tarihi"}
+                      <input
+                        type="date"
+                        value={disposalDate}
+                        onChange={(e) => setDisposalDate(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      {en
+                        ? "Proceeds (base currency)"
+                        : "Tahsilat (baz para birimi)"}
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={disposalProceeds}
+                        onChange={(e) => setDisposalProceeds(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      {en ? "Reason" : "Açıklama"}
+                      <input
+                        value={disposalReason}
+                        onChange={(e) => setDisposalReason(e.target.value)}
+                        maxLength={500}
+                        required
+                      />
+                    </label>
+                  </RecordFormGroup>
+                </ModuleRecordForm>
+              {!detailLoading && !detailError && !selectedActive && (
+                <p className="fixed-asset-inline-note">
+                  {en
+                    ? "Disposal can be recorded for an active asset."
+                    : "Elden çıkarma yalnızca etkin kıymetler için kaydedilebilir."}
+                </p>
+              )}
+            </>
+          )}
+          {panelMode === "assign" && selected && (
+            <>
+            <ModuleRecordForm
+              title={en ? "Custody assignment" : "Zimmet kaydı"}
+              mode="create"
+              onCancel={() => setPanelMode("summary")}
+              busy={busy}
+              saveDisabled={detailLoading || !!detailError || !employees.length}
+              saveLabel={en ? "Assign asset" : "Zimmetle"}
+              onSubmit={assign}
+            >
+              <RecordFormGroup
+                title={en ? "Custody" : "Zimmet"}
+                bodyClassName="rf-identity hrp-identity-even"
+              >
+                <label>
+                  {en ? "Employee" : "Personel"}
+                  <SearchableRecordPicker
+                    options={employees.map((x) => ({
+                      id: x.id,
+                      label: `${x.personnelCode} · ${x.fullName}`,
+                    }))}
+                    selectedId={employeeId}
+                    onSelect={(id) => {
+                      setEmployeeId(id);
+                    }}
+                    title={en ? "Select employee" : "Personel seçin"}
+                    placeholder={en ? "Select employee" : "Personel seçin"}
+                    searchPlaceholder={
+                      en
+                        ? "Search by code or name"
+                        : "Personel kodu veya adıyla ara"
+                    }
+                    emptyMessage={
+                      en
+                        ? "No matching employee"
+                        : "Eşleşen personel bulunamadı"
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  {en ? "Assigned date" : "Teslim tarihi"}
+                  <input
+                    type="date"
+                    value={assignedDate}
+                    onChange={(e) => setAssignedDate(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  {en ? "Location" : "Konum"}
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    maxLength={160}
+                  />
+                </label>
+              </RecordFormGroup>
+            </ModuleRecordForm>
+              {!detailLoading && !detailError && !employees.length && (
+                <p className="fixed-asset-inline-note">
+                  {en
+                    ? "No active employees are available for assignment."
+                    : "Zimmet için etkin personel bulunamadı."}
+                </p>
+              )}
+            </>
+          )}
+          {panelMode !== "acquire" && !selected && (
+            <p className="fixed-asset-panel-empty">
+              {en
+                ? "Select an asset to see its summary."
+                : "Özetini görmek için bir kıymet seçin."}
+            </p>
+          )}
+          {panelMode === "summary" && selected && (
+            <div className="fixed-asset-summary">
+              <header>
+                <span className="fixed-asset-eyebrow">
+                  {en ? "Selected asset" : "Seçili kıymet"}
+                </span>
+                <h2 id={panelTitleId}>{selected.name}</h2>
                 <p>
+                  {[selected.assetCode, selected.category]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </header>
+              {detailLoading && (
+                <p className="fixed-asset-panel-status" role="status">
+                  {en ? "Loading details…" : "Ayrıntılar yükleniyor…"}
+                </p>
+              )}
+              {detailError && (
+                <p className="fixed-asset-panel-status is-error" role="alert">
+                  {en
+                    ? "Could not load the selected asset details. Use Refresh to try again."
+                    : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."}
+                </p>
+              )}
+              <div className="fixed-asset-progress">
+                <div>
+                  <span>{en ? "Depreciation" : "Amortisman"}</span>
+                  <b>
+                    {en
+                      ? `${selectedMonthsDone} / ${selected.usefulLifeMonths} months`
+                      : `${selectedMonthsDone} / ${selected.usefulLifeMonths} ay`}
+                  </b>
+                </div>
+                <div
+                  className="fixed-asset-progress-bar"
+                  role="progressbar"
+                  aria-label={en ? "Months depreciated" : "Amortismanı ayrılan ay"}
+                  aria-valuemin={0}
+                  aria-valuemax={selected.usefulLifeMonths}
+                  aria-valuenow={selectedMonthsDone}
+                >
+                  <span
+                    style={{
+                      width: `${selected.usefulLifeMonths ? Math.min(100, (selectedMonthsDone / selected.usefulLifeMonths) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <dl className="fixed-asset-facts">
+                <div>
+                  <dt>{en ? "Cost" : "Maliyet"}</dt>
+                  <dd>{money(selected.acquisitionCostBase)}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Monthly depreciation" : "Aylık amortisman"}</dt>
+                  <dd>{money(selectedMonthly)}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Net book value" : "Net defter"}</dt>
+                  <dd>
+                    {money(
+                      selected.acquisitionCostBase -
+                        selected.accumulatedDepreciationBase,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{en ? "Custody" : "Zimmet"}</dt>
+                  <dd>{detailLoading ? "…" : currentHolder?.employee || "—"}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Linked invoice" : "Bağlı fatura"}</dt>
+                  <dd>{linkedInvoice}</dd>
+                </div>
+              </dl>
+              {selectedActive && !disposal && (
+                <div className="fixed-asset-panel-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={!canAct}
+                    onClick={() => openPanel("depreciate")}
+                  >
+                    {en ? "Post depreciation" : "Amortismanı kaydet"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={!canAct}
+                    onClick={() => openPanel("assign")}
+                  >
+                    {en ? "Assign custody" : "Zimmetle"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary fixed-asset-danger"
+                    disabled={!canAct}
+                    onClick={() => openPanel("dispose")}
+                  >
+                    {en ? "Dispose" : "Elden çıkar"}
+                  </button>
+                </div>
+              )}
+              {disposal && (
+                <details className="fixed-asset-section" open>
+                  <summary>{en ? "Disposal" : "Elden çıkarma"}</summary>
+              <div className="fixed-asset-disposal-summary">
+                <b>
+                  {en ? "Disposed" : "Elden çıkarıldı"} ·{" "}
+                  {formatDate(disposal.disposalDate, en)}
+                </b>
+                <span>
+                  {en ? "Reason" : "Açıklama"}: {disposal.reason}
+                </span>
+                <span>
+                  {en ? "Proceeds" : "Tahsilat"}:{" "}
+                  {disposal.proceedsBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <span>
+                  {en ? "Book value" : "Defter değeri"}:{" "}
+                  {disposal.bookValueBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <span>
+                  {en ? "Gain / loss" : "Kâr / zarar"}:{" "}
+                  {disposal.gainLossBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <small>
+                  {disposal.journalEntryId
+                    ? en
+                      ? `General ledger entry: ${disposal.journalEntryId}`
+                      : `Yevmiye fişi: ${disposal.journalEntryId}`
+                    : en
+                      ? "No general ledger entry is linked."
+                      : "Yevmiye fişi bağlı değil."}
+                </small>
+              </div>
+                </details>
+              )}
+              <details className="fixed-asset-section">
+                <summary>
+                  {en ? "Depreciation history" : "Amortisman geçmişi"}
+                  {schedule && <small>{schedule.rows.length}</small>}
+                </summary>
+                <div
+                  className="fixed-asset-mini-table"
+                  role="region"
+                  aria-label={en ? "Depreciation schedule" : "Amortisman planı"}
+                  tabIndex={0}
+                >
+                  <table>
+                    <thead>
+                      <tr>
+                        {depreciationFields.map((field) => (
+                          <th key={field.key} scope="col">
+                            {en
+                              ? depreciationFieldEnglish[field.key] || field.label
+                              : field.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schedule?.rows.map((row) => (
+                        <tr key={row.periodStart}>
+                          {depreciationFields.map((field) => (
+                            <td
+                              key={field.key}
+                              className={field.key === "amountBase" ? "fixed-asset-col-number" : undefined}
+                            >
+                              {formatDepreciationField(row, field.key, en)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                      {!detailLoading && !detailError && schedule && !schedule.rows.length && (
+                        <tr>
+                          <td colSpan={Math.max(depreciationFields.length, 1)} className="table-empty">
+                            {en
+                              ? "No remaining periods in this range."
+                              : "Bu aralıkta kalan dönem yok."}
+                          </td>
+                        </tr>
+                      )}
+                      {detailLoading && (
+                        <tr>
+                          <td colSpan={Math.max(depreciationFields.length, 1)} className="table-empty" role="status">
+                            {en ? "Loading schedule…" : "Amortisman planı yükleniyor…"}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              <details className="fixed-asset-section">
+                <summary>
+                  {en ? "Custody history" : "Zimmet geçmişi"}
+                  {!detailLoading && <small>{assignments.length}</small>}
+                </summary>
+                {assignments.length ? (
+                  <ul className="fixed-asset-history">
+                    {assignments.map((row) => (
+                      <li key={row.id}>
+                        <div>
+                          {assignmentFields.map((field, index) =>
+                            index === 0 ? (
+                              <b key={field.key}>{formatAssignmentField(row, field.key, en)}</b>
+                            ) : (
+                              <span key={field.key}>
+                                {en
+                                  ? assignmentFieldEnglish[field.key] || field.label
+                                  : field.label}
+                                : {formatAssignmentField(row, field.key, en)}
+                              </span>
+                            ),
+                          )}
+                        </div>
+                        {!row.returnedDate && (
+                          <button
+                            type="button"
+                            className="row-action"
+                            disabled={busy || detailLoading || !!detailError}
+                            onClick={() => void returnAssignment(row)}
+                          >
+                            {en ? "Return" : "İade al"}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="fixed-asset-panel-status">
+                    {detailLoading
+                      ? en
+                        ? "Loading custody history…"
+                        : "Zimmet geçmişi yükleniyor…"
+                      : en
+                        ? "No custody history yet."
+                        : "Henüz zimmet geçmişi yok."}
+                  </p>
+                )}
+              </details>
+              <details className="fixed-asset-section">
+                <summary>{en ? "Acquisition accounting" : "Edinim muhasebesi"}</summary>
+                <p className="fixed-asset-panel-status">
                   {en
                     ? "Posts debit to the company fixed-asset cost mapping and credit to the active offset account you select."
                     : "Firma sabit kıymet maliyet hesabına borç, seçtiğiniz etkin karşı hesaba alacak kaydeder."}
                 </p>
-              </div>
-              <span className="fixed-asset-step">
-                {en ? "02 · Journal" : "02 · Yevmiye"}
-              </span>
-            </div>
             {acquisitionPosting?.journalEntryId ? (
               <div className="fixed-asset-disposal-summary">
                 <b>
@@ -1272,151 +1766,12 @@ export default function FixedAssetsPage({
                 )}
               </>
             )}
-          </section>
-          <section className="panel" aria-labelledby="depreciation-heading">
-            <div className="panel-heading">
-              <div>
-                <h3 id="depreciation-heading">
-                  {en ? "Depreciation schedule" : "Amortisman planı"} ·{" "}
-                  {selected.assetCode}
-                </h3>
-                <p>
-                  {en
-                    ? "Monthly straight-line estimate begins in the month after service; posting requires ledger mappings."
-                    : "Aylık doğrusal tahmin kullanıma giriş ayını izleyen ay başlar; kayıt için defter eşleştirmeleri gerekir."}
-                </p>
-              </div>
-              <span className="fixed-asset-step">
-                {en ? "03 · Depreciation" : "03 · Amortisman"}
-              </span>
-            </div>
-            <form className="heading-actions" onSubmit={postDepreciation}>
-              <label>
-                {en ? "Post period" : "Kaydedilecek dönem"}
-                <input
-                  type="month"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  required
-                />
-              </label>
-              <button
-                className="primary"
-                disabled={busy || detailLoading || !!detailError}
-              >
-                {busy
-                  ? en
-                    ? "Posting…"
-                    : "Kaydediliyor…"
-                  : en
-                    ? "Post depreciation"
-                    : "Amortismanı kaydet"}
-              </button>
-            </form>
-            <div
-              className="ledger-list"
-              role="region"
-              aria-label={en ? "Depreciation schedule" : "Amortisman planı"}
-              tabIndex={0}
-            >
-              <AdvancedDataGrid
-                enableRowSelection={false}
-                className="customer-table"
-                gridId="fixed-asset-depreciation"
-                {...screenViewGridDefaults(depreciationFields)}
-              >
-                <thead>
-                  <tr>
-                    {depreciationFields.map((field) => (
-                      <th key={field.key} scope="col">
-                        {en
-                          ? depreciationFieldEnglish[field.key] || field.label
-                          : field.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {schedule?.rows.map((row) => (
-                    <tr key={row.periodStart}>
-                      {depreciationFields.map((field) => (
-                        <td
-                          key={field.key}
-                          data-label={
-                            en
-                              ? depreciationFieldEnglish[field.key] ||
-                                field.label
-                              : field.label
-                          }
-                        >
-                          {formatDepreciationField(row, field.key, en)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {detailLoading && (
-                    <tr>
-                      <td
-                        colSpan={Math.max(depreciationFields.length, 1)}
-                        className="table-empty"
-                        role="status"
-                      >
-                        {en
-                          ? "Loading schedule…"
-                          : "Amortisman planı yükleniyor…"}
-                      </td>
-                    </tr>
-                  )}
-                  {detailError && (
-                    <tr>
-                      <td
-                        colSpan={Math.max(depreciationFields.length, 1)}
-                        className="table-empty"
-                      >
-                        {en
-                          ? "Schedule is unavailable. Refresh to try again."
-                          : "Amortisman planına ulaşılamıyor. Yenile ile tekrar deneyin."}
-                      </td>
-                    </tr>
-                  )}
-                  {!detailLoading &&
-                    !detailError &&
-                    schedule &&
-                    !schedule.rows.length && (
-                      <tr>
-                        <td
-                          colSpan={Math.max(depreciationFields.length, 1)}
-                          className="table-empty"
-                        >
-                          {en
-                            ? "No remaining periods in this range."
-                            : "Bu aralıkta kalan dönem yok."}
-                        </td>
-                      </tr>
-                    )}
-                </tbody>
-              </AdvancedDataGrid>
-            </div>
-          </section>
-          <section className="panel" aria-labelledby="tax-depreciation-heading">
-            <div className="panel-heading">
-              <div>
-                <h3 id="tax-depreciation-heading">
-                  {en
-                    ? "VUK tax depreciation estimate"
-                    : "VUK vergi amortisman tahmini"}{" "}
-                  · {selected.assetCode}
-                </h3>
-                <p>
-                  {en
-                    ? "Separate from the operational book schedule; based only on the accountant-confirmed snapshot saved on this asset."
-                    : "Operasyonel defter planından ayrıdır; yalnızca kıymette saklanan mali müşavir onaylı anlık profile dayanır."}
-                </p>
-              </div>
-              <span className="fixed-asset-step">
-                {en ? "Tax estimate" : "Vergi tahmini"}
-              </span>
-            </div>
+              </details>
+              {selected.vukUsefulLifeCode && (
+                <details className="fixed-asset-section">
+                  <summary>
+                    {en ? "VUK tax depreciation estimate" : "VUK vergi amortisman tahmini"}
+                  </summary>
             {taxSchedule ? (
               <>
                 <div className="fixed-asset-tax-profile">
@@ -1443,7 +1798,7 @@ export default function FixedAssetsPage({
                     : "Yalnızca tahmindir; yasal beyan veya vergi danışmanlığı değildir. Dönemleri mali müşavirinizle doğrulayın."}
                 </p>
                 <div
-                  className="ledger-list"
+                  className="fixed-asset-mini-table"
                   role="region"
                   aria-label={
                     en
@@ -1452,10 +1807,7 @@ export default function FixedAssetsPage({
                   }
                   tabIndex={0}
                 >
-                  <AdvancedDataGrid
-                    enableRowSelection={false}
-                    className="customer-table"
-                  >
+                  <table>
                     <thead>
                       <tr>
                         <th scope="col">{en ? "Period" : "Dönem"}</th>
@@ -1517,7 +1869,7 @@ export default function FixedAssetsPage({
                         </tr>
                       )}
                     </tbody>
-                  </AdvancedDataGrid>
+                  </table>
                 </div>
               </>
             ) : taxScheduleError ? (
@@ -1535,310 +1887,21 @@ export default function FixedAssetsPage({
                 {en ? "Loading the tax estimate…" : "Vergi tahmini yükleniyor…"}
               </p>
             )}
-          </section>
-          <section className="panel" aria-labelledby="disposal-heading">
-            <div className="panel-heading">
-              <div>
-                <h3 id="disposal-heading">
-                  {en ? "Dispose asset" : "Kıymeti elden çıkar"}
-                </h3>
-                <p>
-                  {en
-                    ? "Book value uses scheduled depreciation through the last complete month before disposal. Posting requires tenant ledger mappings."
-                    : "Defter değeri elden çıkarma ayından önceki son tam dönemin amortisman planını kullanır. Kayıt için firma defter hesap eşleştirmeleri gerekir."}
-                </p>
-              </div>
-              <span className="fixed-asset-step">
-                {en ? "04 · Disposal" : "04 · Elden çıkarma"}
-              </span>
+                </details>
+              )}
             </div>
-            {disposal ? (
-              <div className="fixed-asset-disposal-summary">
-                <b>
-                  {en ? "Disposed" : "Elden çıkarıldı"} ·{" "}
-                  {formatDate(disposal.disposalDate, en)}
-                </b>
-                <span>
-                  {en ? "Reason" : "Açıklama"}: {disposal.reason}
-                </span>
-                <span>
-                  {en ? "Proceeds" : "Tahsilat"}:{" "}
-                  {disposal.proceedsBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <span>
-                  {en ? "Book value" : "Defter değeri"}:{" "}
-                  {disposal.bookValueBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <span>
-                  {en ? "Gain / loss" : "Kâr / zarar"}:{" "}
-                  {disposal.gainLossBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <small>
-                  {disposal.journalEntryId
-                    ? en
-                      ? `General ledger entry: ${disposal.journalEntryId}`
-                      : `Yevmiye fişi: ${disposal.journalEntryId}`
-                    : en
-                      ? "No general ledger entry is linked."
-                      : "Yevmiye fişi bağlı değil."}
-                </small>
-              </div>
-            ) : (
-              <>
-                <ModuleRecordForm
-                  title={en ? "Disposal record" : "Elden çıkarma kaydı"}
-                  mode="create"
-                  busy={busy}
-                  saveDisabled={
-                    detailLoading ||
-                    !!detailError ||
-                    selected.status !== "Active"
-                  }
-                  saveLabel={en ? "Record disposal" : "Elden çıkarmayı kaydet"}
-                  onSubmit={disposeAsset}
-                >
-                  <RecordFormGroup
-                    title={en ? "Disposal" : "Elden Çıkarma"}
-                    bodyClassName="rf-identity hrp-identity-3"
-                  >
-                    <label>
-                      {en ? "Disposal date" : "Elden çıkarma tarihi"}
-                      <input
-                        type="date"
-                        value={disposalDate}
-                        onChange={(e) => setDisposalDate(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      {en
-                        ? "Proceeds (base currency)"
-                        : "Tahsilat (baz para birimi)"}
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={disposalProceeds}
-                        onChange={(e) => setDisposalProceeds(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      {en ? "Reason" : "Açıklama"}
-                      <input
-                        value={disposalReason}
-                        onChange={(e) => setDisposalReason(e.target.value)}
-                        maxLength={500}
-                        required
-                      />
-                    </label>
-                  </RecordFormGroup>
-                </ModuleRecordForm>
-                {!detailLoading &&
-                  !detailError &&
-                  selected.status !== "Active" && (
-                    <p className="fixed-asset-inline-note">
-                      {en
-                        ? "Disposal can be recorded for an active asset."
-                        : "Elden çıkarma yalnızca etkin kıymetler için kaydedilebilir."}
-                    </p>
-                  )}
-              </>
-            )}
-          </section>
-          <section className="panel" aria-labelledby="custody-heading">
-            <div className="panel-heading">
-              <div>
-                <h3 id="custody-heading">
-                  {en ? "Custody" : "Zimmet"} · {selected.assetCode}
-                </h3>
-                <p>
-                  {en
-                    ? "Assignment history is retained when an asset is returned."
-                    : "Kıymet iade edildiğinde zimmet geçmişi korunur."}
-                </p>
-              </div>
-              <span className="fixed-asset-step">
-                {en ? "05 · Custody" : "05 · Zimmet"}
-              </span>
-            </div>
-            <ModuleRecordForm
-              title={en ? "Custody assignment" : "Zimmet kaydı"}
-              mode="create"
-              busy={busy}
-              saveDisabled={detailLoading || !!detailError || !employees.length}
-              saveLabel={en ? "Assign asset" : "Zimmetle"}
-              onSubmit={assign}
-            >
-              <RecordFormGroup
-                title={en ? "Custody" : "Zimmet"}
-                bodyClassName="rf-identity hrp-identity-even"
-              >
-                <label>
-                  {en ? "Employee" : "Personel"}
-                  <SearchableRecordPicker
-                    options={employees.map((x) => ({
-                      id: x.id,
-                      label: `${x.personnelCode} · ${x.fullName}`,
-                    }))}
-                    selectedId={employeeId}
-                    onSelect={(id) => {
-                      setEmployeeId(id);
-                    }}
-                    title={en ? "Select employee" : "Personel seçin"}
-                    placeholder={en ? "Select employee" : "Personel seçin"}
-                    searchPlaceholder={
-                      en
-                        ? "Search by code or name"
-                        : "Personel kodu veya adıyla ara"
-                    }
-                    emptyMessage={
-                      en
-                        ? "No matching employee"
-                        : "Eşleşen personel bulunamadı"
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  {en ? "Assigned date" : "Teslim tarihi"}
-                  <input
-                    type="date"
-                    value={assignedDate}
-                    onChange={(e) => setAssignedDate(e.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  {en ? "Location" : "Konum"}
-                  <input
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    maxLength={160}
-                  />
-                </label>
-              </RecordFormGroup>
-            </ModuleRecordForm>
-            {!detailLoading && !detailError && !employees.length && (
-              <p className="fixed-asset-inline-note">
-                {en
-                  ? "No active employees are available for assignment."
-                  : "Zimmet için etkin personel bulunamadı."}
-              </p>
-            )}
-            <div
-              className="ledger-list"
-              role="region"
-              aria-label={en ? "Custody history" : "Zimmet geçmişi"}
-              tabIndex={0}
-            >
-              <AdvancedDataGrid
-                enableRowSelection={false}
-                className="customer-table"
-                gridId="fixed-asset-assignments"
-                {...screenViewGridDefaults(assignmentFields)}
-              >
-                <thead>
-                  <tr>
-                    {assignmentFields.map((field) => (
-                      <th key={field.key} scope="col">
-                        {en
-                          ? assignmentFieldEnglish[field.key] || field.label
-                          : field.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map((row) => (
-                    <tr key={row.id}>
-                      {assignmentFields.map((field) => (
-                        <td
-                          key={field.key}
-                          data-label={
-                            en
-                              ? assignmentFieldEnglish[field.key] || field.label
-                              : field.label
-                          }
-                        >
-                          {field.key === "actions"
-                            ? !row.returnedDate && (
-                                <button
-                                  type="button"
-                                  className="row-action"
-                                  disabled={
-                                    busy || detailLoading || !!detailError
-                                  }
-                                  onClick={() => void returnAssignment(row)}
-                                >
-                                  {busy
-                                    ? en
-                                      ? "Saving…"
-                                      : "Kaydediliyor…"
-                                    : en
-                                      ? "Return"
-                                      : "İade al"}
-                                </button>
-                              )
-                            : formatAssignmentField(row, field.key, en)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {detailLoading && (
-                    <tr>
-                      <td
-                        colSpan={Math.max(assignmentFields.length, 1)}
-                        className="table-empty"
-                        role="status"
-                      >
-                        {en
-                          ? "Loading custody history…"
-                          : "Zimmet geçmişi yükleniyor…"}
-                      </td>
-                    </tr>
-                  )}
-                  {detailError && (
-                    <tr>
-                      <td
-                        colSpan={Math.max(assignmentFields.length, 1)}
-                        className="table-empty"
-                      >
-                        {en
-                          ? "Custody history is unavailable. Refresh to try again."
-                          : "Zimmet geçmişine ulaşılamıyor. Yenile ile tekrar deneyin."}
-                      </td>
-                    </tr>
-                  )}
-                  {!detailLoading && !detailError && !assignments.length && (
-                    <tr>
-                      <td
-                        colSpan={Math.max(assignmentFields.length, 1)}
-                        className="table-empty"
-                      >
-                        {en
-                          ? "No custody history yet."
-                          : "Henüz zimmet geçmişi yok."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </AdvancedDataGrid>
-            </div>
-          </section>
-        </>
-      )}
+          )}
+        </aside>
+      </div>
     </div>
   );
+}
+
+/** (cost − residual) / useful life, rounded to two decimals. */
+function monthlyDepreciation(asset: Asset) {
+  if (!asset.usefulLifeMonths) return 0;
+  const base = asset.acquisitionCostBase - asset.residualValueBase;
+  return base > 0 ? Math.round((base / asset.usefulLifeMonths) * 100) / 100 : 0;
 }
 
 const defaultAssetFields = [

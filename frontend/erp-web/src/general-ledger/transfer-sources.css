@@ -1,0 +1,170 @@
+/*
+ * Muhasebeye aktarım (finance-transfer-sources): source grid | "Oluşacak yevmiye fişi" preview.
+ * The grid injects the selection checkbox into the first cell (header and rows), so the
+ * Kaynak cell keeps the checkbox and its two-line content on one line.
+ */
+#root .general-ledger-panel.list-v2 .ledger-transfer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 14px;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-layout > .ledger-list { min-width: 0; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources .advanced-grid-master {
+  width: 18px;
+  margin-right: 9px;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources th:first-child .advanced-grid-heading {
+  display: inline-flex;
+  width: auto;
+  max-width: calc(100% - 28px);
+  vertical-align: middle;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources .advanced-grid-row-select {
+  gap: 0;
+  width: 18px;
+  margin-right: 9px;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources .advanced-grid-row-select > span { display: none; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-source {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: calc(100% - 28px);
+  vertical-align: middle;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-source b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-source small {
+  color: var(--lv2-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources .ledger-transfer-amount-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-sources th.ledger-transfer-amount-cell .advanced-grid-heading { justify-content: flex-end; }
+#root .general-ledger-panel.list-v2 tr.ledger-transfer-row { cursor: pointer; }
+#root .general-ledger-panel.list-v2 tr.ledger-transfer-row:focus-visible { outline: 2px solid #1769aa; outline-offset: -2px; }
+#root .general-ledger-panel.list-v2 tr.ledger-transfer-row.is-previewed > td,
+#root .general-ledger-panel.list-v2 tr.ledger-transfer-row.is-previewed:hover > td { background: #eaf2fb; }
+#root .general-ledger-panel.list-v2 tr.ledger-transfer-row.is-previewed > td:first-child { box-shadow: inset 3px 0 0 #1769aa; }
+
+/* Durum: Hazır / Hesap eşleştir / Sıfır tutar */
+#root .general-ledger-panel.list-v2 .ledger-transfer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-status.is-ready { color: #17643f; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-status.is-muted { color: var(--lv2-muted); font-weight: 500; }
+#root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning {
+  min-height: 26px;
+  margin: 0;
+  padding: 0 9px;
+  border: 1px solid #f1c27d;
+  border-radius: 13px;
+  background: #fff6e8;
+  color: #8a4b08;
+  cursor: pointer;
+}
+#root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning:hover { border-color: #d99a3a; background: #ffefd4; }
+#root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip { border-color: #f1c27d; color: #8a4b08; }
+#root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip.is-active { border-color: #b86e12; background: #b86e12; color: #fff; }
+
+/* Preview panel */
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview {
+  position: sticky;
+  top: 12px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dfe5ee;
+  border-radius: 12px;
+  background: #fff;
+}
+#root .app-shell .general-ledger-panel.list-v2 .ledger-transfer-preview h2 { margin: 2px 0 0; font-size: 17px !important; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-code {
+  display: block;
+  margin-top: 3px;
+  color: var(--lv2-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table {
+  width: 100%;
+  margin: 14px 0 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12.5px;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table :is(th, td) {
+  padding: 7px 4px;
+  border: 0;
+  border-bottom: 1px solid #edf1f6;
+  background: transparent;
+  color: #172b45;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: top;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table thead th { color: #687b92; font-size: 11.5px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table :is(th, td):first-child { width: 50%; text-align: left; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table td:first-child b { display: block; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table td:first-child small { display: block; color: #687b92; font-size: 11.5px; overflow-wrap: anywhere; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-table tfoot :is(th, td) { border-bottom: 0; font-weight: 700; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance svg { flex: 0 0 auto; margin-top: 2px; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance.is-ready { color: #17643f; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance.is-blocked { color: #b42318; }
+#root .app-shell .general-ledger-panel.list-v2 .ledger-transfer-preview-action {
+  width: 100%;
+  min-height: 38px;
+  margin: 12px 0 0;
+  justify-content: center;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-confirm {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #c9d9ea;
+  border-radius: 9px;
+  background: #f3f8fd;
+}
+#root .general-ledger-panel.list-v2 .ledger-transfer-confirm p { margin: 0 0 8px; color: #172b45; font-size: 12.5px; overflow-wrap: anywhere; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-confirm > div { display: flex; gap: 8px; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-confirm > div > button { flex: 1 1 0; min-height: 34px; justify-content: center; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-note { margin: 10px 0 0; color: #687b92; font-size: 11.5px; }
+#root .general-ledger-panel.list-v2 .ledger-transfer-preview-empty { margin: 0; padding: 26px 0; color: #687b92; font-size: 13px; text-align: center; }
+
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-preview { border-color: var(--erp-border); background: var(--erp-surface); }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-preview-table :is(th, td) { border-color: var(--erp-border); color: var(--erp-text); }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.ledger-transfer-preview-table thead th, .ledger-transfer-preview-table td:first-child small, .ledger-transfer-preview-note, .ledger-transfer-preview-empty) { color: var(--erp-text-muted); }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.ledger-transfer-status.is-ready, .ledger-transfer-preview-balance.is-ready) { color: #6fd3a1; }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance.is-blocked { color: #f97066; }
+html[data-theme="dark"] #root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning { border-color: #7a5320; background: #33261a; color: #f5c27a; }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip:not(.is-active) { border-color: #7a5320; color: #f5c27a; }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-confirm { border-color: var(--erp-border); background: var(--erp-surface-soft); }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-confirm p { color: var(--erp-text); }
+/* !important: the shared dark grid surface rules paint every cell with !important. */
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.ledger-transfer-row.is-previewed > td,
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.ledger-transfer-row.is-previewed:hover > td { background: #1f3350 !important; }
+
+/* Below 1100px the preview stacks under the list. */
+@media (max-width: 1099px) {
+  #root .general-ledger-panel.list-v2 .ledger-transfer-layout { grid-template-columns: minmax(0, 1fr); }
+  #root .general-ledger-panel.list-v2 .ledger-transfer-preview { position: static; }
+}

@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { localizedText } from "./locale";
-import {
-  PackageCheck,
-  Plus,
-  Ship,
-} from "lucide-react";
+import { Plus, X } from "lucide-react";
 import "./foreign-trade.css";
 import {
   RecordFormGroup,
@@ -19,9 +15,15 @@ import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilt
 import {
   ForeignTradeGrid,
   defaultForeignTradeFields,
+  withFrontendForeignTradeFields,
   type ForeignTradeScreenField,
 } from "./foreign-trade/components/ForeignTradeGrid";
-import { ForeignTradeDetail } from "./foreign-trade/components/ForeignTradeDetail";
+import {
+  ForeignTradeDetail,
+  incotermsCodes,
+  type ForeignTradePanelNotice,
+} from "./foreign-trade/components/ForeignTradeDetail";
+import { ForeignTradeStageStrip } from "./foreign-trade/components/ForeignTradeStageStrip";
 import type {
   Direction,
   TradeStatus,
@@ -31,6 +33,7 @@ import type {
   TradeCapabilities,
   Draft,
   CasePage,
+  AdvanceInputs,
 } from "./foreign-trade/types";
 
 const blankDraft = (): Draft => ({
@@ -75,6 +78,20 @@ const transportLabel = (mode: string) => {
   const label = labels[mode];
   return label ? tr(...label) : mode;
 };
+/** HS codes are stored as 6–10 digits (backend: ^[0-9]{6,10}$); dots and spaces are accepted while typing. */
+const normalizeHsCode = (value: string) => value.replace(/[\s.]/g, "");
+const hsCodeError = (value: string) => {
+  const normalized = normalizeHsCode(value.trim());
+  if (!normalized) return "";
+  return /^[0-9]{6,10}$/.test(normalized)
+    ? ""
+    : tr(
+        "HS kodu 6–10 rakam olmalıdır (nokta ve boşluk kabul edilir).",
+        "HS code must be 6–10 digits (dots and spaces are accepted).",
+      );
+};
+const countryInput = (value: string) =>
+  value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
 const nextStatus: Partial<Record<TradeStatus, TradeStatus>> = {
   Draft: "Booked",
   Booked: "Shipped",
@@ -104,7 +121,9 @@ export default function ForeignTradePage({
   role: string;
 }) {
   const [cases, setCases] = useState<TradeCase[]>([]);
-  const [selectedCase, setSelectedCase] = useState<TradeCase | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Set when the user deselects on purpose, so the first row is not re-selected immediately.
+  const selectionCleared = useRef(false);
   const [orders, setOrders] = useState<TradeOrder[]>([]);
   const [draft, setDraft] = useState<Draft>(blankDraft());
   const [creating, setCreating] = useState(false);
@@ -112,8 +131,10 @@ export default function ForeignTradePage({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [formError, setFormError] = useState("");
+  const [notice, setNotice] = useState<ForeignTradePanelNotice | null>(null);
   const [filter, setFilter] = useState<"All" | Direction>("All");
+  const [stage, setStage] = useState<TradeStatus | null>(null);
   const [query, setQuery] = useState("");
   // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
@@ -185,11 +206,6 @@ export default function ForeignTradePage({
       ]);
       setCapabilities(permissions);
       setCases(casePage.items);
-      setSelectedCase((current) =>
-        current
-          ? casePage.items.find((x) => x.id === current.id) || null
-          : null,
-      );
       setOrders([
         ...imports.map((x) => ({ ...x, direction: "Import" as const })),
         ...exports.map((x) => ({ ...x, direction: "Export" as const })),
@@ -205,11 +221,14 @@ export default function ForeignTradePage({
   }, [token]);
   useEffect(() => {
     let active = true;
-    api<{ fields: ForeignTradeScreenField[] }>(
+    api<{ id?: string | null; fields: ForeignTradeScreenField[] }>(
       "/api/screen-views/foreign-trade-files/active",
     )
       .then((view) => {
-        if (active && view.fields?.length) setScreenFields(view.fields);
+        // Without a published tenant view the API echoes its catalog defaults (id null);
+        // the page then keeps its own default columns.
+        if (active && view.id && view.fields?.length)
+          setScreenFields(withFrontendForeignTradeFields(view.fields));
       })
       .catch(() => {});
     return () => {
@@ -219,10 +238,10 @@ export default function ForeignTradePage({
   useEffect(() => {
     setInventoryDocuments([]);
     setInventoryDocumentId("");
-    if (!selectedCase) return;
+    if (!selectedId) return;
     let active = true;
     void api<InventoryDocument[]>(
-      `/api/foreign-trade/cases/${selectedCase.id}/inventory-documents`,
+      `/api/foreign-trade/cases/${selectedId}/inventory-documents`,
     )
       .then((items) => {
         if (active) {
@@ -231,14 +250,14 @@ export default function ForeignTradePage({
         }
       })
       .catch((cause) => {
-        if (active) setError((cause as Error).message);
+        if (active) setNotice({ kind: "error", text: (cause as Error).message });
       });
     return () => {
       active = false;
     };
-  }, [selectedCase?.id, token]);
+  }, [selectedId, token]);
 
-  const filtered = useMemo(
+  const scoped = useMemo(
     () =>
       cases.filter(
         (item) =>
@@ -249,6 +268,61 @@ export default function ForeignTradePage({
       ),
     [cases, filter, query],
   );
+  const stageCounts = useMemo(() => {
+    const counts: Record<TradeStatus, number> = {
+      Draft: 0,
+      Booked: 0,
+      Shipped: 0,
+      CustomsClearance: 0,
+      Arrived: 0,
+      Closed: 0,
+      Cancelled: 0,
+    };
+    for (const item of scoped) counts[item.status] += 1;
+    return counts;
+  }, [scoped]);
+  const filtered = useMemo(
+    () => (stage ? scoped.filter((item) => item.status === stage) : scoped),
+    [scoped, stage],
+  );
+  const selectedCase = filtered.find((item) => item.id === selectedId) || null;
+  // Default to the first visible row; keep an explicit deselection until the user picks again.
+  useEffect(() => {
+    if (loading) return;
+    if (selectedId && filtered.some((item) => item.id === selectedId)) return;
+    if (!selectedId && selectionCleared.current) return;
+    selectionCleared.current = false;
+    setSelectedId(filtered[0]?.id ?? null);
+  }, [filtered, selectedId, loading]);
+  function selectCase(item: TradeCase) {
+    if (item.id === selectedId) {
+      selectionCleared.current = true;
+      setSelectedId(null);
+    } else {
+      selectionCleared.current = false;
+      setSelectedId(item.id);
+    }
+    setNotice(null);
+  }
+  useEffect(() => {
+    if (creating) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, [role='dialog']")) return;
+      selectionCleared.current = true;
+      setSelectedId(null);
+      setNotice(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [creating]);
+  // Success messages fade on their own; errors stay until dismissed.
+  useEffect(() => {
+    if (notice?.kind !== "success") return;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const selectedNextStatus = selectedCase
     ? nextStatus[selectedCase.status]
     : undefined;
@@ -259,17 +333,14 @@ export default function ForeignTradePage({
   const selectedOrder = orders.find((order) => order.id === draft.orderId);
 
   function startCreate(direction: Direction) {
-    setError("");
-    setNotice("");
+    setFormError("");
+    setNotice(null);
     setEditingId("");
     setDraft({ ...blankDraft(), direction });
     setCreating(true);
   }
-  function startEdit(item: TradeCase) {
-    setError("");
-    setNotice("");
-    setEditingId(item.id);
-    setDraft({
+  function draftFromCase(item: TradeCase): Draft {
+    return {
       direction: item.direction,
       orderId: item.purchaseOrderId || item.salesOrderId || "",
       referenceCode: item.referenceCode,
@@ -284,8 +355,39 @@ export default function ForeignTradePage({
       plannedShipDate: item.plannedShipDate || "",
       plannedArrivalDate: item.plannedArrivalDate || "",
       notes: item.notes || "",
-    });
+    };
+  }
+  function startEdit(item: TradeCase) {
+    setFormError("");
+    setNotice(null);
+    setEditingId(item.id);
+    setDraft(draftFromCase(item));
     setCreating(true);
+  }
+  function closeForm() {
+    setCreating(false);
+    setEditingId("");
+    setFormError("");
+  }
+  /** Request body of the create/update endpoints (ForeignTradeCaseWriteRequest). */
+  function writePayload(value: Draft, fallbackDeclaredValue: number) {
+    return {
+      direction: value.direction,
+      purchaseOrderId: value.direction === "Import" ? value.orderId : null,
+      salesOrderId: value.direction === "Export" ? value.orderId : null,
+      referenceCode: value.referenceCode.trim(),
+      originCountryCode: value.originCountryCode,
+      destinationCountryCode: value.destinationCountryCode,
+      incotermsCode: value.incotermsCode || null,
+      harmonizedSystemCode: normalizeHsCode(value.harmonizedSystemCode.trim()) || null,
+      transportMode: value.transportMode,
+      carrierReference: value.carrierReference || null,
+      customsReference: value.customsReference || null,
+      declaredValue: Number(value.declaredValue || fallbackDeclaredValue),
+      plannedShipDate: value.plannedShipDate || null,
+      plannedArrivalDate: value.plannedArrivalDate || null,
+      notes: value.notes || null,
+    };
   }
   async function saveCase(event: React.FormEvent) {
     event.preventDefault();
@@ -294,79 +396,102 @@ export default function ForeignTradePage({
       (editingId ? !capabilities.canUpdate : !capabilities.canCreate)
     )
       return;
+    const hsError = hsCodeError(draft.harmonizedSystemCode);
+    if (hsError) {
+      setFormError(hsError);
+      return;
+    }
     setBusyId(editingId || "create");
-    setError("");
+    setFormError("");
     try {
-      const payload = {
-        direction: draft.direction,
-        purchaseOrderId: draft.direction === "Import" ? draft.orderId : null,
-        salesOrderId: draft.direction === "Export" ? draft.orderId : null,
-        referenceCode: draft.referenceCode,
-        originCountryCode: draft.originCountryCode,
-        destinationCountryCode: draft.destinationCountryCode,
-        incotermsCode: draft.incotermsCode || null,
-        harmonizedSystemCode: draft.harmonizedSystemCode || null,
-        transportMode: draft.transportMode,
-        carrierReference: draft.carrierReference || null,
-        customsReference: draft.customsReference || null,
-        declaredValue: Number(draft.declaredValue || selectedOrder.grandTotal),
-        plannedShipDate: draft.plannedShipDate || null,
-        plannedArrivalDate: draft.plannedArrivalDate || null,
-        notes: draft.notes || null,
-      };
+      const payload = writePayload(draft, selectedOrder.grandTotal);
       if (editingId) {
         await api<TradeCase>(`/api/foreign-trade/cases/${editingId}`, {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-        setCreating(false);
-        setEditingId("");
-        setNotice(
-          tr(
+        closeForm();
+        setNotice({
+          kind: "success",
+          text: tr(
             "Dış ticaret dosyası güncellendi ve denetim kaydına eklendi.",
             "Foreign trade case updated and added to the audit log.",
           ),
-        );
+        });
       } else {
-        await api<TradeCase>("/api/foreign-trade/cases", {
+        const created = await api<TradeCase>("/api/foreign-trade/cases", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        setCreating(false);
-        setNotice(
-          tr(
+        closeForm();
+        // Show the new case in the panel even if the current filters would hide it.
+        setStage(null);
+        setFilter("All");
+        setQuery("");
+        selectionCleared.current = false;
+        setSelectedId(created.id);
+        setNotice({
+          kind: "success",
+          text: tr(
             "Dış ticaret dosyası oluşturuldu ve denetim kaydına eklendi.",
             "Foreign trade case created and added to the audit log.",
           ),
-        );
+        });
       }
       await load();
     } catch (cause) {
-      setError((cause as Error).message);
+      setFormError((cause as Error).message);
     } finally {
       setBusyId("");
     }
   }
-  async function transition(item: TradeCase, status: TradeStatus) {
+  async function transition(
+    item: TradeCase,
+    status: TradeStatus,
+    inputs: AdvanceInputs = {},
+  ) {
     if (!capabilities.canAdvance) return;
     setBusyId(item.id);
-    setError("");
-    setNotice("");
+    setNotice(null);
+    let saved = false;
     try {
+      // Ship prerequisites are case details: save them through the edit endpoint first
+      // (allowed while Draft/Booked). The customs reference travels with the transition.
+      const detailChanges = {
+        ...(inputs.plannedShipDate ? { plannedShipDate: inputs.plannedShipDate } : {}),
+        ...(inputs.declaredValue ? { declaredValue: inputs.declaredValue } : {}),
+        ...(inputs.incotermsCode ? { incotermsCode: inputs.incotermsCode } : {}),
+      };
+      if (Object.keys(detailChanges).length) {
+        if (!capabilities.canUpdate) return;
+        await api<TradeCase>(`/api/foreign-trade/cases/${item.id}`, {
+          method: "PUT",
+          body: JSON.stringify(
+            writePayload({ ...draftFromCase(item), ...detailChanges }, item.declaredValue),
+          ),
+        });
+        saved = true;
+      }
       await api<TradeCase>(`/api/foreign-trade/cases/${item.id}/transition`, {
         method: "POST",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          customsReference: inputs.customsReference?.trim() || null,
+        }),
       });
-      setSelectedCase({ ...item, status });
-      setNotice(
-        tr(
+      // Keep the moved file (and its message) in view when a stage tile filters the list.
+      if (stage && stage !== status) setStage(status);
+      setNotice({
+        kind: "success",
+        text: tr(
           `${item.referenceCode}: ${statusLabel(status)} durumuna geçirildi.`,
           `${item.referenceCode}: moved to ${statusLabel(status)}.`,
         ),
-      );
+      });
       await load();
     } catch (cause) {
-      setError((cause as Error).message);
+      setNotice({ kind: "error", text: (cause as Error).message });
+      if (saved) await load();
     } finally {
       setBusyId("");
     }
@@ -374,8 +499,7 @@ export default function ForeignTradePage({
   async function linkInventoryDocument(item: TradeCase) {
     if (!inventoryDocumentId || !capabilities.canAdvance) return;
     setBusyId(item.id);
-    setError("");
-    setNotice("");
+    setNotice(null);
     try {
       await api<TradeCase>(
         `/api/foreign-trade/cases/${item.id}/inventory-document`,
@@ -384,12 +508,13 @@ export default function ForeignTradePage({
           body: JSON.stringify({ documentId: inventoryDocumentId }),
         },
       );
-      setNotice(
-        tr(
+      setNotice({
+        kind: "success",
+        text: tr(
           "Standart stok belgesi dış ticaret dosyasına bağlandı; stok defterine ikinci kez kayıt yapılmadı.",
           "The standard inventory document was linked; no duplicate stock posting was created.",
         ),
-      );
+      });
       setInventoryDocuments(
         await api<InventoryDocument[]>(
           `/api/foreign-trade/cases/${item.id}/inventory-documents`,
@@ -397,7 +522,7 @@ export default function ForeignTradePage({
       );
       await load();
     } catch (cause) {
-      setError((cause as Error).message);
+      setNotice({ kind: "error", text: (cause as Error).message });
     } finally {
       setBusyId("");
     }
@@ -412,7 +537,7 @@ export default function ForeignTradePage({
           "Track logistics, customs references and shipment steps linked to purchase and sales orders.",
         )}
         count={loading && cases.length === 0 ? null : cases.length}
-        countLabel={tr("kayıt", "records")}
+        countLabel={tr("dosya", "cases")}
       >
         {capabilities.canCreate && (
           <>
@@ -457,15 +582,23 @@ export default function ForeignTradePage({
           </div>
         )}
       {error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
+        <div className="alert inline-alert foreign-trade-page-alert" role="alert">
+          <span>{error}</span>
+          <button
+            type="button"
+            aria-label={tr("Bildirimi kapat", "Dismiss message")}
+            onClick={() => setError("")}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
-      {notice && (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      )}
+      <ForeignTradeStageStrip
+        counts={stageCounts}
+        active={stage}
+        statusLabel={statusLabel}
+        onChange={setStage}
+      />
       <ForeignTradeFilters
         query={query}
         direction={filter}
@@ -481,38 +614,12 @@ export default function ForeignTradePage({
         }}
         toolsSlotRef={setToolsSlot}
       />
-      <div className="foreign-trade-metrics">
-        <article className="panel">
-          <span>
-            <PackageCheck size={17} />
-          </span>
-          <b>{cases.filter((x) => x.status === "CustomsClearance").length}</b>
-          <small>{tr("Gümrük adımı", "At customs")}</small>
-        </article>
-        <article className="panel">
-          <span>
-            <Ship size={17} />
-          </span>
-          <b>
-            {
-              cases.filter(
-                (x) =>
-                  x.status === "Shipped" || x.status === "CustomsClearance",
-              ).length
-            }
-          </b>
-          <small>{tr("Yolda", "In transit")}</small>
-        </article>
-      </div>
       {creating && (
         <div
           className="foreign-trade-modal-backdrop"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setCreating(false);
-              setEditingId("");
-            }
+            if (event.target === event.currentTarget) closeForm();
           }}
         >
           <section
@@ -542,10 +649,9 @@ export default function ForeignTradePage({
                   : tr("Dosya oluştur", "Create case")
               }
               onSubmit={(event) => void saveCase(event)}
-              onCancel={() => {
-                setCreating(false);
-                setEditingId("");
-              }}
+              onCancel={closeForm}
+              error={formError}
+              onDismissError={() => setFormError("")}
               status={
                 <>
                   <span>
@@ -657,17 +763,22 @@ export default function ForeignTradePage({
                   )}
                   <input
                     required
+                    className="rf-mono"
                     maxLength={2}
-                    pattern="[A-Za-z]{2}"
+                    pattern="[A-Z]{2}"
+                    autoCapitalize="characters"
                     value={draft.originCountryCode}
                     onChange={(e) =>
                       setDraft((x) => ({
                         ...x,
-                        originCountryCode: e.target.value.toUpperCase(),
+                        originCountryCode: countryInput(e.target.value),
                       }))
                     }
                     placeholder="TR"
                   />
+                  <small className="foreign-trade-field-hint">
+                    {tr("2 harf, ör. TR", "2 letters, e.g. TR")}
+                  </small>
                 </label>
                 <label>
                   {tr(
@@ -676,17 +787,22 @@ export default function ForeignTradePage({
                   )}
                   <input
                     required
+                    className="rf-mono"
                     maxLength={2}
-                    pattern="[A-Za-z]{2}"
+                    pattern="[A-Z]{2}"
+                    autoCapitalize="characters"
                     value={draft.destinationCountryCode}
                     onChange={(e) =>
                       setDraft((x) => ({
                         ...x,
-                        destinationCountryCode: e.target.value.toUpperCase(),
+                        destinationCountryCode: countryInput(e.target.value),
                       }))
                     }
                     placeholder="DE"
                   />
+                  <small className="foreign-trade-field-hint">
+                    {tr("2 harf, ör. DE", "2 letters, e.g. DE")}
+                  </small>
                 </label>
                 <label>
                   Incoterms 2020
@@ -697,19 +813,7 @@ export default function ForeignTradePage({
                     }
                   >
                     <option value="">{tr("Seçin", "Select")}</option>
-                    {[
-                      "EXW",
-                      "FCA",
-                      "CPT",
-                      "CIP",
-                      "DAP",
-                      "DPU",
-                      "DDP",
-                      "FAS",
-                      "FOB",
-                      "CFR",
-                      "CIF",
-                    ].map((code) => (
+                    {incotermsCodes.map((code) => (
                       <option key={code}>{code}</option>
                     ))}
                   </select>
@@ -717,17 +821,29 @@ export default function ForeignTradePage({
                 <label>
                   {tr("HS kodu", "HS code")}
                   <input
-                    maxLength={10}
-                    pattern="[0-9]{0,10}"
+                    className="rf-mono"
+                    inputMode="decimal"
+                    maxLength={16}
                     value={draft.harmonizedSystemCode}
-                    onChange={(e) =>
-                      setDraft((x) => ({
-                        ...x,
-                        harmonizedSystemCode: e.target.value,
-                      }))
-                    }
-                    placeholder={tr("6–10 rakam", "6–10 digits")}
+                    aria-invalid={hsCodeError(draft.harmonizedSystemCode) ? true : undefined}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9.\s]/g, "");
+                      e.target.setCustomValidity(hsCodeError(value));
+                      setDraft((x) => ({ ...x, harmonizedSystemCode: value }));
+                    }}
+                    onBlur={(e) => {
+                      // Once valid, show the stored digits-only form.
+                      if (!hsCodeError(e.target.value))
+                        setDraft((x) => ({
+                          ...x,
+                          harmonizedSystemCode: normalizeHsCode(x.harmonizedSystemCode.trim()),
+                        }));
+                    }}
+                    placeholder="8443.32"
                   />
+                  <small className="foreign-trade-field-hint">
+                    {tr("6–10 hane; 8443.32 yazabilirsiniz", "6–10 digits; you can type 8443.32")}
+                  </small>
                 </label>
                 <label>
                   {tr("Taşıma", "Transport")}
@@ -848,9 +964,7 @@ export default function ForeignTradePage({
         </div>
       )}
       <section className="panel foreign-trade-list list-v2-list">
-        <div
-          className={`foreign-trade-workspace${selectedCase ? " has-selection" : ""}`}
-        >
+        <div className="foreign-trade-workspace foreign-trade-workspace-v2">
           <div className="foreign-trade-record-list">
             <ForeignTradeGrid
               items={filtered}
@@ -861,7 +975,7 @@ export default function ForeignTradePage({
               capabilities={capabilities}
               statusLabel={statusLabel}
               directionLabel={directionLabel}
-              onSelect={setSelectedCase}
+              onSelect={selectCase}
               transportLabel={transportLabel}
               fields={screenFields}
               toolbarContainer={toolsSlot}
@@ -879,20 +993,18 @@ export default function ForeignTradePage({
             statusLabel={statusLabel}
             directionLabel={directionLabel}
             transportLabel={transportLabel}
-            onClear={() => setSelectedCase(null)}
+            notice={notice}
+            onDismissNotice={() => setNotice(null)}
             onDocumentChange={setInventoryDocumentId}
             onLinkDocument={(item) => void linkInventoryDocument(item)}
             onEdit={startEdit}
-            onTransition={(item, status) => void transition(item, status)}
+            onAdvance={(item, status, inputs) =>
+              void transition(item, status, inputs)
+            }
+            onCancelCase={(item) => void transition(item, "Cancelled")}
           />
         </div>
       </section>
-      <p className="foreign-trade-footnote">
-        {tr(
-          "Bu ekran siparişe bağlı iç operasyon kaydıdır. HS kodu, Incoterms, taşıma ve beyan bilgileri kullanıcı tarafından doğrulanmalıdır; resmî gümrük beyannamesi veya e-belge gönderimi değildir.",
-          "This is an internal operations record linked to an order. Users must verify HS codes, Incoterms, transport and declaration details; this is not an official customs declaration or e-document submission.",
-        )}
-      </p>
     </div>
   );
 }

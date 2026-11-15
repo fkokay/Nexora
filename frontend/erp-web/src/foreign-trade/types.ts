@@ -6,3 +6,7 @@ export type CasePage = { items: TradeCase[]; total: number }
 export type InventoryDocument = { id: string; code: string; documentDate: string; warehouseName: string; lineCount: number; isLinked: boolean }
 export type TradeCapabilities = { canCreate: boolean; canUpdate: boolean; canAdvance: boolean }
 export type Draft = { direction: Direction; orderId: string; referenceCode: string; originCountryCode: string; destinationCountryCode: string; incotermsCode: string; harmonizedSystemCode: string; transportMode: string; carrierReference: string; customsReference: string; declaredValue: string; plannedShipDate: string; plannedArrivalDate: string; notes: string }
+/** Forward stage flow, in order; Cancelled is a side exit from Draft/Booked only. */
+export const tradeStageFlow: TradeStatus[] = ['Draft', 'Booked', 'Shipped', 'CustomsClearance', 'Arrived', 'Closed']
+/** Inputs the detail panel can collect so the next stage's prerequisites are met in one step. */
+export type AdvanceInputs = { customsReference?: string; plannedShipDate?: string; declaredValue?: string; incotermsCode?: string }

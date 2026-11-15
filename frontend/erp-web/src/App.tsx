@@ -612,6 +612,7 @@ export default function App() {
       "sales-quote-create": "Yeni Teklif",
       "sales-orders": "Satış Siparişleri",
       "sales-order-create": "Yeni Sipariş",
+      "sales-purchase-order-create": "Yeni satınalma siparişi",
       "sales-invoices": "Satış Faturaları",
       "sales-invoice-create": "Yeni Fatura",
       "sales-deliveries": "Satış İrsaliyeleri",

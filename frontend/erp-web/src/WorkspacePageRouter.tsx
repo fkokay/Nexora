@@ -332,6 +332,8 @@ export function WorkspacePageRouter({
     return <SalesDeliveriesScreenPage {...salesPageProps} createDeliveryPage />;
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
+  if (page === "sales-purchase-order-create")
+    return <SupplierOrdersPage {...salesPageProps} createPurchaseOrderPage />;
   if (page === "sales-purchase-invoices")
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")

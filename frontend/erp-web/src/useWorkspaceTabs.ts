@@ -29,7 +29,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     }
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
-    const pageLabel = nextPage === 'erp-assistant' ? (locale === 'en' ? 'AI ERP Assistant' : 'AI ERP Asistanı') : nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : nextPage === 'sales-quote-create' ? (locale === 'en' ? 'New quote' : 'Yeni Teklif') : nextPage === 'customer-edit' ? (locale === 'en' ? 'Edit Customer' : 'Cari Düzenle') : undefined
+    const pageLabel = nextPage === 'erp-assistant' ? (locale === 'en' ? 'AI ERP Assistant' : 'AI ERP Asistanı') : nextPage === 'sales-order-create' ? (locale === 'en' ? 'New sales order' : 'Yeni Sipariş') : nextPage === 'sales-purchase-order-create' ? (locale === 'en' ? 'New purchase order' : 'Yeni satınalma siparişi') : nextPage === 'sales-quote-create' ? (locale === 'en' ? 'New quote' : 'Yeni Teklif') : nextPage === 'customer-edit' ? (locale === 'en' ? 'Edit Customer' : 'Cari Düzenle') : undefined
     const knownLabel = labelOverride || pageLabel || result?.label || standalonePageTitle(nextPage, locale) || (nextPage.startsWith('module:') ? nextPage.split(':').at(-1) || 'Modül' : undefined)
     // Başlığı bilinmeyen ekranda ham anahtar yalnızca yeni sekmede kullanılır; var olan sekmenin başlığı ezilmez.
     const label = knownLabel || nextPage.replace(/[-_]/g, ' ')

@@ -163,6 +163,25 @@ export const english: Record<string, string> = {
   'Mal kabul kaydet': 'Save goods receipt', 'Satın alma gerekçesi': 'Purchase justification', 'Kalem ekle': 'Add item', '· SATIN ALMA TALEBİ': '· PURCHASE REQUEST', 'İhtiyaç tarihi belirtilmedi': 'No required date specified', 'Tedarikçi teklifleri ·': 'Supplier quotes ·',
   'Geçerlilik tarihi yok': 'No validity date', 'Baz para birimine çevrilemedi': 'Could not convert to base currency', 'Değerlendiriliyor': 'Under evaluation', 'Teklifi kaydet': 'Save quote', 'siparişine dönüştürüldü.': 'order.', '· talep değeri varsa aktarılır': '· carried over if the request has a value', 'Siparişi oluştur': 'Create order',
   'Müşteri:': 'Customer:',
+  // New purchase order page and purchase invoice row actions
+  'Yeni satınalma siparişi': 'New purchase order', 'Beklenen teslim': 'Expected delivery', 'İsk. %': 'Disc. %', 'Temel birim': 'Base unit',
+  'Not ve toplamlar': 'Note and totals', 'Her satır için stok kartı seçin.': 'Select a stock item for every line.',
+  'Ödeme ekle': 'Add payment', 'İptal et (ters kayıt)': 'Void (reversal entry)', 'Faturayı görüntüle': 'View invoice',
+  'İptal için önce ödemeleri iptal edin.': 'Void the payments first to void this invoice.',
+  // Document detail layout: purchase invoice and sales quote details
+  'Geri': 'Back', 'Belge özeti': 'Document summary', 'Fatura özeti': 'Invoice summary', 'Kalan': 'Outstanding', 'Ödenen oranı': 'Paid share',
+  'Faturayı iptal et (ters kayıt)': 'Void invoice (reversal entry)', 'Vergi profili': 'Tax profile', 'Gelen e-belge': 'Incoming e-document',
+  'Ödemeler': 'Payments', 'Ödemeyi iptal et': 'Void payment', 'İadeler': 'Returns', 'İadeyi iptal et': 'Void return',
+  'Bu faturadan iade yapılmadı. İade, faturalanan miktarı ve depodaki stoğu aşamaz.': 'No returns from this invoice. A return cannot exceed the invoiced quantity or the stock in the warehouse.',
+  'Yazdır': 'Print', 'Kabul et': 'Accept', 'Reddedilen teklifi kabul et': 'Accept rejected quote', 'Siparişe dönüştür': 'Convert to order', 'Revizyon oluştur': 'Create revision',
+  'Kayıtsız alıcı': 'Unregistered recipient', 'Bugün sona eriyor': 'Expires today', 'Henüz yok': 'None yet', 'Teklif bilgileri': 'Quote details', 'Plasiyer': 'Sales rep',
+  'Döviz fiyatı': 'Foreign currency price', 'Kur': 'Rate', 'KDV dahil': 'VAT included',
+  // Purchase order list
+  'Satınalma siparişleri': 'Purchase orders', 'Sipariş durumuna göre filtrele': 'Filter by order status', 'Kısmen alındı': 'Partially received', 'Gecikmiş': 'Overdue',
+  'Teslim alınan': 'Received', '· gecikti': '· overdue', 'gecikti': 'overdue', 'Satırlar yüklenemedi.': 'Lines could not be loaded.',
+  'Bu durumda satın alma siparişi yok.': 'No purchase orders in this status.', 'Alan türleri': 'Field types',
+  'Teklif, sipariş ve mal kabul kayıtlarına eklenen tenant özel alanları.': 'Tenant custom fields added to quote, order and goods receipt records.',
+  'Alanlar penceresini kapat': 'Close the fields window', 'Alan tanımları sürümlenir; geçmiş kayıtların değerleri korunur.': 'Field definitions are versioned; values on earlier records are kept.',
   // Words captured by patterns below
   'güncellendi': 'updated', 'oluşturuldu': 'created', 'Döviz': 'Currency'
 }
@@ -170,6 +189,13 @@ export const english: Record<string, string> = {
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^KDV %(\d+(?:[.,]\d+)?)$/, 'VAT %$1'],
+  [/^(\d+) gün kaldı$/, '$1 days left'],
+  [/^(\d+) gün gecikti$/, '$1 days overdue'],
+  [/^Satış teklifi · Revizyon (\d+)$/, 'Sales quote · Revision $1'],
+  [/^Revizyon (\d+) aç$/, 'Open revision $1'],
+  [/^(.+?) %(\d+(?:[.,]\d+)?) \(tevkifat\)$/, '$1 %$2 (withholding)'],
+  [/^(\d{2}\.\d{2}) · teslim (\d{2}\.\d{2}|—)$/, '$1 · due $2'],
+  [/^(.+?) teslim alınan oranı$/, '$1 received share'],
   [/^Satır (\d+) kaldır$/, 'Remove line $1'],
   [/^Satır (\d+) miktar$/, 'Line $1 quantity'],
   [/^Satır (\d+) birim$/, 'Line $1 unit'],

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, localDateString } from "./erpApi";
 import {
+  AlertTriangle,
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -13,6 +15,11 @@ import {
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { financeGridDefaults, ledgerStatementLabels } from "./financeCatalog";
 import { ManualJournalForm } from "./general-ledger/components/ManualJournalForm";
+import {
+  buildManualJournalRequestLines,
+  emptyManualJournalLine,
+  type ManualJournalLine,
+} from "./general-ledger/journalVoucher";
 import { LedgerReportsPanel } from "./general-ledger/components/LedgerReportsPanel";
 import { AccountingRuleProfilesPanel } from "./general-ledger/AccountingRuleProfilesPanel";
 import type {
@@ -36,6 +43,7 @@ import "./finance-record-forms.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./general-ledger/general-ledger-list-v2.css";
+import "./general-ledger/transfer-sources.css";
 
 type LedgerView =
   | "overview"
@@ -58,6 +66,63 @@ type LedgerTransferSourceType =
   | "SupplierPayment"
   | "FxRevaluation"
   | "InventoryCostAdjustment";
+
+type TransferSourceRow = {
+  sourceType: LedgerTransferSourceType;
+  title: string;
+  source: LedgerSource;
+  key: string;
+};
+/** Chip order and labels on the transfer page (sales, purchasing, cash, then valuation sources). */
+const transferSourceTypeOrder: LedgerTransferSourceType[] = [
+  "SalesInvoice",
+  "SalesDelivery",
+  "SalesReturn",
+  "PurchaseInvoice",
+  "PurchaseReceipt",
+  "SupplierReturn",
+  "CustomerCollection",
+  "SupplierPayment",
+  "FxRevaluation",
+  "InventoryCostAdjustment",
+];
+const transferSourceTypeTitles: Record<LedgerTransferSourceType, string> = {
+  SalesInvoice: "Satış faturası",
+  SalesDelivery: "Satış irsaliyesi",
+  SalesReturn: "Satış iadesi",
+  PurchaseInvoice: "Alış faturası",
+  PurchaseReceipt: "Mal kabul",
+  SupplierReturn: "Tedarikçi iadesi",
+  CustomerCollection: "Müşteri tahsilatı",
+  SupplierPayment: "Tedarikçi ödemesi",
+  FxRevaluation: "Kur değerleme",
+  InventoryCostAdjustment: "Stok maliyeti",
+};
+/** Dry run of POST /api/finance/general-ledger/transfer (same line-building logic, nothing persisted). */
+type JournalTransferPreview = {
+  sourceType: string;
+  sourceId: string;
+  code: string | null;
+  entryDate: string | null;
+  description: string | null;
+  lines: {
+    lineNumber: number;
+    accountId: string;
+    accountCode: string;
+    accountName: string;
+    debit: number;
+    credit: number;
+    description: string;
+  }[];
+  totalDebit: number;
+  totalCredit: number;
+  canTransfer: boolean;
+  blockingReason: string | null;
+};
+/** Long document codes keep their start and end: "SF-2026-…000123". */
+const shortenTransferCode = (code: string) =>
+  code.length > 16 ? `${code.slice(0, 8)}…${code.slice(-6)}` : code;
+const displayDate = (value: string) => value.split("-").reverse().join(".");
 
 type LedgerAccountTreeRow = {
   account: LedgerAccount;
@@ -219,9 +284,10 @@ export default function GeneralLedgerPage({
   const [manualDate, setManualDate] = useState(localDateString()),
     [manualAccountingBasis, setManualAccountingBasis] = useState<"TDHP" | "IFRS">("TDHP"),
     [manualDescription, setManualDescription] = useState(""),
-    [manualLines, setManualLines] = useState([
-      { accountId: "", description: "", debit: "0", credit: "0" },
-      { accountId: "", description: "", debit: "0", credit: "0" },
+    [manualLines, setManualLines] = useState<ManualJournalLine[]>(() => [
+      emptyManualJournalLine(),
+      emptyManualJournalLine(),
+      emptyManualJournalLine(),
     ]);
   const [editingAccountId, setEditingAccountId] = useState(""),
     [editingAccountCode, setEditingAccountCode] = useState(""),
@@ -229,6 +295,7 @@ export default function GeneralLedgerPage({
     [editingAccountSection, setEditingAccountSection] =
       useState<LedgerStatementSection>("Unclassified");
   const [sources, setSources] = useState<{
+    baseCurrencyCode?: string;
     salesInvoices: LedgerSource[];
     salesDeliveries: LedgerSource[];
     purchaseInvoices: LedgerSource[];
@@ -258,6 +325,16 @@ export default function GeneralLedgerPage({
     (keys: string[]) => setSelectedTransferKeys(new Set(keys)),
     [],
   );
+  // Transfer sources: the row shown in the preview panel (independent of the checkboxes),
+  // its server-built journal preview and the inline confirmation step.
+  const [previewKey, setPreviewKey] = useState("");
+  const [transferPreview, setTransferPreview] = useState<{
+    key: string;
+    data: JournalTransferPreview | null;
+    loading: boolean;
+    error: string;
+  } | null>(null);
+  const [confirmingTransfer, setConfirmingTransfer] = useState(false);
   const [selected, setSelected] = useState<JournalEntryView | null>(null);
   const [chartPreview, setChartPreview] = useState<{
       totalAccounts: number;
@@ -722,17 +799,8 @@ export default function GeneralLedgerPage({
       setBusy(false);
     }
   }
-  async function transfer(
-    sourceType: LedgerTransferSourceType,
-    source: LedgerSource,
-  ) {
-    if (missingFor(source).length || source.amount <= 0) return;
-    if (
-      !confirmLocalized(
-        `${source.code} kaynağı değiştirilemez yevmiye fişi olarak aktarılsın mı? Borç ve alacak hesaplarını kontrol ettiğinizi onaylayın.`,
-      )
-    )
-      return;
+  async function transferPreviewedSource(row: TransferSourceRow, nextKey: string) {
+    if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -742,15 +810,24 @@ export default function GeneralLedgerPage({
         token,
         {
           method: "POST",
-          body: JSON.stringify({ sourceType, sourceId: source.id }),
+          body: JSON.stringify({ sourceType: row.sourceType, sourceId: row.source.id }),
         },
       );
       setNotice(
         `${result.code} yevmiye fişi oluşturuldu. Borç ve alacak toplamı ${result.totalDebit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}.`,
       );
+      setConfirmingTransfer(false);
+      setSelectedTransferKeys((current) => {
+        if (!current.has(row.key)) return current;
+        const next = new Set(current);
+        next.delete(row.key);
+        return next;
+      });
+      setPreviewKey(nextKey);
       await load();
     } catch (e) {
       setError((e as Error).message);
+      setConfirmingTransfer(false);
     } finally {
       setBusy(false);
     }
@@ -789,21 +866,19 @@ export default function GeneralLedgerPage({
   }
   async function createManualEntry(e: React.FormEvent) {
     e.preventDefault();
-    const debitCents = manualLines.reduce(
-        (sum, line) => sum + Math.round(Number(line.debit || 0) * 100),
-        0,
-      ),
-      creditCents = manualLines.reduce(
-        (sum, line) => sum + Math.round(Number(line.credit || 0) * 100),
-        0,
-      );
-    if (debitCents <= 0 || debitCents !== creditCents) {
-      setError("Borç ve alacak toplamları eşit ve sıfırdan büyük olmalı.");
+    if (busy) return;
+    setNotice("");
+    const prepared = buildManualJournalRequestLines(manualLines, manualDescription);
+    if (!manualDescription.trim()) {
+      setError("Fiş açıklaması girin.");
+      return;
+    }
+    if ("error" in prepared) {
+      setError(prepared.error);
       return;
     }
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       const result = await api<JournalEntrySummary>(
         "/api/finance/general-ledger/entries/manual",
@@ -813,20 +888,13 @@ export default function GeneralLedgerPage({
           body: JSON.stringify({
             entryDate: manualDate,
             accountingBasis: manualAccountingBasis,
-            description: manualDescription,
-            lines: manualLines.map((line) => ({
-              ...line,
-              debit: Number(line.debit),
-              credit: Number(line.credit),
-            })),
+            description: manualDescription.trim(),
+            lines: prepared.lines,
           }),
         },
       );
       setManualDescription("");
-      setManualLines([
-        { accountId: "", description: "", debit: "0", credit: "0" },
-        { accountId: "", description: "", debit: "0", credit: "0" },
-      ]);
+      setManualLines([emptyManualJournalLine(), emptyManualJournalLine(), emptyManualJournalLine()]);
       setNotice(`${result.code} manuel yevmiye fişi kaydedildi.`);
       await load();
     } catch (e) {
@@ -967,7 +1035,7 @@ export default function GeneralLedgerPage({
     "trial-balance": "Mizan",
     "balance-sheet": "Bilanço",
     "journal-ledger": "Yevmiye defterleri",
-    "transfer-sources": "Aktarılabilir alt defter kaynakları",
+    "transfer-sources": "Muhasebeye aktarım",
   };
   const viewDescriptions: Record<LedgerView, string> = {
     overview:
@@ -985,20 +1053,24 @@ export default function GeneralLedgerPage({
     "transfer-sources":
       "Satış, satın alma, tahsilat ve stok hareketlerini muhasebeye aktarın.",
   };
-  const transferSourceRows = [
+  const transferSourceRows: TransferSourceRow[] = [
+    ...sources.salesInvoices.map((source) => ({ sourceType: "SalesInvoice" as const, title: "Satış faturası", source })),
+    ...sources.salesDeliveries.map((source) => ({ sourceType: "SalesDelivery" as const, title: "Satış irsaliyesi", source })),
     ...sources.salesReturns.map((source) => ({ sourceType: "SalesReturn" as const, title: "Satış iadesi", source })),
+    ...sources.purchaseInvoices.map((source) => ({ sourceType: "PurchaseInvoice" as const, title: "Alış faturası", source })),
+    ...sources.purchaseReceipts.map((source) => ({ sourceType: "PurchaseReceipt" as const, title: "Mal kabul", source })),
     ...sources.supplierReturns.map((source) => ({ sourceType: "SupplierReturn" as const, title: "Tedarikçi iadesi", source })),
     ...sources.customerCollections.map((source) => ({ sourceType: "CustomerCollection" as const, title: "Müşteri tahsilatı", source })),
     ...sources.supplierPayments.map((source) => ({ sourceType: "SupplierPayment" as const, title: "Tedarikçi ödemesi", source })),
-    ...sources.purchaseInvoices.map((source) => ({ sourceType: "PurchaseInvoice" as const, title: "Alış faturası", source })),
-    ...sources.purchaseReceipts.map((source) => ({ sourceType: "PurchaseReceipt" as const, title: "Mal kabul", source })),
-    ...sources.salesInvoices.map((source) => ({ sourceType: "SalesInvoice" as const, title: "Satış faturası", source })),
-    ...sources.salesDeliveries.map((source) => ({ sourceType: "SalesDelivery" as const, title: "Satış irsaliyesi", source })),
     ...sources.fxRevaluations.map((source) => ({ sourceType: "FxRevaluation" as const, title: "Kur değerleme", source })),
     ...sources.inventoryAdjustments.map((source) => ({ sourceType: "InventoryCostAdjustment" as const, title: `Stok · ${source.kind || ""}`, source })),
   ].map((row) => ({ ...row, key: `${row.sourceType}-${row.source.id}` }));
+  const transferCurrencyOf = (source: LedgerSource) =>
+    source.currencyCode || sources.baseCurrencyCode || "";
   const isTransferReady = (source: LedgerSource) =>
     source.amount > 0 && missingFor(source).length === 0;
+  const isTransferMappingMissing = (source: LedgerSource) =>
+    source.amount > 0 && missingFor(source).length > 0;
   const searchedTransferSourceRows = transferSourceRows.filter(({ title, source }) => {
     const query = transferSourceSearch.trim().toLocaleLowerCase("tr-TR");
     return !query || [title, source.code, source.description, source.entryDate, source.currencyCode]
@@ -1007,16 +1079,78 @@ export default function GeneralLedgerPage({
       .toLocaleLowerCase("tr-TR")
       .includes(query);
   });
-  const transferReadyCount = searchedTransferSourceRows.filter(({ source }) =>
-    isTransferReady(source),
+  // Chip filter: "" = all, "missing" = rows waiting for an account mapping, otherwise a source type.
+  const transferTypeChips = transferSourceTypeOrder
+    .filter((type) => transferSourceRows.some((row) => row.sourceType === type))
+    .map((type) => ({
+      value: type,
+      label: transferSourceTypeTitles[type],
+      count: searchedTransferSourceRows.filter((row) => row.sourceType === type).length,
+    }));
+  const transferMissingCount = searchedTransferSourceRows.filter(({ source }) =>
+    isTransferMappingMissing(source),
   ).length;
-  const visibleTransferSourceRows = transferStatus
-    ? searchedTransferSourceRows.filter(({ source }) => isTransferReady(source))
-    : searchedTransferSourceRows;
+  const visibleTransferSourceRows = transferStatus === "missing"
+    ? searchedTransferSourceRows.filter(({ source }) => isTransferMappingMissing(source))
+    : transferStatus
+      ? searchedTransferSourceRows.filter(({ sourceType }) => sourceType === transferStatus)
+      : searchedTransferSourceRows;
   const selectedTransferRows = transferSourceRows.filter(({ key }) => selectedTransferKeys.has(key));
   const readyTransferRows = selectedTransferRows.filter(({ source }) =>
     isTransferReady(source),
   );
+  // Waiting amount per currency (FX and stock sources are already in the tenant base currency).
+  const transferTotalsLabel = Object.entries(
+    transferSourceRows.reduce<Record<string, number>>((totals, { source }) => {
+      const currency = transferCurrencyOf(source) || "—";
+      totals[currency] = (totals[currency] || 0) + source.amount;
+      return totals;
+    }, {}),
+  )
+    .sort(([a], [b]) => (a === sources.baseCurrencyCode ? -1 : b === sources.baseCurrencyCode ? 1 : a.localeCompare(b)))
+    .map(([currency, total]) => `${fmt(total)} ${currency}`)
+    .join(" · ");
+  // The previewed row follows the visible list: keep it while visible, else the first row.
+  const previewRow =
+    visibleTransferSourceRows.find((row) => row.key === previewKey) ||
+    visibleTransferSourceRows[0] ||
+    null;
+  const previewRowKey = previewRow?.key || "";
+  useEffect(() => {
+    setConfirmingTransfer(false);
+    if (view !== "transfer-sources" || role !== "TenantAdmin" || !previewRow) {
+      setTransferPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    const key = previewRow.key;
+    setTransferPreview({ key, data: null, loading: true, error: "" });
+    // Short debounce: clicking through rows only requests the row the user stops on.
+    const timer = window.setTimeout(() => {
+      api<JournalTransferPreview>("/api/finance/general-ledger/transfer/preview", token, {
+        method: "POST",
+        body: JSON.stringify({ sourceType: previewRow.sourceType, sourceId: previewRow.source.id }),
+        signal: controller.signal,
+      })
+        .then((data) => {
+          if (!controller.signal.aborted) setTransferPreview({ key, data, loading: false, error: "" });
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted)
+            setTransferPreview({ key, data: null, loading: false, error: (e as Error).message });
+        });
+    }, 180);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+    // previewRow is derived from previewRowKey and sources; the preview is re-read after each reload.
+  }, [view, role, token, previewRowKey, sources]);
+  const nextTransferPreviewKey = (key: string) => {
+    const index = visibleTransferSourceRows.findIndex((row) => row.key === key);
+    if (index < 0) return "";
+    return (visibleTransferSourceRows[index + 1] || visibleTransferSourceRows[index - 1])?.key || "";
+  };
   const accountFormOpen = accountCreateOpen && view === "accounts";
   // The record lists follow the list-v2 structure (see list-page/README.md); the account
   // card form keeps the classic heading because it hides everything else on the page.
@@ -1038,12 +1172,13 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`panel general-ledger-panel finance-workbench${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader ? " list-v2" : ""}`}>
+    <section className={`panel general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader ? " list-v2" : ""}`}>
       {showListHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
           description={viewDescriptions[view]}
           count={listCount}
+          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : undefined}
         >
           {view === "journal-ledger" && (
             <button
@@ -1101,11 +1236,11 @@ export default function GeneralLedgerPage({
               disabled={busy || readyTransferRows.length === 0}
               onClick={() => void transferSelectedSources(readyTransferRows)}
             >
-              {busy ? "Aktarılıyor…" : `Seçilenleri aktar${readyTransferRows.length ? ` (${readyTransferRows.length})` : ""}`}
+              {busy ? "Aktarılıyor…" : `Seçilenleri aktar (${readyTransferRows.length})`}
             </button>
           )}
         </ListPageHeader>
-      ) : accountFormOpen ? null : (
+      ) : accountFormOpen || view === "voucher" ? null : (
         <div className="panel-heading">
           <div>
             <p className="eyebrow">GENEL MUHASEBE</p>
@@ -1117,8 +1252,9 @@ export default function GeneralLedgerPage({
           </div>
         </div>
       )}
-      {error && !accountFormOpen && <p className="error-banner">{error}</p>}
-      {notice && !accountFormOpen && <p className="notice">{notice}</p>}
+      {/* The voucher form shows its own notice under its header and its errors next to the save bar. */}
+      {error && !accountFormOpen && view !== "voucher" && <p className="error-banner">{error}</p>}
+      {notice && !accountFormOpen && view !== "voucher" && <p className="notice">{notice}</p>}
       {view === "overview" && (
         <div className="gl-home">
           <div className="gl-home-intro">
@@ -1764,6 +1900,11 @@ export default function GeneralLedgerPage({
           manualLines={manualLines}
           setManualLines={setManualLines}
           createManualEntry={createManualEntry}
+          error={error}
+          onDismissError={() => setError("")}
+          notice={notice}
+          onDismissNotice={() => setNotice("")}
+          onOpenRecentEntries={onNavigate ? () => onNavigate("finance-journal-ledger") : undefined}
         />
       )}
       {(view === "trial-balance" || view === "balance-sheet") && (
@@ -1793,7 +1934,7 @@ export default function GeneralLedgerPage({
         />
       )}
       {view === "transfer-sources" && role === "TenantAdmin" && (
-        <section className="ledger-subpanel ledger-transfer-sources" aria-label="Aktarılabilir alt defter kaynakları">
+        <section className="ledger-subpanel ledger-transfer-sources" aria-label="Muhasebeye aktarım">
           <ListToolbar
             search={transferSourceSearch}
             onSearchChange={setTransferSourceSearch}
@@ -1803,98 +1944,234 @@ export default function GeneralLedgerPage({
             onRefresh={() => void load()}
           >
             <ListChipGroup
-              label="Durum"
+              label="Kaynak türü"
               value={transferStatus}
               onChange={setTransferStatus}
               options={[
-                { value: "", label: "Bekleyen kaynak", count: searchedTransferSourceRows.length },
-                { value: "ready", label: "Aktarılmaya hazır", count: transferReadyCount },
+                { value: "", label: "Tümü", count: searchedTransferSourceRows.length },
+                ...transferTypeChips,
               ]}
             />
+            {(transferMissingCount > 0 || transferStatus === "missing") && (
+              <button
+                type="button"
+                className={`list-v2-chip ledger-transfer-missing-chip${transferStatus === "missing" ? " is-active" : ""}`}
+                aria-pressed={transferStatus === "missing"}
+                onClick={() => setTransferStatus(transferStatus === "missing" ? "" : "missing")}
+              >
+                <AlertTriangle size={13} aria-hidden="true" />
+                <span>Eşleştirme eksik</span>
+                <span className="list-v2-chip-count">{transferMissingCount.toLocaleString("tr-TR")}</span>
+              </button>
+            )}
           </ListToolbar>
-          <div className="ledger-list list-v2-list">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-transfer-sources"
-              defaults={financeGridDefaults["finance-transfer-sources"]}
-              onSelectionChange={handleTransferSelection}
-              hideSearch
-              toolbarContainer={listToolsSlot}
-            >
-                  <table className="customer-table">
-                    <thead>
-                      <tr>
-                        <th>Kaynak</th>
-                        <th>Tarih</th>
-                        <th>Açıklama</th>
-                        <th>Tutar</th>
-                        <th>Gerekli eşleştirmeler / işlem</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleTransferSourceRows.map(({ sourceType, title, source: x, key }) => {
-                        const missing = missingFor(x);
-                        return (
-                          <tr key={key}>
-                            <td>
+          <div className="ledger-transfer-layout">
+            <div className="ledger-list list-v2-list">
+              <FinanceStudioGrid
+                token={token}
+                screenKey="finance-transfer-sources"
+                defaults={financeGridDefaults["finance-transfer-sources"]}
+                onSelectionChange={handleTransferSelection}
+                hideSearch
+                toolbarContainer={listToolsSlot}
+              >
+                <table className="customer-table">
+                  <thead>
+                    <tr>
+                      <th>Kaynak</th>
+                      <th>Tarih</th>
+                      <th>Cari / Açıklama</th>
+                      <th className="ledger-transfer-amount-cell">Tutar</th>
+                      <th>Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleTransferSourceRows.map(({ title, source: x, key }) => {
+                      const missing = missingFor(x);
+                      const isPreviewed = key === previewRowKey;
+                      return (
+                        <tr
+                          key={key}
+                          className={`ledger-transfer-row${isPreviewed ? " is-previewed" : ""}`}
+                          tabIndex={0}
+                          aria-current={isPreviewed || undefined}
+                          onClick={(event) => {
+                            if ((event.target as HTMLElement).closest("button,input,a,select")) return;
+                            setPreviewKey(key);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setPreviewKey(key);
+                            }
+                          }}
+                        >
+                          <td className="ledger-transfer-source-cell" title={x.code}>
+                            <span className="ledger-transfer-source">
                               <b>{title}</b>
-                              <small className="cell-subtitle">{x.code}</small>
-                            </td>
-                            <td>
-                              {x.entryDate.split("-").reverse().join(".")}
-                            </td>
-                            <td>
-                              {x.description || "Dönem sonu kur değerleme"}
-                            </td>
-                            <td>
-                              {fmt(x.amount)}
-                              {x.currencyCode ? ` ${x.currencyCode}` : ""}
-                            </td>
-                            <td>
-                              {x.amount <= 0 ? (
-                                <span>Sıfır tutar · aktarılamaz</span>
-                              ) : missing.length > 0 ? (
-                                <span>
-                                  {missing
-                                    .map((key) => labelByKey[key] || key)
-                                    .join(" · ")}{" "}
-                                  eksik
-                                </span>
-                              ) : (
-                                <button
-                                  className="row-action"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    void transfer(
-                                      sourceType,
-                                      x,
-                                    )
-                                  }
-                                >
-                                  İncele ve aktar
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {transferSourceRows.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="table-empty">
-                            Aktarılmayı bekleyen kaynak yok.
+                              <small>{shortenTransferCode(x.code)}</small>
+                            </span>
+                          </td>
+                          <td>{displayDate(x.entryDate)}</td>
+                          <td title={x.description || undefined}>
+                            {x.description || "Dönem sonu kur değerleme"}
+                          </td>
+                          <td className="ledger-transfer-amount-cell">
+                            {fmt(x.amount)}
+                            {transferCurrencyOf(x) ? ` ${transferCurrencyOf(x)}` : ""}
+                          </td>
+                          <td>
+                            {x.amount <= 0 ? (
+                              <span className="ledger-transfer-status is-muted">Sıfır tutar · aktarılamaz</span>
+                            ) : missing.length > 0 ? (
+                              <button
+                                type="button"
+                                className="ledger-transfer-status is-warning"
+                                title={`${missing.map((mappingKey) => labelByKey[mappingKey] || mappingKey).join(" · ")} eksik`}
+                                onClick={() => onNavigate?.("finance-ledger-mappings")}
+                              >
+                                <AlertTriangle size={13} aria-hidden="true" />
+                                Hesap eşleştir
+                              </button>
+                            ) : (
+                              <span className="ledger-transfer-status is-ready">
+                                <CheckCircle2 size={13} aria-hidden="true" />
+                                Hazır
+                              </span>
+                            )}
                           </td>
                         </tr>
+                      );
+                    })}
+                    {transferSourceRows.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="table-empty">
+                          Aktarılmayı bekleyen kaynak yok.
+                        </td>
+                      </tr>
+                    )}
+                    {transferSourceRows.length > 0 && visibleTransferSourceRows.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="table-empty">
+                          Filtreyle eşleşen kaynak bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </FinanceStudioGrid>
+            </div>
+            <aside className="ledger-transfer-preview" aria-label="Oluşacak yevmiye fişi" aria-live="polite">
+              {previewRow ? (
+                <>
+                  <div className="list-v2-detail-head">
+                    <div>
+                      <span className="list-v2-kind">Oluşacak yevmiye fişi</span>
+                      <h2>{previewRow.title}</h2>
+                      <span className="ledger-transfer-preview-code" title={previewRow.source.code}>
+                        {previewRow.source.code} · {displayDate(previewRow.source.entryDate)}
+                      </span>
+                    </div>
+                  </div>
+                  {transferPreview?.key === previewRow.key && transferPreview.data ? (
+                    <>
+                      {transferPreview.data.lines.length > 0 && (
+                        <table className="ledger-transfer-preview-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Hesap</th>
+                              <th scope="col">Borç</th>
+                              <th scope="col">Alacak</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {transferPreview.data.lines.map((line) => (
+                              <tr key={line.lineNumber} title={line.description}>
+                                <td>
+                                  <b>{line.accountCode}</b>
+                                  <small>{line.accountName}</small>
+                                </td>
+                                <td>{line.debit ? fmt(line.debit) : ""}</td>
+                                <td>{line.credit ? fmt(line.credit) : ""}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <th scope="row">Toplam</th>
+                              <td>{fmt(transferPreview.data.totalDebit)}</td>
+                              <td>{fmt(transferPreview.data.totalCredit)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
                       )}
-                      {transferSourceRows.length > 0 && visibleTransferSourceRows.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="table-empty">
-                            Filtreyle eşleşen kaynak bulunamadı.
-                          </td>
-                        </tr>
+                      {transferPreview.data.canTransfer ? (
+                        <p className="ledger-transfer-preview-balance is-ready">
+                          <CheckCircle2 size={15} aria-hidden="true" />
+                          <span>
+                            Dengeli · {transferPreview.data.entryDate ? displayDate(transferPreview.data.entryDate) : displayDate(previewRow.source.entryDate)} dönemi açık
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="ledger-transfer-preview-balance is-blocked" role="alert">
+                          <AlertTriangle size={15} aria-hidden="true" />
+                          <span>{transferPreview.data.blockingReason}</span>
+                        </p>
                       )}
-                    </tbody>
-                  </table>
-            </FinanceStudioGrid>
+                      {!transferPreview.data.canTransfer && missingFor(previewRow.source).length > 0 && (
+                        <button
+                          type="button"
+                          className="secondary ledger-transfer-preview-action"
+                          onClick={() => onNavigate?.("finance-ledger-mappings")}
+                        >
+                          Hesap eşleştirmelerine git
+                        </button>
+                      )}
+                      {confirmingTransfer ? (
+                        <div className="ledger-transfer-confirm" role="group" aria-label="Aktarımı onayla">
+                          <p>{previewRow.source.code} değiştirilemez yevmiye fişi olarak aktarılsın mı?</p>
+                          <div>
+                            <button
+                              type="button"
+                              className="primary"
+                              disabled={busy}
+                              onClick={() => void transferPreviewedSource(previewRow, nextTransferPreviewKey(previewRow.key))}
+                            >
+                              {busy ? "Aktarılıyor…" : "Evet, aktar"}
+                            </button>
+                            <button type="button" className="secondary" disabled={busy} onClick={() => setConfirmingTransfer(false)}>
+                              Vazgeç
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="primary ledger-transfer-preview-action"
+                          disabled={busy || !transferPreview.data.canTransfer}
+                          onClick={() => setConfirmingTransfer(true)}
+                        >
+                          Bu kaynağı aktar
+                        </button>
+                      )}
+                      <p className="ledger-transfer-preview-note">Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p>
+                    </>
+                  ) : transferPreview?.key === previewRow.key && transferPreview.error ? (
+                    <p className="ledger-transfer-preview-balance is-blocked" role="alert">
+                      <AlertTriangle size={15} aria-hidden="true" />
+                      <span>{transferPreview.error}</span>
+                    </p>
+                  ) : (
+                    <p className="ledger-transfer-preview-empty">Önizleme hazırlanıyor…</p>
+                  )}
+                </>
+              ) : (
+                <p className="ledger-transfer-preview-empty">
+                  {transferSourceRows.length ? "Önizleme için bir kaynak seçin." : "Aktarılmayı bekleyen kaynak yok."}
+                </p>
+              )}
+            </aside>
           </div>
         </section>
       )}

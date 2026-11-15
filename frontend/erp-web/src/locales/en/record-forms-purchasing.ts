@@ -37,7 +37,27 @@ export const english: Record<string, string> = {
   'Vergi toplamı': 'Tax total',
   'Belge tarihi': 'Document date',
   'Grup kodu': 'Group code',
+  // Mal kabul faturası girişi: list with an inline invoice panel.
+  'mal kabul fatura bekliyor': 'purchase receipts awaiting invoice',
+  'Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.': 'Only posted purchase receipts linked to a purchase order are listed.',
+  'Kabul tarihi': 'Receipt date',
+  'Fatura tutarı': 'Invoice amount',
+  'Seçili mal kabul': 'Selected purchase receipt',
+  'Mal kabul numarasını kopyala': 'Copy purchase receipt number',
+  'Satırlar yükleniyor…': 'Loading lines…',
+  'Mal kabul satırları alınamadı.': 'Could not load the purchase receipt lines.',
+  'Mkt': 'Qty',
+  'KDV': 'VAT',
+  'Ara toplam': 'Subtotal',
+  'Genel toplam': 'Grand total',
+  'Tedarikçi fatura no': 'Supplier invoice no.',
+  'Gelen e-belge bilgileri': 'Incoming e-document details',
+  'Belge UUID': 'Document UUID',
+  'Belge senaryosu': 'Document scenario',
+  'Fatura girmek için listeden bir mal kabul seçin.': 'Select a purchase receipt from the list to enter its invoice.',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
+  [/^(.+?) · (\d+) satır$/, '$1 · $2 lines'],
+  [/^Vade (\d{2}\.\d{2}\.\d{4}) · (\d+) gün$/, 'Due $1 · $2 days'],
 ]

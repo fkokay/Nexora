@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Ban,
+  Banknote,
   ChevronDown,
+  Eye,
+  PackageCheck,
   Plus,
   Printer,
   Search,
   Settings,
   ShieldCheck,
+  Undo2,
   X,
 } from "lucide-react";
 import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
@@ -34,11 +39,23 @@ import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { SalesDeliveriesScreen } from "./SalesDeliveriesPage";
 import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
-import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
+import { PurchaseInvoiceModal, type PurchaseInvoiceInitialAction } from "./PurchaseInvoiceModal";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import { confirmLocalized, promptLocalized } from "./locale";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
+import {
+  DetailInfoGrid,
+  DetailLinesFooter,
+  DetailNotes,
+  DetailSection,
+  DetailTabs,
+  DetailTiles,
+  daysFromToday,
+  formatAmount,
+  formatDate,
+  formatQuantity,
+} from "./document-detail/DocumentDetailLayout";
 import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
 import {
   RecordFormGroup,
@@ -46,6 +63,8 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./sales/sales-record-forms.css";
+import "./sales/purchase-order-create.css";
+import "./sales/purchase-orders-list.css";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type PurchaseInvoiceSummary = AppTypes.PurchaseInvoiceSummary;
 type PurchaseOrderDetail = AppTypes.PurchaseOrderDetail;
@@ -212,6 +231,7 @@ export function SalesPage({
   createOrderPage = false,
   createQuotePage = false,
   createDeliveryPage = false,
+  createPurchaseOrderPage = false,
 }: {
   token: string;
   role: string;
@@ -226,6 +246,7 @@ export function SalesPage({
   createOrderPage?: boolean;
   createQuotePage?: boolean;
   createDeliveryPage?: boolean;
+  createPurchaseOrderPage?: boolean;
 }) {
   const salesActionPage = createOrderPage
     ? "sales-order-create"
@@ -557,6 +578,22 @@ export function SalesPage({
     >([]),
     [quoteValueHistoryField, setQuoteValueHistoryField] =
       useState<SalesQuoteCustomFieldDefinition | null>(null);
+  // Every sales workspace tab is its own SalesPage instance (keep-alive). A write in one tab
+  // (e.g. "Yeni Teklif") announces itself so the other open lists reload instead of going stale.
+  const salesInstanceId = useRef(Math.random().toString(36).slice(2));
+  const latestLoad = useRef<() => Promise<void>>(async () => undefined);
+  const notifySalesChanged = () =>
+    window.dispatchEvent(
+      new CustomEvent(SALES_CHANGED_EVENT, { detail: salesInstanceId.current }),
+    );
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === salesInstanceId.current) return;
+      void latestLoad.current();
+    };
+    window.addEventListener(SALES_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(SALES_CHANGED_EVENT, onChanged);
+  }, []);
   async function load(
     targetPage = salesListPage,
     query = search,
@@ -661,6 +698,11 @@ export function SalesPage({
       setLoading(false);
     }
   }
+  // Only list tabs follow other tabs' writes; create pages keep their in-progress form data.
+  latestLoad.current = () =>
+    activeTab === "quotes" || activeTab === "orders" || activeTab === "invoices"
+      ? load()
+      : Promise.resolve();
   async function prepareInvoiceCreate() {
     setError("");
     try {
@@ -1151,6 +1193,7 @@ export function SalesPage({
       setCustomerId("");
       setDirectOrderFields({});
       setNotice(`${created.code} siparişi ${editOrderId ? "güncellendi" : "oluşturuldu"}.`);
+      notifySalesChanged();
       onNavigate("sales-orders");
     } catch (e) {
       setError((e as Error).message);
@@ -1450,6 +1493,7 @@ export function SalesPage({
           }),
         },
       );
+      notifySalesChanged();
       setCode("");
       setNotes("");
       setDeliveryTerms("");
@@ -1605,7 +1649,10 @@ export function SalesPage({
         method: "POST",
       });
       setNotice(`${item.code} numaralı teklif iletildi durumuna alındı.`);
+      notifySalesChanged();
       await load();
+      // The open detail shows the status and its actions; refresh it like accept/reject do.
+      if (detail?.id === item.id) await openQuote(item.id);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1625,6 +1672,8 @@ export function SalesPage({
     try {
       await api(`/api/sales/quotes/${item.id}`, token, { method: "DELETE" });
       setSelectedSalesId(null);
+      // Deleted from its own detail: return to the list.
+      setDetail((current) => (current?.id === item.id ? null : current));
       await load(salesListPage);
       setNotice(`${item.code} teklifi silindi.`);
     } catch (e) {
@@ -1651,6 +1700,7 @@ export function SalesPage({
           ? `${item.code} teklifi kabul edildi.`
           : `${item.code} teklifi reddedildi.`,
       );
+      notifySalesChanged();
       await load();
       if (detail?.id === item.id) await openQuote(item.id);
     } catch (e) {
@@ -1670,6 +1720,7 @@ export function SalesPage({
         { method: "POST" },
       );
       setNotice(`${item.code} teklifinden satış siparişi oluşturuldu.`);
+      notifySalesChanged();
       onNavigate("sales-orders");
       await load();
       if (detail?.id === item.id) await openQuote(item.id);
@@ -1733,16 +1784,6 @@ export function SalesPage({
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
-  const statusName = (status: SalesQuoteSummary["status"]) =>
-    status === "Draft"
-      ? "Taslak"
-      : status === "Sent"
-        ? "İletildi"
-        : status === "Accepted"
-          ? "Kabul edildi"
-          : status === "Rejected"
-            ? "Reddedildi"
-            : "Süresi doldu";
   const visibleQuoteFields = quoteScreenFields
     .filter(
       (field) =>
@@ -2035,6 +2076,13 @@ export function SalesPage({
             role={role}
             onInvoiceCreated={() => onNavigate("sales-purchase-invoices")}
           />
+        ) : activeTab === "purchases" && createPurchaseOrderPage ? (
+          <PurchaseOrderCreatePage
+            token={token}
+            customers={customers}
+            warehouses={warehouses}
+            onNavigate={onNavigate}
+          />
         ) : activeTab === "purchases" || activeTab === "requests" ? (
           <PurchasingPanel
             token={token}
@@ -2043,6 +2091,7 @@ export function SalesPage({
             stockItems={stockItems}
             warehouses={warehouses}
             mode={activeTab === "requests" ? "requests" : "purchasing"}
+            onNavigate={onNavigate}
           />
         ) : activeTab === "purchase-invoices" ? (
           <PurchaseInvoicesScreen
@@ -2990,332 +3039,402 @@ export function SalesPage({
               )}
           </RecordFormPage>
       )}
-      {detail && (
+      {detail && (() => {
+        const quoteMoney = (value: number) => formatAmount(value, detail.currencyCode);
+        const validDays = daysFromToday(detail.validUntil);
+        const expired = detail.status === "Expired" || (validDays < 0 && (detail.status === "Draft" || detail.status === "Sent"));
+        const usesForeignCurrency = detail.lines.some(
+          (line) => !!line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode,
+        );
+        const isLatestRevision = quoteRevisions[quoteRevisions.length - 1]?.id === detail.id;
+        const canRevise = !detail.hasSalesOrder && isLatestRevision;
+        const canDelete = detail.status === "Draft" && role === "TenantAdmin";
+        return (
           <DocumentSurface
+            variant="detail"
             title="Satış teklifi"
+            eyebrow={`Satış teklifi · Revizyon ${detail.revisionNumber}`}
             code={detail.code}
-            subtitle={detail.customerName}
+            closeLabel="Geri"
+            subtitle={
+              <span>
+                {detail.customerName}
+                {detail.customerCode && <span className="dd-muted"> · {detail.customerCode}</span>}
+                {!detail.customerId && <span className="dd-muted"> · Kayıtsız alıcı</span>}
+              </span>
+            }
             status={salesQuoteStatus(detail.status)}
             onClose={() => setDetail(null)}
-            className="sales-quote-detail-backdrop"
-            bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
-          >
-            <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Teklif detay bölümleri">
-              {([
-                ["information", "Teklif Bilgileri"],
-                ["revisions", "Teklif Geçmişi"],
-              ] as const).map(([key, label]) => (
-                <button key={key} type="button" role="tab" aria-selected={quoteDetailTab === key} className={quoteDetailTab === key ? "active" : ""} onClick={() => setQuoteDetailTab(key)}>{label}{key === "revisions" && <span>{quoteRevisions.length}</span>}</button>
-              ))}
-            </nav>
-            <div className="sales-detail-content">
-            {quoteDetailTab === "information" && <>
-            <section className="sales-quote-readonly-form" aria-label="Teklif üst bilgileri">
-              <label><span>Teklif alıcısı</span><input readOnly value={`${detail.customerCode ? `${detail.customerCode} · ` : ""}${detail.customerName}`} /></label>
-              <label><span>Durum</span><input readOnly value={statusName(detail.status)} /></label>
-              <label><span>Teklif tarihi</span><input readOnly value={new Date(`${detail.quoteDate}T00:00:00`).toLocaleDateString("tr-TR")} /></label>
-              <label><span>Geçerlilik tarihi</span><input readOnly value={new Date(`${detail.validUntil}T00:00:00`).toLocaleDateString("tr-TR")} /></label>
-              {detail.salesRequestCode && <label><span>Kaynak talep</span><input readOnly value={detail.salesRequestCode} /></label>}
-              <label><span>Para birimi</span><input readOnly value={detail.currencyCode} /></label>
-              <label><span>Plasiyer</span><input readOnly value={detail.salespersonName || "—"} /></label>
-              {detail.deliveryTerms && <label className="wide"><span>Teslimat koşulları</span><textarea readOnly rows={2} value={detail.deliveryTerms} /></label>}
-            </section>
-            </>}
-            {quoteDetailTab === "revisions" && <section className="panel sales-quote-revisions">
-              <div className="sales-quote-revisions-heading">
-                <div className="sales-quote-revisions-title">
-                  <b>Revizyon geçmişi</b>
-                  <small>Önceki teklif sürümleri korunur.</small>
-                </div>
-                <div className="sales-quote-revisions-actions">
-                  <span className="sales-quote-revision-count">{quoteRevisions.length} sürüm</span>
-                  {!detail.hasSalesOrder && quoteRevisions[quoteRevisions.length - 1]?.id === detail.id && (
-                  <button type="button" className="secondary small-button" disabled={busy} onClick={() => void beginQuoteRevision()}>
-                    Yeni revizyon oluştur
-                  </button>
-                  )}
-                </div>
-              </div>
-              <div className="requests-list sales-quote-revisions-list">
-                {quoteRevisions.map((revision) => (
-                  <button type="button" className="request-row" key={revision.id} onClick={() => revision.id !== detail.id && void openQuote(revision.id)} disabled={revision.id === detail.id}>
-                    <div className="request-info">
-                      <b>Revizyon {revision.revisionNumber} · {revision.code}</b>
-                      <small>{statusName(revision.status)} · {revision.quoteDate} · {revision.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {revision.currencyCode}</small>
-                    </div>
-                    {revision.id === detail.id && <span className="quote-status accepted">Açık</span>}
-                  </button>
-                ))}
-              </div>
-            </section>}
-            {quoteDetailTab === "information" && <>
-            <section className="sales-quote-lines-section">
-            <h3 className="sales-quote-section-title">Teklif Satırları</h3>
-            <div className="ledger-list sales-quote-lines">
-              <table className="customer-table quote-detail-table">
-                <thead>
-                  <tr>
-                    <th>Stok</th>
-                    <th>Miktar</th>
-                    <th>Birim fiyat</th>
-                    <th>İskonto</th>
-                    <th>KDV</th>
-                    <th>Toplam</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.lines.map((line) => (
-                    <tr key={line.lineNumber}>
-                      <td>
-                        <b>{line.stockCode}</b>
-                        <small className="cell-subtitle">
-                          {line.stockName}
-                        </small>
-                      </td>
-                      <td>
-                        {line.quantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}{" "}
-                        {line.unitCode}
-                      </td>
-                      <td>
-                        {(line.enteredUnitPrice ?? line.unitPrice).toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 4,
-                        })}{" "}{line.enteredCurrencyCode || detail.currencyCode}
-                        {line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode && (
-                          <small className="cell-subtitle">
-                            Kur: 1 {line.enteredCurrencyCode} = {Number(line.exchangeRateToQuoteCurrency || 1).toLocaleString("tr-TR", { maximumFractionDigits: 8 })} {detail.currencyCode}
-                            {" · "}{line.unitPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {detail.currencyCode}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        {line.discountAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        ({line.discountPercent}%)
-                      </td>
-                      <td>
-                        {line.taxAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        ({line.vatPercent}%)
-                      </td>
-                      <td>
-                        {line.lineTotal.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </section>
-            <div className="sales-quote-total-row">
-              {detail.notes && (
-                <label className="sales-quote-notes-field">
-                  <span>Notlar</span>
-                  <textarea readOnly rows={5} value={detail.notes} />
-                </label>
-              )}
-              <section className="sales-quote-totals-panel">
-                <div><span>Ara toplam</span><b>{detail.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
-                <div><span>Toplam iskonto</span><b>{detail.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
-                <div><span>Toplam KDV</span><b>{detail.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {detail.currencyCode}</b></div>
-                <div className="grand-total"><span>Genel toplam</span><b>{detail.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {detail.currencyCode}</b></div>
-              </section>
-            </div>
-            </>}
-            {quoteDetailTab === "information" && detail.status === "Draft" && detail.customFields.length > 0 && (
-              <form
-                onSubmit={saveQuoteFieldValues}
-                className="panel"
-                style={{ marginTop: 14 }}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <b>Teklif özel alanları</b>
-                    <small>Teklif iletildiğinde değerler kilitlenir.</small>
-                  </div>
-                </div>
-                <div className="form-two">
-                  {detail.customFields.map((field) => (
-                    <label key={field.definitionId}>
-                      {field.label}
-                      {field.isRequired ? " *" : ""}
-                      <small>
-                        {field.code} · {field.dataType}
-                      </small>
-                      {field.dataType === "Boolean" ? (
-                        <select
-                          required={field.isRequired}
-                          value={quoteDetailValues[field.code] || ""}
-                          onChange={(e) =>
-                            setQuoteDetailValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Seçin</option>
-                          <option value="true">Evet</option>
-                          <option value="false">Hayır</option>
-                        </select>
-                      ) : (
-                        <input
-                          type={
-                            field.dataType === "Decimal"
-                              ? "number"
-                              : field.dataType === "Date"
-                                ? "date"
-                                : "text"
-                          }
-                          step={
-                            field.dataType === "Decimal" ? "any" : undefined
-                          }
-                          maxLength={
-                            field.dataType === "Text"
-                              ? field.maxLength
-                              : undefined
-                          }
-                          required={field.isRequired}
-                          value={quoteDetailValues[field.code] || ""}
-                          onChange={(e) =>
-                            setQuoteDetailValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        />
-                      )}
-                    </label>
-                  ))}
-                </div>
-                <div className="modal-foot">
-                  <span>İşlem geçmişi her değişikliği saklar.</span>
-                  <button className="primary" disabled={quoteFieldBusy}>
-                    Değerleri kaydet
-                  </button>
-                </div>
-              </form>
-            )}
-            {quoteDetailTab === "information" && quoteValueHistoryField && (
-              <section className="panel" style={{ marginTop: 14 }}>
-                <div className="panel-heading">
-                  <div>
-                    <b>{quoteValueHistoryField.label} · değer geçmişi</b>
-                    <small>Son 50 değişiklik</small>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    onClick={() => setQuoteValueHistoryField(null)}
-                  >
-                    Kapat
-                  </button>
-                </div>
-                <div className="requests-list">
-                  {quoteValueHistory.map((revision) => (
-                    <article className="request-row" key={revision.id}>
-                      <div className="request-info">
-                        <b>
-                          {revision.previousValue ?? "—"} →{" "}
-                          {revision.newValue ?? "—"}
-                        </b>
-                        <small>
-                          Tanım v{revision.definitionVersion} ·{" "}
-                          {new Date(revision.createdAt).toLocaleString("tr-TR")}
-                        </small>
-                      </div>
-                      {detail.status === "Draft" && (
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={quoteFieldBusy}
-                          onClick={() =>
-                            void restoreQuoteFieldRevision(revision)
-                          }
-                        >
-                          Önceki değeri geri yükle
-                        </button>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-            <div className="decision-actions">
-              {detail.status === "Sent" && (
-                <>
-                  <button
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => void decideQuote(detail, "reject")}
-                  >
-                    Teklifi reddet
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={busy}
-                    onClick={() => void decideQuote(detail, "accept")}
-                  >
-                    Teklifi kabul et
-                  </button>
-                </>
-              )}
-              {detail.status === "Rejected" && (
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => void decideQuote(detail, "accept")}
-                >
-                  Reddedilen teklifi kabul et
+            className="sales-quote-detail"
+            actions={
+              <>
+                <button type="button" className="secondary" onClick={() => setQuotePrintOpen(true)}>
+                  <Printer size={15} aria-hidden="true" /> Yazdır
                 </button>
-              )}
-              {detail.status === "Accepted" && !detail.hasSalesOrder && (
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => void convertQuote(detail)}
-                >
-                  Satış siparişi oluştur
-                </button>
-              )}
-              {detail.hasSalesOrder && (
-                <span className="quote-status accepted">
-                  Satış siparişi oluşturuldu
-                </span>
-              )}
-            </div>
-            </div>
-            <div className="modal-foot">
-              <div className="sales-quote-footer-summary" aria-label="Teklif özeti">
-                <span className="sales-quote-footer-revision">Revizyon {detail.revisionNumber}</span>
-                <span><small>Teklif tarihi</small><b>{detail.quoteDate}</b></span>
-                <span><small>Son geçerlilik</small><b>{detail.validUntil}</b></span>
-              </div>
-              <div>
-                <button className="secondary" onClick={() => setDetail(null)}>
-                  Kapat
-                </button>
-                <button className="secondary sales-quote-print-trigger" onClick={() => setQuotePrintOpen(true)}>
-                  <Printer size={15} /> Yazdır / Önizle
-                </button>
+                {detail.status === "Draft" && !detail.hasSalesOrder && (
+                  <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteEdit(detail.id)}>
+                    Düzenle
+                  </button>
+                )}
                 {detail.status === "Draft" && (
-                  <button
-                    className="primary"
-                    disabled={busy}
-                    onClick={() => void sendQuote(detail)}
-                  >
+                  <button type="button" className="primary" disabled={busy} onClick={() => void sendQuote(detail)}>
                     {busy ? "Kaydediliyor…" : "İletildi yap"}
                   </button>
                 )}
+                {detail.status === "Sent" && (
+                  <>
+                    <button type="button" className="secondary" disabled={busy} onClick={() => void decideQuote(detail, "reject")}>
+                      Reddet
+                    </button>
+                    <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
+                      Kabul et
+                    </button>
+                  </>
+                )}
+                {detail.status === "Rejected" && (
+                  <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
+                    Reddedilen teklifi kabul et
+                  </button>
+                )}
+                {detail.status === "Accepted" && !detail.hasSalesOrder && (
+                  <button type="button" className="primary" disabled={busy} onClick={() => void convertQuote(detail)}>
+                    Siparişe dönüştür
+                  </button>
+                )}
+                {(canRevise || canDelete) && (
+                  <SalesRowActionsMenu label={detail.code}>
+                    {canRevise && (
+                      <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
+                        Revizyon oluştur
+                      </button>
+                    )}
+                    {canRevise && canDelete && <div role="separator" className="sales-row-menu-separator" />}
+                    {canDelete && (
+                      <button type="button" role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(detail)}>
+                        Sil
+                      </button>
+                    )}
+                  </SalesRowActionsMenu>
+                )}
+              </>
+            }
+          >
+            {error && (
+              <div className="alert inline-alert">
+                {error}
+                <button type="button" aria-label="Hatayı kapat" onClick={() => setError("")}>
+                  <X size={15} />
+                </button>
               </div>
-            </div>
+            )}
+            {notice && (
+              <div className="notice">
+                {notice}
+                <button type="button" aria-label="Bildirimi kapat" onClick={() => setNotice("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <DetailTiles
+              label="Teklif özeti"
+              items={[
+                { label: "Genel toplam", value: quoteMoney(detail.grandTotal) },
+                {
+                  label: "Geçerlilik",
+                  value: formatDate(detail.validUntil),
+                  tone: expired ? "danger" : "default",
+                  hint: expired
+                    ? "Süresi doldu"
+                    : detail.status === "Draft" || detail.status === "Sent"
+                      ? validDays === 0
+                        ? "Bugün sona eriyor"
+                        : `${validDays} gün kaldı`
+                      : undefined,
+                },
+                { label: "Satır", value: detail.lines.length },
+                {
+                  label: "Sipariş",
+                  tone: detail.salesOrderId && detail.salesOrderCode ? "default" : "muted",
+                  value:
+                    detail.salesOrderId && detail.salesOrderCode ? (
+                      <button
+                        type="button"
+                        className="dd-link"
+                        aria-label={`${detail.salesOrderCode} sipariş ayrıntılarını aç`}
+                        onClick={() => void openOrder(detail.salesOrderId!)}
+                      >
+                        {detail.salesOrderCode}
+                      </button>
+                    ) : detail.hasSalesOrder ? (
+                      "Oluşturuldu"
+                    ) : (
+                      "Henüz yok"
+                    ),
+                },
+              ]}
+            />
+            <DetailTabs<"information" | "revisions">
+              label="Teklif detay bölümleri"
+              value={quoteDetailTab}
+              onChange={setQuoteDetailTab}
+              tabs={[
+                { key: "information", label: "Teklif bilgileri" },
+                { key: "revisions", label: "Geçmiş", count: quoteRevisions.length },
+              ]}
+            />
+            {quoteDetailTab === "information" && (
+              <>
+                <div className="dd-box">
+                  <DetailInfoGrid
+                    label="Teklif üst bilgileri"
+                    items={[
+                      { label: "Teklif tarihi", value: formatDate(detail.quoteDate) },
+                      { label: "Para birimi", value: detail.currencyCode },
+                      { label: "Plasiyer", value: detail.salespersonName || "—" },
+                      { label: "Kaynak talep", value: detail.salesRequestCode || "—" },
+                    ]}
+                  />
+                </div>
+                <div className="dd-box">
+                  <div className="dd-lines-wrap">
+                    <table className="dd-lines" aria-label="Teklif satırları">
+                      <thead>
+                        <tr>
+                          <th>Stok</th>
+                          <th className="dd-num">Miktar</th>
+                          {usesForeignCurrency && <th className="dd-num">Döviz fiyatı</th>}
+                          {usesForeignCurrency && <th className="dd-num">Kur</th>}
+                          <th className="dd-num">Birim fiyat</th>
+                          <th className="dd-num">İskonto</th>
+                          <th className="dd-num">KDV</th>
+                          <th className="dd-num">Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.lines.map((line) => {
+                          const foreign = !!line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode;
+                          return (
+                            <tr key={line.lineNumber}>
+                              <td className="dd-stock">
+                                <b>{line.stockCode}</b>
+                                <small>{line.stockName}</small>
+                              </td>
+                              <td className="dd-num">
+                                {formatQuantity(line.quantity)} {line.unitCode}
+                              </td>
+                              {usesForeignCurrency && (
+                                <td className="dd-num">
+                                  {foreign
+                                    ? `${(line.enteredUnitPrice ?? line.unitPrice).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${line.enteredCurrencyCode}`
+                                    : "—"}
+                                </td>
+                              )}
+                              {usesForeignCurrency && (
+                                <td className="dd-num">
+                                  {foreign
+                                    ? Number(line.exchangeRateToQuoteCurrency || 1).toLocaleString("tr-TR", { maximumFractionDigits: 8 })
+                                    : "—"}
+                                </td>
+                              )}
+                              <td className="dd-num">
+                                {(foreign ? line.unitPrice : (line.enteredUnitPrice ?? line.unitPrice)).toLocaleString("tr-TR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 4,
+                                })}
+                                {line.isVatIncluded && !foreign && <small>KDV dahil</small>}
+                              </td>
+                              <td className="dd-num">
+                                {line.discountAmount > 0 ? (
+                                  <>
+                                    {formatAmount(line.discountAmount)}
+                                    <small>%{line.discountPercent}</small>
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="dd-num">%{line.vatPercent}</td>
+                              <td className="dd-num">
+                                <b>{formatAmount(line.lineSubtotal - line.discountAmount)}</b>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <DetailLinesFooter
+                    label="Teklif toplamları"
+                    aside={
+                      <DetailNotes
+                        items={[
+                          { label: "Teslimat koşulları", value: detail.deliveryTerms },
+                          { label: "Açıklama ve satış koşulları", value: detail.notes },
+                        ]}
+                      />
+                    }
+                    totals={[
+                      { label: "Ara toplam", value: quoteMoney(detail.subtotal) },
+                      { label: "Toplam iskonto", value: quoteMoney(detail.discountTotal) },
+                      { label: "Toplam KDV", value: quoteMoney(detail.taxTotal) },
+                      { label: "Genel toplam", value: quoteMoney(detail.grandTotal), emphasis: "grand" },
+                    ]}
+                  />
+                </div>
+                {detail.status === "Draft" && detail.customFields.length > 0 && (
+                  <DetailSection title="Teklif özel alanları" description="Teklif iletildiğinde değerler kilitlenir.">
+                    <form onSubmit={saveQuoteFieldValues}>
+                      <div className="form-two">
+                        {detail.customFields.map((field) => (
+                          <label key={field.definitionId}>
+                            {field.label}
+                            {field.isRequired ? " *" : ""}
+                            <small>
+                              {field.code} · {field.dataType}
+                            </small>
+                            {field.dataType === "Boolean" ? (
+                              <select
+                                required={field.isRequired}
+                                value={quoteDetailValues[field.code] || ""}
+                                onChange={(e) =>
+                                  setQuoteDetailValues((current) => ({
+                                    ...current,
+                                    [field.code]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">Seçin</option>
+                                <option value="true">Evet</option>
+                                <option value="false">Hayır</option>
+                              </select>
+                            ) : (
+                              <input
+                                type={field.dataType === "Decimal" ? "number" : field.dataType === "Date" ? "date" : "text"}
+                                step={field.dataType === "Decimal" ? "any" : undefined}
+                                maxLength={field.dataType === "Text" ? field.maxLength : undefined}
+                                required={field.isRequired}
+                                value={quoteDetailValues[field.code] || ""}
+                                onChange={(e) =>
+                                  setQuoteDetailValues((current) => ({
+                                    ...current,
+                                    [field.code]: e.target.value,
+                                  }))
+                                }
+                              />
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="dd-form-foot">
+                        <span className="dd-muted">İşlem geçmişi her değişikliği saklar.</span>
+                        <button className="primary" disabled={quoteFieldBusy}>
+                          Değerleri kaydet
+                        </button>
+                      </div>
+                    </form>
+                  </DetailSection>
+                )}
+                {quoteValueHistoryField && (
+                  <DetailSection
+                    title={`${quoteValueHistoryField.label} · değer geçmişi`}
+                    description="Son 50 değişiklik"
+                    actions={
+                      <button type="button" className="secondary" onClick={() => setQuoteValueHistoryField(null)}>
+                        Kapat
+                      </button>
+                    }
+                  >
+                    <div className="requests-list">
+                      {quoteValueHistory.map((revision) => (
+                        <article className="request-row" key={revision.id}>
+                          <div className="request-info">
+                            <b>
+                              {revision.previousValue ?? "—"} → {revision.newValue ?? "—"}
+                            </b>
+                            <small>
+                              Tanım v{revision.definitionVersion} · {new Date(revision.createdAt).toLocaleString("tr-TR")}
+                            </small>
+                          </div>
+                          {detail.status === "Draft" && (
+                            <button
+                              type="button"
+                              className="secondary small-button"
+                              disabled={quoteFieldBusy}
+                              onClick={() => void restoreQuoteFieldRevision(revision)}
+                            >
+                              Önceki değeri geri yükle
+                            </button>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+              </>
+            )}
+            {quoteDetailTab === "revisions" && (
+              <DetailSection
+                title="Revizyon geçmişi"
+                count={quoteRevisions.length}
+                description="Önceki teklif sürümleri korunur."
+                actions={
+                  canRevise && (
+                    <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteRevision()}>
+                      Yeni revizyon oluştur
+                    </button>
+                  )
+                }
+              >
+                <div className="dd-lines-wrap">
+                  <table className="dd-lines" aria-label="Revizyon geçmişi">
+                    <thead>
+                      <tr>
+                        <th>Revizyon</th>
+                        <th>Teklif no</th>
+                        <th>Durum</th>
+                        <th>Teklif tarihi</th>
+                        <th className="dd-num">Genel toplam</th>
+                        <th className="dd-menu">
+                          <span className="dd-sr">İşlemler</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quoteRevisions.map((revision) => (
+                        <tr key={revision.id}>
+                          <td>
+                            <b>Revizyon {revision.revisionNumber}</b>
+                          </td>
+                          <td>{revision.code}</td>
+                          <td>
+                            <DocumentStatusBadge status={salesQuoteStatus(revision.status)} />
+                          </td>
+                          <td>{formatDate(revision.quoteDate)}</td>
+                          <td className="dd-num">{formatAmount(revision.grandTotal, revision.currencyCode)}</td>
+                          <td className="dd-menu">
+                            {revision.id === detail.id ? (
+                              <span className="dd-muted">Açık</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="dd-link"
+                                aria-label={`Revizyon ${revision.revisionNumber} aç`}
+                                onClick={() => void openQuote(revision.id)}
+                              >
+                                Aç
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </DetailSection>
+            )}
           </DocumentSurface>
-      )}
+        );
+      })()}
       {detail && quotePrintOpen && createPortal(
         <SalesQuotePdfTools
           quote={detail}
@@ -3372,6 +3491,8 @@ function PurchaseInvoicesScreen({
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [invoiceId, setInvoiceId] = useState<string | null>(null),
+    [invoiceAction, setInvoiceAction] =
+      useState<PurchaseInvoiceInitialAction | undefined>(undefined),
     [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const defaultLayout: BuiltInScreenLayoutField[] = [
@@ -3403,6 +3524,9 @@ function PurchaseInvoicesScreen({
       visible: true,
       position: 12,
       fixed: true,
+      // The ⋯ menu must stay reachable without scrolling the wide invoice grid sideways.
+      pinned: "right",
+      width: 72,
     },
   ];
   const [screenFields, setScreenFields] = useState(defaultLayout);
@@ -3451,7 +3575,7 @@ function PurchaseInvoicesScreen({
       cancelled = true;
     };
   }, [token]);
-  async function openInvoice(id: string) {
+  async function openInvoice(id: string, action?: PurchaseInvoiceInitialAction) {
     setError("");
     try {
       if (warehouses.length === 0)
@@ -3460,6 +3584,7 @@ function PurchaseInvoicesScreen({
             (x) => x.isActive,
           ),
         );
+      setInvoiceAction(action);
       setInvoiceId(id);
     } catch (e) {
       setError((e as Error).message);
@@ -3467,11 +3592,29 @@ function PurchaseInvoicesScreen({
   }
   const visibleFields = [...screenFields]
     .filter((field) => field.visible)
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => a.position - b.position)
+    // Keep the ⋯ menu reachable on this wide grid unless the tenant layout pins it elsewhere.
+    .map((field) =>
+      field.key === "actions" && !field.pinned
+        ? { ...field, pinned: "right" as const, width: field.width || 72 }
+        : field,
+    );
   function cell(item: PurchaseInvoiceSummary, field: BuiltInScreenLayoutField) {
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return (
+          <button
+            type="button"
+            className="customer-code purchase-invoice-code-link"
+            title="Faturayı görüntüle"
+            onClick={(event) => {
+              event.stopPropagation();
+              void openInvoice(item.id);
+            }}
+          >
+            {item.code}
+          </button>
+        );
       case "supplierName":
         return <b className="customer-name">{item.supplierName}</b>;
       case "receiptCode":
@@ -3519,15 +3662,33 @@ function PurchaseInvoicesScreen({
         );
       case "actions":
         return (
-          <button
-            className="row-action"
-            onClick={(event) => {
-              event.stopPropagation();
-              void openInvoice(item.id);
-            }}
-          >
-            Detay
-          </button>
+          <SalesRowActionsMenu label={item.code}>
+            <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id)}>
+              <Eye size={15} aria-hidden="true" /> Görüntüle
+            </button>
+            {item.status === "Posted" && item.outstandingAmount > 0 && (
+              <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id, "payment")}>
+                <Banknote size={15} aria-hidden="true" /> Ödeme ekle
+              </button>
+            )}
+            {item.status === "Posted" && (
+              <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id, "return")}>
+                <Undo2 size={15} aria-hidden="true" /> İade oluştur
+              </button>
+            )}
+            {item.status === "Posted" && (
+              <>
+                <div role="separator" className="sales-row-menu-separator" />
+                {item.paidAmount > 0 ? (
+                  <span className="sales-row-menu-note">İptal için önce ödemeleri iptal edin.</span>
+                ) : (
+                  <button role="menuitem" className="sales-row-menu-item danger-action" onClick={() => void openInvoice(item.id, "void")}>
+                    <Ban size={15} aria-hidden="true" /> İptal et (ters kayıt)
+                  </button>
+                )}
+              </>
+            )}
+          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -3674,10 +3835,613 @@ function PurchaseInvoicesScreen({
           invoiceId={invoiceId}
           token={token}
           warehouses={warehouses}
-          onClose={() => setInvoiceId(null)}
+          initialAction={invoiceAction}
+          onClose={() => {
+            setInvoiceId(null);
+            setInvoiceAction(undefined);
+          }}
           onChanged={load}
         />
       )}
+    </div>
+  );
+}
+
+const PURCHASE_ORDERS_CHANGED_EVENT = "nexora:purchase-orders-changed";
+const SALES_CHANGED_EVENT = "nexora:sales-changed";
+const createdPurchaseOrderStorageKey = "nexora.purchase-order.created";
+function takeCreatedPurchaseOrder(): { id: string; code: string } | null {
+  try {
+    const raw = sessionStorage.getItem(createdPurchaseOrderStorageKey);
+    if (!raw) return null;
+    sessionStorage.removeItem(createdPurchaseOrderStorageKey);
+    const value = JSON.parse(raw) as { id?: unknown; code?: unknown };
+    return typeof value.id === "string"
+      ? { id: value.id, code: typeof value.code === "string" ? value.code : "" }
+      : null;
+  } catch {
+    return null;
+  }
+}
+type PurchaseOrderDraftLine = {
+  /** Stable React key: line pickers keep their own search text. */
+  rowKey: string;
+  stockItemId: string;
+  quantity: string;
+  unitPrice: string;
+  discountPercent: string;
+  vatPercent: string;
+  unitCode: string;
+  /** Base unit of the picked stock card; the stock catalog is not preloaded on this page. */
+  baseUnitCode: string;
+};
+const defaultPurchaseOrderVatPercent = "20";
+const emptyPurchaseOrderLine = (): PurchaseOrderDraftLine => ({
+  rowKey: crypto.randomUUID(),
+  stockItemId: "",
+  quantity: "1",
+  unitPrice: "0",
+  discountPercent: "0",
+  vatPercent: defaultPurchaseOrderVatPercent,
+  unitCode: "",
+  baseUnitCode: "",
+});
+function purchaseOrderLineAmounts(line: PurchaseOrderDraftLine) {
+  const gross = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0);
+  const discount = gross * ((Number(line.discountPercent) || 0) / 100);
+  const net = gross - discount;
+  const vat = net * ((Number(line.vatPercent) || 0) / 100);
+  return { gross, discount, net, vat };
+}
+function formatPurchaseOrderMoney(value: number, currencyCode: string) {
+  return `${value.toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currencyCode === "TRY" ? "TL" : currencyCode}`;
+}
+const isUntouchedAmount = (value: string) =>
+  value.trim() === "" || Number(value) === 0;
+
+/** "Yeni satınalma siparişi" sekmesi: siparişi tam sayfa kayıt formunda oluşturur. */
+function PurchaseOrderCreatePage({
+  token,
+  customers,
+  warehouses,
+  onNavigate,
+}: {
+  token: string;
+  customers: SalesCustomer[];
+  warehouses: Warehouse[];
+  onNavigate: (page: SalesPageKey) => void;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [formKey, setFormKey] = useState(0),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [code, setCode] = useState(""),
+    [supplierId, setSupplierId] = useState(""),
+    [orderDate, setOrderDate] = useState(() => localDateString()),
+    [expectedReceiptDate, setExpectedReceiptDate] = useState(""),
+    [targetWarehouseId, setTargetWarehouseId] = useState(""),
+    [notes, setNotes] = useState(""),
+    [lines, setLines] = useState<PurchaseOrderDraftLine[]>(() => [
+      emptyPurchaseOrderLine(),
+    ]),
+    [units, setUnits] = useState<Record<string, StockItemUnitConversion[]>>(
+      {},
+    ),
+    [fieldDefinitions, setFieldDefinitions] = useState<
+      PurchaseOrderFieldDefinition[]
+    >([]),
+    [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    api<PurchaseOrderFieldDefinition[]>(
+      "/api/purchasing/orders/custom-fields",
+      token,
+    )
+      .then((fields) => {
+        if (active) setFieldDefinitions(fields);
+      })
+      .catch((e) => {
+        if (active) setError((e as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+  const supplierOptions = customers.filter(
+    (x) => x.isActive && (x.type === "Supplier" || x.type === "Both"),
+  );
+  const supplier = customers.find((x) => x.id === supplierId);
+  const currencyCode = supplier?.currencyCode || "TRY";
+  const totals = lines.reduce(
+    (sum, line) => {
+      const amounts = purchaseOrderLineAmounts(line);
+      return {
+        gross: sum.gross + amounts.gross,
+        discount: sum.discount + amounts.discount,
+        vat: sum.vat + amounts.vat,
+        grand: sum.grand + amounts.net + amounts.vat,
+      };
+    },
+    { gross: 0, discount: 0, vat: 0, grand: 0 },
+  );
+  /** The tab stays mounted (keep-alive) after save or cancel; the next visit must start clean. */
+  function resetForm() {
+    setCode("");
+    setSupplierId("");
+    setOrderDate(localDateString());
+    setExpectedReceiptDate("");
+    setTargetWarehouseId("");
+    setNotes("");
+    setLines([emptyPurchaseOrderLine()]);
+    setFieldValues({});
+    setError("");
+    setBusy(false);
+    // Remounts the pickers so their search text is cleared too.
+    setFormKey((key) => key + 1);
+  }
+  function updateLine(index: number, patch: Partial<PurchaseOrderDraftLine>) {
+    setLines((current) =>
+      current.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
+  }
+  async function loadUnits(itemId: string) {
+    if (!itemId || units[itemId]) return;
+    try {
+      const result = await api<{ conversions: StockItemUnitConversion[] }>(
+        `/api/stock/items/${itemId}/units`,
+        token,
+      );
+      setUnits((current) => ({ ...current, [itemId]: result.conversions }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  function selectStockItem(index: number, item: StockItem) {
+    void loadUnits(item.id);
+    setLines((current) =>
+      current.map((line, i) => {
+        if (i !== index) return line;
+        const next: PurchaseOrderDraftLine = {
+          ...line,
+          stockItemId: item.id,
+          unitCode: item.unitCode || "",
+          baseUnitCode: item.unitCode || "",
+        };
+        // Stok kartının alış koşulları yalnızca alan hâlâ varsayılan değerindeyse önerilir.
+        // Sipariş tek para birimlidir (tedarikçininki); farklı dövizdeki liste fiyatı önerilmez.
+        const priceCurrency = (item.priceCurrencyCode || "TRY").toUpperCase();
+        if (
+          isUntouchedAmount(line.unitPrice) &&
+          item.purchaseListPrice != null &&
+          priceCurrency === currencyCode.toUpperCase()
+        )
+          next.unitPrice = String(item.purchaseListPrice);
+        if (
+          isUntouchedAmount(line.discountPercent) &&
+          item.purchaseDiscountPercent != null
+        )
+          next.discountPercent = String(item.purchaseDiscountPercent);
+        if (
+          (line.vatPercent.trim() === "" ||
+            line.vatPercent === defaultPurchaseOrderVatPercent) &&
+          item.purchaseVatPercent != null
+        )
+          next.vatPercent = String(item.purchaseVatPercent);
+        return next;
+      }),
+    );
+  }
+  async function createOrder(e: React.FormEvent) {
+    e.preventDefault();
+    // RecordFormPage listens to F2 on the window; a hidden keep-alive tab must not submit.
+    if (hostRef.current?.closest("[hidden]")) return;
+    if (!supplier) {
+      setError("Tedarikçi seçin.");
+      return;
+    }
+    if (lines.some((line) => !line.stockItemId)) {
+      setError("Her satır için stok kartı seçin.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const created = await api<PurchaseOrderSummary>(
+        "/api/purchasing/orders/",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            code,
+            supplierId,
+            orderDate,
+            expectedReceiptDate: expectedReceiptDate || null,
+            targetWarehouseId: targetWarehouseId || null,
+            currencyCode: supplier.currencyCode,
+            notes: notes || null,
+            customFields: fieldValues,
+            lines: lines.map((x) => ({
+              stockItemId: x.stockItemId,
+              quantity: Number(x.quantity),
+              unitPrice: Number(x.unitPrice),
+              discountPercent: Number(x.discountPercent),
+              vatPercent: Number(x.vatPercent),
+              unitCode: x.unitCode || x.baseUnitCode || undefined,
+            })),
+          }),
+        },
+      );
+      try {
+        sessionStorage.setItem(
+          createdPurchaseOrderStorageKey,
+          JSON.stringify({ id: created.id, code: created.code }),
+        );
+      } catch {
+        /* Session storage is optional; the list still refreshes through the event. */
+      }
+      resetForm();
+      window.dispatchEvent(
+        new CustomEvent(PURCHASE_ORDERS_CHANGED_EVENT, {
+          detail: { id: created.id },
+        }),
+      );
+      onNavigate("sales-purchasing");
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="purchase-order-create-page" ref={hostRef}>
+      <RecordFormPage
+        key={formKey}
+        className="sales-rf purchase-order-create"
+        title="Yeni satınalma siparişi"
+        mode="create"
+        busy={busy}
+        saveLabel="Sipariş oluştur"
+        formId="purchase-order-create-form"
+        onSubmit={(event) => void createOrder(event)}
+        onCancel={() => {
+          resetForm();
+          onNavigate("sales-purchasing");
+        }}
+        error={error}
+        onDismissError={() => setError("")}
+        status={
+          <>
+            <span>
+              Miktar ve fiyat seçilen birim içindir; sipariş stok kartının
+              temel biriminde saklanır.
+            </span>
+            <span className="rf-status-end">
+              Satır: <b>{lines.length}</b>
+            </span>
+          </>
+        }
+      >
+        <RecordFormGroup title="Sipariş bilgileri" bodyClassName="po-create-band">
+          <label>
+            <span>
+              Sipariş no <RequiredMark />
+            </span>
+            <input
+              className="rf-must rf-mono"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              maxLength={40}
+              placeholder="SA-2026-0001"
+            />
+          </label>
+          <label className="po-create-span-2">
+            <span>
+              Tedarikçi <RequiredMark />
+            </span>
+            <SearchableRecordPicker
+              options={supplierOptions.map((x) => ({
+                id: x.id,
+                label: `${x.code} · ${x.name}`,
+                description: x.currencyCode,
+                searchText: x.currencyCode,
+              }))}
+              selectedId={supplierId}
+              onSelect={setSupplierId}
+              title="Tedarikçi seçin"
+              placeholder="Tedarikçi seçin"
+              searchPlaceholder="Tedarikçi kodu veya unvanıyla ara"
+              emptyMessage="Aramanızla eşleşen tedarikçi bulunamadı."
+              required
+            />
+          </label>
+          <label>
+            <span>
+              Sipariş tarihi <RequiredMark />
+            </span>
+            <input
+              className="rf-must"
+              type="date"
+              value={orderDate}
+              onChange={(e) => setOrderDate(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            <span>
+              Beklenen teslim{" "}
+              <span className="optional-label">İsteğe bağlı</span>
+            </span>
+            <input
+              type="date"
+              min={orderDate}
+              value={expectedReceiptDate}
+              onChange={(e) => setExpectedReceiptDate(e.target.value)}
+            />
+          </label>
+          <label className="po-create-span-2">
+            <span>
+              Hedef depo <span className="optional-label">İsteğe bağlı</span>
+            </span>
+            <SearchableRecordPicker
+              options={warehouses
+                .filter((x) => x.isActive)
+                .map((x) => ({ id: x.id, label: `${x.code} · ${x.name}` }))}
+              selectedId={targetWarehouseId}
+              onSelect={setTargetWarehouseId}
+              title="Hedef depo seçin"
+              placeholder="Belirtilmedi"
+              searchPlaceholder="Depo kodu veya adıyla ara"
+              emptyMessage="Aramanızla eşleşen aktif depo bulunamadı."
+            />
+          </label>
+        </RecordFormGroup>
+        <RecordFormGroup title="Sipariş satırları">
+          <div className="po-create-lines-wrap">
+            <table className="po-create-lines">
+              <thead>
+                <tr>
+                  <th scope="col" className="po-col-stock">Stok kartı</th>
+                  <th scope="col" className="po-num">Miktar</th>
+                  <th scope="col" className="po-col-unit">Birim</th>
+                  <th scope="col" className="po-num">Birim fiyat</th>
+                  <th scope="col" className="po-num">İsk. %</th>
+                  <th scope="col" className="po-num">KDV %</th>
+                  <th scope="col" className="po-num">Tutar</th>
+                  <th scope="col" className="po-col-remove">
+                    <span className="sr-only">Satırı kaldır</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, index) => {
+                  const baseUnit = line.baseUnitCode || line.unitCode;
+                  return (
+                    <tr key={line.rowKey}>
+                      <td data-label="Stok kartı" className="po-col-stock">
+                        <AsyncStockItemPicker
+                          token={token}
+                          selectedId={line.stockItemId}
+                          initialItems={[]}
+                          onSelect={(item) => selectStockItem(index, item)}
+                        />
+                      </td>
+                      <td data-label="Miktar" className="po-num">
+                        <input
+                          type="number"
+                          min="0.0001"
+                          step="0.0001"
+                          aria-label={`Satır ${index + 1} miktar`}
+                          value={line.quantity}
+                          onChange={(e) =>
+                            updateLine(index, { quantity: e.target.value })
+                          }
+                          required
+                        />
+                      </td>
+                      <td data-label="Birim" className="po-col-unit">
+                        <select
+                          aria-label={`Satır ${index + 1} birim`}
+                          value={line.unitCode || baseUnit}
+                          onChange={(e) =>
+                            updateLine(index, { unitCode: e.target.value })
+                          }
+                          required
+                        >
+                          <option value={baseUnit}>
+                            {baseUnit || "Temel birim"}
+                          </option>
+                          {(units[line.stockItemId] || [])
+                            .filter((x) => x.isActive && x.unitCode !== baseUnit)
+                            .map((unit) => (
+                              <option key={unit.id} value={unit.unitCode}>
+                                {unit.unitCode} (×{unit.factorToBase})
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                      <td data-label="Birim fiyat" className="po-num">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          aria-label={`Satır ${index + 1} birim fiyat`}
+                          value={line.unitPrice}
+                          onChange={(e) =>
+                            updateLine(index, { unitPrice: e.target.value })
+                          }
+                          required
+                        />
+                      </td>
+                      <td data-label="İsk. %" className="po-num">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          aria-label={`Satır ${index + 1} iskonto yüzdesi`}
+                          value={line.discountPercent}
+                          onChange={(e) =>
+                            updateLine(index, { discountPercent: e.target.value })
+                          }
+                          required
+                        />
+                      </td>
+                      <td data-label="KDV %" className="po-num">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          aria-label={`Satır ${index + 1} KDV yüzdesi`}
+                          value={line.vatPercent}
+                          onChange={(e) =>
+                            updateLine(index, { vatPercent: e.target.value })
+                          }
+                          required
+                        />
+                      </td>
+                      <td data-label="Tutar" className="po-num po-amount">
+                        <output>
+                          {formatPurchaseOrderMoney(
+                            purchaseOrderLineAmounts(line).net,
+                            currencyCode,
+                          )}
+                        </output>
+                      </td>
+                      <td className="po-col-remove">
+                        <button
+                          type="button"
+                          className="po-line-remove"
+                          aria-label={`Satır ${index + 1} kaldır`}
+                          title="Satırı kaldır"
+                          disabled={lines.length === 1}
+                          onClick={() =>
+                            setLines((current) =>
+                              current.filter((_, i) => i !== index),
+                            )
+                          }
+                        >
+                          <X size={16} aria-hidden="true" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="po-create-lines-actions">
+            <button
+              type="button"
+              className="secondary small-button"
+              data-line-add-shortcut
+              title="Ctrl+Shift+Enter ile satır ekle"
+              onClick={() =>
+                setLines((current) => [...current, emptyPurchaseOrderLine()])
+              }
+            >
+              <Plus size={14} /> Satır ekle
+            </button>
+          </div>
+        </RecordFormGroup>
+        {fieldDefinitions.length > 0 && (
+          <RecordFormGroup title="Sipariş Özel Alanları">
+            <div className="rf-custom-grid">
+              {fieldDefinitions.map((field) => (
+                <label key={field.id}>
+                  {field.label}
+                  {field.isRequired ? " *" : ""}
+                  <small>{field.code}</small>
+                  {field.dataType === "Boolean" ? (
+                    <select
+                      required={field.isRequired}
+                      value={fieldValues[field.code] || ""}
+                      onChange={(e) =>
+                        setFieldValues((current) => ({
+                          ...current,
+                          [field.code]: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Seçin</option>
+                      <option value="true">Evet</option>
+                      <option value="false">Hayır</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={
+                        field.dataType === "Decimal"
+                          ? "number"
+                          : field.dataType === "Date"
+                            ? "date"
+                            : "text"
+                      }
+                      step={field.dataType === "Decimal" ? "any" : undefined}
+                      maxLength={
+                        field.dataType === "Text" ? field.maxLength : undefined
+                      }
+                      required={field.isRequired}
+                      value={fieldValues[field.code] || ""}
+                      onChange={(e) =>
+                        setFieldValues((current) => ({
+                          ...current,
+                          [field.code]: e.target.value,
+                        }))
+                      }
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+          </RecordFormGroup>
+        )}
+        <RecordFormGroup title="Not ve toplamlar">
+          <div className="sales-invoice-totals-layout">
+            <label className="sales-invoice-note">
+              <span>
+                Sipariş notu{" "}
+                <span className="optional-label">İsteğe bağlı</span>
+              </span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={1000}
+                rows={4}
+              />
+              <small className="sales-invoice-note-counter" aria-hidden="true">
+                {notes.length} / 1000
+              </small>
+            </label>
+            <section
+              className="sales-invoice-total-panel"
+              aria-label="Sipariş toplamları"
+            >
+              <div className="total-row">
+                <span>Ara toplam</span>
+                <output>{formatPurchaseOrderMoney(totals.gross, currencyCode)}</output>
+              </div>
+              <div className="total-row">
+                <span>İskonto</span>
+                <output>
+                  {totals.discount > 0 ? "− " : ""}
+                  {formatPurchaseOrderMoney(totals.discount, currencyCode)}
+                </output>
+              </div>
+              <div className="total-row">
+                <span>KDV</span>
+                <output>{formatPurchaseOrderMoney(totals.vat, currencyCode)}</output>
+              </div>
+              <div className="total-row grand">
+                <span>Genel toplam</span>
+                <output>{formatPurchaseOrderMoney(totals.grand, currencyCode)}</output>
+              </div>
+            </section>
+          </div>
+        </RecordFormGroup>
+      </RecordFormPage>
     </div>
   );
 }
@@ -3689,6 +4453,7 @@ function PurchasingPanel({
   stockItems,
   warehouses,
   mode,
+  onNavigate,
 }: {
   token: string;
   role: string;
@@ -3696,6 +4461,7 @@ function PurchasingPanel({
   stockItems: StockItem[];
   warehouses: Warehouse[];
   mode: "requests" | "purchasing";
+  onNavigate?: (page: SalesPageKey) => void;
 }) {
   const today = localDateString();
   const currentUserId = (() => {
@@ -3712,32 +4478,38 @@ function PurchasingPanel({
     }
   })();
   const requestsOnly = mode === "requests";
+  // Default layout (used while the tenant has no published screen view): the order cell carries its
+  // dates, the supplier cell its target warehouse, and "receivedProgress" shows received / ordered quantity.
+  // "receivedProgress" is a client-side column; it is not in the server screen-view catalog yet.
   const defaultOrderScreenFields: BuiltInScreenLayoutField[] = [
-    { key: "code", label: "Sipariş no", visible: true, position: 0 },
+    { key: "code", label: "Sipariş", visible: true, position: 0 },
     { key: "supplierName", label: "Tedarikçi", visible: true, position: 1 },
-    { key: "orderDate", label: "Sipariş tarihi", visible: true, position: 2 },
+    { key: "receivedProgress", label: "Teslim alınan", visible: true, position: 2 },
+    { key: "grandTotal", label: "Genel toplam", visible: true, position: 3 },
+    { key: "status", label: "Durum", visible: true, position: 4 },
+    { key: "orderDate", label: "Sipariş tarihi", visible: false, position: 5 },
     {
       key: "expectedReceiptDate",
       label: "Beklenen teslim",
-      visible: true,
-      position: 3,
+      visible: false,
+      position: 6,
     },
     {
       key: "targetWarehouseCode",
       label: "Hedef depo",
-      visible: true,
-      position: 4,
+      visible: false,
+      position: 7,
     },
-    { key: "lineCount", label: "Satır", visible: true, position: 5 },
-    { key: "grandTotal", label: "Genel toplam", visible: true, position: 6 },
-    { key: "currencyCode", label: "Döviz", visible: true, position: 7 },
-    { key: "status", label: "Durum", visible: true, position: 8 },
+    { key: "lineCount", label: "Satır", visible: false, position: 8 },
+    { key: "currencyCode", label: "Döviz", visible: false, position: 9 },
     {
       key: "actions",
       label: "İşlemler",
       visible: true,
-      position: 9,
+      position: 10,
       fixed: true,
+      pinned: "right",
+      width: 64,
     },
   ];
   const [orderScreenFields, setOrderScreenFields] = useState<
@@ -3792,6 +4564,15 @@ function PurchasingPanel({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  /** Status chip on the order list. The list API has no status filter, so chips filter a client-side index. */
+  const [orderStatusFilter, setOrderStatusFilter] = useState<"" | "Open" | "PartiallyReceived" | "Received" | "Overdue">(""),
+    [orderIndex, setOrderIndex] = useState<{ items: PurchaseOrderSummary[]; complete: boolean } | null>(null),
+    [orderIndexVersion, setOrderIndexVersion] = useState(0),
+    [orderFieldsOpen, setOrderFieldsOpen] = useState(false),
+    [orderFieldsTab, setOrderFieldsTab] = useState<"quote" | "order" | "receipt">("quote");
+  /** Order details fetched for the visible rows (received quantities, receipts); cleared on every list load. */
+  const orderDetailCache = useRef(new Map<string, PurchaseOrderDetail | "error">());
+  const [orderDetailCacheVersion, setOrderDetailCacheVersion] = useState(0);
   const [purchaseRequests, setPurchaseRequests] = useState<
       PurchaseRequestSummary[]
     >([]),
@@ -3911,7 +4692,6 @@ function PurchasingPanel({
     >([]);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [editor, setEditor] = useState(false),
     [detail, setDetail] = useState<PurchaseOrderDetail | null>(null);
   const [requestSearch, setRequestSearch] = useState(""),
     [requestStatus, setRequestStatus] = useState(""),
@@ -3922,25 +4702,6 @@ function PurchasingPanel({
     [invoiceReceiptId, setInvoiceReceiptId] = useState<string | null>(null),
     [invoiceCode, setInvoiceCode] = useState(""),
     [invoiceDate, setInvoiceDate] = useState(today);
-  const [code, setCode] = useState(""),
-    [supplierId, setSupplierId] = useState(""),
-    [orderDate, setOrderDate] = useState(today),
-    [expectedReceiptDate, setExpectedReceiptDate] = useState(""),
-    [targetWarehouseId, setTargetWarehouseId] = useState(""),
-    [notes, setNotes] = useState("");
-  const [lines, setLines] = useState([
-      {
-        stockItemId: "",
-        quantity: "1",
-        unitPrice: "0",
-        discountPercent: "0",
-        vatPercent: "20",
-        unitCode: "",
-      },
-    ]),
-    [purchaseOrderUnits, setPurchaseOrderUnits] = useState<
-      Record<string, StockItemUnitConversion[]>
-    >({});
   const [receiptEditor, setReceiptEditor] = useState(false),
     [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || ""),
     [receiptDate, setReceiptDate] = useState(today),
@@ -4019,6 +4780,9 @@ function PurchasingPanel({
             token,
           ),
         ]);
+      orderDetailCache.current.clear();
+      setOrderDetailCacheVersion((value) => value + 1);
+      setOrderIndexVersion((value) => value + 1);
       setOrders(page.items);
       setOrderPage(page.page);
       setOrderTotal(page.totalCount);
@@ -4038,18 +4802,43 @@ function PurchasingPanel({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void load(requestsOnly ? 1 : requestPage, requestsOnly ? 1 : orderPage);
-    }, requestsOnly && requestSearch.trim() ? 250 : 0);
+    }, (requestsOnly ? requestSearch.trim() : orderSearch.trim()) ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [token, requestsOnly, requestSearch, requestStatus, orderSearch]);
+  // "Yeni satınalma siparişi" ayrı bir sekmede açılır; oluşturulan sipariş bu listeye döndüğünde
+  // liste yenilenir ve sipariş detayı (mal kabul işlemleri) açılır.
+  const purchaseOrdersChangedHandler = useRef<() => void>(() => undefined);
+  purchaseOrdersChangedHandler.current = () => {
+    if (requestsOnly) return;
+    void load(requestPage, 1);
+    const created = takeCreatedPurchaseOrder();
+    if (created) {
+      setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
+      void openOrder(created.id);
+    }
+  };
+  useEffect(() => {
+    if (requestsOnly) return;
+    const created = takeCreatedPurchaseOrder();
+    if (created) {
+      setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
+      void openOrder(created.id);
+    }
+    const onChanged = () => purchaseOrdersChangedHandler.current();
+    window.addEventListener(PURCHASE_ORDERS_CHANGED_EVENT, onChanged);
+    return () =>
+      window.removeEventListener(PURCHASE_ORDERS_CHANGED_EVENT, onChanged);
+  }, [requestsOnly]);
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;
-    api<{ fields: BuiltInScreenLayoutField[] }>(
+    api<{ id?: string | null; fields: BuiltInScreenLayoutField[] }>(
       "/api/screen-views/purchase-orders/active",
       token,
     )
       .then((view) => {
-        if (!cancelled && view.fields?.length)
+        // Without a published tenant view the server returns its catalog default; keep this screen's own default.
+        if (!cancelled && view.id && view.fields?.length)
           setOrderScreenFields(view.fields);
       })
       .catch(() => {});
@@ -4061,9 +4850,111 @@ function PurchasingPanel({
     () =>
       orderScreenFields
         .filter((field) => field.visible)
-        .sort((a, b) => a.position - b.position),
+        .sort((a, b) => a.position - b.position)
+        // Keep the ⋯ menu reachable without scrolling sideways unless the tenant layout pins it elsewhere.
+        .map((field) =>
+          field.key === "actions" && !field.pinned
+            ? { ...field, pinned: "right" as const, width: field.width || 64 }
+            : field,
+        ),
     [orderScreenFields],
   );
+  const orderFieldVisible = (key: string) => visibleOrderScreenFields.some((field) => field.key === key);
+  const isOrderOverdue = (item: PurchaseOrderSummary) =>
+    (item.status === "Open" || item.status === "PartiallyReceived") &&
+    !!item.expectedReceiptDate &&
+    item.expectedReceiptDate < today;
+  // Client-side status index: the list API filters by text only, so chip counts and chip filtering
+  // read up to 1000 order summaries for the current search. It is rebuilt after every list load
+  // (search changes, refreshes and mutations all go through load()).
+  useEffect(() => {
+    if (requestsOnly || orderIndexVersion === 0) return;
+    let active = true;
+    void (async () => {
+      const items: PurchaseOrderSummary[] = [];
+      let total = Infinity;
+      for (let next = 1; next <= 10 && items.length < total && active; next += 1) {
+        const page = await api<{ items: PurchaseOrderSummary[]; totalCount: number }>(
+          `/api/purchasing/orders/?page=${next}&pageSize=100${orderSearch.trim() ? `&q=${encodeURIComponent(orderSearch.trim())}` : ""}`,
+          token,
+        );
+        total = page.totalCount;
+        items.push(...page.items);
+        if (page.items.length === 0) break;
+      }
+      if (active) setOrderIndex({ items, complete: items.length >= total });
+    })().catch(() => {
+      if (active) setOrderIndex(null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [token, requestsOnly, orderIndexVersion]);
+  const orderStatusMatches = (item: PurchaseOrderSummary, filter: typeof orderStatusFilter) =>
+    filter === "" ? true : filter === "Overdue" ? isOrderOverdue(item) : item.status === filter;
+  const orderStatusCounts = orderIndex?.complete
+    ? {
+        all: orderIndex.items.length,
+        Open: orderIndex.items.filter((item) => item.status === "Open").length,
+        PartiallyReceived: orderIndex.items.filter((item) => item.status === "PartiallyReceived").length,
+        Received: orderIndex.items.filter((item) => item.status === "Received").length,
+        Overdue: orderIndex.items.filter(isOrderOverdue).length,
+      }
+    : null;
+  const filteredOrderIndex =
+    orderStatusFilter && orderIndex ? orderIndex.items.filter((item) => orderStatusMatches(item, orderStatusFilter)) : null;
+  const orderIndexPending = !!orderStatusFilter && !orderIndex;
+  const displayedOrders = filteredOrderIndex
+    ? filteredOrderIndex.slice((orderPage - 1) * purchasePageSize, orderPage * purchasePageSize)
+    : orderIndexPending
+      ? []
+      : orders;
+  const displayedOrderTotal = filteredOrderIndex ? filteredOrderIndex.length : orderTotal;
+  // Visible rows need their order detail for the "Teslim alınan" column; the selected row always does
+  // (lines and receipts in the side panel).
+  const receivedColumnVisible = orderFieldVisible("receivedProgress");
+  const selectedOrderForDetail =
+    displayedOrders.find((item) => item.id === selectedOrderId)?.id ?? displayedOrders[0]?.id;
+  const orderDetailTargets = receivedColumnVisible
+    ? displayedOrders.map((item) => item.id)
+    : selectedOrderForDetail
+      ? [selectedOrderForDetail]
+      : [];
+  useEffect(() => {
+    if (requestsOnly) return;
+    const ids = orderDetailTargets.filter((id) => !orderDetailCache.current.has(id));
+    if (!ids.length) return;
+    let active = true;
+    void (async () => {
+      for (let start = 0; start < ids.length && active; start += 5) {
+        await Promise.all(
+          ids.slice(start, start + 5).map(async (id) => {
+            try {
+              orderDetailCache.current.set(id, await api<PurchaseOrderDetail>(`/api/purchasing/orders/${id}`, token));
+            } catch {
+              orderDetailCache.current.set(id, "error");
+            }
+          }),
+        );
+        if (active) setOrderDetailCacheVersion((value) => value + 1);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [token, requestsOnly, orderDetailTargets.join(","), orderDetailCacheVersion]);
+  const cachedOrderDetail = (id: string) => {
+    const value = orderDetailCache.current.get(id);
+    return value && value !== "error" ? value : null;
+  };
+  const orderReceivedTotals = (id: string) => {
+    const order = cachedOrderDetail(id);
+    if (!order) return null;
+    return order.lines.reduce(
+      (sum, line) => ({ ordered: sum.ordered + line.quantity, received: sum.received + line.receivedQuantity }),
+      { ordered: 0, received: 0 },
+    );
+  };
   useEffect(() => {
     if (!requestsOnly) return;
     let cancelled = false;
@@ -4239,10 +5130,60 @@ function PurchasingPanel({
     item: PurchaseOrderSummary,
   ) {
     switch (field.key) {
-      case "code":
-        return <span className="customer-code">{item.code}</span>;
-      case "supplierName":
-        return <b className="customer-name">{item.supplierName}</b>;
+      case "code": {
+        // Dates sit under the code unless the layout shows them as their own columns.
+        const showDates = !orderFieldVisible("orderDate") && !orderFieldVisible("expectedReceiptDate");
+        const overdue = isOrderOverdue(item);
+        return (
+          <span className="po-list-code-cell">
+            <b className="customer-code">{item.code}</b>
+            {showDates && (
+              <small className="cell-subtitle">
+                {`${item.orderDate.slice(5, 10).split("-").reverse().join(".")} · teslim ${
+                  item.expectedReceiptDate ? item.expectedReceiptDate.slice(5, 10).split("-").reverse().join(".") : "—"
+                }`}
+                {overdue && <span className="po-list-overdue"> · gecikti</span>}
+              </small>
+            )}
+            {!showDates && overdue && <small className="cell-subtitle po-list-overdue">gecikti</small>}
+          </span>
+        );
+      }
+      case "supplierName": {
+        const warehouse = !orderFieldVisible("targetWarehouseCode")
+          ? warehouses.find((x) => x.id === item.targetWarehouseId)
+          : undefined;
+        return (
+          <span className="po-list-supplier-cell">
+            <b className="customer-name">{item.supplierName}</b>
+            {warehouse && <small className="cell-subtitle">{warehouse.name}</small>}
+          </span>
+        );
+      }
+      case "receivedProgress": {
+        const totals = orderReceivedTotals(item.id);
+        if (!totals)
+          return orderDetailCache.current.get(item.id) === "error" ? "—" : <span className="po-list-muted">…</span>;
+        const share = totals.ordered > 0 ? Math.min(1, totals.received / totals.ordered) : 0;
+        return (
+          <span className="po-list-received">
+            <span>
+              {totals.received.toLocaleString("tr-TR", { maximumFractionDigits: 4 })} /{" "}
+              {totals.ordered.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}
+            </span>
+            <span
+              className="po-list-bar"
+              role="progressbar"
+              aria-label={`${item.code} teslim alınan oranı`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(share * 100)}
+            >
+              <i style={{ width: `${share * 100}%` }} />
+            </span>
+          </span>
+        );
+      }
       case "orderDate":
         return item.orderDate.split("-").reverse().join(".");
       case "expectedReceiptDate":
@@ -4257,10 +5198,11 @@ function PurchasingPanel({
         return item.lineCount;
       case "grandTotal":
         return (
-          <b>
+          <b className="po-list-amount">
             {item.grandTotal.toLocaleString("tr-TR", {
               minimumFractionDigits: 2,
             })}
+            {!orderFieldVisible("currencyCode") && ` ${item.currencyCode}`}
           </b>
         );
       case "currencyCode":
@@ -4271,12 +5213,16 @@ function PurchasingPanel({
         );
       case "actions":
         return (
-          <button
-            className="row-action"
-            onClick={() => void openOrder(item.id)}
-          >
-            Detay / Mal kabul
-          </button>
+          <SalesRowActionsMenu label={item.code}>
+            <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void openOrder(item.id)}>
+              <Eye size={15} aria-hidden="true" /> Siparişi aç
+            </button>
+            {canReceiveOrder(item.status) && (
+              <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void openOrderReceipt(item.id)}>
+                <PackageCheck size={15} aria-hidden="true" /> Mal kabul ekle
+              </button>
+            )}
+          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -4324,9 +5270,42 @@ function PurchasingPanel({
           order.customFields.map((field) => [field.code, field.value]),
         ),
       );
+      return order;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     }
+  }
+  /** Opens the goods-receipt form of an open or partially received order (detail "Mal kabul ekle"). */
+  function beginReceipt(order: PurchaseOrderDetail) {
+    const targetWarehouseId = warehouses.find((x) => x.isActive)?.id || "";
+    setWarehouseId(targetWarehouseId);
+    setReceiptLocationIds({});
+    void loadReceiptLocations(targetWarehouseId);
+    setReceiptFieldValues(
+      Object.fromEntries(
+        receiptFieldDefinitions.map((field) => [
+          field.code,
+          order.customFields.find(
+            (source) => source.code.toLowerCase() === field.code.toLowerCase(),
+          )?.value || "",
+        ]),
+      ),
+    );
+    setReceiptEditor(true);
+  }
+  const canReceiveOrder = (status: PurchaseOrderSummary["status"]) =>
+    status !== "Received" && status !== "Cancelled";
+  /** From the list: open the order and its goods-receipt form, then bring the form into view. */
+  async function openOrderReceipt(id: string) {
+    const order = await openOrder(id);
+    if (!order || !canReceiveOrder(order.status)) return;
+    beginReceipt(order);
+    window.setTimeout(() => {
+      const form = document.querySelector<HTMLElement>(".doc-surface .sales-rf-embedded");
+      form?.scrollIntoView({ block: "start", behavior: "smooth" });
+      form?.querySelector<HTMLElement>(".rf-form input:not([type='hidden']), .rf-form select")?.focus({ preventScroll: true });
+    }, 120);
   }
   async function openRequest(id: string) {
     setError("");
@@ -5139,98 +6118,6 @@ function PurchasingPanel({
       setBusy(false);
     }
   }
-  async function loadPurchaseOrderUnits(itemId: string) {
-    if (!itemId || purchaseOrderUnits[itemId]) return;
-    try {
-      const result = await api<{ conversions: StockItemUnitConversion[] }>(
-        `/api/stock/items/${itemId}/units`,
-        token,
-      );
-      setPurchaseOrderUnits((current) => ({
-        ...current,
-        [itemId]: result.conversions,
-      }));
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function beginDirectOrder() {
-    setError("");
-    setPurchaseOrderUnits({});
-    setLines([
-      {
-        stockItemId: "",
-        quantity: "1",
-        unitPrice: "0",
-        discountPercent: "0",
-        vatPercent: "20",
-        unitCode: "",
-      },
-    ]);
-    setEditor(true);
-  }
-  async function createOrder(e: React.FormEvent) {
-    e.preventDefault();
-    const supplier = customers.find((x) => x.id === supplierId);
-    if (!supplier) {
-      setError("Tedarikçi seçin.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const created = await api<PurchaseOrderSummary>(
-        "/api/purchasing/orders/",
-        token,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            code,
-            supplierId,
-            orderDate,
-            expectedReceiptDate: expectedReceiptDate || null,
-            targetWarehouseId: targetWarehouseId || null,
-            currencyCode: supplier.currencyCode,
-            notes: notes || null,
-            customFields: orderFieldValues,
-            lines: lines.map((x) => ({
-              stockItemId: x.stockItemId,
-              quantity: Number(x.quantity),
-              unitPrice: Number(x.unitPrice),
-              discountPercent: Number(x.discountPercent),
-              vatPercent: Number(x.vatPercent),
-              unitCode:
-                x.unitCode ||
-                stockItems.find((item) => item.id === x.stockItemId)?.unitCode,
-            })),
-          }),
-        },
-      );
-      setEditor(false);
-      setCode("");
-      setNotes("");
-      setExpectedReceiptDate("");
-      setTargetWarehouseId("");
-      setLines([
-        {
-          stockItemId: "",
-          quantity: "1",
-          unitPrice: "0",
-          discountPercent: "0",
-          vatPercent: "20",
-          unitCode: "",
-        },
-      ]);
-      setNotice(`${created.code} satın alma siparişi oluşturuldu.`);
-      await load();
-      await openOrder(created.id);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function loadReceiptLocations(targetWarehouseId: string) {
     if (!targetWarehouseId) {
       setReceiptLocations([]);
@@ -5400,22 +6287,11 @@ function PurchasingPanel({
       setBusy(false);
     }
   }
-  function updateLine(
-    index: number,
-    key: keyof (typeof lines)[number],
-    value: string,
-  ) {
-    setLines((current) =>
-      current.map((line, i) =>
-        i === index ? { ...line, [key]: value } : line,
-      ),
-    );
-  }
   const supplierOptions = customers.filter(
     (x) => x.isActive && (x.type === "Supplier" || x.type === "Both"),
   );
   const selectedOrderSummary =
-    orders.find((item) => item.id === selectedOrderId) ?? orders[0] ?? null;
+    displayedOrders.find((item) => item.id === selectedOrderId) ?? displayedOrders[0] ?? null;
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
@@ -5423,6 +6299,432 @@ function PurchasingPanel({
     purchaseRequests.find((item) => item.id === selectedRequestId) ??
     purchaseRequests[0] ??
     null;
+  const canManagePurchaseFields = role === "TenantAdmin" || role === "TenantDeveloper";
+  const supplierQuoteFieldsSection = (
+    <section className="panel" style={{ marginBottom: 16 }}>
+      <div className="panel-heading">
+        <div>
+          <b>Tedarikçi teklifi alanları</b>
+          <small>
+            Tenant kapsamlı, tür doğrulamalı teklif metadata alanları.
+          </small>
+        </div>
+      </div>
+      <div className="requests-list">
+        {supplierQuoteFieldDefinitions.map((field) => (
+          <article className="request-row" key={field.id}>
+            <div className="request-info">
+              <b>
+                {field.label} · {field.code}
+              </b>
+              <small>
+                {field.dataType} · v{field.version}
+                {field.isRequired ? " · zorunlu" : ""}
+              </small>
+            </div>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void editSupplierQuoteCustomField(field)}
+            >
+              Edit
+            </button>
+            {role === "TenantAdmin" && (
+              <button
+                className="row-action danger-action"
+                disabled={busy}
+                onClick={() => void deactivateSupplierQuoteCustomField(field)}
+              >
+                Disable
+              </button>
+            )}
+          </article>
+        ))}
+        {supplierQuoteFieldDefinitions.length === 0 && (
+          <div className="empty-small">Henüz teklif alanı yok.</div>
+        )}
+      </div>
+      <form
+        className="collection-form"
+        onSubmit={createSupplierQuoteCustomField}
+      >
+        <div className="form-two">
+          <label>
+            Alan kodu
+            <input
+              value={supplierQuoteFieldCode}
+              onChange={(e) =>
+                setSupplierQuoteFieldCode(e.target.value.toUpperCase())
+              }
+              required
+              maxLength={40}
+            />
+          </label>
+          <label>
+            Ekran etiketi
+            <input
+              value={supplierQuoteFieldLabel}
+              onChange={(e) => setSupplierQuoteFieldLabel(e.target.value)}
+              required
+              maxLength={120}
+            />
+          </label>
+        </div>
+        <div className="form-two">
+          <label>
+            Veri türü
+            <select
+              value={supplierQuoteFieldType}
+              onChange={(e) =>
+                setSupplierQuoteFieldType(
+                  e.target
+                    .value as PurchaseSupplierQuoteFieldDefinition["dataType"],
+                )
+              }
+            >
+              <option value="Text">Metin</option>
+              <option value="Decimal">Ondalık sayı</option>
+              <option value="Date">Tarih</option>
+              <option value="Boolean">Evet/Hayır</option>
+            </select>
+          </label>
+          {supplierQuoteFieldType === "Text" && (
+            <label>
+              En fazla karakter
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={supplierQuoteFieldMaxLength}
+                onChange={(e) =>
+                  setSupplierQuoteFieldMaxLength(e.target.value)
+                }
+                required
+              />
+            </label>
+          )}
+        </div>
+        {role === "TenantAdmin" ? (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={supplierQuoteFieldRequired}
+              onChange={(e) =>
+                setSupplierQuoteFieldRequired(e.target.checked)
+              }
+            />{" "}
+            Tekliflerde zorunlu olsun
+          </label>
+        ) : (
+          <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+        )}
+        <div className="modal-foot">
+          <span>
+            Zorunlu alan açmak için önce mevcut teklifler doldurulmalıdır.
+          </span>
+          <button className="secondary" disabled={busy}>
+            Alan ekle
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+  const orderFieldsSection = (
+    <section className="panel purchase-settings-panel po-fields-section">
+      <div className="panel-heading">
+        <div>
+          <b>Sipariş alanları</b>
+          <small>
+            Talep dönüşümünde eşleşen kodlar aktarılır; alanlar tenant
+            kapsamındadır.
+          </small>
+        </div>
+      </div>
+      <div className="requests-list">
+        {orderFieldDefinitions.map((field) => (
+          <article className="request-row" key={field.id}>
+            <div className="request-info">
+              <b>
+                {field.label} · {field.code}
+              </b>
+              <small>
+                {field.dataType} · v{field.version}
+                {field.isRequired ? " · zorunlu" : ""}
+              </small>
+            </div>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void editOrderCustomField(field)}
+            >
+              Düzenle
+            </button>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void openOrderFieldHistory(field)}
+            >
+              Sürüm geçmişi
+            </button>
+            {role === "TenantAdmin" && (
+              <button
+                className="row-action danger-action"
+                disabled={busy}
+                onClick={() => void deactivateOrderCustomField(field)}
+              >
+                Devre dışı bırak
+              </button>
+            )}
+          </article>
+        ))}
+      </div>
+      {orderFieldHistoryDefinition && (
+        <section className="panel" style={{ marginTop: 14 }}>
+          <div className="panel-heading">
+            <div>
+              <b>{orderFieldHistoryDefinition.code} · tanım geçmişi</b>
+              <small>Geri yükleme yeni sürüm ekler.</small>
+            </div>
+            <button
+              type="button"
+              className="secondary small-button"
+              onClick={() => setOrderFieldHistoryDefinition(null)}
+            >
+              Kapat
+            </button>
+          </div>
+          <div className="requests-list">
+            {orderFieldHistory.map((revision) => (
+              <article className="request-row" key={revision.id}>
+                <div className="request-info">
+                  <b>
+                    v{revision.version} · {revision.label}
+                  </b>
+                  <small>
+                    {revision.dataType}
+                    {revision.isRequired ? " · zorunlu" : ""} ·{" "}
+                    {revision.isActive ? "Etkin" : "Devre dışı"} ·{" "}
+                    {revision.changeKind} ·{" "}
+                    {new Date(revision.createdAt).toLocaleString("tr-TR")}
+                  </small>
+                </div>
+            {role === "TenantAdmin" && (
+              <button
+                type="button"
+                className="secondary small-button"
+                disabled={busy}
+                onClick={() => void restoreOrderFieldRevision(revision)}
+              >
+                Bu sürümü geri yükle
+              </button>
+            )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      <form className="collection-form" onSubmit={createOrderCustomField}>
+        <div className="form-two">
+          <label>
+            Alan kodu
+            <input
+              value={orderFieldCode}
+              onChange={(e) =>
+                setOrderFieldCode(e.target.value.toUpperCase())
+              }
+              required
+              maxLength={40}
+            />
+          </label>
+          <label>
+            Ekran etiketi
+            <input
+              value={orderFieldLabel}
+              onChange={(e) => setOrderFieldLabel(e.target.value)}
+              required
+              maxLength={120}
+            />
+          </label>
+        </div>
+        <div className="form-two">
+          <label>
+            Veri türü
+            <select
+              value={orderFieldType}
+              onChange={(e) =>
+                setOrderFieldType(
+                  e.target
+                    .value as PurchaseOrderFieldDefinition["dataType"],
+                )
+              }
+            >
+              <option value="Text">Metin</option>
+              <option value="Decimal">Ondalık sayı</option>
+              <option value="Date">Tarih</option>
+              <option value="Boolean">Evet/Hayır</option>
+            </select>
+          </label>
+          {orderFieldType === "Text" && (
+            <label>
+              En fazla karakter
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={orderFieldMaxLength}
+                onChange={(e) => setOrderFieldMaxLength(e.target.value)}
+                required
+              />
+            </label>
+          )}
+        </div>
+        {role === "TenantAdmin" ? (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={orderFieldRequired}
+              onChange={(e) => setOrderFieldRequired(e.target.checked)}
+            />{" "}
+            Zorunlu alan
+          </label>
+        ) : (
+          <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+        )}
+        <div className="modal-foot">
+          <span>Sipariş oluştururken doldurulur.</span>
+          <button className="secondary" disabled={busy}>
+            Alan ekle
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+  const receiptFieldsSection = (
+    <section className="panel purchase-settings-panel po-fields-section">
+      <div className="panel-heading">
+        <div>
+          <b>Mal kabul alanlar&#305;</b>
+          <small>
+            De&#287;erler stok giri&#351;iyle birlikte kaydedilir ve
+            sonradan de&#287;i&#351;tirilemez.
+          </small>
+        </div>
+      </div>
+      <div className="requests-list">
+        {receiptFieldDefinitions.map((field) => (
+          <article className="request-row" key={field.id}>
+            <div className="request-info">
+              <b>
+                {field.label} · {field.code}
+              </b>
+              <small>
+                {field.dataType} · v{field.version}
+                {field.isRequired ? " · zorunlu" : ""}
+              </small>
+            </div>
+            <button
+              className="row-action"
+              disabled={busy}
+              onClick={() => void editReceiptCustomField(field)}
+            >
+              D&#252;zenle
+            </button>
+            {role === "TenantAdmin" && (
+              <button
+                className="row-action danger-action"
+                disabled={busy}
+                onClick={() => void deactivateReceiptCustomField(field)}
+              >
+                Devre d&#305;&#351;&#305; b&#305;rak
+              </button>
+            )}
+          </article>
+        ))}
+        {receiptFieldDefinitions.length === 0 && (
+          <div className="empty-small">
+            Hen&#252;z mal kabul alan&#305; yok.
+          </div>
+        )}
+      </div>
+      <form className="collection-form" onSubmit={createReceiptCustomField}>
+        <div className="form-two">
+          <label>
+            Alan kodu
+            <input
+              value={receiptFieldCode}
+              onChange={(e) =>
+                setReceiptFieldCode(e.target.value.toUpperCase())
+              }
+              required
+              maxLength={40}
+            />
+          </label>
+          <label>
+            Ekran etiketi
+            <input
+              value={receiptFieldLabel}
+              onChange={(e) => setReceiptFieldLabel(e.target.value)}
+              required
+              maxLength={120}
+            />
+          </label>
+        </div>
+        <div className="form-two">
+          <label>
+            Veri t&#252;r&#252;
+            <select
+              value={receiptFieldType}
+              onChange={(e) =>
+                setReceiptFieldType(
+                  e.target
+                    .value as PurchaseReceiptFieldDefinition["dataType"],
+                )
+              }
+            >
+              <option value="Text">Metin</option>
+              <option value="Decimal">Ondal&#305;k say&#305;</option>
+              <option value="Date">Tarih</option>
+              <option value="Boolean">Evet/Hay&#305;r</option>
+            </select>
+          </label>
+          {receiptFieldType === "Text" && (
+            <label>
+              En fazla karakter
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={receiptFieldMaxLength}
+                onChange={(e) => setReceiptFieldMaxLength(e.target.value)}
+                required
+              />
+            </label>
+          )}
+        </div>
+        {role === "TenantAdmin" ? (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={receiptFieldRequired}
+              onChange={(e) => setReceiptFieldRequired(e.target.checked)}
+            />{" "}
+            Mal kabulde zorunlu
+          </label>
+        ) : (
+          <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
+        )}
+        <div className="modal-foot">
+          <span>
+            Her mal kabul kayd&#305; alan tan&#305;m
+            s&#252;r&#252;m&#252;n&#252; saklar.
+          </span>
+          <button className="secondary" disabled={busy}>
+            Alan ekle
+          </button>
+        </div>
+      </form>
+    </section>
+  );
   return (
     <div
       className={`${
@@ -5432,14 +6734,24 @@ function PurchasingPanel({
       <div className="sales-lv2-stack">
         <ListPageHeader
           className="customer-heading"
-          title={requestsOnly ? "Satınalma Talepleri" : "Satınalma Siparişleri"}
+          title={requestsOnly ? "Satınalma Talepleri" : "Satınalma siparişleri"}
           description={
             requestsOnly
               ? "İhtiyaçları kaydedin, onayları ve tedarikçi tekliflerini takip edin."
               : "Tedarikçi siparişlerini, kısmi mal kabulleri ve depo stok girişlerini yönetin."
           }
           count={requestsOnly ? requestTotal : orderTotal}
+          countLabel={requestsOnly ? undefined : "sipariş"}
         >
+          {!requestsOnly && canManagePurchaseFields && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setOrderFieldsOpen(true)}
+            >
+              <Settings size={14} aria-hidden="true" /> Alanlar
+            </button>
+          )}
           {requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
             <button
               className="secondary"
@@ -5464,8 +6776,11 @@ function PurchasingPanel({
             </button>
           )}
           {!requestsOnly && (
-            <button className="primary" onClick={() => void beginDirectOrder()}>
-              <Plus size={17} /> Yeni satın alma siparişi
+            <button
+              className="primary"
+              onClick={() => onNavigate?.("sales-purchase-order-create")}
+            >
+              <Plus size={17} /> Yeni satınalma siparişi
             </button>
           )}
         </ListPageHeader>
@@ -5501,7 +6816,25 @@ function PurchasingPanel({
             searchPlaceholder="Sipariş no veya tedarikçi ara"
             toolsSlotRef={setOrderGridToolsSlot}
             onRefresh={() => void load(requestPage, orderPage)}
-          />
+          >
+            <ListChipGroup
+              label="Sipariş durumuna göre filtrele"
+              value={orderStatusFilter}
+              onChange={(value) => {
+                const next = value as typeof orderStatusFilter;
+                setOrderStatusFilter(next);
+                setOrderPage(1);
+                if (!next) void load(requestPage, 1);
+              }}
+              options={[
+                { value: "", label: "Tümü", count: orderStatusCounts?.all },
+                { value: "Open", label: "Açık", count: orderStatusCounts?.Open },
+                { value: "PartiallyReceived", label: "Kısmen alındı", count: orderStatusCounts?.PartiallyReceived },
+                { value: "Received", label: "Tam alındı", count: orderStatusCounts?.Received },
+                { value: "Overdue", label: "Gecikmiş", count: orderStatusCounts?.Overdue },
+              ]}
+            />
+          </ListToolbar>
         )}
       </div>
       {error && (
@@ -5837,882 +7170,229 @@ function PurchasingPanel({
         </div>
       )}
       {!requestsOnly && (
-        <section className="panel purchase-order-list-card list-v2-list" aria-label="Tedarikçi siparişi listesi">
-      <div className="customer-table-wrap">
-        <AdvancedDataGrid
-          className="customer-table quote-table"
-          gridId="purchase-orders"
-          {...screenViewGridDefaults(visibleOrderScreenFields)}
-          externalPagination
-          hideSearch
-          toolbarContainer={orderGridToolsSlot}
-          enableRowSelection={false}
-        >
-          <thead>
-            <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
-            <tr>
-              {visibleOrderScreenFields.map((field) => (
-                <th key={field.key}>{field.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={visibleOrderScreenFields.length}
-                  className="table-empty"
-                >
-                  Satın alma siparişleri yükleniyor…
-                </td>
-              </tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={visibleOrderScreenFields.length}
-                  className="table-empty"
-                >
-                  {orderSearch.trim()
-                    ? "Aramanızla eşleşen tedarikçi siparişi yok."
-                    : "Henüz satın alma siparişi yok."}
-                </td>
-              </tr>
-            ) : (
-              orders.map((item) => (
-                <tr
-                  key={item.id}
-                  className={
-                    selectedOrderSummary?.id === item.id
-                      ? "erp-selected-row"
-                      : ""
-                  }
-                  onClick={() => setSelectedOrderId(item.id)}
-                  aria-selected={selectedOrderSummary?.id === item.id}
-                >
+        <div className="po-list-layout">
+          <div className="po-list-main">
+            <section className="panel purchase-order-list-card list-v2-list" aria-label="Tedarikçi siparişi listesi">
+          <div className="customer-table-wrap">
+            <AdvancedDataGrid
+              className="customer-table quote-table"
+              gridId="purchase-orders"
+              {...screenViewGridDefaults(visibleOrderScreenFields)}
+              externalPagination
+              hideSearch
+              toolbarContainer={orderGridToolsSlot}
+              enableRowSelection={false}
+            >
+              <thead>
+                <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
+                <tr>
                   {visibleOrderScreenFields.map((field) => (
-                    <td key={field.key}>
-                      {renderPurchaseOrderField(field, item)}
-                    </td>
+                    <th key={field.key}>{field.label}</th>
                   ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </AdvancedDataGrid>
-      </div>
-        </section>
-      )}
-      {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-        <section className="panel" style={{ marginBottom: 16 }}>
-          <div className="panel-heading">
-            <div>
-              <b>Tedarikçi teklifi alanları</b>
-              <small>
-                Tenant kapsamlı, tür doğrulamalı teklif metadata alanları.
-              </small>
-            </div>
-          </div>
-          <div className="requests-list">
-            {supplierQuoteFieldDefinitions.map((field) => (
-              <article className="request-row" key={field.id}>
-                <div className="request-info">
-                  <b>
-                    {field.label} · {field.code}
-                  </b>
-                  <small>
-                    {field.dataType} · v{field.version}
-                    {field.isRequired ? " · zorunlu" : ""}
-                  </small>
-                </div>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void editSupplierQuoteCustomField(field)}
-                >
-                  Edit
-                </button>
-                {role === "TenantAdmin" && (
-                  <button
-                    className="row-action danger-action"
-                    disabled={busy}
-                    onClick={() => void deactivateSupplierQuoteCustomField(field)}
-                  >
-                    Disable
-                  </button>
+              </thead>
+              <tbody>
+                {loading || orderIndexPending ? (
+                  <tr>
+                    <td
+                      colSpan={visibleOrderScreenFields.length}
+                      className="table-empty"
+                    >
+                      Satın alma siparişleri yükleniyor…
+                    </td>
+                  </tr>
+                ) : displayedOrders.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={visibleOrderScreenFields.length}
+                      className="table-empty"
+                    >
+                      {orderStatusFilter
+                    ? "Bu durumda satın alma siparişi yok."
+                    : orderSearch.trim()
+                        ? "Aramanızla eşleşen tedarikçi siparişi yok."
+                        : "Henüz satın alma siparişi yok."}
+                    </td>
+                  </tr>
+                ) : (
+                  displayedOrders.map((item) => (
+                    <tr
+                      key={item.id}
+                      className={
+                        selectedOrderSummary?.id === item.id
+                          ? "erp-selected-row"
+                          : ""
+                      }
+                      onClick={() => setSelectedOrderId(item.id)}
+                      aria-selected={selectedOrderSummary?.id === item.id}
+                    >
+                      {visibleOrderScreenFields.map((field) => (
+                        <td key={field.key}>
+                          {renderPurchaseOrderField(field, item)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
                 )}
-              </article>
-            ))}
-            {supplierQuoteFieldDefinitions.length === 0 && (
-              <div className="empty-small">Henüz teklif alanı yok.</div>
-            )}
+              </tbody>
+            </AdvancedDataGrid>
           </div>
-          <form
-            className="collection-form"
-            onSubmit={createSupplierQuoteCustomField}
-          >
-            <div className="form-two">
-              <label>
-                Alan kodu
-                <input
-                  value={supplierQuoteFieldCode}
-                  onChange={(e) =>
-                    setSupplierQuoteFieldCode(e.target.value.toUpperCase())
-                  }
-                  required
-                  maxLength={40}
-                />
-              </label>
-              <label>
-                Ekran etiketi
-                <input
-                  value={supplierQuoteFieldLabel}
-                  onChange={(e) => setSupplierQuoteFieldLabel(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-              </label>
-            </div>
-            <div className="form-two">
-              <label>
-                Veri türü
-                <select
-                  value={supplierQuoteFieldType}
-                  onChange={(e) =>
-                    setSupplierQuoteFieldType(
-                      e.target
-                        .value as PurchaseSupplierQuoteFieldDefinition["dataType"],
-                    )
-                  }
-                >
-                  <option value="Text">Metin</option>
-                  <option value="Decimal">Ondalık sayı</option>
-                  <option value="Date">Tarih</option>
-                  <option value="Boolean">Evet/Hayır</option>
-                </select>
-              </label>
-              {supplierQuoteFieldType === "Text" && (
-                <label>
-                  En fazla karakter
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={supplierQuoteFieldMaxLength}
-                    onChange={(e) =>
-                      setSupplierQuoteFieldMaxLength(e.target.value)
-                    }
-                    required
-                  />
-                </label>
-              )}
-            </div>
-            {role === "TenantAdmin" ? (
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={supplierQuoteFieldRequired}
-                  onChange={(e) =>
-                    setSupplierQuoteFieldRequired(e.target.checked)
-                  }
-                />{" "}
-                Tekliflerde zorunlu olsun
-              </label>
-            ) : (
-              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-            )}
-            <div className="modal-foot">
-              <span>
-                Zorunlu alan açmak için önce mevcut teklifler doldurulmalıdır.
-              </span>
-              <button className="secondary" disabled={busy}>
-                Alan ekle
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
-      {!requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
-        <details className="panel purchase-settings-panel">
-          <summary className="panel-heading">
-            <div>
-              <b>Sipariş alanları</b>
-              <small>
-                Talep dönüşümünde eşleşen kodlar aktarılır; alanlar tenant
-                kapsamındadır.
-              </small>
-            </div>
-          </summary>
-          <div className="requests-list">
-            {orderFieldDefinitions.map((field) => (
-              <article className="request-row" key={field.id}>
-                <div className="request-info">
-                  <b>
-                    {field.label} · {field.code}
-                  </b>
-                  <small>
-                    {field.dataType} · v{field.version}
-                    {field.isRequired ? " · zorunlu" : ""}
-                  </small>
-                </div>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void editOrderCustomField(field)}
-                >
-                  Düzenle
-                </button>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void openOrderFieldHistory(field)}
-                >
-                  Sürüm geçmişi
-                </button>
-                {role === "TenantAdmin" && (
-                  <button
-                    className="row-action danger-action"
-                    disabled={busy}
-                    onClick={() => void deactivateOrderCustomField(field)}
-                  >
-                    Devre dışı bırak
-                  </button>
-                )}
-              </article>
-            ))}
-          </div>
-          {orderFieldHistoryDefinition && (
-            <section className="panel" style={{ marginTop: 14 }}>
-              <div className="panel-heading">
-                <div>
-                  <b>{orderFieldHistoryDefinition.code} · tanım geçmişi</b>
-                  <small>Geri yükleme yeni sürüm ekler.</small>
-                </div>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  onClick={() => setOrderFieldHistoryDefinition(null)}
-                >
-                  Kapat
-                </button>
-              </div>
-              <div className="requests-list">
-                {orderFieldHistory.map((revision) => (
-                  <article className="request-row" key={revision.id}>
-                    <div className="request-info">
-                      <b>
-                        v{revision.version} · {revision.label}
-                      </b>
-                      <small>
-                        {revision.dataType}
-                        {revision.isRequired ? " · zorunlu" : ""} ·{" "}
-                        {revision.isActive ? "Etkin" : "Devre dışı"} ·{" "}
-                        {revision.changeKind} ·{" "}
-                        {new Date(revision.createdAt).toLocaleString("tr-TR")}
-                      </small>
-                    </div>
-                {role === "TenantAdmin" && (
-                  <button
-                    type="button"
-                    className="secondary small-button"
-                    disabled={busy}
-                    onClick={() => void restoreOrderFieldRevision(revision)}
-                  >
-                    Bu sürümü geri yükle
-                  </button>
-                )}
-                  </article>
-                ))}
-              </div>
             </section>
-          )}
-          <form className="collection-form" onSubmit={createOrderCustomField}>
-            <div className="form-two">
-              <label>
-                Alan kodu
-                <input
-                  value={orderFieldCode}
-                  onChange={(e) =>
-                    setOrderFieldCode(e.target.value.toUpperCase())
-                  }
-                  required
-                  maxLength={40}
-                />
-              </label>
-              <label>
-                Ekran etiketi
-                <input
-                  value={orderFieldLabel}
-                  onChange={(e) => setOrderFieldLabel(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-              </label>
-            </div>
-            <div className="form-two">
-              <label>
-                Veri türü
-                <select
-                  value={orderFieldType}
-                  onChange={(e) =>
-                    setOrderFieldType(
-                      e.target
-                        .value as PurchaseOrderFieldDefinition["dataType"],
-                    )
-                  }
-                >
-                  <option value="Text">Metin</option>
-                  <option value="Decimal">Ondalık sayı</option>
-                  <option value="Date">Tarih</option>
-                  <option value="Boolean">Evet/Hayır</option>
-                </select>
-              </label>
-              {orderFieldType === "Text" && (
-                <label>
-                  En fazla karakter
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={orderFieldMaxLength}
-                    onChange={(e) => setOrderFieldMaxLength(e.target.value)}
-                    required
-                  />
-                </label>
-              )}
-            </div>
-            {role === "TenantAdmin" ? (
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={orderFieldRequired}
-                  onChange={(e) => setOrderFieldRequired(e.target.checked)}
-                />{" "}
-                Zorunlu alan
-              </label>
-            ) : (
-              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-            )}
-            <div className="modal-foot">
-              <span>Sipariş oluştururken doldurulur.</span>
-              <button className="secondary" disabled={busy}>
-                Alan ekle
-              </button>
-            </div>
-          </form>
-        </details>
-      )}
-      {!requestsOnly && (role === "TenantAdmin" || role === "TenantDeveloper") && (
-        <details className="panel purchase-settings-panel">
-          <summary className="panel-heading">
-            <div>
-              <b>Mal kabul alanlar&#305;</b>
-              <small>
-                De&#287;erler stok giri&#351;iyle birlikte kaydedilir ve
-                sonradan de&#287;i&#351;tirilemez.
-              </small>
-            </div>
-          </summary>
-          <div className="requests-list">
-            {receiptFieldDefinitions.map((field) => (
-              <article className="request-row" key={field.id}>
-                <div className="request-info">
-                  <b>
-                    {field.label} · {field.code}
-                  </b>
-                  <small>
-                    {field.dataType} · v{field.version}
-                    {field.isRequired ? " · zorunlu" : ""}
-                  </small>
+            <ListPagination
+              page={orderPage}
+              total={displayedOrderTotal}
+              pageSize={purchasePageSize}
+              loading={loading}
+              onPageChange={(next) =>
+                orderStatusFilter ? setOrderPage(next) : void load(requestPage, next)
+              }
+            />
+          </div>
+          {selectedOrderSummary && (() => {
+            const order = cachedOrderDetail(selectedOrderSummary.id);
+            const warehouse = warehouses.find((x) => x.id === selectedOrderSummary.targetWarehouseId);
+            const invoicedReceipts = order?.receipts.filter((receipt) => receipt.status === "Posted" && receipt.invoice).length ?? 0;
+            const postedReceipts = order?.receipts.filter((receipt) => receipt.status === "Posted").length ?? 0;
+            return (
+              <aside className="po-list-aside" aria-label="Seçili sipariş">
+                <div className="po-list-aside-head">
+                  <h2>{selectedOrderSummary.code}</h2>
+                  <DocumentStatusBadge status={purchaseOrderStatus(selectedOrderSummary.status)} />
                 </div>
-                <button
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void editReceiptCustomField(field)}
-                >
-                  D&#252;zenle
-                </button>
-                {role === "TenantAdmin" && (
-                  <button
-                    className="row-action danger-action"
-                    disabled={busy}
-                    onClick={() => void deactivateReceiptCustomField(field)}
-                  >
-                    Devre d&#305;&#351;&#305; b&#305;rak
-                  </button>
+                <p className="po-list-aside-party">
+                  {selectedOrderSummary.supplierName}
+                  {warehouse ? ` · ${warehouse.name}` : ""}
+                </p>
+                {order ? (
+                  <table className="po-list-aside-lines" aria-label="Sipariş satırları">
+                    <thead>
+                      <tr>
+                        <th>Stok</th>
+                        <th className="po-num">Alınan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.lines.map((line) => (
+                        <tr key={line.lineNumber}>
+                          <td title={line.stockName}>{line.stockCode}</td>
+                          <td className="po-num">
+                            {line.receivedQuantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })} /{" "}
+                            {line.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="po-list-muted">{orderDetailCache.current.get(selectedOrderSummary.id) === "error" ? "Satırlar yüklenemedi." : "Satırlar yükleniyor…"}</p>
                 )}
-              </article>
-            ))}
-            {receiptFieldDefinitions.length === 0 && (
-              <div className="empty-small">
-                Hen&#252;z mal kabul alan&#305; yok.
-              </div>
-            )}
-          </div>
-          <form className="collection-form" onSubmit={createReceiptCustomField}>
-            <div className="form-two">
-              <label>
-                Alan kodu
-                <input
-                  value={receiptFieldCode}
-                  onChange={(e) =>
-                    setReceiptFieldCode(e.target.value.toUpperCase())
-                  }
-                  required
-                  maxLength={40}
-                />
-              </label>
-              <label>
-                Ekran etiketi
-                <input
-                  value={receiptFieldLabel}
-                  onChange={(e) => setReceiptFieldLabel(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-              </label>
-            </div>
-            <div className="form-two">
-              <label>
-                Veri t&#252;r&#252;
-                <select
-                  value={receiptFieldType}
-                  onChange={(e) =>
-                    setReceiptFieldType(
-                      e.target
-                        .value as PurchaseReceiptFieldDefinition["dataType"],
-                    )
-                  }
-                >
-                  <option value="Text">Metin</option>
-                  <option value="Decimal">Ondal&#305;k say&#305;</option>
-                  <option value="Date">Tarih</option>
-                  <option value="Boolean">Evet/Hay&#305;r</option>
-                </select>
-              </label>
-              {receiptFieldType === "Text" && (
-                <label>
-                  En fazla karakter
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={receiptFieldMaxLength}
-                    onChange={(e) => setReceiptFieldMaxLength(e.target.value)}
-                    required
-                  />
-                </label>
-              )}
-            </div>
-            {role === "TenantAdmin" ? (
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={receiptFieldRequired}
-                  onChange={(e) => setReceiptFieldRequired(e.target.checked)}
-                />{" "}
-                Mal kabulde zorunlu
-              </label>
-            ) : (
-              <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-            )}
-            <div className="modal-foot">
-              <span>
-                Her mal kabul kayd&#305; alan tan&#305;m
-                s&#252;r&#252;m&#252;n&#252; saklar.
-              </span>
-              <button className="secondary" disabled={busy}>
-                Alan ekle
-              </button>
-            </div>
-          </form>
-        </details>
+                <dl className="po-list-aside-facts">
+                  <div>
+                    <dt>Mal kabul</dt>
+                    <dd>{order ? postedReceipts : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Faturalanan</dt>
+                    <dd>{order ? `${invoicedReceipts} / ${postedReceipts}` : "—"}</dd>
+                  </div>
+                  <div className="is-total">
+                    <dt>Genel toplam</dt>
+                    <dd>
+                      {selectedOrderSummary.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}{" "}
+                      {selectedOrderSummary.currencyCode}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="po-list-aside-actions">
+                  <button type="button" className="primary" onClick={() => void openOrder(selectedOrderSummary.id)}>
+                    Siparişi aç
+                  </button>
+                  {canReceiveOrder(selectedOrderSummary.status) && (
+                    <button type="button" className="secondary" onClick={() => void openOrderReceipt(selectedOrderSummary.id)}>
+                      Mal kabul ekle
+                    </button>
+                  )}
+                </div>
+              </aside>
+            );
+          })()}
+        </div>
       )}
-
-      {!requestsOnly && selectedOrderSummary && (
-        <aside className="erp-record-pane sales-selected-record sales-lv2-detail">
-          <div className="list-v2-detail-head">
-            <div>
-              <span className="list-v2-kind">SATIN ALMA · SİPARİŞ</span>
-              <h2>{selectedOrderSummary.supplierName}</h2>
-            </div>
-            <div className="list-v2-detail-head-actions">
-              <button
-                className="secondary small-button"
-                onClick={() => void openOrder(selectedOrderSummary.id)}
-              >
-                Siparişi aç
-              </button>
-            </div>
-          </div>
-          <div className="list-v2-detail-meta">
-            <span className="list-v2-detail-code">{selectedOrderSummary.code}</span>
-            <span>{selectedOrderSummary.status}</span>
-          </div>
-          <dl className="list-v2-facts">
-            <div>
-              <dt>Sipariş tarihi</dt>
-              <dd>{selectedOrderSummary.orderDate}</dd>
-            </div>
-            <div>
-              <dt>Beklenen teslim</dt>
-              <dd>{selectedOrderSummary.expectedReceiptDate || "—"}</dd>
-            </div>
-            <div>
-              <dt>Satır</dt>
-              <dd>{selectedOrderSummary.lineCount}</dd>
-            </div>
-            <div>
-              <dt>Toplam</dt>
-              <dd>
-                {selectedOrderSummary.grandTotal.toLocaleString("tr-TR", {
-                  minimumFractionDigits: 2,
-                })}{" "}
-                {selectedOrderSummary.currencyCode}
-              </dd>
-            </div>
-          </dl>
-        </aside>
-      )}
-      {!requestsOnly && (
-        <ListPagination
-          page={orderPage}
-          total={orderTotal}
-          pageSize={purchasePageSize}
-          loading={loading}
-          onPageChange={(next) => void load(requestPage, next)}
-        />
-      )}
-      <div className="boundary-note">
-        <ShieldCheck size={17} />
-        <span>
-          <b>Tedarikçi borcu</b>Mal kabulden alış faturası oluşturun; fatura
-          tedarikçi vadesini ve cari borcu yazar. Kısmi ödemeler borçtan düşer;
-          iptaller ters kayıtla korunur.
-        </span>
-      </div>
-      {editor && (
+      {requestsOnly && canManagePurchaseFields && supplierQuoteFieldsSection}
+      {!requestsOnly && orderFieldsOpen && canManagePurchaseFields && (
         <div
           className="modal-backdrop"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setEditor(false);
+            if (e.target === e.currentTarget && !busy) setOrderFieldsOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !busy) setOrderFieldsOpen(false);
           }}
         >
-          <div className="modal quote-modal sales-rf-host">
-            <RecordFormPage
-              variant="dialog"
-              className="sales-rf"
-              title="Yeni satın alma siparişi"
-              mode="create"
-              busy={busy}
-              saveLabel="Sipariş oluştur"
-              onSubmit={createOrder}
-              onCancel={() => setEditor(false)}
-              error={error}
-              onDismissError={() => setError("")}
-              status={
-                <>
-                  <span>
-                    Miktar ve fiyat seçilen birim içindir; sipariş stok kartının
-                    temel biriminde saklanır.
-                  </span>
-                  <span className="rf-status-end">Satır: <b>{lines.length}</b></span>
-                </>
-              }
-            >
-              <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity sales-rf-identity-3">
-                <label>
-                  <span>Sipariş no <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-mono"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    required
-                    maxLength={40}
-                    placeholder="SA-2026-0001"
-                  />
-                </label>
-                <label>
-                  Tedarikçi
-                  <SearchableRecordPicker
-                    options={supplierOptions.map((x) => ({
-                      id: x.id,
-                      label: `${x.code} · ${x.name}`,
-                      description: x.currencyCode,
-                      searchText: x.currencyCode,
-                    }))}
-                    selectedId={supplierId}
-                    onSelect={setSupplierId}
-                    title="Tedarikçi seçin"
-                    placeholder="Tedarikçi seçin"
-                    searchPlaceholder="Tedarikçi kodu veya unvanıyla ara"
-                    emptyMessage="Aramanızla eşleşen tedarikçi bulunamadı."
-                    required
-                  />
-                </label>
-              <label>
-                <span>Sipariş tarihi <RequiredMark /></span>
-                <input
-                  type="date"
-                  value={orderDate}
-                  onChange={(e) => setOrderDate(e.target.value)}
-                  required
-                />
-              </label>
-              </RecordFormGroup>
-              <RecordFormGroup title="Teslimat" bodyClassName="rf-pair">
-                <label>
-                  <span>
-                    Beklenen teslim tarihi{" "}
-                    <span className="optional-label">İsteğe bağlı</span>
-                  </span>
-                  <input
-                    type="date"
-                    min={orderDate}
-                    value={expectedReceiptDate}
-                    onChange={(e) => setExpectedReceiptDate(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <span>
-                    Hedef depo{" "}
-                    <span className="optional-label">İsteğe bağlı</span>
-                  </span>
-                  <SearchableRecordPicker
-                    options={warehouses
-                      .filter((x) => x.isActive)
-                      .map((x) => ({
-                        id: x.id,
-                        label: `${x.code} · ${x.name}`,
-                      }))}
-                    selectedId={targetWarehouseId}
-                    onSelect={setTargetWarehouseId}
-                    title="Hedef depo seçin"
-                    placeholder="Belirtilmedi"
-                    searchPlaceholder="Depo kodu veya adıyla ara"
-                    emptyMessage="Aramanızla eşleşen aktif depo bulunamadı."
-                  />
-                </label>
-              </RecordFormGroup>
-              <RecordFormGroup title="Sipariş Satırları">
-              <div className="quote-lines-heading sales-rf-group-actions">
-                <span className="muted">Her satır için stok, miktar, birim ve fiyat girin.</span>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  data-line-add-shortcut
-                  title="Ctrl+Shift+Enter ile satır ekle"
-                  onClick={() =>
-                    setLines((current) => [
-                      ...current,
-                      {
-                        stockItemId: "",
-                        quantity: "1",
-                        unitPrice: "0",
-                        discountPercent: "0",
-                        vatPercent: "20",
-                        unitCode: "",
-                      },
-                    ])
-                  }
-                >
-                  <Plus size={14} /> Satır ekle
+          <div className="modal po-fields-modal" role="dialog" aria-modal="true" aria-labelledby="po-fields-title">
+            <div className="modal-head">
+              <div>
+                <h2 id="po-fields-title">Alanlar</h2>
+                <p>Teklif, sipariş ve mal kabul kayıtlarına eklenen tenant özel alanları.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Alanlar penceresini kapat"
+                autoFocus
+                onClick={() => setOrderFieldsOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {error && (
+              <div className="alert inline-alert" role="alert">
+                {error}
+                <button type="button" aria-label="Hatayı kapat" onClick={() => setError("")}>
+                  <X size={15} />
                 </button>
               </div>
-              {lines.map((line, index) => (
-                <div className="quote-line" key={index}>
-                  <div className="quote-line-title">
-                    <b>Satır {index + 1}</b>
-                    {lines.length > 1 && (
-                      <button
-                        type="button"
-                        className="row-action"
-                        onClick={() =>
-                          setLines((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      >
-                        Kaldır
-                      </button>
-                    )}
-                  </div>
-                  <label>
-                    Stok kartı
-                    <AsyncStockItemPicker
-                      token={token}
-                      selectedId={line.stockItemId}
-                      initialItems={stockItems}
-                      onSelect={(item) => {
-                        void loadPurchaseOrderUnits(item.id);
-                        updateLine(index, "stockItemId", item.id);
-                        updateLine(index, "unitCode", item.unitCode || "");
-                      }}
-                    />
-                  </label>
-                  <div className="form-two order-line-pricing">
-                    <label>
-                      Miktar
-                      <input
-                        type="number"
-                        min="0.0001"
-                        step="0.0001"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          updateLine(index, "quantity", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      Birim
-                      <select
-                        value={
-                          line.unitCode ||
-                          stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode ||
-                          ""
-                        }
-                        onChange={(e) =>
-                          updateLine(index, "unitCode", e.target.value)
-                        }
-                        required
-                      >
-                        <option
-                          value={
-                            stockItems.find((x) => x.id === line.stockItemId)
-                              ?.unitCode || line.unitCode || ""
-                          }
-                        >
-                          {stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode || line.unitCode || "Temel birim"}
-                        </option>
-                        {(purchaseOrderUnits[line.stockItemId] || [])
-                          .filter((x) => x.isActive)
-                          .map((unit) => (
-                            <option key={unit.id} value={unit.unitCode}>
-                              {unit.unitCode} (×{unit.factorToBase})
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Birim fiyat
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.0001"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          updateLine(index, "unitPrice", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  </div>
-                  <div className="form-two order-line-tax">
-                    <label>
-                      İskonto %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.discountPercent}
-                        onChange={(e) =>
-                          updateLine(index, "discountPercent", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      KDV %
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={line.vatPercent}
-                        onChange={(e) =>
-                          updateLine(index, "vatPercent", e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-              </RecordFormGroup>
-              {orderFieldDefinitions.length > 0 && (
-                <RecordFormGroup title="Sipariş Özel Alanları">
-                  <div className="rf-custom-grid">
-                    {orderFieldDefinitions.map((field) => (
-                      <label key={field.id}>
-                        {field.label}
-                        {field.isRequired ? " *" : ""}
-                        <small>{field.code}</small>
-                        {field.dataType === "Boolean" ? (
-                          <select
-                            required={field.isRequired}
-                            value={orderFieldValues[field.code] || ""}
-                            onChange={(e) =>
-                              setOrderFieldValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Seçin</option>
-                            <option value="true">Evet</option>
-                            <option value="false">Hayır</option>
-                          </select>
-                        ) : (
-                          <input
-                            type={
-                              field.dataType === "Decimal"
-                                ? "number"
-                                : field.dataType === "Date"
-                                  ? "date"
-                                  : "text"
-                            }
-                            step={
-                              field.dataType === "Decimal" ? "any" : undefined
-                            }
-                            maxLength={
-                              field.dataType === "Text"
-                                ? field.maxLength
-                                : undefined
-                            }
-                            required={field.isRequired}
-                            value={orderFieldValues[field.code] || ""}
-                            onChange={(e) =>
-                              setOrderFieldValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </RecordFormGroup>
-              )}
-              <RecordFormGroup title="Sipariş Notu">
-              <label>
-                <span>
-                  Sipariş notu{" "}
-                  <span className="optional-label">İsteğe bağlı</span>
-                </span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                />
-              </label>
-              </RecordFormGroup>
-            </RecordFormPage>
+            )}
+            {notice && (
+              <div className="notice">
+                {notice}
+                <button type="button" aria-label="Bildirimi kapat" onClick={() => setNotice("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <DetailTabs<"quote" | "order" | "receipt">
+              label="Alan türleri"
+              value={orderFieldsTab}
+              onChange={setOrderFieldsTab}
+              tabs={[
+                { key: "quote", label: "Teklif alanları", count: supplierQuoteFieldDefinitions.length },
+                { key: "order", label: "Sipariş alanları", count: orderFieldDefinitions.length },
+                { key: "receipt", label: "Mal kabul alanları", count: receiptFieldDefinitions.length },
+              ]}
+            />
+            <div className="po-fields-body" role="tabpanel">
+              {orderFieldsTab === "quote" && supplierQuoteFieldsSection}
+              {orderFieldsTab === "order" && orderFieldsSection}
+              {orderFieldsTab === "receipt" && receiptFieldsSection}
+            </div>
+            <div className="modal-foot">
+              <span>Alan tanımları sürümlenir; geçmiş kayıtların değerleri korunur.</span>
+              <button type="button" className="secondary" onClick={() => setOrderFieldsOpen(false)}>
+                Kapat
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+      {requestsOnly && (
+        <div className="boundary-note">
+          <ShieldCheck size={17} />
+          <span>
+            <b>Tedarikçi borcu</b>Mal kabulden alış faturası oluşturun; fatura
+            tedarikçi vadesini ve cari borcu yazar. Kısmi ödemeler borçtan düşer;
+            iptaller ters kayıtla korunur.
+          </span>
         </div>
       )}
       {detail && (
@@ -6893,26 +7573,7 @@ function PurchasingPanel({
                 detail.status !== "Cancelled" && (
                   <button
                     className="primary"
-                    onClick={() => {
-                      const targetWarehouseId =
-                        warehouses.find((x) => x.isActive)?.id || "";
-                      setWarehouseId(targetWarehouseId);
-                      setReceiptLocationIds({});
-                      void loadReceiptLocations(targetWarehouseId);
-                      setReceiptFieldValues(
-                        Object.fromEntries(
-                          receiptFieldDefinitions.map((field) => [
-                            field.code,
-                            detail.customFields.find(
-                              (source) =>
-                                source.code.toLowerCase() ===
-                                field.code.toLowerCase(),
-                            )?.value || "",
-                          ]),
-                        ),
-                      );
-                      setReceiptEditor(true);
-                    }}
+                    onClick={() => beginReceipt(detail)}
                   >
                     <Plus size={16} /> Mal kabul ekle
                   </button>

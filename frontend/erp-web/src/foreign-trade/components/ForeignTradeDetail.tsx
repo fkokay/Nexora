@@ -1,13 +1,21 @@
-import { Globe2, PackageCheck, Pencil, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Globe2, PackageCheck, Pencil, X } from "lucide-react";
 import { localizedText } from "../../locale";
-import type {
-  Direction,
-  InventoryDocument,
-  TradeCapabilities,
-  TradeCase,
-  TradeOrder,
-  TradeStatus,
+import {
+  tradeStageFlow,
+  type AdvanceInputs,
+  type Direction,
+  type InventoryDocument,
+  type TradeCapabilities,
+  type TradeCase,
+  type TradeOrder,
+  type TradeStatus,
 } from "../types";
+
+export type ForeignTradePanelNotice = {
+  kind: "success" | "error";
+  text: string;
+};
 
 type Props = {
   item: TradeCase | null;
@@ -21,15 +29,53 @@ type Props = {
   statusLabel: (status: TradeStatus) => string;
   directionLabel: (direction: Direction) => string;
   transportLabel: (mode: string) => string;
-  onClear: () => void;
+  /** Result of the last action on this panel; dismissible. */
+  notice: ForeignTradePanelNotice | null;
+  onDismissNotice: () => void;
   onDocumentChange: (id: string) => void;
   onLinkDocument: (item: TradeCase) => void;
   onEdit: (item: TradeCase) => void;
-  onTransition: (item: TradeCase, status: TradeStatus) => void;
+  /** Saves the collected prerequisite inputs (if any) and moves the case to `status`. */
+  onAdvance: (item: TradeCase, status: TradeStatus, inputs: AdvanceInputs) => void;
+  onCancelCase: (item: TradeCase) => void;
 };
 
 const tr = (turkish: string, english: string) =>
   localizedText(turkish, english);
+
+export const incotermsCodes = [
+  "EXW",
+  "FCA",
+  "CPT",
+  "CIP",
+  "DAP",
+  "DPU",
+  "DDP",
+  "FAS",
+  "FOB",
+  "CFR",
+  "CIF",
+];
+
+const disclaimer = () =>
+  tr(
+    "Bu ekran siparişe bağlı iç operasyon kaydıdır. HS kodu, Incoterms, taşıma ve beyan bilgileri kullanıcı tarafından doğrulanmalıdır; resmî gümrük beyannamesi veya e-belge gönderimi değildir.",
+    "This is an internal operations record linked to an order. Users must verify HS codes, Incoterms, transport and declaration details; this is not an official customs declaration or e-document submission.",
+  );
+
+/** Heading of the prerequisites block, per target stage. */
+const requirementHeading = (next: TradeStatus) => {
+  switch (next) {
+    case "Shipped":
+      return tr("Sevke geçmek için gerekli", "Required before shipping");
+    case "CustomsClearance":
+      return tr("Gümrüğe geçmek için gerekli", "Required before customs");
+    case "Closed":
+      return tr("Kapatmak için gerekli", "Required before closing");
+    default:
+      return tr("Geçiş için gerekli", "Required for this step");
+  }
+};
 
 export function ForeignTradeDetail({
   item,
@@ -43,227 +89,45 @@ export function ForeignTradeDetail({
   statusLabel,
   directionLabel,
   transportLabel,
-  onClear,
+  notice,
+  onDismissNotice,
   onDocumentChange,
   onLinkDocument,
   onEdit,
-  onTransition,
+  onAdvance,
+  onCancelCase,
 }: Props) {
-  return (
-    <aside
-      className="foreign-trade-detail"
-      aria-label={tr(
-        "Seçili dış ticaret dosyası",
-        "Selected foreign trade case",
-      )}
-    >
-      {item ? (
-        <>
-          <header className="list-v2-detail-head">
-            <div>
-              <span className="list-v2-kind">
-                {directionLabel(item.direction)}
-              </span>
-              <h2>{item.referenceCode}</h2>
-            </div>
-            <div className="list-v2-detail-head-actions">
-              {capabilities.canUpdate &&
-                ["Draft", "Booked"].includes(item.status) && (
-                  <button
-                    className="secondary small-button"
-                    disabled={busyId === item.id}
-                    onClick={() => onEdit(item)}
-                  >
-                    <Pencil size={14} /> {tr("Dosyayı düzenle", "Edit case")}
-                  </button>
-                )}
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={tr("Seçimi kaldır", "Clear selection")}
-                onClick={onClear}
-              >
-                <X size={19} />
-              </button>
-            </div>
-          </header>
-          <div className="list-v2-detail-meta">
-            <span
-              className={`list-v2-status${["Closed", "Cancelled"].includes(item.status) ? "" : " is-active"}`}
+  const [inputs, setInputs] = useState<AdvanceInputs>({});
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  useEffect(() => {
+    setInputs({});
+    setConfirmCancel(false);
+  }, [item?.id, item?.status]);
+
+  if (!item)
+    return (
+      <aside
+        className="foreign-trade-detail"
+        aria-label={tr(
+          "Seçili dış ticaret dosyası",
+          "Selected foreign trade case",
+        )}
+      >
+        {notice && (
+          <div
+            className={`foreign-trade-panel-notice is-${notice.kind}`}
+            role={notice.kind === "error" ? "alert" : "status"}
+          >
+            <span>{notice.text}</span>
+            <button
+              type="button"
+              aria-label={tr("Bildirimi kapat", "Dismiss message")}
+              onClick={onDismissNotice}
             >
-              <i aria-hidden="true" />
-              {statusLabel(item.status)}
-            </span>
+              <X size={14} />
+            </button>
           </div>
-          {capabilities.canAdvance && nextStatus && (
-            <section
-              className="list-v2-quick"
-              aria-label={tr("İşlem", "Action")}
-            >
-              <div>
-                <button
-                  className="primary small-button"
-                  disabled={busyId === item.id}
-                  onClick={() => onTransition(item, nextStatus)}
-                >
-                  {tr(
-                    `${statusLabel(nextStatus)} aşamasına geçir`,
-                    `Move to ${statusLabel(nextStatus)}`,
-                  )}
-                </button>
-              </div>
-            </section>
-          )}
-          <dl className="list-v2-facts">
-            <div>
-              <dt>{tr("Bağlı sipariş", "Linked order")}</dt>
-              <dd>
-                {orderMap.get(item.purchaseOrderId || item.salesOrderId || "")
-                  ?.code || "—"}
-              </dd>
-            </div>
-            <div>
-              <dt>{tr("Rota", "Route")}</dt>
-              <dd>
-                {item.originCountryCode} → {item.destinationCountryCode}
-              </dd>
-            </div>
-            <div>
-              <dt>Incoterms / {tr("taşıma", "transport")}</dt>
-              <dd>
-                {item.incotermsCode || "—"} ·{" "}
-                {transportLabel(item.transportMode)}
-              </dd>
-            </div>
-            <div>
-              <dt>{tr("Beyan değeri", "Declared value")}</dt>
-              <dd>
-                {item.declaredValue.toLocaleString(locale, {
-                  minimumFractionDigits: 2,
-                })}{" "}
-                {item.currencyCode}
-              </dd>
-            </div>
-            <div>
-              <dt>{tr("Planlanan sevkiyat", "Planned shipment")}</dt>
-              <dd>
-                {item.plannedShipDate
-                  ? new Date(
-                      `${item.plannedShipDate}T00:00:00`,
-                    ).toLocaleDateString(locale)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt>{tr("Planlanan varış", "Planned arrival")}</dt>
-              <dd>
-                {item.plannedArrivalDate
-                  ? new Date(
-                      `${item.plannedArrivalDate}T00:00:00`,
-                    ).toLocaleDateString(locale)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt>{tr("Taşıyıcı referansı", "Carrier reference")}</dt>
-              <dd>{item.carrierReference || "—"}</dd>
-            </div>
-            <div>
-              <dt>{tr("Gümrük referansı", "Customs reference")}</dt>
-              <dd>{item.customsReference || "—"}</dd>
-            </div>
-          </dl>
-          {item.notes && (
-            <p className="foreign-trade-detail-notes">{item.notes}</p>
-          )}
-          <section className="foreign-trade-inventory-link">
-            <h4>{tr("Stok belgesi", "Inventory document")}</h4>
-            <p>
-              {tr(
-                "Stok hareketini standart mal kabul veya teslimat ekranında oluşturun. Bu adım yalnızca mevcut belgeyi bağlar; stok ikinci kez işlenmez.",
-                "Post stock in the standard receipt or delivery screen. This only links the existing document; it does not post inventory again.",
-              )}
-            </p>
-            {item.purchaseReceiptId || item.salesDeliveryId ? (
-              <div className="foreign-trade-linked-document">
-                <PackageCheck size={16} />
-                <span>
-                  {documents.find((document) => document.isLinked)?.code ||
-                    item.purchaseReceiptId ||
-                    item.salesDeliveryId}
-                </span>
-              </div>
-            ) : (
-              <>
-                {((item.direction === "Import" &&
-                  ["Arrived", "Closed"].includes(item.status)) ||
-                  (item.direction === "Export" &&
-                    [
-                      "Shipped",
-                      "CustomsClearance",
-                      "Arrived",
-                      "Closed",
-                    ].includes(item.status))) &&
-                  capabilities.canAdvance && (
-                    <div className="foreign-trade-link-controls">
-                      <select
-                        aria-label={tr(
-                          "Stok belgesi seçin",
-                          "Select inventory document",
-                        )}
-                        value={documentId}
-                        onChange={(event) =>
-                          onDocumentChange(event.target.value)
-                        }
-                      >
-                        <option value="">
-                          {tr(
-                            "Kayıtlı stok belgesi seçin",
-                            "Select a posted inventory document",
-                          )}
-                        </option>
-                        {documents.map((document) => (
-                          <option key={document.id} value={document.id}>
-                            {document.code} · {document.warehouseName} ·{" "}
-                            {document.lineCount} {tr("satır", "lines")}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className="secondary"
-                        disabled={!documentId || busyId === item.id}
-                        onClick={() => onLinkDocument(item)}
-                      >
-                        {tr("Belgeyi bağla", "Link document")}
-                      </button>
-                    </div>
-                  )}
-                {!documents.length && (
-                  <small>
-                    {tr(
-                      "Uygun kayıtlı stok belgesi bulunamadı. Önce standart mal kabul veya teslimat işlemini tamamlayın.",
-                      "No eligible posted inventory document was found. Complete the standard receipt or delivery first.",
-                    )}
-                  </small>
-                )}
-              </>
-            )}
-          </section>
-          {capabilities.canAdvance &&
-            ["Draft", "Booked"].includes(item.status) && (
-              <div className="list-v2-detail-foot">
-                <button
-                  type="button"
-                  className="is-danger"
-                  disabled={busyId === item.id}
-                  onClick={() => onTransition(item, "Cancelled")}
-                >
-                  {tr("Dosyayı iptal et", "Cancel case")}
-                </button>
-              </div>
-            )}
-        </>
-      ) : (
+        )}
         <div className="foreign-trade-detail-empty">
           <Globe2 size={20} />
           <b>{tr("Dosya seçin", "Select a case")}</b>
@@ -274,7 +138,392 @@ export function ForeignTradeDetail({
             )}
           </span>
         </div>
+        <p className="foreign-trade-disclaimer" title={disclaimer()}>
+          {tr(
+            "İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.",
+            "Internal operations record; not an official customs declaration.",
+          )}
+        </p>
+      </aside>
+    );
+
+  const busy = busyId === item.id;
+  const stageIndex = tradeStageFlow.indexOf(item.status);
+  const cancelled = item.status === "Cancelled";
+  const editable = ["Draft", "Booked"].includes(item.status);
+  const linked = Boolean(item.purchaseReceiptId || item.salesDeliveryId);
+  const canLinkNow =
+    (item.direction === "Import" &&
+      ["Arrived", "Closed"].includes(item.status)) ||
+    (item.direction === "Export" &&
+      ["Shipped", "CustomsClearance", "Arrived", "Closed"].includes(
+        item.status,
+      ));
+
+  // Prerequisites the backend checks on transition (ForeignTradeEndpoints.cs, /transition).
+  type Field = "plannedShipDate" | "declaredValue" | "incotermsCode" | "customsReference";
+  const fields: Field[] = [];
+  const blockers: string[] = [];
+  let fieldsEditable = true;
+  if (nextStatus === "Shipped") {
+    if (!item.plannedShipDate) fields.push("plannedShipDate");
+    if (!(item.declaredValue > 0)) fields.push("declaredValue");
+    if (!item.incotermsCode) fields.push("incotermsCode");
+    // Ship prerequisites are file details saved through the edit endpoint.
+    if (fields.length && !capabilities.canUpdate) {
+      fieldsEditable = false;
+      blockers.push(
+        tr(
+          "Planlanan sevk tarihi, pozitif beyan değeri ve Incoterms için dosya düzenleme izni (erp.foreign-trade.update) gerekir.",
+          "Planned ship date, a positive declared value and Incoterms require the case update permission (erp.foreign-trade.update).",
+        ),
+      );
+    }
+  }
+  if (nextStatus === "CustomsClearance") {
+    if (!item.customsReference) fields.push("customsReference");
+    if (
+      item.direction === "Export" &&
+      item.inventoryPostingRequired &&
+      !item.salesDeliveryId
+    )
+      blockers.push(
+        tr(
+          "Kayıtlı teslimat belgesini aşağıdan bu dosyaya bağlayın.",
+          "Link the posted delivery document to this case below.",
+        ),
+      );
+  }
+  if (nextStatus === "Closed") {
+    if (!item.actualArrivalDate)
+      blockers.push(
+        tr("Gerçek varış tarihi kaydedilmelidir.", "An actual arrival date must be recorded."),
+      );
+    if (
+      item.direction === "Import" &&
+      item.inventoryPostingRequired &&
+      !item.purchaseReceiptId
+    )
+      blockers.push(
+        tr(
+          "Kayıtlı mal kabul belgesini aşağıdan bu dosyaya bağlayın.",
+          "Link the posted goods receipt to this case below.",
+        ),
+      );
+  }
+  // Inputs stay visible next to other blockers so every prerequisite is shown up front.
+  const editableFields = fieldsEditable ? fields : [];
+  const fieldsFilled = editableFields.every((field) => {
+    const value = inputs[field]?.trim() || "";
+    if (field === "declaredValue") return Number(value) > 0;
+    return value.length > 0;
+  });
+  const canSubmitAdvance =
+    capabilities.canAdvance &&
+    !!nextStatus &&
+    !blockers.length &&
+    fieldsFilled &&
+    !busy;
+  const set = (field: Field, value: string) =>
+    setInputs((current) => ({ ...current, [field]: value }));
+
+  const order = orderMap.get(item.purchaseOrderId || item.salesOrderId || "");
+
+  return (
+    <aside
+      className="foreign-trade-detail"
+      aria-label={tr("Seçili dış ticaret dosyası", "Selected foreign trade case")}
+    >
+      <header className="foreign-trade-detail-top">
+        <span className="list-v2-kind">
+          {tr("Seçili dosya", "Selected case")} · {directionLabel(item.direction)}
+        </span>
+        <h2>{item.referenceCode}</h2>
+      </header>
+
+      {notice && (
+        <div
+          className={`foreign-trade-panel-notice is-${notice.kind}`}
+          role={notice.kind === "error" ? "alert" : "status"}
+        >
+          <span>{notice.text}</span>
+          <button
+            type="button"
+            aria-label={tr("Bildirimi kapat", "Dismiss message")}
+            onClick={onDismissNotice}
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
+
+      <div className="foreign-trade-progress">
+        <ol aria-hidden="true">
+          {tradeStageFlow.map((status, index) => (
+            <li
+              key={status}
+              title={statusLabel(status)}
+              className={
+                cancelled
+                  ? ""
+                  : index < stageIndex
+                    ? "is-done"
+                    : index === stageIndex
+                      ? "is-current"
+                      : ""
+              }
+            />
+          ))}
+        </ol>
+        <p>
+          <b className={`trade-status ${item.status.toLowerCase()}`}>
+            {statusLabel(item.status)}
+          </b>
+          {nextStatus && (
+            <span>
+              {" "}
+              · {tr("sıradaki", "next")}: {statusLabel(nextStatus)}
+            </span>
+          )}
+        </p>
+      </div>
+
+      <dl className="foreign-trade-kv">
+        <div>
+          <dt>{tr("Sipariş", "Order")}</dt>
+          <dd>{order ? `${order.code} · ${order.counterpartyName}` : "—"}</dd>
+        </div>
+        <div>
+          <dt>{tr("Rota", "Route")}</dt>
+          <dd>
+            {item.originCountryCode} → {item.destinationCountryCode} ·{" "}
+            {item.incotermsCode || "—"} · {transportLabel(item.transportMode)}
+          </dd>
+        </div>
+        <div>
+          <dt>{tr("HS kodu", "HS code")}</dt>
+          <dd className="is-mono">{item.harmonizedSystemCode || "—"}</dd>
+        </div>
+        <div>
+          <dt>{tr("Beyan değeri", "Declared value")}</dt>
+          <dd>
+            {item.declaredValue.toLocaleString(locale, {
+              minimumFractionDigits: 2,
+            })}{" "}
+            {item.currencyCode}
+          </dd>
+        </div>
+        <div>
+          <dt>{tr("Taşıyıcı / takip", "Carrier / tracking")}</dt>
+          <dd className={item.carrierReference ? "" : "is-unset"}>
+            {item.carrierReference || "—"}
+          </dd>
+        </div>
+        <div>
+          <dt>{tr("Gümrük referansı", "Customs reference")}</dt>
+          <dd className={item.customsReference ? "" : "is-unset"}>
+            {item.customsReference || tr("Girilmedi", "Not entered")}
+          </dd>
+        </div>
+      </dl>
+
+      {item.notes && <p className="foreign-trade-detail-notes">{item.notes}</p>}
+
+      {capabilities.canAdvance && nextStatus && (
+        <section
+          className="foreign-trade-next"
+          aria-label={tr("Sonraki adım", "Next step")}
+        >
+          {(fields.length > 0 || blockers.length > 0) && (
+            <div className="foreign-trade-requirements">
+              <span className="foreign-trade-req-label">
+                <AlertTriangle size={13} /> {requirementHeading(nextStatus)}
+              </span>
+              {blockers.map((text) => (
+                <small key={text}>{text}</small>
+              ))}
+              {editableFields.includes("customsReference") && (
+                <label>
+                  {tr("Gümrük referansı", "Customs reference")}
+                  <input
+                    maxLength={100}
+                    value={inputs.customsReference || ""}
+                    onChange={(e) => set("customsReference", e.target.value)}
+                    placeholder={tr("ör. 26TR3400...", "e.g. 26TR3400...")}
+                  />
+                </label>
+              )}
+              {editableFields.includes("plannedShipDate") && (
+                <label>
+                  {tr("Planlanan sevkiyat", "Planned shipment")}
+                  <input
+                    type="date"
+                    value={inputs.plannedShipDate || ""}
+                    onChange={(e) => set("plannedShipDate", e.target.value)}
+                  />
+                </label>
+              )}
+              {editableFields.includes("declaredValue") && (
+                <label>
+                  {tr("Beyan değeri", "Declared value")} ({item.currencyCode})
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={inputs.declaredValue || ""}
+                    onChange={(e) => set("declaredValue", e.target.value)}
+                  />
+                </label>
+              )}
+              {editableFields.includes("incotermsCode") && (
+                <label>
+                  Incoterms 2020
+                  <select
+                    value={inputs.incotermsCode || ""}
+                    onChange={(e) => set("incotermsCode", e.target.value)}
+                  >
+                    <option value="">{tr("Seçin", "Select")}</option>
+                    {incotermsCodes.map((code) => (
+                      <option key={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            className="primary foreign-trade-advance"
+            disabled={!canSubmitAdvance}
+            onClick={() => onAdvance(item, nextStatus, inputs)}
+          >
+            {tr(
+              `${statusLabel(nextStatus)} aşamasına geçir`,
+              `Move to ${statusLabel(nextStatus)}`,
+            )}
+          </button>
+        </section>
+      )}
+
+      {(editable && (capabilities.canUpdate || capabilities.canAdvance)) && (
+        <div className="foreign-trade-detail-actions">
+          {capabilities.canUpdate && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => onEdit(item)}
+            >
+              <Pencil size={14} /> {tr("Düzenle", "Edit")}
+            </button>
+          )}
+          {capabilities.canAdvance && !confirmCancel && (
+            <button
+              type="button"
+              className="secondary is-danger"
+              disabled={busy}
+              onClick={() => setConfirmCancel(true)}
+            >
+              {tr("İptal et", "Cancel case")}
+            </button>
+          )}
+        </div>
+      )}
+      {confirmCancel && editable && capabilities.canAdvance && (
+        <div className="foreign-trade-cancel-confirm" role="group">
+          <span>
+            {tr(
+              "Dosya iptal edilsin mi? Bu işlem geri alınamaz.",
+              "Cancel this case? This cannot be undone.",
+            )}
+          </span>
+          <div>
+            <button
+              type="button"
+              className="secondary is-danger"
+              disabled={busy}
+              onClick={() => onCancelCase(item)}
+            >
+              {tr("Evet, iptal et", "Yes, cancel")}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => setConfirmCancel(false)}
+            >
+              {tr("Vazgeç", "Keep")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(linked || canLinkNow || item.inventoryPostingRequired) && !cancelled && (
+        <section className="foreign-trade-inventory-link">
+          <h4>{tr("Stok belgesi", "Inventory document")}</h4>
+          {linked ? (
+            <div className="foreign-trade-linked-document">
+              <PackageCheck size={16} />
+              <span>
+                {documents.find((document) => document.isLinked)?.code ||
+                  item.purchaseReceiptId ||
+                  item.salesDeliveryId}
+              </span>
+            </div>
+          ) : (
+            <>
+              <p>
+                {tr(
+                  "Stok hareketini standart mal kabul veya teslimat ekranında oluşturun. Bu adım yalnızca mevcut belgeyi bağlar; stok ikinci kez işlenmez.",
+                  "Post stock in the standard receipt or delivery screen. This only links the existing document; it does not post inventory again.",
+                )}
+              </p>
+              {canLinkNow && capabilities.canAdvance && (
+                <div className="foreign-trade-link-controls">
+                  <select
+                    aria-label={tr("Stok belgesi seçin", "Select inventory document")}
+                    value={documentId}
+                    onChange={(event) => onDocumentChange(event.target.value)}
+                  >
+                    <option value="">
+                      {tr("Kayıtlı stok belgesi seçin", "Select a posted inventory document")}
+                    </option>
+                    {documents.map((document) => (
+                      <option key={document.id} value={document.id}>
+                        {document.code} · {document.warehouseName} ·{" "}
+                        {document.lineCount} {tr("satır", "lines")}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={!documentId || busy}
+                    onClick={() => onLinkDocument(item)}
+                  >
+                    {tr("Belgeyi bağla", "Link document")}
+                  </button>
+                </div>
+              )}
+              {canLinkNow && !documents.length && (
+                <small>
+                  {tr(
+                    "Uygun kayıtlı stok belgesi bulunamadı. Önce standart mal kabul veya teslimat işlemini tamamlayın.",
+                    "No eligible posted inventory document was found. Complete the standard receipt or delivery first.",
+                  )}
+                </small>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      <p className="foreign-trade-disclaimer" title={disclaimer()}>
+        {tr(
+          "İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.",
+          "Internal operations record; not an official customs declaration.",
+        )}
+      </p>
     </aside>
   );
 }

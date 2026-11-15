@@ -43,6 +43,16 @@ için `record-form/README.md` geçerlidir; bu klasör yalnızca kayıtlı bir be
 )}
 ```
 
+## Yeniden tasarlanan detay (`variant="detail"`)
+
+Alış faturası (`PurchaseInvoiceModal`) ve satış teklifi detayı bu görünümü kullanır. Başlıkta küçük
+üst satır (`eyebrow`), büyük belge numarası ve yanında durum, altında cari (`subtitle`), sağda
+ikincil düğmeler, tek birincil işlem ve ⋯ menüsü (`SalesRowActionsMenu`) yer alır; geri düğmesi
+`closeLabel="Geri"` ile verilir. Gövde parçaları `document-detail/DocumentDetailLayout.tsx` içindedir:
+`DetailTiles` (4 özet kutucuğu), `DetailTabs` (alt çizgili sekmeler), `DetailInfoGrid` (etiket / değer,
+giriş kutusu yok), `.dd-lines` satır tablosu + `DetailLinesFooter` (solda notlar, sağda toplamlar),
+`DetailSection` (Ödemeler, İadeler…) ve işlem formları için sağdan kayan `DetailDrawer`.
+
 ## Pencereden taşınan ekranlar
 
 Bu yapıya taşınan ekranların gövdesi, iç stilleri bozulmasın diye eski pencere sınıflarını
