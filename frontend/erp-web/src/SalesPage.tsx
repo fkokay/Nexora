@@ -651,19 +651,17 @@ export function SalesPage({
         return;
       }
       if (tab === "purchases" || tab === "requests") {
+        // Both tabs pick suppliers: purchase orders, and on requests the supplier quotes and the
+        // request-to-order conversion (an empty list there made both impossible).
         const [supplierPage, combinedPage, warehouseItems] = await Promise.all([
-          tab === "purchases"
-            ? api<{ items: SalesCustomer[] }>(
-                "/api/customers/?type=Supplier&status=Active&page=1&pageSize=100",
-                token,
-              )
-            : Promise.resolve({ items: [] as SalesCustomer[] }),
-          tab === "purchases"
-            ? api<{ items: SalesCustomer[] }>(
-                "/api/customers/?type=Both&status=Active&page=1&pageSize=100",
-                token,
-              )
-            : Promise.resolve({ items: [] as SalesCustomer[] }),
+          api<{ items: SalesCustomer[] }>(
+            "/api/customers/?type=Supplier&status=Active&page=1&pageSize=100",
+            token,
+          ),
+          api<{ items: SalesCustomer[] }>(
+            "/api/customers/?type=Both&status=Active&page=1&pageSize=100",
+            token,
+          ),
           api<Warehouse[]>("/api/warehouses/", token),
         ]);
         setCustomers([...supplierPage.items, ...combinedPage.items]);
@@ -5923,11 +5921,12 @@ function PurchasingPanel({
           }),
         },
       );
-      setSupplierQuotes((current) =>
-        [...current, quote].sort(
-          (a, b) =>
-            a.currencyCode.localeCompare(b.currencyCode) ||
-            a.grandTotal - b.grandTotal,
+      // The POST response has no base-currency comparison, which the list then showed as
+      // "Baz para birimine çevrilemedi"; reload the request's quotes as the detail view does.
+      setSupplierQuotes(
+        await api<PurchaseSupplierQuote[]>(
+          `/api/purchasing/requests/${requestDetail.id}/supplier-quotes`,
+          token,
         ),
       );
       setQuoteEditor(false);

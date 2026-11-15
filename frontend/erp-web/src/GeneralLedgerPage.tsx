@@ -4,8 +4,6 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   FileText,
   Landmark,
   ListTree,
@@ -20,15 +18,16 @@ import {
   emptyManualJournalLine,
   type ManualJournalLine,
 } from "./general-ledger/journalVoucher";
-import { LedgerReportsPanel } from "./general-ledger/components/LedgerReportsPanel";
+import { AccountChartView } from "./general-ledger/components/AccountChartView";
+import { LedgerMappingsView } from "./general-ledger/components/LedgerMappingsView";
+import { JournalLedgerView } from "./general-ledger/components/JournalLedgerView";
+import { TrialBalanceView } from "./general-ledger/components/TrialBalanceView";
+import { BalanceSheetView } from "./general-ledger/components/BalanceSheetView";
 import { AccountingRuleProfilesPanel } from "./general-ledger/AccountingRuleProfilesPanel";
 import type {
   LedgerAccount,
   LedgerMapping,
   JournalEntrySummary,
-  LedgerTrialBalance,
-  BalanceSheet,
-  IncomeStatement,
   LedgerStatementSection,
   LedgerSource,
   JournalEntryView,
@@ -124,133 +123,6 @@ const shortenTransferCode = (code: string) =>
   code.length > 16 ? `${code.slice(0, 8)}…${code.slice(-6)}` : code;
 const displayDate = (value: string) => value.split("-").reverse().join(".");
 
-type LedgerAccountTreeRow = {
-  account: LedgerAccount;
-  depth: number;
-  hasChildren: boolean;
-};
-function buildLedgerAccountTree(
-  accounts: LedgerAccount[],
-  collapsedCodes: Set<string>,
-): LedgerAccountTreeRow[] {
-  const byCode = new Map(
-    accounts.map((account) => [
-      account.code.toLocaleLowerCase("tr-TR"),
-      account,
-    ]),
-  );
-  const children = new Map<string, LedgerAccount[]>();
-  const roots: LedgerAccount[] = [];
-  for (const account of accounts) {
-    const separator = account.code.lastIndexOf(".");
-    const parentCode = separator > 0 ? account.code.slice(0, separator) : "";
-    const parent = parentCode
-      ? byCode.get(parentCode.toLocaleLowerCase("tr-TR"))
-      : undefined;
-    if (parent) {
-      const key = parent.code.toLocaleLowerCase("tr-TR");
-      children.set(key, [...(children.get(key) || []), account]);
-    } else roots.push(account);
-  }
-  const sort = (items: LedgerAccount[]) =>
-    items.sort((a, b) =>
-      a.code.localeCompare(b.code, "tr", {
-        numeric: true,
-        sensitivity: "base",
-      }),
-    );
-  const rows: LedgerAccountTreeRow[] = [];
-  const append = (items: LedgerAccount[], depth: number) => {
-    for (const account of sort(items)) {
-      const key = account.code.toLocaleLowerCase("tr-TR"),
-        nested = children.get(key) || [];
-      rows.push({ account, depth, hasChildren: nested.length > 0 });
-      if (nested.length && !collapsedCodes.has(account.code))
-        append(nested, depth + 1);
-    }
-  };
-  append(roots, 0);
-  return rows;
-}
-
-/** Tek Düzen Hesap Planı classes, keyed by the first digit of the account code. */
-const ledgerAccountClassLabels: Record<string, string> = {
-  "1": "Dönen varlıklar",
-  "2": "Duran varlıklar",
-  "3": "Kısa vadeli yabancı kaynaklar",
-  "4": "Uzun vadeli yabancı kaynaklar",
-  "5": "Özkaynaklar",
-  "6": "Gelir tablosu hesapları",
-  "7": "Maliyet hesapları",
-  "8": "Serbest",
-  "9": "Nazım hesaplar",
-};
-const ledgerAccountTypeLabels: Record<string, string> = {
-  Unclassified: "Sınıflandırılmamış",
-  Asset: "Aktif",
-  Liability: "Pasif",
-  Equity: "Özkaynak",
-  Revenue: "Gelir",
-  Expense: "Gider",
-  OffBalanceSheet: "Nazım",
-};
-const ledgerNormalBalanceLabels: Record<string, string> = {
-  Debit: "Borç çalışır",
-  Credit: "Alacak çalışır",
-  Both: "Çift çalışır",
-};
-const ledgerAccountClassOf = (code: string) => code.trim().charAt(0);
-const ledgerAccountGroupOf = (code: string) => code.trim().slice(0, 2);
-
-type LedgerAccountGroupedRow = LedgerAccountTreeRow & {
-  group: string;
-  /** First visible row of its 2-digit group: carries the group toggle. */
-  groupStart: boolean;
-  /** The account whose code is exactly the 2-digit group code. */
-  isGroupAccount: boolean;
-  /** Rows of the group hidden while the group is collapsed. */
-  hiddenCount: number;
-  /** The group has dotted sub-accounts, so rows reserve room for the tree toggle. */
-  groupHasTree: boolean;
-};
-/**
- * Orders the accounts by their 2-digit group (e.g. "10", "11") and builds the dotted
- * sub-account tree inside each group. The grid keeps plain data rows (header rows with
- * colSpan would be dropped by AdvancedDataGrid and pollute export), so the group is
- * shown on the first row of each group; a collapsed group keeps only that row.
- */
-function buildLedgerAccountGroups(
-  accounts: LedgerAccount[],
-  collapsedCodes: Set<string>,
-  collapsedGroups: Set<string>,
-): LedgerAccountGroupedRow[] {
-  const groups = new Map<string, LedgerAccount[]>();
-  for (const account of accounts) {
-    const key = ledgerAccountGroupOf(account.code);
-    groups.set(key, [...(groups.get(key) || []), account]);
-  }
-  const rows: LedgerAccountGroupedRow[] = [];
-  [...groups.keys()]
-    .sort((a, b) => a.localeCompare(b, "tr", { numeric: true, sensitivity: "base" }))
-    .forEach((group) => {
-      const tree = buildLedgerAccountTree(groups.get(group) || [], collapsedCodes);
-      const collapsed = collapsedGroups.has(group);
-      const visible = collapsed ? tree.slice(0, 1) : tree;
-      const groupHasTree = tree.some((row) => row.hasChildren);
-      visible.forEach((row, index) =>
-        rows.push({
-          ...row,
-          group,
-          groupStart: index === 0,
-          isGroupAccount: row.account.code.trim() === group,
-          hiddenCount: index === 0 && collapsed ? tree.length - 1 : 0,
-          groupHasTree,
-        }),
-      );
-    });
-  return rows;
-}
-
 export default function GeneralLedgerPage({
   token,
   role,
@@ -271,18 +143,7 @@ export default function GeneralLedgerPage({
     [entryTotal, setEntryTotal] = useState(0),
     [entryFrom, setEntryFrom] = useState(""),
     [entryTo, setEntryTo] = useState("");
-  const [trialBalance, setTrialBalance] = useState<LedgerTrialBalance | null>(
-      null,
-    ),
-    [trialFrom, setTrialFrom] = useState(""),
-    [trialTo, setTrialTo] = useState("");
-  const [reportingBasis, setReportingBasis] = useState<"TDHP" | "IFRS">("TDHP");
-  const [balanceSheet, setBalanceSheet] = useState<BalanceSheet | null>(null),
-    [balanceSheetDate, setBalanceSheetDate] = useState(localDateString());
-  const [incomeStatement, setIncomeStatement] =
-      useState<IncomeStatement | null>(null),
-    [incomeFrom, setIncomeFrom] = useState(`${new Date().getFullYear()}-01-01`),
-    [incomeTo, setIncomeTo] = useState(localDateString());
+  const [journalSourceChip, setJournalSourceChip] = useState("");
   const [manualDate, setManualDate] = useState(localDateString()),
     [manualAccountingBasis, setManualAccountingBasis] = useState<"TDHP" | "IFRS">("TDHP"),
     [manualDescription, setManualDescription] = useState(""),
@@ -337,7 +198,6 @@ export default function GeneralLedgerPage({
     error: string;
   } | null>(null);
   const [confirmingTransfer, setConfirmingTransfer] = useState(false);
-  const [selected, setSelected] = useState<JournalEntryView | null>(null);
   const [chartPreview, setChartPreview] = useState<{
       totalAccounts: number;
       existingAccounts: number;
@@ -345,27 +205,10 @@ export default function GeneralLedgerPage({
       sourceUrl: string;
     } | null>(null),
     [accountCreateOpen, setAccountCreateOpen] = useState(false);
-  const [newAccountParentId, setNewAccountParentId] = useState(""),
-    [collapsedAccountCodes, setCollapsedAccountCodes] = useState<Set<string>>(
-      () => new Set(),
-    ),
-    [accountQuery, setAccountQuery] = useState("");
-  // Chart of accounts: class filter (first code digit), collapsed 2-digit groups and the
-  // account shown in the detail panel — all client-side only.
-  const [accountClass, setAccountClass] = useState(""),
-    [collapsedAccountGroups, setCollapsedAccountGroups] = useState<Set<string>>(
-      () => new Set(),
-    ),
-    [selectedAccountId, setSelectedAccountId] = useState("");
+  const [newAccountParentId, setNewAccountParentId] = useState("");
   const stayAfterAccountSave = useRef(false);
-  const [mappingAccountQueries, setMappingAccountQueries] = useState<
-    Record<string, string>
-  >({});
-  const [mappingSearch, setMappingSearch] = useState("");
   const [transferSourceSearch, setTransferSourceSearch] = useState("");
   // list-v2: status chips of the three client-side lists ("" = all).
-  const [accountStatus, setAccountStatus] = useState("");
-  const [mappingStatus, setMappingStatus] = useState("");
   const [transferStatus, setTransferStatus] = useState("");
   // list-v2: the page toolbar hosts the visible list's own tools (columns, export…).
   const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(
@@ -387,19 +230,6 @@ export default function GeneralLedgerPage({
   const labelByKey = Object.fromEntries(
     mappings.map((m) => [m.mappingKey, m.label]),
   ) as Record<string, string>;
-  const isMappingActive = (mapping: LedgerMapping) =>
-    accounts.some((account) => account.id === mapping.accountId && account.isActive);
-  const searchedMappings = mappings.filter((mapping) =>
-    `${mapping.label} ${mapping.accountCode || ""} ${mapping.accountName || ""}`
-      .toLocaleLowerCase("tr-TR")
-      .includes(mappingSearch.trim().toLocaleLowerCase("tr-TR")),
-  );
-  const activeMappingCount = searchedMappings.filter(isMappingActive).length;
-  const visibleMappings = mappingStatus
-    ? searchedMappings.filter(
-        (mapping) => isMappingActive(mapping) === (mappingStatus === "mapped"),
-      )
-    : searchedMappings;
   function missingFor(source: LedgerSource) {
     return source.requiredMappings.filter(
       (key) =>
@@ -467,122 +297,6 @@ export default function GeneralLedgerPage({
     } catch (e) {
       setError((e as Error).message);
     }
-  }
-  async function loadTrialBalance() {
-    setError("");
-    setTrialBalance(null);
-    try {
-      const params = new URLSearchParams();
-      params.set("basis", reportingBasis);
-      if (trialFrom) params.set("from", trialFrom);
-      if (trialTo) params.set("to", trialTo);
-      setTrialBalance(
-        await api<LedgerTrialBalance>(
-          `/api/finance/general-ledger/trial-balance?${params}`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function loadBalanceSheet() {
-    setError("");
-    setBalanceSheet(null);
-    try {
-      const params = new URLSearchParams({ asOfDate: balanceSheetDate, basis: reportingBasis });
-      setBalanceSheet(
-        await api<BalanceSheet>(
-          `/api/finance/general-ledger/financial-statements/balance-sheet?${params}`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function loadIncomeStatement() {
-    setError("");
-    setIncomeStatement(null);
-    try {
-      const params = new URLSearchParams({ from: incomeFrom, to: incomeTo, basis: reportingBasis });
-      setIncomeStatement(
-        await api<IncomeStatement>(
-          `/api/finance/general-ledger/financial-statements/income-statement?${params}`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  function exportTrialBalance() {
-    if (!trialBalance) return;
-    const cell = (value: unknown) =>
-      `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const rows = [
-      [
-        "Hesap kodu",
-        "Hesap adı",
-        "Açılış borç",
-        "Açılış alacak",
-        "Dönem borç",
-        "Dönem alacak",
-        "Kapanış borç",
-        "Kapanış alacak",
-      ],
-      ...trialBalance.accounts.map((row) => [
-        row.code,
-        row.name,
-        row.openingDebit,
-        row.openingCredit,
-        row.debit,
-        row.credit,
-        row.balanceDebit,
-        row.balanceCredit,
-      ]),
-      ["Toplam", "", "", "", "", "", "", ""],
-      [
-        "Açılış toplamı",
-        "",
-        trialBalance.totalOpeningDebit,
-        trialBalance.totalOpeningCredit,
-        "",
-        "",
-        "",
-        "",
-      ],
-      [
-        "Dönem hareketi",
-        "",
-        "",
-        "",
-        trialBalance.totalDebit,
-        trialBalance.totalCredit,
-        "",
-        "",
-      ],
-      [
-        "Kapanış bakiyesi",
-        "",
-        "",
-        "",
-        "",
-        "",
-        trialBalance.totalBalanceDebit,
-        trialBalance.totalBalanceCredit,
-      ],
-    ];
-    const csv =
-      "\uFEFF" + rows.map((row) => row.map(cell).join(",")).join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `mizan-${trialFrom || "baslangic"}-${trialTo || "bugun"}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
   useEffect(() => {
     void load();
@@ -775,33 +489,7 @@ export default function GeneralLedgerPage({
       setBusy(false);
     }
   }
-  async function mapAccount(key: string, accountId: string) {
-    if (!accountId) return;
-    const previous = mappings.find((m) => m.mappingKey === key)?.accountId;
-    if (
-      previous &&
-      previous !== accountId &&
-      !confirmLocalized(
-        "Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez. Devam edilsin mi?",
-      )
-    )
-      return;
-    setBusy(true);
-    setError("");
-    try {
-      await api(
-        `/api/finance/general-ledger/mappings/${encodeURIComponent(key)}`,
-        token,
-        { method: "PUT", body: JSON.stringify({ mappingKey: key, accountId }) },
-      );
-      setNotice("Hesap eşleştirmesi kaydedildi.");
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+
   async function transferPreviewedSource(row: TransferSourceRow, nextKey: string) {
     if (busy) return;
     setBusy(true);
@@ -906,18 +594,6 @@ export default function GeneralLedgerPage({
       setBusy(false);
     }
   }
-  async function openEntry(id: string) {
-    try {
-      setSelected(
-        await api<JournalEntryView>(
-          `/api/finance/general-ledger/entries/${id}`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
   async function reverseJournalEntry(entry: JournalEntryView) {
     const reason = window
       .prompt(`${entry.code} fişi için ters kayıt gerekçesi:`)
@@ -942,7 +618,6 @@ export default function GeneralLedgerPage({
         },
       );
       setNotice(`${reversal.code} ters kayıt oluşturuldu.`);
-      setSelected(null);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -955,81 +630,9 @@ export default function GeneralLedgerPage({
   const newAccountParent = accounts.find(
     (account) => account.id === newAccountParentId && account.isActive,
   );
-  const normalizedAccountQuery = accountQuery.trim().toLocaleLowerCase("tr-TR");
-  const searchedAccounts = normalizedAccountQuery
-    ? accounts.filter((account) =>
-        `${account.code} ${account.name}`
-          .toLocaleLowerCase("tr-TR")
-          .includes(normalizedAccountQuery),
-      )
-    : accounts;
-  const filteredAccounts = accountStatus
-    ? searchedAccounts.filter(
-        (account) => account.isActive === (accountStatus === "active"),
-      )
-    : searchedAccounts;
-  const accountClassOptions = Object.keys(ledgerAccountClassLabels)
-    .filter((key) =>
-      accounts.some((account) => ledgerAccountClassOf(account.code) === key),
-    )
-    .map((key) => ({
-      value: key,
-      label: `${key} ${ledgerAccountClassLabels[key]}`,
-      count: filteredAccounts.filter(
-        (account) => ledgerAccountClassOf(account.code) === key,
-      ).length,
-    }));
-  const classFilteredAccounts = accountClass
-    ? filteredAccounts.filter(
-        (account) => ledgerAccountClassOf(account.code) === accountClass,
-      )
-    : filteredAccounts;
-  const accountTreeRows = buildLedgerAccountGroups(
-    classFilteredAccounts,
-    collapsedAccountCodes,
-    collapsedAccountGroups,
-  );
-  const selectedAccount =
-    accounts.find((account) => account.id === selectedAccountId) || null;
-  const selectedAccountParent = selectedAccount
-    ? (() => {
-        const separator = selectedAccount.code.lastIndexOf(".");
-        const parentCode =
-          separator > 0 ? selectedAccount.code.slice(0, separator) : "";
-        return parentCode
-          ? accounts.find(
-              (account) =>
-                account.code.toLocaleLowerCase("tr-TR") ===
-                parentCode.toLocaleLowerCase("tr-TR"),
-            ) || null
-          : null;
-      })()
-    : null;
-  const selectedAccountGroup = selectedAccount
-    ? ledgerAccountGroupOf(selectedAccount.code)
-    : "";
-  const selectedAccountGroupAccount = selectedAccountGroup
-    ? accounts.find((account) => account.code.trim() === selectedAccountGroup)
-    : undefined;
   const canDeleteAccount = (account: LedgerAccount) =>
     !account.hasMovements &&
     !accounts.some((row) => row.code.startsWith(`${account.code}.`));
-  function toggleAccountGroup(group: string) {
-    setCollapsedAccountGroups((current) => {
-      const next = new Set(current);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
-      return next;
-    });
-  }
-  function toggleAccountTree(code: string) {
-    setCollapsedAccountCodes((current) => {
-      const next = new Set(current);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  }
   const viewTitles: Record<LedgerView, string> = {
     overview: "Muhasebe çalışma alanı",
     accounts: "Hesap planı",
@@ -1037,7 +640,7 @@ export default function GeneralLedgerPage({
     voucher: "Yevmiye fişi",
     "trial-balance": "Mizan",
     "balance-sheet": "Bilanço",
-    "journal-ledger": "Yevmiye defterleri",
+    "journal-ledger": "Yevmiye defteri",
     "transfer-sources": "Muhasebeye aktarım",
   };
   const viewDescriptions: Record<LedgerView, string> = {
@@ -1163,6 +766,13 @@ export default function GeneralLedgerPage({
     view === "journal-ledger" ||
     view === "transfer-sources";
   const showListHeader = isListView && !accountFormOpen;
+  // The chart of accounts and the mappings render their own list-v2 header inside the view.
+  const ownsHeader = view === "accounts" || view === "mappings";
+  // Mizan and Bilanço render their own list-v2 header (with report exports) inside the view.
+  const isReportView = view === "trial-balance" || view === "balance-sheet";
+  // Journal ledger header meta: amount of the loaded page (entries are balanced, so debit = amount).
+  const journalPageAmount = entries.reduce((total, entry) => total + entry.totalDebit, 0);
+  const journalCountLabel = `fiş · ${fmt(journalPageAmount)} ${sources.baseCurrencyCode || ""}${entryTotal > entries.length ? " (bu sayfa)" : ""}`.replace(/\s+\(/, " (").trimEnd();
   const isTenantAdmin = role === "TenantAdmin";
   const listCount =
     view === "accounts"
@@ -1175,60 +785,29 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`panel general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader ? " list-v2" : ""}`}>
-      {showListHeader ? (
+    <section className={`panel general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader || isReportView ? " list-v2" : ""}`}>
+      {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
           description={viewDescriptions[view]}
           count={listCount}
-          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : undefined}
+          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : view === "journal-ledger" ? journalCountLabel : undefined}
         >
           {view === "journal-ledger" && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => onNavigate?.("finance-transfer-sources")}
-            >
-              Aktarılabilir kaynaklar
-            </button>
-          )}
-          {view === "accounts" && isTenantAdmin && (
             <>
               <button
                 type="button"
                 className="secondary"
-                onClick={() => onNavigate?.("finance-ledger-mappings")}
+                onClick={() => onNavigate?.("finance-transfer-sources")}
               >
-                Hesap eşleştirmeleri
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => void previewStandardChart()}
-              >
-                Tek Düzen Hesap Planı
+                Aktarılabilir kaynaklar
               </button>
               <button
                 type="button"
                 className="primary"
-                onClick={() => {
-                  setError("");
-                  setEditingAccountId("");
-                  setCode("");
-                  setName("");
-                  setNewAccountParentId("");
-                  setNewAccountSection("Unclassified");
-                  setAccountType("Unclassified");
-                  setNormalBalance("Both");
-                  setAccountCurrency("");
-                  setIfrsAccountCode("");
-                  setIfrsAccountName("");
-                  setIfrsStatementSection("Unclassified");
-                  setAccountCreateOpen(true);
-                }}
+                onClick={() => onNavigate?.("finance-journal-vouchers")}
               >
-                Hesap ekle
+                Yeni fiş
               </button>
             </>
           )}
@@ -1243,7 +822,7 @@ export default function GeneralLedgerPage({
             </button>
           )}
         </ListPageHeader>
-      ) : accountFormOpen || view === "voucher" ? null : (
+      ) : accountFormOpen || view === "voucher" || isReportView || ownsHeader ? null : (
         <div className="panel-heading">
           <div>
             <p className="eyebrow">GENEL MUHASEBE</p>
@@ -1333,47 +912,35 @@ export default function GeneralLedgerPage({
         </div>
       )}
       {view === "overview" && <AccountingRuleProfilesPanel token={token} />}
-      {view === "accounts" && (
-        <section
-          className="ledger-subpanel ledger-accounts-panel"
-          aria-label="Hesap planı"
-        >
-          <ListToolbar
-            search={accountQuery}
-            onSearchChange={setAccountQuery}
-            searchLabel="Hesap planında ara"
-            searchPlaceholder="Kod veya hesap adına göre ara"
-            toolsSlotRef={setListToolsSlot}
-            onRefresh={() => void load()}
-          >
-            <ListChipGroup
-              label="Hesap durumu"
-              value={accountStatus}
-              onChange={setAccountStatus}
-              options={[
-                { value: "", label: "Tüm durumlar", count: searchedAccounts.length },
-                { value: "active", label: "Aktif", count: searchedAccounts.filter((account) => account.isActive).length },
-                { value: "inactive", label: "Pasif", count: searchedAccounts.filter((account) => !account.isActive).length },
-              ]}
-            />
-            <label className="ledger-class-select">
-              <select
-                aria-label="Hesap sınıfı"
-                value={accountClass}
-                onChange={(e) => setAccountClass(e.target.value)}
-              >
-                <option value="">Tüm sınıflar</option>
-                {accountClassOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </ListToolbar>
-          {role === "TenantAdmin" && (
-            <>
-              {chartPreview && (
+      {view === "accounts" && !accountFormOpen && (
+        <AccountChartView
+          token={token}
+          role={role}
+          accounts={accounts}
+          mappings={mappings}
+          busy={busy}
+          onRefresh={() => void load()}
+          onNavigate={onNavigate}
+          actions={{
+            onAdd: () => {
+              resetNewAccountForm();
+              setAccountCreateOpen(true);
+            },
+            onAddChild: (parent) => {
+              resetNewAccountForm();
+              setNewAccountParentId(parent.id);
+              setNewAccountSection(parent.statementSection);
+              setAccountCreateOpen(true);
+            },
+            onEdit: startEditAccount,
+            onToggle: (account) => void toggleAccount(account),
+            onDelete: (account) => void deleteAccount(account),
+            canDelete: canDeleteAccount,
+            onPreviewStandardChart: () => void previewStandardChart(),
+          }}
+          standardChartNotice={
+            role === "TenantAdmin" && chartPreview ? (
+
                 <div className="ledger-standard-chart">
                   <div>
                     <strong>Türkiye Tek Düzen Hesap Planı</strong>
@@ -1413,317 +980,9 @@ export default function GeneralLedgerPage({
                     Kapat
                   </button>
                 </div>
-              )}
-            </>
-          )}
-          <div className="ledger-chart-layout">
-            <nav className="ledger-class-nav" aria-label="Hesap sınıfı">
-              <h3>Hesap sınıfı</h3>
-              <button
-                type="button"
-                className={accountClass === "" ? "is-active" : undefined}
-                aria-pressed={accountClass === ""}
-                onClick={() => setAccountClass("")}
-              >
-                <span className="ledger-class-name">Tüm sınıflar</span>
-                <span className="ledger-class-count">
-                  {filteredAccounts.length}
-                </span>
-              </button>
-              {accountClassOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={
-                    accountClass === option.value ? "is-active" : undefined
-                  }
-                  aria-pressed={accountClass === option.value}
-                  onClick={() => setAccountClass(option.value)}
-                >
-                  <span className="ledger-class-digit">{option.value}</span>
-                  <span className="ledger-class-name">
-                    {ledgerAccountClassLabels[option.value]}
-                  </span>
-                  <span className="ledger-class-count">{option.count}</span>
-                </button>
-              ))}
-            </nav>
-            <div className="ledger-list list-v2-list" id="ledger-chart">
-              <FinanceStudioGrid
-                token={token}
-                screenKey="finance-ledger-accounts"
-                defaults={financeGridDefaults["finance-ledger-accounts"]}
-                hideSearch
-                toolbarContainer={listToolsSlot}
-              >
-                <table className="customer-table">
-                  <thead>
-                    <tr>
-                      <th>Kod</th>
-                      <th>Hesap</th>
-                      <th>Finansal tablo sınıfı</th>
-                      <th>Durum</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {accountTreeRows.map(
-                      ({
-                        account: a,
-                        depth,
-                        hasChildren,
-                        group,
-                        groupStart,
-                        isGroupAccount,
-                        hiddenCount,
-                        groupHasTree,
-                      }) => {
-                        const groupCollapsed = collapsedAccountGroups.has(group);
-                        return (
-                          <tr
-                            key={a.id}
-                            className={[
-                              "ledger-account-row",
-                              depth > 0 ? "ledger-account-child" : "",
-                              groupStart ? "ledger-account-group-start" : "",
-                              isGroupAccount ? "ledger-account-group-account" : "",
-                              selectedAccountId === a.id
-                                ? "ledger-account-selected"
-                                : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            aria-selected={selectedAccountId === a.id}
-                            tabIndex={0}
-                            onClick={(e) => {
-                              if (
-                                (e.target as HTMLElement).closest(
-                                  "button,input,select,a",
-                                )
-                              )
-                                return;
-                              setSelectedAccountId(a.id);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.target !== e.currentTarget) return;
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                setSelectedAccountId(a.id);
-                              }
-                            }}
-                          >
-                            <td>
-                              <div className="ledger-account-code-cell">
-                                <span className="ledger-account-group-slot">
-                                  {groupStart && (
-                                    <button
-                                      type="button"
-                                      className="ledger-account-group-toggle"
-                                      data-group={isGroupAccount ? undefined : group}
-                                      aria-label={`${group} grubunu ${groupCollapsed ? "göster" : "gizle"}`}
-                                      aria-expanded={!groupCollapsed}
-                                      onClick={() => toggleAccountGroup(group)}
-                                    >
-                                      {groupCollapsed ? (
-                                        <ChevronRight size={14} />
-                                      ) : (
-                                        <ChevronDown size={14} />
-                                      )}
-                                    </button>
-                                  )}
-                                </span>
-                                <span
-                                  className={`ledger-account-code-tree${isGroupAccount ? "" : " is-in-group"}`}
-                                  style={{
-                                    paddingInlineStart: `${depth * 22}px`,
-                                  }}
-                                >
-                                  {hasChildren ? (
-                                    <button
-                                      type="button"
-                                      className="ledger-account-tree-toggle"
-                                      aria-label={`${a.code} alt hesaplarını ${collapsedAccountCodes.has(a.code) ? "göster" : "gizle"}`}
-                                      aria-expanded={
-                                        !collapsedAccountCodes.has(a.code)
-                                      }
-                                      onClick={() => toggleAccountTree(a.code)}
-                                    >
-                                      {collapsedAccountCodes.has(a.code) ? (
-                                        <ChevronRight size={15} />
-                                      ) : (
-                                        <ChevronDown size={15} />
-                                      )}
-                                    </button>
-                                  ) : groupHasTree ? (
-                                    <span
-                                      className="ledger-account-tree-spacer"
-                                      aria-hidden="true"
-                                    />
-                                  ) : null}
-                                  <span className="customer-code">{a.code}</span>
-                                  {hiddenCount > 0 && (
-                                    <span
-                                      className="ledger-account-group-more"
-                                      data-more={`+${hiddenCount}`}
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                </span>
-                              </div>
-                            </td>
-                            <td>{a.name}</td>
-                            <td>{ledgerStatementLabels[a.statementSection]}</td>
-                            <td>{a.isActive ? "Aktif" : "Pasif"}</td>
-                          </tr>
-                        );
-                      },
-                    )}
-                    {accountTreeRows.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="table-empty">
-                          {normalizedAccountQuery || accountStatus || accountClass
-                            ? "Aramayla eşleşen hesap bulunamadı."
-                            : "Tenant hesabı eklenmedi."}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </FinanceStudioGrid>
-            </div>
-            <aside className="ledger-account-detail" aria-label="Seçili hesap">
-              {selectedAccount ? (
-                <>
-                  <div className="list-v2-detail-head">
-                    <div>
-                      <span className="list-v2-kind">Seçili hesap</span>
-                      <h2>
-                        <span className="ledger-account-detail-code">
-                          {selectedAccount.code}
-                        </span>{" "}
-                        · {selectedAccount.name}
-                      </h2>
-                    </div>
-                  </div>
-                  <div className="list-v2-detail-meta">
-                    <span
-                      className={`list-v2-status${selectedAccount.isActive ? " is-active" : ""}`}
-                    >
-                      <i aria-hidden="true" />
-                      {selectedAccount.isActive ? "Aktif" : "Pasif"}
-                    </span>
-                  </div>
-                  <dl className="ledger-account-detail-fields">
-                    <div>
-                      <dt>Finansal tablo sınıfı</dt>
-                      <dd>{ledgerStatementLabels[selectedAccount.statementSection]}</dd>
-                    </div>
-                    {ledgerAccountClassLabels[ledgerAccountClassOf(selectedAccount.code)] && (
-                      <div>
-                        <dt>Hesap sınıfı</dt>
-                        <dd>
-                          {ledgerAccountClassOf(selectedAccount.code)}{" "}
-                          {ledgerAccountClassLabels[ledgerAccountClassOf(selectedAccount.code)]}
-                        </dd>
-                      </div>
-                    )}
-                    {selectedAccountGroup.length === 2 && (
-                      <div>
-                        <dt>Hesap grubu</dt>
-                        <dd>
-                          {selectedAccountGroup}
-                          {selectedAccountGroupAccount &&
-                            selectedAccountGroupAccount.id !== selectedAccount.id &&
-                            ` · ${selectedAccountGroupAccount.name}`}
-                        </dd>
-                      </div>
-                    )}
-                    {selectedAccountParent && (
-                      <div>
-                        <dt>Üst hesap</dt>
-                        <dd>
-                          {selectedAccountParent.code} · {selectedAccountParent.name}
-                        </dd>
-                      </div>
-                    )}
-                    {selectedAccount.accountType && (
-                      <div>
-                        <dt>Hesap tipi</dt>
-                        <dd>
-                          {ledgerAccountTypeLabels[selectedAccount.accountType] ||
-                            selectedAccount.accountType}
-                        </dd>
-                      </div>
-                    )}
-                    {selectedAccount.normalBalance && (
-                      <div>
-                        <dt>Çalışma şekli</dt>
-                        <dd>
-                          {ledgerNormalBalanceLabels[selectedAccount.normalBalance] ||
-                            selectedAccount.normalBalance}
-                        </dd>
-                      </div>
-                    )}
-                    {selectedAccount.currencyCode && (
-                      <div>
-                        <dt>Döviz takibi</dt>
-                        <dd>{selectedAccount.currencyCode}</dd>
-                      </div>
-                    )}
-                    {selectedAccount.ifrsAccountCode && (
-                      <div>
-                        <dt>IFRS / UFRS hesabı</dt>
-                        <dd>
-                          {selectedAccount.ifrsAccountCode}
-                          {selectedAccount.ifrsAccountName &&
-                            ` · ${selectedAccount.ifrsAccountName}`}
-                        </dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt>Hareket</dt>
-                      <dd>
-                        {selectedAccount.hasMovements ? "Hareket var" : "Hareket yok"}
-                      </dd>
-                    </div>
-                  </dl>
-                  {role === "TenantAdmin" && (
-                    <div className="ledger-account-detail-actions">
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => startEditAccount(selectedAccount)}
-                      >
-                        Düzenle
-                      </button>
-                      <div className="list-v2-detail-foot">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void toggleAccount(selectedAccount)}
-                        >
-                          {selectedAccount.isActive ? "Pasifleştir" : "Aktifleştir"}
-                        </button>
-                        {canDeleteAccount(selectedAccount) && (
-                          <button
-                            type="button"
-                            className="is-danger"
-                            disabled={busy}
-                            onClick={() => void deleteAccount(selectedAccount)}
-                          >
-                            Sil
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="ledger-account-detail-empty">Bir hesap seçin</p>
-              )}
-            </aside>
-          </div>
-        </section>
+            ) : null
+          }
+        />
       )}
       {accountFormOpen && <div className="ledger-account-record-form">
         <RecordFormPage
@@ -1775,119 +1034,16 @@ export default function GeneralLedgerPage({
         </RecordFormPage>
       </div>}
       {view === "mappings" && (
-        <section
-          className="ledger-subpanel ledger-mappings-panel"
-          aria-label="Hesap eşleştirmeleri"
-        >
-          <ListToolbar
-            search={mappingSearch}
-            onSearchChange={setMappingSearch}
-            searchLabel="Eşleştirmelerde ara"
-            searchPlaceholder="Kaynak veya hesap kodu/adı ara"
-            toolsSlotRef={setListToolsSlot}
-            onRefresh={() => void load()}
-          >
-            <ListChipGroup
-              label="Durum"
-              value={mappingStatus}
-              onChange={setMappingStatus}
-              options={[
-                { value: "", label: "Tüm durumlar", count: searchedMappings.length },
-                { value: "mapped", label: "Etkin hesapla eşleşen", count: activeMappingCount },
-                { value: "unmapped", label: "Eşleştirme gereken", count: searchedMappings.length - activeMappingCount },
-              ]}
-            />
-          </ListToolbar>
-          <div className="ledger-list list-v2-list" id="ledger-mappings">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-ledger-mappings"
-              defaults={financeGridDefaults["finance-ledger-mappings"]}
-              hideSearch
-              toolbarContainer={listToolsSlot}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Kaynak hesabı</th>
-                    <th>Muhasebe hesabı</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleMappings.map((m) => {
-                    const active = isMappingActive(m),
-                      query = (mappingAccountQueries[m.mappingKey] || "")
-                        .trim()
-                        .toLocaleLowerCase("tr-TR"),
-                      options = accounts.filter(
-                        (a) =>
-                          a.isActive &&
-                          (query.length === 0 ||
-                            a.code.toLocaleLowerCase("tr-TR").includes(query) ||
-                            a.name.toLocaleLowerCase("tr-TR").includes(query)),
-                      );
-                    return (
-                      <tr key={m.mappingKey}>
-                        <td>{m.label}</td>
-                        <td>
-                          {role === "TenantAdmin" ? (
-                            <div className="ledger-mapping-account-picker">
-                              <input
-                                type="search"
-                                aria-label={`${m.label} için hesap ara`}
-                                placeholder="Hesap kodu veya adı ara"
-                                value={
-                                  mappingAccountQueries[m.mappingKey] || ""
-                                }
-                                onChange={(e) =>
-                                  setMappingAccountQueries((current) => ({
-                                    ...current,
-                                    [m.mappingKey]: e.target.value,
-                                  }))
-                                }
-                              />
-                              <select
-                                disabled={busy}
-                                value={active ? m.accountId || "" : ""}
-                                onChange={(e) =>
-                                  void mapAccount(m.mappingKey, e.target.value)
-                                }
-                              >
-                                <option value="">Hesap seçin</option>
-                                {m.accountId && !active && (
-                                  <option value="" disabled>
-                                    Önceki hesap pasif; yeni eşleştirme gerekli
-                                  </option>
-                                )}
-                                {options.map((a) => (
-                                  <option key={a.id} value={a.id}>
-                                    {a.code} · {a.name}
-                                  </option>
-                                ))}
-                                {options.length === 0 && (
-                                  <option value="" disabled>
-                                    Aramayla eşleşen hesap yok
-                                  </option>
-                                )}
-                              </select>
-                            </div>
-                          ) : active ? (
-                            `${m.accountCode} · ${m.accountName}`
-                          ) : (
-                            "Eşleştirilmedi"
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {visibleMappings.length === 0 && (
-                    <tr><td colSpan={2} className="table-empty">{mappings.length ? "Aramayla eşleşen kaynak bulunamadı." : "Henüz alt defter kaynağı bulunmuyor."}</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
-          </div>
-        </section>
+        <LedgerMappingsView
+          token={token}
+          role={role}
+          accounts={accounts}
+          mappings={mappings}
+          loaded={accountsLoaded}
+          onSaved={() => load()}
+          onRefresh={() => void load()}
+          onNavigate={onNavigate}
+        />
       )}
       {view === "voucher" && (
         <ManualJournalForm
@@ -1911,32 +1067,8 @@ export default function GeneralLedgerPage({
           onOpenRecentEntries={onNavigate ? () => onNavigate("finance-journal-ledger") : undefined}
         />
       )}
-      {(view === "trial-balance" || view === "balance-sheet") && (
-        <LedgerReportsPanel
-          token={token}
-          reportView={view}
-          reportingBasis={reportingBasis}
-          setReportingBasis={setReportingBasis}
-          trialFrom={trialFrom}
-          setTrialFrom={setTrialFrom}
-          trialTo={trialTo}
-          setTrialTo={setTrialTo}
-          trialBalance={trialBalance}
-          loadTrialBalance={loadTrialBalance}
-          exportTrialBalance={exportTrialBalance}
-          balanceSheet={balanceSheet}
-          balanceSheetDate={balanceSheetDate}
-          setBalanceSheetDate={setBalanceSheetDate}
-          loadBalanceSheet={loadBalanceSheet}
-          incomeStatement={incomeStatement}
-          incomeFrom={incomeFrom}
-          setIncomeFrom={setIncomeFrom}
-          incomeTo={incomeTo}
-          setIncomeTo={setIncomeTo}
-          loadIncomeStatement={loadIncomeStatement}
-          fmt={fmt}
-        />
-      )}
+      {view === "trial-balance" && <TrialBalanceView token={token} />}
+      {view === "balance-sheet" && <BalanceSheetView token={token} />}
       {view === "transfer-sources" && role === "TenantAdmin" && (
         <section className="ledger-subpanel ledger-transfer-sources" aria-label="Muhasebeye aktarım">
           <ListToolbar
@@ -2180,188 +1312,28 @@ export default function GeneralLedgerPage({
         </section>
       )}
       {view === "journal-ledger" && (
-          <section
-            className="ledger-subpanel"
-            aria-label="Yevmiye defteri kayıtları"
-          >
-            <ListToolbar
-              toolsSlotRef={setListToolsSlot}
-              onRefresh={() => void load()}
-            >
-              <label className="list-v2-filter">
-                <span>Başlangıç</span>
-                <input
-                  type="date"
-                  aria-label="Başlangıç"
-                  value={entryFrom}
-                  max={entryTo || undefined}
-                  onChange={(e) => {
-                    setEntryPage(1);
-                    setEntryFrom(e.target.value);
-                  }}
-                />
-              </label>
-              <label className="list-v2-filter">
-                <span>Bitiş</span>
-                <input
-                  type="date"
-                  aria-label="Bitiş"
-                  value={entryTo}
-                  min={entryFrom || undefined}
-                  onChange={(e) => {
-                    setEntryPage(1);
-                    setEntryTo(e.target.value);
-                  }}
-                />
-              </label>
-            </ListToolbar>
-            <div className="ledger-list journal-entries-list list-v2-list" id="ledger-journal">
-              <FinanceStudioGrid
-                token={token}
-                screenKey="finance-journals"
-                defaults={financeGridDefaults["finance-journals"]}
-                externalPagination
-                toolbarContainer={listToolsSlot}
-              >
-                <table className="customer-table">
-                  <thead>
-                    <tr>
-                      <th>Fiş</th>
-                      <th>Tarih</th>
-                      <th>Kaynak</th>
-                      <th>Açıklama</th>
-                      <th>Borç</th>
-                      <th>Alacak</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((x) => (
-                      <tr key={x.id}>
-                        <td>
-                          <button
-                            className="row-action"
-                            title={x.code}
-                            onClick={() => void openEntry(x.id)}
-                          >
-                            {x.code}
-                          </button>
-                        </td>
-                        <td>{x.entryDate.split("-").reverse().join(".")}</td>
-                        <td title={x.sourceType}>
-                          {x.sourceType === "FxRevaluation"
-                            ? "Kur değerleme"
-                            : x.sourceType === "InventoryCostAdjustment"
-                              ? "Stok maliyeti"
-                              : x.sourceType === "Manual"
-                                ? "Manuel fiş"
-                                : x.sourceType === "ManualReversal"
-                                  ? "Ters kayıt"
-                                  : x.sourceType}
-                        </td>
-                        <td title={x.description}>{x.description}{x.accountingBasis === "IFRS" && <small className="ledger-basis-badge">IFRS düzeltmesi</small>}</td>
-                        <td>{fmt(x.totalDebit)}</td>
-                        <td>{fmt(x.totalCredit)}</td>
-                      </tr>
-                    ))}
-                    {entries.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="table-empty">
-                          Henüz yevmiye kaydı yok.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </FinanceStudioGrid>
-            </div>
-            <div className="modal-foot">
-              <span>
-                Sayfa {entryPage} / {Math.max(1, Math.ceil(entryTotal / 50))}
-              </span>
-              <div>
-                <button
-                  className="secondary small-button"
-                  disabled={entryPage <= 1}
-                  onClick={() => setEntryPage((page) => page - 1)}
-                >
-                  Önceki
-                </button>
-                <button
-                  className="secondary small-button"
-                  disabled={entryPage * 50 >= entryTotal}
-                  onClick={() => setEntryPage((page) => page + 1)}
-                >
-                  Sonraki
-                </button>
-              </div>
-            </div>
-            {selected && (
-              <div className="panel ledger-entry-detail" style={{ marginTop: 14 }}>
-                <header className="list-v2-detail-head">
-                  <div>
-                    <span className="list-v2-kind">Yevmiye fişi</span>
-                    <h2>{selected.code}</h2>
-                  </div>
-                  <div className="list-v2-detail-head-actions">
-                    {role === "TenantAdmin" &&
-                      selected.sourceType !== "ManualReversal" &&
-                      !selected.isReversed && (
-                        <button
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() => void reverseJournalEntry(selected)}
-                        >
-                          Ters kayıt oluştur
-                        </button>
-                      )}
-                    <button
-                      className="secondary small-button"
-                      onClick={() => setSelected(null)}
-                    >
-                      Kapat
-                    </button>
-                  </div>
-                </header>
-                <div className="list-v2-detail-meta">
-                  <span>{selected.entryDate.split("-").reverse().join(".")}</span>
-                  {selected.description && <span>{selected.description}</span>}
-                </div>
-                <div className="ledger-list">
-                  <table className="customer-table">
-                    <thead>
-                      <tr>
-                        <th>Hesap</th>
-                        <th>Açıklama</th>
-                        <th>Borç</th>
-                        <th>Alacak</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selected.lines.map((line) => (
-                        <tr key={line.lineNumber}>
-                          <td>
-                            <b>{line.accountCode}</b>
-                            <small className="cell-subtitle">
-                              {line.accountName}
-                            </small>
-                          </td>
-                          <td>{line.description}</td>
-                          <td>{fmt(line.debit)}</td>
-                          <td>{fmt(line.credit)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="modal-foot">
-                  <span>Toplam</span>
-                  <b>
-                    {fmt(selected.totalDebit)} / {fmt(selected.totalCredit)}
-                  </b>
-                </div>
-              </div>
-            )}
-          </section>
+        <JournalLedgerView
+          token={token}
+          role={role}
+          entries={entries}
+          entryTotal={entryTotal}
+          entryPage={entryPage}
+          setEntryPage={setEntryPage}
+          entryFrom={entryFrom}
+          entryTo={entryTo}
+          onDateRangeChange={(from, to) => {
+            setEntryPage(1);
+            setEntryFrom(from);
+            setEntryTo(to);
+          }}
+          sourceChip={journalSourceChip}
+          setSourceChip={setJournalSourceChip}
+          busy={busy}
+          onReverse={reverseJournalEntry}
+          onRefresh={() => void load()}
+          toolsSlot={listToolsSlot}
+          setToolsSlot={setListToolsSlot}
+        />
       )}
     </section>
   );

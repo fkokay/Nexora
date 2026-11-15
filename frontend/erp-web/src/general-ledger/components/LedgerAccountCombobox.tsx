@@ -21,6 +21,7 @@ export function LedgerAccountCombobox({
   invalid = false,
   disabled = false,
   lineIndex,
+  preferredPrefixes,
 }: {
   accounts: LedgerAccount[];
   value: string;
@@ -31,6 +32,8 @@ export function LedgerAccountCombobox({
   disabled?: boolean;
   /** Written to data-line-account so the form can move focus to a new line. */
   lineIndex?: number;
+  /** Code prefixes listed first (e.g. the account class a mapping expects). */
+  preferredPrefixes?: string[];
 }) {
   const listId = useId();
   const [open, setOpen] = useState(false);
@@ -41,9 +44,14 @@ export function LedgerAccountCombobox({
   const normalized = (query ?? "").trim().toLocaleLowerCase("tr-TR");
   const options = useMemo(() => {
     if (!open) return [];
-    const sorted = accounts
+    const byCode = accounts
       .slice()
       .sort((a, b) => a.code.localeCompare(b.code, "tr", { numeric: true, sensitivity: "base" }));
+    const isPreferred = (account: LedgerAccount) =>
+      !!preferredPrefixes?.some((prefix) => account.code.startsWith(prefix));
+    const sorted = preferredPrefixes?.length
+      ? [...byCode.filter(isPreferred), ...byCode.filter((account) => !isPreferred(account))]
+      : byCode;
     if (!normalized) return sorted.slice(0, MAX_OPTIONS);
     const codeMatches: LedgerAccount[] = [];
     const otherMatches: LedgerAccount[] = [];
@@ -54,7 +62,7 @@ export function LedgerAccountCombobox({
         otherMatches.push(account);
     }
     return [...codeMatches, ...otherMatches].slice(0, MAX_OPTIONS);
-  }, [accounts, normalized, open]);
+  }, [accounts, normalized, open, preferredPrefixes]);
   const activeIndex = Math.min(highlight, Math.max(0, options.length - 1));
 
   function choose(account: LedgerAccount | undefined) {
