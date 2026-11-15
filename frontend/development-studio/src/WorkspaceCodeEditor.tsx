@@ -134,28 +134,35 @@ let monacoReady: Promise<MonacoApi> | null = null;
 // CDN kullanılmaz; Editor bileşeni bu söz tamamlanmadan bağlanmaz.
 function loadMonaco() {
   monacoReady ??= (async () => {
-    // Çalışan sarmalayıcıları da dinamik yüklenir; statik import edilirse
-    // paketleyici onları Monaco ortak parçasına koyar ve ilk yüklemeye sızar.
-    const [
-      { default: EditorWorker },
-      { default: JsonWorker },
-      { default: CssWorker },
-      { default: HtmlWorker },
-      { default: TypeScriptWorker },
-    ] = await Promise.all([
-      import("monaco-editor/editor/editor.worker.js?worker"),
-      import("monaco-editor/language/json/json.worker.js?worker"),
-      import("monaco-editor/language/css/css.worker.js?worker"),
-      import("monaco-editor/language/html/html.worker.js?worker"),
-      import("monaco-editor/language/typescript/ts.worker.js?worker"),
-    ]);
+    // Çalışanlar Vite'ın `new Worker(new URL(...))` kalıbıyla ayrı dosyalar
+    // olarak paketlenir ve aynı kaynaktan yüklenir. `?worker` modüllerinin
+    // dinamik importu Monaco parça grubunda yanlış dışa aktarıma çözülüyor.
     (globalThis as MonacoWorkerGlobal).MonacoEnvironment = {
       getWorker: (_moduleId, label) => {
-        if (label === "json") return new JsonWorker();
-        if (label === "css" || label === "scss" || label === "less") return new CssWorker();
-        if (label === "html" || label === "handlebars" || label === "razor") return new HtmlWorker();
-        if (label === "typescript" || label === "javascript") return new TypeScriptWorker();
-        return new EditorWorker();
+        if (label === "json")
+          return new Worker(
+            new URL("../node_modules/monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url),
+            { type: "module", name: label },
+          );
+        if (label === "css" || label === "scss" || label === "less")
+          return new Worker(
+            new URL("../node_modules/monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url),
+            { type: "module", name: label },
+          );
+        if (label === "html" || label === "handlebars" || label === "razor")
+          return new Worker(
+            new URL("../node_modules/monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url),
+            { type: "module", name: label },
+          );
+        if (label === "typescript" || label === "javascript")
+          return new Worker(
+            new URL("../node_modules/monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url),
+            { type: "module", name: label },
+          );
+        return new Worker(
+          new URL("../node_modules/monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url),
+          { type: "module", name: label },
+        );
       },
     };
     // Bul/değiştir gibi yerleşik arayüz metinleri için Türkçe ileti paketi.
@@ -269,8 +276,24 @@ export function WorkspaceCodeEditor({
     editorRef.current?.updateOptions({ wordWrap: wordWrap ? "on" : "off" });
   }, [wordWrap]);
 
+  // Yol değişince (ör. yeni dosya oluştururken yol yazılırken) Editor yeni bir
+  // modele geçer. Eski model bırakılır ve aynı yola dönülürse bayat içerik
+  // görünmesin diye yeni modelin metni her zaman güncel value ile eşitlenir.
+  const modelPath = modelPathFor(path);
+  const previousModelRef = useRef<ReturnType<CodeEditor["getModel"]>>(null);
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    const previous = previousModelRef.current;
+    if (previous && previous !== model && !previous.isDisposed()) previous.dispose();
+    previousModelRef.current = model;
+    if (model && model.getValue() !== valueRef.current) model.setValue(valueRef.current);
+  }, [modelPath]);
+
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
+    previousModelRef.current = editor.getModel();
     const position = editor.getPosition();
     if (position) setCursor({ line: position.lineNumber, column: position.column });
     editor.onDidChangeCursorPosition((event) => {
@@ -359,7 +382,7 @@ export function WorkspaceCodeEditor({
           <EditorSkeleton />
         ) : (
           <Editor
-            path={modelPathFor(path)}
+            path={modelPath}
             language={language.id}
             value={value}
             theme={THEME_NAME}
