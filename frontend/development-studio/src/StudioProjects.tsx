@@ -22,6 +22,7 @@ import {
   FileCode,
   FlaskConical,
   Folder,
+  FolderKanban,
   FolderTree,
   GitBranch,
   Grid2X2,
@@ -45,6 +46,8 @@ import { ModuleSourceMappings } from "./ModuleSourceMappings";
 import { WorkspaceCodeEditor } from "./WorkspaceCodeEditor";
 import { moduleStarterFiles } from "./moduleStarterFiles";
 import { confirmDialog, promptDialog } from "./ui/confirmDialog";
+import { Dialog } from "./ui/Dialog";
+import "./studio-projects.css";
 import "./ui-designer-workflow.css";
 
 const maxManualWorkspaceFileBytes = 900 * 1024;
@@ -74,6 +77,15 @@ type ProjectMember = {
   accessLevel: "Viewer" | "Contributor" | "Maintainer";
   grantedAt: string;
 };
+function projectAccessLabel(level: string) {
+  return level === "TenantAdmin"
+    ? "Yönetici"
+    : level === "Maintainer"
+      ? "Bakım sorumlusu"
+      : level === "Contributor"
+        ? "Katılımcı"
+        : "Görüntüleyici";
+}
 type WorkspaceRequest = {
   id: string;
   projectId: string;
@@ -4941,73 +4953,95 @@ export function StudioProjects({
   return (
     <>
       {pendingApprovals.length > 0 && (
-        <section className="panel" style={{ marginTop: 20 }}>
-          <div className="panel-heading">
+        <section className="ns-card sp-queue" aria-labelledby="sp-queue-title">
+          <header className="ns-card-head">
             <div>
-              <h3>Onay kuyruğu</h3>
-              <p>
+              <h3 id="sp-queue-title">Onay kuyruğu</h3>
+              <p className="sp-sub">
                 Yetkili olduğunuz projelerde bekleyen çalışma alanı talepleri
               </p>
             </div>
-            <span className="request-status">
-              <i />
-              {pendingApprovals.length} gösteriliyor
+            <span className="ns-badge is-warning">
+              {pendingApprovals.length} bekliyor
             </span>
-          </div>
+          </header>
           {error && <div className="alert">{error}</div>}
-          {pendingApprovals.map((request) => (
-            <article className="request-row expanded" key={request.id}>
-              <div className="request-symbol">
-                <Code2 size={17} />
-              </div>
-              <div className="request-info">
-                <b>
-                  {request.projectName} · {request.branchName}
-                </b>
-                <small>
-                  {request.requesterEmail} ·{" "}
-                  {new Date(request.createdAt).toLocaleString("tr-TR", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
-                </small>
-                {request.developmentRequestTitle && (
-                  <small>Talep: {request.developmentRequestTitle}</small>
-                )}
-                {request.developmentRequestDescription && (
-                  <small>{request.developmentRequestDescription}</small>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  className="secondary small-button"
-                  disabled={busy}
-                  onClick={() => void reviewPendingApproval(request, "Approve")}
-                >
-                  Onayla
-                </button>
-                <button
-                  className="secondary small-button"
-                  disabled={busy || !reviewNote.trim()}
-                  onClick={() => void reviewPendingApproval(request, "Reject")}
-                >
-                  Reddet
-                </button>
-              </div>
-            </article>
-          ))}
+          <ul className="sp-queue-list">
+            {pendingApprovals.map((request) => (
+              <li className="sp-queue-item" key={request.id}>
+                <span className="sp-avatar" aria-hidden="true">
+                  <Code2 size={16} />
+                </span>
+                <div className="sp-queue-info">
+                  <b>
+                    {request.projectName} · <code>{request.branchName}</code>
+                  </b>
+                  <small>
+                    {request.requesterEmail} ·{" "}
+                    {new Date(request.createdAt).toLocaleString("tr-TR", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </small>
+                  {request.developmentRequestTitle && (
+                    <small>
+                      Bağlı talep: <b>{request.developmentRequestTitle}</b>
+                    </small>
+                  )}
+                  {request.developmentRequestDescription && (
+                    <p>{request.developmentRequestDescription}</p>
+                  )}
+                </div>
+                <div className="sp-actions">
+                  <button
+                    className="ns-btn ns-btn-sm"
+                    disabled={busy || !reviewNote.trim()}
+                    title={
+                      reviewNote.trim()
+                        ? undefined
+                        : "Reddetmek için aşağıya gerekçe yazın"
+                    }
+                    onClick={() => void reviewPendingApproval(request, "Reject")}
+                  >
+                    Reddet
+                  </button>
+                  <button
+                    className="ns-btn ns-btn-sm ns-btn-primary"
+                    disabled={busy}
+                    onClick={() => void reviewPendingApproval(request, "Approve")}
+                  >
+                    Onayla
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
           {approvalQueueLoading && (
-            <div className="empty-small">Onay kuyruğu yükleniyor…</div>
+            <div className="ns-empty">Onay kuyruğu yükleniyor…</div>
           )}
-          <div className="modal-foot">
-            <span>
-              {pendingApprovalsOffset + 1}–
-              {pendingApprovalsOffset + pendingApprovals.length} kayıt
-            </span>
-            <div>
+          <div className="sp-queue-foot">
+            <label className="ns-field">
+              <span className="ns-field-label">Ret gerekçesi</span>
+              <textarea
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                maxLength={500}
+                rows={2}
+                placeholder="Ret kararının kısa gerekçesini yazın…"
+              />
+              <small className="ns-field-hint">
+                Reddetmek için gerekli. Gerekçe inceleme geçmişine kaydedilir.
+                Talep sahibi kendi talebini inceleyemez.
+              </small>
+            </label>
+            <nav className="sp-pager" aria-label="Onay kuyruğu sayfaları">
+              <span>
+                {pendingApprovalsOffset + 1}–
+                {pendingApprovalsOffset + pendingApprovals.length}. kayıtlar
+              </span>
               {pendingApprovalsOffset > 0 && (
                 <button
-                  className="secondary small-button"
+                  className="ns-btn ns-btn-sm"
                   disabled={approvalQueueLoading || busy}
                   onClick={() =>
                     void loadPendingApprovals(
@@ -5020,7 +5054,7 @@ export function StudioProjects({
               )}
               {pendingApprovalsNextOffset !== null && (
                 <button
-                  className="secondary small-button"
+                  className="ns-btn ns-btn-sm"
                   disabled={approvalQueueLoading || busy}
                   onClick={() =>
                     void loadPendingApprovals(pendingApprovalsNextOffset)
@@ -5029,54 +5063,36 @@ export function StudioProjects({
                   Sonraki
                 </button>
               )}
-            </div>
-          </div>
-          <label className="review-note-field">
-            <span>Ret gerekçesi</span>
-            <small>Gerekçe inceleme geçmişine kaydedilir.</small>
-            <textarea
-              value={reviewNote}
-              onChange={(e) => setReviewNote(e.target.value)}
-              maxLength={500}
-              rows={2}
-              placeholder="Ret kararının kısa gerekçesini yazın…"
-            />
-          </label>
-          <div className="boundary-note">
-            <ShieldCheck size={17} />
-            <span>
-              Talep sahibi kendi talebini inceleyemez. İnceleme kararı kilitli
-              kayıt üzerinde kaydedilir ve denetlenir.
-            </span>
+            </nav>
           </div>
         </section>
       )}
-      <div className="panel studio-projects-panel" style={{ marginTop: 20 }}>
-        <div className="panel-heading">
+      <section className="ns-card sp-projects" aria-labelledby="sp-projects-title">
+        <header className="ns-card-head">
           <div>
-            <h3>Yetkilendirilmiş projeler</h3>
-            <p>
-              Depo adresleri ve çalışma erişimleri · {projects.length} proje
+            <h3 id="sp-projects-title">Projeler</h3>
+            <p className="sp-sub">
+              Erişiminiz olan depolar · {projects.length} proje
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="sp-actions">
             <button
-              className="secondary small-button"
+              className="ns-btn ns-btn-sm"
               disabled={busy}
               onClick={() => void refreshProjectStatus()}
             >
-              Bağlantı durumunu yenile
+              <RefreshCw size={14} aria-hidden="true" /> Bağlantıları yenile
             </button>
             {tenant.role === "TenantAdmin" && (
               <button
-                className="primary small-button"
+                className="ns-btn ns-btn-sm ns-btn-primary"
                 onClick={() => setShowCreate(true)}
               >
-                <Plus size={15} /> Proje kaydet
+                <Plus size={15} aria-hidden="true" /> Proje kaydet
               </button>
             )}
           </div>
-        </div>
+        </header>
         {error && <div className="alert">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
         {aiConfigured === false && (
@@ -5088,27 +5104,35 @@ export function StudioProjects({
           </div>
         )}
         {projects.length ? (
-          <div className="studio-project-table-wrap">
-            <table className="studio-project-table">
+          <div className="sp-table-wrap">
+            <table className="sp-table">
               <thead>
                 <tr>
-                  <th>Proje / depo</th>
-                  <th>Varsayılan dal</th>
-                  <th>Erişim</th>
-                  <th>GitHub bağlantısı</th>
-                  <th>Komutlar</th>
+                  <th scope="col">Proje / depo</th>
+                  <th scope="col">Varsayılan dal</th>
+                  <th scope="col">Rolünüz</th>
+                  <th scope="col">GitHub</th>
+                  <th scope="col">
+                    <span className="ns-sr-only">İşlemler</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {projects.map((project) => (
                   <tr key={project.id}>
                     <td>
-                      <div className="studio-project-name">
-                        <span>
-                          <Code2 size={16} />
+                      <div className="sp-project-name">
+                        <span className="sp-avatar" aria-hidden="true">
+                          {project.name.slice(0, 1).toLocaleUpperCase("tr-TR")}
                         </span>
                         <div>
-                          <b>{project.name}</b>
+                          <button
+                            type="button"
+                            className="sp-link"
+                            onClick={() => void openWorkspace(project)}
+                          >
+                            {project.name}
+                          </button>
                           <small title={project.repositoryUrl}>
                             {project.repositoryUrl}
                           </small>
@@ -5116,55 +5140,44 @@ export function StudioProjects({
                       </div>
                     </td>
                     <td>
-                      <code>{project.defaultBranch}</code>
+                      <code className="sp-branch">{project.defaultBranch}</code>
                     </td>
-                    <td>
-                      <span className="studio-project-access">
-                        {project.accessLevel === "TenantAdmin"
-                          ? "Yönetici"
-                          : project.accessLevel === "Maintainer"
-                            ? "Bakım sorumlusu"
-                            : project.accessLevel === "Contributor"
-                              ? "Katılımcı"
-                              : "Görüntüleyici"}
-                      </span>
-                    </td>
+                    <td>{projectAccessLabel(project.accessLevel)}</td>
                     <td>
                       <span
-                        className={`studio-project-github ${project.githubAuthorized ? "is-connected" : "is-pending"}`}
+                        className={`ns-badge ${project.githubAuthorized ? "is-success" : "is-warning"}`}
                       >
-                        <i />
                         {project.githubAuthorized ? "Bağlı" : "Yetki gerekli"}
                       </span>
                     </td>
                     <td>
-                      <div className="studio-project-commands">
-                        <button
-                          className="secondary small-button"
-                          onClick={() => void openWorkspace(project)}
-                        >
-                          <Folder size={14} />
-                          Çalışma alanı
-                        </button>
+                      <div className="sp-actions sp-row-actions">
                         {(project.accessLevel === "Maintainer" ||
                           project.accessLevel === "TenantAdmin") && (
                           <>
                             <button
-                              className="secondary small-button"
+                              className="ns-btn ns-btn-sm ns-btn-ghost"
                               onClick={() => void openAccess(project)}
                             >
-                              <ShieldCheck size={14} />
+                              <ShieldCheck size={14} aria-hidden="true" />
                               Erişimler
                             </button>
                             <button
-                              className="secondary small-button"
+                              className="ns-btn ns-btn-sm ns-btn-ghost"
                               onClick={() => setModuleMappingProject(project)}
                             >
-                              <Code2 size={14} />
+                              <Code2 size={14} aria-hidden="true" />
                               Modül kaynağı
                             </button>
                           </>
                         )}
+                        <button
+                          className="ns-btn ns-btn-sm"
+                          onClick={() => void openWorkspace(project)}
+                        >
+                          <Folder size={14} aria-hidden="true" />
+                          Çalışma alanı
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -5173,191 +5186,219 @@ export function StudioProjects({
             </table>
           </div>
         ) : (
-          <div className="empty-small">
-            <div>
-              <b>Henüz erişilebilir proje yok</b>
-              <small>
-                Tenant yöneticisi güvenli depo bağlantısı kaydedebilir.
-              </small>
-            </div>
+          <div className="ns-empty">
+            <span className="sp-avatar" aria-hidden="true">
+              <FolderKanban size={16} />
+            </span>
+            <b>Henüz erişebildiğiniz proje yok</b>
+            <span>
+              {tenant.role === "TenantAdmin"
+                ? "İlk depoyu kaydederek başlayın."
+                : "Firma yöneticisi bir depo kaydedip size erişim verebilir."}
+            </span>
+            {tenant.role === "TenantAdmin" && (
+              <button
+                className="ns-btn ns-btn-sm ns-btn-primary"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus size={15} aria-hidden="true" /> Proje kaydet
+              </button>
+            )}
           </div>
         )}
-        <div className="boundary-note">
-          <ShieldCheck size={17} />
-          <span>
-            <b>Sınırlı depo keşfi</b>Onaylı checkout için Project Explorer dosya
-            adlarını ve türlerini listeler. Git kimlik bilgisi alınmaz; metin
-            önizlemesi salt okunurdur ve kod çalıştırılmaz.
-          </span>
-        </div>
-      </div>
+        <p className="sp-footnote">
+          <ShieldCheck size={15} aria-hidden="true" />
+          Proje gezgini onaylı checkout'taki dosya adlarını ve türlerini
+          listeler. Git kimlik bilgisi alınmaz, önizleme salt okunurdur ve kod
+          çalıştırılmaz.
+        </p>
+      </section>
       {showCreate && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowCreate(false);
-          }}
+        <Dialog
+          onClose={() => setShowCreate(false)}
+          labelledBy="sp-create-title"
+          className="sp-dialog"
+          dismissible={!busy}
         >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">AI DEVELOPMENT STUDIO</p>
-                <h2>Proje kaydet</h2>
-              </div>
+          <header className="sp-dialog-head">
+            <div>
+              <h2 id="sp-create-title">Proje kaydet</h2>
+              <p>
+                HTTPS depo adresini kaydedin. Kaynak kod ancak bir çalışma alanı
+                talebi onaylandığında indirilir.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm ns-btn-ghost"
+              aria-label="Kapat"
+              onClick={() => setShowCreate(false)}
+            >
+              <X size={17} />
+            </button>
+          </header>
+          {error && <div className="alert">{error}</div>}
+          <form className="sp-form" onSubmit={createProject}>
+            <label className="ns-field">
+              <span className="ns-field-label">Proje adı</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={120}
+                placeholder="Örn. Nexora ERP"
+              />
+            </label>
+            <label className="ns-field">
+              <span className="ns-field-label">HTTPS depo adresi</span>
+              <input
+                type="url"
+                value={repositoryUrl}
+                onChange={(e) => setRepositoryUrl(e.target.value)}
+                required
+                maxLength={2048}
+                placeholder="https://github.com/organizasyon/proje.git"
+              />
+            </label>
+            <label className="ns-field">
+              <span className="ns-field-label">Varsayılan dal</span>
+              <input
+                className="ns-mono"
+                value={defaultBranch}
+                onChange={(e) => setDefaultBranch(e.target.value)}
+                required
+                maxLength={256}
+              />
+            </label>
+            <footer className="sp-dialog-foot">
+              <small>
+                <ShieldCheck size={14} aria-hidden="true" /> Yalnız firma
+                yöneticisi kaydedebilir
+              </small>
               <button
-                className="icon-button"
+                type="button"
+                className="ns-btn"
                 onClick={() => setShowCreate(false)}
               >
-                <X size={19} />
+                Vazgeç
               </button>
-            </div>
-            <p className="muted modal-sub">
-              HTTPS depo adresini kaydedin. Kaynak checkout yalnızca yetkili
-              çalışma alanı talebi onaylandıktan sonra yapılır.
-            </p>
-            {error && <div className="alert">{error}</div>}
-            <form onSubmit={createProject}>
-              <label>
-                Proje adı
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  maxLength={120}
-                  placeholder="Örn. Nexora ERP"
-                />
-              </label>
-              <label>
-                HTTPS depo adresi
-                <input
-                  type="url"
-                  value={repositoryUrl}
-                  onChange={(e) => setRepositoryUrl(e.target.value)}
-                  required
-                  maxLength={2048}
-                  placeholder="https://github.com/organizasyon/proje.git"
-                />
-              </label>
-              <label>
-                Varsayılan dal
-                <input
-                  value={defaultBranch}
-                  onChange={(e) => setDefaultBranch(e.target.value)}
-                  required
-                  maxLength={256}
-                />
-              </label>
-              <div className="modal-foot">
-                <span>
-                  <ShieldCheck size={14} /> Yalnız tenant yöneticisi
-                  kaydedebilir
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setShowCreate(false)}
-                  >
-                    Vazgeç
-                  </button>
-                  <button disabled={busy} className="primary">
-                    {busy ? "Kaydediliyor…" : "Projeyi kaydet"} <span>→</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+              <button disabled={busy} className="ns-btn ns-btn-primary">
+                {busy ? "Kaydediliyor…" : "Projeyi kaydet"}
+              </button>
+            </footer>
+          </form>
+        </Dialog>
       )}
       {accessProject && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setAccessProject(null);
-          }}
+        <Dialog
+          onClose={() => setAccessProject(null)}
+          labelledBy="sp-access-title"
+          className="sp-dialog sp-dialog-wide"
+          dismissible={!busy}
         >
-          <div className="modal">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">PROJE YETKİLERİ</p>
-                <h2>{accessProject.name}</h2>
-              </div>
+          <header className="sp-dialog-head">
+            <div>
+              <h2 id="sp-access-title">{accessProject.name} · erişimler</h2>
+              <p>
+                Yalnız bu firmanın etkin üyelerine proje rolü verilebilir.
+                Değişiklikler denetim kaydına yazılır.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm ns-btn-ghost"
+              aria-label="Kapat"
+              onClick={() => setAccessProject(null)}
+            >
+              <X size={17} />
+            </button>
+          </header>
+          {error && <div className="alert">{error}</div>}
+          {members.length ? (
+            <div className="sp-table-wrap">
+              <table className="sp-table sp-table-compact">
+                <thead>
+                  <tr>
+                    <th scope="col">Üye</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Verildiği tarih</th>
+                    <th scope="col">
+                      <span className="ns-sr-only">İşlemler</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((member) => (
+                    <tr key={member.userId}>
+                      <td>
+                        <b>{member.email}</b>
+                      </td>
+                      <td>{projectAccessLabel(member.accessLevel)}</td>
+                      <td>
+                        {new Date(member.grantedAt).toLocaleDateString("tr-TR", {
+                          dateStyle: "medium",
+                        })}
+                      </td>
+                      <td className="sp-cell-end">
+                        <button
+                          className="ns-btn ns-btn-sm ns-btn-ghost sp-danger-text"
+                          disabled={busy}
+                          onClick={() => void revokeAccess(member)}
+                        >
+                          Erişimi kaldır
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="ns-empty">
+              <b>Bu projede henüz üye yok</b>
+              <span>Aşağıdan bir firma üyesine rol verin.</span>
+            </div>
+          )}
+          <form className="sp-form sp-grant" onSubmit={grantAccess}>
+            <label className="ns-field">
+              <span className="ns-field-label">Firma üyesi e-postası</span>
+              <input
+                type="email"
+                value={memberEmail}
+                onChange={(e) => setMemberEmail(e.target.value)}
+                required
+                placeholder="kullanici@firma.com"
+              />
+            </label>
+            <label className="ns-field">
+              <span className="ns-field-label">Proje rolü</span>
+              <select
+                value={accessLevel}
+                onChange={(e) =>
+                  setAccessLevel(e.target.value as ProjectMember["accessLevel"])
+                }
+              >
+                <option value="Viewer">Görüntüleyici · yalnız okur</option>
+                <option value="Contributor">Katılımcı · çalışma alanı açar</option>
+                <option value="Maintainer">
+                  Bakım sorumlusu · erişimleri yönetir
+                </option>
+              </select>
+            </label>
+            <footer className="sp-dialog-foot">
               <button
-                className="icon-button"
+                type="button"
+                className="ns-btn"
                 onClick={() => setAccessProject(null)}
               >
-                <X size={19} />
+                Kapat
               </button>
-            </div>
-            <p className="muted modal-sub">
-              Yalnızca seçili tenant’ın etkin üyelerine proje rolü verilebilir.
-            </p>
-            {error && <div className="alert">{error}</div>}
-            <div className="requests-list">
-              {members.map((member) => (
-                <article className="request-row" key={member.userId}>
-                  <div className="request-info">
-                    <b>{member.email}</b>
-                    <small>{member.accessLevel}</small>
-                  </div>
-                  <button
-                    className="secondary small-button"
-                    disabled={busy}
-                    onClick={() => void revokeAccess(member)}
-                  >
-                    Erişimi kaldır
-                  </button>
-                </article>
-              ))}
-            </div>
-            <form onSubmit={grantAccess} style={{ marginTop: 16 }}>
-              <label>
-                Firma üyesi e-postası
-                <input
-                  type="email"
-                  value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
-                  required
-                  placeholder="kullanici@firma.com"
-                />
-              </label>
-              <label>
-                Proje rolü
-                <select
-                  value={accessLevel}
-                  onChange={(e) =>
-                    setAccessLevel(
-                      e.target.value as ProjectMember["accessLevel"],
-                    )
-                  }
-                >
-                  <option value="Viewer">Viewer · Görüntüleme</option>
-                  <option value="Contributor">Contributor · Çalışma</option>
-                  <option value="Maintainer">
-                    Maintainer · Erişim yönetimi
-                  </option>
-                </select>
-              </label>
-              <div className="modal-foot">
-                <span>
-                  <ShieldCheck size={14} /> Değişiklik denetim kaydına yazılır
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setAccessProject(null)}
-                  >
-                    Kapat
-                  </button>
-                  <button disabled={busy} className="primary">
-                    {busy ? "Kaydediliyor…" : "Erişim ver"} <span>→</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+              <button disabled={busy} className="ns-btn ns-btn-primary">
+                {busy ? "Kaydediliyor…" : "Erişim ver"}
+              </button>
+            </footer>
+          </form>
+        </Dialog>
       )}
       {workspaceProject && (
         <section className="studio-workspace-screen">
