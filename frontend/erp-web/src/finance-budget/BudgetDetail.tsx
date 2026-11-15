@@ -1,6 +1,10 @@
+import { useState } from "react";
 import AdvancedDataGrid from "../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../screenViewGridLayout";
+import { DetailTabs } from "../document-detail/DocumentDetailLayout";
 import type { BudgetLayoutField, Line, PlanView } from "./types";
+
+type BudgetTab = "monthly" | "accounts";
 
 type Props = {
   selected: PlanView;
@@ -29,47 +33,48 @@ export default function BudgetDetail({
   onApprove,
   money,
 }: Props) {
+  const [tab, setTab] = useState<BudgetTab>("monthly");
+  const approved = isApproved(selected.plan.status);
   return (
-    <section
-      className="panel budget-detail"
-      aria-labelledby="budget-detail-title"
-    >
-      <div className="panel-heading budget-detail-heading">
-        <div>
-          <p className="eyebrow">
-            {selected.plan.fiscalYear} · {selected.plan.currencyCode}
-          </p>
+    <section className="cf-detail budget-detail" aria-labelledby="budget-detail-title">
+      <header className="cf-detail-head">
+        <div className="cf-detail-title">
           <h2 id="budget-detail-title">{selected.plan.name}</h2>
-          <p>
-            {isApproved(selected.plan.status)
-              ? `Onaylayan: ${selected.plan.approvedByUserId || "—"}`
-              : "Taslak · Onay için farklı bir TenantAdmin gerekir"}
-          </p>
+          <span className={`cf-state${approved ? " is-active" : ""}`}>{approved ? "Onaylı" : "Taslak"}</span>
         </div>
-        <div className="budget-actions">
-          {draft && admin && !currencyMismatch && (
-            <>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => onEdit(selected)}
-                disabled={controlsLocked}
-              >
-                Düzenle
-              </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={controlsLocked || selected.lines.length === 0}
-                onClick={onApprove}
-                aria-busy={busy}
-              >
-                {busy ? "Onaylanıyor…" : "Onayla"}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+        <p className="cf-detail-sub">
+          {selected.plan.fiscalYear} · {selected.plan.currencyCode} ·{" "}
+          {approved
+            ? `Onaylandı${selected.plan.approvedAt ? ` (${selected.plan.approvedAt.slice(0, 10).split("-").reverse().join(".")})` : ""}`
+            : "Onay için taslağı oluşturan dışında bir firma yöneticisi gerekir"}
+        </p>
+        {draft && admin && !currencyMismatch && (
+          <div className="cf-detail-actions">
+            <button type="button" className="secondary" onClick={() => onEdit(selected)} disabled={controlsLocked}>
+              Düzenle
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={controlsLocked || selected.lines.length === 0}
+              onClick={onApprove}
+              aria-busy={busy}
+            >
+              {busy ? "Onaylanıyor…" : "Onayla"}
+            </button>
+          </div>
+        )}
+      </header>
+      <DetailTabs<BudgetTab>
+        label="Bütçe ayrıntıları"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { key: "monthly", label: "Aylık karşılaştırma", count: selected.lines.length },
+          { key: "accounts", label: "Hesap bazında", count: new Set(selected.lines.map((line) => line.accountId)).size },
+        ]}
+      />
+      <div className="cf-tabbody" role="tabpanel">
       {currencyMismatch && (
         <div className="budget-currency-warning" role="status">
           <strong>Para birimi uyumsuzluğu</strong>
@@ -102,6 +107,8 @@ export default function BudgetDetail({
             </button>
           )}
         </div>
+      ) : tab === "accounts" ? (
+        <AccountSummary selected={selected} baseCurrency={baseCurrency} currencyMismatch={currencyMismatch} money={money} />
       ) : (
         <div className="ledger-list budget-ledger-wrap">
           <AdvancedDataGrid
@@ -109,9 +116,6 @@ export default function BudgetDetail({
             gridId="finance-budget-scenarios"
             {...screenViewGridDefaults(visibleFields)}
           >
-            <caption>
-              {selected.plan.name} bütçe ve yevmiye gerçekleşenleri
-            </caption>
             <thead>
               <tr>
                 {visibleFields.map((field) => (
@@ -174,7 +178,79 @@ export default function BudgetDetail({
           </AdvancedDataGrid>
         </div>
       )}
+      </div>
     </section>
+  );
+}
+
+/** Plan, actual and variance per account over the whole fiscal year. */
+function AccountSummary({
+  selected,
+  baseCurrency,
+  currencyMismatch,
+  money,
+}: {
+  selected: PlanView;
+  baseCurrency: string;
+  currencyMismatch: boolean;
+  money: Props["money"];
+}) {
+  const rows = new Map<string, { code: string; name: string; section?: string; planned: number; actual: number }>();
+  for (const line of selected.lines) {
+    const row = rows.get(line.accountId) ?? {
+      code: line.accountCode || "—",
+      name: line.accountName || "",
+      section: line.statementSection,
+      planned: 0,
+      actual: 0,
+    };
+    row.planned += line.plannedAmount;
+    row.actual += line.actualAmount ?? 0;
+    rows.set(line.accountId, row);
+  }
+  return (
+    <div className="table-scroll budget-account-summary">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Hesap</th>
+            <th scope="col">Tür</th>
+            <th scope="col" className="amount">{`Plan (${selected.plan.currencyCode})`}</th>
+            <th scope="col" className="amount">{`Gerçekleşen (${baseCurrency})`}</th>
+            <th scope="col" className="amount">Fark</th>
+            <th scope="col" className="amount">Gerçekleşme</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...rows.values()]
+            .sort((a, b) => a.code.localeCompare(b.code, "tr"))
+            .map((row) => {
+              const variance = currencyMismatch ? null : row.actual - row.planned;
+              const favorable =
+                variance !== null && (row.section === "Revenue" ? variance >= 0 : variance <= 0);
+              return (
+                <tr key={row.code}>
+                  <td>
+                    <b>{row.code}</b>
+                    <small className="cell-subtitle">{row.name}</small>
+                  </td>
+                  <td>{row.section === "Revenue" ? "Gelir" : row.section === "Expense" ? "Gider" : "—"}</td>
+                  <td className="amount">{money(row.planned, selected.plan.currencyCode)}</td>
+                  <td className="amount">{money(row.actual, baseCurrency)}</td>
+                  <td className={`amount${variance === null ? "" : favorable ? " positive" : " negative"}`}>
+                    {variance === null ? "—" : money(variance, baseCurrency)}
+                  </td>
+                  <td className="amount">
+                    {currencyMismatch || row.planned <= 0
+                      ? "—"
+                      : `%${((row.actual / row.planned) * 100).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`}
+                  </td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

@@ -3,33 +3,33 @@ import { authenticatedFetch } from "./authApi";
 import { addLocalCalendarDays, localDateString } from "./dateUtils";
 import type { FormEvent } from "react";
 import { ListPageHeader } from "./list-page/ListPageHeader";
+import { BarChart3, Download, Plus } from "lucide-react";
+import "./list-page/list-page-v2.css";
+import "./document-detail/document-detail.css";
+import "./finance-hub.css";
+import "./credit-facilities.css";
 import "./sales-promotions.css";
 import "./sales/sales-list-v2.css";
-import CampaignsSection from "./sales-promotions/components/CampaignsSection";
 import CampaignPerformanceSection from "./sales-promotions/components/CampaignPerformanceSection";
-import ApplyCampaignSection from "./sales-promotions/components/ApplyCampaignSection";
+import {
+  CampaignRegister,
+  ENDING_SOON_DAYS,
+  campaignState,
+  campaignStateLabel,
+  daysBetween,
+  type CampaignState,
+  type CampaignTab,
+} from "./sales-promotions/components/CampaignRegister";
+import { formatAmount } from "./document-detail/DocumentDetailLayout";
 import CampaignDialog from "./sales-promotions/components/CampaignDialog";
 import type {
   Campaign,
-  CampaignScreenField,
   PerformancePage,
   PerformanceScreenField,
   Quote,
 } from "./sales-promotions/components/types";
 import { problemDetail } from "./erpApi";
 
-const defaultCampaignScreenFields: CampaignScreenField[] = [
-  { key: "code", label: "Kampanya kodu", visible: true, position: 0 },
-  { key: "name", label: "Kampanya adı", visible: true, position: 1 },
-  { key: "discountPercent", label: "İndirim", visible: true, position: 2 },
-  { key: "effectiveFrom", label: "Başlangıç", visible: true, position: 3 },
-  { key: "effectiveThrough", label: "Bitiş", visible: true, position: 4 },
-  { key: "status", label: "Durum", visible: true, position: 5 },
-  { key: "applicationCount", label: "Uygulama", visible: true, position: 6 },
-];
-const campaignScreenKeys = new Set(
-  defaultCampaignScreenFields.map((field) => field.key),
-);
 const defaultPerformanceScreenFields: PerformanceScreenField[] = [
   { key: "campaign", label: "Kampanya", visible: true, position: 0 },
   { key: "applications", label: "Uygulama", visible: true, position: 1 },
@@ -110,12 +110,10 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     [notice, setNotice] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
-  const [activeSection, setActiveSection] = useState<
-    "campaigns" | "performance" | "apply"
-  >("campaigns");
-  const [campaignScreenFields, setCampaignScreenFields] = useState(
-    defaultCampaignScreenFields,
-  );
+  const [reportOpen, setReportOpen] = useState(false);
+  const [campaignTab, setCampaignTab] = useState<CampaignTab>("summary");
+  const [stateFilter, setStateFilter] = useState<CampaignState | "">("");
+  const [overview, setOverview] = useState<PerformancePage | null>(null);
   const [performanceScreenFields, setPerformanceScreenFields] = useState(
     defaultPerformanceScreenFields,
   );
@@ -126,17 +124,21 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     [reportThrough, setReportThrough] = useState(""),
     [reportPage, setReportPage] = useState(1);
   const load = useCallback(async () => {
-    const [campaignRows, quotePage] = await Promise.all([
+    const [campaignRows, quotePage, overviewPage] = await Promise.all([
       request<Campaign[]>("/api/sales/promotions/", token),
       request<QuotePage>("/api/sales/quotes/?page=1&pageSize=100", token),
+      // All-time results per campaign for the tiles and the selected campaign (100 is the API page cap).
+      request<PerformancePage>(
+        "/api/sales/quotes/campaign-performance?page=1&pageSize=100",
+        token,
+      ),
     ]);
     setCampaigns(campaignRows);
+    setOverview(overviewPage);
     setQuotes(
       quotePage.items.filter((x) => x.status === "Draft" && x.lineCount > 0),
     );
-    if (!campaignId)
-      setCampaignId(campaignRows.find((x) => x.isActive)?.id || "");
-  }, [token, campaignId]);
+  }, [token]);
   const loadPerformance = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(reportPage),
@@ -155,33 +157,6 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
   useEffect(() => {
     void load().catch((e) => setError((e as Error).message));
   }, [load]);
-  useEffect(() => {
-    let current = true;
-    void request<{ fields?: CampaignScreenField[] }>(
-      "/api/screen-views/sales-promotions/active",
-      token,
-    )
-      .then((view) => {
-        if (!current || !Array.isArray(view.fields)) return;
-        const allowed = view.fields.filter((field) =>
-          campaignScreenKeys.has(field.key),
-        );
-        setCampaignScreenFields(
-          defaultCampaignScreenFields
-            .map((fallback) => ({
-              ...fallback,
-              ...(allowed.find((field) => field.key === fallback.key) ?? {}),
-            }))
-            .sort((a, b) => a.position - b.position),
-        );
-      })
-      .catch(() => {
-        if (current) setCampaignScreenFields(defaultCampaignScreenFields);
-      });
-    return () => {
-      current = false;
-    };
-  }, [token]);
   useEffect(() => {
     let current = true;
     void request<{ fields?: PerformanceScreenField[] }>(
@@ -210,8 +185,18 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     };
   }, [token]);
   useEffect(() => {
+    if (!reportOpen) return;
     void loadPerformance().catch((e) => setError((e as Error).message));
-  }, [loadPerformance]);
+  }, [loadPerformance, reportOpen]);
+  async function refreshAll() {
+    setError("");
+    try {
+      await load();
+      if (reportOpen) await loadPerformance();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   function openCreate() {
     setEditingCampaign(null);
     setCode("");
@@ -306,7 +291,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setBusy(false);
     }
   }
-  async function apply(e: FormEvent) {
+  async function apply(e: FormEvent, campaignId: string) {
     e.preventDefault();
     setBusy(true);
     setError("");
@@ -322,6 +307,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setNotice(
         `Kampanya uygulandı. Ek indirim: ${result.discountAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} · Yeni toplam: ${result.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`,
       );
+      setQuoteId("");
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -329,34 +315,101 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setBusy(false);
     }
   }
-  const selectedCampaign =
-    campaigns.find((item) => item.id === campaignId) || null;
-  const visibleCampaigns = campaigns.filter((item) =>
-    `${item.code} ${item.name}`
-      .toLocaleLowerCase("tr-TR")
-      .includes(campaignQuery.trim().toLocaleLowerCase("tr-TR")),
+  const today = localDateString();
+  const normalizedQuery = campaignQuery.trim().toLocaleLowerCase("tr-TR");
+  const visibleCampaigns = campaigns.filter(
+    (item) =>
+      (!stateFilter || campaignState(item, today) === stateFilter) &&
+      `${item.code} ${item.name}`
+        .toLocaleLowerCase("tr-TR")
+        .includes(normalizedQuery),
   );
+  const selectedCampaign =
+    visibleCampaigns.find((item) => item.id === campaignId) ??
+    visibleCampaigns[0] ??
+    null;
+  const performanceById = new Map(
+    (overview?.items ?? []).map((item) => [item.campaignId, item]),
+  );
+  const current = campaigns.filter(
+    (item) => campaignState(item, today) === "current",
+  );
+  const endingSoon = current.filter(
+    (item) => daysBetween(today, item.effectiveThrough) <= ENDING_SOON_DAYS,
+  );
+  const appliedQuotes = (overview?.items ?? []).reduce(
+    (sum, item) => sum + item.appliedQuotes,
+    0,
+  );
+  const linkedOrders = (overview?.items ?? []).reduce(
+    (sum, item) => sum + item.linkedOrders,
+    0,
+  );
+  const discountByCurrency = new Map<string, number>();
+  for (const item of overview?.items ?? [])
+    for (const total of item.discountTotals)
+      discountByCurrency.set(
+        total.currencyCode,
+        (discountByCurrency.get(total.currencyCode) ?? 0) + total.amount,
+      );
+  async function exportCampaigns() {
+    try {
+      const XLSX = await import("xlsx");
+      const rows = [
+        ["Kod", "Kampanya", "İndirim %", "Başlangıç", "Bitiş", "Durum", "Uygulama"],
+        ...visibleCampaigns.map((item) => [
+          item.code,
+          item.name,
+          item.discountPercent,
+          item.effectiveFrom,
+          item.effectiveThrough,
+          campaignStateLabel(campaignState(item, today)),
+          item.applicationCount,
+        ]),
+      ];
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), "Kampanyalar");
+      XLSX.writeFile(book, `kampanyalar-${today}.xlsx`);
+    } catch {
+      setError("XLSX dosyası oluşturulamadı.");
+    }
+  }
   return (
-    <main className="sales-promotions-page list-v2">
+    <main className="sales-promotions-page list-v2 fh-page cf-page">
       <ListPageHeader
         title="Kampanyalar ve promosyonlar"
-        description="Tarih aralığına bağlı yüzde indirimi taslak satış tekliflerine uygulayın."
-        count={
-          activeSection === "campaigns"
-            ? campaigns.length
-            : activeSection === "performance"
-              ? (performance?.totalCount ?? null)
-              : null
-        }
+        description="Tarih aralığına bağlı yüzde indirimleri taslak satış tekliflerine uygulayın."
+        count={reportOpen ? (performance?.totalCount ?? null) : campaigns.length}
+        countLabel="kampanya"
       >
         {onBack && (
-          <button className="secondary" onClick={onBack}>
+          <button type="button" className="secondary" onClick={onBack}>
             Satışa dön
           </button>
         )}
+        <button
+          type="button"
+          className="secondary"
+          aria-pressed={reportOpen}
+          onClick={() => setReportOpen((open) => !open)}
+        >
+          <BarChart3 size={15} aria-hidden="true" />
+          {reportOpen ? "Kampanya listesi" : "Performans raporu"}
+        </button>
+        {!reportOpen && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void exportCampaigns()}
+            disabled={visibleCampaigns.length === 0}
+            title="Listelenen kampanyaları XLSX olarak indir"
+          >
+            <Download size={15} aria-hidden="true" /> XLSX
+          </button>
+        )}
         {role === "TenantAdmin" && (
-          <button className="primary" onClick={openCreate}>
-            + Kampanya oluştur
+          <button type="button" className="primary" onClick={openCreate}>
+            <Plus size={16} aria-hidden="true" /> Yeni kampanya
           </button>
         )}
       </ListPageHeader>
@@ -366,63 +419,18 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
         </div>
       )}
       {notice && (
-        <div className="notice inline-notice" role="status">
+        <div className="notice" role="status" aria-live="polite">
           {notice}
+          <button
+            type="button"
+            aria-label="Bildirimi kapat"
+            onClick={() => setNotice("")}
+          >
+            ×
+          </button>
         </div>
       )}
-      <nav
-        className="sales-campaign-tabs"
-        role="tablist"
-        aria-label="Kampanya işlemleri"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSection === "campaigns"}
-          onClick={() => setActiveSection("campaigns")}
-        >
-          <b>Kampanyalar</b>
-          <small>İndirim kurallarını yönetin</small>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSection === "performance"}
-          onClick={() => setActiveSection("performance")}
-        >
-          <b>Performans</b>
-          <small>Uygulama ve sipariş sonuçları</small>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSection === "apply"}
-          onClick={() => setActiveSection("apply")}
-        >
-          <b>Teklife uygula</b>
-          <small>Taslak teklife indirim ekleyin</small>
-        </button>
-      </nav>
-      {activeSection === "campaigns" && (
-        <CampaignsSection
-          campaigns={campaigns}
-          visibleCampaigns={visibleCampaigns}
-          selectedCampaign={selectedCampaign}
-          selectedCampaignId={campaignId}
-          fields={campaignScreenFields}
-          query={campaignQuery}
-          role={role}
-          busy={busy}
-          onQueryChange={setCampaignQuery}
-          onRefresh={() =>
-            void load().catch((e) => setError((e as Error).message))
-          }
-          onSelect={setCampaignId}
-          onEdit={openEdit}
-          onToggleStatus={(campaign) => void toggleCampaignStatus(campaign)}
-        />
-      )}
-      {activeSection === "performance" && (
+      {reportOpen ? (
         <CampaignPerformanceSection
           performance={performance}
           fields={performanceScreenFields}
@@ -447,6 +455,75 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
             void loadPerformance().catch((e) => setError((e as Error).message))
           }
         />
+      ) : (
+        <>
+          <section className="fh-tiles" aria-label="Kampanya özeti">
+            <div className="fh-tile">
+              <span className="fh-tile-label">Etkin kampanya</span>
+              <span className="fh-tile-value">{current.length}</span>
+              <span className="fh-tile-hint">bugün geçerli</span>
+            </div>
+            <div className={`fh-tile${endingSoon.length ? " is-warning" : ""}`}>
+              <span className="fh-tile-label">{`${ENDING_SOON_DAYS} gün içinde bitiyor`}</span>
+              <span className="fh-tile-value">{endingSoon.length}</span>
+              <span className="fh-tile-hint">
+                {endingSoon.length
+                  ? endingSoon.map((item) => item.code).join(", ")
+                  : "Yakında biten kampanya yok"}
+              </span>
+            </div>
+            <div className="fh-tile">
+              <span className="fh-tile-label">Uygulanan teklif</span>
+              <span className="fh-tile-value">{appliedQuotes.toLocaleString("tr-TR")}</span>
+              <span className="fh-tile-hint">{`${linkedOrders.toLocaleString("tr-TR")} siparişe dönüştü`}</span>
+            </div>
+            <div className="fh-tile">
+              <span className="fh-tile-label">Verilen indirim</span>
+              <span className={`fh-tile-value${discountByCurrency.size ? "" : " is-muted-value"}`}>
+                {discountByCurrency.size
+                  ? [...discountByCurrency.entries()].map(([code, amount]) => (
+                      <span key={code}>{formatAmount(amount, code)}</span>
+                    ))
+                  : "—"}
+              </span>
+              <span className="fh-tile-hint">Tüm kampanyalar</span>
+            </div>
+          </section>
+          <CampaignRegister
+            campaigns={campaigns}
+            visibleCampaigns={visibleCampaigns}
+            selected={selectedCampaign}
+            performanceById={performanceById}
+            quotes={quotes}
+            today={today}
+            tab={campaignTab}
+            search={campaignQuery}
+            stateFilter={stateFilter}
+            admin={role === "TenantAdmin"}
+            busy={busy}
+            quoteId={quoteId}
+            onSearchChange={setCampaignQuery}
+            onStateFilterChange={setStateFilter}
+            onRefresh={() => void refreshAll()}
+            onSelect={(campaign) => {
+              setCampaignId(campaign.id);
+              setQuoteId("");
+            }}
+            onTabChange={setCampaignTab}
+            onEdit={openEdit}
+            onToggleStatus={(campaign) => void toggleCampaignStatus(campaign)}
+            onQuoteChange={setQuoteId}
+            onApply={(event) => {
+              event.preventDefault();
+              if (selectedCampaign) void apply(event, selectedCampaign.id);
+            }}
+            onClearFilters={() => {
+              setCampaignQuery("");
+              setStateFilter("");
+            }}
+            onCreate={openCreate}
+          />
+        </>
       )}
       {createOpen && role === "TenantAdmin" && (
         <CampaignDialog
@@ -474,18 +551,6 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
               }
             });
           }}
-        />
-      )}
-      {activeSection === "apply" && (
-        <ApplyCampaignSection
-          campaigns={campaigns}
-          quotes={quotes}
-          campaignId={campaignId}
-          quoteId={quoteId}
-          busy={busy}
-          onCampaignChange={setCampaignId}
-          onQuoteChange={setQuoteId}
-          onSubmit={apply}
         />
       )}
     </main>

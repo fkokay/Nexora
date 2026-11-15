@@ -35,7 +35,6 @@ export async function api<T>(url: string, token?: string, init?: RequestInit): P
     const trace = payload?.traceId && !message.includes(payload.traceId) ? ` İz kimliği: ${payload.traceId}.` : ''
     throw new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace)
   }
-  if (init?.method && !['GET','HEAD'].includes(init.method.toUpperCase())) window.dispatchEvent(new CustomEvent('nexora:workspace-clean'))
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }

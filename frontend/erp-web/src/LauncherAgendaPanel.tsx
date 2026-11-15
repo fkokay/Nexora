@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { api } from "./erpApi";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 
 type AgendaItem = {
   id: string;
@@ -128,7 +128,15 @@ export function LauncherAgendaPanel({ token, english, selected, style }: {
   }
 
   async function deleteItem(item: AgendaItem) {
-    if (!confirmLocalized("Bu ajanda kaydı silinsin mi?")) return;
+    if (
+      !(await confirmDialog({
+        title: "Ajanda kaydı silinsin mi?",
+        message: item.title ? `“${item.title}” kaydı silinecek.` : undefined,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
+    )
+      return;
     setBusyItemId(item.id);
     try {
       await api<void>(`/api/agenda/${item.id}`, token, { method: "DELETE" });

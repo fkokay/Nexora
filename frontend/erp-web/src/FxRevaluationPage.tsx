@@ -10,7 +10,7 @@ import FxRevaluationCreateForm from "./fx-revaluation/components/FxRevaluationCr
 import FxRevaluationVoucherGrid from "./fx-revaluation/components/FxRevaluationVoucherGrid";
 import FxRevaluationVoucherDetail from "./fx-revaluation/components/FxRevaluationVoucherDetail";
 import FxRevaluationEmptySelection from "./fx-revaluation/components/FxRevaluationEmptySelection";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./fx-revaluation/fx-revaluation-list-v2.css";
 
@@ -51,9 +51,12 @@ export default function FxRevaluationPage({
   }, [token]);
   async function create() {
     if (
-      !confirmLocalized(
-        `${date} tarihi için değerleme fişi oluşturulsun mu? Fiş kaydedildikten sonra değiştirilemez.`,
-      )
+      !(await confirmDialog({
+        title: "Değerleme fişi oluşturulsun mu?",
+        message: `${date} tarihi için değerleme fişi oluşturulacak. Fiş kaydedildikten sonra değiştirilemez.`,
+        tone: "warning",
+        confirmLabel: "Fişi oluştur",
+      }))
     )
       return;
     setBusy(true);

@@ -14,7 +14,7 @@ import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -495,9 +495,12 @@ export function SalesDeliveriesScreen({
   }
   async function deleteDelivery(item: SalesDeliverySummary) {
     if (
-      !confirmLocalized(
-        `${item.code} irsaliyesi silinsin mi? Belge listeden kaldırılır; stok hareketleri ve denetim kayıtları korunur.`,
-      )
+      !(await confirmDialog({
+        title: "İrsaliye silinsin mi?",
+        message: `${item.code} irsaliyesi listeden kaldırılır; stok hareketleri ve denetim kayıtları korunur.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -518,9 +521,12 @@ export function SalesDeliveriesScreen({
   }
   async function voidDelivery(item: SalesDeliverySummary) {
     if (
-      !confirmLocalized(
-        `${item.code} irsaliyesi iptal edilsin mi? Stok çıkışı ters hareketle geri alınır.`,
-      )
+      !(await confirmDialog({
+        title: "İrsaliye iptal edilsin mi?",
+        message: `${item.code} irsaliyesi iptal edilecek. Stok çıkışı ters hareketle geri alınır.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);

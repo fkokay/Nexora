@@ -8605,8 +8605,9 @@ financeAccounts.MapPost("/{id:guid}/statements", async (Guid id, BankStatementIm
     if (!account.IsActive) return Results.Conflict(new { error = "Pasif banka hesabına ekstre aktarılamaz." });
     var overlapping = await db.BankStatements.AnyAsync(x => x.TenantId == tenantId && x.AccountId == account.Id && x.StartDate <= request.EndDate && x.EndDate >= request.StartDate);
     if (overlapping) return Results.Conflict(new { error = "Bu dönemle çakışan bir banka ekstresi zaten aktarılmış." });
+    var statementCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.BankStatement, null, request.EndDate, default);
     var statement = new BankStatement { TenantId = tenantId, Account = account, CurrencyCode = account.CurrencyCode,
-        RequestId = request.RequestId, Code = $"BS-{Guid.NewGuid():N}".ToUpperInvariant(), StartDate = request.StartDate,
+        RequestId = request.RequestId, Code = statementCode, StartDate = request.StartDate,
         EndDate = request.EndDate, OpeningBalance = request.OpeningBalance, ClosingBalance = request.ClosingBalance };
     for (var i = 0; i < request.Lines.Count; i++)
     {

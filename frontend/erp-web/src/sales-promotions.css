@@ -315,3 +315,50 @@ html[data-theme="dark"] .sales-promotions-page .sales-campaign-apply .modal-foot
   .sales-promotions-page .sales-campaign-pagination { align-items: flex-start; flex-wrap: wrap; }
 }
 @media(max-width:560px) { .sales-campaign-tabs { grid-template-columns: minmax(0, 1fr); } .sales-campaign-tabs [role="tab"] { padding: 9px 11px; } }
+
+/*
+ * Kampanyalar (Taslak): tiles, campaign list column + selected campaign with underline tabs.
+ * Reuses the credit page layout (#root .cf-page, finance-hub .fh-tile); only campaign specifics live here.
+ */
+#root .cf-page.sales-promotions-page { gap: 14px; }
+#root .cf-page .kmp-percent {
+  margin-left: auto;
+  color: var(--fh-ink);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#root .cf-page .kmp-item .cf-item-top b { min-width: 0; }
+#root .cf-page .cf-state.is-warning { border-color: var(--fh-warn-line); background: var(--fh-warn-bg); color: var(--fh-warn); }
+#root .cf-page .cf-bar.is-warning > i { background: #d69e2e; }
+#root .cf-page .kmp-hint {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 6px;
+  background: var(--fh-band);
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+#root .cf-page .kmp-apply {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+  max-width: 760px;
+}
+#root .cf-page .kmp-apply label { display: grid; gap: 4px; margin: 0; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .app-shell .cf-page .kmp-apply select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+}
+#root .app-shell .cf-page .kmp-apply .primary { min-height: 36px; padding: 0 14px; white-space: nowrap; }
+#root .cf-page .kmp-apply small { grid-column: 1 / -1; color: var(--fh-muted); font-size: 12px; }
+@media (max-width: 640px) {
+  #root .cf-page .kmp-apply { grid-template-columns: minmax(0, 1fr); }
+}

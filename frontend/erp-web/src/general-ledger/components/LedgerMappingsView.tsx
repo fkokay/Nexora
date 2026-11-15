@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { api } from "../../erpApi";
 import type { LedgerAccount, LedgerMapping } from "../../erp-types";
-import { confirmLocalized } from "../../locale";
+import { confirmDialog } from "../../confirmDialog";
 import { ListPageHeader } from "../../list-page/ListPageHeader";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import { downloadCsv, downloadXlsx } from "../ledgerReportUtils";
@@ -92,9 +92,13 @@ export function LedgerMappingsView({
     if (!accountId || accountId === mapping.accountId) return;
     if (
       mapping.accountId &&
-      !confirmLocalized(
-        "Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez. Devam edilsin mi?",
-      )
+      !(await confirmDialog({
+        title: "Hesap eşleştirmesi değiştirilsin mi?",
+        message:
+          "Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez.",
+        tone: "warning",
+        confirmLabel: "Eşleştirmeyi değiştir",
+      }))
     )
       return;
     flash(mapping.mappingKey, { state: "saving" });

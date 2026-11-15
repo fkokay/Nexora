@@ -10,7 +10,7 @@ import IntegrationOperationsList, {
   type ScreenField,
 } from "./integration-queue/components/IntegrationOperationsList";
 import { localizedText } from "./locale";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import "./integration-queue.css";
 import {
   RecordFormGroup,
@@ -323,12 +323,15 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
   async function cancel(item: IntegrationOperation) {
     if (
       !["Queued", "AwaitingApproval"].includes(item.status) ||
-      !confirmLocalized(
-        tr(
-          `${item.integrationCode} işlemini iptal etmek istiyor musunuz?`,
-          `Do you want to cancel operation ${item.integrationCode}?`,
+      !(await confirmDialog({
+        title: tr("Entegrasyon işlemi iptal edilsin mi?", "Cancel integration operation?"),
+        message: tr(
+          `${item.integrationCode} işlemi iptal edilecek.`,
+          `Operation ${item.integrationCode} will be cancelled.`,
         ),
-      )
+        tone: "danger",
+        confirmLabel: tr("İptal et", "Cancel operation"),
+      }))
     )
       return;
     setBusyId(item.operationId);
@@ -524,12 +527,15 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
     if (
       !item ||
       !detail ||
-      !confirmLocalized(
-        tr(
-          `${detail.documentType} ${detail.documentNumber} belgesini dış sağlayıcıya gönderilmek üzere onaylıyor musunuz? Bu işlem dış sistemde sonuç doğurabilir.`,
-          `Approve ${detail.documentType} ${detail.documentNumber} for external submission? This action may have effects in the external system.`,
+      !(await confirmDialog({
+        title: tr("Belge dış sağlayıcıya gönderilmek üzere onaylansın mı?", "Approve document for external submission?"),
+        message: tr(
+          `${detail.documentType} ${detail.documentNumber} belgesi dış sağlayıcıya gönderilmek üzere onaylanacak. Bu işlem dış sistemde sonuç doğurabilir.`,
+          `${detail.documentType} ${detail.documentNumber} will be approved for external submission. This action may have effects in the external system.`,
         ),
-      )
+        tone: "warning",
+        confirmLabel: tr("Onayla", "Approve"),
+      }))
     )
       return;
     setBusyId(item.operationId);
@@ -583,15 +589,25 @@ export default function IntegrationQueuePage({ token, requestApi }: Props) {
       return;
     }
     const decision = confirmedSubmitted
-      ? tr(
-          "Bu belgeyi dış sağlayıcıda gönderilmiş olarak kaydedin?",
-          "Record this document as submitted in the external provider?",
-        )
-      : tr(
-          "Dış sağlayıcıda gönderilmediğini doğruladınız mı? İşlem gönderilmedi olarak kapatılacak ve otomatik tekrar yapılmayacak.",
-          "Have you confirmed it was not submitted in the external provider? The operation will close as not submitted and will not be retried automatically.",
-        );
-    if (!confirmLocalized(decision)) return;
+      ? {
+          title: tr(
+            "Belge dış sağlayıcıda gönderilmiş olarak kaydedilsin mi?",
+            "Record this document as submitted in the external provider?",
+          ),
+          confirmLabel: tr("Gönderildi olarak kaydet", "Record as submitted"),
+        }
+      : {
+          title: tr(
+            "Dış sağlayıcıda gönderilmediğini doğruladınız mı?",
+            "Have you confirmed it was not submitted in the external provider?",
+          ),
+          message: tr(
+            "İşlem gönderilmedi olarak kapatılacak ve otomatik tekrar yapılmayacak.",
+            "The operation will close as not submitted and will not be retried automatically.",
+          ),
+          confirmLabel: tr("Gönderilmedi olarak kapat", "Close as not submitted"),
+        };
+    if (!(await confirmDialog({ ...decision, tone: "warning" }))) return;
     setBusyId(item.operationId);
     setError("");
     setNotice("");

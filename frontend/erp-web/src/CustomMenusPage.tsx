@@ -8,7 +8,7 @@ import { CustomMenuEditor } from "./custom-menus/components/CustomMenuEditor";
 import { CustomMenuList } from "./custom-menus/components/CustomMenuList";
 import { CustomMenuInspector } from "./custom-menus/components/CustomMenuInspector";
 import { StandardMenuEditor } from "./custom-menus/components/StandardMenuEditor";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 export default function CustomMenusPage({
@@ -121,7 +121,15 @@ export default function CustomMenusPage({
   }
 
   async function remove(entry: Entry) {
-    if (!confirmLocalized(`“${entry.label}” menü öğesi silinsin mi?`)) return;
+    if (
+      !(await confirmDialog({
+        title: "Menü öğesi silinsin mi?",
+        message: `“${entry.label}” menü öğesi silinecek.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
+    )
+      return;
     setBusy(true);
     setError("");
     setNotice("");

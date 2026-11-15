@@ -17,7 +17,7 @@ import "./inventory/inventory-list-v2.css";
 import "./inventory/inventory-modals.css";
 import { NegativeStockPolicyNote } from "./inventory/NegativeStockPolicyNote";
 import SearchableRecordPicker from "./SearchableRecordPicker";
-import { confirmLocalized, promptLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -703,9 +703,12 @@ export function InventoryPage({
   }
   async function deactivateCustomField(definition: StockCustomFieldDefinition) {
     if (
-      !confirmLocalized(
-        `${definition.label} alanı yeni değer girişinden kaldırılacak; eski değerleri korunacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Özel alan kaldırılsın mı?",
+        message: `${definition.label} alanı yeni değer girişinden kaldırılacak; eski değerleri korunacak.`,
+        tone: "danger",
+        confirmLabel: "Kaldır",
+      }))
     )
       return;
     setCustomFieldBusy(true);
@@ -763,9 +766,12 @@ export function InventoryPage({
     if (
       !customFieldItem ||
       !customFieldValueHistoryDefinition ||
-      !confirmLocalized(
-        `${revision.label} alanının ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihli değişikliği geri alınsın mı? Önceki değer yeni bir geçmiş kaydı olarak yazılır.`,
-      )
+      !(await confirmDialog({
+        title: "Değişiklik geri alınsın mı?",
+        message: `${revision.label} alanının ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihli değişikliği geri alınacak. Önceki değer yeni bir geçmiş kaydı olarak yazılır.`,
+        tone: "warning",
+        confirmLabel: "Geri al",
+      }))
     )
       return;
     setCustomFieldBusy(true);
@@ -788,17 +794,25 @@ export function InventoryPage({
     }
   }
   async function editCustomField(definition: StockCustomFieldDefinition) {
-    const label = promptLocalized(
-      "Yeni alan etiketi (boş bırakılamaz):",
-      definition.label,
-    );
+    const label = await promptDialog({
+      title: "Alan etiketi düzenlensin mi?",
+      label: "Yeni alan etiketi",
+      message: "Etiket boş bırakılamaz.",
+      defaultValue: definition.label,
+      tone: "default",
+      confirmLabel: "Devam",
+    });
     if (label === null) return;
     let maxLength = definition.maxLength;
     if (definition.dataType === "Text") {
-      const raw = promptLocalized(
-        "Yeni en fazla metin uzunluğu (1–500). Mevcut değerler kontrol edilir:",
-        String(definition.maxLength),
-      );
+      const raw = await promptDialog({
+        title: "En fazla metin uzunluğu",
+        label: "Yeni en fazla metin uzunluğu (1–500)",
+        message: "Mevcut değerler kontrol edilir.",
+        defaultValue: String(definition.maxLength),
+        tone: "default",
+        confirmLabel: "Devam",
+      });
       if (raw === null) return;
       maxLength = Number(raw);
     }
@@ -811,10 +825,15 @@ export function InventoryPage({
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const requiredAnswer = promptLocalized(
-        "Alan zorunlu olsun mu? Evet veya Hayır. Zorunlu yapmak için tüm mevcut stok kartlarında değer bulunmalıdır.",
-        definition.isRequired ? "Evet" : "Hayır",
-      );
+      const requiredAnswer = await promptDialog({
+        title: "Alan zorunlu olsun mu?",
+        label: "Evet veya Hayır",
+        message:
+          "Zorunlu yapmak için tüm mevcut stok kartlarında değer bulunmalıdır.",
+        defaultValue: definition.isRequired ? "Evet" : "Hayır",
+        tone: "default",
+        confirmLabel: "Kaydet",
+      });
       if (requiredAnswer === null) return;
       const answer = requiredAnswer.trim().toLocaleLowerCase("tr-TR");
       if (!["evet", "hayır", "hayir", "yes", "no"].includes(answer)) {
@@ -852,9 +871,12 @@ export function InventoryPage({
   ) {
     if (
       !customFieldHistoryDefinition ||
-      !confirmLocalized(
-        `${revision.code} alanının v${revision.version} tanımı geri yüklensin mi? Bu işlem yeni bir sürüm oluşturur.`,
-      )
+      !(await confirmDialog({
+        title: "Alan tanımı geri yüklensin mi?",
+        message: `${revision.code} alanının v${revision.version} tanımı geri yüklenecek. Bu işlem yeni bir sürüm oluşturur.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setCustomFieldBusy(true);
@@ -1168,9 +1190,12 @@ export function InventoryPage({
     const action = active ? "activate" : "deactivate",
       verb = active ? "etkinleştirilsin" : "devre dışı bırakılsın";
     if (
-      !confirmLocalized(
-        `${item.code} · ${item.name} ${verb} mi? ${active ? "" : "Depo bakiyesi sıfır olmalıdır."}`,
-      )
+      !(await confirmDialog({
+        title: `Stok kartı ${verb} mi?`,
+        message: `${item.code} · ${item.name}${active ? "" : " · Depo bakiyesi sıfır olmalıdır."}`,
+        tone: "warning",
+        confirmLabel: active ? "Etkinleştir" : "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -1204,9 +1229,12 @@ export function InventoryPage({
   }
   async function deleteItem(item: StockItem) {
     if (
-      !confirmLocalized(
-        `${item.code} · ${item.name} stok kartı kalıcı olarak silinsin mi? İlişkili kayıtları olan kartlar silinemez.`,
-      )
+      !(await confirmDialog({
+        title: "Stok kartı kalıcı olarak silinsin mi?",
+        message: `${item.code} · ${item.name} stok kartı kalıcı olarak silinecek. İlişkili kayıtları olan kartlar silinemez.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -1523,23 +1551,36 @@ export function InventoryPage({
     }
   }
   async function editWarehouseField(field: WarehouseCustomFieldDefinition) {
-    const label = promptLocalized("Yeni alan etiketi:", field.label);
+    const label = await promptDialog({
+      title: "Depo alan etiketi düzenlensin mi?",
+      label: "Yeni alan etiketi",
+      defaultValue: field.label,
+      tone: "default",
+      confirmLabel: "Devam",
+    });
     if (label === null) return;
     let maxLength = field.maxLength;
     if (field.dataType === "Text") {
-      const raw = promptLocalized(
-        "En fazla metin uzunluğu (1–500):",
-        String(field.maxLength),
-      );
+      const raw = await promptDialog({
+        title: "En fazla metin uzunluğu",
+        label: "En fazla metin uzunluğu (1–500)",
+        defaultValue: String(field.maxLength),
+        tone: "default",
+        confirmLabel: "Devam",
+      });
       if (raw === null) return;
       maxLength = Number(raw);
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const answer = promptLocalized(
-        "Zorunlu olsun mu? Evet/Hayır. Mevcut depolarda değer bulunmalıdır.",
-        field.isRequired ? "Evet" : "Hayır",
-      );
+      const answer = await promptDialog({
+        title: "Alan zorunlu olsun mu?",
+        label: "Evet veya Hayır",
+        message: "Zorunlu yapmak için mevcut depolarda değer bulunmalıdır.",
+        defaultValue: field.isRequired ? "Evet" : "Hayır",
+        tone: "default",
+        confirmLabel: "Kaydet",
+      });
       if (answer === null) return;
       const requiredAnswer = answer.trim().toLocaleLowerCase("tr-TR");
       if (!["evet", "hayır", "hayir", "yes", "no"].includes(requiredAnswer)) {
@@ -1580,9 +1621,12 @@ export function InventoryPage({
     field: WarehouseCustomFieldDefinition,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} yeni değer girişinden kaldırılsın mı? Eski depo değerleri ve geçmiş korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Depo alanı kaldırılsın mı?",
+        message: `${field.label} yeni değer girişinden kaldırılacak. Eski depo değerleri ve geçmiş korunur.`,
+        tone: "danger",
+        confirmLabel: "Kaldır",
+      }))
     )
       return;
     setWarehouseFieldBusy(true);
@@ -1607,9 +1651,12 @@ export function InventoryPage({
   async function toggleWarehouse(warehouse: Warehouse) {
     const isActive = !warehouse.isActive;
     if (
-      !confirmLocalized(
-        `${warehouse.code} · ${warehouse.name} ${isActive ? "yeniden etkinleştirilsin" : "devre dışı bırakılsın"} mı? ${isActive ? "" : "Depoda sıfırdan farklı stok varsa işlem reddedilir."}`,
-      )
+      !(await confirmDialog({
+        title: `Depo ${isActive ? "yeniden etkinleştirilsin" : "devre dışı bırakılsın"} mı?`,
+        message: `${warehouse.code} · ${warehouse.name}${isActive ? "" : " · Depoda sıfırdan farklı stok varsa işlem reddedilir."}`,
+        tone: "warning",
+        confirmLabel: isActive ? "Etkinleştir" : "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -1644,9 +1691,25 @@ export function InventoryPage({
     }
   }
   async function editWarehouse(warehouse: Warehouse) {
-    const code = promptLocalized("Depo kodu:", warehouse.code)?.trim();
+    const code = (
+      await promptDialog({
+        title: "Depo düzenlensin mi?",
+        label: "Depo kodu",
+        defaultValue: warehouse.code,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (code === undefined || code === null) return;
-    const name = promptLocalized("Depo adı:", warehouse.name)?.trim();
+    const name = (
+      await promptDialog({
+        title: "Depo düzenlensin mi?",
+        label: "Depo adı",
+        defaultValue: warehouse.name,
+        tone: "default",
+        confirmLabel: "Kaydet",
+      })
+    )?.trim();
     if (name === undefined || name === null) return;
     if (!code || !name) {
       setError("Depo kodu ve adı boş bırakılamaz.");
@@ -1824,14 +1887,24 @@ export function InventoryPage({
     }
   }
   async function voidTransfer(transfer: InventoryTransfer) {
-    const reason = window
-      .prompt(`${transfer.code} transferi iptal nedeni:`)
-      ?.trim();
+    const reason = (
+      await promptDialog({
+        title: "Transfer iptal edilsin mi?",
+        label: "İptal nedeni",
+        message: `${transfer.code} transferi iptal edilecek.`,
+        required: true,
+        tone: "danger",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!reason) return;
     if (
-      !confirmLocalized(
-        "Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilsin mi? Hedef stok kullanılmışsa işlem reddedilir.",
-      )
+      !(await confirmDialog({
+        title: "Transfer hareketleri iptal edilsin mi?",
+        message: `${transfer.code} · Kaynak ve hedef depodaki tüm transfer hareketleri birlikte ters kayıtla iptal edilecek. Hedef stok kullanılmışsa işlem reddedilir.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -1977,9 +2050,12 @@ export function InventoryPage({
   async function deactivateUnitConversion(conversion: StockItemUnitConversion) {
     if (
       !costTarget ||
-      !confirmLocalized(
-        `${conversion.unitCode} birim dönüşümü yeni hareket girişinden kaldırılacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Birim dönüşümü kaldırılsın mı?",
+        message: `${conversion.unitCode} birim dönüşümü yeni hareket girişinden kaldırılacak.`,
+        tone: "danger",
+        confirmLabel: "Kaldır",
+      }))
     )
       return;
     setBusy(true);
@@ -2065,9 +2141,16 @@ export function InventoryPage({
     }
   }
   async function reverseCostAdjustment(adjustment: InventoryCostAdjustment) {
-    const reason = window
-      .prompt(`${adjustment.code} maliyet kaydı için ters kayıt nedeni:`)
-      ?.trim();
+    const reason = (
+      await promptDialog({
+        title: "Maliyet kaydı ters çevrilsin mi?",
+        label: "Ters kayıt nedeni",
+        message: `${adjustment.code} maliyet kaydı için ters kayıt oluşturulacak.`,
+        required: true,
+        tone: "warning",
+        confirmLabel: "Ters kayıt oluştur",
+      })
+    )?.trim();
     if (!reason) return;
     setBusy(true);
     setError("");
@@ -2167,7 +2250,16 @@ export function InventoryPage({
   }
   async function reverseMovement(item: InventoryMovement) {
     if (!movementItem) return;
-    const reason = promptLocalized("Ters kayıt nedeni:")?.trim();
+    const reason = (
+      await promptDialog({
+        title: "Ters kayıt oluşturulsun mu?",
+        label: "Ters kayıt nedeni",
+        message: "Ters stok hareketi oluşturulur; kaynak kayıt korunur.",
+        required: true,
+        tone: "warning",
+        confirmLabel: "Ters kayıt oluştur",
+      })
+    )?.trim();
     if (!reason) return;
     setBusy(true);
     setError("");

@@ -45,7 +45,7 @@ import {
   statusText,
 } from "./payment-instruments/paymentInstrumentTypes";
 import { PaymentInstrumentCreateForm } from "./payment-instruments/components/PaymentInstrumentCreateForm";
-import { confirmLocalized, promptLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 const PAGE_SIZE = 25;
@@ -453,15 +453,44 @@ export default function PaymentInstrumentsPage({
       setFocusAccount((value) => value + 1);
       return;
     }
-    const note = promptLocalized(
+    const note = await promptDialog(
       kind === "bounce"
-        ? "Karşılıksız işlem notu (zorunlu):"
-        : "İşlem açıklaması (isteğe bağlı):",
+        ? {
+            title: "Karşılıksız olarak işaretlensin mi?",
+            message: `${item.code} kaydı karşılıksız olarak işaretlenecek.`,
+            label: "Karşılıksız işlem notu",
+            required: true,
+            multiline: true,
+            tone: "danger",
+            confirmLabel: "Karşılıksız işaretle",
+          }
+        : {
+            title:
+              kind === "endorse"
+                ? "Çek/senet ciro edilsin mi?"
+                : kind === "collect"
+                  ? "Tahsil/ödeme kaydedilsin mi?"
+                  : "İptal açıklaması",
+            message: item.code,
+            label: "İşlem açıklaması (isteğe bağlı)",
+            multiline: true,
+            tone: kind === "cancel" ? "danger" : "default",
+            confirmLabel: "Devam",
+          },
     );
     if (note === null) return;
     const endorsedTo =
       kind === "endorse"
-        ? promptLocalized("Ciro edilecek kişi/kurum:")?.trim()
+        ? (
+            await promptDialog({
+              title: "Ciro edilecek kişi/kurum",
+              message: `${item.code} kaydı ciro edilecek.`,
+              label: "Kişi/kurum",
+              required: true,
+              tone: "default",
+              confirmLabel: "Ciro et",
+            })
+          )?.trim()
         : undefined;
     if (kind === "endorse" && !endorsedTo) return;
     if (kind === "bounce" && !note.trim()) {
@@ -470,9 +499,12 @@ export default function PaymentInstrumentsPage({
     }
     if (
       kind === "cancel" &&
-      !confirmLocalized(
-        `${item.code} kaydı iptal edilsin mi? Bu işlem geri alınamaz.`,
-      )
+      !(await confirmDialog({
+        title: "Kayıt iptal edilsin mi?",
+        message: `${item.code} kaydı iptal edilecek. Bu işlem geri alınamaz.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     const eventType = (

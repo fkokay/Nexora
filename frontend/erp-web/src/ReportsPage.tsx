@@ -29,7 +29,7 @@ import type {
   SqlCompany,
   SqlSchemaTable,
 } from "./reports/reportTypes";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 const defaultDefinition: Definition = {
@@ -404,12 +404,17 @@ export default function ReportsPage({
   }
   async function remove(report: SavedReport) {
     if (
-      !confirmLocalized(
-        tx(
-          `“${report.name}” ${isList ? "listesini" : "raporunu"} silmek istiyor musunuz?`,
-          `Delete ${isList ? "list" : "report"} “${report.name}”?`,
+      !(await confirmDialog({
+        title: isList
+          ? tx("Liste silinsin mi?", "Delete list?")
+          : tx("Rapor silinsin mi?", "Delete report?"),
+        message: tx(
+          `“${report.name}” ${isList ? "listesi" : "raporu"} silinecek.`,
+          `${isList ? "List" : "Report"} “${report.name}” will be deleted.`,
         ),
-      )
+        tone: "danger",
+        confirmLabel: tx("Sil", "Delete"),
+      }))
     )
       return;
     setBusy(true);

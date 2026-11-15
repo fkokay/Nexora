@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, History, PackageOpen, RotateCcw, ShieldCheck, Upload } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 type Props = { token: string; locale: "tr" | "en" };
@@ -49,9 +49,15 @@ export function TenantCustomizationPackagePanel({ token, locale }: Props) {
   }
 
   async function restoreSnapshot(snapshot: Snapshot) {
-    const confirmed = confirmLocalized(isTr
-      ? `v${snapshot.version} “${snapshot.name}” geri yüklensin mi? Formlar, iş akışları, kurallar ve ekranlar taslağa alınır; raporlar, menüler, özel alanlar ve menü düzeni hemen uygulanır. Snapshot sonrasında eklenen tanımlar korunur.`
-      : `Restore v${snapshot.version} “${snapshot.name}”? Forms, workflows, rules, and screens return to draft; reports, menus, custom fields, and menu layout apply immediately. Definitions added after the snapshot are kept.`);
+    const confirmed = await confirmDialog({
+      title: isTr ? "Snapshot geri yüklensin mi?" : "Restore snapshot?",
+      message: isTr
+        ? `v${snapshot.version} “${snapshot.name}” geri yüklenecek. Formlar, iş akışları, kurallar ve ekranlar taslağa alınır; raporlar, menüler, özel alanlar ve menü düzeni hemen uygulanır. Snapshot sonrasında eklenen tanımlar korunur.`
+        : `v${snapshot.version} “${snapshot.name}” will be restored. Forms, workflows, rules, and screens return to draft; reports, menus, custom fields, and menu layout apply immediately. Definitions added after the snapshot are kept.`,
+      tone: "warning",
+      confirmLabel: isTr ? "Geri yükle" : "Restore",
+      cancelLabel: isTr ? "Vazgeç" : "Cancel",
+    });
     if (!confirmed) return;
     setBusy(true); setError(""); setNotice("");
     try {

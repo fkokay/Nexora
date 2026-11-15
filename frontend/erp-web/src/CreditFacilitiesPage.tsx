@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
@@ -29,7 +29,7 @@ import type {
   Security,
   SecuritySummary,
 } from "./credit-facilities/types";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 
 async function request<T>(
   url: string,
@@ -102,6 +102,8 @@ type CreditFacilitiesView =
   | "movement-create"
   | "repayment-create"
   | "security-create";
+const CREDITS_CHANGED_EVENT = "nexora:credit-facilities-changed";
+
 export default function CreditFacilitiesPage({
   token,
   role,
@@ -236,6 +238,17 @@ export default function CreditFacilitiesPage({
     [movementRequestId, setMovementRequestId] = useState(() =>
       crypto.randomUUID(),
     );
+  // Credit pages are keep-alive workspace tabs with their own state: an operation saved on one tab
+  // must refresh the others (the list tab it navigates back to included) and carry its notice there.
+  const instanceId = useRef(crypto.randomUUID()).current;
+  function announce(message: string) {
+    setNotice(message);
+    window.dispatchEvent(
+      new CustomEvent(CREDITS_CHANGED_EVENT, {
+        detail: { source: instanceId, notice: message },
+      }),
+    );
+  }
   async function load() {
     setLoading(true);
     setError("");
@@ -268,6 +281,16 @@ export default function CreditFacilitiesPage({
   useEffect(() => {
     void load();
   }, [token]);
+  useEffect(() => {
+    function onChanged(event: Event) {
+      const detail = (event as CustomEvent<{ source?: string; notice?: string }>).detail;
+      if (detail?.source === instanceId) return;
+      void load();
+      if (view === "list" && detail?.notice) setNotice(detail.notice);
+    }
+    window.addEventListener(CREDITS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(CREDITS_CHANGED_EVENT, onChanged);
+  }, [token, view]);
   useEffect(() => {
     if (view === "movement-create") setMovementType("Drawdown");
     if (view === "repayment-create") setMovementType("Repayment");
@@ -424,7 +447,7 @@ export default function CreditFacilitiesPage({
       setMaturityDate("");
       setRate("");
       setNotes("");
-      setNotice("Kredi/finansman kaydı oluşturuldu.");
+      announce("Kredi/finansman kaydı oluşturuldu.");
       await load();
       onNavigate?.("finance-credit-facilities", "Krediler & Finansman");
     } catch (e) {
@@ -467,7 +490,7 @@ export default function CreditFacilitiesPage({
       setSecurityCommission("0");
       setSecurityExpiryDate("");
       setSecurityNotes("");
-      setNotice(
+      announce(
         "Teminat/garanti kaydı oluşturuldu. Nakit veya muhasebe hareketi oluşturulmadı.",
       );
       await load();
@@ -484,9 +507,15 @@ export default function CreditFacilitiesPage({
   }
   async function closeSecurity(item: Security, status: "Released" | "Called") {
     if (
-      !confirmLocalized(
-        `${item.code} kaydı ${status === "Released" ? "serbest bırakılmış" : "nakde/zarara çağrılmış"} olarak işaretlensin mi? Bu işlem nakit veya muhasebe kaydı oluşturmaz.`,
-      )
+      !(await confirmDialog({
+        title:
+          status === "Released"
+            ? "Teminat serbest bırakılmış olarak işaretlensin mi?"
+            : "Teminat nakde/zarara çağrılmış olarak işaretlensin mi?",
+        message: `${item.code} kaydının durumu değişecek. Bu işlem nakit veya muhasebe kaydı oluşturmaz.`,
+        tone: "warning",
+        confirmLabel: status === "Released" ? "Serbest bırak" : "Çağrılmış işaretle",
+      }))
     )
       return;
     setBusy(true);
@@ -497,7 +526,7 @@ export default function CreditFacilitiesPage({
         token,
         { method: "PUT", body: JSON.stringify({ status }) },
       );
-      setNotice(`${item.code} durumu güncellendi.`);
+      announce(`${item.code} durumu güncellendi.`);
       await load();
     } catch (e) {
       setError(
@@ -534,7 +563,7 @@ export default function CreditFacilitiesPage({
       setInterest("");
       setFee("");
       setScheduleNotes("");
-      setNotice("Ödeme planına satır eklendi.");
+      announce("Ödeme planına satır eklendi.");
       await load();
       onNavigate?.("finance-credit-facilities", "Krediler & Finansman");
     } catch (e) {
@@ -580,7 +609,7 @@ export default function CreditFacilitiesPage({
       setMovementFee("");
       setMovementScheduleId("");
       setMovementNotes("");
-      setNotice(
+      announce(
         movementType === "Drawdown"
           ? "Kredi kullandırımı banka/kasa hareketine işlendi."
           : "Kredi geri ödemesi banka/kasa hareketine işlendi.",
@@ -660,9 +689,12 @@ export default function CreditFacilitiesPage({
       month = previous.getMonth() + 1;
     const period = `${year}-${String(month).padStart(2, "0")}`;
     if (
-      !confirmLocalized(
-        `${f.code} için ${period} Actual/365 faiz tahakkuku muhasebeleştirilsin mi? Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez.`,
-      )
+      !(await confirmDialog({
+        title: "Faiz tahakkuku muhasebeleştirilsin mi?",
+        message: `${f.code} için ${period} Actual/365 faiz tahakkuku muhasebeleştirilecek. Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez.`,
+        tone: "default",
+        confirmLabel: "Muhasebeleştir",
+      }))
     )
       return;
     setBusy(true);
@@ -674,7 +706,7 @@ export default function CreditFacilitiesPage({
         token,
         { method: "POST" },
       );
-      setNotice(
+      announce(
         result.posted === false
           ? `${period} için tahakkuk yok; fiş oluşturulmadı.`
           : `${period} faiz tahakkuku ${result.replayed ? "zaten kayıtlı" : "yevmiye fişine işlendi"}${result.accruedInterest !== undefined ? `: ${money(result.accruedInterest, result.currencyCode || f.currencyCode)}` : ""}.`,
@@ -713,7 +745,7 @@ export default function CreditFacilitiesPage({
         token,
         { method: "PUT", body: JSON.stringify({ status, paidDate: null }) },
       );
-      setNotice("Ödeme planı iptal edildi.");
+      announce("Ödeme planı iptal edildi.");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ödeme planı güncellenemedi.");
@@ -731,7 +763,7 @@ export default function CreditFacilitiesPage({
           status: f.status === "Active" ? "Closed" : "Active",
         }),
       });
-      setNotice(
+      announce(
         f.status === "Active"
           ? "Kredi kapatıldı."
           : "Kredi yeniden etkinleştirildi.",
@@ -748,9 +780,12 @@ export default function CreditFacilitiesPage({
   async function reverseMovement(f: Facility, m: Movement) {
     const date = today() < m.transactionDate ? m.transactionDate : today();
     if (
-      !confirmLocalized(
-        `${m.transactionDate} tarihli ${m.type === "Drawdown" ? "kullandırım" : "geri ödeme"} hareketi için ${date} tarihli ters kayıt oluşturulsun mu? Özgün kayıt korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Ters kayıt oluşturulsun mu?",
+        message: `${m.transactionDate} tarihli ${m.type === "Drawdown" ? "kullandırım" : "geri ödeme"} hareketi için ${date} tarihli ters kayıt oluşturulacak. Özgün kayıt korunur.`,
+        tone: "warning",
+        confirmLabel: "Ters kaydı oluştur",
+      }))
     )
       return;
     setBusy(true);
@@ -769,7 +804,7 @@ export default function CreditFacilitiesPage({
           }),
         },
       );
-      setNotice(
+      announce(
         "Kredi hareketi banka/kasa ve kredi defterine ters kayıt olarak işlendi.",
       );
       await load();

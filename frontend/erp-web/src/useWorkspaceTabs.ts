@@ -15,12 +15,18 @@ type Props = {
   onSelectModule: (selection: ModuleMenuSelection) => void
 }
 
+const tabLimitNotice = (locale: Locale) =>
+  locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.'
+const isTabLimitNotice = (text: string) => text === tabLimitNotice('en') || text === tabLimitNotice('tr')
+
 export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantId, platformSession, locale, pageResults, onSelectModule }: Props) {
   const [page, setActivePage] = useState<string>(() => getInitialPage(standaloneStudio, embeddedStudioTool))
   const [moduleTabs, setModuleTabs] = useState<Tab[]>(() => readWorkspaceTabs(tenantId))
   const [dirtyTabs, setDirtyTabs] = useState<Set<string>>(() => new Set())
   const [notice, setNotice] = useState('')
   const [pendingCloseTab, setPendingCloseTab] = useState<string | null>(null)
+  // The tab-limit warning is only true while the limit blocks a screen: opening one or closing a tab removes it.
+  const clearTabLimitNotice = useCallback(() => setNotice(current => isTabLimitNotice(current) ? '' : current), [])
 
   const setPage = useCallback((nextPage: string, labelOverride?: string) => {
     if (nextPage === 'launcher' || nextPage === 'dashboard') {
@@ -39,22 +45,24 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       pendingCustomerAction = action?.page === nextPage && Boolean(action.customerId)
     } catch { /* Session storage is optional; keep the normal tab limit if unavailable. */ }
     if (!pendingCustomerAction && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
-      setNotice(locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.')
+      setNotice(tabLimitNotice(locale))
       return
     }
+    clearTabLimitNotice()
     setActivePage(nextPage)
     setModuleTabs(current => current.some(tab => tab.id === nextPage)
       ? current.map(tab => tab.id === nextPage ? { ...tab, label: knownLabel || tab.label } : tab)
       : [...current, { id: nextPage, label }])
-  }, [pageResults, moduleTabs, locale, onSelectModule])
+  }, [pageResults, moduleTabs, locale, onSelectModule, clearTabLimitNotice])
 
   const removeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return
     const nextTabs = moduleTabs.filter(tab => tab.id !== tabId)
     setModuleTabs(nextTabs)
+    clearTabLimitNotice()
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
     if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')
-  }, [moduleTabs, page, setPage])
+  }, [moduleTabs, page, setPage, clearTabLimitNotice])
 
   const closeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return

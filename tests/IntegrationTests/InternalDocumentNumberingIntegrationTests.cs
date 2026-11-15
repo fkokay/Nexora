@@ -49,6 +49,7 @@ public sealed class InternalDocumentNumberingIntegrationTests
         Assert.Equal("LC-2026-000001", await Next(TenantA, TenantDocumentNumbering.Internal.LandedCost));
         Assert.Equal("LCV-2026-000001", await Next(TenantA, TenantDocumentNumbering.Internal.LandedCostReversal));
         Assert.Equal("IC-2026-000001", await Next(TenantA, TenantDocumentNumbering.Internal.InvoiceCostDifference));
+        Assert.Equal("BS-2026-000001", await Next(TenantA, TenantDocumentNumbering.Internal.BankStatement));
 
         var counters = await db.TenantDocumentNumberCounters.AsNoTracking().ToListAsync();
         Assert.All(counters, x => Assert.True(x.DocumentType.Length <= 32, x.DocumentType));

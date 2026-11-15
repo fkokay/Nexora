@@ -7,7 +7,7 @@ import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
-import { confirmLocalized, promptLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { salesInvoiceStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
@@ -330,11 +330,28 @@ export function SalesInvoiceModal({
     }
   }
   async function editInvoiceCustomField(field: SalesInvoiceCustomFieldValue) {
-    const label = promptLocalized("Alan etiketi", field.label)?.trim();
+    const label = (
+      await promptDialog({
+        title: "Alan etiketi düzenlensin mi?",
+        label: "Alan etiketi",
+        defaultValue: field.label,
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
+        ? Number(
+            await promptDialog({
+              title: "En fazla karakter",
+              label: "En fazla karakter (1–500)",
+              defaultValue: String(field.maxLength),
+              tone: "default",
+              confirmLabel: "Devam",
+            }),
+          )
         : 0;
     if (
       field.dataType === "Text" &&
@@ -342,7 +359,13 @@ export function SalesInvoiceModal({
     )
       return;
     const isRequired = role === "TenantAdmin"
-      ? confirmLocalized("Bu alan zorunlu olsun mu?")
+      ? await confirmDialog({
+          title: "Bu alan zorunlu olsun mu?",
+          message: `${label} alanı için seçim yapın.`,
+          tone: "default",
+          confirmLabel: "Zorunlu yap",
+          cancelLabel: "Zorunlu olmasın",
+        })
       : undefined;
     setCustomFieldBusy(true);
     setError("");
@@ -371,9 +394,12 @@ export function SalesInvoiceModal({
     field: SalesInvoiceCustomFieldValue,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} alanı devre dışı bırakılsın mı? Geçmiş değerler saklanır.`,
-      )
+      !(await confirmDialog({
+        title: "Alan devre dışı bırakılsın mı?",
+        message: `${field.label} alanı devre dışı bırakılacak. Geçmiş değerler saklanır.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setCustomFieldBusy(true);
@@ -415,9 +441,12 @@ export function SalesInvoiceModal({
     if (
       !invoice ||
       !historyField ||
-      !confirmLocalized(
-        `${historyField.label} alanını ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihindeki önceki değere döndür?`,
-      )
+      !(await confirmDialog({
+        title: "Önceki değere dönülsün mü?",
+        message: `${historyField.label} alanı ${new Date(revision.createdAt).toLocaleString("tr-TR")} tarihindeki önceki değere döndürülecek.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setCustomFieldBusy(true);
@@ -475,9 +504,12 @@ export function SalesInvoiceModal({
   }
   async function voidCollection(item: CustomerCollection) {
     if (
-      !confirmLocalized(
-        `${item.code} tahsilatı iptal edilsin mi? Cari alacak ters kayıtla geri alınacak.`,
-      )
+      !(await confirmDialog({
+        title: "Tahsilat iptal edilsin mi?",
+        message: `${item.code} tahsilatı iptal edilecek. Cari alacak ters kayıtla geri alınacak.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -565,9 +597,12 @@ export function SalesInvoiceModal({
   }
   async function voidReturn(item: SalesReturnSummary) {
     if (
-      !confirmLocalized(
-        `${item.code} iadesi iptal edilsin mi? Stok ve cari hareketleri ters kaydedilecek.`,
-      )
+      !(await confirmDialog({
+        title: "İade iptal edilsin mi?",
+        message: `${item.code} iadesi iptal edilecek. Stok ve cari hareketleri ters kaydedilecek.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -590,9 +625,12 @@ export function SalesInvoiceModal({
   }
   async function voidInvoice() {
     if (
-      !confirmLocalized(
-        `${invoice?.code} faturası iptal edilsin mi? Cari borç ters hareketle kapatılacak.`,
-      )
+      !(await confirmDialog({
+        title: "Fatura iptal edilsin mi?",
+        message: `${invoice?.code} faturası iptal edilecek. Cari borç ters hareketle kapatılacak.`,
+        tone: "danger",
+        confirmLabel: "Faturayı iptal et",
+      }))
     )
       return;
     setBusy(true);

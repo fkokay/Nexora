@@ -44,7 +44,7 @@ import { SalesDeliveriesScreen } from "./SalesDeliveriesPage";
 import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
 import { PurchaseInvoiceModal, type PurchaseInvoiceInitialAction } from "./PurchaseInvoiceModal";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
-import { confirmLocalized, promptLocalized } from "./locale";
+import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
 import {
@@ -1043,14 +1043,18 @@ export function SalesPage({
       ),
     );
   }
-  function selectDirectOrderStock(index: number, stockItemId: string) {
+  async function selectDirectOrderStock(index: number, stockItemId: string) {
     const selectedItem = stockItems.find((item) => item.id === stockItemId);
     if (!selectedItem) return;
     const previousLine = directOrderLines[index];
     const editingOrder = Boolean(sessionStorage.getItem("nexora.sales-order.edit-id"));
-    const shouldRefreshPrice = !editingOrder || !previousLine?.stockItemId || previousLine.stockItemId === stockItemId || confirmLocalized(
-      `Stok kartı değişti. Tanımlı satış fiyatı ${selectedItem.salesListPrice ?? 0} ${selectedItem.priceCurrencyCode || currencyCode} olarak güncellensin mi?`,
-    );
+    const shouldRefreshPrice = !editingOrder || !previousLine?.stockItemId || previousLine.stockItemId === stockItemId || (await confirmDialog({
+      title: "Satış fiyatı güncellensin mi?",
+      message: `Stok kartı değişti. Tanımlı satış fiyatı ${selectedItem.salesListPrice ?? 0} ${selectedItem.priceCurrencyCode || currencyCode} olarak satıra uygulanır.`,
+      tone: "default",
+      confirmLabel: "Fiyatı güncelle",
+      cancelLabel: "Mevcut fiyatı koru",
+    }));
     void loadQuoteUnits(stockItemId);
     setDirectOrderLines((current) => current.map((line, rowIndex) => rowIndex !== index ? line : {
       ...line,
@@ -1293,23 +1297,40 @@ export function SalesPage({
     }
   }
   async function editQuoteField(field: SalesQuoteCustomFieldDefinition) {
-    const label = promptLocalized("Yeni alan etiketi:", field.label);
+    const label = await promptDialog({
+      title: "Alan etiketi düzenlensin mi?",
+      label: "Yeni alan etiketi",
+      message: `${field.label} için yeni bir sürüm oluşturulur.`,
+      defaultValue: field.label,
+      required: true,
+      tone: "default",
+      confirmLabel: "Devam",
+    });
     if (label === null) return;
     let maxLength = field.maxLength;
     if (field.dataType === "Text") {
-      const raw = promptLocalized(
-        "En fazla metin uzunluğu (1–500):",
-        String(field.maxLength),
-      );
+      const raw = await promptDialog({
+        title: "En fazla metin uzunluğu",
+        label: "En fazla metin uzunluğu (1–500)",
+        defaultValue: String(field.maxLength),
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      });
       if (raw === null) return;
       maxLength = Number(raw);
     }
     let isRequired: boolean | undefined;
     if (role === "TenantAdmin") {
-      const answer = promptLocalized(
-        "Taslaklarda zorunlu olsun mu? Evet/Hayır. Zorunlu yapmak için tüm taslak tekliflerde değer olmalıdır.",
-        field.isRequired ? "Evet" : "Hayır",
-      );
+      const answer = await promptDialog({
+        title: "Taslaklarda zorunlu olsun mu?",
+        label: "Evet / Hayır",
+        message: "Zorunlu yapmak için tüm taslak tekliflerde değer olmalıdır.",
+        defaultValue: field.isRequired ? "Evet" : "Hayır",
+        required: true,
+        tone: "default",
+        confirmLabel: "Kaydet",
+      });
       if (answer === null) return;
       const normalized = answer.trim().toLocaleLowerCase("tr-TR");
       if (!["evet", "hayır", "hayir", "yes", "no"].includes(normalized)) {
@@ -1348,9 +1369,12 @@ export function SalesPage({
   }
   async function deactivateQuoteField(field: SalesQuoteCustomFieldDefinition) {
     if (
-      !confirmLocalized(
-        `${field.label} yeni teklifler için devre dışı bırakılsın mı? Mevcut teklif değerleri korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Teklif alanı devre dışı bırakılsın mı?",
+        message: `${field.label} yeni teklifler için devre dışı bırakılır. Mevcut teklif değerleri korunur.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setQuoteFieldBusy(true);
@@ -1619,9 +1643,12 @@ export function SalesPage({
     if (
       !detail ||
       !quoteValueHistoryField ||
-      !confirmLocalized(
-        `${quoteValueHistoryField.label} alanının önceki değeri geri yüklensin mi? Bu işlem yeni bir geçmiş kaydı oluşturur.`,
-      )
+      !(await confirmDialog({
+        title: "Önceki değer geri yüklensin mi?",
+        message: `${quoteValueHistoryField.label} alanının önceki değeri geri yüklenir. Bu işlem yeni bir geçmiş kaydı oluşturur.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setQuoteFieldBusy(true);
@@ -1662,9 +1689,12 @@ export function SalesPage({
   }
   async function deleteQuote(item: SalesQuoteSummary) {
     if (
-      !confirmLocalized(
-        `${item.code} taslak teklifi ve özel alan geçmişi silinecek. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Taslak teklif silinsin mi?",
+        message: `${item.code} taslak teklifi ve özel alan geçmişi silinecek.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -1743,9 +1773,12 @@ export function SalesPage({
   }
   async function deleteOrder(item: SalesOrderSummary) {
     if (
-      !confirmLocalized(
-        `${item.code} siparişi ve özel alan geçmişi silinecek. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Sipariş silinsin mi?",
+        message: `${item.code} siparişi ve özel alan geçmişi silinecek.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);
@@ -2622,7 +2655,7 @@ export function SalesPage({
                       const tax = (subtotal - discount) * Number(line.vatPercent || 0) / 100;
                       return <tr key={index}>
                         <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
-                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
+                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
                         <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateDirectOrderLine(index, "unitCode", event.target.value)} required><option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>{(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}</select></td>
                         <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
@@ -5586,11 +5619,30 @@ function PurchasingPanel({
     }
   }
   async function editOrderCustomField(field: PurchaseOrderFieldDefinition) {
-    const label = promptLocalized("Alan etiketi", field.label)?.trim();
+    const label = (
+      await promptDialog({
+        title: "Alan etiketi düzenlensin mi?",
+        label: "Alan etiketi",
+        message: `${field.label} için yeni bir tanım sürümü kaydedilir.`,
+        defaultValue: field.label,
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
+        ? Number(
+            await promptDialog({
+              title: "En fazla karakter",
+              label: "En fazla karakter (1–500)",
+              defaultValue: String(field.maxLength),
+              required: true,
+              tone: "default",
+              confirmLabel: "Devam",
+            }),
+          )
         : 0;
     if (
       field.dataType === "Text" &&
@@ -5599,7 +5651,13 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? confirmLocalized("Bu alan zorunlu olsun mu?")
+        ? await confirmDialog({
+            title: "Bu alan zorunlu olsun mu?",
+            message: "Vazgeçerseniz alan isteğe bağlı olarak kaydedilir.",
+            tone: "default",
+            confirmLabel: "Zorunlu yap",
+            cancelLabel: "İsteğe bağlı",
+          })
         : undefined;
     setBusy(true);
     setError("");
@@ -5624,9 +5682,12 @@ function PurchasingPanel({
     field: PurchaseOrderFieldDefinition,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} alanı devre dışı bırakılsın mı? Eski sipariş değerleri saklanır.`,
-      )
+      !(await confirmDialog({
+        title: "Sipariş alanı devre dışı bırakılsın mı?",
+        message: `${field.label} alanı devre dışı bırakılır. Eski sipariş değerleri saklanır.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -5662,9 +5723,12 @@ function PurchasingPanel({
   ) {
     if (
       !orderFieldHistoryDefinition ||
-      !confirmLocalized(
-        `v${revision.version} alan tanımı yeni sürüm olarak geri yüklensin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Alan tanımı geri yüklensin mi?",
+        message: `v${revision.version} alan tanımı yeni sürüm olarak geri yüklenir.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setBusy(true);
@@ -5710,11 +5774,30 @@ function PurchasingPanel({
     }
   }
   async function editRequestCustomField(field: PurchaseRequestFieldDefinition) {
-    const label = promptLocalized("Alan etiketi", field.label)?.trim();
+    const label = (
+      await promptDialog({
+        title: "Alan etiketi düzenlensin mi?",
+        label: "Alan etiketi",
+        message: `${field.label} için yeni bir tanım sürümü kaydedilir.`,
+        defaultValue: field.label,
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
+        ? Number(
+            await promptDialog({
+              title: "En fazla karakter",
+              label: "En fazla karakter (1–500)",
+              defaultValue: String(field.maxLength),
+              required: true,
+              tone: "default",
+              confirmLabel: "Devam",
+            }),
+          )
         : 0;
     if (
       field.dataType === "Text" &&
@@ -5723,7 +5806,13 @@ function PurchasingPanel({
       return;
     const required =
       role === "TenantAdmin"
-        ? confirmLocalized("Bu alan zorunlu olsun mu?")
+        ? await confirmDialog({
+            title: "Bu alan zorunlu olsun mu?",
+            message: "Vazgeçerseniz alan isteğe bağlı olarak kaydedilir.",
+            tone: "default",
+            confirmLabel: "Zorunlu yap",
+            cancelLabel: "İsteğe bağlı",
+          })
         : undefined;
     setBusy(true);
     setError("");
@@ -5748,9 +5837,12 @@ function PurchasingPanel({
     field: PurchaseRequestFieldDefinition,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} alanı devre dışı bırakılsın mı? Eski taleplerdeki değerler saklanır.`,
-      )
+      !(await confirmDialog({
+        title: "Talep alanı devre dışı bırakılsın mı?",
+        message: `${field.label} alanı devre dışı bırakılır. Eski taleplerdeki değerler saklanır.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -5787,9 +5879,12 @@ function PurchasingPanel({
     revision: PurchaseRequestFieldMetadataRevision,
   ) {
     if (
-      !confirmLocalized(
-        `v${revision.version} alan tanımı yeni sürüm olarak geri yüklensin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Alan tanımı geri yüklensin mi?",
+        message: `v${revision.version} alan tanımı yeni sürüm olarak geri yüklenir.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setBusy(true);
@@ -5837,9 +5932,12 @@ function PurchasingPanel({
     if (
       !requestDetail ||
       !requestValueHistoryField ||
-      !confirmLocalized(
-        `'${requestValueHistoryField.label}' alanı için bu kayıt öncesindeki değer geri yüklensin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Önceki değer geri yüklensin mi?",
+        message: `'${requestValueHistoryField.label}' alanı için bu kayıt öncesindeki değer geri yüklenir.`,
+        tone: "warning",
+        confirmLabel: "Geri yükle",
+      }))
     )
       return;
     setBusy(true);
@@ -6137,11 +6235,30 @@ function PurchasingPanel({
   async function editSupplierQuoteCustomField(
     field: PurchaseSupplierQuoteFieldDefinition,
   ) {
-    const label = promptLocalized("Alan etiketi", field.label)?.trim();
+    const label = (
+      await promptDialog({
+        title: "Alan etiketi düzenlensin mi?",
+        label: "Alan etiketi",
+        message: `${field.label} için yeni bir tanım sürümü kaydedilir.`,
+        defaultValue: field.label,
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
+        ? Number(
+            await promptDialog({
+              title: "En fazla karakter",
+              label: "En fazla karakter (1–500)",
+              defaultValue: String(field.maxLength),
+              required: true,
+              tone: "default",
+              confirmLabel: "Devam",
+            }),
+          )
         : 0;
     if (
       field.dataType === "Text" &&
@@ -6150,7 +6267,13 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? confirmLocalized("Bu alan zorunlu olsun mu?")
+        ? await confirmDialog({
+            title: "Bu alan zorunlu olsun mu?",
+            message: "Vazgeçerseniz alan isteğe bağlı olarak kaydedilir.",
+            tone: "default",
+            confirmLabel: "Zorunlu yap",
+            cancelLabel: "İsteğe bağlı",
+          })
         : undefined;
     setBusy(true);
     setError("");
@@ -6179,9 +6302,12 @@ function PurchasingPanel({
     field: PurchaseSupplierQuoteFieldDefinition,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} alanı devre dışı bırakılsın mı? Eski teklifler korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Teklif alanı devre dışı bırakılsın mı?",
+        message: `${field.label} alanı devre dışı bırakılır. Eski teklifler korunur.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -6229,11 +6355,30 @@ function PurchasingPanel({
     }
   }
   async function editReceiptCustomField(field: PurchaseReceiptFieldDefinition) {
-    const label = promptLocalized("Alan etiketi", field.label)?.trim();
+    const label = (
+      await promptDialog({
+        title: "Alan etiketi düzenlensin mi?",
+        label: "Alan etiketi",
+        message: `${field.label} için yeni bir tanım sürümü kaydedilir.`,
+        defaultValue: field.label,
+        required: true,
+        tone: "default",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!label) return;
     const maxLength =
       field.dataType === "Text"
-        ? Number(promptLocalized("En fazla karakter", String(field.maxLength)))
+        ? Number(
+            await promptDialog({
+              title: "En fazla karakter",
+              label: "En fazla karakter (1–500)",
+              defaultValue: String(field.maxLength),
+              required: true,
+              tone: "default",
+              confirmLabel: "Devam",
+            }),
+          )
         : 0;
     if (
       field.dataType === "Text" &&
@@ -6242,7 +6387,13 @@ function PurchasingPanel({
       return;
     const isRequired =
       role === "TenantAdmin"
-        ? confirmLocalized("Yeni mal kabullerde bu alan zorunlu olsun mu?")
+        ? await confirmDialog({
+            title: "Yeni mal kabullerde bu alan zorunlu olsun mu?",
+            message: "Vazgeçerseniz alan isteğe bağlı olarak kaydedilir.",
+            tone: "default",
+            confirmLabel: "Zorunlu yap",
+            cancelLabel: "İsteğe bağlı",
+          })
         : undefined;
     setBusy(true);
     setError("");
@@ -6267,9 +6418,12 @@ function PurchasingPanel({
     field: PurchaseReceiptFieldDefinition,
   ) {
     if (
-      !confirmLocalized(
-        `${field.label} alanı devre dışı bırakılsın mı? Geçmiş mal kabuller korunur.`,
-      )
+      !(await confirmDialog({
+        title: "Mal kabul alanı devre dışı bırakılsın mı?",
+        message: `${field.label} alanı devre dışı bırakılır. Geçmiş mal kabuller korunur.`,
+        tone: "warning",
+        confirmLabel: "Devre dışı bırak",
+      }))
     )
       return;
     setBusy(true);
@@ -6311,6 +6465,90 @@ function PurchasingPanel({
     setError("");
     setNotice("");
     try {
+      // Tracking codes are asked line by line, in order, before the receipt is posted.
+      const receiptLines: {
+        orderLineNumber: number;
+        quantity: number;
+        unitCode: string;
+        tracking: {
+          trackingCode: string;
+          quantity: number;
+          expiryDate?: string | null;
+        }[];
+        storageLocationId: string | null;
+      }[] = [];
+      for (const x of detail.lines) {
+        const receivedQuantity = Number(quantities[x.lineNumber] || 0);
+        if (receivedQuantity <= 0) continue;
+        const unitCode =
+            enteredReceiptUnits[x.lineNumber] || x.unitCode,
+          factor =
+            unitCode === x.unitCode
+              ? 1
+              : (receiptUnits[x.lineNumber] || []).find(
+                  (u) => u.unitCode === unitCode,
+                )?.factorToBase || 1,
+          baseQuantity = receivedQuantity * factor,
+          tracked = stockItems.find(
+            (item) => item.id === x.stockItemId,
+          );
+        let tracking: {
+          trackingCode: string;
+          quantity: number;
+          expiryDate?: string | null;
+        }[] = [];
+        if (tracked?.trackingMode === "Serial") {
+          const input = await promptDialog({
+            title: "Seri numaralarını girin",
+            label: "Seri numaraları",
+            message: `${x.stockCode} için seri numaralarını virgül veya yeni satırla girin (${baseQuantity} temel birim).`,
+            multiline: true,
+            tone: "default",
+            confirmLabel: "Devam",
+          });
+          if (input === null)
+            throw new Error("Mal kabul iptal edildi.");
+          tracking = input
+            .split(/[\n,;]/)
+            .map((trackingCode) => ({
+              trackingCode: trackingCode.trim(),
+              quantity: 1,
+            }))
+            .filter((item) => item.trackingCode);
+        } else if (tracked?.trackingMode === "Lot") {
+          const trackingCode = await promptDialog({
+            title: "Lot kodunu girin",
+            label: `${x.stockCode} lot kodu`,
+            tone: "default",
+            confirmLabel: "Devam",
+          });
+          if (trackingCode === null)
+            throw new Error("Mal kabul iptal edildi.");
+          const expiryDate = await promptDialog({
+            title: "Son kullanma tarihini girin",
+            label: `${x.stockCode} son kullanma tarihi (YYYY-MM-DD)`,
+            placeholder: "YYYY-MM-DD",
+            tone: "default",
+            confirmLabel: "Devam",
+          });
+          if (expiryDate === null)
+            throw new Error("Mal kabul iptal edildi.");
+          tracking = [
+            {
+              trackingCode: trackingCode.trim(),
+              quantity: baseQuantity,
+              expiryDate,
+            },
+          ];
+        }
+        receiptLines.push({
+          orderLineNumber: x.lineNumber,
+          quantity: receivedQuantity,
+          unitCode,
+          tracking,
+          storageLocationId: receiptLocationIds[x.lineNumber] || null,
+        });
+      }
       await api<PurchaseReceipt>(
         `/api/purchasing/orders/${detail.id}/receipts`,
         token,
@@ -6321,68 +6559,7 @@ function PurchasingPanel({
             warehouseId,
             receiptDate,
             customFields: receiptFieldValues,
-            lines: detail.lines
-              .map((x) => {
-                const receivedQuantity = Number(quantities[x.lineNumber] || 0);
-                if (receivedQuantity <= 0) return null;
-                const unitCode =
-                    enteredReceiptUnits[x.lineNumber] || x.unitCode,
-                  factor =
-                    unitCode === x.unitCode
-                      ? 1
-                      : (receiptUnits[x.lineNumber] || []).find(
-                          (u) => u.unitCode === unitCode,
-                        )?.factorToBase || 1,
-                  baseQuantity = receivedQuantity * factor,
-                  tracked = stockItems.find(
-                    (item) => item.id === x.stockItemId,
-                  );
-                let tracking: {
-                  trackingCode: string;
-                  quantity: number;
-                  expiryDate?: string | null;
-                }[] = [];
-                if (tracked?.trackingMode === "Serial") {
-                  const input = promptLocalized(
-                    `${x.stockCode} için seri numaralarını virgül veya yeni satırla girin (${baseQuantity} temel birim).`,
-                  );
-                  if (input === null)
-                    throw new Error("Mal kabul iptal edildi.");
-                  tracking = input
-                    .split(/[\n,;]/)
-                    .map((trackingCode) => ({
-                      trackingCode: trackingCode.trim(),
-                      quantity: 1,
-                    }))
-                    .filter((item) => item.trackingCode);
-                } else if (tracked?.trackingMode === "Lot") {
-                  const trackingCode = promptLocalized(
-                    `${x.stockCode} lot kodu:`,
-                  );
-                  if (trackingCode === null)
-                    throw new Error("Mal kabul iptal edildi.");
-                  const expiryDate = promptLocalized(
-                    `${x.stockCode} son kullanma tarihi (YYYY-MM-DD):`,
-                  );
-                  if (expiryDate === null)
-                    throw new Error("Mal kabul iptal edildi.");
-                  tracking = [
-                    {
-                      trackingCode: trackingCode.trim(),
-                      quantity: baseQuantity,
-                      expiryDate,
-                    },
-                  ];
-                }
-                return {
-                  orderLineNumber: x.lineNumber,
-                  quantity: receivedQuantity,
-                  unitCode,
-                  tracking,
-                  storageLocationId: receiptLocationIds[x.lineNumber] || null,
-                };
-              })
-              .filter((x): x is NonNullable<typeof x> => x !== null),
+            lines: receiptLines,
           }),
         },
       );
@@ -6403,9 +6580,12 @@ function PurchasingPanel({
   async function voidReceipt(receipt: PurchaseReceipt) {
     if (
       !detail ||
-      !confirmLocalized(
-        `${receipt.code} mal kabulini iptal edilsin mi? İptal stok bakiyesini negatife düşürmemelidir.`,
-      )
+      !(await confirmDialog({
+        title: "Mal kabul iptal edilsin mi?",
+        message: `${receipt.code} mal kabulü iptal edilir. İptal stok bakiyesini negatife düşürmemelidir.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -9869,9 +10049,25 @@ function SalesOrderModal({
     }
   }
   async function releaseOrderReservation() {
-    const reason = promptLocalized("Rezervasyonu bırakma gerekçesi:")?.trim();
+    const reason = (
+      await promptDialog({
+        title: "Rezervasyonu bırakma gerekçesi",
+        label: "Gerekçe",
+        required: true,
+        multiline: true,
+        tone: "warning",
+        confirmLabel: "Devam",
+      })
+    )?.trim();
     if (!reason) return;
-    if (!confirmLocalized("Siparişin kalan stok rezervasyonu bırakılsın mı?"))
+    if (
+      !(await confirmDialog({
+        title: "Stok rezervasyonu bırakılsın mı?",
+        message: "Siparişin kalan stok rezervasyonu bırakılır.",
+        tone: "warning",
+        confirmLabel: "Rezervasyonu bırak",
+      }))
+    )
       return;
     setBusy(true);
     setError("");
@@ -9947,9 +10143,12 @@ function SalesOrderModal({
   }
   async function voidDelivery(item: SalesDeliverySummary) {
     if (
-      !confirmLocalized(
-        `${item.code} irsaliyesi iptal edilsin mi? Stok hareketi ters kaydedilecek.`,
-      )
+      !(await confirmDialog({
+        title: "İrsaliye iptal edilsin mi?",
+        message: `${item.code} irsaliyesi iptal edilir. Stok hareketi ters kaydedilecek.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -10536,9 +10735,12 @@ function SalesInvoiceTable({
   }
   async function voidInvoice(item: SalesInvoiceSummary) {
     if (
-      !confirmLocalized(
-        `${item.code} faturası iptal edilecek ve cari hareketi ters kayıtla kapatılacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Fatura iptal edilsin mi?",
+        message: `${item.code} faturası iptal edilecek ve cari hareketi ters kayıtla kapatılacak.`,
+        tone: "danger",
+        confirmLabel: "İptal et",
+      }))
     )
       return;
     setBusy(true);
@@ -10558,9 +10760,12 @@ function SalesInvoiceTable({
   }
   async function deleteInvoice(item: SalesInvoiceSummary) {
     if (
-      !confirmLocalized(
-        `${item.code} faturası silinecek. Yalnızca iptal edilmiş faturalar silinebilir. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({
+        title: "Fatura silinsin mi?",
+        message: `${item.code} faturası silinecek. Yalnızca iptal edilmiş faturalar silinebilir.`,
+        tone: "danger",
+        confirmLabel: "Sil",
+      }))
     )
       return;
     setBusy(true);

@@ -36,7 +36,7 @@ import "./manufacturing-record-forms.css";
 import "./manufacturing/manufacturing-list-v2.css";
 
 export type { ManufacturingPageKey } from "./manufacturing/types";
-import { confirmLocalized } from "./locale";
+import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
 
 type Item = {
@@ -1232,9 +1232,12 @@ export default function ManufacturingPage({
   async function deleteBom(bom: Bom) {
     if (
       bom.orderCount > 0 ||
-      !confirmLocalized(
-        `${bom.code} · ${bom.name} reçetesini kalıcı olarak silmek istiyor musunuz? Bu işlem geri alınamaz.`,
-      )
+      !(await confirmDialog({
+        title: "Ürün reçetesi kalıcı olarak silinsin mi?",
+        message: `${bom.code} · ${bom.name} reçetesi kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+        tone: "danger",
+        confirmLabel: "Kalıcı olarak sil",
+      }))
     )
       return;
     const captured = captureMutationEpoch();
