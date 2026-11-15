@@ -1,8 +1,19 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 
-/** Compact, unclipped action menu for dense ERP grids. */
+function menuItems(menu: HTMLElement | null) {
+  return Array.from(
+    menu?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [],
+  );
+}
+
+/**
+ * Compact, unclipped action menu for dense ERP grids. The menu is portalled to the body so the
+ * grid's overflow never clips it. Items are `<button role="menuitem" className="sales-row-menu-item">`;
+ * `<div role="separator" className="sales-row-menu-separator" />` and `.sales-row-menu-note` may sit
+ * between them. Arrow keys / Home / End move the focus, Escape closes and returns it to the trigger.
+ */
 export default function SalesRowActionsMenu({
   label,
   children,
@@ -32,7 +43,9 @@ export default function SalesRowActionsMenu({
       });
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
     };
     const closeOutside = (event: PointerEvent) => {
       const target = event.target as Node;
@@ -40,6 +53,7 @@ export default function SalesRowActionsMenu({
         setOpen(false);
     };
     updatePosition();
+    menuItems(menuRef.current)[0]?.focus({ preventScroll: true });
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("keydown", closeOnEscape);
@@ -51,6 +65,24 @@ export default function SalesRowActionsMenu({
       document.removeEventListener("pointerdown", closeOutside);
     };
   }, [open]);
+
+  function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const items = menuItems(menuRef.current);
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    let next = -1;
+    if (event.key === "ArrowDown") next = (current + 1) % items.length;
+    else if (event.key === "ArrowUp") next = (current - 1 + items.length) % items.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else if (event.key === "Tab") {
+      setOpen(false);
+      return;
+    }
+    if (next < 0) return;
+    event.preventDefault();
+    items[next].focus();
+  }
 
   return (
     <span className="sales-row-actions-anchor">
@@ -65,6 +97,12 @@ export default function SalesRowActionsMenu({
           event.stopPropagation();
           setOpen((value) => !value);
         }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         <MoreHorizontal size={18} />
       </button>
@@ -73,10 +111,15 @@ export default function SalesRowActionsMenu({
           ref={menuRef}
           className="sales-row-actions-menu"
           role="menu"
+          aria-label={`${label} işlemleri`}
           style={{ top: position.top, left: position.left }}
+          onKeyDown={moveFocus}
           onClick={(event) => {
             event.stopPropagation();
-            if ((event.target as HTMLElement).closest("button:not(:disabled)")) setOpen(false);
+            if ((event.target as HTMLElement).closest("button:not(:disabled)")) {
+              setOpen(false);
+              triggerRef.current?.focus({ preventScroll: true });
+            }
           }}
         >
           {children}

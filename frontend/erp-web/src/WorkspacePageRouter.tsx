@@ -332,6 +332,8 @@ export function WorkspacePageRouter({
     return <SalesDeliveriesScreenPage {...salesPageProps} createDeliveryPage />;
   if (page === "sales-purchasing")
     return <SupplierOrdersPage {...salesPageProps} />;
+  if (page === "sales-purchase-order-create")
+    return <SupplierOrdersPage {...salesPageProps} createPurchaseOrderPage />;
   if (page === "sales-purchase-invoices")
     return <PurchaseInvoicesPage {...salesPageProps} />;
   if (page === "sales-purchase-receipts")
@@ -410,7 +412,13 @@ export function WorkspacePageRouter({
       />
     );
   if (page === "finance-exposure")
-    return <FxExposurePage token={token} role={tenant.role} />;
+    return (
+      <FxExposurePage
+        token={token}
+        role={tenant.role}
+        onNavigate={onNavigate}
+      />
+    );
   if (page === "finance-maturities")
     return <MaturityTrackingPage token={token} role={tenant.role} />;
   if (page === "finance-credit-facilities")

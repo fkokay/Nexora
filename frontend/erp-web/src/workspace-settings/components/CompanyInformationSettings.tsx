@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Building2, Save } from "lucide-react";
 import { authenticatedFetch } from "../../authApi";
+import { problemDetail } from "../../erpApi";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type CompanyProfile = {
@@ -47,7 +48,7 @@ export function CompanyInformationSettings({
         const payload = await response.json().catch(() => null) as { error?: string; title?: string } | null;
         throw new Error(response.status === 403
           ? (english ? "You do not have permission to view company information." : "Şirket bilgilerini görüntüleme yetkiniz yok.")
-          : payload?.error || payload?.title || `${english ? "Request failed" : "İstek başarısız"} (${response.status}).`);
+          : payload?.error || problemDetail(payload) || `${english ? "Request failed" : "İstek başarısız"} (${response.status}).`);
       }
       return response.json() as Promise<CompanyProfile>;
     }).then((row) => {
@@ -79,7 +80,7 @@ export function CompanyInformationSettings({
         const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : undefined;
         throw new Error(response.status === 403
           ? (english ? "You do not have permission to update company information." : "Şirket bilgilerini güncelleme yetkiniz yok.")
-          : validation || payload?.error || payload?.title || `${english ? "Save failed" : "Kaydetme başarısız"} (${response.status}).`);
+          : validation || payload?.error || problemDetail(payload) || `${english ? "Save failed" : "Kaydetme başarısız"} (${response.status}).`);
       }
       const row = await response.json() as CompanyProfile;
       setProfile(row);

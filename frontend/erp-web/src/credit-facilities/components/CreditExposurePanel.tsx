@@ -64,21 +64,11 @@ export function CreditExposurePanel({
     }
   }
 
+  if (exposure.currencies.length === 0)
+    return <p className="fh-empty">Maruziyet özeti için kayıtlı kredi yok.</p>;
+  // Rendered inside the collapsible "Para birimi bazında maruziyet" section; the page shows the note.
   return (
-    exposure.currencies.length > 0 && (
-      <section
-        className="panel credit-records-panel credit-exposure"
-        aria-labelledby="credit-exposure-title"
-      >
-        <div className="credit-records-heading">
-          <div>
-            <h2 id="credit-exposure-title">Kredi ve teminat maruziyeti</h2>
-            <p>
-              Para birimleri ayrı gösterilir; kur çevrimi yapılmaz. Çağrılmış
-              teminat nakit hareketi sayılmaz.
-            </p>
-          </div>
-        </div>
+      <div className="credit-exposure">
         <div
           className="credit-table-wrap"
           role="region"
@@ -146,7 +136,6 @@ export function CreditExposurePanel({
             </tbody>
           </AdvancedDataGrid>
         </div>
-      </section>
-    )
+      </div>
   );
 }

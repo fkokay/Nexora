@@ -1,0 +1,327 @@
+/*
+ * Ledger reports on the list-v2 structure: Mizan (finance-trial-balance), Bilanço
+ * (finance-balance-sheet) and the muavin side view shared with the chart of accounts.
+ * Grouped tables are plain tables (AdvancedDataGrid drops colSpan rows).
+ * Class names avoid "-panel/-card/-badge/-chip/-dialog": global-components.css restyles those.
+ */
+#root .general-ledger-panel.list-v2 {
+  --glrp-line: #e3e9f0;
+  --glrp-line-soft: #eef2f6;
+  --glrp-band: #f6f8fb;
+  --glrp-ink: #172b45;
+  --glrp-muted: #687b92;
+  --glrp-ok: #17643f;
+  --glrp-bad: #b42318;
+  --glrp-warn: #8a4b08;
+  --glrp-warn-bg: #fff6e8;
+  --glrp-warn-line: #f1c27d;
+  --glrp-accent: #1769aa;
+  --glrp-select: #eaf2fb;
+}
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
+  --glrp-line: var(--erp-border, #2c3648);
+  --glrp-line-soft: #263043;
+  --glrp-band: #1a2333;
+  --glrp-ink: var(--erp-text, #e6ebf2);
+  --glrp-muted: var(--erp-text-muted, #9aa8bb);
+  --glrp-ok: #6fd3a1;
+  --glrp-bad: #f97066;
+  --glrp-warn: #f5c27a;
+  --glrp-warn-bg: #33261a;
+  --glrp-warn-line: #7a5320;
+  --glrp-accent: #8ab8f5;
+  --glrp-select: #1f3350;
+}
+
+/* TDHP / IFRS segmented control */
+#root .general-ledger-panel.list-v2 .gl-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--glrp-line);
+  border-radius: 9px;
+  background: var(--glrp-band);
+}
+#root .app-shell .general-ledger-panel.list-v2 .gl-seg button {
+  min-height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--glrp-muted);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: none;
+}
+#root .app-shell .general-ledger-panel.list-v2 .gl-seg button.is-active {
+  background: var(--lv2-surface, #fff);
+  color: var(--glrp-ink);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 14%);
+}
+#root .general-ledger-panel.list-v2 .gl-seg button:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: 1px; }
+
+#root .general-ledger-panel.list-v2 .glrp-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--glrp-ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 .glrp-toggle input { width: 15px; height: 15px; margin: 0; }
+
+/* Summary tiles */
+#root .general-ledger-panel.list-v2 .glrp-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 12px;
+}
+#root .general-ledger-panel.list-v2 .glrp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--glrp-line);
+  border-radius: 8px;
+  background: var(--lv2-surface, #fff);
+}
+#root .general-ledger-panel.list-v2 .glrp-tile-label { color: var(--glrp-muted); font-size: 12px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-tile-value {
+  color: var(--glrp-ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .general-ledger-panel.list-v2 .glrp-tile.is-success .glrp-tile-value { color: var(--glrp-ok); }
+#root .general-ledger-panel.list-v2 .glrp-tile.is-danger .glrp-tile-value { color: var(--glrp-bad); }
+#root .general-ledger-panel.list-v2 .glrp-tile.is-warning .glrp-tile-value { color: var(--glrp-warn); }
+#root .general-ledger-panel.list-v2 .glrp-tile-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--glrp-muted);
+  font-size: 12.5px;
+}
+#root .general-ledger-panel.list-v2 .glrp-tile-hint.is-warning { color: var(--glrp-warn); font-weight: 600; }
+
+#root .general-ledger-panel.list-v2 .glrp-subbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+#root .general-ledger-panel.list-v2 .glrp-loading { color: var(--glrp-muted); font-size: 12.5px; }
+#root .general-ledger-panel.list-v2 :is(.glrp-check, .glrp-warning) {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--glrp-line);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+#root .general-ledger-panel.list-v2 :is(.glrp-check, .glrp-warning) svg { flex: 0 0 auto; margin-top: 2px; }
+#root .general-ledger-panel.list-v2 .glrp-check.is-ok { color: var(--glrp-ok); }
+#root .general-ledger-panel.list-v2 .glrp-check.is-bad { border-color: color-mix(in srgb, var(--glrp-bad) 40%, transparent); color: var(--glrp-bad); }
+#root .general-ledger-panel.list-v2 .glrp-warning { border-color: var(--glrp-warn-line); background: var(--glrp-warn-bg); color: var(--glrp-warn); }
+#root .general-ledger-panel.list-v2 .glrp-layout > .glrp-table-wrap + * { margin-top: 0; }
+#root .general-ledger-panel.list-v2 .glrp-layout + .glrp-check { margin-top: 12px; }
+#root .general-ledger-panel.list-v2 .glrp-note { margin: 12px 0 0; color: var(--glrp-muted); font-size: 12px; }
+#root .general-ledger-panel.list-v2 .glrp-empty { padding: 26px 0; color: var(--glrp-muted); font-size: 13px; text-align: center; }
+
+/* Mizan table + muavin side view */
+#root .general-ledger-panel.list-v2 .glrp-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+#root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr) 360px; }
+#root .general-ledger-panel.list-v2 .glrp-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--glrp-line);
+  border-radius: 10px;
+  background: var(--lv2-surface, #fff);
+}
+#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+#root .general-ledger-panel.list-v2 .glrp-table { min-width: 760px; }
+#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) :is(th, td) {
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--glrp-line-soft);
+  background: transparent;
+  color: var(--glrp-ink);
+  text-align: right;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) :is(th, td):first-child { text-align: left; }
+#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--glrp-band);
+  color: var(--glrp-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+#root .general-ledger-panel.list-v2 .glrp-group-row th {
+  padding-top: 10px;
+  background: var(--glrp-band);
+  color: var(--glrp-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: left;
+}
+#root .general-ledger-panel.list-v2 .glrp-subtotal-row :is(th, td) { color: var(--glrp-muted); font-size: 12.5px; font-weight: 700; }
+#root .general-ledger-panel.list-v2 .glrp-subtotal-row th { font-weight: 600; }
+#root .general-ledger-panel.list-v2 :is(.glrp-total-row, .glbs-total-row) :is(th, td) {
+  border-top: 2px solid var(--glrp-line);
+  border-bottom: 0;
+  background: var(--glrp-band);
+  font-weight: 700;
+}
+#root .general-ledger-panel.list-v2 .glrp-account { max-width: 360px; }
+#root .general-ledger-panel.list-v2 .glrp-account > b { margin-right: 8px; }
+#root .general-ledger-panel.list-v2 .glrp-account > span:not(.glrp-reverse) {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--glrp-ink);
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+#root .general-ledger-panel.list-v2 .glrp-reverse { display: inline-flex; margin-left: 6px; color: var(--glrp-warn); vertical-align: -1px; }
+#root .general-ledger-panel.list-v2 .glrp-row.is-inactive :is(th, td) { color: var(--glrp-muted); }
+#root .general-ledger-panel.list-v2 .glrp-row.is-clickable { cursor: pointer; }
+#root .general-ledger-panel.list-v2 .glrp-row.is-clickable:hover > td { background: var(--glrp-band); }
+#root .general-ledger-panel.list-v2 .glrp-row:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: -2px; }
+#root .general-ledger-panel.list-v2 .glrp-row.is-selected > td { background: var(--glrp-select); }
+#root .general-ledger-panel.list-v2 .glrp-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--glrp-accent); }
+
+#root .general-ledger-panel.list-v2 .glmv {
+  position: sticky;
+  top: 12px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid var(--glrp-line);
+  border-radius: 12px;
+  background: var(--lv2-surface, #fff);
+}
+#root .app-shell .general-ledger-panel.list-v2 .glmv h2 { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px !important; }
+#root .general-ledger-panel.list-v2 .glmv-meta { display: block; margin-top: 3px; color: var(--glrp-muted); font-size: 12px; }
+#root .general-ledger-panel.list-v2 .glmv-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 12px 0 0;
+}
+#root .general-ledger-panel.list-v2 .glmv-summary dt { color: var(--glrp-muted); font-size: 11.5px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glmv-summary dd { margin: 1px 0 0; color: var(--glrp-ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#root .general-ledger-panel.list-v2 .glmv-lines { width: 100%; margin: 12px 0 0; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+#root .general-ledger-panel.list-v2 .glmv-lines :is(th, td) {
+  padding: 6px 3px;
+  border: 0;
+  border-bottom: 1px solid var(--glrp-line-soft);
+  background: transparent;
+  color: var(--glrp-ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: top;
+}
+#root .general-ledger-panel.list-v2 .glmv-lines thead th { color: var(--glrp-muted); font-size: 11.5px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glmv-lines :is(th, td):first-child { width: 40%; text-align: left; }
+#root .general-ledger-panel.list-v2 .glmv-lines td:first-child small {
+  display: block;
+  overflow: hidden;
+  color: var(--glrp-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .general-ledger-panel.list-v2 .glmv-members { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
+#root .app-shell .general-ledger-panel.list-v2 .glmv-members button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--glrp-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--glrp-ink);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+#root .app-shell .general-ledger-panel.list-v2 .glmv-members button:hover { border-color: var(--glrp-accent); }
+#root .general-ledger-panel.list-v2 .glmv-members span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .general-ledger-panel.list-v2 .glmv-members small { color: var(--glrp-muted); font-variant-numeric: tabular-nums; }
+#root .app-shell .general-ledger-panel.list-v2 .glmv-more { width: 100%; min-height: 34px; margin: 12px 0 0; justify-content: center; }
+#root .general-ledger-panel.list-v2 .glmv-note { margin: 10px 0 0; color: var(--glrp-muted); font-size: 11.5px; }
+#root .general-ledger-panel.list-v2 .glmv-empty { margin: 0; padding: 18px 0; color: var(--glrp-muted); font-size: 12.5px; text-align: center; }
+
+/* Bilanço: Aktif | Pasif */
+#root .general-ledger-panel.list-v2 .glbs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+#root .general-ledger-panel.list-v2 .glbs-side {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--glrp-line);
+  border-radius: 10px;
+  background: var(--lv2-surface, #fff);
+}
+#root .general-ledger-panel.list-v2 .glbs-table thead th:first-child { color: var(--glrp-ink); font-size: 13px; font-weight: 700; }
+#root .general-ledger-panel.list-v2 .glbs-section-row :is(th, td) { background: var(--glrp-band); font-weight: 700; }
+#root .app-shell .general-ledger-panel.list-v2 .glbs-section-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--glrp-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+#root .general-ledger-panel.list-v2 .glbs-section-row button:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: 2px; }
+#root .general-ledger-panel.list-v2 .glbs-group-row :is(th, td) { font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glbs-group-row th { padding-left: 26px; }
+#root .general-ledger-panel.list-v2 .glbs-line th { max-width: 0; overflow: hidden; font-weight: 400; text-overflow: ellipsis; width: 100%; }
+#root .general-ledger-panel.list-v2 .glbs-line th b { margin-right: 8px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glbs-line :is(th, td) { color: var(--glrp-ink); }
+#root .general-ledger-panel.list-v2 .glbs-line td { color: var(--glrp-ink); }
+#root .general-ledger-panel.list-v2 .glbs-line.is-result th { font-style: italic; }
+
+@media (max-width: 1099px) {
+  #root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
+  #root .general-ledger-panel.list-v2 .glmv { position: static; max-height: none; }
+  #root .general-ledger-panel.list-v2 .glbs-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  #root .general-ledger-panel.list-v2 .glrp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,0 +1,453 @@
+/*
+ * Finance hub pages redesigned after the module tests: Nakit akışı (CashFlowPage), Kur ve
+ * değerleme (FxSettingsPage) and Muhasebe özeti (LedgerOverviewPage). They share a list-v2
+ * title row, underline tabs (.dd-tabs from document-detail.css), summary tiles, a right-hand
+ * side column and a warning strip. Selectors start with #root because the shared .app-shell
+ * rules use !important. Class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog":
+ * global-components.css forces a background and radius on every class containing them.
+ */
+#root .fh-page {
+  --fh-ink: var(--erp-color-text, #0a192f);
+  --fh-muted: var(--erp-color-muted, #526174);
+  --fh-line: var(--erp-color-border, #d8e0e8);
+  --fh-line-soft: #e8edf3;
+  --fh-paper: var(--erp-color-surface, #fff);
+  --fh-band: var(--erp-color-surface-muted, #f8f9fa);
+  --fh-link: var(--erp-link, #315f8b);
+  --fh-warn: #8a4b08;
+  --fh-warn-bg: #fff6e8;
+  --fh-warn-line: #f1c27d;
+  --fh-danger: var(--erp-color-danger, #b91c1c);
+  --fh-success: #17643c;
+  --fh-success-bg: #e8f7ef;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+html[data-theme="dark"] #root .fh-page {
+  --fh-line-soft: #283043;
+  --fh-link: #93c5fd;
+  --fh-warn: #f5c27a;
+  --fh-warn-bg: #33261a;
+  --fh-warn-line: #7a5320;
+  --fh-success: #9bdcb6;
+  --fh-success-bg: #173126;
+}
+
+/* Title row: optional eyebrow, h1 with a muted meta, actions on the right. */
+#root .fh-page .fh-eyebrow {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+#root .fh-page .fh-head .list-v2-title { flex-wrap: wrap; }
+#root .fh-page .fh-head-main { display: flex; flex-direction: column; min-width: 0; }
+#root .fh-page .fh-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fh-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+#root .fh-page .fh-meta b { color: var(--fh-ink); font-weight: 700; }
+#root .fh-page .fh-meta svg { flex: none; }
+#root .fh-page .fh-base-form { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+#root .app-shell .fh-page .fh-base-form input {
+  width: 64px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#root .app-shell .fh-page .fh-base-form button { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
+#root .fh-page .fh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0;
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  cursor: help;
+}
+#root .app-shell .fh-page .heading-actions :is(.primary, .secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+/* Period presets next to the title (chips + optional custom dates). */
+#root .fh-page .fh-periods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#root .fh-page .fh-periods label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+#root .app-shell .fh-page .fh-periods input[type="date"] {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+}
+
+/* Tabs: .dd-tabs supplies the underline style; the amber count marks open work. */
+#root .fh-page .dd-tabs { margin: 0; }
+#root .fh-page .fh-tab-warn {
+  padding: 1px 7px;
+  border: 1px solid var(--fh-warn-line);
+  border-radius: 999px;
+  background: var(--fh-warn-bg);
+  color: var(--fh-warn);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+#root .fh-page .fh-tabbody { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* Summary tiles */
+#root .fh-page .fh-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+#root .fh-page .fh-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--fh-line);
+  border-radius: 8px;
+  background: var(--fh-paper);
+}
+#root .fh-page .fh-tile-label { color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .fh-page .fh-tile-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  color: var(--fh-ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .fh-page .fh-tile-value small { color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .fh-page .fh-tile-hint { color: var(--fh-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+#root .fh-page .fh-tile.is-muted .fh-tile-value { color: var(--fh-muted); font-size: 15px; font-weight: 600; }
+#root .fh-page .fh-tile.is-warning { border-color: var(--fh-warn-line); background: var(--fh-warn-bg); }
+#root .fh-page .fh-tile.is-warning .fh-tile-value { color: var(--fh-warn); }
+#root .fh-page .fh-tile .is-danger { color: var(--fh-danger); }
+#root .fh-page .fh-tile .is-success { color: var(--fh-success); }
+#root .fh-page .fh-tile-error { color: var(--fh-danger); font-size: 12.5px; font-weight: 600; }
+#root .fh-page .fh-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+#root .fh-page .fh-state.is-success { background: var(--fh-success-bg); color: var(--fh-success); }
+#root .fh-page .fh-state.is-warning { border: 1px solid var(--fh-warn-line); background: var(--fh-warn-bg); color: var(--fh-warn); }
+
+/* Plain bordered section */
+#root .fh-page .fh-box {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--fh-line);
+  border-radius: 8px;
+  background: var(--fh-paper);
+}
+#root .fh-page .fh-box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin: 0 0 10px;
+}
+#root .app-shell .fh-page .fh-box-head :is(h2, h3) {
+  margin: 0;
+  color: var(--fh-ink) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 1.3;
+}
+#root .fh-page .fh-box-head small { color: var(--fh-muted); font-size: 12.5px; }
+#root .fh-page .fh-muted { color: var(--fh-muted); }
+#root .fh-page .fh-empty { margin: 0; padding: 16px 4px; color: var(--fh-muted); font-size: 13px; text-align: center; }
+#root .fh-page .fh-note { margin: 0; color: var(--fh-muted); font-size: 12.5px; line-height: 1.45; }
+#root .fh-page .fh-note.is-oneline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+
+/* Link-looking button */
+#root .app-shell .fh-page .fh-link {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: var(--fh-link) !important;
+  font: inherit !important;
+  font-weight: 600 !important;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+#root .app-shell .fh-page .fh-link:hover,
+#root .app-shell .fh-page .fh-link:focus-visible { text-decoration-color: currentColor; }
+
+/* Warning strip with an action */
+#root .fh-page .fh-warn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--fh-warn-line);
+  border-radius: 8px;
+  background: var(--fh-warn-bg);
+  color: var(--fh-warn);
+}
+#root .fh-page .fh-warn > svg { flex: none; }
+#root .fh-page .fh-warn-text { display: flex; flex: 1 1 260px; flex-direction: column; gap: 2px; min-width: 0; }
+#root .fh-page .fh-warn-text b { font-size: 13.5px; }
+#root .fh-page .fh-warn-text small { color: var(--fh-muted); font-size: 12px; }
+#root .fh-page .fh-warn.is-ok { border-color: var(--fh-line); background: var(--fh-success-bg); color: var(--fh-success); }
+
+/* Main column + side column (side stacks under 1100px). */
+#root .fh-page .fh-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 14px;
+}
+#root .fh-page .fh-layout.is-narrow-side { grid-template-columns: minmax(0, 1fr) 260px; }
+#root .fh-page .fh-layout > * { min-width: 0; }
+#root .fh-page .fh-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (max-width: 1099px) {
+  #root .fh-page .fh-layout,
+  #root .fh-page .fh-layout.is-narrow-side { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 899px) {
+  #root .fh-page .fh-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 519px) {
+  #root .fh-page .fh-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Compact side forms */
+#root .fh-page .fh-form { display: grid; gap: 10px; margin: 0; }
+#root .fh-page .fh-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#root .fh-page .fh-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: var(--fh-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+#root .app-shell .fh-page .fh-form :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+}
+#root .app-shell .fh-page .fh-form .fh-mono { font-weight: 700; text-transform: uppercase; }
+#root .app-shell .fh-page .fh-form .fh-num { text-align: right; font-variant-numeric: tabular-nums; }
+#root .app-shell .fh-page .fh-form button { width: 100%; min-height: 36px; justify-content: center; }
+#root .fh-page .fh-form .fh-note { font-size: 11.5px; }
+
+/* Simple tables */
+#root .fh-page .fh-table-wrap { overflow-x: auto; }
+#root .app-shell .fh-page table.fh-table { width: 100%; border-collapse: collapse !important; }
+#root .app-shell .fh-page table.fh-table :is(th, td) {
+  height: auto !important;
+  padding: 8px 10px !important;
+  border-bottom: 1px solid var(--fh-line-soft);
+  color: var(--fh-ink);
+  font-size: 13px;
+  text-align: left;
+  vertical-align: middle;
+}
+#root .app-shell .fh-page table.fh-table thead th {
+  background: transparent !important;
+  border-bottom: 1px solid var(--fh-line);
+  color: var(--fh-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#root .app-shell .fh-page table.fh-table tbody tr:last-child td { border-bottom: 0; }
+#root .app-shell .fh-page table.fh-table :is(th, td).fh-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .app-shell .fh-page table.fh-table small { display: block; color: var(--fh-muted) !important; font-size: 12px !important; }
+#root .app-shell .fh-page table.fh-table tr.is-total td { font-weight: 700; background: var(--fh-band); }
+#root .fh-page .fh-group-row th {
+  padding-top: 14px !important;
+  color: var(--fh-ink) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+#root .app-shell .fh-page table.fh-table .fh-group-row th small { display: inline !important; margin-left: 6px; font-weight: 500; }
+#root .fh-page .fh-missing-mark { color: var(--fh-warn); font-size: 12px; font-weight: 700; white-space: nowrap; }
+#root .app-shell .fh-page table.fh-table select {
+  min-width: 220px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-ink);
+  font-size: 13px;
+}
+
+/* Stacked net-flow bar (Nakit akışı · Özet) */
+#root .fh-page .fh-flowbar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--fh-line-soft);
+}
+#root .fh-page .fh-flowbar > i { display: block; height: 100%; min-width: 2px; }
+#root .fh-page .fh-flowbar > i + i { border-left: 2px solid var(--fh-paper); }
+#root .fh-page .fh-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#root .fh-page .fh-legend li { display: inline-flex; align-items: center; gap: 6px; color: var(--fh-muted); font-size: 12.5px; }
+#root .fh-page .fh-legend li > i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+#root .fh-page .fh-legend li b { color: var(--fh-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+#root .fh-page .fh-legend li.is-negative b { color: var(--fh-danger); }
+#root .fh-page .fh-c1 { background: #2f855a; }
+#root .fh-page .fh-c2 { background: #3182ce; }
+#root .fh-page .fh-c3 { background: #805ad5; }
+#root .fh-page .fh-c4 { background: #a0aec0; }
+#root .fh-page .fh-c5 { background: #dd6b20; }
+#root .fh-page .fh-c6 { background: #d69e2e; }
+
+/* Recent vouchers and checklist (Muhasebe özeti) */
+#root .fh-page .fh-check { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+#root .fh-page .fh-check li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--fh-line-soft);
+  font-size: 13px;
+}
+#root .fh-page .fh-check li:last-child { border-bottom: 0; }
+#root .fh-page .fh-check li > svg.is-ok { color: var(--fh-success); }
+#root .fh-page .fh-check li > svg.is-open { color: var(--fh-warn); }
+#root .fh-page .fh-check li > svg.is-muted { color: var(--fh-muted); }
+#root .fh-page .fh-check-text { display: flex; flex-direction: column; min-width: 0; }
+#root .fh-page .fh-check-text b { color: var(--fh-ink); font-weight: 600; }
+#root .fh-page .fh-check-text small { color: var(--fh-muted); font-size: 12px; }
+#root .fh-page .fh-box-foot { margin: 10px 0 0; font-size: 13px; }
+
+/* Invitation shown before the first regulation profile exists */
+#root .fh-page .fh-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 28px 24px;
+  border: 1px dashed var(--fh-line);
+  border-radius: 8px;
+  background: var(--fh-paper);
+}
+#root .app-shell .fh-page .fh-invite h2 { margin: 0; color: var(--fh-ink) !important; font-size: 17px !important; font-weight: 700 !important; }
+#root .fh-page .fh-invite p { margin: 0; color: var(--fh-muted); font-size: 13px; max-width: 620px; }
+
+/* The legacy panels embedded in a tab lose their outer card spacing. */
+#root .fh-page .fh-tabbody > .panel { margin: 0 !important; }
+
+/* Kur ve değerleme */
+#root .app-shell .fh-page td.fh-rate-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .fh-page .fh-reval-list { margin-top: 12px; }
+#root .fh-page .fh-reval-detail { margin-top: 14px; }
+/* Döviz pozisyonu: gain/loss colouring, per-currency boxes, calm empty state */
+#root .app-shell .fh-page .fh-pos { color: var(--fh-success) !important; }
+#root .app-shell .fh-page .fh-neg { color: var(--fh-danger) !important; }
+#root .fh-page .fh-ccys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 899px) {
+  #root .fh-page .fh-ccys { grid-template-columns: minmax(0, 1fr); }
+}
+#root .fh-page .fh-ccy { display: flex; flex-direction: column; gap: 10px; }
+#root .fh-page .fh-ccy-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12.5px;
+}
+#root .fh-page .fh-ccy-head b { color: var(--fh-ink); font-variant-numeric: tabular-nums; }
+#root .fh-page .fh-ccy-head .fh-ccy-code { font-size: 17px; letter-spacing: 0.02em; }
+#root .fh-page .fh-ccy-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+#root .fh-page .fh-ccy-rows > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .fh-page .fh-ccy-rows dt { color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .fh-page .fh-ccy-rows dd {
+  margin: 0;
+  color: var(--fh-ink);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .fh-page .fh-ccy-rows .is-total dd { font-weight: 700; }
+#root .fh-page .fh-ccy-rows dd small { color: var(--fh-muted); font-size: 11.5px; font-weight: 600; }
+#root .fh-page .fh-ccy-sens {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--fh-line-soft);
+  color: var(--fh-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+#root .fh-page .fh-calm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 16px;
+  text-align: center;
+}
+#root .fh-page .fh-calm b { color: var(--fh-ink); font-size: 15px; }
+#root .fh-page .fh-calm .fh-muted { font-size: 13px; }
+
+/* The legacy finance-workbench-page root (kept for the embedded panels) spaces its heading itself. */
+#root .fh-page > .page-heading { margin: 0; }

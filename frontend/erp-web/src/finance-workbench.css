@@ -1216,12 +1216,7 @@ html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-transfer
 html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-transfer-filter-heading p,
 html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-transfer-filter-card label { color: var(--erp-text-muted); }
 html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-transfer-filter-card input { border-color: var(--erp-border); background: var(--erp-surface-soft); color: var(--erp-text); }
-.ledger-transfer-sources .advanced-grid-row-select { gap: 0; margin-right: 0; }
-.ledger-transfer-sources .advanced-grid-row-select > span { display: none; }
-.ledger-transfer-sources .advanced-grid-master { width: 100%; }
-.ledger-transfer-sources .customer-table th:first-child,
-.ledger-transfer-sources .customer-table td:first-child { padding-inline: 10px; }
-.ledger-transfer-sources .customer-table td:nth-child(4) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Transfer sources (Muhasebeye aktarım): see general-ledger/general-ledger-list-v2.css. */
 .general-ledger-panel.finance-workbench .ledger-account-code-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .general-ledger-panel.finance-workbench .ledger-account-search { flex: 0 1 270px; min-width: 190px; }
 .general-ledger-panel.finance-workbench .ledger-account-search input { box-sizing: border-box; width: 100%; height: 40px; }

@@ -17,6 +17,7 @@ import type {
   Trigger,
   Workflow,
 } from "./business-rules/types";
+import { problemDetail } from "./erpApi";
 
 const defaultTrigger = "purchase-request.submitted";
 const operators: Record<string, [string, string][]> = {
@@ -95,7 +96,7 @@ export default function BusinessRulesPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             `İstek başarısız (${response.status})`,
         );
       }

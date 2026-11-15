@@ -14,6 +14,7 @@ import { authenticatedFetch } from "./authApi";
 import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import { LayoutTemplate, ShieldCheck } from "lucide-react";
 import "./built-in-screen-views.css";
+import { problemDetail } from "./erpApi";
 
 async function api<T>(
   token: string,
@@ -34,7 +35,7 @@ async function api<T>(
       title?: string;
     } | null;
     throw new Error(
-      body?.error || body?.title || `İstek başarısız (${response.status}).`,
+      body?.error || problemDetail(body) || `İstek başarısız (${response.status}).`,
     );
   }
   return response.status === 204

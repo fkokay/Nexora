@@ -31,6 +31,7 @@ import MasterDataImportDialog from "./MasterDataImportDialog";
 import { CustomerDirectoryHeader } from "./customers/components/CustomerDirectoryHeader";
 import { CustomerFilters } from "./customers/components/CustomerFilters";
 import { CustomerGrid } from "./customers/components/CustomerGrid";
+import { validateCustomerIdentifiers } from "./customers/identifierValidation";
 import "./list-page/list-page-v2.css";
 import {
   CustomerDetailPanel,
@@ -159,6 +160,8 @@ const customerFieldTypeLabels: Record<string, string> = {
 function customerFieldTypeLabel(dataType: string) {
   return customerFieldTypeLabels[dataType] ?? dataType;
 }
+
+const CUSTOMER_EDIT_REQUEST_EVENT = "nexora:customer-edit-request";
 
 function CustomersPage({
   token,
@@ -886,6 +889,13 @@ function CustomersPage({
   useEffect(() => {
     if (initialCreate) void openCustomerModal();
   }, [initialCreate]);
+  const [editRequest, setEditRequest] = useState(0);
+  useEffect(() => {
+    if (!initialEdit) return;
+    const onEditRequest = () => setEditRequest((value) => value + 1);
+    window.addEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
+    return () => window.removeEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
+  }, [initialEdit]);
   useEffect(() => {
     if (!initialEdit) return;
     let active = true;
@@ -894,6 +904,7 @@ function CustomersPage({
       onNavigate("customers");
       return;
     }
+    setModal(false);
     void api<CustomerItem>(`/api/customers/${customerId}`, token)
       .then((item) => { if (active) void openEditCustomer(item, false); })
       .catch((error) => {
@@ -901,7 +912,7 @@ function CustomersPage({
         setError((error as Error).message);
       });
     return () => { active = false; };
-  }, [initialEdit, token]);
+  }, [initialEdit, token, editRequest]);
   /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
   const stayAfterSave = useRef(false);
   /**
@@ -943,8 +954,23 @@ function CustomersPage({
     setAddressLongitude(null);
     setCustomerCreateValues({});
   }
+  /** Blocks submit on invalid VKN/TCKN/IBAN and opens the tab holding the first invalid field. */
+  function identifierErrorsBlockSubmit(stored: CustomerItem | null): boolean {
+    const addressSent = !!(addressLine.trim() || addressCity.trim() || addressDistrict.trim() || addressPostalCode.trim());
+    const errors = validateCustomerIdentifiers(
+      { taxNumber, identityNumber, iban, countryCode: addressSent ? addressCountry : null },
+      stored,
+    );
+    const messages = Object.values(errors);
+    if (messages.length === 0) return false;
+    setCustomerCreateTab(errors.taxNumber || errors.identityNumber ? "other" : "finance");
+    // The inline field errors list every problem; the banner names the first so it stays translatable.
+    setError(messages[0]);
+    return true;
+  }
   async function create(e: React.FormEvent) {
     e.preventDefault();
+    if (identifierErrorsBlockSubmit(null)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -999,6 +1025,13 @@ function CustomersPage({
         if (!initialCreate) await load();
         return;
       }
+      if (initialCreate) {
+        // The create route stays alive as a workspace tab; keep its form mounted (already
+        // reset above) so reopening the tab does not wait on a load that never re-runs.
+        setCustomerCreateTab("contact");
+        onNavigate("customers");
+        return;
+      }
       setModal(false);
       setNotice("Cari kartı oluşturuldu.");
       if (initialCreate) onNavigate("customers");
@@ -1014,6 +1047,8 @@ function CustomersPage({
     if (openPage) {
       sessionStorage.setItem("nexora.customer-edit-id", item.id);
       onNavigate("customer-edit");
+      // An edit tab that is already open stays mounted; tell it to load the newly chosen account.
+      window.dispatchEvent(new CustomEvent(CUSTOMER_EDIT_REQUEST_EVENT));
       return;
     }
     setError("");
@@ -1075,6 +1110,7 @@ function CustomersPage({
   async function saveCustomerEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingCustomer) return;
+    if (identifierErrorsBlockSubmit(editingCustomer)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -1196,22 +1232,31 @@ function CustomersPage({
     setError("");
     setNotice("");
     try {
+      // PUT replaces the card's contact, bank and e-invoice fields; send the stored values so
+      // toggling the status does not wipe them (address and custom fields are kept when omitted).
+      const full = await api<CustomerItem>(`/api/customers/${item.id}`, token);
       await api<CustomerItem>(`/api/customers/${item.id}`, token, {
         method: "PUT",
         body: JSON.stringify({
-          code: item.code,
-          name: item.name,
-          type: item.type,
-          taxNumber: item.taxNumber,
-          identityNumber: item.identityNumber,
-          taxOffice: item.taxOffice,
-          isActive: !item.isActive,
-          rowVersion: item.rowVersion,
-          groupId: item.groupId,
-          parentCompanyId: item.parentCompanyId || null,
-          currencyCode: item.currencyCode,
-          riskLimit: item.riskLimit,
-          paymentTermDays: item.paymentTermDays,
+          code: full.code,
+          name: full.name,
+          type: full.type,
+          taxNumber: full.taxNumber,
+          identityNumber: full.identityNumber,
+          taxOffice: full.taxOffice,
+          isEInvoiceRegistered: full.isEInvoiceRegistered,
+          eInvoiceRecipientAlias: full.eInvoiceRecipientAlias,
+          phone: full.phone, email: full.email, website: full.website,
+          contactName: full.contactName, contactPhone: full.contactPhone, contactEmail: full.contactEmail,
+          priceListCode: full.priceListCode, receivableAccountCode: full.receivableAccountCode, payableAccountCode: full.payableAccountCode,
+          bankName: full.bankName, bankBranchCode: full.bankBranchCode, iban: full.iban,
+          isActive: !full.isActive,
+          rowVersion: full.rowVersion,
+          groupId: full.groupId,
+          parentCompanyId: full.parentCompanyId || null,
+          currencyCode: full.currencyCode,
+          riskLimit: full.riskLimit,
+          paymentTermDays: full.paymentTermDays,
         }),
       });
       setNotice(
@@ -1895,6 +1940,15 @@ function CustomersPage({
     error,
     setError,
     setModal: (value) => {
+        if (!value && initialCreate) {
+          // Keep the create tab's form mounted for its next use; just clear it.
+          resetCustomerForm();
+          setError("");
+          setNotice("");
+          setCustomerCreateTab("contact");
+          onNavigate("customers");
+          return;
+        }
         setModal(value);
         if (!value && (initialCreate || initialEdit)) {
           if (initialEdit) sessionStorage.removeItem("nexora.customer-edit-id");

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import { api } from "./erpApi";
 
-type Tms7Account = {
+export type Tms7Account = {
   id: string;
   code: string;
   name: string;
@@ -10,7 +10,7 @@ type Tms7Account = {
   isActive: boolean;
   classification: string;
 };
-type Tms7Report = {
+export type Tms7Report = {
   standard: string;
   method: string;
   from: string;
@@ -43,7 +43,7 @@ type Tms7Report = {
   certified: boolean;
   note: string;
 };
-const tms7Labels: Record<string, string> = {
+export const tms7Labels: Record<string, string> = {
   Unclassified: "Sınıflandırılmamış",
   CashEquivalent: "Nakit ve nakit benzeri",
   WorkingCapitalAsset: "İşletme sermayesi varlığı",
@@ -62,7 +62,7 @@ const tms7Labels: Record<string, string> = {
   FinancingEquity: "Finansman özkaynağı",
   ExchangeDifference: "Nakit kur farkı",
 };
-const tms7Allowed = (section: string): readonly string[] =>
+export const tms7Allowed = (section: string): readonly string[] =>
   section === "Asset"
     ? [
         "Unclassified",

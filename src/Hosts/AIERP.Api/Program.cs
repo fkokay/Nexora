@@ -1490,7 +1490,7 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
     customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
     customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
     customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
-    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = TurkishIdentifierValidation.NormalizeIban(request.Iban);
     db.CustomerAccounts.Add(customer);
     if (request.Address is { } addressRequest)
     {
@@ -1524,7 +1524,11 @@ customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal prin
 customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var validation = CustomerValidation.Validate(request);
+    // Stored identifiers let legacy VKN/TCKN/IBAN values stay as they are while other fields are edited.
+    var storedIdentifiers = await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => new CustomerStoredIdentifiers(x.TaxNumber, x.IdentityNumber, x.Iban)).SingleOrDefaultAsync();
+    if (storedIdentifiers is null) return Results.NotFound();
+    var validation = CustomerValidation.Validate(request, storedIdentifiers);
     if (validation is not null) return Results.ValidationProblem(validation);
     if (request.Address is { } updatedAddressRequest)
     {
@@ -1611,7 +1615,7 @@ customers.MapPut("/{id:guid}", async (Guid id, CustomerWriteRequest request, Cla
     customer.Phone = NormalizeTaxNumber(request.Phone); customer.Email = NormalizeTaxNumber(request.Email); customer.Website = NormalizeTaxNumber(request.Website);
     customer.ContactName = NormalizeTaxNumber(request.ContactName); customer.ContactPhone = NormalizeTaxNumber(request.ContactPhone); customer.ContactEmail = NormalizeTaxNumber(request.ContactEmail);
     customer.PriceListCode = NormalizeTaxNumber(request.PriceListCode); customer.ReceivableAccountCode = NormalizeTaxNumber(request.ReceivableAccountCode); customer.PayableAccountCode = NormalizeTaxNumber(request.PayableAccountCode);
-    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = NormalizeTaxNumber(request.Iban)?.Replace(" ", "").ToUpperInvariant();
+    customer.BankName = NormalizeTaxNumber(request.BankName); customer.BankBranchCode = NormalizeTaxNumber(request.BankBranchCode); customer.Iban = TurkishIdentifierValidation.NormalizeIban(request.Iban);
     if (request.Address is { } addressRequest)
     {
         var address = await db.CustomerAddresses.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == id && x.Kind == addressRequest.Kind && x.IsDefault);
@@ -2782,7 +2786,7 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
         }
     }
 
-    var code = $"TR-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryTransfer, null, request.TransferDate, CancellationToken.None);
     var transferRecord = new InventoryTransfer { TenantId = tenantId, RequestId = request.RequestId, FromWarehouseId = fromWarehouse.Id,
         ToWarehouseId = toWarehouse.Id, Code = code, TransferDate = request.TransferDate };
     db.InventoryTransfers.Add(transferRecord);
@@ -3250,7 +3254,8 @@ warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/revaluations", 
         .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
     if (rows.Value + priorAdjustments + request.AmountBase < 0m)
         return Results.Conflict(new { error = "Yeniden değerleme stok değerini negatife düşüremez.", currentValueBase = rows.Value + priorAdjustments });
-    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RV-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var revaluationCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryRevaluation, null, request.EntryDate, CancellationToken.None);
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = revaluationCode,
         EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.Revaluation, Description = request.Reason.Trim(), CreatedByUserId = GetUserId(principal) };
     record.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = record, WarehouseId = warehouseId, StockItemId = stockItemId,
         QuantitySnapshot = rows.Quantity, UnitCostSnapshotBase = decimal.Round((rows.Value + priorAdjustments) / rows.Quantity, 8, MidpointRounding.AwayFromZero), AmountBase = request.AmountBase });
@@ -3275,7 +3280,8 @@ warehouses.MapPost("/cost-adjustments/{id:guid}/reverse", async (Guid id, Invent
     if (original is null || original.Kind != InventoryCostAdjustmentKind.Revaluation || original.ReversalOfId is not null) return Results.NotFound();
     if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu yeniden değerleme daha önce ters kayıtla iptal edilmiştir." });
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
-    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"RVX-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var revaluationReversalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InventoryRevaluationReversal, null, reversalDate, CancellationToken.None);
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = revaluationReversalCode,
         EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", ReversalOfId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
@@ -5077,7 +5083,8 @@ salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollecti
     var outstanding = Math.Max(0m, invoice.GrandTotal - paid - returned);
     if (outstanding <= 0) return Results.Conflict(new { error = "Fatura tamamen tahsil edilmiş.", outstandingAmount = 0m });
     if (request.Amount > outstanding) return Results.Conflict(new { error = "Tahsilat tutarı kalan fatura bakiyesini aşamaz.", outstandingAmount = outstanding });
-    var code = $"RCPT-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.CustomerCollection, null, request.CollectionDate, CancellationToken.None);
+    var collectionJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.CollectionDate, CancellationToken.None);
     var collection = new CustomerCollection { TenantId = tenantId, CustomerId = customer.Id, RequestId = request.RequestId, Code = code,
         CollectionDate = request.CollectionDate, CurrencyCode = invoice.CurrencyCode, Amount = request.Amount,
         PaymentMethod = method!, Reference = string.IsNullOrWhiteSpace(reference) ? null : reference,
@@ -5093,7 +5100,7 @@ salesInvoices.MapPost("/{id:guid}/collections", async (Guid id, CustomerCollecti
         Direction = FinancialDirection.Inflow, CashFlowCategory = CashFlowCategory.Operating, Amount = request.Amount, Description = $"Müşteri tahsilatı {code}",
         Reference = string.IsNullOrWhiteSpace(reference) ? null : reference, CustomerCollection = collection });
     var collectionJournal = await InvoiceSettlementJournalPosting.CreateAsync(db, tenantId, "CustomerCollection", collection.Id,
-        code, customer.Name, request.CollectionDate, invoice.CurrencyCode, request.Amount, method!, financialAccount?.Id, GetUserId(principal));
+        code, customer.Name, request.CollectionDate, invoice.CurrencyCode, request.Amount, method!, financialAccount?.Id, GetUserId(principal), journalCode: collectionJournalCode);
     if (!collectionJournal.Succeeded) return Results.Conflict(new { error = collectionJournal.Error });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "customer-collection.posted", Resource = code });
     await db.SaveChangesAsync();
@@ -5211,7 +5218,7 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
     try { totals = SalesQuoteValidation.Sum(returnAmounts.Select(x => x.Amounts)); }
     catch (OverflowException) { return Results.Conflict(new { error = "İade toplamı desteklenen decimal(18,2) sınırını aşıyor." }); }
     if (totals.GrandTotal <= 0) return Results.Conflict(new { error = "İade cari alacak kaydı oluşturabilmek için sıfırdan büyük olmalıdır." });
-    var returnCode = $"RET-{Guid.NewGuid():N}".ToUpperInvariant();
+    var returnCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SalesReturn, null, request.ReturnDate, CancellationToken.None);
     var salesReturn = new SalesReturn { TenantId = tenantId, RequestId = request.RequestId, SalesInvoiceId = invoice.Id,
         CustomerId = customer.Id, WarehouseId = warehouse.Id, Code = returnCode, ReturnDate = request.ReturnDate,
         Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
@@ -6553,7 +6560,7 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     }
     var purchaseRate = await GetTenantRateAsync(db, tenantId, order.CurrencyCode, request.ReceiptDate);
     if (purchaseRate is null) return Results.Conflict(new { error = $"{order.CurrencyCode} için {request.ReceiptDate:yyyy-MM-dd} tarihinde veya öncesinde tenant baz para birimine çevrilebilen kur yok. Önce Finans ekranından kuru kaydedin." });
-    var code = $"GR-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.PurchaseReceipt, null, request.ReceiptDate, CancellationToken.None);
     var receipt = new PurchaseReceipt { TenantId = tenantId, RequestId = request.RequestId, PurchaseOrderId = id, WarehouseId = warehouse.Id, Code = code, ReceiptDate = request.ReceiptDate };
     foreach (var (definitionId, value) in receiptFieldValues)
     {
@@ -6664,7 +6671,8 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs", async (Guid id, LandedCostWr
     }).ToArray();
     var totalWeight = weights.Sum();
     if (totalWeight <= 0m) return Results.Conflict(new { error = "Maliyet dağıtımı için pozitif bir ağırlık toplamı bulunamadı." });
-    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LC-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var landedCostCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.LandedCost, null, request.EntryDate, CancellationToken.None);
+    var record = new InventoryCostAdjustment { TenantId = tenantId, Code = landedCostCode,
         EntryDate = request.EntryDate, Kind = InventoryCostAdjustmentKind.LandedCost, PurchaseReceiptId = id,
         Description = request.Description.Trim(), CreatedByUserId = GetUserId(principal) };
     var assigned = 0m;
@@ -6706,7 +6714,8 @@ purchaseReceipts.MapPost("/{id:guid}/landed-costs/{adjustmentId:guid}/reverse", 
     if (await db.InventoryCostAdjustments.AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == original.Id)) return Results.Conflict(new { error = "Bu ek maliyet daha önce ters kayıtla iptal edilmiştir." });
     var lines = await db.InventoryCostAdjustmentLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.AdjustmentId == original.Id).ToListAsync();
     if (lines.Count == 0) return Results.Conflict(new { error = "Ek maliyet dağıtım satırları bulunamadı." });
-    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = $"LCV-{Guid.NewGuid():N}".ToUpperInvariant(),
+    var landedCostReversalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.LandedCostReversal, null, reversalDate, CancellationToken.None);
+    var reversal = new InventoryCostAdjustment { TenantId = tenantId, Code = landedCostReversalCode,
         EntryDate = reversalDate, Kind = InventoryCostAdjustmentKind.Reversal,
         PurchaseReceiptId = id, ReversalOfId = original.Id, Description = $"{original.Code} ters kayıt · {request.Reason.Trim()}", CreatedByUserId = GetUserId(principal) };
     foreach (var line in lines) reversal.Lines.Add(new InventoryCostAdjustmentLine { TenantId = tenantId, Adjustment = reversal,
@@ -7039,7 +7048,8 @@ purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentW
     if (outstanding <= 0) return Results.Conflict(new { error = "Alış faturası tamamen ödendi.", outstandingAmount = 0m });
     if (request.Amount > outstanding) return Results.Conflict(new { error = "Ödeme tutarı kalan tedarikçi bakiyesini aşamaz.", outstandingAmount = outstanding });
     var method = request.PaymentMethod.Trim(); var reference = request.Reference?.Trim();
-    var code = $"PAY-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SupplierPayment, null, request.PaymentDate, CancellationToken.None);
+    var paymentJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.PaymentDate, CancellationToken.None);
     var payment = new SupplierPayment { TenantId = tenantId, RequestId = request.RequestId, PurchaseInvoiceId = invoice.Id,
         SupplierId = supplier.Id, Code = code, PaymentDate = request.PaymentDate, CurrencyCode = invoice.CurrencyCode,
         Amount = request.Amount, PaymentMethod = method, Reference = string.IsNullOrWhiteSpace(reference) ? null : reference,
@@ -7053,7 +7063,7 @@ purchaseInvoices.MapPost("/{id:guid}/payments", async (Guid id, SupplierPaymentW
         Direction = FinancialDirection.Outflow, CashFlowCategory = CashFlowCategory.Operating, Amount = payment.Amount, Description = $"Tedarikçi ödemesi {code}",
         Reference = string.IsNullOrWhiteSpace(reference) ? null : reference, SupplierPayment = payment });
     var paymentJournal = await InvoiceSettlementJournalPosting.CreateAsync(db, tenantId, "SupplierPayment", payment.Id,
-        code, supplier.Name, request.PaymentDate, invoice.CurrencyCode, request.Amount, method, financialAccount?.Id, GetUserId(principal));
+        code, supplier.Name, request.PaymentDate, invoice.CurrencyCode, request.Amount, method, financialAccount?.Id, GetUserId(principal), journalCode: paymentJournalCode);
     if (!paymentJournal.Succeeded) return Results.Conflict(new { error = paymentJournal.Error });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "supplier-payment.posted", Resource = code });
     try { await db.SaveChangesAsync(); }
@@ -7188,7 +7198,7 @@ purchaseInvoices.MapPost("/{id:guid}/returns", async (Guid id, SupplierReturnWri
             return Results.Conflict(new { error = "Seçilen konumdaki kullanılabilir stok, alış iadesi miktarını karşılamıyor.", stockItemId = group.Key.StockItemId,
                 storageLocationId = group.Key.LocationId, locationBalance, requestedQuantity });
     }
-    var code = $"SRT-{Guid.NewGuid():N}".ToUpperInvariant();
+    var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.SupplierReturn, null, request.ReturnDate, CancellationToken.None);
     var supplierReturn = new SupplierReturn { TenantId = tenantId, RequestId = request.RequestId, PurchaseInvoiceId = invoice.Id,
         SupplierId = supplier.Id, WarehouseId = warehouse.Id, Code = code, ReturnDate = request.ReturnDate };
     var amountsList = new List<SalesQuoteLineAmounts>();
@@ -7983,6 +7993,7 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
         .OrderByDescending(x => x.EntryDate).Take(200).Include(x => x.Lines).ToListAsync();
     return Results.Ok(new
     {
+        baseCurrencyCode = tenantBaseCurrency,
         salesInvoices,
         salesDeliveries,
         purchaseInvoices,
@@ -8081,7 +8092,8 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.EntryDate);
     if (closedPeriod is { } closed)
         return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bu tarihe yevmiye eklenemez." });
-    var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
+    var manualEntryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.EntryDate, CancellationToken.None);
+    var entry = new JournalEntry { TenantId = tenantId, Code = manualEntryCode, EntryDate = request.EntryDate,
         Description = description, AccountingBasis = entryBasis, SourceType = "Manual", SourceId = Guid.NewGuid(), CreatedByUserId = GetUserId(principal) };
     for (var i = 0; i < request.Lines.Count; i++)
     {
@@ -8116,7 +8128,8 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
     if (original.Lines.Count < 2) return Results.Conflict(new { error = "Ters çevrilecek fişte yeterli yevmiye satırı bulunamadı." });
     var reversalDescription = $"Ters kayıt · {original.Code} · {reason}";
     if (reversalDescription.Length > 240) reversalDescription = reversalDescription[..240];
-    var reversal = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = request.EntryDate,
+    var reversalEntryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.EntryDate, CancellationToken.None);
+    var reversal = new JournalEntry { TenantId = tenantId, Code = reversalEntryCode, EntryDate = request.EntryDate,
         Description = reversalDescription,
         AccountingBasis = original.AccountingBasis, SourceType = "ManualReversal", SourceId = original.Id, CreatedByUserId = GetUserId(principal) };
     foreach (var line in original.Lines.OrderBy(x => x.LineNumber))
@@ -8146,544 +8159,7 @@ generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal princ
     return Results.Ok(new JournalEntryView(entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType,
         entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, isReversed, entry.AccountingBasis));
 });
-generalLedger.MapPost("/transfer", async (JournalTransferRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
-{
-    if (!TryGetTenantId(principal, out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
-    var sourceType = request.SourceType.Trim();
-    if (sourceType is not ("SalesInvoice" or "PurchaseInvoice" or "StandaloneInvoiceDraft" or "PurchaseReceipt" or "SalesDelivery" or "SalesReturn" or "SupplierReturn" or "CustomerCollection" or "SupplierPayment" or "FxRevaluation" or "InventoryCostAdjustment")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["sourceType"] = ["Desteklenen kaynak: satış/alış faturası, bağımsız alış taslağı, irsaliye, mal kabul, satış/tedarikçi iadesi, tahsilat, ödeme, kur değerleme veya stok maliyeti."] });
-    await using var tx = await db.Database.BeginTransactionAsync();
-    var tenant = await db.Tenants.FromSqlInterpolated($"SELECT * FROM [dbo].[Tenants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {tenantId}").SingleOrDefaultAsync();
-    if (tenant is null) return Results.NotFound();
-    if (await db.JournalEntries.AnyAsync(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == request.SourceId)) return Results.Conflict(new { error = "Bu kaynak daha önce deftere aktarılmıştır." });
-    var map = await db.LedgerAccountMappings.Where(x => x.TenantId == tenantId).ToDictionaryAsync(x => x.MappingKey, x => x.AccountId);
-    var activeAccounts = await db.LedgerAccounts.Where(x => x.TenantId == tenantId && x.IsActive).ToDictionaryAsync(x => x.Id);
-    var lines = new List<(Guid AccountId, string Description, decimal Debit, decimal Credit)>();
-    DateOnly entryDate; string sourceCode; string description;
-    if (sourceType == "SalesReturn")
-    {
-        var source = await db.SalesReturns.Include(x => x.SalesInvoice).Include(x => x.Customer).Include(x => x.Lines).ThenInclude(x => x.SalesInvoiceLine)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != SalesReturnStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş satış iadesi deftere aktarılamaz." });
-        var netRevenue = source.Subtotal - source.DiscountTotal;
-        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
-        try
-        {
-            var invoiceLineIds = source.Lines.Select(x => x.SalesInvoiceLineId).Distinct().ToArray();
-            var priorQuantities = await db.SalesReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && invoiceLineIds.Contains(x.SalesInvoiceLineId)
-                    && x.SalesReturn.Status == SalesReturnStatus.Posted && x.SalesReturn.CreatedAt < source.CreatedAt)
-                .GroupBy(x => x.SalesInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.Id, x => x.Quantity);
-            taxRows = source.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
-                line.SalesInvoiceLine.TaxBreakdownJson, line.SalesInvoiceLine.Quantity,
-                priorQuantities.GetValueOrDefault(line.SalesInvoiceLineId), line.Quantity, line.TaxAmount,
-                line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray();
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException)
-        { return Results.Conflict(new { error = "Satış iadesinin kaynak fatura vergi kırılımı geçersiz." }); }
-        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
-        if (taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal
-            || source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || withholdingAmount < 0
-            || netRevenue + source.TaxTotal - withholdingAmount != source.GrandTotal)
-            return Results.Conflict(new { error = "Satış iadesi toplamları deftere aktarım için tutarlı değil." });
-        var currencyCode = source.SalesInvoice.CurrencyCode;
-        var baseCurrency = tenant.BaseCurrencyCode;
-        var exchangeRate = currencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= source.ReturnDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.ReturnDate:yyyy-MM-dd} tarihli {currencyCode} kuru bulunamadı; satış iadesi aktarılmadı." });
-        decimal invoiceBase, taxBase, withholdingBase;
-        try
-        {
-            invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            var translatedTaxRows = taxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
-            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
-            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
-            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
-        }
-        catch (OverflowException) { return Results.Conflict(new { error = "Satış iadesi baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var revenueBase = invoiceBase - taxBase + withholdingBase;
-        if (invoiceBase <= 0 || revenueBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
-            return Results.Conflict(new { error = "Satış iadesi baz para birimi tutarları yevmiye sınırları dışında." });
-        if (!map.TryGetValue(LedgerMappingKeys.SalesReceivable, out var receivableId)
-            || !map.TryGetValue(LedgerMappingKeys.SalesRevenue, out var revenueId)
-            || !activeAccounts.ContainsKey(receivableId) || !activeAccounts.ContainsKey(revenueId))
-            return Results.Conflict(new { error = "Satış iadesinin alacak ve gelir hesap eşleştirmeleri tamamlanmamış." });
-        if (receivableId == revenueId) return Results.Conflict(new { error = "Satış iadesi alacak ve gelir hesapları farklı olmalıdır." });
-        entryDate = source.ReturnDate; sourceCode = source.Code;
-        description = currencyCode == baseCurrency ? $"Satış iadesi · {source.Code}" : $"Satış iadesi · {source.Code} · {currencyCode}/{baseCurrency} {exchangeRate}";
-        var additiveTaxAccounts = new HashSet<Guid>();
-        var withholdingTaxAccounts = new HashSet<Guid>();
-        foreach (var tax in taxRows.Where(x => x.Amount > 0))
-        {
-            var isWithholding = tax.Treatment == "Withholding";
-            var mappingKey = !string.IsNullOrWhiteSpace(source.SalesInvoice.AccountingProfileCode)
-                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.SalesInvoice.AccountingProfileCode, "Sales", tax.Code) : "";
-            var fallbackKey = isWithholding ? LedgerMappingKeys.SalesWithholdingReceivable : LedgerMappingKeys.SalesTaxPayable;
-            Guid mappedId = default;
-            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
-            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
-            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
-                return Results.Conflict(new { error = $"Satış iadesi {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
-            if (mappedId == receivableId || mappedId == revenueId)
-                return Results.Conflict(new { error = $"Satış iadesi {tax.Code} vergi hesabı alacak ve gelir hesaplarından farklı olmalıdır." });
-            if (isWithholding)
-            {
-                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı hesaplanan vergi hesaplarından ayrı olmalıdır." });
-                withholdingTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifat iade düzeltmesi", 0, tax.Amount));
-            }
-            else
-            {
-                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Hesaplanan vergi hesabı tevkifat hesabından ayrı olmalıdır." });
-                additiveTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} iade düzeltmesi", tax.Amount, 0));
-            }
-        }
-        if (revenueBase > 0) lines.Add((revenueId, $"{source.Code} · Satış iade düzeltmesi", revenueBase, 0));
-        lines.Add((receivableId, $"{source.Code} · {source.Customer.Name}", 0, invoiceBase));
-        var returnLineIds = source.Lines.Select(x => x.Id).ToArray();
-        var movements = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.SalesReturnLineId.HasValue
-                && returnLineIds.Contains(x.SalesReturnLineId.Value) && x.ReversalOfId == null)
-            .Select(x => new { x.Quantity, x.UnitCostBase }).ToListAsync();
-        if (movements.Count != returnLineIds.Length || movements.Any(x => x.UnitCostBase is null))
-            return Results.Conflict(new { error = "Satış iadesinin stok maliyet hareketleri eksik veya maliyetsiz; deftere aktarılmadı." });
-        var stockCostBase = movements.Sum(x => decimal.Round(x.Quantity * x.UnitCostBase!.Value, 2, MidpointRounding.AwayFromZero));
-        if (stockCostBase > 9999999999999999.99m) return Results.Conflict(new { error = "Satış iadesi stok maliyeti yevmiye tutar sınırını aşıyor." });
-        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var inventoryId)
-            || !map.TryGetValue(LedgerMappingKeys.SalesCost, out var cogsId)
-            || !activeAccounts.ContainsKey(inventoryId) || !activeAccounts.ContainsKey(cogsId))
-            return Results.Conflict(new { error = "Satış iadesinin stok ve maliyet karşı hesabı eşleştirilmemiş." });
-        if (inventoryId == cogsId) return Results.Conflict(new { error = "İade stok ve maliyet karşı hesapları farklı olmalıdır." });
-        if (stockCostBase > 0)
-        {
-            lines.Add((inventoryId, $"{source.Code} · İade stok maliyeti", stockCostBase, 0));
-            lines.Add((cogsId, $"{source.Code} · Satılan mal maliyeti düzeltmesi", 0, stockCostBase));
-        }
-    }
-    else if (sourceType == "SupplierReturn")
-    {
-        var source = await db.SupplierReturns.Include(x => x.PurchaseInvoice).Include(x => x.Supplier).Include(x => x.Lines).ThenInclude(x => x.PurchaseInvoiceLine)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != SupplierReturnStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş tedarikçi iadesi deftere aktarılamaz." });
-        var netCost = source.Subtotal - source.DiscountTotal;
-        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
-        try
-        {
-            var invoiceLineIds = source.Lines.Select(x => x.PurchaseInvoiceLineId).Distinct().ToArray();
-            var priorQuantities = await db.SupplierReturnLines.AsNoTracking().Where(x => x.TenantId == tenantId && invoiceLineIds.Contains(x.PurchaseInvoiceLineId)
-                    && x.SupplierReturn.Status == SupplierReturnStatus.Posted && x.SupplierReturn.CreatedAt < source.CreatedAt)
-                .GroupBy(x => x.PurchaseInvoiceLineId).Select(g => new { Id = g.Key, Quantity = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.Id, x => x.Quantity);
-            taxRows = source.Lines.SelectMany(line => AccountingRuleTaxCalculator.CalculateIncrementalReturnBreakdown(
-                line.PurchaseInvoiceLine.TaxBreakdownJson, line.PurchaseInvoiceLine.Quantity,
-                priorQuantities.GetValueOrDefault(line.PurchaseInvoiceLineId), line.Quantity, line.TaxAmount,
-                line.LineSubtotal - line.DiscountAmount + line.TaxAmount - line.LineTotal)).ToArray();
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentOutOfRangeException or OverflowException)
-        { return Results.Conflict(new { error = "Tedarikçi iadesinin kaynak fatura vergi kırılımı geçersiz." }); }
-        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
-        if (taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal
-            || source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || withholdingAmount < 0
-            || netCost + source.TaxTotal - withholdingAmount != source.GrandTotal)
-            return Results.Conflict(new { error = "Tedarikçi iadesi toplamları deftere aktarım için tutarlı değil." });
-        var currencyCode = source.PurchaseInvoice.CurrencyCode;
-        var baseCurrency = tenant.BaseCurrencyCode;
-        var exchangeRate = currencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= source.ReturnDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.ReturnDate:yyyy-MM-dd} tarihli {currencyCode} kuru bulunamadı; tedarikçi iadesi aktarılmadı." });
-        decimal invoiceBase, taxBase, withholdingBase;
-        try
-        {
-            invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            var translatedTaxRows = taxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
-            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
-            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
-            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
-        }
-        catch (OverflowException) { return Results.Conflict(new { error = "Tedarikçi iadesi baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        var costBase = invoiceBase - taxBase + withholdingBase;
-        if (invoiceBase <= 0 || costBase < 0 || invoiceBase > 9999999999999999.99m || taxBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
-            return Results.Conflict(new { error = "Tedarikçi iadesi baz para birimi tutarları yevmiye sınırları dışında." });
-        if (!map.TryGetValue(LedgerMappingKeys.PurchasePayable, out var payableId)
-            || !map.TryGetValue(LedgerMappingKeys.PurchaseCost, out var costId)
-            || !activeAccounts.ContainsKey(payableId) || !activeAccounts.ContainsKey(costId))
-            return Results.Conflict(new { error = "Tedarikçi iadesinin borç ve maliyet hesap eşleştirmeleri tamamlanmamış." });
-        if (payableId == costId) return Results.Conflict(new { error = "Tedarikçi iadesi borç ve maliyet hesapları farklı olmalıdır." });
-        entryDate = source.ReturnDate; sourceCode = source.Code;
-        description = currencyCode == baseCurrency ? $"Tedarikçi iadesi · {source.Code}" : $"Tedarikçi iadesi · {source.Code} · {currencyCode}/{baseCurrency} {exchangeRate}";
-        lines.Add((payableId, $"{source.Code} · {source.Supplier.Name}", invoiceBase, 0));
-        if (costBase > 0) lines.Add((costId, $"{source.Code} · Alış iade düzeltmesi", 0, costBase));
-        var additiveTaxAccounts = new HashSet<Guid>();
-        var withholdingTaxAccounts = new HashSet<Guid>();
-        foreach (var tax in taxRows.Where(x => x.Amount > 0))
-        {
-            var isWithholding = tax.Treatment == "Withholding";
-            var mappingKey = !string.IsNullOrWhiteSpace(source.PurchaseInvoice.AccountingProfileCode)
-                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.PurchaseInvoice.AccountingProfileCode, "Purchase", tax.Code) : "";
-            var fallbackKey = isWithholding ? LedgerMappingKeys.PurchaseWithholdingPayable : LedgerMappingKeys.PurchaseTaxRecoverable;
-            Guid mappedId = default;
-            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
-            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
-            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
-                return Results.Conflict(new { error = $"Tedarikçi iadesi {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
-            if (mappedId == payableId || mappedId == costId)
-                return Results.Conflict(new { error = $"Tedarikçi iadesi {tax.Code} vergi hesabı borç ve maliyet hesaplarından farklı olmalıdır." });
-            if (isWithholding)
-            {
-                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı vergi indirimi hesaplarından ayrı olmalıdır." });
-                withholdingTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifat iade düzeltmesi", tax.Amount, 0));
-            }
-            else
-            {
-                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Vergi indirimi hesabı tevkifat hesabından ayrı olmalıdır." });
-                additiveTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} iade düzeltmesi", 0, tax.Amount));
-            }
-        }
-        var returnLineIds = source.Lines.Select(x => x.Id).ToArray();
-        var movements = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.SupplierReturnLineId.HasValue
-                && returnLineIds.Contains(x.SupplierReturnLineId.Value) && x.ReversalOfId == null)
-            .Select(x => new { x.Quantity, x.UnitCostBase }).ToListAsync();
-        if (movements.Count != returnLineIds.Length || movements.Any(x => x.UnitCostBase is null))
-            return Results.Conflict(new { error = "Tedarikçi iadesinin stok maliyet hareketleri eksik veya maliyetsiz; deftere aktarılmadı." });
-        var stockCostBase = movements.Sum(x => decimal.Round(x.Quantity * x.UnitCostBase!.Value, 2, MidpointRounding.AwayFromZero));
-        if (stockCostBase > 9999999999999999.99m) return Results.Conflict(new { error = "Tedarikçi iadesi stok maliyeti yevmiye tutar sınırını aşıyor." });
-        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var inventoryId)
-            || !map.TryGetValue(LedgerMappingKeys.PurchaseCost, out var cogsId)
-            || !activeAccounts.ContainsKey(inventoryId) || !activeAccounts.ContainsKey(cogsId))
-            return Results.Conflict(new { error = "Tedarikçi iadesinin stok ve maliyet karşı hesabı eşleştirilmemiş." });
-        if (inventoryId == cogsId) return Results.Conflict(new { error = "İade stok ve maliyet karşı hesapları farklı olmalıdır." });
-        if (stockCostBase > 0)
-        {
-            lines.Add((cogsId, $"{source.Code} · Tedarikçi iade stok maliyeti", stockCostBase, 0));
-            lines.Add((inventoryId, $"{source.Code} · Stok azalışı", 0, stockCostBase));
-        }
-    }
-    else if (sourceType == "CustomerCollection")
-    {
-        var source = await db.CustomerCollections.Include(x => x.Customer).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != CustomerCollectionStatus.Posted)
-            return Results.Conflict(new { error = "İptal edilmiş tahsilat deftere aktarılamaz." });
-        var baseCurrency = tenant.BaseCurrencyCode;
-        var exchangeRate = source.CurrencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == source.CurrencyCode && x.RateDate <= source.CollectionDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.CollectionDate:yyyy-MM-dd} tarihli {source.CurrencyCode} kuru bulunamadı; tahsilat deftere aktarılmadı." });
-        decimal amountBase;
-        try { amountBase = decimal.Round(source.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero); }
-        catch (OverflowException) { return Results.Conflict(new { error = "Tahsilat baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        if (amountBase <= 0 || amountBase > 9999999999999999.99m) return Results.Conflict(new { error = "Tahsilat baz para birimi tutarı yevmiye sınırları dışında." });
-        var cashKey = source.FinancialAccountId is { } financialAccountId
-            ? LedgerMappingKeys.FinancialAccountPrefix + financialAccountId
-            : source.PaymentMethod == "Card" ? LedgerMappingKeys.CustomerCardClearing : LedgerMappingKeys.CustomerCheckClearing;
-        if (!map.TryGetValue(cashKey, out var cashId) || !map.TryGetValue(LedgerMappingKeys.SalesReceivable, out var receivableId)
-            || !activeAccounts.ContainsKey(cashId) || !activeAccounts.ContainsKey(receivableId))
-            return Results.Conflict(new { error = "Tahsilatın kasa/banka ve müşteri alacak hesap eşleştirmeleri tamamlanmamış." });
-        if (cashId == receivableId) return Results.Conflict(new { error = "Tahsilat karşı hesabı ve müşteri alacak hesabı farklı olmalıdır." });
-        entryDate = source.CollectionDate; sourceCode = source.Code;
-        description = source.CurrencyCode == baseCurrency ? $"Müşteri tahsilatı · {source.Code}" : $"Müşteri tahsilatı · {source.Code} · {source.CurrencyCode}/{baseCurrency} {exchangeRate}";
-        lines.Add((cashId, $"{source.Code} · {source.Customer.Name}", amountBase, 0));
-        lines.Add((receivableId, $"{source.Code} · {source.Customer.Name}", 0, amountBase));
-    }
-    else if (sourceType == "SupplierPayment")
-    {
-        var source = await db.SupplierPayments.Include(x => x.Supplier).Include(x => x.PurchaseInvoice)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != SupplierPaymentStatus.Posted)
-            return Results.Conflict(new { error = "İptal edilmiş ödeme deftere aktarılamaz." });
-        var currencyCode = source.PurchaseInvoice.CurrencyCode;
-        var baseCurrency = tenant.BaseCurrencyCode;
-        var exchangeRate = currencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == currencyCode && x.RateDate <= source.PaymentDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.PaymentDate:yyyy-MM-dd} tarihli {currencyCode} kuru bulunamadı; ödeme deftere aktarılmadı." });
-        decimal amountBase;
-        try { amountBase = decimal.Round(source.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero); }
-        catch (OverflowException) { return Results.Conflict(new { error = "Tedarikçi ödemesi baz para birimine çevrildiğinde yevmiye tutar sınırını aşıyor." }); }
-        if (amountBase <= 0 || amountBase > 9999999999999999.99m) return Results.Conflict(new { error = "Tedarikçi ödemesi baz para birimi tutarı yevmiye sınırları dışında." });
-        var cashKey = source.FinancialAccountId is { } financialAccountId
-            ? LedgerMappingKeys.FinancialAccountPrefix + financialAccountId
-            : source.PaymentMethod == "Card" ? LedgerMappingKeys.SupplierCardClearing : LedgerMappingKeys.SupplierCheckClearing;
-        if (!map.TryGetValue(cashKey, out var cashId) || !map.TryGetValue(LedgerMappingKeys.PurchasePayable, out var payableId)
-            || !activeAccounts.ContainsKey(cashId) || !activeAccounts.ContainsKey(payableId))
-            return Results.Conflict(new { error = "Ödemenin kasa/banka ve tedarikçi borç hesap eşleştirmeleri tamamlanmamış." });
-        if (cashId == payableId) return Results.Conflict(new { error = "Ödeme karşı hesabı ve tedarikçi borç hesabı farklı olmalıdır." });
-        entryDate = source.PaymentDate; sourceCode = source.Code;
-        description = currencyCode == baseCurrency ? $"Tedarikçi ödemesi · {source.Code}" : $"Tedarikçi ödemesi · {source.Code} · {currencyCode}/{baseCurrency} {exchangeRate}";
-        lines.Add((payableId, $"{source.Code} · {source.Supplier.Name}", amountBase, 0));
-        lines.Add((cashId, $"{source.Code} · {source.Supplier.Name}", 0, amountBase));
-    }
-    else if (sourceType == "PurchaseReceipt")
-    {
-        var source = await db.PurchaseReceipts.Include(x => x.PurchaseOrder).ThenInclude(x => x.Supplier)
-            .Include(x => x.Lines).ThenInclude(x => x.InventoryTransactions)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != PurchaseReceiptStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş mal kabul deftere aktarılamaz." });
-        var invoiceIds = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseReceiptId == source.Id)
-            .Select(x => x.Id).ToListAsync();
-        if (invoiceIds.Count > 0 && await db.JournalEntries.AnyAsync(x => x.TenantId == tenantId && x.SourceType == "PurchaseInvoice" && invoiceIds.Contains(x.SourceId)))
-            return Results.Conflict(new { error = "Alış faturası zaten deftere aktarılmış. Önce faturayı ters kayıtla kapatıp yeniden aktarın." });
-        var stockCostBase = source.Lines.SelectMany(x => x.InventoryTransactions).Where(x => x.UnitCostBase.HasValue)
-            .Sum(x => decimal.Round(x.Quantity * x.UnitCostBase!.Value, 2, MidpointRounding.AwayFromZero));
-        if (source.Lines.Count == 0 || source.Lines.SelectMany(x => x.InventoryTransactions).Any(x => !x.UnitCostBase.HasValue) || stockCostBase <= 0)
-            return Results.Conflict(new { error = "Mal kabul stok maliyetleri eksik veya sıfır; deftere aktarılmadı." });
-        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var inventoryId)
-            || !map.TryGetValue(LedgerMappingKeys.PurchaseReceiptAccrual, out var accrualId)
-            || !activeAccounts.ContainsKey(inventoryId) || !activeAccounts.ContainsKey(accrualId))
-            return Results.Conflict(new { error = "Mal kabul stok ve faturası gelmemiş mal hesap eşleştirmeleri tamamlanmamış." });
-        if (inventoryId == accrualId) return Results.Conflict(new { error = "Stok ve faturası gelmemiş mal hesapları farklı olmalıdır." });
-        entryDate = source.ReceiptDate; sourceCode = source.Code;
-        description = $"Mal kabul · {source.Code} · {source.PurchaseOrder.Supplier.Name}";
-        lines.Add((inventoryId, $"{source.Code} · Stok girişi", stockCostBase, 0));
-        lines.Add((accrualId, $"{source.Code} · Faturası gelmemiş mal", 0, stockCostBase));
-    }
-    else if (sourceType == "PurchaseInvoice")
-    {
-        var source = await db.PurchaseInvoices.Include(x => x.Lines).Include(x => x.Supplier).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != PurchaseInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş alış faturası deftere aktarılamaz." });
-        var netCost = source.Subtotal - source.DiscountTotal;
-        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
-        try { taxRows = AccountingRuleTaxCalculator.ReadBreakdown(source.TaxBreakdownJson); }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or OverflowException)
-        { return Results.Conflict(new { error = "Alış faturası vergi anlık görüntüsü geçersiz." }); }
-        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
-        if (taxRows.Count > 0 && taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal)
-            return Results.Conflict(new { error = "Alış faturası vergi dökümü ile vergi toplamı uyuşmuyor." });
-        if (source.GrandTotal <= 0 || netCost < 0 || source.TaxTotal < 0 || withholdingAmount < 0 || netCost + source.TaxTotal - withholdingAmount != source.GrandTotal)
-            return Results.Conflict(new { error = "Alış faturası toplamları deftere aktarım için tutarlı değil." });
-        var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
-        var exchangeRate = source.CurrencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == source.CurrencyCode && x.RateDate <= source.InvoiceDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.InvoiceDate:yyyy-MM-dd} tarihli {source.CurrencyCode} kuru bulunamadı; alış faturası deftere aktarılmadı." });
-        decimal invoiceBase, taxBase, withholdingBase;
-        try
-        {
-            invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            var postingTaxRows = taxRows.Count > 0 ? taxRows : source.TaxTotal > 0
-                ? [new AccountingTaxBreakdownLine("VAT", "KDV / VAT", 0, "Additive", "Net", source.TaxTotal, source.TaxTotal)]
-                : Array.Empty<AccountingTaxBreakdownLine>();
-            var translatedTaxRows = postingTaxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
-            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
-            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
-            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
-        }
-        catch (Exception ex) when (ex is OverflowException or JsonException or InvalidOperationException) { return Results.Conflict(new { error = "Alış faturası vergi dökümü geçersiz veya baz para birimine çevrildiğinde yevmiye sınırını aşıyor." }); }
-        var costBase = invoiceBase - taxBase + withholdingBase;
-        if (invoiceBase <= 0 || taxBase < 0 || costBase < 0 || invoiceBase > 9999999999999999.99m
-            || taxBase > 9999999999999999.99m || costBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
-            return Results.Conflict(new { error = "Alış faturası baz para birimi tutarları yevmiye sınırları dışında." });
-        var receiptEntry = await db.JournalEntries.AsNoTracking().Include(x => x.Lines)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "PurchaseReceipt" && x.SourceId == source.PurchaseReceiptId);
-        var clearReceiptAccrual = receiptEntry is not null
-            && await HasUnreversedJournalEntryAsync(db, tenantId, "PurchaseReceipt", source.PurchaseReceiptId);
-        entryDate = source.InvoiceDate; sourceCode = source.Code;
-        description = source.CurrencyCode == baseCurrency ? $"Alış faturası · {source.Code}" : $"Alış faturası · {source.Code} · {source.CurrencyCode}/{baseCurrency} {exchangeRate}";
-        if (!map.TryGetValue(LedgerMappingKeys.PurchasePayable, out var payableId)
-            || !map.TryGetValue(LedgerMappingKeys.PurchaseCost, out var costId)
-            || !activeAccounts.ContainsKey(payableId) || !activeAccounts.ContainsKey(costId))
-            return Results.Conflict(new { error = "Alış faturası borç ve maliyet hesap eşleştirmeleri tamamlanmamış." });
-        if (payableId == costId) return Results.Conflict(new { error = "Alış borç ve maliyet hesapları farklı hesaplara eşlenmelidir." });
-        lines.Add((payableId, $"{source.Code} · {source.Supplier.Name}", 0, invoiceBase));
-        if (clearReceiptAccrual)
-        {
-            if (!map.TryGetValue(LedgerMappingKeys.PurchaseReceiptAccrual, out var accrualId) || !activeAccounts.ContainsKey(accrualId))
-                return Results.Conflict(new { error = "Mal kabul aktarılmış; faturası gelmemiş mal hesabı eşleştirmesi tamamlanmamış." });
-            if (accrualId == payableId || accrualId == costId)
-                return Results.Conflict(new { error = "Faturası gelmemiş mal, borç ve maliyet hesapları birbirinden farklı olmalıdır." });
-            var accruedBase = receiptEntry!.Lines.Where(x => x.AccountId == accrualId).Sum(x => x.Credit - x.Debit);
-            if (accruedBase <= 0) return Results.Conflict(new { error = "Mal kabul yevmiyesinde kapatılabilir GRNI alacağı bulunamadı." });
-            lines.Add((accrualId, $"{source.Code} · Mal kabul tahakkukunun kapatılması", accruedBase, 0));
-            var variance = costBase - accruedBase;
-            if (variance > 0) lines.Add((costId, $"{source.Code} · Alış maliyet farkı", variance, 0));
-            else if (variance < 0) lines.Add((costId, $"{source.Code} · Alış maliyet farkı", 0, -variance));
-        }
-        else if (costBase > 0) lines.Add((costId, $"{source.Code} · Alış maliyeti", costBase, 0));
-        var additiveTaxAccounts = new HashSet<Guid>();
-        var withholdingTaxAccounts = new HashSet<Guid>();
-        foreach (var tax in taxRows.Where(x => x.Amount > 0))
-        {
-            var isWithholding = tax.Treatment == "Withholding";
-            var mappingKey = !string.IsNullOrWhiteSpace(source.AccountingProfileCode)
-                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.AccountingProfileCode, "Purchase", tax.Code) : "";
-            var fallbackKey = isWithholding ? LedgerMappingKeys.PurchaseWithholdingPayable : LedgerMappingKeys.PurchaseTaxRecoverable;
-            Guid mappedId = default;
-            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
-            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
-            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
-                return Results.Conflict(new { error = $"Alış faturası {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
-            if (mappedId == payableId || mappedId == costId || clearReceiptAccrual && mappedId == map.GetValueOrDefault(LedgerMappingKeys.PurchaseReceiptAccrual))
-                return Results.Conflict(new { error = $"Alış faturası {tax.Code} vergi hesabı borç, maliyet ve mal kabul tahakkuk hesaplarından farklı olmalıdır." });
-            if (isWithholding)
-            {
-                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı vergi indirimi hesaplarından ayrı olmalıdır." });
-                withholdingTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkifatı", 0, tax.Amount));
-            }
-            else
-            {
-                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Vergi indirimi hesabı tevkifat hesabından ayrı olmalıdır." });
-                additiveTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · İndirilecek {tax.Name}", tax.Amount, 0));
-            }
-        }
-    }
-    else if (sourceType == "SalesDelivery")
-    {
-        var source = await db.SalesDeliveries.Include(x => x.Order).ThenInclude(x => x!.Customer).Include(x => x.Invoice).ThenInclude(x => x!.Customer)
-            .Include(x => x.Lines).ThenInclude(x => x.InventoryTransactions)
-            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != SalesDeliveryStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş irsaliye deftere aktarılamaz." });
-        var movements = source.Lines.SelectMany(x => x.InventoryTransactions).Where(x => x.ReversalOfId == null).ToList();
-        if (source.Lines.Count == 0 || movements.Count != source.Lines.Count || movements.Any(x => x.Direction != InventoryDirection.Issue || x.UnitCostBase is null))
-            return Results.Conflict(new { error = "İrsaliye stok hareketleri eksik veya maliyet anlık görüntüsü bulunmuyor; deftere aktarılmadı." });
-        var stockCostBase = movements.Sum(x => decimal.Round(x.Quantity * x.UnitCostBase!.Value, 2, MidpointRounding.AwayFromZero));
-        if (stockCostBase <= 0 || stockCostBase > 9999999999999999.99m)
-            return Results.Conflict(new { error = "İrsaliye stok maliyeti yevmiye tutar sınırları dışında." });
-        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var inventoryId)
-            || !map.TryGetValue(LedgerMappingKeys.SalesCost, out var costId)
-            || !activeAccounts.ContainsKey(inventoryId) || !activeAccounts.ContainsKey(costId))
-            return Results.Conflict(new { error = "İrsaliye stok ve satılan mal maliyeti hesap eşleştirmeleri tamamlanmamış." });
-        if (inventoryId == costId) return Results.Conflict(new { error = "İrsaliye stok ve satılan mal maliyeti hesapları farklı olmalıdır." });
-        entryDate = source.DeliveryDate; sourceCode = source.Code;
-        description = $"Satış irsaliyesi · {source.Code} · {source.Invoice?.Customer.Name ?? source.Order?.Customer.Name ?? "Siparişsiz satış"}";
-        lines.Add((costId, $"{source.Code} · Satılan mal maliyeti", stockCostBase, 0));
-        lines.Add((inventoryId, $"{source.Code} · Stok çıkışı", 0, stockCostBase));
-    }
-    else if (sourceType == "SalesInvoice")
-    {
-        var source = await db.SalesInvoices.Include(x => x.Lines).Include(x => x.Customer).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.Status != SalesInvoiceStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş satış faturası deftere aktarılamaz." });
-        var netRevenue = source.Subtotal - source.DiscountTotal;
-        IReadOnlyList<AccountingTaxBreakdownLine> taxRows;
-        try { taxRows = AccountingRuleTaxCalculator.ReadBreakdown(source.TaxBreakdownJson); }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or OverflowException)
-        { return Results.Conflict(new { error = "Satış faturası vergi anlık görüntüsü geçersiz." }); }
-        var withholdingAmount = taxRows.Where(x => x.Treatment == "Withholding").Sum(x => x.Amount);
-        if (taxRows.Count > 0 && taxRows.Where(x => x.Treatment != "Withholding").Sum(x => x.Amount) != source.TaxTotal)
-            return Results.Conflict(new { error = "Satış faturası vergi dökümü ile vergi toplamı uyuşmuyor." });
-        if (source.GrandTotal <= 0 || netRevenue < 0 || source.TaxTotal < 0 || withholdingAmount < 0 || netRevenue + source.TaxTotal - withholdingAmount != source.GrandTotal)
-            return Results.Conflict(new { error = "Satış faturası toplamları deftere aktarım için tutarlı değil." });
-        var baseCurrency = await db.Tenants.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.BaseCurrencyCode).SingleAsync();
-        var exchangeRate = source.CurrencyCode == baseCurrency ? 1m
-            : await db.TenantExchangeRates.AsNoTracking().Where(x => x.TenantId == tenantId && x.CurrencyCode == source.CurrencyCode && x.RateDate <= source.InvoiceDate)
-                .OrderByDescending(x => x.RateDate).ThenByDescending(x => x.Revision).Select(x => (decimal?)x.Rate).FirstOrDefaultAsync() ?? 0m;
-        if (exchangeRate <= 0) return Results.Conflict(new { error = $"{source.InvoiceDate:yyyy-MM-dd} tarihli {source.CurrencyCode} kuru bulunamadı; satış faturası deftere aktarılmadı." });
-        decimal invoiceBase, taxBase, withholdingBase;
-        try
-        {
-            invoiceBase = decimal.Round(source.GrandTotal * exchangeRate, 2, MidpointRounding.AwayFromZero);
-            var postingTaxRows = taxRows.Count > 0 ? taxRows : source.TaxTotal > 0
-                ? [new AccountingTaxBreakdownLine("VAT", "KDV / VAT", 0, "Additive", "Net", source.TaxTotal, source.TaxTotal)]
-                : Array.Empty<AccountingTaxBreakdownLine>();
-            var translatedTaxRows = postingTaxRows.Select(row => (Row: row, AmountBase: decimal.Round(row.Amount * exchangeRate, 2, MidpointRounding.AwayFromZero))).ToArray();
-            taxBase = translatedTaxRows.Where(x => x.Row.Treatment != "Withholding").Sum(x => x.AmountBase);
-            withholdingBase = translatedTaxRows.Where(x => x.Row.Treatment == "Withholding").Sum(x => x.AmountBase);
-            taxRows = translatedTaxRows.Select(x => x.Row with { Amount = x.AmountBase }).ToArray();
-        }
-        catch (Exception ex) when (ex is OverflowException or JsonException or InvalidOperationException) { return Results.Conflict(new { error = "Satış faturası vergi dökümü geçersiz veya baz para birimine çevrildiğinde yevmiye sınırını aşıyor." }); }
-        var revenueBase = invoiceBase - taxBase + withholdingBase;
-        if (invoiceBase <= 0 || taxBase < 0 || revenueBase < 0 || invoiceBase > 9999999999999999.99m
-            || taxBase > 9999999999999999.99m || revenueBase > 9999999999999999.99m || withholdingBase > 9999999999999999.99m)
-            return Results.Conflict(new { error = "Satış faturası baz para birimi tutarları yevmiye sınırları dışında." });
-        entryDate = source.InvoiceDate; sourceCode = source.Code;
-        description = source.CurrencyCode == baseCurrency ? $"Satış faturası · {source.Code}" : $"Satış faturası · {source.Code} · {source.CurrencyCode}/{baseCurrency} {exchangeRate}";
-        if (!map.TryGetValue(LedgerMappingKeys.SalesReceivable, out var receivableId)
-            || !map.TryGetValue(LedgerMappingKeys.SalesRevenue, out var revenueId)
-            || !activeAccounts.ContainsKey(receivableId) || !activeAccounts.ContainsKey(revenueId))
-            return Results.Conflict(new { error = "Satış faturası alacak ve gelir hesap eşleştirmeleri tamamlanmamış." });
-        if (receivableId == revenueId) return Results.Conflict(new { error = "Satış alacak ve gelir hesapları farklı hesaplara eşlenmelidir." });
-        lines.Add((receivableId, $"{source.Code} · {source.Customer.Name}", invoiceBase, 0));
-        if (revenueBase > 0) lines.Add((revenueId, $"{source.Code} · Satış geliri", 0, revenueBase));
-        var additiveTaxAccounts = new HashSet<Guid>();
-        var withholdingTaxAccounts = new HashSet<Guid>();
-        foreach (var tax in taxRows.Where(x => x.Amount > 0))
-        {
-            var isWithholding = tax.Treatment == "Withholding";
-            var mappingKey = !string.IsNullOrWhiteSpace(source.AccountingProfileCode)
-                ? AccountingRuleProfileEndpoints.TaxRuleMappingKey(source.AccountingProfileCode, "Sales", tax.Code) : "";
-            var fallbackKey = isWithholding ? LedgerMappingKeys.SalesWithholdingReceivable : LedgerMappingKeys.SalesTaxPayable;
-            Guid mappedId = default;
-            var hasAccount = mappingKey.Length > 0 && map.TryGetValue(mappingKey, out mappedId);
-            if (!hasAccount && (mappingKey.Length == 0 || tax.Code is "VAT" or "KDV")) hasAccount = map.TryGetValue(fallbackKey, out mappedId);
-            if (!hasAccount || !activeAccounts.ContainsKey(mappedId))
-                return Results.Conflict(new { error = $"Satış faturası {tax.Code} vergisi için mevzuat profiline ait muhasebe hesabı eşleştirilmemiş." });
-            if (mappedId == receivableId || mappedId == revenueId)
-                return Results.Conflict(new { error = $"Satış faturası {tax.Code} vergi hesabı alacak ve gelir hesaplarından farklı olmalıdır." });
-            if (isWithholding)
-            {
-                if (additiveTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Tevkifat hesabı hesaplanan vergi hesaplarından ayrı olmalıdır." });
-                withholdingTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · {tax.Name} tevkif edilen alacağı", tax.Amount, 0));
-            }
-            else
-            {
-                if (withholdingTaxAccounts.Contains(mappedId)) return Results.Conflict(new { error = "Hesaplanan vergi hesabı tevkifat hesabından ayrı olmalıdır." });
-                additiveTaxAccounts.Add(mappedId);
-                lines.Add((mappedId, $"{source.Code} · Hesaplanan {tax.Name}", 0, tax.Amount));
-            }
-        }
-    }
-    else if (sourceType == "FxRevaluation")
-    {
-        var source = await db.FxRevaluationVouchers.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        entryDate = source.AsOfDate; sourceCode = source.Code; description = $"Kur değerleme · {source.Code}";
-        foreach (var line in source.Lines.Where(x => x.AdjustmentBase != 0))
-        {
-            var controlKey = line.Direction == FxRevaluationDirection.Receivable ? LedgerMappingKeys.FxReceivable : LedgerMappingKeys.FxPayable;
-            var debitKey = line.AdjustmentBase > 0 ? controlKey : LedgerMappingKeys.FxLoss;
-            var creditKey = line.AdjustmentBase > 0 ? LedgerMappingKeys.FxGain : controlKey;
-            if (!map.TryGetValue(debitKey, out var debitId) || !map.TryGetValue(creditKey, out var creditId) || !activeAccounts.ContainsKey(debitId) || !activeAccounts.ContainsKey(creditId))
-                return Results.Conflict(new { error = "Kur değerlemenin kullandığı hesap eşleştirmeleri tamamlanmamış. Genel muhasebe ayarlarını tamamlayın; kaynak fiş değişmedi." });
-            if (debitId == creditId) return Results.Conflict(new { error = "Borç ve alacak tarafı aynı hesaba eşlenmiş. Eşleştirmeleri ayrı tenant hesaplarına yönlendirin." });
-            var amount = Math.Abs(line.AdjustmentBase);
-            lines.Add((debitId, $"{line.InvoiceCode} · {line.CounterpartyName}", amount, 0));
-            lines.Add((creditId, $"{line.InvoiceCode} · {line.CounterpartyName}", 0, amount));
-        }
-    }
-    else
-    {
-        var source = await db.InventoryCostAdjustments.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SourceId);
-        if (source is null) return Results.NotFound();
-        if (source.PurchaseInvoiceDraftId.HasValue)
-            return Results.Conflict(new { error = "Bu stok maliyet farkı tedarikçi faturası yevmiyesinde zaten muhasebeleştiriliyor; ikinci kez aktarılamaz." });
-        entryDate = source.EntryDate; sourceCode = source.Code; description = $"Stok maliyet hareketi · {source.Code} · {source.Description}";
-        var offsetKey = source.Kind switch { InventoryCostAdjustmentKind.LandedCost => LedgerMappingKeys.InventoryLandedCostOffset, InventoryCostAdjustmentKind.Reversal => LedgerMappingKeys.InventoryReversalOffset, _ => LedgerMappingKeys.InventoryRevaluationOffset };
-        if (!map.TryGetValue(LedgerMappingKeys.InventoryAsset, out var stockId) || !map.TryGetValue(offsetKey, out var offsetId) || !activeAccounts.ContainsKey(stockId) || !activeAccounts.ContainsKey(offsetId))
-            return Results.Conflict(new { error = "Stok hareketinin kullandığı hesap eşleştirmeleri tamamlanmamış. Genel muhasebe ayarlarını tamamlayın; kaynak hareket değişmedi." });
-        if (stockId == offsetId) return Results.Conflict(new { error = "Stok ve karşı hesap aynı hesaba eşlenmiş. Eşleştirmeleri ayrı tenant hesaplarına yönlendirin." });
-        var stockInfo = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && source.Lines.Select(l => l.StockItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Code);
-        foreach (var line in source.Lines.Where(x => x.AmountBase != 0))
-        {
-            var amount = Math.Abs(line.AmountBase); var stockCode = stockInfo.GetValueOrDefault(line.StockItemId, "Stok");
-            if (line.AmountBase > 0) { lines.Add((stockId, $"{source.Code} · {stockCode}", amount, 0)); lines.Add((offsetId, $"{source.Code} · {stockCode}", 0, amount)); }
-            else { lines.Add((offsetId, $"{source.Code} · {stockCode}", amount, 0)); lines.Add((stockId, $"{source.Code} · {stockCode}", 0, amount)); }
-        }
-    }
-    var closedPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, entryDate);
-    if (closedPeriod is { } closed)
-        return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; kaynak fiş bu tarihe aktarılamaz." });
-    if (lines.Count < 2 || lines.Sum(x => x.Debit) <= 0 || lines.Sum(x => x.Debit) != lines.Sum(x => x.Credit)) return Results.Conflict(new { error = "Kaynak fişte aktarılabilir dengeli bir tutar bulunamadı." });
-    var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = entryDate,
-        Description = description.Length > 240 ? description[..240] : description, SourceType = sourceType, SourceId = request.SourceId, CreatedByUserId = GetUserId(principal) };
-    for (var i = 0; i < lines.Count; i++) entry.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = entry.Id, AccountId = lines[i].AccountId,
-        LineNumber = i + 1, Description = lines[i].Description.Length > 240 ? lines[i].Description[..240] : lines[i].Description, Debit = lines[i].Debit, Credit = lines[i].Credit });
-    db.JournalEntries.Add(entry);
-    db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.transferred", Resource = $"{sourceType}:{sourceCode}:{entry.Code}" });
-    await db.SaveChangesAsync(); await tx.CommitAsync();
-    return Results.Created($"/api/finance/general-ledger/entries/{entry.Id}", new { entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType, entry.SourceId, TotalDebit = entry.Lines.Sum(x => x.Debit), TotalCredit = entry.Lines.Sum(x => x.Credit) });
-});
+generalLedger.MapGeneralLedgerTransferEndpoints();
 app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -8997,8 +8473,9 @@ financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest requ
             .SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount)) ?? 0m;
         if (balance < request.Amount) return Results.Conflict(new { error = "Kaynak kasa bakiyesi transfer için yetersiz." });
     }
+    var transferCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.FinancialTransfer, null, request.TransferDate, CancellationToken.None);
     var transfer = new FinancialAccountTransfer { TenantId = tenantId, RequestId = request.RequestId,
-        Code = $"TR-{Guid.NewGuid():N}".ToUpperInvariant(), FromAccountId = fromAccount.Id, ToAccountId = toAccount.Id,
+        Code = transferCode, FromAccountId = fromAccount.Id, ToAccountId = toAccount.Id,
         CurrencyCode = fromAccount.CurrencyCode, ToCurrencyCode = toAccount.CurrencyCode, TransferDate = request.TransferDate,
         Amount = request.Amount, DestinationAmount = destinationAmount, ExchangeRate = request.ExchangeRate,
         Reference = reference, Description = description };
@@ -9509,13 +8986,8 @@ static async Task<decimal?> GetWeightedAverageUnitCostBaseAsync(TenantDbContext 
         .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
     return decimal.Round((totals.Value + costAdjustments) / totals.OnHand, 8, MidpointRounding.AwayFromZero);
 }
-static async Task<bool> HasUnreversedJournalEntryAsync(TenantDbContext db, Guid tenantId, string sourceType, Guid sourceId)
-{
-    var entryId = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == sourceType && x.SourceId == sourceId)
-        .Select(x => (Guid?)x.Id).SingleOrDefaultAsync();
-    return entryId is { } id && !await db.JournalEntries.AsNoTracking()
-        .AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == id);
-}
+static Task<bool> HasUnreversedJournalEntryAsync(TenantDbContext db, Guid tenantId, string sourceType, Guid sourceId) =>
+    GeneralLedgerTransferEndpoints.HasUnreversedJournalEntryAsync(db, tenantId, sourceType, sourceId);
 
 static string[] RequiredInvoiceTaxMappingKeys(string? accountingProfileCode, string operationType, string? taxBreakdownJson,
     decimal taxTotal, string additiveFallbackKey, string withholdingFallbackKey)

@@ -3,6 +3,27 @@ import { localDateString } from './dateUtils'
 import type { StockItem, BankStatementInputLine } from './erp-types'
 export { localDateString }
 
+const genericProblemTitles = new Set([
+  'One or more validation errors occurred.',
+  'Bad Request', 'Conflict', 'Not Found', 'An error occurred while processing your request.',
+])
+/**
+ * Human-readable text from an API error body (ProblemDetails or `{ error }`): field validation
+ * messages first, then `detail`, then `title` unless it is ASP.NET's generic English default.
+ * Returns undefined when nothing useful is present so callers can fall back to their own text.
+ */
+export function problemDetail(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined
+  const value = body as { errors?: unknown; detail?: unknown; title?: unknown }
+  const validation = value.errors && typeof value.errors === 'object'
+    ? Object.values(value.errors as Record<string, unknown>).flat().filter((x): x is string => typeof x === 'string' && x.trim() !== '').join(' ')
+    : ''
+  if (validation) return validation
+  if (typeof value.detail === 'string' && value.detail.trim()) return value.detail
+  if (typeof value.title === 'string' && value.title.trim() && !genericProblemTitles.has(value.title.trim())) return value.title
+  return undefined
+}
+
 export async function api<T>(url: string, token?: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(url, token, init)
   if (!response.ok) {
@@ -10,7 +31,7 @@ export async function api<T>(url: string, token?: string, init?: RequestInit): P
     const validation = Object.values(payload?.errors ?? {}).flat().join(' ')
     const message = payload?.error === 'tenant_context_required'
       ? 'Aktif firma oturumu bulunamadı. Çıkış yapıp doğru firmayı yeniden seçin.'
-      : payload?.error || validation || payload?.title || `İstek başarısız (${response.status}).`
+      : payload?.error || validation || problemDetail(payload) || `İstek başarısız (${response.status}).`
     const trace = payload?.traceId && !message.includes(payload.traceId) ? ` İz kimliği: ${payload.traceId}.` : ''
     throw new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace)
   }

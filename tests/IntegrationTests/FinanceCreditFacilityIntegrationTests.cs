@@ -326,6 +326,15 @@ public sealed class FinanceCreditFacilityIntegrationTests
         using var drawdownJson = JsonDocument.Parse(await drawdown.Content.ReadAsStringAsync());
         using var drawdownRetryJson = JsonDocument.Parse(await drawdownRetry.Content.ReadAsStringAsync());
         Assert.Equal(drawdownJson.RootElement.GetProperty("journalEntryId").GetGuid(), drawdownRetryJson.RootElement.GetProperty("journalEntryId").GetGuid());
+        await using (var numberingScope = app.Services.CreateAsyncScope())
+        {
+            // The drawdown journal gets a sequential code and the idempotent replay does not reserve another number.
+            var numberingDb = numberingScope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var firstDrawdownJournalId = drawdownJson.RootElement.GetProperty("journalEntryId").GetGuid();
+            Assert.Equal("YV-2026-000001", (await numberingDb.JournalEntries.AsNoTracking().SingleAsync(x => x.Id == firstDrawdownJournalId)).Code);
+            Assert.Equal(1, (await numberingDb.TenantDocumentNumberCounters.AsNoTracking()
+                .SingleAsync(x => x.TenantId == TenantA && x.DocumentType == "JournalEntry" && x.PeriodKey == "2026")).LastValue);
+        }
         using var overLimit = await client.PostAsJsonAsync($"/api/finance/credit-facilities/{FacilityA}/drawdowns", new
         {
             requestId = Guid.NewGuid(), financialAccountId = AccountA, transactionDate = "2026-01-01", principalAmount = 100001m, notes = (string?)null

@@ -16,6 +16,7 @@ import type {
   PerformanceScreenField,
   Quote,
 } from "./sales-promotions/components/types";
+import { problemDetail } from "./erpApi";
 
 const defaultCampaignScreenFields: CampaignScreenField[] = [
   { key: "code", label: "Kampanya kodu", visible: true, position: 0 },
@@ -85,7 +86,7 @@ async function request<T>(
     let message = `İstek başarısız (${response.status})`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {}
     throw new Error(message);
   }

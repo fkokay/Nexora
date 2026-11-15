@@ -3,6 +3,7 @@ import { Download, History, PackageOpen, RotateCcw, ShieldCheck, Upload } from "
 import { authenticatedFetch } from "./authApi";
 import { useLowCodeCapabilities } from "./useLowCodeCapabilities";
 import { confirmLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 type Props = { token: string; locale: "tr" | "en" };
 type ImportPlan = { importableCount: number; immediateApplyCount: number; conflicts: string[]; warnings: string[]; compatibilityIssues: string[] };
@@ -275,5 +276,5 @@ export function TenantCustomizationPackagePanel({ token, locale }: Props) {
 
 async function readError(response: Response) {
   const body = (await response.json().catch(() => null)) as { error?: string; title?: string } | null;
-  return body?.error || body?.title || `Request failed (${response.status})`;
+  return body?.error || problemDetail(body) || `Request failed (${response.status})`;
 }

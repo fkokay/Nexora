@@ -11,6 +11,7 @@ import type {
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./sales-distribution.css";
 import "./sales/sales-list-v2.css";
+import { problemDetail } from "./erpApi";
 
 type Props = { token: string };
 const defaultScreenFields: ScreenField[] = [
@@ -31,7 +32,7 @@ async function request<T>(url: string, token: string): Promise<T> {
     let message = `İstek başarısız (${response.status})`;
     try {
       const body = await response.json();
-      message = body.error || body.title || message;
+      message = body.error || problemDetail(body) || message;
     } catch {
       /* keep status text */
     }

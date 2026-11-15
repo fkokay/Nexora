@@ -1,15 +1,427 @@
 /*
- * list-v2 additions for the foreign trade case list. The shared kit
- * (src/list-page/list-page-v2.css) has no rule for these page-specific parts.
+ * list-v2 layout for the foreign trade case list: stage strip under the header,
+ * grid beside a fixed-width detail panel. The shared kit (src/list-page/list-page-v2.css)
+ * has no rule for these page-specific parts. The older rules in ../foreign-trade.css
+ * (has-selection grid, hidden empty panel) are overridden here by #root specificity.
  */
-
-/* Two status indicators remain after the "total" card became a chip count. */
-#root .list-v2.foreign-trade-page .foreign-trade-metrics {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  max-width: 560px;
+#root .list-v2.foreign-trade-page {
+  --ft-accent: #0f6cbd;
+  --ft-accent-tint: #eaf3fb;
+  --ft-accent-strong: #0f548c;
+  --ft-warn: #8a5a00;
+  --ft-warn-tint: #fff6e0;
+  --ft-warn-border: #f1d79a;
+  --ft-danger: var(--erp-color-danger, #b91c1c);
+  --ft-success: #12734a;
+  --ft-success-tint: #e9f7f0;
+  gap: 12px;
+}
+html[data-theme="dark"] #root .list-v2.foreign-trade-page {
+  --ft-accent: #8ec5fa;
+  --ft-accent-tint: #1e3045;
+  --ft-accent-strong: #b9dcff;
+  --ft-warn: #f2c66d;
+  --ft-warn-tint: #33291a;
+  --ft-warn-border: #5c4823;
+  --ft-danger: #f19999;
+  --ft-success: #7fd8ad;
+  --ft-success-tint: #18322a;
 }
 
-/* Detail panel: the next-step action is a single full-width button. */
-#root .list-v2 .foreign-trade-detail .list-v2-quick > div {
+/* Page-level (load) error: dismissible. */
+#root .list-v2.foreign-trade-page .foreign-trade-page-alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+#root .app-shell .list-v2.foreign-trade-page :is(.foreign-trade-page-alert, .foreign-trade-panel-notice) > button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Stage strip: one tile per forward status, Cancelled as a trailing chip. */
+#root .list-v2.foreign-trade-page .foreign-trade-stages {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stages > ol {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 6px;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 8px;
+  background: var(--lv2-surface);
+  box-shadow: none;
+  color: var(--lv2-text);
+  text-align: left;
+  cursor: pointer;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage small {
+  color: var(--lv2-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage > span {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage b {
+  grid-column: 1 / -1;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage.is-empty b {
+  color: var(--lv2-muted);
+  font-weight: 500;
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-stage:hover {
+  border-color: var(--ft-accent);
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-stage.is-active {
+  border-color: var(--ft-accent);
+  background: var(--ft-accent-tint);
+  box-shadow: inset 0 -2px 0 var(--ft-accent);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage.is-active :is(span, b) {
+  color: var(--ft-accent-strong);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-stage:focus-visible {
+  outline: 2px solid var(--ft-accent);
+  outline-offset: 1px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-cancelled-chip {
+  align-self: center;
+}
+
+/* Grid beside the panel; the panel is always present so selection never shifts the grid. */
+#root .list-v2.foreign-trade-page .foreign-trade-workspace-v2 {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-workspace-v2 .foreign-trade-detail {
+  display: grid;
+  position: static;
+}
+@media (min-width: 1100px) {
+  #root .list-v2.foreign-trade-page .foreign-trade-workspace-v2 {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+  #root .list-v2.foreign-trade-page .foreign-trade-workspace-v2 .foreign-trade-detail {
+    position: sticky;
+    top: 84px;
+    max-height: calc(100vh - 100px);
+    overflow: auto;
+  }
+}
+#root .list-v2.foreign-trade-page .foreign-trade-list table {
+  min-width: 640px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-file-cell {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-file-cell .trade-direction {
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-route,
+#root .list-v2.foreign-trade-page .foreign-trade-dates {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Detail panel */
+#root .list-v2.foreign-trade-page .foreign-trade-detail {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--lv2-border);
+  border-top: 2px solid var(--ft-accent);
+  border-radius: 9px;
+  background: var(--lv2-surface);
+  box-shadow: none;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-detail-top h2 {
+  margin: 3px 0 0;
+  color: var(--lv2-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-panel-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-panel-notice.is-success {
+  background: var(--ft-success-tint);
+  color: var(--ft-success);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-panel-notice.is-error {
+  background: color-mix(in srgb, var(--ft-danger) 10%, transparent);
+  color: var(--ft-danger);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress {
+  display: grid;
+  gap: 6px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress ol {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress li {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--lv2-border);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress li.is-done {
+  background: color-mix(in srgb, var(--ft-accent) 55%, var(--lv2-surface));
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress li.is-current {
+  background: var(--ft-accent);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress p {
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 12px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-progress .trade-status {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-kv {
+  display: grid;
+  margin: 0;
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-kv > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--lv2-border);
+  font-size: 12px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-kv dt {
+  flex: none;
+  color: var(--lv2-muted);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-kv dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--lv2-text);
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-kv dd.is-mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-kv dd.is-unset {
+  color: var(--lv2-muted);
+  font-weight: 500;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-detail-notes {
+  margin: 0;
+  background: var(--lv2-surface-muted);
+  color: var(--lv2-text);
+  font-size: 12px;
+}
+
+/* Next step: prerequisites inline, then the advance button. */
+#root .list-v2.foreign-trade-page .foreign-trade-next {
+  display: grid;
+  gap: 8px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-requirements {
+  display: grid;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--ft-warn-border);
+  border-radius: 8px;
+  background: var(--ft-warn-tint);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-req-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ft-warn);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-requirements > small {
+  color: var(--ft-warn);
+  font-size: 11px;
+  line-height: 1.45;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-requirements label {
+  display: grid;
+  gap: 4px;
+  color: var(--lv2-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-requirements :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--lv2-border);
+  border-radius: 6px;
+  background: var(--lv2-surface);
+  color: var(--lv2-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-requirements :is(input, select):focus {
+  outline: 2px solid color-mix(in srgb, var(--ft-accent) 30%, transparent);
+  border-color: var(--ft-accent);
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-advance {
+  justify-content: center;
+  width: 100%;
+  min-height: 36px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-detail-actions {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+}
+#root .app-shell .list-v2.foreign-trade-page .foreign-trade-detail-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+#root .app-shell .list-v2.foreign-trade-page :is(.foreign-trade-detail-actions, .foreign-trade-cancel-confirm) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+#root .app-shell .list-v2.foreign-trade-page :is(.foreign-trade-detail-actions, .foreign-trade-cancel-confirm) button.is-danger {
+  border-color: color-mix(in srgb, var(--ft-danger) 35%, var(--lv2-border));
+  color: var(--ft-danger);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-cancel-confirm {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--ft-danger) 30%, var(--lv2-border));
+  border-radius: 8px;
+  color: var(--lv2-text);
+  font-size: 12px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-cancel-confirm > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-inventory-link {
+  margin: 0;
+  padding: 9px 10px;
+  border-color: var(--lv2-border);
+  background: var(--lv2-surface-muted);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-inventory-link :is(p, small) {
+  font-size: 11px;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-disclaimer {
+  margin: 0;
+  color: var(--lv2-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: help;
+}
+#root .list-v2.foreign-trade-page .foreign-trade-detail-empty {
+  min-height: 120px;
+}
+
+/* Create/edit form: format hints under coded inputs. */
+#root .foreign-trade-create .foreign-trade-field-hint {
+  color: var(--rf-muted, #6b778c);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+html[data-theme="dark"] #root .list-v2.foreign-trade-page .foreign-trade-detail {
+  border-color: var(--erp-border);
+  border-top-color: var(--ft-accent);
+  background: var(--erp-surface);
+}
+html[data-theme="dark"] #root .list-v2.foreign-trade-page .foreign-trade-inventory-link {
+  border-color: var(--erp-border);
+  background: #202d40;
+}
+
+@media (max-width: 900px) {
+  #root .list-v2.foreign-trade-page .foreign-trade-stages {
+    flex-wrap: wrap;
+  }
+  #root .list-v2.foreign-trade-page .foreign-trade-stages > ol {
+    flex-basis: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  #root .list-v2.foreign-trade-page .foreign-trade-stages > ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

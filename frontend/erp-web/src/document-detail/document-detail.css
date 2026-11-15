@@ -1,0 +1,385 @@
+/*
+ * Yeniden tasarlanan belge detayı (DocumentSurface variant="detail" + DocumentDetailLayout.tsx).
+ * Uygulama geneli başlık / düğme / tablo kuralları .app-shell altında !important kullandığı için
+ * seçiciler #root ile kapsanır. Sınıf adları "-panel", "-card", "-badge", "-chip", "-dialog" içermez:
+ * global-components.css bu parçaları içeren her sınıfa arka plan ve köşe yuvarlaması dayatır.
+ */
+
+.doc-surface.doc-detail,
+.dd-tabs {
+  --dd-ink: var(--erp-color-text, #0a192f);
+  --dd-muted: var(--erp-color-muted, #526174);
+  --dd-line: var(--erp-color-border, #d8e0e8);
+  --dd-line-soft: #e8edf3;
+  --dd-paper: var(--erp-color-surface, #fff);
+  --dd-band: var(--erp-color-surface-muted, #f8f9fa);
+  --dd-link: var(--erp-link, #315f8b);
+  --dd-warn: #9a6700;
+  --dd-warn-bg: #fff7e0;
+  --dd-warn-line: #ecd08b;
+  --dd-danger: var(--erp-color-danger, #b91c1c);
+  --dd-success: #17643c;
+  --dd-bar: #2f855a;
+  --dd-bar-track: #e5eaf0;
+}
+html[data-theme="dark"] .doc-surface.doc-detail,
+html[data-theme="dark"] .dd-tabs {
+  --dd-line-soft: #283043;
+  --dd-link: #93c5fd;
+  --dd-warn: #f0d48a;
+  --dd-warn-bg: #2b2613;
+  --dd-warn-line: #6b5520;
+  --dd-success: #9bdcb6;
+  --dd-bar: #48bb78;
+  --dd-bar-track: #2a3346;
+}
+
+/* Başlık: küçük üst satır, büyük numara + durum, altında cari. */
+#root .doc-surface.doc-detail > .doc-surface-head { align-items: flex-start; padding: 14px 18px; }
+#root .doc-surface.doc-detail .doc-surface-back { margin-top: 2px; }
+#root .doc-surface.doc-detail .doc-surface-eyebrow {
+  margin: 0 0 2px;
+  color: var(--dd-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+#root .doc-surface.doc-detail .doc-surface-code-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+#root .app-shell .doc-surface.doc-detail .doc-surface-title h1 {
+  display: block;
+  margin: 0;
+  color: var(--dd-ink) !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  line-height: 1.25;
+}
+#root .doc-surface.doc-detail .doc-surface-title h1 b { color: inherit; font-weight: 700; }
+#root .doc-surface.doc-detail .doc-surface-sr,
+#root .doc-surface.doc-detail .dd-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+#root .doc-surface.doc-detail .doc-surface-party { margin-top: 3px; color: var(--dd-muted); font-size: 13.5px; overflow-wrap: anywhere; }
+#root .doc-surface.doc-detail .doc-surface-actions { align-self: center; justify-content: flex-end; }
+#root .app-shell .doc-surface.doc-detail .doc-surface-actions :is(.primary, .secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface.doc-detail .doc-surface-actions .sales-row-actions-trigger {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--dd-line);
+  border-radius: 6px;
+  background: var(--dd-paper);
+}
+
+/* Bağlantı görünümlü düğme (cari, sipariş, muhasebe fişi). */
+#root .app-shell .doc-surface.doc-detail .dd-link {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: var(--dd-link) !important;
+  font: inherit !important;
+  font-weight: 600 !important;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+#root .app-shell .doc-surface.doc-detail .dd-link:hover,
+#root .app-shell .doc-surface.doc-detail .dd-link:focus-visible { text-decoration-color: currentColor; }
+
+/* Gövde: çerçevesiz akış; bölümler kendi kutularını çizer. */
+#root .doc-surface.doc-detail > .doc-surface-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+#root .doc-surface.doc-detail .dd-box {
+  padding: 16px 18px;
+  border: 1px solid var(--dd-line);
+  border-radius: 8px;
+  background: var(--dd-paper);
+}
+#root .doc-surface.doc-detail .dd-muted { color: var(--dd-muted); }
+#root .doc-surface.doc-detail .dd-danger-text { color: var(--dd-danger); font-weight: 600; }
+#root .doc-surface.doc-detail .dd-loading { padding: 28px; color: var(--dd-muted); text-align: center; }
+
+/* Özet kutucukları */
+#root .doc-surface.doc-detail .dd-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+#root .doc-surface.doc-detail .dd-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dd-line);
+  border-radius: 8px;
+  background: var(--dd-paper);
+}
+#root .doc-surface.doc-detail .dd-tile-label { color: var(--dd-muted); font-size: 12px; font-weight: 600; }
+#root .doc-surface.doc-detail .dd-tile-value {
+  color: var(--dd-ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .doc-surface.doc-detail .dd-tile-hint { color: var(--dd-muted); font-size: 12.5px; }
+#root .doc-surface.doc-detail .dd-tile.is-warning { border-color: var(--dd-warn-line); background: var(--dd-warn-bg); }
+#root .doc-surface.doc-detail .dd-tile.is-warning .dd-tile-value { color: var(--dd-warn); }
+#root .doc-surface.doc-detail .dd-tile.is-danger .dd-tile-hint,
+#root .doc-surface.doc-detail .dd-tile-hint.is-danger { color: var(--dd-danger); font-weight: 600; }
+#root .doc-surface.doc-detail .dd-tile.is-success .dd-tile-hint { color: var(--dd-success); font-weight: 600; }
+#root .doc-surface.doc-detail .dd-tile.is-muted .dd-tile-value { color: var(--dd-muted); font-weight: 600; }
+#root .doc-surface.doc-detail .dd-progress {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--dd-bar-track);
+}
+#root .doc-surface.doc-detail .dd-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--dd-bar); }
+
+/* Bilgi ızgarası */
+#root .doc-surface.doc-detail .dd-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+#root .doc-surface.doc-detail .dd-info > div { min-width: 0; }
+#root .doc-surface.doc-detail .dd-info dt { margin: 0 0 3px; color: var(--dd-muted); font-size: 12px; font-weight: 600; }
+#root .doc-surface.doc-detail .dd-info dd { margin: 0; color: var(--dd-ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+
+/* Alt çizgili sekmeler (belge detayında ve pencerelerde) */
+#root .dd-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  border-bottom: 1px solid var(--dd-line);
+}
+#root .app-shell .dd-tabs .dd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0 0 -1px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--dd-muted) !important;
+  font-family: inherit !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.2;
+  cursor: pointer;
+}
+#root .app-shell .dd-tabs .dd-tab:hover { color: var(--dd-ink) !important; }
+#root .app-shell .dd-tabs .dd-tab.is-active {
+  border-bottom-color: var(--dd-ink);
+  color: var(--dd-ink) !important;
+  background: transparent !important;
+}
+#root .dd-tabs .dd-tab-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--dd-band);
+  border: 1px solid var(--dd-line);
+  color: var(--dd-muted);
+  font-size: 11.5px;
+}
+
+/* Satır tablosu */
+#root .doc-surface.doc-detail .dd-lines-wrap { overflow-x: auto; }
+#root .app-shell .doc-surface.doc-detail table.dd-lines { width: 100%; border-collapse: collapse !important; }
+#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td) {
+  height: auto !important;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--dd-line-soft);
+  vertical-align: top;
+  text-align: left;
+}
+#root .app-shell .doc-surface.doc-detail table.dd-lines thead th {
+  height: auto !important;
+  background: transparent !important;
+  border-bottom: 1px solid var(--dd-line);
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface.doc-detail table.dd-lines tbody tr:hover { background: transparent !important; }
+#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td).dd-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td).dd-menu { width: 48px; text-align: right; }
+#root .doc-surface.doc-detail .dd-stock b { display: block; color: var(--dd-ink); font-weight: 700; }
+#root .app-shell .doc-surface.doc-detail .dd-stock small,
+#root .app-shell .doc-surface.doc-detail table.dd-lines small {
+  display: block;
+  color: var(--dd-muted) !important;
+  font-size: 12.5px !important;
+}
+#root .doc-surface.doc-detail tr.is-voided td { color: var(--dd-muted); }
+#root .doc-surface.doc-detail tr.is-voided td.dd-num { text-decoration: line-through; }
+#root .doc-surface.doc-detail .dd-empty { padding: 18px 4px; color: var(--dd-muted); text-align: center; }
+
+/* Satırların altı: solda notlar, sağda toplamlar */
+#root .doc-surface.doc-detail .dd-lines-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 24px;
+  margin-top: 14px;
+  align-items: start;
+}
+#root .doc-surface.doc-detail .dd-totals { margin: 0; }
+#root .doc-surface.doc-detail .dd-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+  font-variant-numeric: tabular-nums;
+}
+#root .doc-surface.doc-detail .dd-totals dt { color: var(--dd-muted); font-size: 13.5px; }
+#root .doc-surface.doc-detail .dd-totals dd { margin: 0; color: var(--dd-ink); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+#root .doc-surface.doc-detail .dd-totals > .is-negative dd { color: var(--dd-danger); }
+#root .doc-surface.doc-detail .dd-totals > .is-muted :is(dt, dd) { color: var(--dd-muted); font-weight: 500; }
+#root .doc-surface.doc-detail .dd-totals > .is-grand {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dd-line);
+}
+#root .doc-surface.doc-detail .dd-totals > .is-grand :is(dt, dd) { color: var(--dd-ink); font-size: 16px; font-weight: 700; }
+#root .doc-surface.doc-detail .dd-notes { display: grid; gap: 12px; }
+#root .app-shell .doc-surface.doc-detail .dd-notes h3 {
+  margin: 0 0 3px;
+  color: var(--dd-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+#root .doc-surface.doc-detail .dd-notes p { margin: 0; color: var(--dd-ink); font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#root .doc-surface.doc-detail .dd-notes p.dd-muted { color: var(--dd-muted); }
+
+/* Bölümler (Ödemeler, İadeler, Geçmiş…) */
+#root .doc-surface.doc-detail .dd-section {
+  padding: 16px 18px;
+  border: 1px solid var(--dd-line);
+  border-radius: 8px;
+  background: var(--dd-paper);
+}
+#root .doc-surface.doc-detail .dd-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+#root .app-shell .doc-surface.doc-detail .dd-section-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+#root .doc-surface.doc-detail .dd-section-head p { margin: 3px 0 0; color: var(--dd-muted); font-size: 12.5px; }
+#root .doc-surface.doc-detail .dd-section-count {
+  padding: 1px 8px;
+  border: 1px solid var(--dd-line);
+  border-radius: 999px;
+  background: var(--dd-band);
+  color: var(--dd-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+#root .doc-surface.doc-detail .dd-section-actions { display: flex; gap: 8px; }
+
+#root .doc-surface.doc-detail .dd-form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dd-line-soft);
+}
+
+/* Sağdan kayan işlem paneli */
+#root .doc-surface.doc-detail .dd-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(10, 25, 47, 0.28);
+}
+#root .doc-surface.doc-detail .dd-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100vw);
+  overflow-y: auto;
+  border-left: 1px solid var(--dd-line);
+  background: var(--dd-paper);
+  animation: dd-drawer-in 160ms ease-out;
+}
+#root .doc-surface.doc-detail .dd-drawer:focus { outline: none; }
+#root .doc-surface.doc-detail .dd-drawer > .record-form { flex: 1 0 auto; margin: 0; border: 0; border-radius: 0; }
+@keyframes dd-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .doc-surface.doc-detail .dd-drawer { animation: none; }
+}
+
+@media (max-width: 1100px) {
+  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  #root .doc-surface.doc-detail .dd-lines-footer { grid-template-columns: minmax(0, 1fr); }
+  #root .doc-surface.doc-detail .dd-lines-footer > .dd-totals { order: -1; }
+  #root .doc-surface.doc-detail .doc-surface-actions { width: 100%; justify-content: flex-start; }
+}
+@media (max-width: 520px) {
+  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+  #root .doc-surface.doc-detail .dd-drawer,
+  #root .doc-surface.doc-detail .dd-drawer-scrim { display: none; }
+}
+
+/* Dar ekranda satır tablosu sayfayı yana taşırmaz; kendi içinde kayar. */
+@media (max-width: 700px) {
+  #root .doc-surface.doc-detail table.dd-lines {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

@@ -8,6 +8,7 @@ import type {
 } from "./human-resources/components/types";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, Download, Plus, RefreshCw } from "lucide-react";
+import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
@@ -265,16 +266,89 @@ async function request<T>(
       body?.errors && typeof body.errors === "object"
         ? Object.values(body.errors)
             .flat()
-            .find((value) => typeof value === "string")
+            .find((value) => typeof value === "string" && value.trim())
         : undefined;
-    throw new Error(
-      body?.error ??
-        validation ??
-        body?.title ??
+    const text = (value: unknown) =>
+      typeof value === "string" && value.trim() ? value : undefined;
+    throw new HrRequestError(
+      (validation as string | undefined) ??
+        text(body?.detail) ??
+        text(body?.error) ??
+        text(body?.title) ??
         `İstek başarısız (${response.status})`,
+      response.status,
     );
   }
   return response.status === 204 ? (undefined as T) : response.json();
+}
+
+/** API failure with its HTTP status, so the page can tell retryable failures (5xx) from business rules. */
+class HrRequestError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** Only network failures and server errors are worth retrying; 4xx answers are business/validation rules. */
+function isRetryableHrError(error: unknown) {
+  if (error instanceof HrRequestError) return error.status >= 500;
+  return error instanceof TypeError;
+}
+
+/** "2026-12-07" → "07.12.2026" without going through Date (no timezone shifts). */
+function formatHrDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : value;
+}
+
+/** "07.12 – 09.12.2026"; both dates in full when the years differ. */
+function formatHrDateRange(start: string, end: string) {
+  const a = start.match(/^(\d{4})-(\d{2})-(\d{2})/),
+    b = end.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!a || !b) return `${formatHrDate(start)} – ${formatHrDate(end)}`;
+  if (start.slice(0, 10) === end.slice(0, 10)) return formatHrDate(start);
+  return a[1] === b[1]
+    ? `${a[3]}.${a[2]} – ${b[3]}.${b[2]}.${b[1]}`
+    : `${formatHrDate(start)} – ${formatHrDate(end)}`;
+}
+
+/** Inclusive calendar days between two yyyy-mm-dd dates; 0 when invalid or reversed. */
+function hrCalendarDays(start: string, end: string) {
+  const parse = (value: string) => {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match
+      ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      : NaN;
+  };
+  const days = Math.round((parse(end) - parse(start)) / 86_400_000) + 1;
+  return Number.isFinite(days) && days > 0 ? days : 0;
+}
+
+function hrTokenUserId(token: string) {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(
+      atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")),
+    ) as { sub?: unknown };
+    return typeof decoded.sub === "string" ? decoded.sub.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+function hrLeaveStatusTone(status: string) {
+  return status === "Requested"
+    ? "pending"
+    : status === "Approved"
+      ? "approved"
+      : status === "Rejected"
+        ? "rejected"
+        : "muted";
 }
 const today = localDateString();
 
@@ -693,7 +767,7 @@ export default function HumanResourcesPage({
     [payrollRunSearch, setPayrollRunSearch] = useState("");
   // Status chips of the list toolbars ("" = all) and the toolbar element hosting grid tools.
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState(""),
-    [leaveStatusFilter, setLeaveStatusFilter] = useState(""),
+    [leaveStatusFilter, setLeaveStatusFilter] = useState("Requested"),
     [attendanceStatusFilter, setAttendanceStatusFilter] = useState(""),
     [compensationStatusFilter, setCompensationStatusFilter] = useState(""),
     [gridToolsSlot, setGridToolsSlot] = useState<HTMLDivElement | null>(null);
@@ -824,12 +898,36 @@ export default function HumanResourcesPage({
     >(hrPayrollRuleSetDefaultFields);
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
-    [error, setError] = useState(""),
+    [error, setErrorText] = useState(""),
+    [errorRetryable, setErrorRetryable] = useState(false),
     [message, setMessage] = useState("");
+  // Plain messages (client validation, clearing) are never retryable; API failures go through reportError.
+  const setError = (value: string) => {
+    setErrorText(value);
+    setErrorRetryable(false);
+  };
+  const reportError = (e: unknown) => {
+    setErrorText(localizeHrError(e, isEn));
+    setErrorRetryable(isRetryableHrError(e));
+  };
+  const currentUserId = hrTokenUserId(token);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [creatingEmployee, setCreatingEmployee] = useState(false);
   const employeeDialog = useRef<HTMLDialogElement>(null);
   const stayAfterEmployeeCreate = useRef(false);
+  const leaveForm = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (section !== "leave") return;
+    // The leave side form is not a RecordForm, so it handles its own F2 shortcut.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "F2" || event.altKey || event.shiftKey || event.ctrlKey) return;
+      if (document.querySelector(".record-form, .modal-backdrop, dialog[open]")) return;
+      event.preventDefault();
+      leaveForm.current?.requestSubmit();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [section]);
   useEffect(() => {
     if (!creatingEmployee) return;
     const dialog = employeeDialog.current;
@@ -858,6 +956,7 @@ export default function HumanResourcesPage({
     [startDate, setStartDate] = useState(today),
     [endDate, setEndDate] = useState(today),
     [days, setDays] = useState("1"),
+    [daysTouched, setDaysTouched] = useState(false),
     [leaveNote, setLeaveNote] = useState("");
   const [workDate, setWorkDate] = useState(today),
     [workedMinutes, setWorkedMinutes] = useState("480"),
@@ -1009,7 +1108,7 @@ export default function HumanResourcesPage({
       if (!priorBaseEmployeeId && compEmployees.length)
         setPriorBaseEmployeeId(compEmployees[0].id);
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setLoading(false);
     }
@@ -1247,7 +1346,7 @@ export default function HumanResourcesPage({
       await reload();
       return true;
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
       return false;
     } finally {
       setBusy(false);
@@ -1265,7 +1364,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1284,7 +1383,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1312,7 +1411,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1329,7 +1428,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1360,7 +1459,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1388,7 +1487,7 @@ export default function HumanResourcesPage({
         tr("İç formül taslağı reddedildi.", "Internal formula draft rejected."),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1419,7 +1518,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1454,7 +1553,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1491,7 +1590,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1528,7 +1627,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1565,7 +1664,7 @@ export default function HumanResourcesPage({
       );
       await viewPayrollRunCalculations(runId);
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1613,7 +1712,7 @@ export default function HumanResourcesPage({
       );
       await viewPayrollRunCalculations(runId);
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1725,7 +1824,7 @@ export default function HumanResourcesPage({
       setPayroll1003ATarget({ runId: item.runId, calculationId: item.id });
       setPayroll1003AJson(JSON.stringify(blank, null, 2));
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1827,7 +1926,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -1871,7 +1970,7 @@ export default function HumanResourcesPage({
       );
       await reload();
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -2006,7 +2105,7 @@ export default function HumanResourcesPage({
         ),
       );
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -2036,7 +2135,7 @@ export default function HumanResourcesPage({
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
-      setError(localizeHrError(e, isEn));
+      reportError(e);
     } finally {
       setBusy(false);
     }
@@ -2410,14 +2509,19 @@ export default function HumanResourcesPage({
     const defaults = defaultLabels[field.key];
     return isEn && defaults?.[0] === field.label ? defaults[1] : field.label;
   };
+  // The date range is rendered in the start date column, so the end date gets no column of its own.
   const leaveVisibleFields = leaveScreenFields
-    .filter((field) => field.key === "actions" || field.visible)
+    .filter(
+      (field) =>
+        field.key !== "endDate" && (field.key === "actions" || field.visible),
+    )
     .sort((a, b) => a.position - b.position);
+  const employeesById = new Map(employees.map((item) => [item.id, item]));
   const normalizeHrSearch = (value: string) =>
     value.trim().toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR");
   const leaveRows = leaves.filter((item) =>
     (!leaveStatusFilter || item.status === leaveStatusFilter) &&
-    `${item.employee} ${item.leaveType} ${item.startDate} ${item.endDate} ${item.status}`
+    `${item.employee} ${employeesById.get(item.employeeId)?.department ?? ""} ${leaveTypeLabel(item.leaveType, isEn)} ${item.startDate} ${item.endDate} ${formatHrDate(item.startDate)} ${formatHrDate(item.endDate)} ${hrStatusLabel(item.status, isEn)}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(normalizeHrSearch(leaveSearch)),
   );
@@ -2431,8 +2535,26 @@ export default function HumanResourcesPage({
       status: ["Durum", "Status"],
       actions: ["İşlem", "Action"],
     };
+    // The start date column shows the whole range; keep a tenant-renamed label as is.
+    if (field.key === "startDate" && field.label === "Başlangıç")
+      return tr("Tarih aralığı", "Date range");
     const value = defaults[field.key];
     return isEn && value?.[0] === field.label ? value[1] : field.label;
+  };
+  const leaveCalendarDays = hrCalendarDays(startDate, endDate);
+  const isOwnLeaveRequest = (item: Leave) =>
+    !!currentUserId && item.requestedByUserId?.toLowerCase() === currentUserId;
+  const leaveSaveDisabled =
+    !employeeId ||
+    !employees.some((x) => x.id === employeeId && x.status === "Active") ||
+    !leaveCalendarDays;
+  // Requested days follow the selected range until the user types their own value.
+  const updateLeaveRange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    const span = hrCalendarDays(start, end);
+    if (!daysTouched && span) setDays(String(span));
+    else if (span && Number(days) > span) setDays(String(span));
   };
   const attendanceVisibleFields: EmployeeScreenField[] = [
     ...attendanceScreenFields.filter((field) =>
@@ -2460,7 +2582,7 @@ export default function HumanResourcesPage({
   };
   const attendanceRows = attendance.filter((item) =>
     (!attendanceStatusFilter || item.approvalStatus === attendanceStatusFilter) &&
-    `${item.employee} ${item.workDate} ${item.note ?? ""} ${item.approvalStatus}`
+    `${item.employee} ${item.workDate} ${formatHrDate(item.workDate)} ${item.note ?? ""} ${item.approvalStatus}`
       .toLocaleLowerCase(locale === "en" ? "en-US" : "tr-TR")
       .includes(normalizeHrSearch(attendanceSearch)),
   );
@@ -2545,8 +2667,29 @@ export default function HumanResourcesPage({
         ]
       : []),
   ];
-  // Record count shown next to the page title; null on tabs that are not a record list.
+  // Record count of list tabs; null on tabs that are not a record list.
   // Those tabs have no list toolbar, so the header keeps the refresh button for them.
+  const tabCounts: Partial<Record<Section, number>> = {
+    employees: employees.length,
+    leave: leaves.length,
+    attendance: attendance.length,
+  };
+  // Notices and errors belong to the tab that produced them.
+  const changeSection = (next: Section) => {
+    if (next === section) return;
+    setError("");
+    setMessage("");
+    setSection(next);
+  };
+  const focusCreateForm = (id: string) => {
+    const host = document.getElementById(id);
+    host?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    host
+      ?.querySelector<HTMLElement>(
+        "button.searchable-record-trigger, input:not([readonly]):not([type='hidden']), select",
+      )
+      ?.focus({ preventScroll: true });
+  };
   const sectionCount: number | null =
     section === "employees"
       ? employees.length
@@ -2582,8 +2725,6 @@ export default function HumanResourcesPage({
       <ListPageHeader
         title={tr("İnsan kaynakları", "Human resources")}
         description={sectionDescription}
-        count={loading ? null : sectionCount}
-        countLabel={tr("kayıt", "records")}
       >
         {(loading || sectionCount === null) && (
           <button
@@ -2609,6 +2750,28 @@ export default function HumanResourcesPage({
             {tr("Personel ekle", "Add employee")}
           </button>
         )}
+        {section === "leave" && !loading && (
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() => focusCreateForm("hr-leave-create")}
+          >
+            <Plus size={16} />
+            {tr("İzin talebi", "Leave request")}
+          </button>
+        )}
+        {section === "attendance" && admin && !loading && (
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() => focusCreateForm("hr-attendance-create")}
+          >
+            <Plus size={16} />
+            {tr("Puantaj gir", "Record attendance")}
+          </button>
+        )}
       </ListPageHeader>
       <div
         className="hr-tabs"
@@ -2628,7 +2791,7 @@ export default function HumanResourcesPage({
             aria-selected={section === key}
             tabIndex={section === key ? 0 : -1}
             className={section === key ? "active" : ""}
-            onClick={() => setSection(key)}
+            onClick={() => changeSection(key)}
             onKeyDown={(event) => {
               if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
                 event.preventDefault();
@@ -2639,26 +2802,33 @@ export default function HumanResourcesPage({
                       (event.key === "ArrowRight" ? 1 : tabs.length - 1)) %
                       tabs.length
                   ][0];
-                setSection(next);
+                changeSection(next);
                 document.getElementById(`hr-tab-${next}`)?.focus();
               }
             }}
           >
-            {label}
+            <span>{label}</span>
+            {!loading && tabCounts[key] != null && (
+              <span className="hr-tab-count">
+                {tabCounts[key]!.toLocaleString("tr-TR")}
+              </span>
+            )}
           </button>
         ))}
       </div>
-      {error && (
+      {error && !(section === "employees" && creatingEmployee) && (
         <div className="hr-alert" role="alert">
           <span>{error}</span>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => void reload()}
-            disabled={loading}
-          >
-            {tr("Tekrar dene", "Try again")}
-          </button>
+          {errorRetryable && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void reload()}
+              disabled={loading}
+            >
+              {tr("Tekrar dene", "Try again")}
+            </button>
+          )}
         </div>
       )}
       {message && (
@@ -3038,223 +3208,207 @@ export default function HumanResourcesPage({
               </>
             )}
             {section === "leave" && (
-              <>
-                <ListToolbar
-                  search={leaveSearch}
-                  onSearchChange={setLeaveSearch}
-                  searchLabel={tr("İzin ara", "Search leave")}
-                  searchPlaceholder={tr("Personel, izin türü veya tarih", "Employee, leave type or date")}
-                  toolsSlotRef={setGridToolsSlot}
-                  onRefresh={refreshList}
-                >
-                  <ListChipGroup
-                    label={tr("Durum", "Status")}
-                    value={leaveStatusFilter}
-                    onChange={setLeaveStatusFilter}
-                    allowClear
-                    hideEmpty
-                    options={["Requested", "Approved", "Rejected", "Cancelled"].map((status) => ({
-                      value: status,
-                      label: hrStatusLabel(status, isEn),
-                      count: leaves.filter((item) => item.status === status).length,
-                    }))}
-                  />
-                </ListToolbar>
-                <div className="hr-panel list-v2-list">
-                  <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" gridId="hr-leave-requests" {...screenViewGridDefaults(leaveVisibleFields)} hideSearch toolbarContainer={gridToolsSlot}>
-                      <thead>
-                        <tr>
-                          {leaveVisibleFields.map((field) => (
-                            <th
-                              key={field.key}
-                              style={
-                                field.width
-                                  ? {
-                                      width: field.width,
-                                      minWidth: field.width,
-                                    }
-                                  : undefined
-                              }
-                            >
-                              {leaveFieldLabel(field)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leaveRows.map((x) => (
-                          <tr key={x.id}>
-                            {leaveVisibleFields.map((field) => {
-                              const label = leaveFieldLabel(field);
-                              if (field.key === "actions")
-                                return (
-                                  <td
-                                    key={field.key}
-                                    style={
-                                      field.width
-                                        ? {
-                                            width: field.width,
-                                            minWidth: field.width,
-                                          }
-                                        : undefined
-                                    }
-                                    data-label={label}
-                                  >
-                                    <div className="hr-actions">
-                                      {admin && x.status === "Requested" && (
-                                        <>
-                                          <button
-                                            className="secondary"
-                                            disabled={busy}
-                                            title={tr("Onayla", "Approve")}
-                                            aria-label={tr(
-                                              "İzin talebini onayla",
-                                              "Approve leave request",
-                                            )}
-                                            onClick={() =>
-                                              void submit(
-                                                () =>
-                                                  request(
-                                                    token,
-                                                    `/api/hr/leave-requests/${x.id}/review`,
-                                                    {
-                                                      method: "POST",
-                                                      body: JSON.stringify({
-                                                        approve: true,
-                                                        rowVersion:
-                                                          x.rowVersion,
-                                                      }),
-                                                    },
-                                                  ),
-                                                tr(
-                                                  "İzin onaylandı.",
-                                                  "Leave approved.",
-                                                ),
-                                              )
-                                            }
-                                          >
-                                            <Check size={15} />
-                                          </button>
-                                          <button
-                                            className="secondary"
-                                            disabled={busy}
-                                            onClick={() =>
-                                              void submit(
-                                                () =>
-                                                  request(
-                                                    token,
-                                                    `/api/hr/leave-requests/${x.id}/review`,
-                                                    {
-                                                      method: "POST",
-                                                      body: JSON.stringify({
-                                                        approve: false,
-                                                        rowVersion:
-                                                          x.rowVersion,
-                                                      }),
-                                                    },
-                                                  ),
-                                                tr(
-                                                  "İzin reddedildi.",
-                                                  "Leave rejected.",
-                                                ),
-                                              )
-                                            }
-                                          >
-                                            {tr("Reddet", "Reject")}
-                                          </button>
-                                        </>
-                                      )}
-                                      {x.canCancel && (
-                                        <button
-                                          className="secondary"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            void submit(
-                                              () =>
-                                                request(
-                                                  token,
-                                                  `/api/hr/leave-requests/${x.id}/cancel`,
-                                                  {
-                                                    method: "POST",
-                                                    body: JSON.stringify({
-                                                      rowVersion: x.rowVersion,
-                                                    }),
-                                                  },
-                                                ),
-                                              tr(
-                                                "İzin talebi iptal edildi.",
-                                                "Leave request cancelled.",
-                                              ),
-                                            )
-                                          }
-                                        >
-                                          {tr("İptal et", "Cancel")}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                );
-                              const value =
-                                field.key === "employee" ? (
-                                  x.employee
-                                ) : field.key === "leaveType" ? (
-                                  leaveTypeLabel(x.leaveType, isEn)
-                                ) : field.key === "startDate" ? (
-                                  x.startDate
-                                ) : field.key === "endDate" ? (
-                                  x.endDate
-                                ) : field.key === "requestedDays" ? (
-                                  x.requestedDays
-                                ) : field.key === "status" ? (
-                                  <span className="hr-status">
-                                    {hrStatusLabel(x.status, isEn)}
-                                  </span>
-                                ) : null;
-                              return (
-                                <td
-                                  key={field.key}
-                                  style={
-                                    field.width
-                                      ? {
-                                          width: field.width,
-                                          minWidth: field.width,
-                                        }
-                                      : undefined
-                                  }
-                                  data-label={label}
-                                >
-                                  {value}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                        {!leaveRows.length && (
+              <div className="hr-side-layout">
+                <div className="hr-side-main">
+                  <ListToolbar
+                    search={leaveSearch}
+                    onSearchChange={setLeaveSearch}
+                    searchLabel={tr("İzin ara", "Search leave")}
+                    searchPlaceholder={tr("Personel, izin türü veya tarih", "Employee, leave type or date")}
+                    toolsSlotRef={setGridToolsSlot}
+                    onRefresh={refreshList}
+                  >
+                    <ListChipGroup
+                      label={tr("Durum", "Status")}
+                      value={leaveStatusFilter}
+                      onChange={setLeaveStatusFilter}
+                      options={[
+                        ...["Requested", "Approved", "Rejected"].map((status) => ({
+                          value: status,
+                          label: hrStatusLabel(status, isEn),
+                          count: leaves.filter((item) => item.status === status).length,
+                        })),
+                        { value: "", label: tr("Tümü", "All"), count: leaves.length },
+                      ]}
+                    />
+                  </ListToolbar>
+                  <div className="hr-panel list-v2-list">
+                    <div className="hr-table-wrap">
+                      <AdvancedDataGrid
+                        className="hr-table hr-leave-table"
+                        gridId="hr-leave-requests-v2"
+                        {...screenViewGridDefaults(leaveVisibleFields)}
+                        hideSearch
+                        enableRowSelection={false}
+                        toolbarContainer={gridToolsSlot}
+                      >
+                        <thead>
                           <tr>
-                            <td colSpan={leaveVisibleFields.length}>
-                              {tr("İzin talebi yok.", "No leave requests.")}
-                            </td>
+                            {leaveVisibleFields.map((field) => (
+                              <th
+                                key={field.key}
+                                className={field.key === "actions" ? "hr-col-actions" : field.key === "requestedDays" ? "hr-col-number" : undefined}
+                                style={
+                                  field.width
+                                    ? { width: field.width, minWidth: field.width }
+                                    : undefined
+                                }
+                              >
+                                {leaveFieldLabel(field)}
+                              </th>
+                            ))}
                           </tr>
-                        )}
-                      </tbody>
-                    </AdvancedDataGrid>
+                        </thead>
+                        <tbody>
+                          {leaveRows.map((x) => {
+                            const person = employeesById.get(x.employeeId);
+                            const own = isOwnLeaveRequest(x);
+                            const canReview = admin && x.status === "Requested";
+                            return (
+                              <tr key={x.id}>
+                                {leaveVisibleFields.map((field) => {
+                                  const label = leaveFieldLabel(field);
+                                  const style = field.width
+                                    ? { width: field.width, minWidth: field.width }
+                                    : undefined;
+                                  if (field.key === "actions")
+                                    return (
+                                      <td key={field.key} className="hr-col-actions" style={style} data-label={label}>
+                                        {(canReview || x.canCancel) && (
+                                          <SalesRowActionsMenu label={person?.fullName ?? x.employee}>
+                                            {canReview && !own && (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  role="menuitem"
+                                                  className="sales-row-menu-item"
+                                                  disabled={busy}
+                                                  onClick={() =>
+                                                    void submit(
+                                                      () =>
+                                                        request(token, `/api/hr/leave-requests/${x.id}/review`, {
+                                                          method: "POST",
+                                                          body: JSON.stringify({ approve: true, rowVersion: x.rowVersion }),
+                                                        }),
+                                                      tr("İzin onaylandı.", "Leave approved."),
+                                                    )
+                                                  }
+                                                >
+                                                  {tr("Onayla", "Approve")}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  role="menuitem"
+                                                  className="sales-row-menu-item"
+                                                  disabled={busy}
+                                                  onClick={() =>
+                                                    void submit(
+                                                      () =>
+                                                        request(token, `/api/hr/leave-requests/${x.id}/review`, {
+                                                          method: "POST",
+                                                          body: JSON.stringify({ approve: false, rowVersion: x.rowVersion }),
+                                                        }),
+                                                      tr("İzin reddedildi.", "Leave rejected."),
+                                                    )
+                                                  }
+                                                >
+                                                  {tr("Reddet", "Reject")}
+                                                </button>
+                                              </>
+                                            )}
+                                            {canReview && own && (
+                                              <span className="sales-row-menu-note">
+                                                {tr("Başka bir yönetici onaylamalı", "Another administrator must review this")}
+                                              </span>
+                                            )}
+                                            {x.canCancel && (
+                                              <>
+                                                {canReview && <div role="separator" className="sales-row-menu-separator" />}
+                                                <button
+                                                  type="button"
+                                                  role="menuitem"
+                                                  className="sales-row-menu-item danger-action"
+                                                  disabled={busy}
+                                                  onClick={() =>
+                                                    void submit(
+                                                      () =>
+                                                        request(token, `/api/hr/leave-requests/${x.id}/cancel`, {
+                                                          method: "POST",
+                                                          body: JSON.stringify({ rowVersion: x.rowVersion }),
+                                                        }),
+                                                      tr("İzin talebi iptal edildi.", "Leave request cancelled."),
+                                                    )
+                                                  }
+                                                >
+                                                  {tr("İptal et", "Cancel")}
+                                                </button>
+                                              </>
+                                            )}
+                                          </SalesRowActionsMenu>
+                                        )}
+                                      </td>
+                                    );
+                                  const value =
+                                    field.key === "employee" ? (
+                                      <>
+                                        <b>{person?.fullName ?? x.employee}</b>
+                                        {person && (
+                                          <small>
+                                            {[person.personnelCode, person.department].filter(Boolean).join(" · ")}
+                                          </small>
+                                        )}
+                                      </>
+                                    ) : field.key === "leaveType" ? (
+                                      leaveTypeLabel(x.leaveType, isEn)
+                                    ) : field.key === "startDate" ? (
+                                      <span className="hr-nowrap">{formatHrDateRange(x.startDate, x.endDate)}</span>
+                                    ) : field.key === "requestedDays" ? (
+                                      x.requestedDays.toLocaleString("tr-TR")
+                                    ) : field.key === "status" ? (
+                                      <span className={`hr-status hr-status--${hrLeaveStatusTone(x.status)}`}>
+                                        {hrStatusLabel(x.status, isEn)}
+                                      </span>
+                                    ) : null;
+                                  return (
+                                    <td
+                                      key={field.key}
+                                      className={field.key === "requestedDays" ? "hr-col-number" : undefined}
+                                      style={style}
+                                      data-label={label}
+                                    >
+                                      {value}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                          {!leaveRows.length && (
+                            <tr>
+                              <td colSpan={leaveVisibleFields.length}>
+                                {leaves.length
+                                  ? tr("Filtreye uygun izin talebi yok.", "No leave requests match these filters.")
+                                  : tr("İzin talebi yok.", "No leave requests.")}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </AdvancedDataGrid>
+                    </div>
                   </div>
                 </div>
-                <div className="hr-panel hrp-form-panel">
-                  <ModuleRecordForm
-                    title={tr("İzin talebi oluştur", "Request leave")}
-                    mode="create"
-                    busy={busy}
-                    saveDisabled={
-                      !employeeId ||
-                      !employees.some(
-                        (x) => x.id === employeeId && x.status === "Active",
-                      )
-                    }
-                    saveLabel={tr("Talep et", "Submit")}
+                <aside
+                  id="hr-leave-create"
+                  className="hr-side-panel"
+                  aria-labelledby="hr-leave-create-title"
+                >
+                  <h2 id="hr-leave-create-title">{tr("İzin talebi", "Leave request")}</h2>
+                  <form
+                    ref={leaveForm}
+                    className="hr-side-form"
                     onSubmit={(e) => {
                       e.preventDefault();
+                      if (leaveSaveDisabled || busy) return;
                       void submit(
                         () =>
                           request(token, "/api/hr/leave-requests/", {
@@ -3268,14 +3422,14 @@ export default function HumanResourcesPage({
                               note: leaveNote || null,
                             }),
                           }),
-                        tr(
-                          "İzin talebi oluşturuldu.",
-                          "Leave request submitted.",
-                        ),
-                      );
+                        tr("İzin talebi oluşturuldu.", "Leave request submitted."),
+                      ).then((saved) => {
+                        if (!saved) return;
+                        setLeaveNote("");
+                        setDaysTouched(false);
+                      });
                     }}
->
-<RecordFormGroup title={tr("İzin Talebi", "Leave request")} bodyClassName="rf-identity hrp-identity-even">
+                  >
                     <label>
                       {tr("Personel", "Employee")}
                       <SearchableRecordPicker
@@ -3284,81 +3438,85 @@ export default function HumanResourcesPage({
                         onSelect={setEmployeeId}
                         title={tr("Personel seçin", "Select employee")}
                         placeholder={tr("Personel seçin", "Select employee")}
-                        searchPlaceholder={tr(
-                          "Kod veya adla ara",
-                          "Search by code or name",
-                        )}
-                        emptyMessage={tr(
-                          "Eşleşen aktif personel yok.",
-                          "No matching active employees.",
-                        )}
+                        searchPlaceholder={tr("Kod veya adla ara", "Search by code or name")}
+                        emptyMessage={tr("Eşleşen aktif personel yok.", "No matching active employees.")}
                         required
                       />
                     </label>
                     <label>
                       {tr("İzin türü", "Leave type")}
-                      <select
-                        value={leaveType}
-                        onChange={(e) => setLeaveType(e.target.value)}
-                        required
-                      >
+                      <select value={leaveType} onChange={(e) => setLeaveType(e.target.value)} required>
                         <option value="Annual">{tr("Yıllık", "Annual")}</option>
                         <option value="Health">{tr("Sağlık", "Health")}</option>
-                        <option value="Unpaid">
-                          {tr("Ücretsiz", "Unpaid")}
-                        </option>
-                        <option value="Excuse">
-                          {tr("Mazeret", "Excuse")}
-                        </option>
+                        <option value="Unpaid">{tr("Ücretsiz", "Unpaid")}</option>
+                        <option value="Excuse">{tr("Mazeret", "Excuse")}</option>
                         <option value="Other">{tr("Diğer", "Other")}</option>
                       </select>
                     </label>
+                    <div className="hr-side-pair">
+                      <label>
+                        {tr("Başlangıç", "Start date")}
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => updateLeaveRange(e.target.value, endDate)}
+                          required
+                        />
+                      </label>
+                      <label>
+                        {tr("Bitiş", "End date")}
+                        <input
+                          type="date"
+                          value={endDate}
+                          min={startDate || undefined}
+                          onChange={(e) => updateLeaveRange(startDate, e.target.value)}
+                          required
+                        />
+                      </label>
+                    </div>
+                    <p className="hr-side-hint" aria-live="polite">
+                      {leaveCalendarDays
+                        ? isEn
+                          ? `${leaveCalendarDays} calendar days`
+                          : `${leaveCalendarDays} takvim günü`
+                        : tr("Bitiş başlangıçtan önce olamaz.", "The end date cannot be before the start date.")}
+                    </p>
                     <label>
-                      {tr("Başlangıç", "Start date")}
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      {tr("Bitiş", "End date")}
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        required
-                      />
-                    </label>
-</RecordFormGroup>
-<RecordFormGroup title={tr("Süre ve Not", "Duration and note")} bodyClassName="hrp-grid">
-                    <label>
-                      {tr(
-                        "Talep edilen gün (elle girilir)",
-                        "Requested days (entered manually)",
-                      )}
+                      {tr("Talep edilen gün", "Requested days")}
                       <input
                         type="number"
                         min="0.01"
                         step="0.01"
+                        max={leaveCalendarDays || undefined}
                         value={days}
-                        onChange={(e) => setDays(e.target.value)}
+                        onChange={(e) => {
+                          setDays(e.target.value);
+                          setDaysTouched(true);
+                        }}
                         required
                       />
                     </label>
-                    <label className="wide">
-                      {tr("Not (isteğe bağlı)", "Note (optional)")}
-                      <input
+                    <label>
+                      {tr("Not", "Note")}
+                      <textarea
+                        rows={3}
                         value={leaveNote}
                         onChange={(e) => setLeaveNote(e.target.value)}
                         maxLength={1000}
+                        placeholder={tr("İsteğe bağlı", "Optional")}
                       />
                     </label>
-</RecordFormGroup>
-</ModuleRecordForm>
-                </div>
-              </>
+                    <button
+                      type="submit"
+                      className="primary hr-side-submit"
+                      disabled={busy || leaveSaveDisabled}
+                    >
+                      {busy ? tr("Kaydediliyor…", "Saving…") : tr("Talep et", "Submit")}
+                      <kbd>F2</kbd>
+                    </button>
+                  </form>
+                </aside>
+              </div>
             )}
             {section === "attendance" && (
               <>
@@ -3473,7 +3631,7 @@ export default function HumanResourcesPage({
                                 field.key === "employee" ? (
                                   x.employee
                                 ) : field.key === "workDate" ? (
-                                  x.workDate
+                                  formatHrDate(x.workDate)
                                 ) : field.key === "workedMinutes" ? (
                                   `${Math.floor(x.workedMinutes / 60)}${tr(" sa", " h")} ${x.workedMinutes % 60}${tr(" dk", " min")}`
                                 ) : field.key === "overtimeMinutes" ? (
@@ -3623,7 +3781,7 @@ export default function HumanResourcesPage({
                   </div>
                 )}
                 {admin && (
-                  <div className="hr-panel hrp-form-panel">
+                  <div id="hr-attendance-create" className="hr-panel hrp-form-panel">
                     <ModuleRecordForm
                       title={tr("Puantaj gir", "Record attendance")}
                       mode="create"
@@ -3788,7 +3946,7 @@ export default function HumanResourcesPage({
                     <div className="panel-heading">
                       <div>
                         <h3>
-                          {summary.from} – {summary.to}
+                          {formatHrDate(summary.from)} – {formatHrDate(summary.to)}
                         </h3>
                         <p>
                           {tr(
@@ -3984,7 +4142,7 @@ export default function HumanResourcesPage({
                                   x.payBasisCode
                                 ) : field.key === "effectiveFrom" ? (
                                   <>
-                                    {x.effectiveFrom} · v{x.version}
+                                    {formatHrDate(x.effectiveFrom)} · v{x.version}
                                   </>
                                 ) : field.key === "status" ? (
                                   <span className="hr-status">
@@ -4774,7 +4932,7 @@ export default function HumanResourcesPage({
                                 >
                                   {field.key === "period" ? (
                                   <>
-                                  {run.periodStart} – {run.periodEnd}
+                                  {formatHrDate(run.periodStart)} – {formatHrDate(run.periodEnd)}
                                   <br />
                                   <small>
                                     {run.periodKind === "EmployerDefined"
@@ -4884,8 +5042,8 @@ export default function HumanResourcesPage({
                           )}
                         </h3>
                         <p className="hr-footnote">
-                          {selectedRunSnapshot.periodStart} –{" "}
-                          {selectedRunSnapshot.periodEnd} · SHA-256:{" "}
+                          {formatHrDate(selectedRunSnapshot.periodStart)} –{" "}
+                          {formatHrDate(selectedRunSnapshot.periodEnd)} · SHA-256:{" "}
                           {selectedRunSnapshot.snapshotSha256}
                         </p>
                         <pre
@@ -5620,7 +5778,7 @@ export default function HumanResourcesPage({
                                   x.taxYear
                                 ) : field.key === "effectivePeriod" ? (
                                   <>
-                                    {x.effectiveFrom} – {x.effectiveTo || "…"}
+                                    {formatHrDate(x.effectiveFrom)} – {x.effectiveTo ? formatHrDate(x.effectiveTo) : "…"}
                                   </>
                                 ) : field.key === "version" ? (
                                   <>v{x.version}</>
@@ -6061,7 +6219,7 @@ className="secondary hrp-group-action"
                                 ) : field.key === "workplaceCode" ? (
                                   x.workplaceCode
                                 ) : field.key === "effectiveFrom" ? (
-                                  x.effectiveFrom
+                                  formatHrDate(x.effectiveFrom)
                                 ) : field.key === "versionStatus" ? (
                                   <>
                                     v{x.version} ·{" "}
@@ -6287,7 +6445,7 @@ className="secondary hrp-group-action"
                                 {field.key === "workplaceCode" ? (
                                   x.workplaceCode
                                 ) : field.key === "effectiveFrom" ? (
-                                  x.effectiveFrom
+                                  formatHrDate(x.effectiveFrom)
                                 ) : field.key === "versionStatus" ? (
                                   <>
                                     v{x.version} ·{" "}
@@ -6545,7 +6703,7 @@ className="secondary hrp-group-action"
                                   {field.key === "employee" ? (
                                     x.employee
                                   ) : field.key === "effectiveFrom" ? (
-                                    x.effectiveFrom
+                                    formatHrDate(x.effectiveFrom)
                                   ) : field.key === "versionStatus" ? (
                                     <>
                                       v{x.version} ·{" "}

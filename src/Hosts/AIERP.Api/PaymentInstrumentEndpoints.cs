@@ -1,3 +1,4 @@
+using AIERP.Api;
 using System.Security.Claims;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -65,6 +66,7 @@ internal static class PaymentInstrumentEndpoints
                 ? LedgerMappingKeys.InstrumentReceivablePortfolio : LedgerMappingKeys.InstrumentPayablePortfolio;
             var mapped = await LoadMappedAccountsAsync(db, tenantId, [offsetKey, portfolioKey], ct);
             if (mapped is null) return MissingMappings([offsetKey, portfolioKey]);
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, request.PortfolioDate, ct);
             var instrument = new PaymentInstrument
             {
                 TenantId = tenantId, RequestId = request.RequestId, Type = request.Type, Direction = request.Direction,
@@ -81,7 +83,7 @@ internal static class PaymentInstrumentEndpoints
             var creationLines = request.Direction == PaymentInstrumentDirection.Receivable
                 ? new[] { (mapped[portfolioKey], request.Amount, 0m), (mapped[offsetKey], 0m, request.Amount) }
                 : new[] { (mapped[offsetKey], request.Amount, 0m), (mapped[portfolioKey], 0m, request.Amount) };
-            db.JournalEntries.Add(NewJournal(tenantId, actorId, createdEvent, creationLines,
+            db.JournalEntries.Add(NewJournal(tenantId, actorId, journalCode, createdEvent, creationLines,
                 $"{InstrumentLabel(instrument.Type)} portföye alındı · {instrument.Code}"));
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = actorId, Action = "finance.instrument.created", Resource = $"{instrument.Type}:{instrument.Code}:{instrument.Amount} {instrument.CurrencyCode}" });
             try { await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct); }
@@ -232,10 +234,11 @@ internal static class PaymentInstrumentEndpoints
             var endorsementKeys = new[] { LedgerMappingKeys.InstrumentReceivablePortfolio, LedgerMappingKeys.InstrumentEndorsementOffset };
             var mapped = await LoadMappedAccountsAsync(db, tenantId, endorsementKeys, ct);
             if (mapped is null) return MissingMappings(endorsementKeys);
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, date, ct);
             item.Status = PaymentInstrumentStatus.Endorsed; item.EndorsedTo = request.EndorsedTo.Trim(); item.EndorsedAt = DateTimeOffset.UtcNow;
             var endorsedEvent = NewEvent(item, request.RequestId, "Endorsed", before, item.Status, date, Clean(request.Note), null, actorId);
             db.PaymentInstrumentEvents.Add(endorsedEvent);
-            db.JournalEntries.Add(NewJournal(tenantId, actorId, endorsedEvent,
+            db.JournalEntries.Add(NewJournal(tenantId, actorId, journalCode, endorsedEvent,
                 [(mapped[LedgerMappingKeys.InstrumentEndorsementOffset], item.Amount, 0m),
                  (mapped[LedgerMappingKeys.InstrumentReceivablePortfolio], 0m, item.Amount)],
                 $"Alacak {InstrumentLabel(item.Type)} cirosu · {item.Code}"));
@@ -272,6 +275,7 @@ internal static class PaymentInstrumentEndpoints
                     .SumAsync(x => x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount, ct);
                 if (balance < item.Amount) return Results.Conflict(new { error = "Kasa bakiyesi bu ödemeyi karşılamıyor." });
             }
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, date, ct);
             var before = item.Status;
             var movement = new FinancialAccountTransaction { TenantId = tenantId, FinancialAccountId = account.Id,
                 CurrencyCode = item.CurrencyCode, TransactionDate = date,
@@ -286,7 +290,7 @@ internal static class PaymentInstrumentEndpoints
             var collectionLines = item.Direction == PaymentInstrumentDirection.Receivable
                 ? new[] { (mapped[accountKey], item.Amount, 0m), (mapped[portfolioKey], 0m, item.Amount) }
                 : new[] { (mapped[portfolioKey], item.Amount, 0m), (mapped[accountKey], 0m, item.Amount) };
-            db.JournalEntries.Add(NewJournal(tenantId, actorId, collectedEvent, collectionLines,
+            db.JournalEntries.Add(NewJournal(tenantId, actorId, journalCode, collectedEvent, collectionLines,
                 $"{InstrumentLabel(item.Type)} tahsil/ödeme · {item.Code}"));
             db.AuditEvents.Add(Audit(tenantId, actorId, "finance.instrument.collected", item, request.Note));
             return await SaveAction(db, item, ct, transaction);
@@ -316,6 +320,7 @@ internal static class PaymentInstrumentEndpoints
             if (closedPeriod is { } closed) return ClosedPeriodConflict(closed.FromDate, closed.ToDate);
             Guid? reversalId = null;
             JournalEntry? originalJournal = null;
+            string? reverseJournalCode = null; // reserved after validation, before the instrument is modified
             if (before == PaymentInstrumentStatus.Collected)
             {
                 if (item.FinancialAccountTransactionId is not { } movementId || item.FinancialAccountId is not { } accountId)
@@ -330,6 +335,7 @@ internal static class PaymentInstrumentEndpoints
                     return Results.Conflict(new { error = "Tahsilatın dengeli defter fişi bulunamadı; önce mutabakat yapın." });
                 var account = await db.FinancialAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == accountId, ct);
                 if (account is null) return Results.Conflict(new { error = "Tahsilat hesabı bulunamadığı için işlem tamamlanamıyor." });
+                reverseJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, date, ct);
                 var reversal = new FinancialAccountTransaction { TenantId = tenantId, FinancialAccountId = accountId,
                     CurrencyCode = item.CurrencyCode, TransactionDate = date,
                     Direction = original.Direction == FinancialDirection.Inflow ? FinancialDirection.Outflow : FinancialDirection.Inflow,
@@ -345,12 +351,13 @@ internal static class PaymentInstrumentEndpoints
                     .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "PaymentInstrumentEvent" && x.SourceId == endorsementEvent.Id, ct);
                 if (!IsBalancedTenantJournal(originalJournal, tenantId))
                     return Results.Conflict(new { error = "Ciro hareketinin dengeli defter fişi bulunamadı; ters kayıt öncesi mutabakat yapın." });
+                reverseJournalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, date, ct);
             }
             item.Status = PaymentInstrumentStatus.Bounced;
             var bouncedEvent = NewEvent(item, request.RequestId, "Bounced", before, item.Status, date, Clean(request.Note), reversalId, actorId);
             db.PaymentInstrumentEvents.Add(bouncedEvent);
             if (originalJournal is not null)
-                db.JournalEntries.Add(NewReverseJournal(tenantId, actorId, bouncedEvent, originalJournal,
+                db.JournalEntries.Add(NewReverseJournal(tenantId, actorId, reverseJournalCode!, bouncedEvent, originalJournal,
                     $"Karşılıksız {InstrumentLabel(item.Type)} · {item.Code}"));
             db.AuditEvents.Add(Audit(tenantId, actorId, "finance.instrument.bounced", item, request.Note));
             return await SaveAction(db, item, ct, transaction);
@@ -375,10 +382,11 @@ internal static class PaymentInstrumentEndpoints
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.SourceType == "PaymentInstrumentEvent" && x.SourceId == createdEvent.Id, ct);
             if (!IsBalancedTenantJournal(originalJournal, tenantId))
                 return Results.Conflict(new { error = "Portföy kaydının dengeli defter fişi bulunamadı; iptal öncesi mutabakat yapın." });
+            var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, date, ct);
             item.Status = PaymentInstrumentStatus.Cancelled;
             var cancelledEvent = NewEvent(item, request.RequestId, "Cancelled", before, item.Status, date, Clean(request.Note), null, actorId);
             db.PaymentInstrumentEvents.Add(cancelledEvent);
-            db.JournalEntries.Add(NewReverseJournal(tenantId, actorId, cancelledEvent, originalJournal!,
+            db.JournalEntries.Add(NewReverseJournal(tenantId, actorId, journalCode, cancelledEvent, originalJournal!,
                 $"{InstrumentLabel(item.Type)} portföy iptali · {item.Code}"));
             db.AuditEvents.Add(Audit(tenantId, actorId, "finance.instrument.cancelled", item, request.Note));
             return await SaveAction(db, item, ct, transaction);
@@ -417,10 +425,10 @@ internal static class PaymentInstrumentEndpoints
         error = "Çek/senet hareketi için etkin tenant hesap eşlemesi eksik.", requiredMappings = keys
     });
 
-    private static JournalEntry NewJournal(Guid tenantId, Guid actorId, PaymentInstrumentEvent instrumentEvent,
+    private static JournalEntry NewJournal(Guid tenantId, Guid actorId, string code, PaymentInstrumentEvent instrumentEvent,
         IEnumerable<(Guid AccountId, decimal Debit, decimal Credit)> lines, string description)
     {
-        var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = instrumentEvent.EventDate,
+        var entry = new JournalEntry { TenantId = tenantId, Code = code, EntryDate = instrumentEvent.EventDate,
             Description = description, SourceType = "PaymentInstrumentEvent", SourceId = instrumentEvent.Id, CreatedByUserId = actorId };
         var lineNumber = 0;
         foreach (var line in lines)
@@ -429,10 +437,10 @@ internal static class PaymentInstrumentEndpoints
         return entry;
     }
 
-    private static JournalEntry NewReverseJournal(Guid tenantId, Guid actorId, PaymentInstrumentEvent instrumentEvent,
+    private static JournalEntry NewReverseJournal(Guid tenantId, Guid actorId, string code, PaymentInstrumentEvent instrumentEvent,
         JournalEntry original, string description)
     {
-        var entry = new JournalEntry { TenantId = tenantId, Code = $"YV-{Guid.NewGuid():N}", EntryDate = instrumentEvent.EventDate,
+        var entry = new JournalEntry { TenantId = tenantId, Code = code, EntryDate = instrumentEvent.EventDate,
             Description = description, SourceType = "PaymentInstrumentEvent", SourceId = instrumentEvent.Id, CreatedByUserId = actorId };
         foreach (var line in original.Lines.OrderBy(x => x.LineNumber))
             entry.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = entry.Id, AccountId = line.AccountId,

@@ -30,6 +30,7 @@ import type {
   SqlSchemaTable,
 } from "./reports/reportTypes";
 import { confirmLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 const defaultDefinition: Definition = {
   source: "customers",
@@ -151,7 +152,7 @@ export default function ReportsPage({
             Object.values(body?.errors ?? {})
               .flat()
               .join(" ") ||
-            body?.title ||
+            problemDetail(body) ||
             tx(
               `İstek başarısız (${response.status})`,
               `Request failed (${response.status})`,
@@ -529,7 +530,7 @@ export default function ReportsPage({
         } | null;
         throw new Error(
           body?.error ||
-            body?.title ||
+            problemDetail(body) ||
             tx(
               `Dışa aktarma başarısız (${response.status})`,
               `Export failed (${response.status})`,

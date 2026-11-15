@@ -581,3 +581,141 @@ html[data-theme="dark"] .hr-filter-card { border-color: var(--hr-line); backgrou
 .hr-employee-multi-picker { display: grid; gap: 8px; min-width: 0; }
 .hr-employee-multi-picker select { min-height: 150px; }
 .hr-employee-multi-picker small { color: var(--hr-muted); font-size: 11px; line-height: 1.45; }
+
+/* ---- 2026-11 redesign: underline tab strip, tab-scoped notices, leave list + side form ---- */
+#root .app-shell .hr-page .hr-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--lv2-border, var(--hr-line));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#root .app-shell .hr-page .hr-tabs button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0 0 -1px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--lv2-muted, var(--hr-muted));
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+}
+#root .app-shell .hr-page .hr-tabs button:hover { color: var(--lv2-text, var(--hr-text)); }
+#root .app-shell .hr-page .hr-tabs button.active {
+  border-bottom-color: var(--lv2-accent, var(--hr-accent));
+  color: var(--lv2-text, var(--hr-text));
+}
+#root .hr-page .hr-tab-count {
+  color: var(--lv2-muted, var(--hr-muted));
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+@container hr-page (max-width: 760px) {
+  #root .app-shell .hr-page .hr-tabs { display: flex; padding: 0; border: 0; border-bottom: 1px solid var(--hr-line); background: transparent; }
+  #root .app-shell .hr-page .hr-tabs button { min-height: 40px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; }
+  #root .app-shell .hr-page .hr-tabs button.active { border-bottom-color: var(--lv2-accent, var(--hr-accent)); background: transparent; }
+}
+
+/* List + right side panel (form or summary). Stacks below 1100px. */
+#root .hr-page .hr-side-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+}
+#root .hr-page .hr-side-main { display: grid; gap: 12px; min-width: 0; }
+@media (max-width: 1099px) {
+  #root .hr-page .hr-side-layout { grid-template-columns: minmax(0, 1fr); }
+}
+#root .hr-page .hr-side-panel {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--lv2-border, var(--hr-line));
+  border-radius: 12px;
+  background: var(--lv2-surface, var(--hr-surface));
+}
+@media (max-width: 1099px) { #root .hr-page .hr-side-panel { position: static; } }
+#root .app-shell .hr-page .hr-side-panel h2 {
+  margin: 0;
+  color: var(--lv2-text, var(--hr-text));
+  font-size: 15px !important;
+  font-weight: 700;
+}
+#root .hr-page .hr-side-form { display: grid; gap: 10px; min-width: 0; }
+#root .hr-page .hr-side-form label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--lv2-muted, var(--hr-muted));
+  font-size: 12px;
+  font-weight: 600;
+}
+#root .hr-page .hr-side-form :is(input, select, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--lv2-border, var(--hr-line));
+  border-radius: 8px;
+  background: var(--lv2-surface, var(--hr-surface));
+  color: var(--lv2-text, var(--hr-text));
+  font: inherit;
+  font-size: 13px;
+}
+#root .hr-page .hr-side-form textarea { min-height: 64px; resize: vertical; }
+#root .hr-page .hr-side-form .searchable-record-trigger { width: 100%; min-width: 0; }
+#root .hr-page .hr-side-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#root .hr-page .hr-side-hint { margin: -2px 0 0; color: var(--lv2-muted, var(--hr-muted)); font-size: 12px; }
+#root .app-shell .hr-page .hr-side-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+}
+#root .hr-page .hr-side-submit kbd {
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  opacity: .8;
+}
+
+/* Leave grid: compact person cell, date range on one line, status tones, ⋯ menu column. */
+#root .hr-page .hr-leave-table td b { display: block; color: var(--lv2-text, var(--hr-text)); font-weight: 650; }
+#root .hr-page .hr-leave-table td small { margin-top: 2px; font-size: 11px; }
+#root .hr-page .hr-nowrap { white-space: nowrap; }
+#root .hr-page .hr-table :is(th, td).hr-col-number { text-align: right; font-variant-numeric: tabular-nums; }
+#root .hr-page .hr-table :is(th, td).hr-col-actions { width: 52px; text-align: right; }
+#root .hr-page .hr-status { white-space: nowrap; }
+#root .hr-page .hr-status--pending { border-color: #f0d28a; background: #fff6dd; color: #8a5a00; }
+#root .hr-page .hr-status--approved { border-color: #b7e0c8; background: #eaf7ef; color: #17643a; }
+#root .hr-page .hr-status--rejected { border-color: #f1c2c4; background: #fdeeee; color: #a2333a; }
+#root .hr-page .hr-status--muted { border-color: var(--hr-line); background: var(--lv2-surface-muted, #f4f6f8); color: var(--hr-muted); }
+html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: #6b5419; background: #34290f; color: #f3cf7a; }
+html[data-theme="dark"] #root .hr-page .hr-status--approved { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
+html[data-theme="dark"] #root .hr-page .hr-status--rejected { border-color: #6a2d33; background: #34171b; color: #f3a6ab; }
+html[data-theme="dark"] #root .hr-page .hr-status--muted { border-color: #34445c; background: #1a2333; color: #9aa7ba; }

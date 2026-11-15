@@ -17,6 +17,7 @@ import {
   type SettingId,
   type SettingNavItem,
 } from "./tenant-operational-settings/components/TenantSettingsNavigation";
+import { problemDetail } from "./erpApi";
 
 type OperationsSettings = {
   tenantId: string;
@@ -109,7 +110,7 @@ export default function TenantOperationalSettingsPage({
           ? "Bu işlem için yetkiniz yok."
           : validation ||
             payload?.error ||
-            payload?.title ||
+            problemDetail(payload) ||
             `İstek başarısız (${response.status}).`,
       );
     }

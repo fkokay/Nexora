@@ -53,9 +53,35 @@ public static class TenantDocumentNumbering
         });
     }
 
+    /// <summary>
+    /// Internal document series. They are not tenant-editable (not in <see cref="Types"/>), so they always use their
+    /// default pattern; each has its own yearly counter per tenant.
+    /// </summary>
+    public static class Internal
+    {
+        public const string PurchaseReceipt = "PurchaseReceipt";
+        public const string SalesReturn = "SalesReturn";
+        public const string SupplierReturn = "SupplierReturn";
+        public const string JournalEntry = "JournalEntry";
+        public const string CustomerCollection = "CustomerCollection";
+        public const string SupplierPayment = "SupplierPayment";
+        public const string InventoryTransfer = "InventoryTransfer";
+        public const string FinancialTransfer = "FinancialTransfer";
+        public const string InventoryRevaluation = "InventoryRevaluation";
+        public const string InventoryRevaluationReversal = "InventoryRevaluationReversal";
+        public const string LandedCost = "LandedCost";
+        public const string LandedCostReversal = "LandedCostReversal";
+        public const string InvoiceCostDifference = "InvoiceCostDifference";
+    }
+
+    /// <summary>
+    /// Reserves the next number of a tenant series. On SQL Server the counter row is locked (UPDLOCK, HOLDLOCK) and the
+    /// increment joins the caller's transaction when one is active, so a rolled-back caller does not consume a number.
+    /// It calls <c>SaveChangesAsync</c>: callers must invoke it before adding or modifying the document's own entities.
+    /// </summary>
     public static async Task<string> NextAsync(TenantDbContext db, Guid tenantId, string type, string? scenario, DateOnly date, CancellationToken ct)
     {
-        await using var ownTransaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await using var ownTransaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
         var template = await db.TenantDocumentNumberTemplates.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DocumentType == type && x.ScenarioCode == scenario, ct);
         var pattern = template?.Pattern ?? DefaultPattern(type);
         var period = template?.ResetsYearly ?? true ? date.Year.ToString("0000") : "GLOBAL";
@@ -96,7 +122,15 @@ public static class TenantDocumentNumbering
     private static string DefaultPattern(string type) => type switch
     {
         "EArchive" => "NXA{YYYY}{SEQ:9}", "EDelivery" => "NXD{YYYY}{SEQ:9}",
-        "EInvoice" => "NXR{YYYY}{SEQ:9}", _ => "NXR{YYYY}{SEQ:6}"
+        "EInvoice" => "NXR{YYYY}{SEQ:9}",
+        Internal.PurchaseReceipt => "GR-{YYYY}-{SEQ:6}", Internal.SalesReturn => "RET-{YYYY}-{SEQ:6}",
+        Internal.SupplierReturn => "SRT-{YYYY}-{SEQ:6}", Internal.JournalEntry => "YV-{YYYY}-{SEQ:6}",
+        Internal.CustomerCollection => "RCPT-{YYYY}-{SEQ:6}", Internal.SupplierPayment => "PAY-{YYYY}-{SEQ:6}",
+        Internal.InventoryTransfer => "TR-{YYYY}-{SEQ:6}", Internal.FinancialTransfer => "TR-{YYYY}-{SEQ:6}",
+        Internal.InventoryRevaluation => "RV-{YYYY}-{SEQ:6}", Internal.InventoryRevaluationReversal => "RVX-{YYYY}-{SEQ:6}",
+        Internal.LandedCost => "LC-{YYYY}-{SEQ:6}", Internal.LandedCostReversal => "LCV-{YYYY}-{SEQ:6}",
+        Internal.InvoiceCostDifference => "IC-{YYYY}-{SEQ:6}",
+        _ => "NXR{YYYY}{SEQ:6}"
     };
     private static bool IsElectronic(string type) => type is "EInvoice" or "EDelivery" or "EArchive";
     private static bool ValidPattern(string type, string? pattern)

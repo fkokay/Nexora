@@ -13,6 +13,7 @@ import {
 } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceResults";
 import { ManufacturingCostVarianceSummary } from "./manufacturing-cost-variance/components/ManufacturingCostVarianceSummary";
 import type { CostReport } from "./manufacturing-cost-variance/components/types";
+import { problemDetail } from "./erpApi";
 
 const today = () => {
   const date = new Date();
@@ -77,7 +78,7 @@ export default function ManufacturingCostVariancePage({
           } | null;
           throw new Error(
             body?.error ||
-              body?.title ||
+              problemDetail(body) ||
               `İstek başarısız (${response.status})`,
           );
         }

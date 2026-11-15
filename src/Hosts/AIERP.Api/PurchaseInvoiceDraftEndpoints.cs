@@ -1,3 +1,4 @@
+using AIERP.Api;
 using System.Security.Claims;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -420,6 +421,9 @@ public static class PurchaseInvoiceDraftEndpoints
         if (exchangeRate <= 0) return Results.Conflict(new { error = $"{draft.InvoiceDate:yyyy-MM-dd} tarihli {draft.CurrencyCode} kuru bulunamadı; fatura aktarılmadı." });
 
         var journalLines = new List<(Guid AccountId, string Description, decimal Debit, decimal Credit)>();
+        // Cost-difference adjustments are numbered and added only after every validation below has passed,
+        // because reserving a document number saves pending changes.
+        var pendingAdjustments = new List<InventoryCostAdjustment>();
         try
         {
             foreach (var groupLines in orderedLines.Where(x => x.ExpenseAccountId.HasValue).GroupBy(x => x.ExpenseAccountId!.Value).OrderBy(x => x.Key))
@@ -460,7 +464,7 @@ public static class PurchaseInvoiceDraftEndpoints
                 {
                     var adjustment = new InventoryCostAdjustment
                     {
-                        TenantId = tenantId, Code = $"IC-{Guid.NewGuid():N}".ToUpperInvariant(), EntryDate = draft.InvoiceDate,
+                        TenantId = tenantId, Code = "", EntryDate = draft.InvoiceDate,
                         Kind = InventoryCostAdjustmentKind.LandedCost, StandalonePurchaseReceiptId = receiptLine.ReceiptId,
                         PurchaseInvoiceDraftId = draft.Id, Description = $"{draft.InvoiceNumber} · mal kabul maliyet farkı",
                         CreatedByUserId = userId,
@@ -474,7 +478,7 @@ public static class PurchaseInvoiceDraftEndpoints
                             UnitCostSnapshotBase = movement.UnitCostBase, AmountBase = warehouseAllocation.AmountBase,
                         });
                     }
-                    if (adjustment.Lines.Count > 0) db.InventoryCostAdjustments.Add(adjustment);
+                    if (adjustment.Lines.Count > 0) pendingAdjustments.Add(adjustment);
                 }
             }
             if (draft.TaxTotal > 0)
@@ -488,10 +492,14 @@ public static class PurchaseInvoiceDraftEndpoints
         if (payableAmount <= 0 || payableAmount > 9999999999999999.99m)
             return Results.Conflict(new { error = "Baz para birimindeki toplam yevmiye tutarı sınırlar dışında." });
 
+        foreach (var adjustment in pendingAdjustments)
+            adjustment.Code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.InvoiceCostDifference, null, draft.InvoiceDate, ct);
+        var journalCode = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, draft.InvoiceDate, ct);
+        db.InventoryCostAdjustments.AddRange(pendingAdjustments);
         var journal = new JournalEntry
         {
             TenantId = tenantId,
-            Code = $"YV-{Guid.NewGuid():N}",
+            Code = journalCode,
             EntryDate = draft.InvoiceDate,
             Description = $"Bağımsız alış faturası · {draft.InvoiceNumber}" + (draft.CurrencyCode == tenant.BaseCurrencyCode ? "" : $" · {draft.CurrencyCode}/{tenant.BaseCurrencyCode} {exchangeRate}"),
             SourceType = PostingSource,

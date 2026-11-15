@@ -37,6 +37,7 @@ import "./manufacturing/manufacturing-list-v2.css";
 
 export type { ManufacturingPageKey } from "./manufacturing/types";
 import { confirmLocalized } from "./locale";
+import { problemDetail } from "./erpApi";
 
 type Item = {
   id: string;
@@ -721,7 +722,7 @@ export default function ManufacturingPage({
           Object.values(body?.errors ?? {})
             .flat()
             .join(" ") ||
-          body?.title;
+          problemDetail(body);
         throw new Error(detail || `İstek başarısız (${r.status})`);
       }
       const result =

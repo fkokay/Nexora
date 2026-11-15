@@ -1,3 +1,4 @@
+using AIERP.Api;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,8 @@ public sealed record SettlementJournalPostingResult(JournalEntry? Entry, string?
 /// <summary>
 /// Creates the general-ledger entry for an already validated customer collection or supplier payment.
 /// The caller owns the settlement transaction and locks the tenant row before invoking this helper,
-/// which serializes the closed-period check against fiscal-year close.
+/// which serializes the closed-period check against fiscal-year close. Callers that have already added their settlement
+/// rows pass a <paramref name="journalCode"/> reserved up front, because reserving a number saves pending changes.
 /// </summary>
 public static class InvoiceSettlementJournalPosting
 {
@@ -27,7 +29,8 @@ public static class InvoiceSettlementJournalPosting
         string paymentMethod,
         Guid? financialAccountId,
         Guid? userId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? journalCode = null)
     {
         if (sourceType is not ("CustomerCollection" or "SupplierPayment"))
             throw new ArgumentOutOfRangeException(nameof(sourceType));
@@ -81,10 +84,11 @@ public static class InvoiceSettlementJournalPosting
                 : "Ödeme karşı hesabı ve tedarikçi borç hesabı farklı olmalıdır.");
 
         var isCollection = sourceType == "CustomerCollection";
+        journalCode ??= await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.JournalEntry, null, entryDate, cancellationToken);
         var entry = new JournalEntry
         {
             TenantId = tenantId,
-            Code = $"YV-{Guid.NewGuid():N}",
+            Code = journalCode,
             EntryDate = entryDate,
             Description = (isCollection ? "Müşteri tahsilatı" : "Tedarikçi ödemesi") + $" · {sourceCode}"
                 + (currencyCode == tenant.BaseCurrencyCode ? "" : $" · {currencyCode}/{tenant.BaseCurrencyCode} {exchangeRate}"),
