@@ -1725,7 +1725,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !(await confirmDialog({ title: "Dosyalar bilgi tabanına eklensin mi?", message: `${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh ? ` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce workspace içinden otomatik yenilenecek.` : ""} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`, tone: "warning", confirmLabel: "Bilgi tabanına ekle" }))
+      !(await confirmDialog({ title: "Dosyalar bilgi tabanına eklensin mi?", message: `${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh ? ` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce çalışma alanından otomatik yenilenecek.` : ""} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`, tone: "warning", confirmLabel: "Bilgi tabanına ekle" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1775,7 +1775,7 @@ export function StudioProjects({
     if (
       !workspaceProject ||
       !fileWorkspace ||
-      !(await confirmDialog({ title: "Otomatik yenileme izni kaldırılsın mı?", message: "Bu workspace için otomatik bilgi tabanı yenileme izni kaldırılsın mı?", tone: "warning", confirmLabel: "İzni kaldır" }))
+      !(await confirmDialog({ title: "Otomatik yenileme izni kaldırılsın mı?", message: "Bu çalışma alanı için otomatik bilgi tabanı yenileme izni kaldırılsın mı?", tone: "warning", confirmLabel: "İzni kaldır" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1803,7 +1803,7 @@ export function StudioProjects({
   async function enableKnowledgeAutoRefreshAll() {
     if (!workspaceProject || !fileWorkspace || knowledgeLoading) return;
     if (
-      !(await confirmDialog({ title: "Sohbette kaynak kod araması açılsın mı?", message: `Her sohbet mesajı öncesinde bu izole workspace içindeki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`, tone: "warning", confirmLabel: "İzni ver" }))
+      !(await confirmDialog({ title: "Sohbette kaynak kod araması açılsın mı?", message: `Her sohbet mesajı öncesinde bu izole çalışma alanındaki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`, tone: "warning", confirmLabel: "İzni ver" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1821,7 +1821,7 @@ export function StudioProjects({
         lastRefreshedAt: new Date().toISOString(),
       });
       setNotice(
-        "Bu workspace için kalıcı AI erişimi açıldı. İlgili kaynak alıntıları her sohbet öncesinde otomatik aranıp kullanılacak.",
+        "Bu çalışma alanı için kalıcı AI erişimi açıldı. İlgili kaynak alıntıları her sohbet öncesinde otomatik aranıp kullanılacak.",
       );
     } catch (e) {
       setError((e as Error).message);
@@ -1925,7 +1925,7 @@ export function StudioProjects({
       return;
     const path = manualFileCreating ? manualFilePath : fileContent.path;
     if (
-      !(await confirmDialog({ title: "Manuel kod dosyaya uygulansın mı?", message: `Manuel kod ${path} dosyasına izole workspace içinde uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Uygula" }))
+      !(await confirmDialog({ title: "Manuel kod dosyaya uygulansın mı?", message: `Manuel kod ${path} dosyasına izole çalışma alanında uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Uygula" }))
     )
       return;
     setManualFileSaving(true);
@@ -2611,7 +2611,7 @@ export function StudioProjects({
         [saved, ...current.filter((x) => x.id !== saved.id)].slice(0, 50),
       );
       setNotice(
-        "AI Tester senaryo taslağı proje geçmişine kaydedildi; özgün talep metni saklanmadı.",
+        "AI Test Asistanı senaryo taslağı proje geçmişine kaydedildi; özgün talep metni saklanmadı.",
       );
     } catch (e) {
       setError((e as Error).message);
@@ -2775,7 +2775,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !(await confirmDialog({ title: "Ekran taslağı çalışma alanına yazılsın mı?", message: `${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole workspace’e yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`, tone: "default", confirmLabel: "Dosyayı yaz" }))
+      !(await confirmDialog({ title: "Ekran taslağı çalışma alanına yazılsın mı?", message: `${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole çalışma alanına yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`, tone: "default", confirmLabel: "Dosyayı yaz" }))
     )
       return;
     setUiDesignLoading(true);
@@ -2805,7 +2805,7 @@ export function StudioProjects({
         sha256: applied.sha256,
       });
       setNotice(
-        "AI UI Designer ekranını onayınızla yeni dosya olarak workspace’e ekledi. Kod çalıştırılmadı.",
+        "AI UI Designer ekranını onayınızla yeni dosya olarak çalışma alanına ekledi. Kod çalıştırılmadı.",
       );
       if (fileWorkspace?.id === uiDesignerWorkspace.id) {
         const parentPath = uiDesignResult.filePath
@@ -2972,7 +2972,7 @@ export function StudioProjects({
       !workspaceProject ||
       !multiDeveloperWorkspace ||
       multiFileApplied.includes(change.filePath) ||
-      !(await confirmDialog({ title: "Bu dosyadaki değişiklik uygulansın mı?", message: `Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole workspace'e uygulansın mı? Kod çalıştırılmaz.`, tone: "default", confirmLabel: "Değişikliği uygula" }))
+      !(await confirmDialog({ title: "Bu dosyadaki değişiklik uygulansın mı?", message: `Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole çalışma alanına uygulansın mı? Kod çalıştırılmaz.`, tone: "default", confirmLabel: "Değişikliği uygula" }))
     )
       return;
     setMultiFileLoading(true);
@@ -3263,7 +3263,7 @@ export function StudioProjects({
       setNotice(
         testStatus.status === "Passed"
           ? `Commit ${result.commitSha.slice(0, 12)} tamamlandı. ${target.path} testi başarılı.`
-          : `Commit ${result.commitSha.slice(0, 12)} oluşturuldu; ${target.path} testi ${testStatus.status} durumunda. Ayrıntılar Test Center'da.`,
+          : `Commit ${result.commitSha.slice(0, 12)} oluşturuldu; ${target.path} testi ${testStatus.status} durumunda. Ayrıntılar "Test ve build" bölümünde.`,
       );
       await loadWorkspaceGitStatus(gitStatusWorkspace);
     } catch (e) {
@@ -3636,7 +3636,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !(await confirmDialog({ title: "GitHub yorumları içe alınsın mı?", message: `GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu workspace’e salt okunur şekilde alınacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Yorumları al" }))
+      !(await confirmDialog({ title: "GitHub yorumları içe alınsın mı?", message: `GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu çalışma alanına salt okunur şekilde alınacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Yorumları al" }))
     )
       return;
     setError("");
@@ -4001,7 +4001,7 @@ export function StudioProjects({
     if (
       !workspaceProject ||
       releaseDeploymentLoading ||
-      !(await confirmDialog({ title: "Staging ortamı silinsin mi?", message: `Yerel staging Compose servisleri, SQL veritabanı ve workspace verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`, tone: "danger", confirmLabel: "Staging'i sil" }))
+      !(await confirmDialog({ title: "Staging ortamı silinsin mi?", message: `Yerel staging Compose servisleri, SQL veritabanı ve çalışma alanı verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`, tone: "danger", confirmLabel: "Staging'i sil" }))
     )
       return;
     setReleaseDeploymentLoading(true);
@@ -4512,7 +4512,7 @@ export function StudioProjects({
     }
     if (!knowledgeAutoRefresh.allFiles && !chatSourceSharingConsent) {
       setError(
-        "İlgili kaynak dosyalarını AI Developer’a göndermek için onay verin.",
+        "İlgili kaynak dosyalarını AI Geliştirici’ye göndermek için onay verin.",
       );
       return;
     }
@@ -5412,7 +5412,7 @@ export function StudioProjects({
                 <ArrowLeft size={16} /> Projelere dön
               </button>
               <span>
-                AI Development Studio <ChevronRight size={13} /> Projeler{" "}
+                Studio <ChevronRight size={13} /> Projeler{" "}
                 <ChevronRight size={13} /> Çalışma alanı
               </span>
             </nav>
@@ -5635,7 +5635,7 @@ export function StudioProjects({
                             }
                             title={
                               request.status === "Ready"
-                                ? "IDE çalışma alanını aç"
+                                ? "Çalışma alanının dosyalarını aç"
                                 : undefined
                             }
                             onClick={() => {
@@ -5810,7 +5810,7 @@ export function StudioProjects({
                                   void loadWorkspaceFiles(request, "")
                                 }
                               >
-                                <Code2 size={14} /> IDE’yi aç{" "}
+                                <Code2 size={14} /> Dosyaları aç{" "}
                                 <ChevronRight size={14} />
                               </button>
                             </div>
@@ -7352,7 +7352,7 @@ export function StudioProjects({
                     <div className="boundary-note" style={{ marginTop: 12 }}>
                       <ShieldCheck size={17} />
                       <span>
-                        <b>İzole workspace sınırları</b>Her dosya ayrı
+                        <b>İzole çalışma alanı sınırları</b>Her dosya ayrı
                         onaylanır; dosya taslak oluşturulduktan sonra değişmişse
                         uygulama durur. Kod çalıştırılmaz ve uzak depoya push
                         yapılmaz.
@@ -7388,7 +7388,7 @@ export function StudioProjects({
                           sohbet mesajlarının ve proje/dal adının seçili AI
                           sağlayıcısına gönderilmesini onaylıyorum.{" "}
                           {knowledgeAutoRefresh.allFiles
-                            ? "Bu workspace için kalıcı kaynak paylaşım izni açıktır."
+                            ? "Bu çalışma alanı için kalıcı kaynak paylaşım izni açıktır."
                             : "Runner kaynak dosyalarını veya ERP kayıtlarını otomatik eklemez."}
                         </span>
                       </label>
@@ -7427,7 +7427,7 @@ export function StudioProjects({
                             />
                             <span>
                               Kod değişikliği taslağı istersem, ilgili workspace
-                              kaynak dosyalarının AI Developer'a gönderilmesini
+                              kaynak dosyalarının AI Geliştirici'ye gönderilmesini
                               onaylıyorum.
                             </span>
                           </label>
@@ -7436,7 +7436,7 @@ export function StudioProjects({
                       <div className="studio-chat-compose-footer">
                         <span>
                           Değişiklik isteğinde AI dosyaları bulup diff taslağı
-                          çıkarır; workspace’e yazma dosya başına onaylanır.
+                          çıkarır; çalışma alanına yazma dosya başına onaylanır.
                         </span>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
@@ -7485,7 +7485,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">GIT DIFF · SALT OKUNUR</p>
+                <p className="eyebrow">GIT FARKI · SALT OKUNUR</p>
                 <h2>{gitDiffTarget}</h2>
               </div>
               <button
@@ -7806,7 +7806,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">İZOLE WORKSPACE · DEĞİŞİKLİK GEÇMİŞİ</p>
+                <p className="eyebrow">İZOLE ÇALIŞMA ALANI · DEĞİŞİKLİK GEÇMİŞİ</p>
                 <h2>
                   {workspaceProject?.name} / {changeWorkspace.branchName}
                 </h2>
@@ -7966,7 +7966,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">AI DEVELOPER · ÇOKLU DOSYA TASLAĞI</p>
+                <p className="eyebrow">AI GELİŞTİRİCİ · ÇOKLU DOSYA TASLAĞI</p>
                 <h2>{multiFilePaths.length} dosyada koordineli öneri</h2>
               </div>
               <button
@@ -8161,7 +8161,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">AI DEVELOPER · İNCELEME TASLAĞI</p>
+                <p className="eyebrow">AI GELİŞTİRİCİ · İNCELEME TASLAĞI</p>
                 <h2>{developerFile.path}</h2>
               </div>
               <button
@@ -8312,7 +8312,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">AI ARCHITECT</p>
+                <p className="eyebrow">AI MİMAR</p>
                 <h2>Kaydedilen planlar</h2>
               </div>
               <button
@@ -8371,7 +8371,7 @@ export function StudioProjects({
                 </div>
                 <h3>Henüz kaydedilmiş plan yok</h3>
                 <p>
-                  AI Architect planını oluşturduktan sonra “Planı projeye
+                  AI Mimar planını oluşturduktan sonra “Planı projeye
                   kaydet” düğmesiyle geçmişe ekleyebilirsiniz.
                 </p>
               </div>
@@ -8394,7 +8394,7 @@ export function StudioProjects({
 >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">AI ARCHITECT · TASLAK</p>
+                <p className="eyebrow">AI MİMAR · TASLAK</p>
                 <h2>{workspaceProject?.name}</h2>
               </div>
               <button
@@ -8408,7 +8408,7 @@ export function StudioProjects({
               </button>
             </div>
             <p className="muted modal-sub">
-              AI Architect yalnız talebini ve proje haritası metadata’sını
+              AI Mimar yalnız talebini ve proje haritası metadata’sını
               kullanarak incelenebilir bir plan hazırlar. Kaynak dosya içeriği
               gönderilmez; kod değiştirilmez.
             </p>
@@ -9184,7 +9184,7 @@ export function StudioProjects({
                   <div>
                     <b>Kayıtlı test planları</b>
                     <small>
-                      Bu workspace için son {savedTestPlans.length} taslak
+                      Bu çalışma alanı için son {savedTestPlans.length} taslak
                     </small>
                   </div>
                 </div>
@@ -9228,7 +9228,7 @@ export function StudioProjects({
               <form onSubmit={createAITestPlan} className="studio-test-plan-form">
                 <div className="studio-test-plan-heading">
                   <span><Sparkles size={21} /></span>
-                  <div><h3>AI Tester · senaryo taslağı</h3><p>Test etmek istediğiniz davranışı açıklayın, incelemeye hazır senaryolar oluşturun.</p></div>
+                  <div><h3>AI Test Asistanı · senaryo taslağı</h3><p>Test etmek istediğiniz davranışı açıklayın, incelemeye hazır senaryolar oluşturun.</p></div>
                 </div>
                 <label>
                   Test edilmesi gereken davranış
@@ -9238,7 +9238,7 @@ export function StudioProjects({
                     required
                     maxLength={2000}
                     rows={3}
-                    placeholder="Örn. Aynı workspace talebinin iki kez onaylanması checkout'u çoğaltmamalı"
+                    placeholder="Örn. Aynı çalışma alanı talebinin iki kez onaylanması checkout'u çoğaltmamalı"
                   />
                 </label>
                 <label
@@ -9282,7 +9282,7 @@ export function StudioProjects({
               <section className="panel" style={{ marginTop: 16 }}>
                 <div className="panel-heading">
                   <div>
-                    <b>AI Tester taslağı</b>
+                    <b>AI Test Asistanı taslağı</b>
                     <small>İnsan incelemesi gerekli · çalıştırılmadı</small>
                   </div>
                 </div>
@@ -10521,7 +10521,7 @@ export function StudioProjects({
                   >
                     <Sparkles size={16} />
                     <span>
-                      <b>AI Architect</b>
+                      <b>AI Mimar</b>
                       <small>Teknik plan ve etki alanı çıkar</small>
                     </span>
                     <ChevronRight size={14} />
@@ -10803,7 +10803,7 @@ export function StudioProjects({
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
-                  AI UI DESIGNER · RESPONSIVE EKRAN TASLAĞI
+                  AI ARAYÜZ TASARIMCISI · DUYARLI EKRAN TASLAĞI
                 </p>
                 <h2>
                   {workspaceProject.name} / {uiDesignerWorkspace.branchName}
@@ -10820,7 +10820,7 @@ export function StudioProjects({
             <p className="muted modal-sub">
               İsteğinizden erişilebilir, responsive bir ERP ekran taslağı
               üretin. Önizlemeyi inceleyip onayladığınızda .tsx bileşeni yeni
-              dosya olarak izole workspace’e eklenir.
+              dosya olarak izole çalışma alanına eklenir.
             </p>
             {error && <div className="alert">{error}</div>}
             <form onSubmit={createUiDesign} className="ui-designer-form">
@@ -10922,7 +10922,7 @@ export function StudioProjects({
                   />
                   <span>
                     Önizlemeyi ve kodu inceledim. Bu yeni dosyayı onayla
-                    workspace’e ekle.
+                    çalışma alanına ekle.
                   </span>
                 </label>
                 <div className="modal-foot">
