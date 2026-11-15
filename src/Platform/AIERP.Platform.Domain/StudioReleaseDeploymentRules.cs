@@ -15,6 +15,18 @@ public static class StudioReleaseDeploymentRules
     public const string Approved = "Approved";
     public const string Rejected = "Rejected";
 
+    /// <summary>
+    /// How a request that reuses an existing deployment's idempotency key is handled:
+    /// only a failed attempt is re-run; an in-flight one is refused and a finished one
+    /// is returned as-is, so a client retry never re-deploys or supersedes itself.
+    /// </summary>
+    public static DeploymentReplayDecision ClassifyIdempotentReplay(string? existingStatus) => existingStatus switch
+    {
+        Failed => DeploymentReplayDecision.Rerun,
+        Queued or Building or Deploying => DeploymentReplayDecision.InProgress,
+        _ => DeploymentReplayDecision.Completed
+    };
+
     public static bool IsSupportedEnvironment(string? environment) => environment is Staging or Production;
 
     public static bool CanTransition(string? current, string? next) => (current, next) switch
@@ -50,3 +62,5 @@ public static class StudioReleaseDeploymentRules
     public static bool CanTransitionProductionApproval(string? current, string? next) =>
         current == AwaitingReview && next is Approved or Rejected;
 }
+
+public enum DeploymentReplayDecision { Rerun, InProgress, Completed }
