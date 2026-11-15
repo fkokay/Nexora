@@ -48,6 +48,7 @@ import { moduleStarterFiles } from "./moduleStarterFiles";
 import { confirmDialog, promptDialog } from "./ui/confirmDialog";
 import { Dialog } from "./ui/Dialog";
 import "./studio-projects.css";
+import "./studio-workspace.css";
 import "./ui-designer-workflow.css";
 
 const maxManualWorkspaceFileBytes = 900 * 1024;
@@ -9380,7 +9381,7 @@ export function StudioProjects({
           <div className="modal-head">
             <div>
               <p className="eyebrow studio-explorer-eyebrow">
-                <FolderTree size={14} /> Nexora AI Development Studio{" "}
+                <FolderTree size={14} /> Nexora Studio{" "}
                 <span>İZOLE ÇALIŞMA ALANI</span>
               </p>
               <h2 id="workspace-explorer-title">
@@ -9424,7 +9425,7 @@ export function StudioProjects({
                   setError("");
                 }}
               >
-                <FolderTree size={15} /> Explorer
+                <FolderTree size={15} /> Dosyalar
               </button>
             </div>
             <div
@@ -9599,7 +9600,7 @@ export function StudioProjects({
           >
             <div className="studio-vscode-explorer-heading">
               <div>
-                <span>EXPLORER</span>
+                <span>DOSYA GEZGİNİ</span>
                 <b>Dosyalar</b>
               </div>
               <div className="studio-vscode-explorer-actions">
@@ -9787,7 +9788,7 @@ export function StudioProjects({
                   </div>
                   <b>{moduleDisplayNameForWorkspace(fileWorkspace)}</b>
                   <p>
-                    Başlangıç kodlarını modül klasörüne ekleyip Explorer'da
+                    Başlangıç kodlarını modül klasörüne ekleyip dosya gezgininde
                     açın.
                   </p>
                   <button
@@ -10286,13 +10287,13 @@ export function StudioProjects({
                 <div className="studio-welcome-hero">
                   <div className="studio-welcome-copy">
                     <p className="studio-vscode-welcome-eyebrow">
-                      NEXORA AI DEVELOPMENT STUDIO
+                      ÇALIŞMA ALANI
                     </p>
                     <h1>
                       Merhaba, <span>{workspaceProject?.name}</span>
                     </h1>
                     <p>
-                      Başlamak için Explorer’dan bir dosya seçin.
+                      Başlamak için soldaki gezginden bir dosya seçin.
                       <br />
                       Dosyalar izole çalışma alanınızda açılır.
                     </p>
@@ -10302,13 +10303,13 @@ export function StudioProjects({
                           type="button"
                           onClick={() => startNewCodeSuggestion(fileWorkspace)}
                         >
-                          <Sparkles size={18} /> AI ile Dosya Oluştur
+                          <Sparkles size={18} /> AI ile dosya oluştur
                         </button>
                         <button
                           type="button"
                           onClick={() => startUiDesigner(fileWorkspace)}
                         >
-                          <Code2 size={18} /> UI Tasarla
+                          <Code2 size={18} /> Ekran tasarla
                         </button>
                       </div>
                     )}
@@ -10324,14 +10325,14 @@ export function StudioProjects({
                   />
                 </div>
                 <div className="studio-welcome-quick">
-                  <h2>Hızlı Eylemler</h2>
+                  <h2>Hızlı eylemler</h2>
                   <div className="studio-welcome-quick-grid">
                     <button type="button" onClick={closeWorkspaceFileExplorer}>
                       <span className="studio-quick-icon gold">
                         <Folder size={23} />
                       </span>
                       <span>
-                        <b>Proje Aç</b>
+                        <b>Projelere dön</b>
                         <small>Proje listesine dön</small>
                       </span>
                     </button>
@@ -10344,7 +10345,7 @@ export function StudioProjects({
                         <GitBranch size={23} />
                       </span>
                       <span>
-                        <b>Git Durumu</b>
+                        <b>Git durumu</b>
                         <small>Değişiklikleri incele</small>
                       </span>
                     </button>
@@ -10357,7 +10358,7 @@ export function StudioProjects({
                         <Play size={23} />
                       </span>
                       <span>
-                        <b>Test &amp; Build</b>
+                        <b>Test ve build</b>
                         <small>Testleri ve derlemeyi aç</small>
                       </span>
                     </button>
@@ -10370,7 +10371,7 @@ export function StudioProjects({
                         <FolderTree size={23} />
                       </span>
                       <span>
-                        <b>Proje Haritası</b>
+                        <b>Proje haritası</b>
                         <small>Yapıyı görselleştir</small>
                       </span>
                     </button>

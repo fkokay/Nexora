@@ -474,43 +474,43 @@
 @media(max-width:760px){.studio-file-explorer{width:calc(100vw - 20px);max-height:calc(100dvh - 16px);padding:13px;border-radius:12px}.studio-file-explorer>.modal-head{top:-13px;margin:-13px -13px 12px;padding:14px}.studio-file-explorer .studio-explorer-eyebrow{flex-wrap:wrap;font-size:var(--ns-text-xs)}.studio-file-explorer>.modal-head h2{gap:7px;font-size:16px}.studio-file-explorer .studio-explorer-branch{font-size:var(--ns-text-xs)}.studio-file-explorer>.studio-explorer-location{top:66px;gap:6px;padding:9px}.studio-file-explorer .studio-explorer-path{flex-basis:100%;padding-bottom:5px}.studio-file-explorer>.studio-explorer-location>.secondary{flex:1 1 calc(50% - 6px);padding:0 7px;font-size:var(--ns-text-xs)}.studio-file-explorer>.requests-list{max-height:35dvh}.studio-file-explorer .studio-file-row{grid-template-columns:32px minmax(0,1fr) auto auto;gap:7px;padding:8px}.studio-file-explorer .studio-file-row>.secondary{min-width:58px}.studio-file-explorer>.studio-knowledge-panel{padding:12px}}
 
 /* VS Code-style Monaco workspace editor */
-.studio-vscode{display:flex;flex-direction:column;min-height:390px;height:min(66dvh,760px);overflow:hidden;border:1px solid #263b54;border-radius:11px;background:#0d1725;box-shadow:0 10px 30px #071a2c20}
-.studio-vscode-loading{display:grid;place-items:center;min-height:390px;border:1px solid #263b54;border-radius:11px;background:#0d1725;color:#9cb4ca;font-size:var(--ns-text-sm)}
+.studio-vscode{display:flex;flex-direction:column;min-height:390px;height:min(66dvh,760px);overflow:hidden;border:1px solid var(--ns-code-line);border-radius:11px;background:var(--ns-code-bg);box-shadow:0 10px 30px #071a2c20}
+.studio-vscode-loading{display:grid;place-items:center;min-height:390px;border:1px solid var(--ns-code-line);border-radius:11px;background:var(--ns-code-bg);color:var(--ns-code-text);font-size:var(--ns-text-sm)}
 .studio-manual-editor-footer .studio-editor-approval-note{color:#74889c;font-size:var(--ns-text-xs)}
-.studio-vscode-tabs{display:flex;align-items:stretch;justify-content:flex-end;min-height:40px;border-bottom:1px solid #26374a;background:#111e2d}
-.studio-vscode-tab{display:flex;align-items:center;gap:8px;max-width:min(340px,60%);padding:0 14px;border-top:2px solid transparent;color:#9aabbd;font-size:var(--ns-text-sm)}
-.studio-vscode-tab.is-active{border-top-color:#46a5f5;background:#0d1725;color:#e2edf8}
+.studio-vscode-tabs{display:flex;align-items:stretch;justify-content:flex-end;min-height:40px;border-bottom:1px solid var(--ns-code-line);background:var(--ns-code-bg)}
+.studio-vscode-tab{display:flex;align-items:center;gap:8px;max-width:min(340px,60%);padding:0 14px;border-top:2px solid transparent;color:var(--ns-code-muted);font-size:var(--ns-text-sm)}
+.studio-vscode-tab.is-active{border-top-color:var(--ns-accent);background:var(--ns-code-bg);color:var(--ns-code-text)}
 .studio-vscode-tab>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.studio-vscode-tab>svg:first-child{flex:none;color:#79b9ef}
+.studio-vscode-tab>svg:first-child{flex:none;color:var(--ns-accent)}
 .studio-vscode-tab-spacer{flex:1}
-.studio-vscode-unsaved{width:8px;height:8px;flex:none;border-radius:50%;background:#e4b76a;box-shadow:0 0 0 3px #e4b76a20}
-.studio-vscode-saved{flex:none;color:#70c5a2}
+.studio-vscode-unsaved{width:8px;height:8px;flex:none;border-radius:50%;background:var(--ns-accent);box-shadow:0 0 0 3px #e4b76a20}
+.studio-vscode-saved{flex:none;color:var(--ns-success-line)}
 .studio-vscode-actions{display:flex;align-items:center;gap:3px;padding:0 8px}
-.studio-vscode-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:30px;height:29px;padding:0 7px;border:1px solid transparent;border-radius:5px;background:transparent;color:#91a4b8;font:600 var(--ns-text-xs)/1 "DM Sans",sans-serif;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.studio-vscode-actions>button:hover{border-color:#344b63;background:#1a2a3d;color:#e7f1fb}
-.studio-vscode-actions>button.is-on{color:#8fc8f7}
+.studio-vscode-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:30px;height:29px;padding:0 7px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--ns-code-muted);font:600 var(--ns-text-xs)/1 "DM Sans",sans-serif;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.studio-vscode-actions>button:hover{border-color:var(--ns-code-line);background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-vscode-actions>button.is-on{color:var(--ns-accent)}
 .studio-vscode-actions>button:disabled{opacity:.4;cursor:not-allowed}
-.studio-vscode-actions>button.studio-vscode-save{padding:0 10px;border-color:#32668d;background:#123d5d;color:#dcefff}
-.studio-vscode-actions>button.studio-vscode-save:not(:disabled):hover{border-color:#4e9bd4;background:#19537b}
-.studio-vscode-breadcrumbs{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 14px;border-bottom:1px solid #26374a;background:#101c2a;color:#7e93a9;font-size:var(--ns-text-xs)}
+.studio-vscode-actions>button.studio-vscode-save{padding:0 10px;border-color:var(--ns-accent);background:var(--ns-accent);color:var(--ns-code-text)}
+.studio-vscode-actions>button.studio-vscode-save:not(:disabled):hover{border-color:var(--ns-accent);background:var(--ns-accent)}
+.studio-vscode-breadcrumbs{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 14px;border-bottom:1px solid var(--ns-code-line);background:var(--ns-code-bg);color:var(--ns-code-muted);font-size:var(--ns-text-xs)}
 .studio-vscode-breadcrumbs>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.studio-vscode-breadcrumb-separator{color:#52677d}
-.studio-vscode-breadcrumbs>b{display:inline-flex;align-items:center;gap:6px;flex:none;color:#d3e2f0;font-weight:600}
-.studio-vscode-breadcrumbs>b>svg{color:#7db9e8}
-.studio-vscode-language{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding-left:9px;border-left:1px solid #2a3b4f;color:#9aafc3}
-.studio-vscode-language>svg{color:#87c7f7}
-.studio-vscode-canvas{flex:1;min-height:0;background:#0d1725}
+.studio-vscode-breadcrumb-separator{color:var(--ns-code-muted)}
+.studio-vscode-breadcrumbs>b{display:inline-flex;align-items:center;gap:6px;flex:none;color:var(--ns-code-text);font-weight:600}
+.studio-vscode-breadcrumbs>b>svg{color:var(--ns-accent)}
+.studio-vscode-language{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding-left:9px;border-left:1px solid var(--ns-code-line);color:var(--ns-code-muted)}
+.studio-vscode-language>svg{color:var(--ns-accent)}
+.studio-vscode-canvas{flex:1;min-height:0;background:var(--ns-code-bg)}
 .studio-editor-loading{display:grid;height:100%;min-height:240px;place-items:center;color:#9cb4ca;font-size:var(--ns-text-md)}
 .studio-vscode-canvas>.monaco-editor,.studio-vscode-canvas>.monaco-editor .overflow-guard{border-radius:0 0 10px 10px}
-.studio-vscode-statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:25px;padding:0 10px;background:#155d91;color:#e4f3ff;font-size:var(--ns-text-xs);font-weight:600;font-variant-numeric:tabular-nums}
+.studio-vscode-statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:25px;padding:0 10px;background:var(--ns-accent);color:var(--ns-code-text);font-size:var(--ns-text-xs);font-weight:600;font-variant-numeric:tabular-nums}
 .studio-vscode-status-left,.studio-vscode-status-right{display:flex;align-items:center;gap:13px;min-width:0}
 .studio-vscode-status-left>span,.studio-vscode-status-right>span{white-space:nowrap}
 .studio-vscode-status-left>span:first-child{padding:2px 5px;border-radius:3px;background:#ffffff1c;font-size:var(--ns-text-xs);letter-spacing:.45px}
-.studio-vscode-status-left>.status-readonly{background:#ffffff15;color:#cde4f7}
-.studio-vscode-status-left>.status-workspace{background:#e6fff120;color:#c9f6df}
-.studio-vscode-status-right{gap:12px;color:#d0e7f8}
+.studio-vscode-status-left>.status-readonly{background:#ffffff15;color:var(--ns-code-text)}
+.studio-vscode-status-left>.status-workspace{background:#e6fff120;color:var(--ns-code-text)}
+.studio-vscode-status-right{gap:12px;color:var(--ns-code-text)}
 .studio-vscode-status-right>span:last-child{padding-left:10px;border-left:1px solid #ffffff35}
-.studio-vscode .monaco-editor,.studio-vscode .monaco-editor-background,.studio-vscode .monaco-editor .margin{background:#0d1725!important}
+.studio-vscode .monaco-editor,.studio-vscode .monaco-editor-background,.studio-vscode .monaco-editor .margin{background:var(--ns-code-bg)!important}
 .studio-vscode .monaco-editor .scroll-decoration{box-shadow:0 6px 6px -6px #0008}
 @media(max-width:760px){.studio-vscode{height:58dvh;min-height:320px}.studio-vscode-tab{padding:0 9px}.studio-vscode-actions{gap:1px;padding:0 4px}.studio-vscode-actions>button{min-width:27px;padding:0 5px}.studio-vscode-actions>button.studio-vscode-save{padding:0 7px}.studio-vscode-breadcrumbs{padding:0 9px}.studio-vscode-statusbar{align-items:flex-start;flex-direction:column;gap:3px;padding:5px 8px}.studio-vscode-status-right{gap:8px;flex-wrap:wrap}}
 
@@ -520,36 +520,36 @@
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-explorer-intro{grid-area:intro}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{grid-area:tools}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.alert{grid-area:error}
-.studio-vscode-explorer-sidebar{grid-area:sidebar;position:sticky;top:76px;display:flex;flex-direction:column;min-width:0;height:min(68dvh,790px);max-height:790px;overflow:hidden;border:1px solid #263b54;border-radius:10px;background:#101c2b;color:#dbe7f3;box-shadow:0 8px 24px #071a2c16}
-.studio-vscode-explorer-heading{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 10px;border-bottom:1px solid #26374a}
+.studio-vscode-explorer-sidebar{grid-area:sidebar;position:sticky;top:76px;display:flex;flex-direction:column;min-width:0;height:min(68dvh,790px);max-height:790px;overflow:hidden;border:1px solid var(--ns-code-line);border-radius:10px;background:var(--ns-code-bg);color:var(--ns-code-text);box-shadow:0 8px 24px #071a2c16}
+.studio-vscode-explorer-heading{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 10px;border-bottom:1px solid var(--ns-code-line)}
 .studio-vscode-explorer-heading>div{display:grid;gap:4px}
-.studio-vscode-explorer-heading>div>span{color:#8196aa;font-size:var(--ns-text-xs);font-weight:800;letter-spacing:1px}
-.studio-vscode-explorer-heading>div>b{color:#e3edf7;font-size:var(--ns-text-sm)}
-.studio-vscode-explorer-heading>small{min-width:22px;padding:3px 6px;border-radius:999px;background:#20344a;color:#aac0d5;font-size:var(--ns-text-xs);text-align:center}
-.studio-vscode-tree-search{display:flex;align-items:center;gap:7px;margin:9px;padding:0 8px;height:31px;border:1px solid #2b3e52;border-radius:6px;background:#0c1623;color:#7891a8}
-.studio-vscode-tree-search:focus-within{border-color:#3978a7;box-shadow:0 0 0 2px #278bd322}
+.studio-vscode-explorer-heading>div>span{color:var(--ns-code-muted);font-size:var(--ns-text-xs);font-weight:800;letter-spacing:1px}
+.studio-vscode-explorer-heading>div>b{color:var(--ns-code-text);font-size:var(--ns-text-sm)}
+.studio-vscode-explorer-heading>small{min-width:22px;padding:3px 6px;border-radius:999px;background:var(--ns-code-line);color:var(--ns-code-text);font-size:var(--ns-text-xs);text-align:center}
+.studio-vscode-tree-search{display:flex;align-items:center;gap:7px;margin:9px;padding:0 8px;height:31px;border:1px solid var(--ns-code-line);border-radius:6px;background:var(--ns-code-bg);color:var(--ns-code-muted)}
+.studio-vscode-tree-search:focus-within{border-color:var(--ns-accent);box-shadow:0 0 0 2px #278bd322}
 .studio-vscode-tree-search>svg{flex:none}
-.studio-vscode-tree-search>input{width:100%;height:27px!important;padding:0!important;border:0!important;outline:0!important;background:transparent!important;color:#d8e5f1;font-size:var(--ns-text-xs)!important;box-shadow:none!important}
-.studio-vscode-tree-search>input::placeholder{color:#71859a}
-.studio-vscode-search-status{display:block;padding:0 10px 7px;color:#8da1b5;font-size:var(--ns-text-xs);line-height:1.4}
-.studio-vscode-parent-item{display:flex;align-items:center;gap:6px;margin:0 8px 5px;padding:6px 8px;border:0;border-radius:5px;background:transparent;color:#a6bbce;font:600 var(--ns-text-xs) "DM Sans",sans-serif;text-align:left;cursor:pointer}
+.studio-vscode-tree-search>input{width:100%;height:27px!important;padding:0!important;border:0!important;outline:0!important;background:transparent!important;color:var(--ns-code-text);font-size:var(--ns-text-xs)!important;box-shadow:none!important}
+.studio-vscode-tree-search>input::placeholder{color:var(--ns-code-muted)}
+.studio-vscode-search-status{display:block;padding:0 10px 7px;color:var(--ns-code-muted);font-size:var(--ns-text-xs);line-height:1.4}
+.studio-vscode-parent-item{display:flex;align-items:center;gap:6px;margin:0 8px 5px;padding:6px 8px;border:0;border-radius:5px;background:transparent;color:var(--ns-code-text);font:600 var(--ns-text-xs) "DM Sans",sans-serif;text-align:left;cursor:pointer}
 .studio-vscode-parent-item>svg{transform:rotate(180deg)}
-.studio-vscode-parent-item:hover:not(:disabled){background:#1c2d40;color:#e7f2fc}
+.studio-vscode-parent-item:hover:not(:disabled){background:var(--ns-code-panel);color:var(--ns-code-text)}
 .studio-vscode-parent-item:disabled{opacity:.45;cursor:not-allowed}
-.studio-vscode-tree{flex:1;min-height:0;overflow:auto;padding:2px 6px 8px;scrollbar-color:#43586d transparent;scrollbar-width:thin}
-.studio-vscode-tree-item{display:flex;align-items:center;gap:7px;width:100%;min-width:0;padding:6px 7px;border:1px solid transparent;border-radius:5px;background:transparent;color:#b9c9d8;font:500 var(--ns-text-xs)/1.3 "DM Sans",sans-serif;text-align:left;cursor:pointer}
-.studio-vscode-tree-item>svg:first-child{flex:none;color:#87b6da}
-.studio-vscode-tree-item.directory>svg:first-child{color:#75a5cc}
+.studio-vscode-tree{flex:1;min-height:0;overflow:auto;padding:2px 6px 8px;scrollbar-color:var(--ns-code-line) transparent;scrollbar-width:thin}
+.studio-vscode-tree-item{display:flex;align-items:center;gap:7px;width:100%;min-width:0;padding:6px 7px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--ns-code-text);font:500 var(--ns-text-xs)/1.3 "DM Sans",sans-serif;text-align:left;cursor:pointer}
+.studio-vscode-tree-item>svg:first-child{flex:none;color:var(--ns-accent)}
+.studio-vscode-tree-item.directory>svg:first-child{color:var(--ns-accent)}
 .studio-vscode-tree-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.studio-vscode-tree-match-path{display:block;overflow:hidden;color:#8398ac;font-size:var(--ns-text-xs);font-weight:400;text-overflow:ellipsis;white-space:nowrap}
-.studio-vscode-tree-item>.tree-chevron{flex:none;margin-left:auto;color:#6d8499}
-.studio-vscode-tree-item:hover:not(:disabled){background:#1a2a3c;color:#eff6fc}
-.studio-vscode-tree-item.is-active{border-color:#28547a;background:#19344d;color:#f0f7fd}
-.studio-vscode-tree-item.is-active>svg:first-child{color:#91ccfa}
+.studio-vscode-tree-match-path{display:block;overflow:hidden;color:var(--ns-code-muted);font-size:var(--ns-text-xs);font-weight:400;text-overflow:ellipsis;white-space:nowrap}
+.studio-vscode-tree-item>.tree-chevron{flex:none;margin-left:auto;color:var(--ns-code-muted)}
+.studio-vscode-tree-item:hover:not(:disabled){background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-vscode-tree-item.is-active{border-color:var(--ns-accent);background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-vscode-tree-item.is-active>svg:first-child{color:var(--ns-accent)}
 .studio-vscode-tree-item:disabled{opacity:.52;cursor:not-allowed}
-.studio-vscode-tree-empty{padding:20px 8px;color:#8699ac;font-size:var(--ns-text-xs);text-align:center}
-.studio-vscode-tree-footer{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 9px;border-top:1px solid #26374a;color:#8499ad;font-size:var(--ns-text-xs)}
-.studio-vscode-tree-footer>svg{flex:none;color:#71b69c}
+.studio-vscode-tree-empty{padding:20px 8px;color:var(--ns-code-muted);font-size:var(--ns-text-xs);text-align:center}
+.studio-vscode-tree-footer{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 9px;border-top:1px solid var(--ns-code-line);color:var(--ns-code-muted);font-size:var(--ns-text-xs)}
+.studio-vscode-tree-footer>svg{flex:none;color:var(--ns-success)}
 .studio-workbench-tools{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;margin:0 0 12px;padding:8px;border:1px solid var(--ns-line);border-radius:10px;background:var(--ns-canvas);box-shadow:0 5px 16px #132b4310;scrollbar-width:thin}
 .studio-workbench-tools:before{content:"WORKBENCH";flex:none;margin:0 5px;color:var(--ns-muted);font-size:var(--ns-text-xs);font-weight:800;letter-spacing:.9px}
 .studio-workbench-tools>button,.studio-workbench-tools>.database-engineer-trigger{display:inline-flex;flex:none;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 11px;border:1px solid var(--ns-line);border-radius:7px;background:var(--ns-surface);color:var(--ns-accent);font:600 var(--ns-text-sm) "DM Sans",sans-serif;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s,box-shadow .15s}
@@ -580,13 +580,13 @@
 /* Full-page VS Code-inspired workspace IDE. */
 .modal-backdrop:has(.studio-file-explorer){background:#1e1e1e}
 .modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer{display:grid;width:100%;height:100dvh;max-height:100dvh;grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 auto auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;padding:0;overflow:hidden;align-content:stretch;border:0;border-radius:0;background:var(--ns-ink);color:var(--ns-line-strong);box-shadow:none}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 auto auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;align-content:stretch;overflow:hidden;background:#1e1e1e;color:#d4d4d4}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{grid-area:header;position:relative;top:auto;z-index:5;display:flex;align-items:center;min-width:0;margin:0;padding:10px 22px;border:0;border-bottom:1px solid #111820;border-radius:0;background:#181818;color:#e5e5e5;box-shadow:none}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-columns:48px 258px minmax(0,1fr);grid-template-rows:64px 0 auto auto minmax(0,1fr) auto;grid-template-areas:"header header header" "intro intro intro" "tools tools tools" "error error error" "activity sidebar workbench" "footer footer footer";gap:0;align-content:stretch;overflow:hidden;background:var(--ns-code-bg);color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{grid-area:header;position:relative;top:auto;z-index:5;display:flex;align-items:center;min-width:0;margin:0;padding:10px 22px;border:0;border-bottom:1px solid var(--ns-code-bg);border-radius:0;background:var(--ns-code-bg);color:var(--ns-code-text);box-shadow:none}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:16px;font-weight:600;letter-spacing:0}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .eyebrow{color:#858585}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{width:34px;height:34px;border:0;background:transparent;color:#aaa}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .eyebrow{color:var(--ns-code-muted)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{width:34px;height:34px;border:0;background:transparent;color:var(--ns-code-muted)}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-explorer-intro{display:none}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{grid-area:tools;position:relative;top:auto;z-index:4;gap:2px;margin:0;padding:6px 12px;border:0;border-bottom:1px solid #303030;border-radius:0;background:#252526;box-shadow:none;scrollbar-width:thin}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{grid-area:tools;position:relative;top:auto;z-index:4;gap:2px;margin:0;padding:6px 12px;border:0;border-bottom:1px solid var(--ns-code-panel);border-radius:0;background:var(--ns-code-panel);box-shadow:none;scrollbar-width:thin}
 .studio-workbench-tools:before{content:"WORKSPACE";margin:0 12px 0 4px;color:var(--ns-muted);font-size:var(--ns-text-xs);letter-spacing:.7px}
 .studio-workbench-tools>button,.studio-workbench-tools>.database-engineer-trigger{min-height:32px;padding:0 10px;border-color:transparent;border-radius:4px;background:transparent;color:var(--ns-line-strong);font-size:var(--ns-text-sm)}
 .studio-workbench-tools>button>svg{color:var(--ns-faint)}
@@ -606,43 +606,43 @@
 .studio-workbench-group>button:disabled,.studio-workbench-group>.database-engineer-trigger:disabled{opacity:.48;cursor:not-allowed}
 .studio-workbench-group>.database-engineer-trigger{height:32px!important;margin:0!important}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.alert{grid-area:error;margin:8px 12px 0}
-.studio-vscode-activity-bar{grid-area:activity;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;min-height:0;padding:10px 0;border-right:1px solid #252526;background:#333333;color:#858585}
-.studio-vscode-activity-bar>button{position:relative;display:grid;place-items:center;width:48px;height:44px;border:0;border-left:2px solid transparent;background:transparent;color:#858585;cursor:pointer}
-.studio-vscode-activity-bar>button:hover{color:#eee}
-.studio-vscode-activity-bar>button.active{border-left-color:#fff;color:#fff}
+.studio-vscode-activity-bar{grid-area:activity;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;min-height:0;padding:10px 0;border-right:1px solid var(--ns-code-panel);background:var(--ns-code-line);color:var(--ns-code-muted)}
+.studio-vscode-activity-bar>button{position:relative;display:grid;place-items:center;width:48px;height:44px;border:0;border-left:2px solid transparent;background:transparent;color:var(--ns-code-muted);cursor:pointer}
+.studio-vscode-activity-bar>button:hover{color:var(--ns-code-text)}
+.studio-vscode-activity-bar>button.active{border-left-color:var(--ns-code-text);color:var(--ns-code-text)}
 .studio-vscode-activity-bar>.activity-spacer{flex:1}
-.studio-vscode-activity-bar>svg{margin-bottom:12px;color:#858585}
-.studio-vscode-explorer-sidebar{grid-area:sidebar;position:relative;top:auto;width:100%;height:100%;max-height:none;min-height:0;border:0;border-right:1px solid #303030;border-radius:0;background:#252526;color:#ccc;box-shadow:none}
+.studio-vscode-activity-bar>svg{margin-bottom:12px;color:var(--ns-code-muted)}
+.studio-vscode-explorer-sidebar{grid-area:sidebar;position:relative;top:auto;width:100%;height:100%;max-height:none;min-height:0;border:0;border-right:1px solid var(--ns-code-panel);border-radius:0;background:var(--ns-code-panel);color:var(--ns-code-text);box-shadow:none}
 .studio-vscode-explorer-heading{min-height:42px;padding:10px 12px;border-bottom:0}
-.studio-vscode-explorer-heading>div>span{color:#aaa;font-size:var(--ns-text-xs);letter-spacing:.6px}
-.studio-vscode-explorer-heading>div>b{color:#e5e5e5;font-size:var(--ns-text-sm)}
-.studio-vscode-explorer-heading>small{background:#3b3b3b;color:#ccc}
-.studio-vscode-tree-search{margin:4px 9px 9px;border:1px solid #454545;border-radius:3px;background:#3c3c3c}
-.studio-vscode-tree-search:focus-within{border-color:#007fd4;box-shadow:0 0 0 1px #007fd4}
-.studio-vscode-tree-search>input{color:#ddd}
-.studio-vscode-tree-search>input::placeholder{color:#858585}
-.studio-vscode-parent-item{margin:0 8px 5px;color:#bbb}
+.studio-vscode-explorer-heading>div>span{color:var(--ns-code-muted);font-size:var(--ns-text-xs);letter-spacing:.6px}
+.studio-vscode-explorer-heading>div>b{color:var(--ns-code-text);font-size:var(--ns-text-sm)}
+.studio-vscode-explorer-heading>small{background:var(--ns-code-line);color:var(--ns-code-text)}
+.studio-vscode-tree-search{margin:4px 9px 9px;border:1px solid var(--ns-code-line);border-radius:3px;background:var(--ns-code-line)}
+.studio-vscode-tree-search:focus-within{border-color:var(--ns-accent);box-shadow:0 0 0 1px var(--ns-accent)}
+.studio-vscode-tree-search>input{color:var(--ns-code-text)}
+.studio-vscode-tree-search>input::placeholder{color:var(--ns-code-muted)}
+.studio-vscode-parent-item{margin:0 8px 5px;color:var(--ns-code-text)}
 .studio-vscode-tree{gap:1px;padding:0 5px 6px}
 .studio-vscode-tree-row{display:flex;align-items:center;min-width:0;gap:2px}
-.studio-vscode-tree-row>input[type=checkbox]{flex:none;width:13px;height:13px;margin:0 1px 0 3px;accent-color:#007acc}
-.studio-vscode-tree-item{min-width:0;flex:1;height:25px;padding:0 6px;border:1px solid transparent;border-radius:2px;background:transparent;color:#ccc;font-size:var(--ns-text-sm)}
-.studio-vscode-tree-item>svg:first-child{color:#9da5ad}
-.studio-vscode-tree-item.directory>svg:first-child{color:#dcb67a}
-.studio-vscode-tree-item:hover:not(:disabled){background:#2a2d2e;color:#fff}
-.studio-vscode-tree-item.is-active{border-color:transparent;background:#37373d;color:#fff}
-.studio-vscode-tree-item.is-active:before{position:absolute;left:0;width:2px;height:25px;background:#007fd4;content:""}
-.studio-vscode-tree-item.is-active>svg:first-child{color:#75beff}
-.studio-vscode-tree-footer{min-height:30px;border-color:#333;color:#999}
-.studio-vscode-main{grid-area:workbench;display:grid;grid-template-rows:36px 44px minmax(0,1fr);min-width:0;min-height:0;overflow:hidden;background:#1e1e1e}
-.studio-vscode-tab-strip{display:flex;align-items:stretch;min-width:0;overflow:hidden;border-bottom:1px solid #252526;background:#252526}
-.studio-vscode-tab{display:flex;align-items:center;gap:8px;max-width:320px;min-width:120px;padding:0 12px;border-top:1px solid #007acc;background:#1e1e1e;color:#eee;font-size:var(--ns-text-sm)}
-.studio-vscode-tab>svg{color:#75beff}
+.studio-vscode-tree-row>input[type=checkbox]{flex:none;width:13px;height:13px;margin:0 1px 0 3px;accent-color:var(--ns-accent)}
+.studio-vscode-tree-item{min-width:0;flex:1;height:25px;padding:0 6px;border:1px solid transparent;border-radius:2px;background:transparent;color:var(--ns-code-text);font-size:var(--ns-text-sm)}
+.studio-vscode-tree-item>svg:first-child{color:var(--ns-code-muted)}
+.studio-vscode-tree-item.directory>svg:first-child{color:var(--ns-accent)}
+.studio-vscode-tree-item:hover:not(:disabled){background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-vscode-tree-item.is-active{border-color:transparent;background:var(--ns-code-line);color:var(--ns-code-text)}
+.studio-vscode-tree-item.is-active:before{position:absolute;left:0;width:2px;height:25px;background:var(--ns-accent);content:""}
+.studio-vscode-tree-item.is-active>svg:first-child{color:var(--ns-accent)}
+.studio-vscode-tree-footer{min-height:30px;border-color:var(--ns-code-line);color:var(--ns-code-muted)}
+.studio-vscode-main{grid-area:workbench;display:grid;grid-template-rows:36px 44px minmax(0,1fr);min-width:0;min-height:0;overflow:hidden;background:var(--ns-code-bg)}
+.studio-vscode-tab-strip{display:flex;align-items:stretch;min-width:0;overflow:hidden;border-bottom:1px solid var(--ns-code-panel);background:var(--ns-code-panel)}
+.studio-vscode-tab{display:flex;align-items:center;gap:8px;max-width:320px;min-width:120px;padding:0 12px;border-top:1px solid var(--ns-accent);background:var(--ns-code-bg);color:var(--ns-code-text);font-size:var(--ns-text-sm)}
+.studio-vscode-tab>svg{color:var(--ns-accent)}
 .studio-vscode-tab>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.studio-vscode-tab>button{display:grid;place-items:center;width:20px;height:20px;margin-left:auto;border:0;border-radius:3px;background:transparent;color:#aaa;cursor:pointer}
-.studio-vscode-tab>button:hover{background:#444;color:#fff}
+.studio-vscode-tab>button{display:grid;place-items:center;width:20px;height:20px;margin-left:auto;border:0;border-radius:3px;background:transparent;color:var(--ns-code-muted);cursor:pointer}
+.studio-vscode-tab>button:hover{background:var(--ns-code-line);color:var(--ns-code-text)}
 .studio-vscode-tab-spacer{flex:1}
-.studio-vscode-tab-branch{align-self:center;margin-right:14px;color:#999;font:10px Consolas,monospace}
-.studio-vscode-main>.studio-explorer-location{display:flex;align-items:center;justify-content:space-between;min-width:0;min-height:44px;margin:0;padding:5px 14px;border:0;border-bottom:1px solid #333;border-radius:0;background:#1e1e1e;color:#ccc}
+.studio-vscode-tab-branch{align-self:center;margin-right:14px;color:var(--ns-code-muted);font:10px Consolas,monospace}
+.studio-vscode-main>.studio-explorer-location{display:flex;align-items:center;justify-content:space-between;min-width:0;min-height:44px;margin:0;padding:5px 14px;border:0;border-bottom:1px solid var(--ns-code-line);border-radius:0;background:var(--ns-code-bg);color:var(--ns-code-text)}
 .studio-explorer-path{display:flex;align-items:center;gap:12px;min-width:0}
 .studio-explorer-kicker{display:none}
 .studio-explorer-path>b{overflow:hidden;color:var(--ns-faint);font-size:var(--ns-text-sm);font-weight:400;text-overflow:ellipsis;white-space:nowrap}
@@ -650,30 +650,30 @@
 .studio-explorer-file-actions{display:flex;gap:5px;flex:none}
 .studio-explorer-file-actions>.small-button,.studio-main-up-folder{min-height:27px;padding:0 9px;border-color:var(--ns-text);border-radius:3px;background:var(--ns-ink);color:var(--ns-line-strong);font-size:var(--ns-text-xs)}
 .studio-explorer-file-actions>.small-button:hover:not(:disabled),.studio-main-up-folder:hover:not(:disabled){border-color:var(--ns-muted);background:var(--ns-ink);color:var(--ns-surface)}
-.studio-vscode-main>.studio-vscode,.studio-vscode-main>.studio-vscode-loading,.studio-vscode-main>.studio-manual-editor{width:100%;height:100%;min-width:0;min-height:0;align-self:stretch;overflow:hidden;border:0;border-radius:0;background:#1e1e1e;box-shadow:none}
+.studio-vscode-main>.studio-vscode,.studio-vscode-main>.studio-vscode-loading,.studio-vscode-main>.studio-manual-editor{width:100%;height:100%;min-width:0;min-height:0;align-self:stretch;overflow:hidden;border:0;border-radius:0;background:var(--ns-code-bg);box-shadow:none}
 .studio-vscode-main>.studio-vscode{display:flex;flex-direction:column}
 .studio-vscode-main .studio-vscode-editor{flex:1;min-height:0}
-.studio-vscode-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:0;padding:28px;background:#1e1e1e;color:#ccc;text-align:center}
-.studio-vscode-welcome-mark{display:grid;place-items:center;width:62px;height:62px;margin-bottom:18px;border:1px solid #3d3d3d;border-radius:14px;background:#252526;color:#75beff}
-.studio-vscode-welcome-eyebrow{margin:0 0 8px;color:#858585;font-size:var(--ns-text-xs);font-weight:700;letter-spacing:1px}
-.studio-vscode-welcome h1{margin:0 0 8px;color:#e5e5e5;font-size:22px;font-weight:500}
-.studio-vscode-welcome>p:not(.studio-vscode-welcome-eyebrow){max-width:500px;color:#999;font-size:var(--ns-text-md)}
+.studio-vscode-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:0;padding:28px;background:var(--ns-code-bg);color:var(--ns-code-text);text-align:center}
+.studio-vscode-welcome-mark{display:grid;place-items:center;width:62px;height:62px;margin-bottom:18px;border:1px solid var(--ns-code-line);border-radius:14px;background:var(--ns-code-panel);color:var(--ns-accent)}
+.studio-vscode-welcome-eyebrow{margin:0 0 8px;color:var(--ns-code-muted);font-size:var(--ns-text-xs);font-weight:700;letter-spacing:1px}
+.studio-vscode-welcome h1{margin:0 0 8px;color:var(--ns-code-text);font-size:22px;font-weight:500}
+.studio-vscode-welcome>p:not(.studio-vscode-welcome-eyebrow){max-width:500px;color:var(--ns-code-muted);font-size:var(--ns-text-md)}
 .studio-vscode-welcome-actions{display:flex;gap:8px;margin-top:12px}
-.studio-vscode-welcome-actions>button{min-height:32px;padding:0 12px;border:1px solid #454545;border-radius:3px;background:#252526;color:#ccc;font-size:var(--ns-text-sm);cursor:pointer}
-.studio-vscode-welcome-actions>button:hover{border-color:#007acc;color:#fff}
-.studio-vscode-main>.studio-manual-editor{display:flex;flex-direction:column;padding:10px;background:#1e1e1e;color:#ccc}
+.studio-vscode-welcome-actions>button{min-height:32px;padding:0 12px;border:1px solid var(--ns-code-line);border-radius:3px;background:var(--ns-code-panel);color:var(--ns-code-text);font-size:var(--ns-text-sm);cursor:pointer}
+.studio-vscode-welcome-actions>button:hover{border-color:var(--ns-accent);color:var(--ns-code-text)}
+.studio-vscode-main>.studio-manual-editor{display:flex;flex-direction:column;padding:10px;background:var(--ns-code-bg);color:var(--ns-code-text)}
 .studio-vscode-main>.studio-manual-editor>.studio-vscode{flex:1;min-height:0}
-.studio-vscode-main .studio-editor-shortcuts,.studio-vscode-main .studio-manual-editor-footer,.studio-vscode-main .studio-approval-note{color:#858585}
-.studio-vscode-main .boundary-note{margin:7px 0 0;border-color:#3a3a3a;background:#252526;color:#aaa}
-.studio-vscode-statusbar{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;min-height:23px;padding:3px 12px;border-top:1px solid #1685c7;background:#007acc;color:#fff;font-size:var(--ns-text-xs)}
+.studio-vscode-main .studio-editor-shortcuts,.studio-vscode-main .studio-manual-editor-footer,.studio-vscode-main .studio-approval-note{color:var(--ns-code-muted)}
+.studio-vscode-main .boundary-note{margin:7px 0 0;border-color:var(--ns-code-line);background:var(--ns-code-panel);color:var(--ns-code-muted)}
+.studio-vscode-statusbar{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;min-height:23px;padding:3px 12px;border-top:1px solid var(--ns-accent);background:var(--ns-accent);color:var(--ns-code-text);font-size:var(--ns-text-xs)}
 .studio-vscode-status-left,.studio-vscode-status-right{display:flex;align-items:center;gap:14px;min-width:0}
 .studio-vscode-statusbar svg{flex:none}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel{grid-area:knowledge;margin:0;border:0;border-top:1px solid #333;border-radius:0;background:#252526;color:#ccc}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel .panel-heading{border-color:#383838}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel button{border-color:#454545;background:#333;color:#ddd}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-foot{grid-area:footer;margin:0;border-top:1px solid #333;border-radius:0;background:#252526;color:#bbb}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note{grid-area:notes;margin:0;border:0;border-top:1px solid #303030;border-radius:0;background:#1e1e1e;color:#888}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note b{color:#aaa}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel{grid-area:knowledge;margin:0;border:0;border-top:1px solid var(--ns-code-line);border-radius:0;background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel .panel-heading{border-color:var(--ns-code-line)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-knowledge-panel button{border-color:var(--ns-code-line);background:var(--ns-code-line);color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-foot{grid-area:footer;margin:0;border-top:1px solid var(--ns-code-line);border-radius:0;background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note{grid-area:notes;margin:0;border:0;border-top:1px solid var(--ns-code-panel);border-radius:0;background:var(--ns-code-bg);color:var(--ns-code-muted)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.boundary-note b{color:var(--ns-code-muted)}
 @media(max-width:760px){.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-columns:42px minmax(0,1fr);grid-template-rows:58px 0 42px auto minmax(56dvh,1fr) auto;grid-template-areas:"header header" "intro intro" "tools tools" "error error" "activity sidebar" "activity workbench" "footer footer";overflow:auto}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{padding:8px 12px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:14px}.studio-workbench-tools:before{display:none}.studio-workbench-tools{overflow-x:auto;padding:5px}.studio-workbench-tools>button,.studio-workbench-tools>.database-engineer-trigger{min-height:30px;padding:0 8px;font-size:var(--ns-text-xs)}.studio-vscode-activity-bar{grid-row:5/7}.studio-vscode-explorer-sidebar{height:200px;max-height:200px;min-height:200px}.studio-vscode-main{grid-area:workbench;min-height:56dvh;grid-template-rows:34px 40px minmax(0,1fr)}.studio-vscode-tab-branch{display:none}.studio-vscode-welcome h1{font-size:18px}.studio-vscode-statusbar{flex-wrap:wrap}.studio-vscode-status-right{flex-wrap:wrap;gap:8px}}
 
 /* Keep knowledge controls and workspace safety notes out of the editor's way. */
@@ -698,28 +698,28 @@
 .modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:60px 0 auto auto minmax(0,1fr) auto auto auto}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{box-sizing:border-box;height:60px;min-height:60px;padding:0 20px}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{display:flex;align-items:center;gap:14px;min-width:0}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{flex:none;gap:6px;margin:0;color:#9da7b3;font-size:var(--ns-text-xs);letter-spacing:.9px;white-space:nowrap}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>svg{width:14px;height:14px;color:#75beff}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>span{padding:3px 6px;border-color:#444;background:#292929;color:#aaa;font-size:var(--ns-text-xs)}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{min-width:0;overflow:hidden;color:#f1f1f1;font-size:16px;font-weight:600;letter-spacing:-.2px;text-overflow:ellipsis;white-space:nowrap}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{padding:4px 8px;border-color:#4b4b4b;border-radius:4px;background:#2d2d30;color:#c7d6e5;font-size:var(--ns-text-xs)}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{flex:none;width:30px;height:30px;margin-left:auto;border:1px solid #3d3d3d;border-radius:4px;background:#242424;color:#bbb}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button:hover{border-color:#666;background:#333;color:#fff}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{flex:none;gap:6px;margin:0;color:var(--ns-code-muted);font-size:var(--ns-text-xs);letter-spacing:.9px;white-space:nowrap}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>svg{width:14px;height:14px;color:var(--ns-accent)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>span{padding:3px 6px;border-color:var(--ns-code-line);background:var(--ns-code-panel);color:var(--ns-code-muted);font-size:var(--ns-text-xs)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{min-width:0;overflow:hidden;color:var(--ns-code-text);font-size:16px;font-weight:600;letter-spacing:-.2px;text-overflow:ellipsis;white-space:nowrap}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{padding:4px 8px;border-color:var(--ns-code-line);border-radius:4px;background:var(--ns-code-panel);color:var(--ns-code-text);font-size:var(--ns-text-xs)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{flex:none;width:30px;height:30px;margin-left:auto;border:1px solid var(--ns-code-line);border-radius:4px;background:var(--ns-code-panel);color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button:hover{border-color:var(--ns-code-muted);background:var(--ns-code-line);color:var(--ns-code-text)}
 @media(max-width:760px){.modal-backdrop:has(.studio-file-explorer)>.studio-file-explorer,.studio-file-explorer:has(.studio-vscode-explorer-sidebar){grid-template-rows:58px 0 auto auto minmax(0,1fr) auto}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{height:58px;min-height:58px;padding:0 10px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{gap:8px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow{font-size:0}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>svg{width:17px;height:17px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-eyebrow>span{display:none}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:14px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-explorer-branch{font-size:var(--ns-text-xs)}}
 
 /* Fix IDE title, breadcrumb contrast, and welcome shortcut spacing. */
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{display:flex!important;visibility:visible!important;overflow:hidden;background:#161b22;color:#edf2f7}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head{display:flex!important;visibility:visible!important;overflow:hidden;background:var(--ns-code-bg);color:var(--ns-code-text)}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{display:flex!important;flex:1 1 auto;align-items:center;gap:16px;min-width:0;overflow:hidden}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .studio-explorer-eyebrow{display:flex!important;align-items:center;visibility:visible!important;opacity:1;color:#aab8c5}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{display:flex!important;align-items:center;visibility:visible!important;opacity:1;min-width:0;margin:0;color:#f4f7fb!important;font-size:16px!important;line-height:1.25}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .studio-explorer-eyebrow{display:flex!important;align-items:center;visibility:visible!important;opacity:1;color:var(--ns-code-text)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{display:flex!important;align-items:center;visibility:visible!important;opacity:1;min-width:0;margin:0;color:var(--ns-code-text)!important;font-size:16px!important;line-height:1.25}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .icon-button{display:grid!important;visibility:visible!important;opacity:1}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-vscode-main .studio-explorer-path>b{width:auto;max-width:min(70vw,900px);overflow:hidden;padding:0;border:0;border-radius:0;background:transparent;color:#c5d2df;font:10px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;text-overflow:ellipsis;white-space:nowrap}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-vscode-main .studio-explorer-path>small{padding:2px 7px;border:1px solid #3b4652;border-radius:10px;background:#252a31;color:#9aa8b5;font-size:var(--ns-text-xs)}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-vscode-main .studio-explorer-path>b{width:auto;max-width:min(70vw,900px);overflow:hidden;padding:0;border:0;border-radius:0;background:transparent;color:var(--ns-code-text);font:10px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;text-overflow:ellipsis;white-space:nowrap}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar) .studio-vscode-main .studio-explorer-path>small{padding:2px 7px;border:1px solid var(--ns-code-line);border-radius:10px;background:var(--ns-code-panel);color:var(--ns-code-muted);font-size:var(--ns-text-xs)}
 .studio-vscode-welcome-shortcuts{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px}
-.studio-vscode-welcome-shortcuts>span{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:4px 8px;border:1px solid #3b4148;border-radius:5px;background:#252a30;color:#b9c4cf;font-size:var(--ns-text-xs);white-space:nowrap}
-.studio-vscode-welcome-shortcuts kbd{padding:2px 4px;border:1px solid #505861;border-radius:3px;background:#30363d;color:#e0e6eb;font:9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace}
-.studio-vscode-welcome-shortcuts small{margin-left:5px;color:#9da8b3;font-size:var(--ns-text-xs)}
+.studio-vscode-welcome-shortcuts>span{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:4px 8px;border:1px solid var(--ns-code-line);border-radius:5px;background:var(--ns-code-panel);color:var(--ns-code-text);font-size:var(--ns-text-xs);white-space:nowrap}
+.studio-vscode-welcome-shortcuts kbd{padding:2px 4px;border:1px solid var(--ns-code-line);border-radius:3px;background:var(--ns-code-line);color:var(--ns-code-text);font:9px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace}
+.studio-vscode-welcome-shortcuts small{margin-left:5px;color:var(--ns-code-muted);font-size:var(--ns-text-xs)}
 @media(max-width:760px){.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head>div{gap:9px}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head h2{font-size:14px!important}.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.modal-head .studio-explorer-eyebrow>span{display:none}.studio-vscode-welcome-shortcuts{gap:5px;margin-top:12px}.studio-vscode-welcome-shortcuts>span{gap:3px;padding:4px 6px}}
 
 /* Recompose the workspace landing page as a focused two-column dashboard. */
@@ -1121,7 +1121,7 @@
 
 /* Clear, responsive tool groups for the full-screen IDE. */
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar){width:100vw;max-width:100vw;min-width:0}
-.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{width:100%;max-width:100%;min-width:0;display:flex;flex-wrap:nowrap;align-items:stretch;gap:7px;overflow-x:auto;overflow-y:hidden;padding:8px 12px;border:0;border-bottom:1px solid #343b45;border-radius:0;background:#20262e;box-shadow:inset 0 1px #ffffff05;scrollbar-width:thin;scrollbar-color:#46515e #20262e}
+.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools{width:100%;max-width:100%;min-width:0;display:flex;flex-wrap:nowrap;align-items:stretch;gap:7px;overflow-x:auto;overflow-y:hidden;padding:8px 12px;border:0;border-bottom:1px solid var(--ns-code-line);border-radius:0;background:var(--ns-code-panel);box-shadow:inset 0 1px #ffffff05;scrollbar-width:thin;scrollbar-color:var(--ns-code-line) var(--ns-code-panel)}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools:before{content:none}
 .studio-workbench-group{flex:0 0 auto;width:max-content;max-width:none;min-width:0;display:flex;flex-wrap:wrap;align-content:flex-start;align-items:center;gap:4px;padding:6px 7px;border:1px solid var(--ns-text);border-left:2px solid var(--ns-accent);border-radius:7px;background:linear-gradient(145deg,var(--ns-ink),var(--ns-ink))}
 .studio-workbench-group>span{flex:0 0 100%;margin:0 2px 2px;color:var(--ns-faint);font-size:var(--ns-text-xs);font-weight:750;letter-spacing:.9px;line-height:1.3;text-transform:uppercase}
@@ -1175,11 +1175,11 @@
 /* Create files from the Explorer, next to the current file listing. */
 .studio-vscode-explorer-heading{gap:8px}
 .studio-vscode-explorer-actions{display:flex;align-items:center;gap:6px;flex:none}
-.studio-vscode-explorer-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:27px;padding:0 7px;border:1px solid #3d5265;border-radius:5px;background:#263746;color:#c7dbea;font:550 var(--ns-text-xs)/1 "DM Sans",sans-serif;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-.studio-vscode-explorer-actions>button>svg{color:#75beff}
-.studio-vscode-explorer-actions>button:hover{border-color:#4d8bb8;background:#304b60;color:#fff}
-.studio-vscode-explorer-actions>button:focus-visible{outline:2px solid #75beff;outline-offset:2px}
-.studio-vscode-explorer-actions>small{display:grid;place-items:center;min-width:21px;height:20px;margin:0;padding:0 5px;border-radius:10px;background:#373737;color:#ccc;font-size:var(--ns-text-xs)}
+.studio-vscode-explorer-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:27px;padding:0 7px;border:1px solid var(--ns-code-line);border-radius:5px;background:var(--ns-code-line);color:var(--ns-code-text);font:550 var(--ns-text-xs)/1 "DM Sans",sans-serif;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.studio-vscode-explorer-actions>button>svg{color:var(--ns-accent)}
+.studio-vscode-explorer-actions>button:hover{border-color:var(--ns-accent);background:var(--ns-code-line);color:var(--ns-code-text)}
+.studio-vscode-explorer-actions>button:focus-visible{outline:2px solid var(--ns-accent);outline-offset:2px}
+.studio-vscode-explorer-actions>small{display:grid;place-items:center;min-width:21px;height:20px;margin:0;padding:0 5px;border-radius:10px;background:var(--ns-code-line);color:var(--ns-code-text);font-size:var(--ns-text-xs)}
 @media(max-width:420px){.studio-vscode-explorer-actions>button>span{display:none}.studio-vscode-explorer-actions>button{width:28px;padding:0}}
 
 /* Right-side AI dock for the full-screen workbench. */
@@ -1288,7 +1288,7 @@
 @media(max-width:980px){.studio-workspace-content>.studio-workspace-layout{grid-template-columns:minmax(0,1fr)}.studio-workspace-create-card>form>.modal-foot{flex-direction:row;align-items:center}.studio-workspace-create-card>form>.modal-foot>.primary{width:auto;min-width:220px}}
 @media(max-width:760px){.studio-workspace-page{padding:10px 14px 26px}.studio-workspace-hero{min-height:0;padding:22px 18px}.studio-workspace-hero::after{right:22px;bottom:-70px;width:150px;height:160px;opacity:.18}.studio-workspace-hero-copy{max-width:100%}.studio-workspace-access{position:absolute;top:14px;right:14px;margin:0}.studio-workspace-hero-copy>.eyebrow{padding-right:90px}.studio-workspace-hero h1{padding-right:65px;font-size:25px}.studio-workspace-meta{position:relative;z-index:1;flex-direction:row;flex-wrap:wrap}.studio-workspace-requests>.requests-list>.workspace-request-row{min-height:0}}
 @media(max-width:600px){.studio-workspace-page{padding:8px 10px 22px}.studio-workspace-nav{margin:0 0 10px}.studio-workspace-nav>span{font-size:var(--ns-text-xs)}.studio-workspace-hero{padding:17px 14px;border-radius:14px}.studio-workspace-hero h1{font-size:22px}.studio-workspace-hero-copy>p:not(.eyebrow){font-size:var(--ns-text-sm)}.studio-workspace-meta{align-items:flex-start;flex-direction:column}.studio-workspace-meta>span{font-size:var(--ns-text-xs)}.studio-workspace-intro h2{font-size:19px}.studio-workspace-content>.studio-workspace-layout{gap:12px}.studio-workspace-create-card,.studio-workspace-requests{padding:14px;border-radius:14px}.studio-workspace-create-card>form>.modal-foot{align-items:stretch;flex-direction:column}.studio-workspace-create-card>form>.modal-foot>.primary{width:100%;min-width:0}.studio-workspace-requests>.list-toolbar{align-items:flex-start;flex-wrap:wrap}.studio-workspace-requests>.list-toolbar>.small-button{margin-left:auto}.studio-workspace-requests .workspace-request-heading{align-items:flex-start;flex-direction:column;gap:6px}.studio-workspace-requests .workspace-request-heading>b{white-space:normal;overflow-wrap:anywhere}.studio-workspace-requests .workspace-request-actions{margin-left:0}.studio-workspace-requests .workspace-request-row>.small-button{margin-left:0}}
-.studio-vscode-canvas>textarea{display:block;width:100%;height:100%;min-height:360px;resize:none;border:0;outline:0;padding:12px 16px 18px;background:#0d1725;color:#d6e5f5;font:13px/21px 'Cascadia Code',Consolas,'Courier New',monospace;tab-size:2;white-space:pre;overflow:auto}
+.studio-vscode-canvas>textarea{display:block;width:100%;height:100%;min-height:360px;resize:none;border:0;outline:0;padding:12px 16px 18px;background:var(--ns-code-bg);color:var(--ns-code-text);font:13px/21px 'Cascadia Code',Consolas,'Courier New',monospace;tab-size:2;white-space:pre;overflow:auto}
 .studio-vscode-canvas>textarea[wrap='soft']{white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Keep the IDE toolbar sized to its contents, and make long documentation readable by default. */
@@ -1297,10 +1297,10 @@
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools>.studio-workbench-group>span{grid-column:1/-1;flex:none;width:auto}
 .studio-vscode,.studio-vscode-canvas{min-width:0;min-height:0}
 .studio-vscode-canvas{display:flex;overflow:hidden}
-.studio-vscode-canvas>textarea{box-sizing:border-box;flex:1 1 auto;min-width:0;min-height:0;height:100%;white-space:pre-wrap;overflow-wrap:anywhere;line-break:anywhere;scrollbar-color:#46586b #101b29;scrollbar-width:thin}
+.studio-vscode-canvas>textarea{box-sizing:border-box;flex:1 1 auto;min-width:0;min-height:0;height:100%;white-space:pre-wrap;overflow-wrap:anywhere;line-break:anywhere;scrollbar-color:var(--ns-code-line) var(--ns-code-bg);scrollbar-width:thin}
 .studio-vscode-canvas>textarea[wrap='off']{white-space:pre;overflow-wrap:normal;line-break:auto}
-.studio-vscode-canvas>textarea:focus-visible{box-shadow:inset 2px 0 #398ac1}
-.studio-vscode-actions>button.is-on{border-color:#2c5677;background:#18334a;color:#a8d7fb}
+.studio-vscode-canvas>textarea:focus-visible{box-shadow:inset 2px 0 var(--ns-accent)}
+.studio-vscode-actions>button.is-on{border-color:var(--ns-accent);background:var(--ns-code-panel);color:var(--ns-accent-line)}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools>.studio-workbench-group>span{font-size:var(--ns-text-xs);letter-spacing:.65px}
 .studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools>.studio-workbench-group>button,.studio-file-explorer:has(.studio-vscode-explorer-sidebar)>.studio-workbench-tools>.studio-workbench-group>.database-engineer-trigger{min-height:35px;padding-inline:11px;font-size:var(--ns-text-sm)}
 .studio-vscode-tab{font-size:var(--ns-text-md)}
