@@ -13,6 +13,10 @@ namespace AIERP.Platform.UnitTests;
 
 public sealed class ERPAssistantToolTelemetryTests
 {
+    // MeterListener is process-wide: other tests running in parallel also emit ERP assistant
+    // metrics. Only measurements raised on this test's own async flow are collected.
+    private static readonly AsyncLocal<bool> Capturing = new();
+
     [Theory]
     [InlineData("search_fixed_assets", "{\"term\":\"laptop\"}")]
     [InlineData("get_financial_account_balances", "{}")]
@@ -28,10 +32,11 @@ public sealed class ERPAssistantToolTelemetryTests
         };
         listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
         {
-            if (instrument.Name == "aierp.erp_assistant.tool.calls")
+            if (Capturing.Value && instrument.Name == "aierp.erp_assistant.tool.calls")
                 observedTools.Add(ReadTag(tags, "tool"));
         });
         listener.Start();
+        Capturing.Value = true;
 
         var httpCall = 0;
         var handler = new StubHandler(_ =>
@@ -70,12 +75,15 @@ public sealed class ERPAssistantToolTelemetryTests
                 meterListener.EnableMeasurementEvents(instrument);
         };
         listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
-            measurements.Add((instrument.Name, value, ReadTag(tags, "tool"), ReadTag(tags, "outcome"))));
+        {
+            if (Capturing.Value) measurements.Add((instrument.Name, value, ReadTag(tags, "tool"), ReadTag(tags, "outcome")));
+        });
         listener.SetMeasurementEventCallback<double>((instrument, value, _, _) =>
         {
-            if (instrument.Name == "aierp.erp_assistant.tool.duration") durationMeasurements.Add(value);
+            if (Capturing.Value && instrument.Name == "aierp.erp_assistant.tool.duration") durationMeasurements.Add(value);
         });
         listener.Start();
+        Capturing.Value = true;
 
         var httpCall = 0;
         var handler = new StubHandler(_ =>
@@ -126,9 +134,10 @@ public sealed class ERPAssistantToolTelemetryTests
         };
         listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
         {
-            if (instrument.Name == "aierp.erp_assistant.tool.calls") outcomes.Add(ReadTag(tags, "outcome"));
+            if (Capturing.Value && instrument.Name == "aierp.erp_assistant.tool.calls") outcomes.Add(ReadTag(tags, "outcome"));
         });
         listener.Start();
+        Capturing.Value = true;
 
         var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
