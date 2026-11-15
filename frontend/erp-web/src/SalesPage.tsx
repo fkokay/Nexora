@@ -6580,11 +6580,11 @@ function PurchasingPanel({
                         <option
                           value={
                             stockItems.find((x) => x.id === line.stockItemId)
-                              ?.unitCode || ""
+                              ?.unitCode || line.unitCode || ""
                           }
                         >
                           {stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode || "Temel birim"}
+                            ?.unitCode || line.unitCode || "Temel birim"}
                         </option>
                         {(purchaseOrderUnits[line.stockItemId] || [])
                           .filter((x) => x.isActive)
@@ -7415,11 +7415,11 @@ function PurchasingPanel({
                         <option
                           value={
                             stockItems.find((x) => x.id === line.stockItemId)
-                              ?.unitCode || ""
+                              ?.unitCode || line.unitCode || ""
                           }
                         >
                           {stockItems.find((x) => x.id === line.stockItemId)
-                            ?.unitCode || "Temel birim"}
+                            ?.unitCode || line.unitCode || "Temel birim"}
                         </option>
                         {(requestUnits[line.stockItemId] || [])
                           .filter((x) => x.isActive)

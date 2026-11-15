@@ -160,6 +160,8 @@ function customerFieldTypeLabel(dataType: string) {
   return customerFieldTypeLabels[dataType] ?? dataType;
 }
 
+const CUSTOMER_EDIT_REQUEST_EVENT = "nexora:customer-edit-request";
+
 function CustomersPage({
   token,
   role,
@@ -886,6 +888,13 @@ function CustomersPage({
   useEffect(() => {
     if (initialCreate) void openCustomerModal();
   }, [initialCreate]);
+  const [editRequest, setEditRequest] = useState(0);
+  useEffect(() => {
+    if (!initialEdit) return;
+    const onEditRequest = () => setEditRequest((value) => value + 1);
+    window.addEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
+    return () => window.removeEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
+  }, [initialEdit]);
   useEffect(() => {
     if (!initialEdit) return;
     let active = true;
@@ -894,6 +903,7 @@ function CustomersPage({
       onNavigate("customers");
       return;
     }
+    setModal(false);
     void api<CustomerItem>(`/api/customers/${customerId}`, token)
       .then((item) => { if (active) void openEditCustomer(item, false); })
       .catch((error) => {
@@ -901,7 +911,7 @@ function CustomersPage({
         setError((error as Error).message);
       });
     return () => { active = false; };
-  }, [initialEdit, token]);
+  }, [initialEdit, token, editRequest]);
   /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
   const stayAfterSave = useRef(false);
   /**
@@ -999,6 +1009,13 @@ function CustomersPage({
         if (!initialCreate) await load();
         return;
       }
+      if (initialCreate) {
+        // The create route stays alive as a workspace tab; keep its form mounted (already
+        // reset above) so reopening the tab does not wait on a load that never re-runs.
+        setCustomerCreateTab("contact");
+        onNavigate("customers");
+        return;
+      }
       setModal(false);
       setNotice("Cari kartı oluşturuldu.");
       if (initialCreate) onNavigate("customers");
@@ -1014,6 +1031,8 @@ function CustomersPage({
     if (openPage) {
       sessionStorage.setItem("nexora.customer-edit-id", item.id);
       onNavigate("customer-edit");
+      // An edit tab that is already open stays mounted; tell it to load the newly chosen account.
+      window.dispatchEvent(new CustomEvent(CUSTOMER_EDIT_REQUEST_EVENT));
       return;
     }
     setError("");
@@ -1895,6 +1914,15 @@ function CustomersPage({
     error,
     setError,
     setModal: (value) => {
+        if (!value && initialCreate) {
+          // Keep the create tab's form mounted for its next use; just clear it.
+          resetCustomerForm();
+          setError("");
+          setNotice("");
+          setCustomerCreateTab("contact");
+          onNavigate("customers");
+          return;
+        }
         setModal(value);
         if (!value && (initialCreate || initialEdit)) {
           if (initialEdit) sessionStorage.removeItem("nexora.customer-edit-id");
