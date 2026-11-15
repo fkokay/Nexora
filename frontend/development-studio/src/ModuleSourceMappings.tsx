@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ShieldCheck, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ShieldCheck, X } from "lucide-react";
 import { api } from "./api";
 import { confirmDialog } from "./ui/confirmDialog";
+import { Dialog } from "./ui/Dialog";
+import "./studio-tools.css";
 
 type Project = {
   id: string;
@@ -117,77 +119,93 @@ export function ModuleSourceMappings({
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      // The disabled Kaldır button (or its removed row) drops focus; keep it inside the dialog.
+      requestAnimationFrame(() => {
+        if (document.activeElement === document.body)
+          document.getElementById("module-source-list-title")?.focus();
+      });
     }
   }
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !busy) onClose();
-      }}
+    <Dialog
+      onClose={onClose}
+      dismissible={!busy}
+      labelledBy="module-source-mappings-title"
+      describedBy="module-source-mappings-sub"
+      className="ns-tool-dialog"
     >
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="module-source-mappings-title"
-      >
-        <header className="modal-head">
-          <div>
-            <p className="eyebrow">TENANT KAPSAMINDA · KULLANICI ONAYLI</p>
-            <h2 id="module-source-mappings-title">Modül kaynak eşlemeleri</h2>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onClose}
-            aria-label="Kapat"
-          >
-            <X size={19} />
-          </button>
-        </header>
-        <p className="muted modal-sub">
+      <header className="ns-dialog-head">
+        <div>
+          <span className="ns-eyebrow">Tenant kapsamında · kullanıcı onaylı</span>
+          <h2 id="module-source-mappings-title">Modül kaynak eşlemeleri</h2>
+        </div>
+        <button
+          type="button"
+          className="ns-btn ns-btn-sm ns-btn-ghost"
+          onClick={onClose}
+          aria-label="Kapat"
+        >
+          <X size={18} />
+        </button>
+      </header>
+      <div className="ns-dialog-body">
+        <p className="ns-dialog-sub" id="module-source-mappings-sub">
           Hedef repo, kayıtlı Studio projesinden alınır:{" "}
-          <b>{project.repositoryUrl}</b>. Repo URL’si bu formda değiştirilemez.
-          Ref ve kaynak path’lerini siz doğrularsınız.
+          <b className="ns-mono tools-repo">{project.repositoryUrl}</b>. Repo
+          URL’si bu formda değiştirilemez. Ref ve kaynak path’lerini siz
+          doğrularsınız.
         </p>
-        {error && <div className="alert">{error}</div>}
-        {notice && <div className="notice">{notice}</div>}
-        <form onSubmit={save}>
-          <label>
-            Etkin modül kodu
-            <select
-              value={moduleCode}
-              onChange={(e) => setModuleCode(e.target.value)}
-              required
-              disabled={moduleCodes.length === 0}
-            >
-              <option value="">
-                {moduleCodes.length ? "Modül seçin" : "Etkin modül bulunamadı"}
-              </option>
-              {moduleCodes.map((code) => (
-                <option key={code} value={code}>
-                  {code}
+        {error && (
+          <div className="ns-callout is-danger" role="alert">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+        {notice && (
+          <div className="ns-callout is-success" role="status">
+            <CheckCircle2 size={16} />
+            <span>{notice}</span>
+          </div>
+        )}
+        <form className="tools-form" onSubmit={save}>
+          <div className="tools-form-row">
+            <label className="ns-field">
+              <span className="ns-field-label">Etkin modül kodu</span>
+              <select
+                value={moduleCode}
+                onChange={(e) => setModuleCode(e.target.value)}
+                required
+                disabled={moduleCodes.length === 0}
+              >
+                <option value="">
+                  {moduleCodes.length ? "Modül seçin" : "Etkin modül bulunamadı"}
                 </option>
-              ))}
-            </select>
-            <small>
-              Yalnızca bu tenant’ta etkinleştirilmiş modüller listelenir.
-            </small>
-          </label>
-          <label>
-            Git ref / branch
-            <input
-              value={ref}
-              onChange={(e) => setRef(e.target.value)}
-              maxLength={256}
-              required
-              placeholder="main"
-            />
-          </label>
-          <label>
-            Path allowlist metaverisi
+                {moduleCodes.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+              <span className="ns-field-hint">
+                Yalnızca bu tenant’ta etkinleştirilmiş modüller listelenir.
+              </span>
+            </label>
+            <label className="ns-field">
+              <span className="ns-field-label">Git ref / branch</span>
+              <input
+                className="ns-mono"
+                value={ref}
+                onChange={(e) => setRef(e.target.value)}
+                maxLength={256}
+                required
+                placeholder="main"
+              />
+            </label>
+          </div>
+          <label className="ns-field">
+            <span className="ns-field-label">Path allowlist metaverisi</span>
             <textarea
+              className="ns-mono"
               value={paths}
               onChange={(e) => setPaths(e.target.value)}
               maxLength={4000}
@@ -197,89 +215,102 @@ export function ModuleSourceMappings({
                 "modules/inventory-tools\nfrontend/modules/inventory-tools"
               }
             />
-            <small>
+            <span className="ns-field-hint">
               Her satıra bir dizin veya dosya yolu. Mutlak yollar, traversal ve
-              hassas klasör adları reddedilir; bu liste mevcut workspace
+              hassas klasör adları reddedilir; bu liste mevcut çalışma alanı
               editöründe henüz zorunlu tutulmaz.
-            </small>
+            </span>
           </label>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 9,
-              marginTop: 10,
-            }}
-          >
+          <label className="ns-check">
             <input
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
               required
-              style={{ width: 16, marginTop: 3 }}
             />
             <span>
               Bu modül için doğru repo, ref ve kaynak path’lerini doğruladım.
               Kaydetme yalnız eşleme kaydı oluşturur.
             </span>
           </label>
-          <div className="modal-foot">
+          <div className="tools-form-foot">
             <span>
               <ShieldCheck size={14} /> Repo bağlantısı ve yayın onayları ayrı
               kalır
             </span>
-            <button className="primary" disabled={busy || !confirmed}>
-              {busy ? "Kaydediliyor…" : "Eşlemeyi kaydet"} <span>→</span>
+            <button
+              className="ns-btn ns-btn-primary"
+              disabled={busy || !confirmed}
+            >
+              {busy ? "Kaydediliyor…" : "Eşlemeyi kaydet"}
             </button>
           </div>
         </form>
-        <div className="list-toolbar">
-          <div>
-            <h3>Bu projeye bağlı modüller</h3>
-            <p>{items.length} eşleme</p>
+        <section className="tools-section" aria-labelledby="module-source-list-title">
+          <div className="ns-card-head">
+            <h3 id="module-source-list-title" tabIndex={-1}>Bu projeye bağlı modüller</h3>
+            <span className="ns-badge">{items.length} eşleme</span>
           </div>
-        </div>
-        <div className="requests-list">
           {loading ? (
-            <div className="empty-small">Eşlemeler yükleniyor…</div>
+            <div className="ns-empty">Eşlemeler yükleniyor…</div>
           ) : items.length ? (
-            items.map((item) => (
-              <article className="request-row" key={item.id}>
-                <div className="request-symbol">
-                  <ShieldCheck size={17} />
-                </div>
-                <div className="request-info">
-                  <b>{item.moduleCode}</b>
-                  <small>
-                    {item.repositoryUrl} · {item.ref}
-                  </small>
-                  <small>Path sınırı: {item.pathAllowlist.join(" · ")}</small>
-                </div>
-                <button
-                  type="button"
-                  className="secondary small-button danger-action"
-                  disabled={busy}
-                  onClick={() => void remove(item)}
-                >
-                  Kaldır
-                </button>
-              </article>
-            ))
+            <div className="ns-table-wrap">
+              <table className="ns-table tools-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Modül</th>
+                    <th scope="col">Repo · ref</th>
+                    <th scope="col">Path sınırı</th>
+                    <th scope="col">
+                      <span className="ns-sr-only">İşlemler</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <b>{item.moduleCode}</b>
+                      </td>
+                      <td className="tools-cell-mono">
+                        {item.repositoryUrl}
+                        <span className="ns-badge is-accent">{item.ref}</span>
+                      </td>
+                      <td className="tools-cell-mono">
+                        {item.pathAllowlist.join(" · ")}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="ns-btn ns-btn-sm tools-danger"
+                          disabled={busy}
+                          onClick={() => void remove(item)}
+                          aria-label={`${item.moduleCode} eşlemesini kaldır`}
+                        >
+                          Kaldır
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <div className="empty-small">
-              Bu projeye henüz modül bağlanmadı.
+            <div className="ns-empty">
+              <b>Henüz modül bağlanmadı</b>
+              Bu projeye bağlı modül eşlemesi yok.
             </div>
           )}
-        </div>
-        <div className="boundary-note">
-          <ShieldCheck size={17} />
+        </section>
+        <div className="ns-callout is-info">
+          <ShieldCheck size={16} />
           <span>
             <b>İşlem sınırı</b>Bu kayıt yalnızca tenant kapsamındaki eşlemeyi
             saklar. Checkout, Git işlemi, kod çalıştırma, push veya yayın
             başlatmaz.
           </span>
         </div>
-      </section>
-    </div>
+      </div>
+    </Dialog>
   );
 }
