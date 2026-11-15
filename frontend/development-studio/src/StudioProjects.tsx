@@ -5032,7 +5032,7 @@ export function StudioProjects({
                 </div>
                 <div className="sp-actions">
                   <button
-                    className="ns-btn ns-btn-sm"
+                    className="ns-btn ns-btn-sm small-button"
                     disabled={busy || !reviewNote.trim()}
                     title={
                       reviewNote.trim()
@@ -5044,7 +5044,7 @@ export function StudioProjects({
                     Reddet
                   </button>
                   <button
-                    className="ns-btn ns-btn-sm ns-btn-primary"
+                    className="ns-btn ns-btn-sm small-button ns-btn-primary"
                     disabled={busy}
                     onClick={() => void reviewPendingApproval(request, "Approve")}
                   >
@@ -5079,7 +5079,7 @@ export function StudioProjects({
               </span>
               {pendingApprovalsOffset > 0 && (
                 <button
-                  className="ns-btn ns-btn-sm"
+                  className="ns-btn ns-btn-sm small-button"
                   disabled={approvalQueueLoading || busy}
                   onClick={() =>
                     void loadPendingApprovals(
@@ -5092,7 +5092,7 @@ export function StudioProjects({
               )}
               {pendingApprovalsNextOffset !== null && (
                 <button
-                  className="ns-btn ns-btn-sm"
+                  className="ns-btn ns-btn-sm small-button"
                   disabled={approvalQueueLoading || busy}
                   onClick={() =>
                     void loadPendingApprovals(pendingApprovalsNextOffset)
@@ -5115,7 +5115,7 @@ export function StudioProjects({
           </div>
           <div className="sp-actions">
             <button
-              className="ns-btn ns-btn-sm"
+              className="ns-btn ns-btn-sm small-button"
               disabled={busy}
               onClick={() => void refreshProjectStatus()}
             >
@@ -5123,7 +5123,7 @@ export function StudioProjects({
             </button>
             {tenant.role === "TenantAdmin" && (
               <button
-                className="ns-btn ns-btn-sm ns-btn-primary"
+                className="ns-btn ns-btn-sm small-button ns-btn-primary"
                 onClick={() => setShowCreate(true)}
               >
                 <Plus size={15} aria-hidden="true" /> Proje kaydet
@@ -5194,14 +5194,14 @@ export function StudioProjects({
                           project.accessLevel === "TenantAdmin") && (
                           <>
                             <button
-                              className="ns-btn ns-btn-sm ns-btn-ghost"
+                              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
                               onClick={() => void openAccess(project)}
                             >
                               <ShieldCheck size={14} aria-hidden="true" />
                               Erişimler
                             </button>
                             <button
-                              className="ns-btn ns-btn-sm ns-btn-ghost"
+                              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
                               onClick={() => setModuleMappingProject(project)}
                             >
                               <Code2 size={14} aria-hidden="true" />
@@ -5210,7 +5210,7 @@ export function StudioProjects({
                           </>
                         )}
                         <button
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           onClick={() => void openWorkspace(project)}
                         >
                           <Folder size={14} aria-hidden="true" />
@@ -5236,7 +5236,7 @@ export function StudioProjects({
             </span>
             {tenant.role === "TenantAdmin" && (
               <button
-                className="ns-btn ns-btn-sm ns-btn-primary"
+                className="ns-btn ns-btn-sm small-button ns-btn-primary"
                 onClick={() => setShowCreate(true)}
               >
                 <Plus size={15} aria-hidden="true" /> Proje kaydet
@@ -5268,7 +5268,7 @@ export function StudioProjects({
             </div>
             <button
               type="button"
-              className="ns-btn ns-btn-sm ns-btn-ghost"
+              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
               aria-label="Kapat"
               onClick={() => setShowCreate(false)}
             >
@@ -5344,7 +5344,7 @@ export function StudioProjects({
             </div>
             <button
               type="button"
-              className="ns-btn ns-btn-sm ns-btn-ghost"
+              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
               aria-label="Kapat"
               onClick={() => setAccessProject(null)}
             >
@@ -5379,7 +5379,7 @@ export function StudioProjects({
                       </td>
                       <td className="sp-cell-end">
                         <button
-                          className="ns-btn ns-btn-sm ns-btn-ghost sp-danger-text"
+                          className="ns-btn ns-btn-sm small-button ns-btn-ghost sp-danger-text"
                           disabled={busy}
                           onClick={() => void revokeAccess(member)}
                         >
@@ -5513,7 +5513,7 @@ export function StudioProjects({
                         ) && (
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm ns-btn-primary"
+                            className="ns-btn ns-btn-sm small-button ns-btn-primary"
                             disabled={busy}
                             onClick={() => void connectProjectGitHub()}
                           >
@@ -5523,7 +5523,7 @@ export function StudioProjects({
                       {workspaceProject.githubAuthorized && (
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           disabled={busy}
                           onClick={() => void disconnectProjectGitHub()}
                         >
@@ -5590,7 +5590,7 @@ export function StudioProjects({
                       {!branchesAvailable && !branchesLoading && (
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           disabled={busy}
                           onClick={() =>
                             void loadProjectBranches(workspaceProject)
@@ -5647,7 +5647,7 @@ export function StudioProjects({
                       <p>{workspaceRequests.length} kayıt</p>
                     </div>
                     <button
-                      className="ns-btn ns-btn-sm"
+                      className="ns-btn ns-btn-sm small-button"
                       onClick={() => setShowPlanHistory(true)}
                     >
                       Plan geçmişi ({savedArchitecturePlans.length})
@@ -5756,7 +5756,7 @@ export function StudioProjects({
                                 {request.canReview && (
                                   <>
                                     <button
-                                      className="ns-btn ns-btn-sm"
+                                      className="ns-btn ns-btn-sm small-button"
                                       disabled={busy}
                                       onClick={() =>
                                         void reviewWorkspaceRequest(
@@ -5768,7 +5768,7 @@ export function StudioProjects({
                                       Onayla
                                     </button>
                                     <button
-                                      className="ns-btn ns-btn-sm"
+                                      className="ns-btn ns-btn-sm small-button"
                                       disabled={busy}
                                       onClick={() =>
                                         void reviewWorkspaceRequest(
@@ -5783,7 +5783,7 @@ export function StudioProjects({
                                 )}
                                 {request.canCancel && (
                                   <button
-                                    className="ns-btn ns-btn-sm"
+                                    className="ns-btn ns-btn-sm small-button"
                                     disabled={busy}
                                     onClick={() =>
                                       void cancelWorkspaceRequest(request)
@@ -5798,7 +5798,7 @@ export function StudioProjects({
                             request.status !== "Provisioning" && (
                               <button
                                 type="button"
-                                className="ns-btn ns-btn-sm workspace-request-delete"
+                                className="ns-btn ns-btn-sm small-button workspace-request-delete"
                                 disabled={busy}
                                 onClick={() =>
                                   void archiveWorkspaceRequest(request)
@@ -5814,7 +5814,7 @@ export function StudioProjects({
                               workspaceProject.accessLevel ===
                                 "Maintainer") && (
                               <button
-                                className="ns-btn ns-btn-sm"
+                                className="ns-btn ns-btn-sm small-button"
                                 disabled={busy}
                                 onClick={() => void provisionWorkspace(request)}
                               >
@@ -5831,7 +5831,7 @@ export function StudioProjects({
                                   workspaceProject.accessLevel ===
                                     "Maintainer") && (
                                   <button
-                                    className="ns-btn ns-btn-sm"
+                                    className="ns-btn ns-btn-sm small-button"
                                     disabled={busy}
                                     onClick={() =>
                                       void ensureWorkspaceBranch(request)
@@ -5842,7 +5842,7 @@ export function StudioProjects({
                                 )}
                               <button
                                 type="button"
-                                className="ns-btn ns-btn-sm ns-btn-primary"
+                                className="ns-btn ns-btn-sm small-button ns-btn-primary"
                                 disabled={fileLoading}
                                 onClick={() =>
                                   void loadWorkspaceFiles(request, "")
@@ -6056,7 +6056,7 @@ export function StudioProjects({
                                   Onaylı sürümünüzü web uygulamasına yayınlayın.
                                 </small>
                               </div>
-                              <button className="ns-btn ns-btn-sm" disabled={gitStatusLoading} onClick={() => gitStatusWorkspace && void loadWorkspaceGitStatus(gitStatusWorkspace, true)}>
+                              <button className="ns-btn ns-btn-sm small-button" disabled={gitStatusLoading} onClick={() => gitStatusWorkspace && void loadWorkspaceGitStatus(gitStatusWorkspace, true)}>
                                 <RefreshCw size={14} /> Durumu yenile
                               </button>
                             </div>
@@ -6199,7 +6199,7 @@ export function StudioProjects({
                                                   workspaceProject?.accessLevel ===
                                                     "TenantAdmin") && (
                                                   <button
-                                                    className="ns-btn ns-btn-sm"
+                                                    className="ns-btn ns-btn-sm small-button"
                                                     disabled={
                                                       releasePackageLoading !==
                                                       null || candidate.githubPullRequestState === "draft"
@@ -6221,7 +6221,7 @@ export function StudioProjects({
                                               <div className="boundary-note" style={{ flexWrap: "wrap", gap: 10 }}>
                                                 <Info size={17} />
                                                 <span style={{ flex: "1 1 220px" }}><b>GitHub PR #{candidate.githubPullRequestNumber} taslak durumunda</b>Commit GitHub’a gönderildi. Paket oluşturmadan önce PR’yi incelemeye hazır duruma alın.</span>
-                                                <button className="ns-btn ns-btn-sm" disabled={pullRequestReadyLoading === candidate.id} onClick={() => void markGitHubPullRequestReady(candidate)}>
+                                                <button className="ns-btn ns-btn-sm small-button" disabled={pullRequestReadyLoading === candidate.id} onClick={() => void markGitHubPullRequestReady(candidate)}>
                                                   {pullRequestReadyLoading === candidate.id ? "Hazırlanıyor…" : "PR’yi incelemeye hazırla"}
                                                 </button>
                                               </div>
@@ -6258,7 +6258,7 @@ export function StudioProjects({
                                                   </details>
                                                 </div>
                                                 <button
-                                                  className="ns-btn ns-btn-sm"
+                                                  className="ns-btn ns-btn-sm small-button"
                                                   disabled={
                                                     releasePackageDownloadLoading !==
                                                     null
@@ -6289,7 +6289,7 @@ export function StudioProjects({
                                                     yayınlanabilir.
                                                   </span>
                                                   <button
-                                                    className="ns-btn ns-btn-sm"
+                                                    className="ns-btn ns-btn-sm small-button"
                                                     disabled={
                                                       releaseDeploymentLoading
                                                     }
@@ -6328,7 +6328,7 @@ export function StudioProjects({
                                           </small>
                                         </div>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           disabled={gitStatusLoading}
                                           onClick={() =>
                                             void loadWorkspaceGitStatus(
@@ -6434,7 +6434,7 @@ export function StudioProjects({
                                                 </div>
                                                 {deployment.environmentUrl && (
                                                   <a
-                                                    className="ns-btn ns-btn-sm"
+                                                    className="ns-btn ns-btn-sm small-button"
                                                     href={
                                                       deployment.environmentUrl
                                                     }
@@ -6447,7 +6447,7 @@ export function StudioProjects({
                                                 {active && (
                                                   <>
                                                     <button
-                                                      className="ns-btn ns-btn-sm"
+                                                      className="ns-btn ns-btn-sm small-button"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6470,7 +6470,7 @@ export function StudioProjects({
                                                       Yeniden dağıt
                                                     </button>
                                                     <button
-                                                      className="ns-btn ns-btn-sm danger-action"
+                                                      className="ns-btn ns-btn-sm small-button danger-action"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6488,7 +6488,7 @@ export function StudioProjects({
                                                         deployment.id,
                                                     ) && (
                                                       <button
-                                                        className="ns-btn ns-btn-sm"
+                                                        className="ns-btn ns-btn-sm small-button"
                                                         disabled={
                                                           releaseDeploymentLoading
                                                         }
@@ -6507,7 +6507,7 @@ export function StudioProjects({
                                                   deployment.status ===
                                                     "Superseded" && (
                                                     <button
-                                                      className="ns-btn ns-btn-sm"
+                                                      className="ns-btn ns-btn-sm small-button"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6625,7 +6625,7 @@ export function StudioProjects({
                                                     "AwaitingReview" && (
                                                     <>
                                                       <button
-                                                        className="ns-btn ns-btn-sm"
+                                                        className="ns-btn ns-btn-sm small-button"
                                                         onClick={() =>
                                                           void reviewProductionApproval(
                                                             approval,
@@ -6636,7 +6636,7 @@ export function StudioProjects({
                                                         Onayla
                                                       </button>
                                                       <button
-                                                        className="ns-btn ns-btn-sm danger-action"
+                                                        className="ns-btn ns-btn-sm small-button danger-action"
                                                         onClick={() =>
                                                           void reviewProductionApproval(
                                                             approval,
@@ -6656,7 +6656,7 @@ export function StudioProjects({
                                                     approval.productionDeploymentStatus ===
                                                       "Failed") && (
                                                     <button
-                                                      className="ns-btn ns-btn-sm ns-btn-primary"
+                                                      className="ns-btn ns-btn-sm small-button ns-btn-primary"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6740,7 +6740,7 @@ export function StudioProjects({
                                                   "TenantAdmin" &&
                                                   deployment.canRestoreDatabase && (
                                                     <button
-                                                      className="ns-btn ns-btn-sm ns-btn-danger"
+                                                      className="ns-btn ns-btn-sm small-button ns-btn-danger"
                                                       disabled={
                                                         releaseDeploymentLoading
                                                       }
@@ -6787,7 +6787,7 @@ export function StudioProjects({
                                           "draft" &&
                                           candidate.decision === "Approved" && (
                                             <button
-                                              className="ns-btn ns-btn-sm"
+                                              className="ns-btn ns-btn-sm small-button"
                                               disabled={
                                                 pullRequestReadyLoading ===
                                                 candidate.id
@@ -6805,7 +6805,7 @@ export function StudioProjects({
                                             </button>
                                           )}
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void submitGitHubReview(
                                               candidate,
@@ -6816,7 +6816,7 @@ export function StudioProjects({
                                           Yorum ekle
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void requestGitHubReviewers(
                                               candidate,
@@ -6826,7 +6826,7 @@ export function StudioProjects({
                                           İnceleme iste
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void submitGitHubReview(
                                               candidate,
@@ -6837,7 +6837,7 @@ export function StudioProjects({
                                           GitHub’da onayla
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void submitGitHubReview(
                                               candidate,
@@ -6848,7 +6848,7 @@ export function StudioProjects({
                                           Değişiklik iste
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void syncGitHubReviewComments(
                                               candidate,
@@ -6858,7 +6858,7 @@ export function StudioProjects({
                                           Yorumları GitHub’a aktar
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void importGitHubReviewComments(
                                               candidate,
@@ -6872,7 +6872,7 @@ export function StudioProjects({
                                   {candidate.canReview && (
                                     <div style={{ display: "flex", gap: 6 }}>
                                       <button
-                                        className="ns-btn ns-btn-sm"
+                                        className="ns-btn ns-btn-sm small-button"
                                         onClick={() =>
                                           void reviewReleaseCandidate(
                                             candidate,
@@ -6883,7 +6883,7 @@ export function StudioProjects({
                                         Onayla
                                       </button>
                                       <button
-                                        className="ns-btn ns-btn-sm danger-action"
+                                        className="ns-btn ns-btn-sm small-button danger-action"
                                         onClick={() =>
                                           void reviewReleaseCandidate(
                                             candidate,
@@ -6906,7 +6906,7 @@ export function StudioProjects({
                                         candidate.id,
                                     ) && (
                                       <button
-                                        className="ns-btn ns-btn-sm"
+                                        className="ns-btn ns-btn-sm small-button"
                                         onClick={() =>
                                           void assignReleaseVersion(candidate)
                                         }
@@ -6920,7 +6920,7 @@ export function StudioProjects({
                                       workspaceProject?.accessLevel ===
                                         "TenantAdmin") && (
                                       <button
-                                        className="ns-btn ns-btn-sm"
+                                        className="ns-btn ns-btn-sm small-button"
                                         disabled={pullRequestDraftLoading}
                                         onClick={() =>
                                           void createPullRequestDraft(candidate)
@@ -6960,7 +6960,7 @@ export function StudioProjects({
                                           </small>
                                         </div>
                                         <button
-                                          className="ns-btn ns-btn-sm"
+                                          className="ns-btn ns-btn-sm small-button"
                                           onClick={() =>
                                             void navigator.clipboard.writeText(
                                               `${pullRequestDraft.draft.title}\n\n${pullRequestDraft.draft.body}`,
@@ -6970,7 +6970,7 @@ export function StudioProjects({
                                           Başlık ve açıklamayı kopyala
                                         </button>
                                         <button
-                                          className="ns-btn ns-btn-sm ns-btn-primary"
+                                          className="ns-btn ns-btn-sm small-button ns-btn-primary"
                                           disabled={pullRequestPublishLoading}
                                           onClick={() =>
                                             void publishPullRequest(candidate)
@@ -7079,7 +7079,7 @@ export function StudioProjects({
                           <small>{file.status}</small>
                         </div>
                         <button
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           disabled={gitDiffLoading}
                           onClick={() => void openWorkspaceGitDiff(file.path)}
                         >
@@ -7204,7 +7204,7 @@ export function StudioProjects({
                   </div>
                   {chatConversation?.canDelete && (
                     <button
-                      className="ns-btn ns-btn-sm danger-action"
+                      className="ns-btn ns-btn-sm small-button danger-action"
                       disabled={chatLoading}
                       onClick={() => void deleteStudioConversation()}
                     >
@@ -7289,7 +7289,7 @@ export function StudioProjects({
                       </div>
                       <button
                         type="button"
-                        className="ns-btn ns-btn-sm"
+                        className="ns-btn ns-btn-sm small-button"
                         onClick={() => {
                           setChatCodeChange(null);
                           setChatCodeChangeApplied([]);
@@ -7324,7 +7324,7 @@ export function StudioProjects({
                           </div>
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm ns-btn-primary"
+                            className="ns-btn ns-btn-sm small-button ns-btn-primary"
                             disabled={
                               chatCodeChangeLoading ||
                               chatCodeChangeApplied.includes(change.filePath)
@@ -7702,7 +7702,7 @@ export function StudioProjects({
                         {thread.status === "Open" && (
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             onClick={() => {
                               setReviewReplyThread(thread.id);
                               setReviewReplyDraft("");
@@ -7713,7 +7713,7 @@ export function StudioProjects({
                         )}
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           disabled={reviewSaving}
                           onClick={() =>
                             void setCodeReviewThreadResolved(
@@ -7902,7 +7902,7 @@ export function StudioProjects({
                   </small>
                 </div>
                 <button
-                  className="ns-btn ns-btn-sm"
+                  className="ns-btn ns-btn-sm small-button"
                   disabled={changeLoading}
                   onClick={() => void openWorkspaceChange(change)}
                 >
@@ -8120,7 +8120,7 @@ export function StudioProjects({
                         </small>
                       </div>
                       <button
-                        className="ns-btn ns-btn-sm"
+                        className="ns-btn ns-btn-sm small-button"
                         disabled={
                           multiFileLoading ||
                           multiFileApplied.includes(change.filePath)
@@ -8382,7 +8382,7 @@ export function StudioProjects({
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button
-                      className="ns-btn ns-btn-sm"
+                      className="ns-btn ns-btn-sm small-button"
                       disabled={architectLoading}
                       onClick={() => void openSavedArchitecturePlan(saved)}
                     >
@@ -8390,7 +8390,7 @@ export function StudioProjects({
                     </button>
                     {saved.canDelete && (
                       <button
-                        className="ns-btn ns-btn-sm"
+                        className="ns-btn ns-btn-sm small-button"
                         disabled={architectLoading}
                         title="Planı sil"
                         aria-label="Planı sil"
@@ -8816,7 +8816,7 @@ export function StudioProjects({
                 </span>
                 <div>
                   <p className="eyebrow">
-                    TEST CENTER <i>·</i> GÜVENLİ KURULUM
+                    TEST VE BUILD <i>·</i> GÜVENLİ SANDBOX
                   </p>
                   <h2 id="studio-test-discovery-title">{workspaceProject?.name} / Test ve build hedefleri</h2>
                 </div>
@@ -8911,7 +8911,7 @@ export function StudioProjects({
                           (workspaceProject?.accessLevel === "TenantAdmin" ||
                             workspaceProject?.accessLevel === "Maintainer") && (
                             <button
-                              className="ns-btn ns-btn-sm"
+                              className="ns-btn ns-btn-sm small-button"
                               disabled={testExecutionLoading}
                               onClick={() => void runWorkspaceTest(target)}
                             >
@@ -8933,7 +8933,7 @@ export function StudioProjects({
                           (workspaceProject?.accessLevel === "TenantAdmin" ||
                             workspaceProject?.accessLevel === "Maintainer") && (
                             <button
-                              className="ns-btn ns-btn-sm"
+                              className="ns-btn ns-btn-sm small-button"
                               disabled={buildExecutionLoading}
                               onClick={() => void runWorkspaceBuild(target)}
                             >
@@ -9028,7 +9028,7 @@ export function StudioProjects({
                         testExecution.status !== "Running" &&
                         workspaceProject?.accessLevel !== "Viewer" && (
                           <button
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             disabled={sandboxErrorAnalysisLoading}
                             onClick={() =>
                               void analyzeSandboxFailure(
@@ -9046,7 +9046,7 @@ export function StudioProjects({
                       {["Queued", "Running"].includes(testExecution.status) &&
                         !testExecutionLoading && (
                           <button
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             onClick={() => void pollWorkspaceTestRun()}
                           >
                             Test durumunu yenile
@@ -9103,7 +9103,7 @@ export function StudioProjects({
                           buildExecution.status !== "Running" &&
                           workspaceProject?.accessLevel !== "Viewer" && (
                             <button
-                              className="ns-btn ns-btn-sm"
+                              className="ns-btn ns-btn-sm small-button"
                               disabled={sandboxErrorAnalysisLoading}
                               onClick={() =>
                                 void analyzeSandboxFailure(
@@ -9121,7 +9121,7 @@ export function StudioProjects({
                         {["Queued", "Running"].includes(buildExecution.status) &&
                           !buildExecutionLoading && (
                             <button
-                              className="ns-btn ns-btn-sm"
+                              className="ns-btn ns-btn-sm small-button"
                               onClick={() => void pollWorkspaceBuildRun()}
                             >
                               Build durumunu yenile
@@ -9197,7 +9197,7 @@ export function StudioProjects({
                       {sandboxErrorAnalysis.triage.sourceRepairCandidate && (
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm ns-btn-primary"
+                          className="ns-btn ns-btn-sm small-button ns-btn-primary"
                           style={{ marginTop: 12 }}
                           disabled={workspaceProject?.accessLevel === "Viewer"}
                           onClick={beginSandboxRepair}
@@ -9239,7 +9239,7 @@ export function StudioProjects({
                       <div style={{ display: "flex", gap: 6 }}>
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           disabled={testPlanLoading}
                           onClick={() => void openSavedAITestPlan(saved)}
                         >
@@ -9248,7 +9248,7 @@ export function StudioProjects({
                         {saved.canDelete && (
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             title="Planı sil"
                             aria-label="Planı sil"
                             onClick={() => void deleteSavedAITestPlan(saved)}
@@ -9814,7 +9814,7 @@ export function StudioProjects({
                   </p>
                   <button
                     type="button"
-                    className="ns-btn ns-btn-sm"
+                    className="ns-btn ns-btn-sm small-button"
                     disabled={
                       moduleFilesLoading ||
                       fileLoading ||
@@ -10181,13 +10181,13 @@ export function StudioProjects({
                     ) && (
                       <>
                         <button
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           onClick={startManualFileEdit}
                         >
                           Elle düzenle
                         </button>
                         <button
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           onClick={startCodeSuggestion}
                         >
                           AI önerisi
@@ -10197,7 +10197,7 @@ export function StudioProjects({
                   {manualFileEditing && (
                     <button
                       type="button"
-                      className="ns-btn ns-btn-sm"
+                      className="ns-btn ns-btn-sm small-button"
                       disabled={manualFileSaving}
                       onClick={cancelManualFileEdit}
                     >
@@ -10205,7 +10205,7 @@ export function StudioProjects({
                     </button>
                   )}
                   <button
-                    className="ns-btn ns-btn-sm"
+                    className="ns-btn ns-btn-sm small-button"
                     disabled={manualFileEditing || manualFileSaving}
                     onClick={() => setFileContent(null)}
                   >
@@ -10215,7 +10215,7 @@ export function StudioProjects({
               ) : (
                 filePath && (
                   <button
-                    className="ns-btn ns-btn-sm"
+                    className="ns-btn ns-btn-sm small-button"
                     disabled={fileLoading}
                     onClick={() =>
                       void loadWorkspaceFiles(
@@ -10629,7 +10629,7 @@ export function StudioProjects({
                         >
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             disabled={knowledgeLoading}
                             onClick={() => void enableKnowledgeAutoRefreshAll()}
                           >
@@ -10671,7 +10671,7 @@ export function StudioProjects({
                         {workspaceProject?.accessLevel !== "Viewer" && (
                           <button
                             type="button"
-                            className="ns-btn ns-btn-sm"
+                            className="ns-btn ns-btn-sm small-button"
                             disabled={knowledgeLoading}
                             onClick={() => void revokeKnowledgeAutoRefresh()}
                           >
@@ -10746,7 +10746,7 @@ export function StudioProjects({
                         </div>
                         <button
                           type="button"
-                          className="ns-btn ns-btn-sm"
+                          className="ns-btn ns-btn-sm small-button"
                           onClick={() => void deleteKnowledgeDocument(doc)}
                         >
                           Sil
@@ -10815,7 +10815,7 @@ export function StudioProjects({
               <div className="modal-foot">
                 <span>Daha fazla dosya var</span>
                 <button
-                  className="ns-btn ns-btn-sm"
+                  className="ns-btn ns-btn-sm small-button"
                   disabled={fileLoading}
                   onClick={() =>
                     void loadWorkspaceFiles(
@@ -10933,7 +10933,7 @@ export function StudioProjects({
                     </small>
                   </div>
                   <button
-                    className="ns-btn ns-btn-sm"
+                    className="ns-btn ns-btn-sm small-button"
                     disabled={uiDesignLoading || uiDesignApplied}
                     onClick={() => {
                       setUiDesignResult(null);

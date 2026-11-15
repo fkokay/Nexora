@@ -45,3 +45,13 @@
   background: transparent;
   color: var(--ns-danger-line);
 }
+
+/* Simgesi olmayan liste satırları (kayıtlı test/mimari planları): bilgi + işlemler. */
+.modal .request-row:not(:has(> .request-symbol)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.modal .panel-heading > div:has(> b + small) {
+  display: grid;
+  gap: 2px;
+}
