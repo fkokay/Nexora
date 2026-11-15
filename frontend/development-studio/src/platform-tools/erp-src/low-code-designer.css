@@ -100,3 +100,7 @@
 .lcp-state b{color:var(--lcd-ink);font-size:14px}
 .lcp-state.error{border-style:solid;border-color:#f3c6ca;background:#fff5f6;color:#b42318}
 @media(max-width:640px){.lcp-catalog{padding:12px}.lcp-catalog-head{flex-direction:column;align-items:flex-start}.lcp-search{min-width:100%}}
+/* The designer shows its own title, so embedded tool heroes are hidden — but heroes that carry the tool's only
+   create action ("Yeni iş akışı", "Yeni form") keep that button visible. */
+.low-code-designer-content .forms-page>.forms-hero:has(>button),.low-code-designer-content .workflow-page>header:first-child:has(>button){display:flex;justify-content:flex-end;min-height:0;padding:0;border:0;background:none;box-shadow:none}
+.low-code-designer-content .forms-page>.forms-hero:has(>button)>:not(button),.low-code-designer-content .workflow-page>header:first-child:has(>button)>:not(button){display:none}
