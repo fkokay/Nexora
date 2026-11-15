@@ -5857,16 +5857,13 @@ export function StudioProjects({
         </section>
       )}
       {gitStatusWorkspace && (
-        <div
-          className="modal-backdrop studio-git-status-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setGitStatusWorkspace(null);
-              setWorkspaceGitStatus(null);
-            }
-          }}
-        >
-          <div className="modal studio-git-status-modal" role="dialog" aria-modal="true" aria-labelledby="studio-git-status-title">
+        <Dialog
+  onClose={() => { setGitStatusWorkspace(null);
+              setWorkspaceGitStatus(null); }}
+  className="studio-git-status-modal"
+  backdropClassName="studio-git-status-backdrop"
+  labelledBy="studio-git-status-title"
+>
             <div className="modal-head">
               <span className="studio-git-status-mark"><Box size={28} /></span>
               <div>
@@ -7079,21 +7076,16 @@ export function StudioProjects({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}{" "}
       {chatWorkspace && workspaceProject && (
-        <div
-          className="modal-backdrop studio-chat-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setChatWorkspace(null);
+        <Dialog
+  onClose={() => { setChatWorkspace(null);
               setChatConversation(null);
-              setChatMessages([]);
-            }
-          }}
-        >
-          <div className="modal studio-chat-modal">
+              setChatMessages([]); }}
+  className="studio-chat-modal"
+  backdropClassName="studio-chat-backdrop"
+>
             <header className="modal-head studio-chat-header">
               <div className="studio-chat-heading">
                 <span className="studio-chat-mark">
@@ -7482,21 +7474,15 @@ export function StudioProjects({
                   )}
               </section>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}{" "}
       {gitDiffTarget && gitStatusWorkspace && (
-        <div
-          className="modal-backdrop"
-          style={{ zIndex: 70 }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setGitDiffTarget(null);
-              setWorkspaceGitDiff(null);
-            }
-          }}
-        >
-          <div className="modal" style={{ maxWidth: 1000 }}>
+        <Dialog
+  onClose={() => { setGitDiffTarget(null);
+              setWorkspaceGitDiff(null); }}
+  style={{ maxWidth: 1000 }}
+  backdropStyle={{ zIndex: 70 }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">GIT DIFF · SALT OKUNUR</p>
@@ -7809,20 +7795,15 @@ export function StudioProjects({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}{" "}
       {changeWorkspace && (
-        <div
-          className="modal-backdrop studio-change-history-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setChangeWorkspace(null);
-              setChangeDiff(null);
-            }
-          }}
-        >
-          <div className="modal" style={{ maxWidth: 1000 }}>
+        <Dialog
+  onClose={() => { setChangeWorkspace(null);
+              setChangeDiff(null); }}
+  backdropClassName="studio-change-history-backdrop"
+  style={{ maxWidth: 1000 }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">İZOLE WORKSPACE · DEĞİŞİKLİK GEÇMİŞİ</p>
@@ -7975,18 +7956,14 @@ export function StudioProjects({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}
       {multiDeveloperWorkspace && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !multiFileLoading)
-              setMultiDeveloperWorkspace(null);
-          }}
-        >
-          <div className="modal" style={{ maxWidth: 1100 }}>
+        <Dialog
+  onClose={() => { setMultiDeveloperWorkspace(null); }}
+  dismissible={!multiFileLoading}
+  style={{ maxWidth: 1100 }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">AI DEVELOPER · ÇOKLU DOSYA TASLAĞI</p>
@@ -8173,21 +8150,15 @@ export function StudioProjects({
                 </div>
               </>
             )}
-          </div>
-        </div>
+          </Dialog>
       )}
       {developerWorkspace && developerFile && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setDeveloperWorkspace(null);
+        <Dialog
+  onClose={() => { setDeveloperWorkspace(null);
               setDeveloperFile(null);
-              setDeveloperSuggestion(null);
-            }
-          }}
-        >
-          <div className="modal" style={{ maxWidth: 1000 }}>
+              setDeveloperSuggestion(null); }}
+  style={{ maxWidth: 1000 }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">AI DEVELOPER · İNCELEME TASLAĞI</p>
@@ -8333,17 +8304,12 @@ export function StudioProjects({
                 </div>
               </>
             )}
-          </div>
-        </div>
+          </Dialog>
       )}
       {showPlanHistory && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowPlanHistory(false);
-          }}
-        >
-          <div className="modal">
+        <Dialog
+  onClose={() => { setShowPlanHistory(false); }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">AI ARCHITECT</p>
@@ -8419,20 +8385,13 @@ export function StudioProjects({
                 Kapat
               </button>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}
       {architectWorkspace && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setArchitectWorkspace(null);
-              setArchitectPlan(null);
-            }
-          }}
-        >
-          <div className="modal">
+        <Dialog
+  onClose={() => { setArchitectWorkspace(null);
+              setArchitectPlan(null); }}
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">AI ARCHITECT · TASLAK</p>
@@ -8585,20 +8544,14 @@ export function StudioProjects({
                 üretimi, test ve yayınlama bu aşamada kapalıdır.
               </span>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}
       {analysisWorkspace && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setAnalysisWorkspace(null);
-              setWorkspaceAnalysis(null);
-            }
-          }}
-        >
-          <div className="modal studio-inventory-modal">
+        <Dialog
+  onClose={() => { setAnalysisWorkspace(null);
+              setWorkspaceAnalysis(null); }}
+  className="studio-inventory-modal"
+>
             <div className="modal-head">
               <div className="studio-inventory-hero-icon">
                 <GitBranch size={27} />
@@ -8808,20 +8761,16 @@ export function StudioProjects({
                 betikleri veya testler çalıştırılmaz.
               </span>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}
       {testDiscoveryWorkspace && (
-        <div
-          className="modal-backdrop studio-test-discovery-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setTestDiscoveryWorkspace(null);
-              setTestDiscovery(null);
-            }
-          }}
-        >
-          <div className="modal studio-test-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="studio-test-discovery-title">
+        <Dialog
+  onClose={() => { setTestDiscoveryWorkspace(null);
+              setTestDiscovery(null); }}
+  className="studio-test-discovery-modal"
+  backdropClassName="studio-test-discovery-backdrop"
+  labelledBy="studio-test-discovery-title"
+>
             <div className="modal-head studio-test-discovery-header">
               <div className="studio-test-discovery-heading">
                 <span className="studio-test-discovery-mark">
@@ -9401,8 +9350,7 @@ export function StudioProjects({
                 paketleri kurulmaz, npm scriptleri çağrılmaz.
               </span>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}
       {fileWorkspace && (
         <div
@@ -10846,14 +10794,12 @@ export function StudioProjects({
         </div>
       )}
       {uiDesignerWorkspace && workspaceProject && (
-        <div
-          className="modal-backdrop studio-ui-designer-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !uiDesignLoading)
-              setUiDesignerWorkspace(null);
-          }}
-        >
-          <div className="modal studio-ui-designer-modal">
+        <Dialog
+  onClose={() => { setUiDesignerWorkspace(null); }}
+  dismissible={!uiDesignLoading}
+  className="studio-ui-designer-modal"
+  backdropClassName="studio-ui-designer-backdrop"
+>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
@@ -11012,25 +10958,16 @@ export function StudioProjects({
                 çalıştırma yapılmaz.
               </span>
             </div>
-          </div>
-        </div>
+          </Dialog>
       )}{" "}
       {sourceSearchWorkspace && (
-        <div
-          className="modal-backdrop studio-source-search-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setSourceSearchWorkspace(null);
-              setSourceSearchResult(null);
-            }
-          }}
-        >
-          <section
-            className="modal studio-source-search-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="studio-source-search-title"
-          >
+        <Dialog
+  onClose={() => { setSourceSearchWorkspace(null);
+              setSourceSearchResult(null); }}
+  className="studio-source-search-modal"
+  backdropClassName="studio-source-search-backdrop"
+  labelledBy="studio-source-search-title"
+>
             <header className="studio-source-search-header">
               <div className="studio-source-search-heading">
                 <div className="studio-source-search-kicker">
@@ -11238,8 +11175,7 @@ export function StudioProjects({
                 gerekir.
               </span>
             </footer>
-          </section>
-        </div>
+          </Dialog>
       )}
       {moduleMappingProject && (
         <ModuleSourceMappings
