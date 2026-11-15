@@ -816,6 +816,8 @@ services:
       context: ../..
       dockerfile: deploy/docker/WorkspaceSandbox.Dockerfile
     user: "0:0"
+    # tini as PID 1 reaps sandbox processes killed after each job (dotnet does not reap orphans).
+    init: true
     environment:
       WorkspaceSandbox__JobRoot: /test-jobs
       WorkspaceSandbox__TempRoot: /tmp/test-jobs

@@ -90,4 +90,15 @@ public sealed class StudioReleaseDeploymentRulesTests
         Assert.False(StudioReleaseDeploymentRules.CanTransitionProductionApproval("Approved", "Rejected"));
         Assert.False(StudioReleaseDeploymentRules.CanTransitionProductionApproval("Rejected", "Approved"));
     }
+
+    [Theory]
+    [InlineData("Failed", DeploymentReplayDecision.Rerun)]
+    [InlineData("Queued", DeploymentReplayDecision.InProgress)]
+    [InlineData("Building", DeploymentReplayDecision.InProgress)]
+    [InlineData("Deploying", DeploymentReplayDecision.InProgress)]
+    [InlineData("Succeeded", DeploymentReplayDecision.Completed)]
+    [InlineData("Superseded", DeploymentReplayDecision.Completed)]
+    [InlineData("Destroyed", DeploymentReplayDecision.Completed)]
+    public void Idempotent_replay_reruns_only_failed_deployments(string status, DeploymentReplayDecision expected) =>
+        Assert.Equal(expected, StudioReleaseDeploymentRules.ClassifyIdempotentReplay(status));
 }

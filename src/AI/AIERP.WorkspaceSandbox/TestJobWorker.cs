@@ -18,6 +18,8 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
     private const int MaxPackageCacheEntries = 50_000;
     private int BuildMaxNodeCount => Math.Clamp(configuration.GetValue<int?>("WorkspaceSandbox:BuildMaxNodeCount") ?? 2, 1, 6);
     private static readonly TimeSpan DotNetRestoreTimeout = TimeSpan.FromMinutes(7);
+    private static readonly TimeSpan OutputDrainTimeout = TimeSpan.FromSeconds(10);
+    internal const int SandboxUserId = 65532;
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
         { ".git", ".vs", ".next", "node_modules", "bin", "obj", "dist", "build", "coverage", "packages", "vendor" };
 
@@ -469,8 +471,11 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             foreach (var (key, value) in environmentOverrides)
                 process.StartInfo.Environment[key] = value;
         process.Start();
-        var stdoutTask = ReadBoundedAsync(process.StandardOutput, MaxOutputCharacters / 2, onOutput);
-        var stderrTask = ReadBoundedAsync(process.StandardError, MaxOutputCharacters / 2, onOutput);
+        // Cancelled only after the command has exited, so a leftover process that still holds
+        // the pipes cannot keep the (single, serial) worker waiting forever.
+        using var drainCts = new CancellationTokenSource();
+        var stdoutTask = ReadBoundedAsync(process.StandardOutput, MaxOutputCharacters / 2, onOutput, drainCts.Token);
+        var stderrTask = ReadBoundedAsync(process.StandardError, MaxOutputCharacters / 2, onOutput, drainCts.Token);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeout);
         var timedOut = false;
@@ -483,6 +488,10 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
             await process.WaitForExitAsync(CancellationToken.None);
         }
         KillProcessGroup(process.Id);
+        // A child that called setsid() escapes the process group; sweep every sandbox-user
+        // process so nothing survives into the next job.
+        KillSandboxUserProcesses();
+        drainCts.CancelAfter(OutputDrainTimeout);
         return new(process.ExitCode, timedOut, await stdoutTask, await stderrTask);
     }
 
@@ -515,14 +524,56 @@ internal sealed class TestJobWorker(IConfiguration configuration, ILogger<TestJo
 
     private static void KillProcessGroup(int processId) => _ = kill(-processId, 9);
 
+    private static void KillSandboxUserProcesses()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        for (var round = 0; round < 20; round++)
+        {
+            var signalled = 0;
+            IEnumerable<string> entries;
+            try { entries = Directory.EnumerateDirectories("/proc").ToList(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+            foreach (var entry in entries)
+            {
+                if (!int.TryParse(Path.GetFileName(entry), out var pid) || pid <= 1) continue;
+                string status;
+                try { status = File.ReadAllText(Path.Combine(entry, "status")); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+                if (IsLiveSandboxUserProcess(status) && kill(pid, 9) == 0) signalled++;
+            }
+            if (signalled == 0) return;
+            Thread.Sleep(50);
+        }
+    }
+
+    /// <summary>Parses /proc/[pid]/status: true for a non-zombie process whose real uid is the sandbox user.</summary>
+    internal static bool IsLiveSandboxUserProcess(string procStatus)
+    {
+        var isZombie = false; int? realUid = null;
+        foreach (var line in procStatus.Split('\n'))
+        {
+            if (line.StartsWith("State:", StringComparison.Ordinal))
+                isZombie = line[6..].TrimStart().StartsWith('Z') || line[6..].TrimStart().StartsWith('X');
+            else if (line.StartsWith("Uid:", StringComparison.Ordinal))
+            {
+                var fields = line[4..].Split(['\t', ' '], StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length > 0 && int.TryParse(fields[0], out var uid)) realUid = uid;
+            }
+        }
+        return !isZombie && realUid == SandboxUserId;
+    }
+
     [DllImport("libc", SetLastError = true)]
     private static extern int kill(int processId, int signal);
 
-    private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int maxCharacters, Action<string>? onOutput = null)
+    private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int maxCharacters, Action<string>? onOutput = null, CancellationToken cancellationToken = default)
     {
         var buffer = new char[4096]; var output = new StringBuilder(Math.Min(maxCharacters, 4096)); var truncated = false; int count;
-        while ((count = await reader.ReadAsync(buffer)) > 0)
+        while (true)
         {
+            try { count = await reader.ReadAsync(buffer.AsMemory(), cancellationToken); }
+            catch (OperationCanceledException) { truncated = true; break; }
+            if (count <= 0) break;
             onOutput?.Invoke(new string(buffer, 0, count));
             if (count >= maxCharacters)
             {
