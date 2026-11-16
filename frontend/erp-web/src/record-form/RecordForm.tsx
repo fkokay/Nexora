@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { CopyPlus, Eraser, Save, X } from "lucide-react";
 import { usePageCommands } from "../commands/CommandProvider";
+import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import type { MenuCommand } from "../commands/types";
 import "./record-form.css";
 
@@ -85,6 +86,9 @@ export function RecordFormPage({
     setInDialog(Boolean(rootRef.current?.parentElement?.closest(DIALOG_SELECTOR)));
   }, []);
 
+  const { slotRef, breadcrumb } = useSlotBreadcrumb();
+  const showSlot = variant === "page" && !inDialog;
+
   const submit = (stayForNext: boolean) => {
     // Only the form of the topmost dialog (or, without a dialog, the visible page) may save.
     if (!ownsKeyboard(formRef.current)) return;
@@ -125,7 +129,8 @@ export function RecordFormPage({
       className={`record-form${variant === "dialog" ? " record-form--dialog" : ""}${className ? ` ${className}` : ""}`}
     >
       <header className="rf-toolbar">
-        <div className="rf-title">
+        <div className={`rf-title${showSlot && breadcrumb ? " rf-title--crumb" : ""}`}>
+          {showSlot && breadcrumb}
           <h1>{title}</h1>
           <span className="rf-badge">{mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT"}</span>
         </div>
@@ -170,6 +175,7 @@ export function RecordFormPage({
           </button>
         </div>
       </header>
+      {showSlot && <ActionBarSlot slotRef={slotRef} />}
       {error && (
         <div className="alert inline-alert rf-error" role="alert">
           {error}

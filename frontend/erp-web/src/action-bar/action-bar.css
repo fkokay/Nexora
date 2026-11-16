@@ -139,3 +139,9 @@
 .nx-shortcut-help dl > div { display: flex; align-items: center; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--nx-line-soft); }
 .nx-shortcut-help dt { width: 150px; flex-shrink: 0; }
 .nx-shortcut-help dd { margin: 0; }
+
+/* Page slot under the title row (the bar is portalled here); the breadcrumb sits above the title in the title block. */
+.nx-action-bar-slot:not(:empty) { margin: 10px 0 12px; min-width: 0; }
+#root .list-v2-title--crumb, #root .rf-title--crumb { flex-wrap: wrap; }
+#root .list-v2-title--crumb > .workspace-breadcrumb,
+#root .rf-title--crumb > .workspace-breadcrumb { flex: 0 0 100%; margin: 0 0 2px; min-height: 0; }

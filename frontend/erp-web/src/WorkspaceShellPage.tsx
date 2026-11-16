@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "./erpApi";
 import { ActionBar } from "./action-bar/ActionBar";
+import { ActionBarSlotProvider, ShellBreadcrumbRow } from "./action-bar/ActionBarSlot";
 import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
@@ -377,6 +378,23 @@ export function WorkspaceShellPage(props: Props) {
     moduleTabs.find((tab) => tab.id === page)?.label ||
     page.replace(/[-_]/g, " ");
   const currentSubrouteTitle = subrouteTitle?.page === page ? subrouteTitle.title : null;
+  const breadcrumbNav = (
+    <nav
+      className="workspace-breadcrumb"
+      aria-label={locale === "en" ? "Breadcrumb" : "Sayfa yolu"}
+    >
+      <button type="button" onClick={() => onNavigate("launcher")}>
+        <Home size={14} aria-hidden="true" />
+        <span>{locale === "en" ? "Home" : "Ana Sayfa"}</span>
+      </button>
+      <ChevronRight size={13} aria-hidden="true" />
+      {currentSubrouteTitle ? <>
+        <span>{activeTabLabel}</span>
+        <ChevronRight size={13} aria-hidden="true" />
+        <span aria-current="page">{currentSubrouteTitle}</span>
+      </> : <span aria-current="page">{activeTabLabel}</span>}
+    </nav>
+  );
   // Open-screen tabs sit inside the top bar; studio mode hides the top bar, so they stay a row of their own there.
   const workspaceTabs = (
     <WorkspaceTabs
@@ -475,23 +493,8 @@ export function WorkspaceShellPage(props: Props) {
           }}
         >
           <div className="workspace-page-main">
-          {!standaloneStudio && (
-            <nav
-              className="workspace-breadcrumb"
-              aria-label={locale === "en" ? "Breadcrumb" : "Sayfa yolu"}
-            >
-              <button type="button" onClick={() => onNavigate("launcher")}>
-                <Home size={14} aria-hidden="true" />
-                <span>{locale === "en" ? "Home" : "Ana Sayfa"}</span>
-              </button>
-              <ChevronRight size={13} aria-hidden="true" />
-              {currentSubrouteTitle ? <>
-                <span>{activeTabLabel}</span>
-                <ChevronRight size={13} aria-hidden="true" />
-                <span aria-current="page">{currentSubrouteTitle}</span>
-              </> : <span aria-current="page">{activeTabLabel}</span>}
-            </nav>
-          )}
+          <ActionBarSlotProvider breadcrumb={standaloneStudio ? null : breadcrumbNav}>
+          {!standaloneStudio && <ShellBreadcrumbRow>{breadcrumbNav}</ShellBreadcrumbRow>}
           {error && (
             <div className="alert inline-alert">
               {error}
@@ -543,6 +546,7 @@ export function WorkspaceShellPage(props: Props) {
               />
             </Suspense>
           </KeepAliveViews>
+          </ActionBarSlotProvider>
           <WorkspaceSearchDialog
             open={globalSearchOpen}
             locale={locale}

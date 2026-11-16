@@ -1,9 +1,11 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
 import { useActivePageCommands, useCommandRegistry } from '../commands/CommandProvider';
 import { formatShortcut, MORE_MENU_SHORTCUT, STANDARD_SHORTCUTS } from '../commands/shortcuts';
 import { ACTION_BAR_ORDER, type CommandSpec, type MenuCommand, type StandardCommandId } from '../commands/types';
 import { COMMAND_LABELS } from './labels';
+import { useActionBarTarget } from './ActionBarSlot';
 import { ShortcutHelpDialog } from './ShortcutHelpDialog';
 import './action-bar.css';
 
@@ -143,6 +145,7 @@ function ActionsMenu({ items, locale, open, onOpenChange }: { items: MenuCommand
 export function ActionBar({ locale }: { locale: Locale }) {
   const registry = useCommandRegistry();
   const commands = useActivePageCommands();
+  const slotTarget = useActionBarTarget();
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
@@ -155,7 +158,7 @@ export function ActionBar({ locale }: { locale: Locale }) {
     return () => disposers.forEach((dispose) => dispose());
   }, [registry]);
 
-  return (
+  const bar = (
     <div className="nx-action-bar" data-nx-action-bar role="toolbar" aria-label="İşlemler çubuğu">
       {ACTION_BAR_ORDER.map((id) => (
         <Fragment key={id}>
@@ -169,4 +172,6 @@ export function ActionBar({ locale }: { locale: Locale }) {
       {helpOpen && <ShortcutHelpDialog locale={locale} onClose={closeHelp} />}
     </div>
   );
+  // One instance: it moves into the active page's slot (under the title) when there is one.
+  return slotTarget ? createPortal(bar, slotTarget) : bar;
 }
