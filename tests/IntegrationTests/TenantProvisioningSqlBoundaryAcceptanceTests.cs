@@ -258,6 +258,142 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
         }
     }
 
+    [TenantProvisioningSqlBoundaryFact]
+    public async Task Signed_boundary_creates_query_logins_only_for_a_ready_tenant_erp_database()
+    {
+        var rootConnection = Required("AIERP_TENANT_ISOLATION_ACCEPTANCE_SQL_CONNECTION_STRING");
+        var rootBuilder = new SqlConnectionStringBuilder(rootConnection);
+        if (!string.Equals(rootBuilder.InitialCatalog, "master", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The disposable acceptance SQL connection must target master.");
+
+        var suffix = Guid.NewGuid().ToString("N");
+        var readyTenantId = Guid.NewGuid();
+        var notReadyTenantId = Guid.NewGuid();
+        var workerLogin = $"NexoraBoundaryWorker_{suffix}";
+        var workerPassword = CreatePassword();
+        var readyDatabase = $"AIERPTenant_{readyTenantId:N}";
+        var notReadyDatabase = $"AIERPTenant_{notReadyTenantId:N}";
+        var readerLogin = $"aierp_tr_{readyTenantId:N}";
+        var writerLogin = $"aierp_tw_{readyTenantId:N}";
+        var notReadyReaderLogin = $"aierp_tr_{notReadyTenantId:N}";
+        var notReadyWriterLogin = $"aierp_tw_{notReadyTenantId:N}";
+        // Production path of --provision-tenant-query-credentials: an active tenant whose ERP catalog is Ready.
+        var activeReadyTenantId = Guid.NewGuid();
+        var activeReadyDatabase = $"AIERPTenant_{activeReadyTenantId:N}";
+        var activeReaderLogin = $"aierp_tr_{activeReadyTenantId:N}";
+        var activeWriterLogin = $"aierp_tw_{activeReadyTenantId:N}";
+
+        var masterKeyCreated = false;
+        try
+        {
+            await using (var setup = new SqlConnection(rootConnection))
+            {
+                await setup.OpenAsync();
+                if (await ScalarAsync<int>(setup, "SELECT CASE WHEN DB_ID(N'AIERPPlatform') IS NULL THEN 0 ELSE 1 END;") != 0)
+                    throw new InvalidOperationException("The acceptance SQL instance already contains AIERPPlatform; refusing to overwrite it.");
+                if (await ScalarAsync<int>(setup,
+                        "SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.symmetric_keys WHERE name=N'##MS_DatabaseMasterKey##') THEN 1 ELSE 0 END;") == 0)
+                {
+                    await ExecuteAsync(setup, "CREATE MASTER KEY ENCRYPTION BY PASSWORD = " + Literal(CreatePassword()) + ";");
+                    masterKeyCreated = true;
+                }
+                await ExecuteAsync(setup, "CREATE DATABASE [AIERPPlatform];");
+                await ExecuteAsync(setup,
+                    "CREATE LOGIN " + Q(workerLogin) + " WITH PASSWORD=" + Literal(workerPassword) + ", CHECK_POLICY=ON, CHECK_EXPIRATION=OFF;");
+                await ExecuteAsync(setup, "CREATE DATABASE " + Q(readyDatabase) + ";");
+                await ExecuteAsync(setup, "CREATE DATABASE " + Q(notReadyDatabase) + ";");
+                await ExecuteAsync(setup, "CREATE DATABASE " + Q(activeReadyDatabase) + ";");
+            }
+
+            var platformConnection = new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
+            {
+                InitialCatalog = "AIERPPlatform",
+                Pooling = false
+            }.ConnectionString;
+            await using (var platform = new SqlConnection(platformConnection))
+            {
+                await platform.OpenAsync();
+                await ExecuteAsync(platform, """
+                    CREATE TABLE dbo.Tenants (Id uniqueidentifier NOT NULL PRIMARY KEY, IsActive bit NOT NULL, Name nvarchar(100) NOT NULL DEFAULT N'test');
+                    CREATE TABLE dbo.TenantProvisioningJobs (Id uniqueidentifier NOT NULL PRIMARY KEY, TenantId uniqueidentifier NOT NULL, Status int NOT NULL, LeaseExpiresAt datetimeoffset NOT NULL);
+                    CREATE TABLE dbo.TenantDatabaseCatalog (TenantId uniqueidentifier NOT NULL PRIMARY KEY, DatabaseName sysname NOT NULL, State int NOT NULL);
+                    CREATE TABLE dbo.DatabaseSeparationComponentStates (Component nvarchar(64) NOT NULL PRIMARY KEY, DatabaseName sysname NOT NULL, State int NOT NULL);
+                    CREATE TABLE dbo.AuditEvents (Id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, TenantId uniqueidentifier NOT NULL,
+                        UserId uniqueidentifier NOT NULL, Action nvarchar(200) NOT NULL, Resource nvarchar(400) NOT NULL, OccurredAt datetimeoffset NOT NULL);
+                    """);
+                // Ready tenant: inactive with a live provisioning lease and a Ready ERP catalog row.
+                await SeedTenantAsync(platform, readyTenantId, isActive: false, readyDatabase, erpState: 3, includeStudio: false);
+                // Not-Ready tenant: active, but its ERP catalog row is still Copying.
+                await SeedTenantAsync(platform, notReadyTenantId, isActive: true, notReadyDatabase, erpState: 2, includeStudio: false);
+                // Active tenant with a Ready ERP catalog row and existing database.
+                await SeedTenantAsync(platform, activeReadyTenantId, isActive: true, activeReadyDatabase, erpState: 3, includeStudio: false);
+            }
+
+            var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Install-TenantProvisioningBoundary.sql"));
+            script = Regex.Replace(script, "(?m)^\\s*:ON ERROR EXIT\\s*$", string.Empty, RegexOptions.CultureInvariant);
+            script = script.Replace("$(TenantProvisioningLoginName)", workerLogin, StringComparison.Ordinal);
+            var batches = Regex.Split(script, "(?im)^\\s*GO\\s*(?:--[^\\r\\n]*)?$", RegexOptions.CultureInvariant);
+            await using (var master = new SqlConnection(rootConnection))
+            {
+                await master.OpenAsync();
+                foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    await ExecuteAsync(master, batch);
+            }
+
+            await using (var worker = new SqlConnection(new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
+            {
+                InitialCatalog = "master",
+                UserID = workerLogin,
+                Password = workerPassword,
+                IntegratedSecurity = false,
+                PersistSecurityInfo = false,
+                Pooling = false,
+                ConnectTimeout = 10
+            }.ConnectionString))
+            {
+                await worker.OpenAsync();
+                await EnsureSqlLoginAsync(worker, readyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, readyTenantId, component: 4, CreatePassword());
+
+                var notReady3 = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, notReadyTenantId, component: 3, CreatePassword()));
+                Assert.Equal(51023, notReady3.Number);
+                var notReady4 = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, notReadyTenantId, component: 4, CreatePassword()));
+                Assert.Equal(51023, notReady4.Number);
+
+                // Active + Ready: create, then rotate (second call takes the ALTER LOGIN branch).
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 4, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 4, CreatePassword());
+
+                var invalid = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, readyTenantId, component: 5, CreatePassword()));
+                Assert.Equal(51020, invalid.Number);
+            }
+
+            await using (var verify = new SqlConnection(rootConnection))
+            {
+                await verify.OpenAsync();
+                Assert.Equal(readyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", readerLogin)));
+                Assert.Equal(readyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", writerLogin)));
+                Assert.Equal(0, await ScalarAsync<int>(verify,
+                    "SELECT COUNT(*) FROM sys.server_principals WHERE name IN (@a,@b);",
+                    ("@a", notReadyReaderLogin), ("@b", notReadyWriterLogin)));
+                Assert.Equal(activeReadyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeReaderLogin)));
+                Assert.Equal(activeReadyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeWriterLogin)));
+            }
+        }
+        finally
+        {
+            await CleanupAsync(rootConnection, [readyDatabase, notReadyDatabase, activeReadyDatabase],
+                [workerLogin, readerLogin, writerLogin, notReadyReaderLogin, notReadyWriterLogin, activeReaderLogin, activeWriterLogin],
+                masterKeyCreated);
+        }
+    }
+
     private static async Task SeedTenantAsync(SqlConnection platform, Guid tenantId, bool isActive,
         string erpDatabase, int erpState, bool includeStudio)
     {

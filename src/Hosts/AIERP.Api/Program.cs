@@ -87,6 +87,12 @@ builder.Services.AddVaultTenantSqlCredentialReader(options =>
     options.SecretId = DeploymentSecretConfiguration.GetValue(builder.Configuration, "Vault:TenantSqlCredentialReader:SecretId") ?? "";
     options.AllowHttpForLocalDevelopment = builder.Configuration.GetValue<bool>("Vault:AllowHttpForLocalDevelopment");
 });
+builder.Services.AddScoped<ITenantQueryConnectionFactory>(sp => new TenantQueryConnectionFactory(
+    tenantConnectionString,
+    builder.Configuration.GetValue<bool>("Database:SeparationEnabled"),
+    sp.GetRequiredService<ITenantSqlCredentialReader>(),
+    () => sp.GetRequiredService<PlatformDbContext>(),
+    sp.GetService<ILogger<TenantQueryConnectionFactory>>()));
 builder.Services.AddScoped<ITenantStorageLimitProvider, TenantStorageLimitProvider>();
 builder.Services.AddScoped<TenantStorageQuotaInterceptor>();
 builder.Services.AddDbContext<TenantDbContext>((services, options) =>
