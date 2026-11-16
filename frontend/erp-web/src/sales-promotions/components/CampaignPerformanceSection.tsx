@@ -1,5 +1,5 @@
-import { useState } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { useState, type MutableRefObject } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListToolbar } from "../../list-page/ListToolbar";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
@@ -21,6 +21,8 @@ type Props = {
   onThroughChange: (value: string) => void;
   onPageChange: (change: (page: number) => number) => void;
   onRefresh: () => void;
+  /** Receives the report grid's export functions; its XLSX/CSV header buttons are then hidden. */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
 
 export default function CampaignPerformanceSection({
@@ -35,6 +37,7 @@ export default function CampaignPerformanceSection({
   onThroughChange,
   onPageChange,
   onRefresh,
+  exportActionsRef,
 }: Props) {
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const visibleFields = fields.filter((field) => field.visible);
@@ -122,6 +125,8 @@ export default function CampaignPerformanceSection({
             <AdvancedDataGrid
               hideSearch
               toolbarContainer={toolsSlot}
+              hideExport={Boolean(exportActionsRef)}
+              exportActionsRef={exportActionsRef}
               enableRowSelection={false}
               externalPagination
               gridId="sales-campaign-performance-v2"

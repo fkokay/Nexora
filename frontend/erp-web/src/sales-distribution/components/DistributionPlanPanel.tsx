@@ -1,4 +1,5 @@
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { MutableRefObject } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { DistributionPage, Need, ScreenField } from "./types";
@@ -24,6 +25,8 @@ type Props = {
   onSelectStock: (stockId: string) => void;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
+  /** Receives the grid's export functions; its XLSX/CSV header buttons are then hidden. */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
   onPreviousPage: () => void;
   onNextPage: () => void;
 };
@@ -58,6 +61,7 @@ function StockNeedsTable({
   selectedStockId,
   onSelectStock,
   toolbarContainer,
+  exportActionsRef,
 }: Pick<
   Props,
   | "page"
@@ -66,6 +70,7 @@ function StockNeedsTable({
   | "selectedStockId"
   | "onSelectStock"
   | "toolbarContainer"
+  | "exportActionsRef"
 >) {
   return (
     <div className="sales-distribution-table-wrap">
@@ -74,6 +79,8 @@ function StockNeedsTable({
         hideSearch
         externalPagination
         toolbarContainer={toolbarContainer}
+        hideExport={Boolean(exportActionsRef)}
+        exportActionsRef={exportActionsRef}
         enableRowSelection={false}
         className="compact"
         {...screenViewGridDefaults(
@@ -257,6 +264,7 @@ export default function DistributionPlanPanel({
   selected,
   onSelectStock,
   toolbarContainer,
+  exportActionsRef,
   onPreviousPage,
   onNextPage,
 }: Props) {
@@ -274,6 +282,7 @@ export default function DistributionPlanPanel({
           selectedStockId={selectedStockId}
           onSelectStock={onSelectStock}
           toolbarContainer={toolbarContainer}
+          exportActionsRef={exportActionsRef}
         />
         <SelectedStockDetail selected={selected} />
       </div>
