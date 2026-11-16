@@ -22,7 +22,9 @@ The Compose file mounts secret files read-only under `/run/secrets`; application
 
 The Vault reader policy should be read-only and limited to the KV v2 path `secret/data/tenants/+/sql/*`; the writer policy should be limited to the same path and must not be available to application hosts. Vault `+` matches one tenant-guid path segment. Rotate both AppRole credentials through the organization's secret manager.
 
-Per-tenant query SQL logins (`aierp_tr_<N>` read, `aierp_tw_<N>` write; Vault paths `.../sql/erp-query-read` and `.../sql/erp-query-write`) are created by new-tenant provisioning. For existing Ready tenants, follow [tenant-query-credentials.md](tenant-query-credentials.md): reinstall the boundary script, run the Worker once with `--provision-tenant-query-credentials`, then apply `deploy/sql/Grant-TenantQueryPrincipals.sql` per tenant.
+**REQUIRED pre-deploy step:** reinstall `deploy/sql/Install-TenantProvisioningBoundary.sql` (current version) **before** deploying the Worker build that creates query logins. That Worker creates the query logins (components 3/4) during every new-tenant provisioning and every migration-only retry; against an older boundary every one of those jobs fails with SQL error `51020` (`Invalid tenant SQL credential request.`).
+
+Per-tenant query SQL logins (`aierp_tr_<N>` read, `aierp_tw_<N>` write; Vault paths `.../sql/erp-query-read` and `.../sql/erp-query-write`) are created by new-tenant provisioning. For existing Ready tenants, follow [tenant-query-credentials.md](tenant-query-credentials.md): reinstall the boundary script, run the Worker once with `--provision-tenant-query-credentials`, then apply `deploy/sql/Grant-TenantQueryPrincipals.sql` per tenant. The grant script also carries the required server-level DENYs, so a DBA must run it for new tenants as well.
 
 ### Current persistent development host status (verified 2026-10-27)
 

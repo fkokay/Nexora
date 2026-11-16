@@ -47,7 +47,14 @@ The SQL procedure contract uses component values `1 = ERP`, `2 = AIStudio`.
 `4 = ERP query write` (logins `aierp_tr_<guidN>` / `aierp_tw_<guidN>`, both on
 the canonical ERP database `AIERPTenant_<guidN>`); they follow the same state
 gates as component 1. `NexoraEnsureTenantDatabase` and
-`NexoraTenantDatabaseExists` accept only 1/2. After upgrading, re-run
+`NexoraTenantDatabaseExists` accept only 1/2.
+
+**REQUIRED pre-deploy:** reinstall this boundary script **before** deploying the
+Worker build that creates query logins. That Worker calls component 3/4 during every
+new-tenant provisioning and every migration-only retry; an older installed boundary
+rejects them with `51020` and every such job fails.
+
+After upgrading, re-run
 `Install-TenantProvisioningBoundary.sql`: it re-signs every procedure after
 `CREATE OR ALTER`, which is required because altering a procedure drops its
 signature.
