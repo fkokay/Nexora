@@ -1,4 +1,4 @@
-import { useRef, type FormEvent, type ReactNode, type RefObject } from "react";
+import { useId, useLayoutEffect, useRef, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react";
 import { useFocusTrap } from "./useFocusTrap";
 
 type DialogProps = {
@@ -20,6 +20,8 @@ type DialogProps = {
   initialFocus?: RefObject<HTMLElement | null>;
   as?: "section" | "div" | "form";
   onSubmit?: (event: FormEvent<HTMLElement>) => void;
+  style?: CSSProperties;
+  backdropStyle?: CSSProperties;
   children: ReactNode;
 };
 
@@ -39,14 +41,27 @@ export function Dialog({
   initialFocus,
   as = "section",
   onSubmit,
+  style,
+  backdropStyle,
   children,
 }: DialogProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const fallbackId = useId();
+  // Without an explicit name, the dialog is named by its first heading.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || labelledBy || label) return;
+    const heading = panel.querySelector<HTMLElement>("h1, h2, h3");
+    if (!heading) return;
+    if (!heading.id) heading.id = `ns-dialog-${fallbackId.replace(/:/g, "")}`;
+    panel.setAttribute("aria-labelledby", heading.id);
+  });
   useFocusTrap(panelRef, true, dismissible ? onClose : undefined, initialFocus);
   const Panel = as as "section";
   return (
     <div
       className={`modal-backdrop ${backdropClassName}`.trim()}
+      style={backdropStyle}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && dismissible) onClose();
       }}
@@ -54,6 +69,7 @@ export function Dialog({
       <Panel
         ref={panelRef as RefObject<HTMLElement>}
         className={`modal ${className}`.trim()}
+        style={style}
         role={role}
         aria-modal="true"
         aria-labelledby={labelledBy}

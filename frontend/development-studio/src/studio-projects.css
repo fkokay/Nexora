@@ -1,0 +1,325 @@
+/* Grup C: projeler, erişim yönetimi ve çalışma alanı onay kuyruğu. */
+.sp-queue,
+.sp-projects {
+  display: grid;
+  gap: var(--ns-space-3);
+  margin-top: var(--ns-space-5);
+  padding: var(--ns-space-4) var(--ns-space-5);
+}
+.sp-queue .ns-card-head,
+.sp-projects .ns-card-head {
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+.sp-sub {
+  margin: 3px 0 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-md);
+}
+.sp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ns-space-2);
+}
+.sp-avatar {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--ns-radius-sm);
+  background: var(--ns-accent-soft);
+  color: var(--ns-accent);
+  font-weight: 700;
+  font-size: var(--ns-text-md);
+}
+
+/* Onay kuyruğu */
+.sp-queue {
+  border-color: var(--ns-warning-line);
+}
+.sp-queue-list {
+  display: grid;
+  gap: var(--ns-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sp-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ns-space-3);
+  padding: var(--ns-space-3);
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-sm);
+  background: var(--ns-surface);
+}
+.sp-queue-info {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.sp-queue-info > b {
+  color: var(--ns-ink);
+  font-size: var(--ns-text-md);
+  font-weight: 600;
+}
+.sp-queue-info code,
+.sp-branch {
+  padding: 1px 6px;
+  border-radius: var(--ns-radius-xs);
+  background: var(--ns-soft);
+  color: var(--ns-ink);
+  font: 500 var(--ns-text-sm) var(--ns-font-mono);
+}
+.sp-queue-info small {
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.sp-queue-info small b {
+  color: var(--ns-text);
+  font-weight: 600;
+}
+.sp-queue-info p {
+  margin: 4px 0 0;
+  color: var(--ns-text);
+  font-size: var(--ns-text-md);
+  overflow-wrap: anywhere;
+}
+.sp-queue-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--ns-space-4);
+}
+.sp-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-2);
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+  white-space: nowrap;
+}
+
+/* Proje tablosu */
+.sp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-sm);
+}
+.sp-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: var(--ns-text-md);
+}
+.sp-table-compact {
+  min-width: 520px;
+}
+.sp-table th {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--ns-line);
+  background: var(--ns-soft);
+  color: var(--ns-muted);
+  font-size: var(--ns-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.sp-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ns-line);
+  color: var(--ns-text);
+  vertical-align: middle;
+}
+.sp-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.sp-table tbody tr:hover td {
+  background: var(--ns-canvas);
+}
+.sp-table td b {
+  color: var(--ns-ink);
+  font-weight: 600;
+}
+.sp-project-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-3);
+  min-width: 0;
+}
+.sp-project-name > div {
+  display: grid;
+  min-width: 0;
+}
+.sp-project-name small {
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ns-ink);
+  font: 600 var(--ns-text-md) var(--ns-font-body);
+  text-align: left;
+}
+.sp-link:hover {
+  color: var(--ns-accent);
+  text-decoration: underline;
+}
+.sp-row-actions,
+.sp-cell-end {
+  justify-content: flex-end;
+  text-align: right;
+}
+.sp-danger-text {
+  color: var(--ns-danger);
+}
+.sp-danger-text:hover {
+  background: var(--ns-danger-soft);
+  color: var(--ns-danger);
+}
+.sp-footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ns-space-2);
+  margin: 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.sp-footnote svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ns-success);
+}
+
+/* Diyaloglar */
+.modal.sp-dialog {
+  display: grid;
+  gap: var(--ns-space-4);
+  width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: var(--ns-space-5);
+}
+.modal.sp-dialog-wide {
+  width: min(680px, 100%);
+}
+.sp-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ns-space-3);
+}
+.sp-dialog-head h2 {
+  margin: 0;
+  color: var(--ns-ink);
+  font: 700 18px / 1.3 var(--ns-font-display);
+  letter-spacing: -0.015em;
+}
+.sp-dialog-head p {
+  margin: 4px 0 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-md);
+}
+.sp-form {
+  display: grid;
+  gap: var(--ns-space-3);
+}
+.sp-grant {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  padding-top: var(--ns-space-3);
+  border-top: 1px solid var(--ns-line);
+}
+.sp-grant .sp-dialog-foot {
+  grid-column: 1 / -1;
+}
+.sp-dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ns-space-2);
+  padding-top: var(--ns-space-2);
+}
+.sp-dialog-foot small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+
+@media (max-width: 720px) {
+  .sp-queue,
+  .sp-projects {
+    padding: var(--ns-space-4);
+  }
+  .sp-queue-item {
+    flex-wrap: wrap;
+  }
+  .sp-queue-item .sp-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .sp-queue-foot,
+  .sp-grant {
+    grid-template-columns: 1fr;
+  }
+
+  /* Proje tablosu dar ekranda kart listesi olur: ad, ardından dal/rol/GitHub, en altta işlemler. */
+  .sp-projects .sp-table-wrap {
+    overflow: visible;
+    border: 0;
+  }
+  .sp-projects .sp-table {
+    min-width: 0;
+  }
+  .sp-projects .sp-table thead {
+    display: none;
+  }
+  .sp-projects .sp-table tbody {
+    display: grid;
+    gap: var(--ns-space-2);
+  }
+  .sp-projects .sp-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px var(--ns-space-2);
+    padding: var(--ns-space-3);
+    border: 1px solid var(--ns-line);
+    border-radius: var(--ns-radius-sm);
+  }
+  .sp-projects .sp-table td {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sp-projects .sp-table tbody tr:hover td {
+    background: none;
+  }
+  .sp-projects .sp-table td:first-child,
+  .sp-projects .sp-table td:last-child {
+    flex-basis: 100%;
+  }
+  .sp-projects .sp-project-name small {
+    max-width: 100%;
+  }
+  .sp-projects .sp-row-actions {
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+}
