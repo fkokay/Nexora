@@ -10,7 +10,8 @@ import {
 import { authenticatedFetch } from "./authApi";
 import type { GridExportActions } from "./AdvancedDataGrid";
 import { usePageCommands } from "./commands/CommandProvider";
-import { csvExportCommand, submitRecordForm } from "./commands/gridCommands";
+import { csvExportCommand } from "./commands/gridCommands";
+import { confirmDialog } from "./confirmDialog";
 import type { PageCommands } from "./commands/types";
 import "./warehouse-locations.css";
 import {
@@ -437,15 +438,20 @@ export default function WarehouseLocationsPage({
         if (selected) beginEdit(selected);
       },
     };
-    // The create form is always on screen for admins; Kaydet submits it through its own gate.
-    pageCommands.save = {
+    // The create form is always on screen for admins (it registers Kaydet itself); Yeni starts it over.
+    pageCommands.new = {
       primary: true,
-      disabledReason: !warehouseId
-        ? "Konum eklemek için önce depo seçin."
-        : busy
-          ? "Kaydediliyor…"
-          : undefined,
-      run: () => submitRecordForm(createFormId),
+      run: async () => {
+        if (
+          (code.trim() || name.trim() || parentLocationId) &&
+          !(await confirmDialog({ title: "Yeni kayıt", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }))
+        )
+          return;
+        setCode("");
+        setName("");
+        setParentLocationId("");
+        document.getElementById(createFormId)?.querySelector<HTMLInputElement>("input")?.focus();
+      },
     };
   }
   usePageCommands(pageCommands);

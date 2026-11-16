@@ -11,8 +11,26 @@ const INTERACTIVE_SELECTOR = 'button, a[href], [role=button], [role=menuitem], [
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 
 // A modal left mounted inside a hidden keep-alive view must not block shortcuts of the active view.
-function isModalOpen(): boolean {
-  return Array.from(document.querySelectorAll('[aria-modal="true"]')).some((el) => !el.closest('[hidden]'));
+function openModals(): Element[] {
+  return Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((el) => !el.closest('[hidden]'));
+}
+
+/**
+ * The topmost modal belongs to the active view when it is rendered inside the view's KeepAliveViews wrapper, or
+ * when a page portals it elsewhere and marks it with `data-nx-view-owner` (see `useViewDialogOwner`). Document-level
+ * dialogs (confirmDialog, shortcut help) are neither.
+ */
+function isModalInActiveView(modals: Element[], activeView: string | undefined): boolean {
+  const topmost = modals[modals.length - 1];
+  if (!topmost || activeView === undefined) return false;
+  const view = topmost.closest('[data-nx-view]');
+  if (view) return view.getAttribute('data-nx-view') === activeView;
+  return topmost.closest('[data-nx-view-owner]')?.getAttribute('data-nx-view-owner') === activeView;
+}
+
+/** Marks a page dialog that is portalled out of its view as belonging to that view (spread on the dialog root). */
+export function useViewDialogOwner(): { 'data-nx-view-owner': string } {
+  return { 'data-nx-view-owner': useContext(ViewKeyContext) };
 }
 
 export function CommandProvider({ children }: { children: ReactNode }) {
@@ -20,9 +38,11 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
+      const modals = openModals();
       registry.handleKeyDown(event, {
         typing: Boolean(target?.closest(TYPING_SELECTOR)),
-        modalOpen: isModalOpen(),
+        modalOpen: modals.length > 0,
+        modalInActiveView: isModalInActiveView(modals, registry.getActiveView()),
         onInteractive: Boolean(target?.closest(INTERACTIVE_SELECTOR)),
       });
     };

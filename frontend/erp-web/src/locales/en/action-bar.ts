@@ -26,6 +26,8 @@ export const english: Record<string, string> = {
   'Önce bir kayıt seçin': 'Select a record first',
   'CSV olarak dışa aktar': 'Export as CSV',
   'Transfer için en az iki aktif depo gerekir': 'A transfer needs at least two active warehouses',
+  'Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?': 'Unsaved changes will be lost. Continue?',
+  'Devam': 'Continue',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []

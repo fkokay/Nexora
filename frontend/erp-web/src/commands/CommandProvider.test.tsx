@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createRef, useState, type RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmDialogHost, confirmDialog } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { useWorkspaceGlobalCommands } from '../useWorkspaceGlobalCommands';
-import { CommandProvider, useActivePageCommands, usePageCommands } from './CommandProvider';
+import { createPortal } from 'react-dom';
+import { CommandProvider, useActivePageCommands, usePageCommands, useViewDialogOwner } from './CommandProvider';
 
 afterEach(cleanup);
 
@@ -64,6 +65,43 @@ describe('CommandProvider', () => {
     expect(save).toHaveBeenCalledTimes(1);
     act(() => { void confirmDialog({ title: 'Emin misiniz?', message: 'x' }); });
     await screen.findByRole('alertdialog');
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('Ctrl+S saves from a dialog of the active view but not while a confirm dialog is open', async () => {
+    const save = vi.fn();
+    render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <Page onSave={save} />
+          <div role="dialog" aria-modal="true"><input aria-label="Alan" /></div>
+        </KeepAliveViews>
+        <ConfirmDialogHost />
+      </CommandProvider>,
+    );
+    // The confirm queue is module-wide: close any dialog an earlier test left open.
+    for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog'))
+      fireEvent.click(within(open).getAllByRole('button')[0]);
+    fireEvent.keyDown(screen.getByLabelText('Alan'), { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+    act(() => { void confirmDialog({ title: 'Emin misiniz?', message: 'x' }); });
+    await screen.findByRole('alertdialog');
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('a dialog portalled out of the view counts as the view one when marked with useViewDialogOwner', () => {
+    const save = vi.fn();
+    function PortalDialog() {
+      const owner = useViewDialogOwner();
+      return createPortal(<div {...owner}><div role="dialog" aria-modal="true" /></div>, document.body);
+    }
+    render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><Page onSave={save} /><PortalDialog /></KeepAliveViews>
+      </CommandProvider>,
+    );
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     expect(save).toHaveBeenCalledTimes(1);
   });

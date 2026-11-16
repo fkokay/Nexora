@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { CopyPlus, Eraser, Save, X } from "lucide-react";
+import { X } from "lucide-react";
+import { usePageCommands } from "../commands/CommandProvider";
+import type { MenuCommand } from "../commands/types";
 import "./record-form.css";
 
 export type RecordFormPageProps = {
@@ -9,7 +11,7 @@ export type RecordFormPageProps = {
   /** "create" shows the YENİ KAYIT badge, "edit" shows DÜZENLEME. */
   mode: "create" | "edit";
   busy: boolean;
-  /** Label of the primary save button. */
+  /** Former header save button label; saving is now the action bar's Kaydet (Ctrl+S). Kept for callers. */
   saveLabel: string;
   onSubmit: (event: FormEvent) => void;
   onCancel: () => void;
@@ -34,14 +36,14 @@ export type RecordFormPageProps = {
 };
 
 /**
- * Standard record create/edit screen: command bar (save, save-and-new, clear, cancel
- * with F2 / Ctrl+F2), an error strip, the form body and a status bar.
+ * Standard record create/edit screen: title row with Vazgeç, an error strip, the form body and a status bar.
+ * While mounted it registers the action bar's Kaydet (Ctrl+S, primary) and puts "Kaydet ve Yeni" (Ctrl+F2) and
+ * "Temizle" into the İşlemler menu. F2 is the bar's Yeni and is handled by the page.
  */
 export function RecordFormPage({
   title,
   mode,
   busy,
-  saveLabel,
   onSubmit,
   onCancel,
   formId,
@@ -59,9 +61,23 @@ export function RecordFormPage({
   const formRef = useRef<HTMLFormElement | null>(null);
   const canSaveAndNew = mode === "create" && !!onSaveIntent;
 
+  const submit = (stayForNext: boolean) => {
+    onSaveIntent?.(stayForNext);
+    formRef.current?.requestSubmit();
+  };
+  const busyReason = busy ? "Kaydediliyor…" : undefined;
+  const more: MenuCommand[] = [];
+  if (canSaveAndNew)
+    more.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
+  if (mode === "create" && onReset)
+    more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
+  // Saving is the action bar's Kaydet (Ctrl+S); "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
+  usePageCommands({ save: { primary: true, disabledReason: busyReason, run: () => submit(false) }, more }, "form");
+
   useEffect(() => {
+    if (!canSaveAndNew) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "F2" || event.altKey || event.shiftKey) return;
+      if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey) return;
       // A form in a hidden keep-alive view (another workspace tab) must not save.
       if (formRef.current?.closest("[hidden]")) return;
       // The topmost dialog owns the keyboard: skip unless this form lives inside it.
@@ -69,13 +85,11 @@ export function RecordFormPage({
       const topmost = backdrops[backdrops.length - 1];
       if (topmost && !topmost.contains(formRef.current)) return;
       event.preventDefault();
-      if (busy) return;
-      onSaveIntent?.(event.ctrlKey && canSaveAndNew);
-      formRef.current?.requestSubmit();
+      if (!busy) submit(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, canSaveAndNew, onSaveIntent]);
+  });
 
   return (
     <div
@@ -87,36 +101,6 @@ export function RecordFormPage({
           <span className="rf-badge">{mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT"}</span>
         </div>
         <div className="rf-actions">
-          <button
-            type="submit"
-            form={id}
-            className="rf-btn rf-btn--primary"
-            disabled={busy}
-            onClick={() => onSaveIntent?.(false)}
-          >
-            <Save size={16} aria-hidden="true" />
-            {busy ? "Kaydediliyor…" : saveLabel}
-            <kbd>F2</kbd>
-          </button>
-          {canSaveAndNew && (
-            <button
-              type="submit"
-              form={id}
-              className="rf-btn"
-              disabled={busy}
-              onClick={() => onSaveIntent?.(true)}
-            >
-              <CopyPlus size={16} aria-hidden="true" />
-              Kaydet ve Yeni
-              <kbd>Ctrl+F2</kbd>
-            </button>
-          )}
-          {mode === "create" && onReset && (
-            <button type="button" className="rf-btn" disabled={busy} onClick={onReset}>
-              <Eraser size={16} aria-hidden="true" />
-              Temizle
-            </button>
-          )}
           <button type="button" className="rf-btn" onClick={onCancel}>
             <X size={16} aria-hidden="true" />
             Vazgeç

@@ -6,6 +6,8 @@ export type DispatchEnv = {
   modalOpen: boolean;
   /** Focus is on a button, link, [role=button], [role=menuitem] or summary: Enter keeps its native activation. */
   onInteractive?: boolean;
+  /** The topmost open modal belongs to the active view (not a document-level dialog such as confirmDialog). */
+  modalInActiveView?: boolean;
 };
 
 export type GlobalCommand = {
@@ -27,6 +29,7 @@ export type CommandRegistry = {
   /** Like `register`, but `set` replaces the commands while keeping the slot's position in the order. */
   openSlot(viewKey: string, source: CommandSource): CommandSlot;
   setActiveView(viewKey: string): void;
+  getActiveView(): string | undefined;
   getActive(): PageCommands | undefined;
   registerGlobal(command: GlobalCommand): () => void;
   subscribe(listener: () => void): () => void;
@@ -36,7 +39,8 @@ export type CommandRegistry = {
 export const RESERVED_BROWSER_CHORDS = ['Ctrl+S', 'Ctrl+P', 'Ctrl+F', 'Ctrl+E', 'Ctrl+D', 'F5'];
 
 // Higher precedence first.
-const SOURCE_PRECEDENCE: readonly CommandSource[] = ['page', 'list', 'grid'];
+const SOURCE_PRECEDENCE: readonly CommandSource[] = ['form', 'page', 'list', 'grid'];
+const SAVE_CHORD = parseShortcut(STANDARD_SHORTCUTS.save);
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 const TYPING_BLOCKED = ['Enter', 'Ctrl+Z', 'Ctrl+A', 'Ctrl+Delete'].map(parseShortcut);
 const RESERVED = RESERVED_BROWSER_CHORDS.map(parseShortcut);
@@ -67,18 +71,31 @@ export function createCommandRegistry(): CommandRegistry {
   function compute(): PageCommands | undefined {
     const sources = activeView === undefined ? undefined : views.get(activeView);
     if (!sources) return undefined;
+    // `form` slots: the most recently opened record form (e.g. a dialog over an embedded form) is effective.
+    const effective = (source: CommandSource) => {
+      const slots = sources[source]?.filter((slot) => slot.commands);
+      return source === 'form' ? slots?.[slots.length - 1]?.commands : slots?.[0]?.commands;
+    };
     const merged: PageCommands = {};
     for (const id of STANDARD_IDS) {
       for (const source of SOURCE_PRECEDENCE) {
-        const spec = sources[source]?.find((slot) => slot.commands)?.commands?.[id];
+        const spec = effective(source)?.[id];
         if (spec) {
           merged[id] = spec;
           break;
         }
       }
     }
-    const pageMore = sources.page?.find((slot) => slot.commands)?.commands?.more;
-    if (pageMore) merged.more = pageMore;
+    const formCommands = effective('form');
+    const more = [...(formCommands?.more ?? []), ...(effective('page')?.more ?? [])];
+    if (formCommands?.more || effective('page')?.more) merged.more = more;
+    // An open form's primary command (Kaydet) is the only primary one.
+    if (formCommands && STANDARD_IDS.some((id) => formCommands[id]?.primary)) {
+      for (const id of STANDARD_IDS) {
+        const spec = merged[id];
+        if (spec?.primary && spec !== formCommands[id]) merged[id] = { ...spec, primary: false };
+      }
+    }
     return merged;
   }
 
@@ -130,6 +147,8 @@ export function createCommandRegistry(): CommandRegistry {
       changed();
     },
 
+    getActiveView: () => activeView,
+
     getActive,
 
     registerGlobal(command) {
@@ -154,6 +173,13 @@ export function createCommandRegistry(): CommandRegistry {
             runCommand(event, () => command.run(event));
             return true;
           }
+        }
+        // A dialog of the active page itself (not a document-level one) still saves with Ctrl+S.
+        if (env.modalInActiveView && matchesShortcut(event, SAVE_CHORD)) {
+          const save = getActive()?.save;
+          if (isEnabled(save)) runCommand(event, save.run);
+          else event.preventDefault();
+          return true;
         }
         return false;
       }

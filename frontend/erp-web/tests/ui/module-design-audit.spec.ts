@@ -126,7 +126,7 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
   const state = await page.evaluate(() => {
     const bar = document.querySelector('[data-nx-action-bar]')
     const commands = bar ? [...bar.querySelectorAll('[data-command]')].map(node => node.getAttribute('data-command') || '') : []
-    const headerSelector = '.heading-actions, .page-heading, .list-v2-heading, .list-v2-export-slot'
+    const headerSelector = '.heading-actions, .page-heading, .list-v2-heading, .list-v2-export-slot, .rf-toolbar'
     const headerButtons = [...document.querySelectorAll('button, a')]
       .filter((node) => {
         const element = node as HTMLElement
@@ -137,7 +137,12 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
         if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return false
         return element.getAttribute('aria-disabled') !== 'true' && !(element as HTMLButtonElement).disabled
       })
-      .map(node => ((node as HTMLElement).innerText || '').trim())
+      .map((node) => {
+        // Shortcut badges (<kbd>) are not part of the label.
+        const label = node.cloneNode(true) as HTMLElement
+        label.querySelectorAll('kbd').forEach((kbd) => kbd.remove())
+        return { text: (label.textContent || '').replace(/\s+/g, ' ').trim(), recordForm: Boolean(node.closest('.rf-toolbar')) }
+      })
     return { isLauncher: Boolean(document.querySelector('.module-launcher-topbar')), hasBar: Boolean(bar), commands, headerButtons }
   })
 
@@ -150,8 +155,8 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
       findings.push({ screen: screen.label, viewport, check: 'action-bar-order', detail: `Expected ${expectedActionOrder.join(',')} but found ${actual.join(',') || '(none)'}.` })
     }
   }
-  for (const text of state.headerButtons) {
-    const command = matchCommonActionText(text)
+  for (const { text, recordForm } of state.headerButtons) {
+    const command = matchCommonActionText(text, { endsWith: recordForm })
     if (command) {
       findings.push({ screen: screen.label, viewport, check: 'duplicate-common-action', detail: `Page header button "${text}" duplicates the action bar "${command}" command.` })
     }

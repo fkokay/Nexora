@@ -150,7 +150,7 @@ export function KeepAliveViews({
   return (
     <div className="workspace-keepalive">
       {Array.from(cache.current.entries()).map(([key, view]) => (
-        <div className="workspace-view" key={key} hidden={key !== activeKey}>
+        <div className="workspace-view" key={key} data-nx-view={key} hidden={key !== activeKey}>
           <ViewKeyContext.Provider value={key}>{view}</ViewKeyContext.Provider>
         </div>
       ))}

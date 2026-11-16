@@ -154,6 +154,51 @@ describe('command registry', () => {
     expect(inModal).toHaveBeenCalledTimes(1);
   });
 
+  it('a modal of the active view dispatches only Ctrl+S (save)', () => {
+    const r = createCommandRegistry();
+    const save = vi.fn();
+    const add = vi.fn();
+    r.register('v', 'page', { save: { run: save }, new: { run: add } });
+    r.setActiveView('v');
+    const viewModal = { typing: true, modalOpen: true, modalInActiveView: true };
+    const e = key({ key: 's', ctrlKey: true });
+    expect(r.handleKeyDown(e, viewModal)).toBe(true);
+    expect(e.defaultPrevented).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(r.handleKeyDown(key({ key: 'F2' }), viewModal)).toBe(false);
+    expect(add).not.toHaveBeenCalled();
+    // A document-level modal (confirm dialog) keeps blocking save.
+    expect(r.handleKeyDown(key({ key: 's', ctrlKey: true }), { typing: false, modalOpen: true, modalInActiveView: false })).toBe(false);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('a disabled save in a view modal still swallows Ctrl+S', () => {
+    const r = createCommandRegistry();
+    const save = vi.fn();
+    r.register('v', 'page', { save: { run: save, disabledReason: 'Kaydediliyor…' } });
+    r.setActiveView('v');
+    const e = key({ key: 's', ctrlKey: true });
+    expect(r.handleKeyDown(e, { typing: false, modalOpen: true, modalInActiveView: true })).toBe(true);
+    expect(e.defaultPrevented).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('form source: the latest open form wins, its menu comes first and its primary is the only one', () => {
+    const r = createCommandRegistry();
+    const embedded = vi.fn();
+    const dialog = vi.fn();
+    r.register('v', 'page', { new: { run: () => {}, primary: true }, more: [{ id: 'p', label: 'P' }] });
+    r.register('v', 'form', { save: { run: embedded, primary: true }, more: [{ id: 'e', label: 'E' }] });
+    const closeDialog = r.register('v', 'form', { save: { run: dialog, primary: true } });
+    r.setActiveView('v');
+    expect(r.getActive()?.save?.run).toBe(dialog);
+    expect(r.getActive()?.new?.primary).toBe(false);
+    expect(r.getActive()?.more?.map((item) => item.id)).toEqual(['p']);
+    closeDialog();
+    expect(r.getActive()?.save?.run).toBe(embedded);
+    expect(r.getActive()?.more?.map((item) => item.id)).toEqual(['e', 'p']);
+  });
+
   it('Alt+İ runs the "open more menu" global', () => {
     const r = createCommandRegistry();
     const run = vi.fn();

@@ -1,12 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as IconPack from "lucide-react";
 import { X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import type * as AppTypes from "./erp-types";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
-import { usePageCommands } from "./commands/CommandProvider";
-import { csvExportCommand, submitRecordForm } from "./commands/gridCommands";
+import { usePageCommands, useViewDialogOwner } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import MasterDataImportDialog from "./MasterDataImportDialog";
@@ -2494,44 +2494,37 @@ export function InventoryPage({
         return null;
     }
   }
-  const formKey = useId();
-  const itemFormId = `inventory-item-form${formKey}`;
-  const transferFormId = `inventory-transfer-form${formKey}`;
-  const warehouseFormId = `inventory-warehouse-form${formKey}`;
-  const warehouseFieldsFormId = `inventory-warehouse-fields-form${formKey}`;
-  const customFieldValuesFormId = `inventory-custom-field-values-form${formKey}`;
   const gridExportRef = useRef<GridExportActions | null>(null);
-  // The RecordForm the bar's Kaydet submits (topmost first). While one is open F2 belongs to it
-  // (RecordFormPage saves on F2), so `new` is not registered then.
-  const openRecordForm: { id: string; busy: boolean; onSaveIntent?: (stay: boolean) => void } | null =
-    customFieldItem
-      ? { id: customFieldValuesFormId, busy: customFieldBusy }
-      : warehouseFieldTarget
-        ? { id: warehouseFieldsFormId, busy: warehouseFieldBusy }
-        : itemModal && (section === "inventory-stock-create" || !!editingItem)
-          ? { id: itemFormId, busy, onSaveIntent: setStayAfterItemSave }
-          : transferModal
-            ? { id: transferFormId, busy }
-            : warehouseModal
-              ? { id: warehouseFormId, busy, onSaveIntent: setStayAfterWarehouseSave }
-              : null;
-  // Other dialogs of the page: `new` (F2) must not open a form behind them.
+  // The movement dialog is portalled to <body>; this keeps Ctrl+S working inside it.
+  const viewDialogOwner = useViewDialogOwner();
+  // Dialogs that are not this page's record form: Yeni (F2) must not open a form behind them.
   const pageDialogOpen =
     categoryModal || customFieldPickerOpen || importOpen || !!selectedTransfer || !!costTarget ||
-    warehouseAdminModal || warehouseFieldCatalogModal || !!movementItem;
+    warehouseAdminModal || warehouseFieldCatalogModal || !!movementItem || !!customFieldItem || !!warehouseFieldTarget;
+  // Yeni over an open form with unsaved input asks first, then starts a fresh record.
+  const startNew = async (dirty: boolean, open: () => void | Promise<void>) => {
+    if (dirty && !(await confirmDialog({ title: "Yeni kayıt", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })))
+      return;
+    await open();
+  };
+  // Saving is registered by the open RecordFormPage itself (Kaydet / Ctrl+S, primary).
   const pageCommands: PageCommands = {};
-  if (openRecordForm) {
-    pageCommands.save = {
-      primary: true,
-      disabledReason: openRecordForm.busy ? "Kaydediliyor…" : undefined,
-      run: () => submitRecordForm(openRecordForm.id, openRecordForm.onSaveIntent),
-    };
-  } else if (pageDialogOpen) {
+  if (pageDialogOpen) {
     // no `new` while another dialog of the page is open
   } else if (section === "inventory-stock") {
+    // An edited card stays in this tab; the new card opens in its own tab.
     pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
+  } else if (section === "inventory-stock-create") {
+    pageCommands.new = { run: () => startNew(!!(code.trim() || name.trim()), openItemModal) };
   } else if (section === "inventory-warehouses") {
-    pageCommands.new = { primary: true, run: () => void openWarehouseModal() };
+    pageCommands.new = {
+      primary: true,
+      run: () =>
+        startNew(warehouseModal && !!(warehouseCode.trim() || warehouseName.trim()), async () => {
+          resetWarehouseForm();
+          await openWarehouseModal();
+        }),
+    };
   } else if (section === "inventory-transfers") {
     pageCommands.new = {
       primary: true,
@@ -2539,7 +2532,7 @@ export function InventoryPage({
         warehouses.filter((x) => x.isActive).length < 2
           ? "Transfer için en az iki aktif depo gerekir"
           : undefined,
-      run: () => void openTransferModal(),
+      run: () => startNew(transferModal && transferSelectedItems.length > 0, openTransferModal),
     };
   }
   // Former page-header actions; the list and its header are not shown while a stock card is edited.
@@ -3026,7 +3019,6 @@ export function InventoryPage({
                   mode="edit"
                   busy={customFieldBusy}
                   saveLabel="Değerleri kaydet"
-                  formId={customFieldValuesFormId}
                   onSubmit={saveCustomFieldValues}
                   onCancel={() => setCustomFieldItem(null)}
                   error={error}
@@ -3386,7 +3378,7 @@ export function InventoryPage({
           mode={editingItem ? "edit" : "create"}
           busy={busy}
           saveLabel={editingItem ? "Değişiklikleri Kaydet" : "Stok Kartını Kaydet"}
-          formId={itemFormId}
+          formId="inventory-item-create-form"
           onSubmit={createItem}
           onCancel={closeItemForm}
           onSaveIntent={setStayAfterItemSave}
@@ -3912,7 +3904,6 @@ export function InventoryPage({
               mode="create"
               busy={busy}
               saveLabel="Transferi kaydet"
-              formId={transferFormId}
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!transferReady) {
@@ -4212,7 +4203,6 @@ export function InventoryPage({
               mode="create"
               busy={busy}
               saveLabel="Depo oluştur"
-              formId={warehouseFormId}
               onSubmit={createWarehouse}
               onCancel={() => setWarehouseModal(false)}
               onSaveIntent={setStayAfterWarehouseSave}
@@ -4677,7 +4667,6 @@ export function InventoryPage({
               mode="edit"
               busy={warehouseFieldBusy}
               saveLabel="Değerleri kaydet"
-              formId={warehouseFieldsFormId}
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!warehouseFieldTarget.isActive) {
@@ -4865,6 +4854,7 @@ export function InventoryPage({
       {movementItem &&
         createPortal(
           <div
+            {...viewDialogOwner}
             className="modal-backdrop stock-movement-backdrop"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) setMovementItem(null);

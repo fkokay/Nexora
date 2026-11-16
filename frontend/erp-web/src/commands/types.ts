@@ -8,4 +8,8 @@ export type MenuCommand = { id: string; label: string; shortcut?: string; run?: 
 
 export type PageCommands = Partial<Record<StandardCommandId, CommandSpec>> & { more?: MenuCommand[] };
 
-export type CommandSource = 'page' | 'list' | 'grid';
+/**
+ * `form`: an open record form (RecordFormPage); the most recently opened one wins and its `more` items come first.
+ * `page` > `list` > `grid`: earliest registered wins.
+ */
+export type CommandSource = 'form' | 'page' | 'list' | 'grid';

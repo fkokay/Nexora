@@ -5,9 +5,10 @@ Bir iş kaydını **oluşturan veya güncelleyen** her ekran bu yapıyı kullan�
 
 ## Parçalar (`RecordForm.tsx`)
 
-- `RecordFormPage`: komut çubuğu (başlık, YENİ KAYIT / DÜZENLEME rozeti, Kaydet `F2`, Kaydet ve Yeni `Ctrl+F2`,
-  Temizle, Vazgeç), hata şeridi, `<form>` gövdesi ve durum çubuğu. `<form>` etiketini kendisi üretir; içine
-  ayrıca `<form>` koymayın. Modal içindeki formlar için `variant="dialog"`.
+- `RecordFormPage`: başlık satırı (başlık, YENİ KAYIT / DÜZENLEME rozeti, Vazgeç), hata şeridi, `<form>` gövdesi ve durum çubuğu. `<form>` etiketini kendisi üretir; içine
+  ayrıca `<form>` koymayın. Modal içindeki formlar için `variant="dialog"`. Form açıkken İşlem Çubuğu'nun
+  Kaydet komutunu (`Ctrl+S`, birincil) kaydeder; "Kaydet ve Yeni" (`Ctrl+F2`) ve "Temizle" İşlemler menüsündedir.
+  `F2` çubuğun Yeni komutudur; sayfa kaydeder (kaydedilmemiş değişiklik varsa onay sorarak).
 - `RecordFormGroup`: başlıklı grup kutusu. Alanlar doğrudan içine `<label>Etiket<input/></label>` olarak yazılır.
 - `RecordFormTabs`: sekme şeridi + panel. Yalnızca alanlar tek ekrana rahat sığmıyorsa kullanın.
 - `RequiredMark`: zorunlu alan yıldızı; etiket metnini `<span>` içine alın: `<span>Kod <RequiredMark /></span>`.

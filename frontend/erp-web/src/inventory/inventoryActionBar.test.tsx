@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -11,7 +11,7 @@ import InventoryWarehousesPage from '../InventoryWarehousesPage';
 import InventoryTransfersPage from '../InventoryTransfersPage';
 import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import InventoryTrackingPage from '../InventoryTrackingPage';
-import { RecordFormPage } from '../record-form/RecordForm';
+import { ConfirmDialogHost } from '../confirmDialog';
 
 const warehouses = [
   { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true },
@@ -108,7 +108,13 @@ describe('Stok Kartları on the action bar', () => {
     // The bar picks up the form's commands in an effect after the form renders.
     await waitFor(() => expect(enabled('save')).toBe(true));
     expect(primary('save')).toBe(true);
-    expect(enabled('new')).toBe(false);
+    // F2 stays Yeni while the form is open; only Kaydet is primary.
+    expect(enabled('new')).toBe(true);
+    expect(primary('new')).toBe(false);
+    // The form header keeps only Vazgeç; its other actions are in the bar and its menu.
+    expect(Array.from(document.querySelectorAll('.rf-toolbar button')).map((b) => b.textContent?.trim())).toEqual(['Vazgeç']);
+    expect(openMenu()).toEqual(['Kaydet ve YeniCtrl+F2', 'Temizle']);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     fireEvent.change(screen.getByPlaceholderText('STK-1001'), { target: { value: 'STK-1' } });
     fireEvent.change(screen.getByPlaceholderText('Stok adı'), { target: { value: 'Vida' } });
     const code = screen.getByPlaceholderText('STK-1001');
@@ -134,17 +140,23 @@ describe('F2 with forms and dialogs', () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it('a record form in a hidden workspace view does not save on F2', async () => {
-    const onSubmit = vi.fn((event: Event) => event.preventDefault());
-    render(
-      <div hidden>
-        <RecordFormPage title="Gizli" mode="create" busy={false} saveLabel="Kaydet" onSubmit={(event) => onSubmit(event.nativeEvent)} onCancel={() => {}}>
-          <input defaultValue="x" />
-        </RecordFormPage>
-      </div>,
+  it('F2 over a create form with unsaved input asks before starting a new card', async () => {
+    renderScreen(
+      <>
+        <InventoryStockPage token="t" role="TenantUser" section="inventory-stock-create" />
+        <ConfirmDialogHost />
+      </>,
     );
-    fireEvent.keyDown(window, { key: 'F2' });
-    expect(onSubmit).not.toHaveBeenCalled();
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    fireEvent.change(screen.getByPlaceholderText('STK-1001'), { target: { value: 'STK-9' } });
+    fireEvent.keyDown(screen.getByPlaceholderText('STK-1001'), { key: 'F2' });
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect((screen.getByPlaceholderText('STK-1001') as HTMLInputElement).value).toBe('STK-9');
+    // Plain F2 never submits the form.
+    expect(apiMock).not.toHaveBeenCalledWith('/api/stock/items/', 't', expect.objectContaining({ method: 'POST' }));
   });
 });
 
@@ -178,7 +190,8 @@ describe('other Stok screens on the action bar', () => {
     });
     await waitFor(() => expect(primary('save')).toBe(true));
     expect(screen.getByText('Yeni depo')).toBeTruthy();
-    expect(enabled('new')).toBe(false);
+    expect(enabled('new')).toBe(true);
+    expect(primary('new')).toBe(false);
   });
 
   it('Depolar arası transferler: new needs two active warehouses', async () => {
