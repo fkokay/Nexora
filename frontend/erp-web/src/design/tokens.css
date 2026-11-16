@@ -22,6 +22,7 @@
   --nx-primary-on-ink: #9dbcff;
   --nx-primary-hover: #1846a3;
   --nx-on-primary: #ffffff;
+  --nx-table-head: #f7f8fa;
 
   --nx-font: "Segoe UI", Inter, system-ui, sans-serif;
   --nx-font-mono: Consolas, "Cascadia Mono", monospace;
@@ -55,6 +56,7 @@ html[data-theme="dark"] {
   --nx-primary-on-ink: #9dbcff;
   --nx-primary-hover: #2c5bc0;
   --nx-on-primary: #ffffff;
+  --nx-table-head: #121a26;
 }
 
 /* Legacy aliases (removed once old stylesheets use --nx-* directly). */

@@ -85,7 +85,7 @@ body,
   .auth-card, .modal, .tenant-option, .advanced-grid, .advanced-grid-popover,
   .advanced-grid-toolbar, .advanced-grid-footer, .advanced-grid-search,
   .advanced-grid-scroll, .advanced-grid-action, .advanced-grid-menu > summary
-) {
+):not([class^='nx-'], [class*=' nx-']) {
   border-radius: var(--erp-radius-control) !important;
 }
 
@@ -94,9 +94,10 @@ body,
   .panel, .card, .metric-card, .request-row, .empty-state, .customer-summary,
   .auth-card, .modal, .tenant-option, .advanced-grid, .advanced-grid-popover,
   .advanced-grid-toolbar, .advanced-grid-footer, .credit-page-actions
-) {
+):not([class^='nx-'], [class*=' nx-']) {
   background-color: var(--erp-color-surface) !important;
 }
+/* Design-language components (nx-* classes) style their own radius and fill; the substring rules above skip them. */
 /* Icon class names (lucide-panel-right-close, lucide-credit-card, …) match the substring selectors above;
    icons must stay transparent and keep their own shape. */
 .app-shell svg:is([class*='-panel'], [class*='-card'], [class*='-hero'], [class*='-dialog'], [class*='-badge'], [class*='-pill'], [class*='-tag'], [class*='-chip'], [class*='-icon']) {
@@ -104,7 +105,7 @@ body,
   border-radius: 0 !important;
 }
 
-.app-shell :is(.is-selected, [aria-selected='true']) {
+.app-shell :is(.is-selected, [aria-selected='true']):not(.advanced-grid-table tr) {
   background-color: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)) !important;
 }
 
@@ -196,19 +197,19 @@ body,
   box-shadow: none !important;
 }
 
-.app-shell table:not([role='presentation']) {
+.app-shell table:not([role='presentation'], .advanced-grid-table) {
   border-collapse: collapse !important;
   color: var(--erp-color-text) !important;
   font-size: 14px !important;
 }
 
-.app-shell table:not([role='presentation']) :is(th, td) {
+.app-shell table:not([role='presentation'], .advanced-grid-table) :is(th, td) {
   height: 44px !important;
   border-color: var(--erp-color-border) !important;
   padding: 8px 12px !important;
 }
 
-.app-shell table:not([role='presentation']) thead th {
+.app-shell table:not([role='presentation'], .advanced-grid-table) thead th {
   height: 40px !important;
   background: var(--erp-color-surface-muted) !important;
   color: var(--erp-color-muted) !important;
@@ -216,7 +217,7 @@ body,
   font-weight: 600 !important;
 }
 
-.app-shell table:not([role='presentation']) tbody tr:hover {
+.app-shell table:not([role='presentation'], .advanced-grid-table) tbody tr:hover {
   background: #F8F9FA !important;
 }
 

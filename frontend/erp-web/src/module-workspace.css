@@ -3284,6 +3284,11 @@ html[data-theme="dark"] #root .customer-directory-toolbar .customer-filter-refre
   #root .customer-directory-layout { grid-template-columns: minmax(0, 1fr); }
   #root .customer-page-main { display: grid; }
 }
+/* Between 1181 and 1450px the flattened Cari Hesaplar stack sits in a block parent without a gap, so the
+   action bar slot spaces the bar from the title row and the toolbar itself (list-v2 slots add no padding). */
+@media (min-width: 1181px) and (max-width: 1450px) {
+  #root .customer-page-main.list-v2 > .nx-action-bar-slot:not(:empty) { padding-block: 10px; }
+}
 
 /* Standard list-page template shared by directory, register, and ledger screens. */
 #root .workspace-content.standard-list-screen .workspace-page-main .page-heading:has(h1),

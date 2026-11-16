@@ -203,39 +203,58 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
 
 /* ---- Table look (mockup 01): light header, dense rows, tabular numbers, current row with a left bar ----
-   One rule set for every grid in the app (light and dark through the --nx tokens). #root and !important:
-   global-components.css sets `.app-shell table :is(th, td) { height: 44px !important; padding … !important }`
-   and the thead colours with !important, and older shell / page table rules (module-workspace.css) are more
-   specific than plain grid selectors.
-   Row height per density setting: compact 26px, normal (default) --nx-row-h-dense 30px,
-   comfortable --nx-row-h-comfort 38px (AdvancedDataGrid's virtualisation uses the same numbers). */
-#root .advanced-grid-table {
-  --grid-row-h: var(--nx-row-h-dense);
-  --grid-header-bg: color-mix(in srgb, var(--nx-canvas) 67%, var(--nx-surface));
-}
-#root .advanced-grid.compact .advanced-grid-table { --grid-row-h: 26px; }
-#root .advanced-grid.comfortable .advanced-grid-table { --grid-row-h: var(--nx-row-h-comfort); }
+   One rule set for every grid in the app (light and dark through the --nx tokens). The global table rules in
+   global-components.css skip .advanced-grid-table; #root keeps the older shell / page table rules
+   (module-workspace.css `#root .workspace-page-main .customer-table th`, `.standard-list-screen … table th`) out.
+   Row height per density setting: real vertical padding with a single-line minimum of compact 26px,
+   normal (default) --nx-row-h-dense 30px, comfortable --nx-row-h-comfort 38px; wrapping cells grow the row.
+   AdvancedDataGrid's virtual spacers use the same minimums. */
+/* A table cell's height acts as its minimum (border-box), so single-line rows land exactly on the token
+   (padding + 18px line + 1px rule would be 1px short) and wrapping rows still grow. */
+#root .advanced-grid-table { --grid-cell-pad: 5px 9px; --grid-row-h: var(--nx-row-h-dense); }
+#root .advanced-grid.compact .advanced-grid-table { --grid-cell-pad: 3px 8px; --grid-row-h: 26px; }
+#root .advanced-grid.comfortable .advanced-grid-table { --grid-cell-pad: 9px 9px; --grid-row-h: var(--nx-row-h-comfort); }
 #root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th {
-  height: var(--nx-row-h-dense) !important;
-  padding: 6px 9px !important;
-  border-bottom: 1px solid var(--nx-line) !important;
-  background: var(--grid-header-bg) !important;
-  color: var(--nx-muted) !important;
-  font-size: 11.5px !important;
-  font-weight: 600 !important;
+  height: var(--nx-row-h-dense);
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-weight: 600;
   line-height: 17px;
   white-space: nowrap;
 }
-#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td {
-  height: var(--grid-row-h) !important;
-  padding: 0 9px !important;
-  border-bottom: 1px solid var(--nx-line-soft) !important;
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td:not(.advanced-grid-virtual-spacer) {
+  height: var(--grid-row-h);
+  min-height: 0;
+  padding: var(--grid-cell-pad);
+  border-bottom: 1px solid var(--nx-line-soft);
   color: var(--nx-text);
   font-size: 12.5px;
   font-weight: 400;
   line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
+/* In-cell controls (row "⋯" buttons, status pills) fit the dense row: about 24px high, and a negative block
+   margin lets them overhang the 5px cell padding so a single-line row with one stays 30px. Look only. */
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td :is(button, a.button, select):not(.advanced-grid-cell-editor) {
+  min-height: 0;
+  height: 24px;
+  margin-block: -3px;
+  padding-block: 0;
+  line-height: 22px;
+  vertical-align: middle;
+}
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td :is([class*='-pill'], [class*='-badge'], [class*='status']):not(button) {
+  margin-block: -2px;
+  padding-block: 1px;
+  line-height: 18px;
+  vertical-align: top;
+}
+/* Inline wrappers around such a button (menu anchors) sit at the top of the line, or their middle alignment
+   adds a pixel to the row. */
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td span:has(> button) { vertical-align: top; }
 #root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface)); }
 /* Checked rows (row selection): a light tint. */
 #root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr.advanced-grid-row-selected > td { background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); }
@@ -254,7 +273,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
   background: var(--nx-primary);
   pointer-events: none;
 }
-#root .advanced-grid-table > tbody > tr:focus-visible { outline: none; }
+.advanced-grid-table > tbody > tr:focus-visible { outline: none; }
 /* Opt-in cell classes for page renderers: right-aligned numbers and monospace codes. */
-#root .advanced-grid-table :is(th, td).nx-num { text-align: right; }
-#root .advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
+.advanced-grid-table :is(th, td).nx-num { text-align: right; }
+.advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }

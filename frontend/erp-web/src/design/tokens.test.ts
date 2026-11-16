@@ -20,7 +20,7 @@ const colorTokens = [
   '--nx-ink', '--nx-ink-2', '--nx-primary', '--nx-primary-strong', '--nx-primary-soft',
   '--nx-canvas', '--nx-surface', '--nx-line', '--nx-line-soft', '--nx-text', '--nx-muted',
   '--nx-ok', '--nx-ok-bg', '--nx-warn', '--nx-warn-bg', '--nx-bad', '--nx-bad-bg', '--nx-changed',
-  '--nx-primary-on-ink', '--nx-primary-hover', '--nx-on-primary',
+  '--nx-primary-on-ink', '--nx-primary-hover', '--nx-on-primary', '--nx-table-head',
 ]
 const otherTokens = [
   '--nx-font', '--nx-font-mono', '--nx-radius-control', '--nx-radius-card',

@@ -775,7 +775,8 @@ export default function AdvancedDataGrid({
     onSelectionChange?.(selectedKeySignature ? selectedKeySignature.split("|") : []);
   }, [onSelectionChange, selectedKeySignature]);
   const virtualized = pageRows.length > 180,
-    // Same row heights as advanced-data-grid.css (normal = --nx-row-h-dense, comfortable = --nx-row-h-comfort).
+    // Estimated row height for the virtual spacers: the single-line minimum per density in advanced-data-grid.css
+    // (compact 26px, normal --nx-row-h-dense, comfortable --nx-row-h-comfort); taller (wrapping) rows make it approximate.
     rowHeight =
       settings.density === "compact"
         ? 26
@@ -1570,6 +1571,7 @@ export default function AdvancedDataGrid({
           ? [
               <tr key="virtual-top" aria-hidden="true">
                 <td
+                  className="advanced-grid-virtual-spacer"
                   colSpan={Math.max(1, visibleColumns.length)}
                   style={{
                     height: virtualStart * rowHeight,
@@ -1585,6 +1587,7 @@ export default function AdvancedDataGrid({
           ? [
               <tr key="virtual-bottom" aria-hidden="true">
                 <td
+                  className="advanced-grid-virtual-spacer"
                   colSpan={Math.max(1, visibleColumns.length)}
                   style={{
                     height: (pageRows.length - virtualEnd) * rowHeight,

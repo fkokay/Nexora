@@ -36,11 +36,6 @@
    more specific selector) and the bar slot adds no padding of its own here. */
 #root .app-shell .list-v2 .list-v2-heading { margin-bottom: 0 !important; }
 #root .list-v2 .nx-action-bar-slot:not(:empty) { padding-top: 0; }
-/* Cari Hesaplar between 1181 and 1450px flattens its stack (module-workspace.css: .customer-page-main
-   { display: contents }) into a block parent without a gap; there the slot spaces the bar itself. */
-@media (min-width: 1181px) and (max-width: 1450px) {
-  #root .customer-page-main.list-v2 > .nx-action-bar-slot:not(:empty) { padding-block: 10px; }
-}
 #root .list-v2 .list-v2-title {
   display: flex;
   align-items: baseline;
@@ -650,8 +645,7 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
 #root .nx-status-tag {
   display: inline-block;
   padding: 1px 8px;
-  /* !important: the shell's `[class*='-tag']` rule sets the control radius with !important. */
-  border-radius: 999px !important;
+  border-radius: 999px;
   background: var(--nx-line-soft);
   color: var(--nx-muted);
   font-size: 11px;
