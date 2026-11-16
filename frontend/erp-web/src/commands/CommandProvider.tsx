@@ -75,13 +75,21 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
   return built;
 }
 
-export function usePageCommands(commands: PageCommands, source: CommandSource = 'page'): void {
+/**
+ * `firstWins`: skip registering when the view already has commands from this source (several grids in one view:
+ * the first one mounted keeps the slot; it is not handed over if that grid unmounts).
+ */
+export function usePageCommands(commands: PageCommands, source: CommandSource = 'page', options?: { firstWins?: boolean }): void {
   const registry = useCommandRegistry();
   const viewKey = useContext(ViewKeyContext);
   const ref = useRef(commands);
   ref.current = commands;
   const signature = structureSignature(commands);
-  useEffect(() => registry.register(viewKey, source, buildStable(ref)), [registry, viewKey, source, signature]);
+  const firstWins = Boolean(options?.firstWins);
+  useEffect(() => {
+    if (firstWins && registry.hasSource(viewKey, source)) return;
+    return registry.register(viewKey, source, buildStable(ref));
+  }, [registry, viewKey, source, firstWins, signature]);
 }
 
 export function useActivePageCommands(): PageCommands | undefined {

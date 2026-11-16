@@ -18,6 +18,8 @@ export type GlobalCommand = {
 
 export type CommandRegistry = {
   register(viewKey: string, source: CommandSource, commands: PageCommands): () => void;
+  /** True when `source` already has commands registered for `viewKey`. */
+  hasSource(viewKey: string, source: CommandSource): boolean;
   setActiveView(viewKey: string): void;
   getActive(): PageCommands | undefined;
   registerGlobal(command: GlobalCommand): () => void;
@@ -98,6 +100,10 @@ export function createCommandRegistry(): CommandRegistry {
         if (!current.page && !current.list && !current.grid) views.delete(viewKey);
         changed();
       };
+    },
+
+    hasSource(viewKey, source) {
+      return Boolean(views.get(viewKey)?.[source]);
     },
 
     setActiveView(viewKey) {
