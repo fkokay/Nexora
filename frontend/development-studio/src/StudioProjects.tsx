@@ -9568,8 +9568,8 @@ export function StudioProjects({
             <button
               type="button"
               className="active"
-              title="Explorer"
-              aria-label="Explorer"
+              title="Dosya gezgini"
+              aria-label="Dosya gezgini"
               onClick={() => {
                 setFileContent(null);
                 setError("");
@@ -9628,8 +9628,8 @@ export function StudioProjects({
                 {workspaceProject?.accessLevel !== "Viewer" && (
                   <button
                     type="button"
-                    title="Geçerli Explorer klasöründe yeni dosya oluştur"
-                    aria-label="Explorer içinde yeni dosya oluştur"
+                    title="Açık klasörde yeni dosya oluştur"
+                    aria-label="Yeni dosya oluştur"
                     onClick={() => startManualNewFile(fileWorkspace)}
                   >
                     <Plus size={14} />

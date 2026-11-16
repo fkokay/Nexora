@@ -16,6 +16,35 @@
   font-size: var(--ns-text-xs);
 }
 
+/* "Yeni dosya" düğmesi vurgu zeminli: simge beyaz ve sıkışmaz (dar ekranda yalnız simge kalır). */
+.studio-ide-page .studio-vscode-explorer-actions > button svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ns-on-accent);
+  stroke: currentColor;
+}
+
+/* Dar ekranda dosya başlığı iki satır: yol, altında işlemler. */
+@media (max-width: 720px) {
+  .studio-ide-page .studio-vscode-main {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 0;
+    padding: 8px 12px;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location .studio-explorer-path {
+    flex: 1 1 100%;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location .studio-explorer-file-actions {
+    flex-wrap: wrap;
+  }
+}
+
 /* Koyu yüzeyde düğmeler: modallar açık temada kalır. */
 .studio-ide-page .ns-btn:not(.modal .ns-btn) {
   border-color: var(--ns-code-line);
