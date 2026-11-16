@@ -87,8 +87,12 @@ html[data-theme="dark"] .record-form .rf-badge { border-color: #2f5f8f; backgrou
   font: inherit;
   font-size: 11px;
 }
-.record-form .rf-btn--primary { border-color: var(--rf-accent-edge); background: var(--rf-accent); color: var(--nx-primary-strong); font-weight: 700; }
-.record-form .rf-btn--primary kbd { border-color: var(--rf-accent-edge); background: var(--nx-primary); color: #fff; }
+.record-form .rf-btn--primary { border-color: var(--rf-accent-edge); background: var(--rf-accent); color: var(--nx-on-primary); font-weight: 700; }
+.record-form .rf-btn--primary:hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
+.record-form .rf-btn--primary kbd { border-color: color-mix(in srgb, var(--nx-on-primary) 45%, transparent); background: transparent; color: var(--nx-on-primary); }
+/* Disabled (e.g. while saving): a neutral fill instead of a faded blue keeps the label readable in both themes. */
+.record-form .rf-btn--primary:disabled { opacity: 1; border-color: var(--rf-border); background: var(--rf-band); color: var(--rf-muted); }
+.record-form .rf-btn--primary:disabled kbd { border-color: var(--rf-border-soft); color: var(--rf-muted); }
 .record-form .rf-error { margin: 16px 32px 0; }
 
 /* Form gövdesi */

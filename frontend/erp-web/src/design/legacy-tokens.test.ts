@@ -146,6 +146,36 @@ describe('legacy stylesheets converge on --nx tokens', () => {
     expect(found).toEqual([])
   })
 
+  it('text on a --nx-primary / --nx-primary-hover fill is --nx-on-primary (or white)', () => {
+    // Local aliases (e.g. --rf-accent: var(--nx-primary)) are resolved within the same stylesheet; an alias with
+    // several definitions (themes) counts as primary when any of them is.
+    const declarations = (body: string) =>
+      [...body.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]+)/g)].map((m) => ({ prop: m[1].trim(), value: m[2].replace(/!important/, '').trim() }))
+    const fills = new Set(['var(--nx-primary)', 'var(--nx-primary-hover)'])
+    const onPrimary = /^(var\(--nx-on-primary\)|#fff(fff)?|white)$/i
+    const found = sheets.flatMap(({ name, text }) => {
+      const sheetRules = rules.filter((r) => r.name === name)
+      const aliases = new Map<string, string[]>()
+      for (const r of sheetRules)
+        for (const { prop, value } of declarations(r.body))
+          if (prop.startsWith('--')) aliases.set(prop, [...(aliases.get(prop) ?? []), value])
+      const resolve = (value: string, depth = 0): string[] => {
+        const alias = /^var\((--[\w-]+)(?:\s*,[^)]*)?\)$/.exec(value)
+        if (!alias || depth > 5 || !aliases.has(alias[1])) return [value]
+        return aliases.get(alias[1])!.flatMap((v) => resolve(v, depth + 1))
+      }
+      void text
+      return sheetRules.flatMap((r) => {
+        const decls = declarations(r.body)
+        const fill = decls.find((d) => d.prop === 'background' || d.prop === 'background-color')
+        const color = decls.find((d) => d.prop === 'color')
+        if (!fill || !color || !resolve(fill.value).some((v) => fills.has(v))) return []
+        return resolve(color.value).every((v) => onPrimary.test(v)) ? [] : [`${name}: ${r.selector.slice(-120)} (color: ${color.value})`]
+      })
+    })
+    expect(found).toEqual([])
+  })
+
   it('--nx-primary-on-ink is used only on fixed-dark surfaces', () => {
     // Login story panel, launcher welcome banner and the (always --nx-ink) workspace icon rail.
     const fixedDark = /auth-story|auth-feature|module-launcher-welcome|workspace-rail/

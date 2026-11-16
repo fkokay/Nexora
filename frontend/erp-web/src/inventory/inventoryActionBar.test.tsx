@@ -189,9 +189,15 @@ describe('other Stok screens on the action bar', () => {
       fireEvent.click(command('new'));
     });
     await waitFor(() => expect(primary('save')).toBe(true));
-    expect(screen.getByText('Yeni depo')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Yeni depo' })).toBeTruthy();
     expect(enabled('new')).toBe(true);
     expect(primary('new')).toBe(false);
+    // The modal is an aria-modal dialog of the page: F2 (Yeni) does not run behind it.
+    const opens = () => apiMock.mock.calls.filter(([url]) => url === '/api/warehouses/custom-fields').length;
+    const before = opens();
+    fireEvent.keyDown(document.body, { key: 'F2' });
+    await settle();
+    expect(opens()).toBe(before);
   });
 
   it('Depolar arası transferler: new needs two active warehouses', async () => {

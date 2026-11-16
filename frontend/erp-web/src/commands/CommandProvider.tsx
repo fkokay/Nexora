@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { createCommandRegistry, type CommandRegistry, type CommandSlot } from './registry';
 import type { CommandSource, MenuCommand, PageCommands, StandardCommandId } from './types';
 import { STANDARD_SHORTCUTS } from './shortcuts';
@@ -100,7 +100,15 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
  * Registrations sharing a (view, source) are first-wins: the earliest mounted one is effective and the next takes
  * over when it unmounts. A handler/structure change updates the slot in place, so it keeps its position.
  */
-export function usePageCommands(commands: PageCommands, source: CommandSource = 'page'): () => void {
+/**
+ * `focusRoot` (record forms): while the focused element is inside it, this registration is the effective `form`
+ * one. The returned function marks the registration as the most recently used.
+ */
+export function usePageCommands(
+  commands: PageCommands,
+  source: CommandSource = 'page',
+  focusRoot?: RefObject<Element | null>,
+): () => void {
   const registry = useCommandRegistry();
   const viewKey = useContext(ViewKeyContext);
   const ref = useRef(commands);
@@ -109,6 +117,7 @@ export function usePageCommands(commands: PageCommands, source: CommandSource = 
   const signature = structureSignature(commands);
   useEffect(() => {
     const slot = registry.openSlot(viewKey, source);
+    if (focusRoot) slot.setFocusProbe(() => Boolean(document.activeElement && focusRoot.current?.contains(document.activeElement)));
     slotRef.current = slot;
     return () => {
       slotRef.current = null;

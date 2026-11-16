@@ -120,6 +120,25 @@ describe('RecordFormPage saving', () => {
     expect(first).toHaveBeenCalledTimes(1);
   });
 
+  it('a form mounted later does not take Ctrl+S from the form that has focus', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const view = (withSecond: boolean) => (
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <Form title="İl" onSubmit={first} />
+          {withSecond && <Form title="İlçe" onSubmit={second} />}
+        </KeepAliveViews>
+      </CommandProvider>
+    );
+    const { rerender } = render(view(false));
+    act(() => screen.getByLabelText('İl kodu').focus());
+    rerender(view(true));
+    ctrlS(screen.getByLabelText('İl kodu'));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+  });
+
   it('saveDisabledReason disables the bar Kaydet with that reason', () => {
     const onSubmit = vi.fn();
     inView(<Form title="Konum" onSubmit={onSubmit} saveDisabledReason="Konum kodu ve adı zorunludur." />);

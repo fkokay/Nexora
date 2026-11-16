@@ -18,8 +18,16 @@ export type GlobalCommand = {
   allowInModal?: boolean;
 };
 
-/** `touch` marks the slot as the most recently used (a record form reports focus inside it). */
-export type CommandSlot = { set(commands: PageCommands): void; remove(): void; touch(): void };
+/**
+ * `touch` marks the slot as the most recently used (a record form reports focus inside it); `setFocusProbe` lets
+ * a record form say whether it currently contains the focused element.
+ */
+export type CommandSlot = {
+  set(commands: PageCommands): void;
+  remove(): void;
+  touch(): void;
+  setFocusProbe(probe: (() => boolean) | undefined): void;
+};
 
 export type CommandRegistry = {
   /**
@@ -56,7 +64,7 @@ function isFunctionKey(key: string): boolean {
 }
 
 export function createCommandRegistry(): CommandRegistry {
-  type Slot = { commands?: PageCommands; activity: number };
+  type Slot = { commands?: PageCommands; activity: number; hasFocus?: () => boolean };
   let activityCounter = 0;
   const views = new Map<string, Partial<Record<CommandSource, Slot[]>>>();
   const globals: GlobalCommand[] = [];
@@ -73,11 +81,13 @@ export function createCommandRegistry(): CommandRegistry {
   function compute(): PageCommands | undefined {
     const sources = activeView === undefined ? undefined : views.get(activeView);
     if (!sources) return undefined;
-    // `form` slots: the record form with the latest activity (focus inside it, else mounting) is effective, so the
-    // focused one of two embedded forms wins and a newly opened dialog form beats the form behind it.
+    // `form` slots: the record form that contains the focused element is effective; otherwise the one with the
+    // latest activity (focus inside it, else mounting), so a newly opened dialog form beats the form behind it.
     const effective = (source: CommandSource) => {
       const slots = sources[source]?.filter((slot) => slot.commands);
       if (source !== 'form') return slots?.[0]?.commands;
+      const focused = slots?.find((slot) => slot.hasFocus?.());
+      if (focused) return focused.commands;
       return slots?.reduce<Slot | undefined>((best, slot) => (!best || slot.activity > best.activity ? slot : best), undefined)?.commands;
     };
     const merged: PageCommands = {};
@@ -126,6 +136,9 @@ export function createCommandRegistry(): CommandRegistry {
         set(commands) {
           slot.commands = commands;
           changed();
+        },
+        setFocusProbe(probe) {
+          slot.hasFocus = probe;
         },
         touch() {
           if (slot.activity === activityCounter) return;
@@ -176,6 +189,8 @@ export function createCommandRegistry(): CommandRegistry {
     },
 
     handleKeyDown(event, env) {
+      // Which record form holds the focus is read at dispatch time.
+      cacheValid = false;
       if (env.modalOpen) {
         for (const command of globals) {
           if (command.allowInModal && matchesShortcut(event, parseShortcut(command.shortcut))) {

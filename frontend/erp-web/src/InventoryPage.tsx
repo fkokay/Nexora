@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as IconPack from "lucide-react";
 import { X } from "lucide-react";
@@ -2495,6 +2495,8 @@ export function InventoryPage({
     }
   }
   const gridExportRef = useRef<GridExportActions | null>(null);
+  // Ids that name the page dialogs (role="dialog" aria-modal so the command layer sees them).
+  const dialogId = useId();
   // The movement dialog is portalled to <body>; this keeps Ctrl+S working inside it.
   const viewDialogOwner = useViewDialogOwner();
   // Dialogs that are not this page's record form: Yeni (F2) must not open a form behind them.
@@ -2885,11 +2887,11 @@ export function InventoryPage({
                   setCategoryModal(false);
               }}
             >
-              <div className="modal stock-category-modal">
+              <div className="modal stock-category-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-category`}>
                 <div className="modal-head">
                   <div>
                     <p className="eyebrow">STOK & DEPO · TANIMLAR</p>
-                    <h2>Stok kategorileri</h2>
+                    <h2 id={`${dialogId}-category`}>Stok kategorileri</h2>
                   </div>
                   <button
                     type="button"
@@ -2976,9 +2978,9 @@ export function InventoryPage({
           )}
           {customFieldPickerOpen && (
             <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomFieldPickerOpen(false); }}>
-              <div className="modal stock-custom-field-picker">
+              <div className="modal stock-custom-field-picker" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-custom-field-picker`}>
                 <div className="modal-head">
-                  <div><p className="eyebrow">STOK KARTI · ÖZEL ALANLAR</p><h2>Stok kartı seçin</h2></div>
+                  <div><p className="eyebrow">STOK KARTI · ÖZEL ALANLAR</p><h2 id={`${dialogId}-custom-field-picker`}>Stok kartı seçin</h2></div>
                   <button className="icon-button" onClick={() => setCustomFieldPickerOpen(false)}><X size={18} /></button>
                 </div>
                 <p className="muted">Özel alan değerlerini görüntülemek veya düzenlemek için stok kartı seçin.</p>
@@ -3012,7 +3014,8 @@ export function InventoryPage({
                   setCustomFieldItem(null);
               }}
             >
-              <div className="modal inv-rf-modal">
+              <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-custom-field-values`}>
+            <span id={`${dialogId}-custom-field-values`} hidden>{customFieldItem.code} · {customFieldItem.name}</span>
                 <RecordFormPage
                   variant="dialog"
                   title={`${customFieldItem.code} · ${customFieldItem.name}`}
@@ -3789,13 +3792,13 @@ export function InventoryPage({
             if (e.target === e.currentTarget) setSelectedTransfer(null);
           }}
         >
-          <div className="modal ledger-modal">
+          <div className="modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-transfer-detail`}>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
                   {selectedTransfer.transfer.code} · DEPO TRANSFERİ
                 </p>
-                <h2>
+                <h2 id={`${dialogId}-transfer-detail`}>
                   {selectedTransfer.transfer.fromWarehouseName} →{" "}
                   {selectedTransfer.transfer.toWarehouseName}
                 </h2>
@@ -3897,7 +3900,8 @@ export function InventoryPage({
             if (e.target === e.currentTarget && !busy) setTransferModal(false);
           }}
         >
-          <div className="modal inv-rf-modal inv-rf-modal--wide">
+          <div className="modal inv-rf-modal inv-rf-modal--wide" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-transfer`}>
+            <span id={`${dialogId}-transfer`} hidden>Depolar arası transfer</span>
             <RecordFormPage
               variant="dialog"
               title="Depolar arası transfer"
@@ -4199,7 +4203,8 @@ export function InventoryPage({
             if (e.target === e.currentTarget) setWarehouseModal(false);
           }}
         >
-          <div className="modal inv-rf-modal">
+          <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-warehouse`}>
+            <span id={`${dialogId}-warehouse`} hidden>Yeni depo</span>
             <RecordFormPage
               variant="dialog"
               title="Yeni depo"
@@ -4663,7 +4668,8 @@ export function InventoryPage({
               setWarehouseFieldTarget(null);
           }}
         >
-          <div className="modal inv-rf-modal">
+          <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-warehouse-fields`}>
+            <span id={`${dialogId}-warehouse-fields`} hidden>{warehouseFieldTarget.code} · {warehouseFieldTarget.name}</span>
             <RecordFormPage
               variant="dialog"
               title={`${warehouseFieldTarget.code} · ${warehouseFieldTarget.name}`}
@@ -5210,11 +5216,11 @@ export function InventoryPage({
             if (e.target === e.currentTarget && !busy) setCostTarget(null);
           }}
         >
-          <div className="modal ledger-modal">
+          <div className="modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-cost`}>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">STOK MALİYETİ · {costTarget.code}</p>
-                <h2>{costTarget.name}</h2>
+                <h2 id={`${dialogId}-cost`}>{costTarget.name}</h2>
               </div>
               <button
                 className="icon-button"

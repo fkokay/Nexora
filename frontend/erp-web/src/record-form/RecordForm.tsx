@@ -101,6 +101,7 @@ export function RecordFormPage({
   const markActive = usePageCommands(
     { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more },
     "form",
+    rootRef,
   );
 
   useEffect(() => {
