@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "./erpApi";
+import { ActionBar } from "./action-bar/ActionBar";
 import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
@@ -520,6 +521,7 @@ export function WorkspaceShellPage(props: Props) {
               </button>
             </div>
           )}
+          {page !== "launcher" && page !== "dashboard" && <ActionBar locale={locale} />}
           <KeepAliveViews
             activeKey={page}
             openKeys={moduleTabs.map((tab) => tab.id)}

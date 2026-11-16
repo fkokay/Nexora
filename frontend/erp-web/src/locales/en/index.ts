@@ -1,3 +1,4 @@
+import * as actionBar from './action-bar'
 import * as dialogs from './dialogs'
 import * as finance from './finance'
 import * as hrAssets from './hr-assets'
@@ -16,7 +17,7 @@ import * as recordFormsPurchasing from './record-forms-purchasing'
 import * as recordFormsPlatform from './record-forms-platform'
 import * as documentPage from './document-page'
 
-const groups = [platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform, documentPage]
+const groups = [actionBar, platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform, documentPage]
 
 
 /** Module dictionaries; the first group that defines a key wins. */
