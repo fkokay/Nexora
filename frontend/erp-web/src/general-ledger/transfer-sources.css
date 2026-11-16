@@ -67,14 +67,14 @@
   min-height: 26px;
   margin: 0;
   padding: 0 9px;
-  border: 1px solid #f1c27d;
+  border: 1px solid color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   border-radius: 13px;
   background: #fff6e8;
   color: #8a4b08;
   cursor: pointer;
 }
-#root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning:hover { border-color: #d99a3a; background: #ffefd4; }
-#root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip { border-color: #f1c27d; color: #8a4b08; }
+#root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning:hover { border-color: var(--nx-warn); background: var(--nx-warn-bg); }
+#root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: #8a4b08; }
 #root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip.is-active { border-color: #b86e12; background: #b86e12; color: #fff; }
 
 /* Preview panel */
@@ -155,8 +155,8 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-pre
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.ledger-transfer-preview-table thead th, .ledger-transfer-preview-table td:first-child small, .ledger-transfer-preview-note, .ledger-transfer-preview-empty) { color: var(--erp-text-muted); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.ledger-transfer-status.is-ready, .ledger-transfer-preview-balance.is-ready) { color: #6fd3a1; }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-preview-balance.is-blocked { color: #f97066; }
-html[data-theme="dark"] #root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning { border-color: #7a5320; background: #33261a; color: #f5c27a; }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip:not(.is-active) { border-color: #7a5320; color: #f5c27a; }
+html[data-theme="dark"] #root .app-shell .general-ledger-panel.list-v2 button.ledger-transfer-status.is-warning { border-color: #7a5320; background: #33261a; color: var(--nx-warn); }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.ledger-transfer-missing-chip:not(.is-active) { border-color: #7a5320; color: var(--nx-warn); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-confirm { border-color: var(--erp-border); background: var(--erp-surface-soft); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 .ledger-transfer-confirm p { color: var(--erp-text); }
 /* !important: the shared dark grid surface rules paint every cell with !important. */

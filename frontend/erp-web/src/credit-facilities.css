@@ -21,7 +21,7 @@
   font-weight: 650;
   white-space: nowrap;
 }
-.credit-facilities-page .status-badge.warning { border-color: var(--nx-warn); background: var(--nx-warn-bg); color: #95651b; }
+.credit-facilities-page .status-badge.warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
 .credit-facilities-page .status-badge.danger { border-color: #f2d4d2; background: #fff2f1; color: #a8433d; }
 .credit-facilities-page .credit-records-heading .credit-row-actions { flex-wrap: wrap; }
 .credit-facilities-page .credit-table td small { display: block; margin-top: 3px; color: var(--credit-muted); font-size: 9px; }

@@ -146,7 +146,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
 #root .purchase-requests-page .pr-list-quotes-box li.is-best { font-weight: 700; }
 #root .purchase-requests-page .pr-list-quote-supplier { display: flex; align-items: center; gap: 4px; min-width: 0; }
 #root .purchase-requests-page .pr-list-quote-supplier > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#root .purchase-requests-page .pr-list-quote-supplier > svg { flex: 0 0 auto; color: #b7791f; }
+#root .purchase-requests-page .pr-list-quote-supplier > svg { flex: 0 0 auto; color: var(--nx-muted); }
 #root .purchase-requests-page .pr-list-quote-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 html[data-theme="dark"] #root .purchase-requests-page .pr-list-quote-supplier > svg { color: var(--nx-warn); }
 

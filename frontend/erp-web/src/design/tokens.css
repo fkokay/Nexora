@@ -19,6 +19,7 @@
   --nx-bad: #c4321f;
   --nx-bad-bg: #fde9e6;
   --nx-changed: #e0a100;
+  --nx-primary-on-ink: #9dbcff;
 
   --nx-font: "Segoe UI", Inter, system-ui, sans-serif;
   --nx-font-mono: Consolas, "Cascadia Mono", monospace;
@@ -48,6 +49,7 @@ html[data-theme="dark"] {
   --nx-bad: #f27a69;
   --nx-bad-bg: #3a1a16;
   --nx-changed: #e8b72a;
+  --nx-primary-on-ink: #9dbcff;
 }
 
 /* Legacy aliases (removed once old stylesheets use --nx-* directly). */

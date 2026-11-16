@@ -54,8 +54,8 @@
 .stock-policy-state.is-blocked { background: #f5f7fa; }
 .stock-policy-state.is-enabled { border-color: var(--nx-primary); background: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface)); }
 .stock-policy-indicator { width: 9px; height: 9px; flex: none; border-radius: 50%; background: #77849a; }
-.is-enabled .stock-policy-indicator { background: #d69322; box-shadow: 0 0 0 4px rgb(214 147 34 / 13%); }
-.stock-policy-draft-badge { flex: none; padding: 4px 7px; border: 1px solid #dec47e; border-radius: 999px; background: color-mix(in srgb, var(--nx-primary) 20%, var(--nx-surface)); color: var(--nx-primary-strong); font-size: 9px; font-weight: 750; }
+.is-enabled .stock-policy-indicator { background: var(--nx-primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--nx-primary) 13%, transparent); }
+.stock-policy-draft-badge { flex: none; padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); border-radius: 999px; background: color-mix(in srgb, var(--nx-primary) 20%, var(--nx-surface)); color: var(--nx-primary-strong); font-size: 9px; font-weight: 750; }
 .stock-policy-state.is-draft { border-style: dashed; }
 .company-setting-card .company-setting-option { margin-top: 12px; }
 .company-setting-card .setting-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
@@ -98,9 +98,9 @@ html[data-theme="dark"] .company-profile-empty b { color: #e6edf7; }
 html[data-theme="dark"] .company-profile-empty p { color: #a7b6c9; }
 html[data-theme="dark"] .tenant-operational-settings-page .company-identity-card > .modal-foot { border-color: #303d50; }
 html[data-theme="dark"] .stock-policy-state { background: #151d2c; border-color: #303b50; }
-html[data-theme="dark"] .stock-policy-state.is-enabled { background: #2b2619; border-color: #66512d; }
+html[data-theme="dark"] .stock-policy-state.is-enabled { background: var(--nx-warn-bg); border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); }
 html[data-theme="dark"] .stock-policy-state b { color: #e4eaf4; }
-html[data-theme="dark"] .stock-policy-draft-badge { border-color: #66512d; background: #3b311d; color: var(--nx-primary-strong); }
+html[data-theme="dark"] .stock-policy-draft-badge { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar { border-color: #29394f; background: radial-gradient(circle at 0 0,#1b3150 0,transparent 40%),linear-gradient(110deg,#171f2e,#1b2636); box-shadow: none; }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar h1,
 html[data-theme="dark"] .tenant-settings-title-context b,
@@ -172,18 +172,18 @@ html[data-theme="dark"] .tenant-operational-settings-page .company-settings-acti
 .tenant-operational-settings-page .tenant-settings-detail { display: grid; align-content: start; gap: 16px; min-height: calc(100vh - 144px); padding: 20px 22px 16px; border: 1px solid #d8e1ee; border-radius: 6px; background: #fff; }
 .tenant-operational-settings-page .tenant-settings-commandbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 0; margin: 0; padding: 0 0 20px; border: 0; border-bottom: 1px solid #dce4ed; border-radius: 0; background: transparent; box-shadow: none; }
 .tenant-operational-settings-page .tenant-settings-commandbar>div:first-child { display: flex; align-items: center; gap: 18px; min-width: 0; }
-.tenant-operational-settings-page .tenant-settings-commandbar .settings-heading-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 6px; background: var(--nx-primary); color: #0b1f3a; }
+.tenant-operational-settings-page .tenant-settings-commandbar .settings-heading-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 6px; background: var(--nx-primary); color: #fff; }
 .tenant-operational-settings-page .tenant-settings-commandbar h1 { margin: 0 0 4px; color: #0b1f3a; font-size: 25px; line-height: 1.15; font-weight: 750; }
 .tenant-operational-settings-page .tenant-settings-commandbar p { margin: 0; color: #536681; font-size: 14px; }
 .tenant-operational-settings-page .tenant-settings-commandbar>div:last-child { display: flex; flex: none; gap: 10px; }
 .tenant-operational-settings-page .tenant-settings-commandbar .secondary,.tenant-operational-settings-page .tenant-settings-commandbar .primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid #ccd7e6; border-radius: 5px; background: #fff; color: #10213b; font-weight: 650; }
-.tenant-operational-settings-page .tenant-settings-commandbar .primary { border-color: var(--nx-primary); background: var(--nx-primary); color: #081a30; }
+.tenant-operational-settings-page .tenant-settings-commandbar .primary { border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; }
 .tenant-operational-settings-page .tenant-settings-detail>.panel { padding: 18px; border-color: #d7e1ed; border-radius: 6px; box-shadow: none; }
 .tenant-operational-settings-page .company-identity-values>div { border-radius: 6px; background: #f7f9fc; }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav { border-color: var(--erp-border); background: var(--erp-surface); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-sidebar-title { color: var(--erp-text); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-sidebar-title small { color: var(--erp-muted); }
-html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav>button.active { border-color: transparent; background: #3b321b; box-shadow: inset 4px 0 var(--nx-primary); }
+html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav>button.active { border-color: transparent; background: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)); box-shadow: inset 4px 0 var(--nx-primary); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-nav>button b { color: var(--erp-text); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-detail { border-color: var(--erp-border); background: var(--erp-surface); }
 html[data-theme="dark"] .tenant-operational-settings-page .tenant-settings-commandbar { border-color: var(--erp-border); background: transparent; box-shadow: none; }

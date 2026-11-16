@@ -288,10 +288,10 @@
   min-width: 0;
   margin: 0 0 14px;
   padding: 12px 14px;
-  border: 1px solid var(--nx-warn);
+  border: 1px solid color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   border-radius: 10px;
   background: var(--nx-warn-bg);
-  color: #704d12;
+  color: var(--nx-warn);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -362,7 +362,7 @@ html[data-theme="dark"] .finance-budget-page .budget-entry-row { border-color: v
 html[data-theme="dark"] .finance-budget-page .budget-empty strong { color: var(--erp-text); }
 html[data-theme="dark"] .finance-budget-page .budget-load-error { border-color: #704448; background: #302125; }
 html[data-theme="dark"] .finance-budget-page .budget-load-error strong { color: #f3aaaa; }
-html[data-theme="dark"] .finance-budget-page .budget-currency-warning { border-color: #66552c; background: #302b1d; color: var(--nx-warn); }
+html[data-theme="dark"] .finance-budget-page .budget-currency-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
 
 /* Ledger workbench: keep plan selection, entry capture and review in a clear
    hierarchy while increasing useful information density. */

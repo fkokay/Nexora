@@ -226,4 +226,4 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table 
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table td { color: var(--erp-text); border-bottom-color: var(--erp-border); }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #243247; }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #3A3421 !important; }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)) !important; }

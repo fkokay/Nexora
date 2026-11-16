@@ -16,7 +16,7 @@
   --dd-link: var(--nx-primary);
   --dd-warn: var(--nx-warn);
   --dd-warn-bg: var(--nx-warn-bg);
-  --dd-warn-line: var(--nx-warn);
+  --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --dd-danger: var(--erp-color-danger);
   --dd-success: #17643c;
   --dd-bar: #2f855a;
@@ -27,8 +27,8 @@ html[data-theme="dark"] .dd-tabs {
   --dd-line-soft: #283043;
   --dd-link: #93c5fd;
   --dd-warn: var(--nx-warn);
-  --dd-warn-bg: #2b2613;
-  --dd-warn-line: #6b5520;
+  --dd-warn-bg: var(--nx-warn-bg);
+  --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --dd-success: #9bdcb6;
   --dd-bar: #48bb78;
   --dd-bar-track: #2a3346;

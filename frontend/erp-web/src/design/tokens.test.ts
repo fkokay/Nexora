@@ -20,6 +20,7 @@ const colorTokens = [
   '--nx-ink', '--nx-ink-2', '--nx-primary', '--nx-primary-strong', '--nx-primary-soft',
   '--nx-canvas', '--nx-surface', '--nx-line', '--nx-line-soft', '--nx-text', '--nx-muted',
   '--nx-ok', '--nx-ok-bg', '--nx-warn', '--nx-warn-bg', '--nx-bad', '--nx-bad-bg', '--nx-changed',
+  '--nx-primary-on-ink',
 ]
 const otherTokens = [
   '--nx-font', '--nx-font-mono', '--nx-radius-control', '--nx-radius-card',
@@ -101,6 +102,11 @@ describe('design tokens', () => {
     for (const a of ['--credit-ink', '--credit-muted']) {
       expect(resolveAlias(globalComponents, a), a).toMatch(/^var\(--nx-(text|muted)\)$/)
     }
+  })
+
+  it('--nx-primary-on-ink is readable on --nx-ink in both themes', () => {
+    expect(contrast(light['--nx-primary-on-ink'], light['--nx-ink'])).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(dark['--nx-primary-on-ink'], dark['--nx-ink'])).toBeGreaterThanOrEqual(4.5)
   })
 
   it('dark text/surface pairs meet 4.5:1', () => {

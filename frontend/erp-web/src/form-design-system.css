@@ -276,7 +276,7 @@ html[data-theme="dark"] .customer-create-page-surface,
 html[data-theme="dark"] .customer-create-page-heading,
 html[data-theme="dark"] .customer-create-tabs { border-color: #30394d; background: #171d2b; }
 html[data-theme="dark"] .customer-create-page-title>div>p:last-child { color: #a9b7c9; }
-html[data-theme="dark"] .customer-create-page-icon { background: #3b321b; color: var(--nx-primary-strong); }
+html[data-theme="dark"] .customer-create-page-icon { background: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .customer-create-fields { background: #111827; }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section { border-color: #30394d; background: #171d2b; }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend { border-color: #30394d; background: #20293a; color: #e6edf5; }
@@ -359,7 +359,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea) { border-radius: 7px; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section :is(input, select, textarea):hover { border-color: #aebed0; }
 .app-shell:not(.standalone-studio) .customer-create-page-error { border-radius: 8px; }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page-icon { border-color: #554a2b; background: #3b321b; color: var(--nx-primary-strong); }
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-page-icon { border-color: color-mix(in srgb, var(--nx-primary) 40%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button:hover,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs button[aria-current="page"] { background: #242b3b; }
 @media (max-width: 760px) {

@@ -24,7 +24,7 @@ html[data-theme="dark"] .record-form {
   --rf-text: #edf3fb;
   --rf-label: #c7d1df;
   --rf-muted: #9aa9bd;
-  --rf-must-bg: #2b2613;
+  --rf-must-bg: var(--nx-warn-bg);
 }
 
 /* Komut çubuğu */
@@ -263,7 +263,7 @@ html[data-theme="dark"] .record-form .rf-req { color: #ff8a80; }
 }
 .record-form .rf-status-warning { color: #8a4b00; }
 .record-form .rf-status-notice { color: #14653b; font-weight: 600; }
-html[data-theme="dark"] .record-form .rf-status-warning { color: #f5c26b; }
+html[data-theme="dark"] .record-form .rf-status-warning { color: var(--nx-warn); }
 html[data-theme="dark"] .record-form .rf-status-notice { color: #7ddba8; }
 .record-form .rf-status-end { margin-left: auto; }
 

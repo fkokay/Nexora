@@ -16,7 +16,7 @@
   --fh-link: var(--nx-primary);
   --fh-warn: #8a4b08;
   --fh-warn-bg: #fff6e8;
-  --fh-warn-line: #f1c27d;
+  --fh-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --fh-danger: var(--erp-color-danger);
   --fh-success: #17643c;
   --fh-success-bg: #e8f7ef;
@@ -28,7 +28,7 @@
 html[data-theme="dark"] #root .fh-page {
   --fh-line-soft: #283043;
   --fh-link: #93c5fd;
-  --fh-warn: #f5c27a;
+  --fh-warn: var(--nx-warn);
   --fh-warn-bg: #33261a;
   --fh-warn-line: #7a5320;
   --fh-success: #9bdcb6;

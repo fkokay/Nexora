@@ -347,7 +347,7 @@
   font-size: 13px;
   line-height: 1.55;
 }
-.hr-policy-note { border-color: color-mix(in srgb, #d29128 25%, var(--hr-line)); background: color-mix(in srgb, #d29128 10%, var(--hr-surface)); }
+.hr-policy-note { border-color: color-mix(in srgb, var(--nx-warn) 25%, var(--hr-line)); background: color-mix(in srgb, var(--nx-warn) 10%, var(--hr-surface)); }
 .hr-footnote { margin: 0 3px; color: var(--hr-muted); font-size: 12px; line-height: 1.6; }
 
 .hr-employee-form {
@@ -711,11 +711,11 @@ html[data-theme="dark"] .hr-filter-card { border-color: var(--hr-line); backgrou
 #root .hr-page .hr-table :is(th, td).hr-col-number { text-align: right; font-variant-numeric: tabular-nums; }
 #root .hr-page .hr-table :is(th, td).hr-col-actions { width: 52px; text-align: right; }
 #root .hr-page .hr-status { white-space: nowrap; }
-#root .hr-page .hr-status--pending { border-color: var(--nx-warn); background: var(--nx-warn-bg); color: var(--nx-warn); }
+#root .hr-page .hr-status--pending { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
 #root .hr-page .hr-status--approved { border-color: #b7e0c8; background: #eaf7ef; color: #17643a; }
 #root .hr-page .hr-status--rejected { border-color: #f1c2c4; background: #fdeeee; color: #a2333a; }
 #root .hr-page .hr-status--muted { border-color: var(--hr-line); background: var(--nx-canvas); color: var(--hr-muted); }
-html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: color-mix(in srgb, var(--nx-warn) 18%, var(--nx-surface)); background: #34290f; color: var(--nx-warn); }
+html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: color-mix(in srgb, var(--nx-warn) 18%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
 html[data-theme="dark"] #root .hr-page .hr-status--approved { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
 html[data-theme="dark"] #root .hr-page .hr-status--rejected { border-color: #6a2d33; background: #34171b; color: #f3a6ab; }
 html[data-theme="dark"] #root .hr-page .hr-status--muted { border-color: #34445c; background: #1a2333; color: #9aa7ba; }

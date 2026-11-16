@@ -96,5 +96,5 @@ html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-text small {
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-icon,
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-badge { background: #173a2a; color: #8ee0b2; }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-icon,
-html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: #3a2e12; color: var(--nx-primary-strong); }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: var(--nx-warn-bg); color: var(--nx-primary-strong); }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .stock-policy-note-icon { background: #253247; color: #c2cfe0; }

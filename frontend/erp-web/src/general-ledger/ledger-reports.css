@@ -14,7 +14,7 @@
   --glrp-bad: #b42318;
   --glrp-warn: #8a4b08;
   --glrp-warn-bg: #fff6e8;
-  --glrp-warn-line: #f1c27d;
+  --glrp-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --glrp-accent: #1769aa;
   --glrp-select: #eaf2fb;
 }
@@ -26,7 +26,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   --glrp-muted: var(--erp-text-muted);
   --glrp-ok: #6fd3a1;
   --glrp-bad: #f97066;
-  --glrp-warn: #f5c27a;
+  --glrp-warn: var(--nx-warn);
   --glrp-warn-bg: #33261a;
   --glrp-warn-line: #7a5320;
   --glrp-accent: #8ab8f5;

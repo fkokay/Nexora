@@ -122,7 +122,7 @@
 #root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip.is-active { border-color: #b86e12; background: #b86e12; color: #fff; }
 #root .general-ledger-panel.list-v2 .glmp .glrp-table-wrap { overflow: visible; }
 
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip:not(.is-active) { border-color: #7a5320; color: #f5c27a; }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip:not(.is-active) { border-color: #7a5320; color: var(--nx-warn); }
 
 @media (max-width: 760px) {
   #root .general-ledger-panel.list-v2 .glch-table th:nth-child(3),

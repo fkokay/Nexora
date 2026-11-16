@@ -8,9 +8,9 @@
   --ft-accent: #0f6cbd;
   --ft-accent-tint: #eaf3fb;
   --ft-accent-strong: #0f548c;
-  --ft-warn: color-mix(in srgb, var(--nx-warn) 18%, var(--nx-surface));
+  --ft-warn: var(--nx-warn);
   --ft-warn-tint: var(--nx-warn-bg);
-  --ft-warn-border: var(--nx-warn);
+  --ft-warn-border: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --ft-danger: var(--erp-color-danger);
   --ft-success: #12734a;
   --ft-success-tint: #e9f7f0;
@@ -21,8 +21,8 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page {
   --ft-accent-tint: #1e3045;
   --ft-accent-strong: #b9dcff;
   --ft-warn: var(--nx-warn);
-  --ft-warn-tint: #33291a;
-  --ft-warn-border: #5c4823;
+  --ft-warn-tint: var(--nx-warn-bg);
+  --ft-warn-border: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --ft-danger: #f19999;
   --ft-success: #7fd8ad;
   --ft-success-tint: #18322a;

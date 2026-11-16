@@ -87,7 +87,7 @@
 .op-project-dashboard article{position:relative;min-height:91px;gap:5px;padding:13px 15px 12px 17px;overflow:hidden;border-color:#dce5ef;border-radius:10px;box-shadow:0 3px 12px #183b6508}
 .op-project-dashboard article::before{position:absolute;inset:0 auto 0 0;width:3px;background:#2581c9;content:""}
 .op-project-dashboard article:nth-child(2)::before{background:#35a27a}
-.op-project-dashboard article:nth-child(3)::before{background:#e2a13a}
+.op-project-dashboard article:nth-child(3)::before{background:var(--nx-muted)}
 .op-project-dashboard article:nth-child(4)::before{background:var(--nx-primary)}
 .op-project-dashboard article:nth-child(5)::before{background:#4d91a7}
 .op-project-dashboard small{color:#718198;font-size:10px}

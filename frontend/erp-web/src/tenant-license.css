@@ -6,7 +6,7 @@
 .tenant-license-command-summary { display: flex; flex-wrap: wrap; gap: 0; align-items: center; min-height: 38px; border: 1px solid #d6e0ec; border-radius: 6px; background: #fff; color: #455b77; font-size: 10px; }
 .tenant-license-command-summary>span { display: inline-flex; gap: 7px; align-items: center; padding: 8px 13px; border-right: 1px solid #e5ebf2; }
 .tenant-license-command-summary>span:last-child { border-right: 0; }
-.tenant-license-command-summary i { width: 7px; height: 7px; border-radius: 50%; background: #d3932a; }
+.tenant-license-command-summary i { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-primary); }
 .tenant-license-command-summary i.is-active { background: #17814c; box-shadow: 0 0 0 3px #17814c1a; }
 .tenant-license-workbench .license-current,.tenant-license-workbench .license-activation { margin: 0; border: 1px solid #d6e0ec; border-radius: 7px; box-shadow: 0 1px 2px #1f35560a; }
 .tenant-license-workbench .license-current .panel-heading { padding-bottom: 12px; border-bottom: 1px solid #e6ebf2; }

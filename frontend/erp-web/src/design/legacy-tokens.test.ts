@@ -71,17 +71,23 @@ function toHsl(m: RegExpMatchArray): { h: number; s: number; l: number } | null 
 // Purple/violet family: hue 235-300, saturation >= 0.20, not near-black/near-white
 // (the 0.95-0.995 band is pale lilac tint, also forbidden; pure white stays allowed).
 const isPurple = ({ h, s, l }: { h: number; s: number; l: number }) => h >= 235 && h <= 300 && s >= 0.2 && l >= 0.08 && l < 0.995
-const isGold = ({ h, s }: { h: number; s: number; l: number }) => h >= 38 && h <= 52 && s >= 0.6
+// Gold/amber/olive: saturated gold (hue 38-52, s >= 0.6) plus the muted dark-theme olive/brown backgrounds
+// (hue 35-60, s >= 0.15, lightness 0.08-0.95) that sat behind accent text.
+const isGold = ({ h, s, l }: { h: number; s: number; l: number }) =>
+  (h >= 38 && h <= 52 && s >= 0.6) || (h >= 35 && h <= 60 && s >= 0.15 && l >= 0.08 && l <= 0.95)
 
 // Gold is allowed ONLY for the brand logo mark: the login/launcher/sidebar/topbar "N" badge and wordmark.
 // Selectors (and the --nexora-brand-gold custom property) listed here are the complete allowlist.
 const brandMark = /brand-mark|auth-logo|auth-wordmark|side-brand|topbar-brand|module-launcher-brand/
-function isBrandMark(code: string, index: number): boolean {
+// The launcher background "custom color" swatch is a hue picker (conic-gradient across the whole wheel),
+// so amber and violet stops are the point of the control, not an accent.
+const huePicker = /launcher-background-custom/
+function isAllowed(code: string, index: number): boolean {
   const open = code.lastIndexOf('{', index)
   const selector = code.slice(Math.max(code.lastIndexOf('}', open), code.lastIndexOf(';', open)) + 1, open)
   const declStart = Math.max(code.lastIndexOf(';', index), open)
   const declaration = code.slice(declStart + 1, index)
-  return brandMark.test(selector) || /--nexora-brand-gold\s*:/.test(declaration)
+  return brandMark.test(selector) || huePicker.test(selector) || /--nexora-brand-gold\s*:/.test(declaration)
 }
 
 describe('legacy stylesheets converge on --nx tokens', () => {
@@ -116,7 +122,7 @@ describe('legacy stylesheets converge on --nx tokens', () => {
         const family = isPurple(hsl) ? 'purple' : isGold(hsl) ? 'gold' : null
         if (!family) continue
         const line = code.slice(0, m.index).split('\n').length
-        if (family === 'gold' && isBrandMark(code, m.index ?? 0)) continue
+        if (isAllowed(code, m.index ?? 0)) continue
         hits.push(`${name}:${line} ${family} ${m[0]}`)
       }
       return hits

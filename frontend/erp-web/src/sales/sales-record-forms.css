@@ -176,7 +176,7 @@
   --sales-payable-text: #172b45;
 }
 html[data-theme="dark"] .record-form.sales-rf {
-  --sales-payable-bg: #2b2613;
+  --sales-payable-bg: var(--nx-warn-bg);
   --sales-payable-text: var(--nx-primary-strong);
 }
 .record-form.sales-rf .rf-form .sales-invoice-note-counter { color: var(--rf-muted); }
