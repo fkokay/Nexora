@@ -218,4 +218,50 @@ describe('command registry', () => {
     expect(r.handleKeyDown(key({ key: 's', ctrlKey: true }), idle)).toBe(true);
     expect(run).toHaveBeenCalled();
   });
+
+  it('keeps registrations of a view and source ordered: first wins, next takes over', () => {
+    const r = createCommandRegistry();
+    const first = vi.fn();
+    const second = vi.fn();
+    r.setActiveView('v');
+    const removeFirst = r.register('v', 'grid', { export: { run: first } });
+    r.register('v', 'grid', { export: { run: second } });
+    r.getActive()?.export?.run?.();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    removeFirst();
+    r.getActive()?.export?.run?.();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('a slot keeps its position when its commands are replaced', () => {
+    const r = createCommandRegistry();
+    const first = vi.fn();
+    const firstV2 = vi.fn();
+    const second = vi.fn();
+    r.setActiveView('v');
+    const slot = r.openSlot('v', 'list');
+    slot.set({ filter: { run: first } });
+    r.register('v', 'list', { filter: { run: second } });
+    slot.set({ filter: { run: firstV2 } });
+    r.getActive()?.filter?.run?.();
+    expect(firstV2).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it('notifies subscribers and keeps getActive stable between changes on handover', () => {
+    const r = createCommandRegistry();
+    const listener = vi.fn();
+    r.setActiveView('v');
+    const removeFirst = r.register('v', 'grid', { export: { run: vi.fn() } });
+    r.register('v', 'grid', { export: { run: vi.fn() } });
+    r.subscribe(listener);
+    const before = r.getActive();
+    expect(r.getActive()).toBe(before);
+    removeFirst();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(r.getActive()).not.toBe(before);
+    expect(r.getActive()).toBe(r.getActive());
+  });
 });

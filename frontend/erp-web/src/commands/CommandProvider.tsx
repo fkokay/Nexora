@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { createCommandRegistry, type CommandRegistry } from './registry';
+import { createCommandRegistry, type CommandRegistry, type CommandSlot } from './registry';
 import type { CommandSource, MenuCommand, PageCommands, StandardCommandId } from './types';
 import { STANDARD_SHORTCUTS } from './shortcuts';
 
@@ -76,20 +76,27 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
 }
 
 /**
- * `firstWins`: skip registering when the view already has commands from this source (several grids in one view:
- * the first one mounted keeps the slot; it is not handed over if that grid unmounts).
+ * Registrations sharing a (view, source) are first-wins: the earliest mounted one is effective and the next takes
+ * over when it unmounts. A handler/structure change updates the slot in place, so it keeps its position.
  */
-export function usePageCommands(commands: PageCommands, source: CommandSource = 'page', options?: { firstWins?: boolean }): void {
+export function usePageCommands(commands: PageCommands, source: CommandSource = 'page'): void {
   const registry = useCommandRegistry();
   const viewKey = useContext(ViewKeyContext);
   const ref = useRef(commands);
   ref.current = commands;
+  const slotRef = useRef<CommandSlot | null>(null);
   const signature = structureSignature(commands);
-  const firstWins = Boolean(options?.firstWins);
   useEffect(() => {
-    if (firstWins && registry.hasSource(viewKey, source)) return;
-    return registry.register(viewKey, source, buildStable(ref));
-  }, [registry, viewKey, source, firstWins, signature]);
+    const slot = registry.openSlot(viewKey, source);
+    slotRef.current = slot;
+    return () => {
+      slotRef.current = null;
+      slot.remove();
+    };
+  }, [registry, viewKey, source]);
+  useEffect(() => {
+    slotRef.current?.set(buildStable(ref));
+  }, [registry, viewKey, source, signature]);
 }
 
 export function useActivePageCommands(): PageCommands | undefined {

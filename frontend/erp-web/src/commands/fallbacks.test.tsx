@@ -5,7 +5,6 @@ import AdvancedDataGrid from '../AdvancedDataGrid';
 import { ListToolbar } from '../list-page/ListToolbar';
 import { CommandProvider, useActivePageCommands, usePageCommands } from './CommandProvider';
 import { useCommandRegistry } from './CommandProvider';
-import { createCommandRegistry } from './registry';
 import type { PageCommands } from './types';
 
 beforeAll(() => {
@@ -52,24 +51,54 @@ describe('fallback commands', () => {
     expect(active?.export?.run).toBeTypeOf('function');
   });
 
-  it('grid keeps the first registration when a view holds several grids', () => {
-    render(
+  it('with several grids in one view the first wins and the next takes over on unmount', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    function Spy({ run }: { run: () => void }) {
+      usePageCommands({ export: { run } }, 'grid');
+      return null;
+    }
+    const tree = (showFirst: boolean, firstRun = first) => (
       <CommandProvider>
         <Probe />
-        <Grid />
-        <Grid />
-      </CommandProvider>,
+        {showFirst && <Spy run={firstRun} />}
+        <Spy run={second} />
+      </CommandProvider>
     );
-    expect(active?.export?.run).toBeTypeOf('function');
+    const { rerender } = render(tree(true));
+    act(() => void active?.export?.run?.());
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    // A handler change on the first keeps its position.
+    const firstV2 = vi.fn();
+    rerender(tree(true, firstV2));
+    act(() => void active?.export?.run?.());
+    expect(firstV2).toHaveBeenCalledTimes(1);
+    rerender(tree(false));
+    act(() => void active?.export?.run?.());
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it('registry reports whether a source is registered for a view', () => {
-    const registry = createCommandRegistry();
-    const unregister = registry.register('v', 'grid', { export: { run: vi.fn() } });
-    expect(registry.hasSource('v', 'grid')).toBe(true);
-    expect(registry.hasSource('v', 'list')).toBe(false);
-    unregister();
-    expect(registry.hasSource('v', 'grid')).toBe(false);
+  it('first slot keeps its position when its command structure changes', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    function Spy({ run, withFilter }: { run: () => void; withFilter?: boolean }) {
+      usePageCommands(withFilter ? { export: { run }, filter: { run } } : { export: { run } }, 'grid');
+      return null;
+    }
+    const tree = (withFilter: boolean) => (
+      <CommandProvider>
+        <Probe />
+        <Spy run={first} withFilter={withFilter} />
+        <Spy run={second} />
+      </CommandProvider>
+    );
+    const { rerender } = render(tree(false));
+    rerender(tree(true));
+    act(() => void active?.export?.run?.());
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    expect(active?.filter).toBeDefined();
   });
 
   it('list toolbar registers filter that focuses the search input', () => {

@@ -1030,7 +1030,7 @@ export default function AdvancedDataGrid({
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  usePageCommands({ export: { run: () => exportExcel() } }, "grid", { firstWins: true });
+  usePageCommands({ export: { run: () => exportExcel() } }, "grid");
   async function exportExcel() {
     const XLSX = await import("xlsx");
     const exportColumns = visibleColumns.filter((index) => !["işlemler", "actions"].includes((columns[index]?.label || "").trim().toLocaleLowerCase("tr-TR")));

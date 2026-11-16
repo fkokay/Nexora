@@ -16,10 +16,16 @@ export type GlobalCommand = {
   allowInModal?: boolean;
 };
 
+export type CommandSlot = { set(commands: PageCommands): void; remove(): void };
+
 export type CommandRegistry = {
+  /**
+   * Several registrations may share a (view, source): the earliest-registered one that is still mounted is
+   * effective (first wins); when it is removed the next one takes over.
+   */
   register(viewKey: string, source: CommandSource, commands: PageCommands): () => void;
-  /** True when `source` already has commands registered for `viewKey`. */
-  hasSource(viewKey: string, source: CommandSource): boolean;
+  /** Like `register`, but `set` replaces the commands while keeping the slot's position in the order. */
+  openSlot(viewKey: string, source: CommandSource): CommandSlot;
   setActiveView(viewKey: string): void;
   getActive(): PageCommands | undefined;
   registerGlobal(command: GlobalCommand): () => void;
@@ -45,7 +51,8 @@ function isFunctionKey(key: string): boolean {
 }
 
 export function createCommandRegistry(): CommandRegistry {
-  const views = new Map<string, Partial<Record<CommandSource, PageCommands>>>();
+  type Slot = { commands?: PageCommands };
+  const views = new Map<string, Partial<Record<CommandSource, Slot[]>>>();
   const globals: GlobalCommand[] = [];
   const listeners = new Set<() => void>();
   let activeView: string | undefined;
@@ -63,14 +70,15 @@ export function createCommandRegistry(): CommandRegistry {
     const merged: PageCommands = {};
     for (const id of STANDARD_IDS) {
       for (const source of SOURCE_PRECEDENCE) {
-        const spec = sources[source]?.[id];
+        const spec = sources[source]?.find((slot) => slot.commands)?.commands?.[id];
         if (spec) {
           merged[id] = spec;
           break;
         }
       }
     }
-    if (sources.page?.more) merged.more = sources.page.more;
+    const pageMore = sources.page?.find((slot) => slot.commands)?.commands?.more;
+    if (pageMore) merged.more = pageMore;
     return merged;
   }
 
@@ -87,23 +95,33 @@ export function createCommandRegistry(): CommandRegistry {
     void run();
   }
 
-  return {
-    register(viewKey, source, commands) {
+  const registry: CommandRegistry = {
+    openSlot(viewKey, source) {
       const entry = views.get(viewKey) ?? {};
-      entry[source] = commands;
+      const slot: Slot = {};
+      (entry[source] ??= []).push(slot);
       views.set(viewKey, entry);
-      changed();
-      return () => {
-        const current = views.get(viewKey);
-        if (!current || current[source] !== commands) return;
-        delete current[source];
-        if (!current.page && !current.list && !current.grid) views.delete(viewKey);
-        changed();
+      return {
+        set(commands) {
+          slot.commands = commands;
+          changed();
+        },
+        remove() {
+          const list = views.get(viewKey)?.[source];
+          const index = list ? list.indexOf(slot) : -1;
+          if (!list || index < 0) return;
+          list.splice(index, 1);
+          if (!list.length) delete views.get(viewKey)![source];
+          if (!Object.keys(views.get(viewKey)!).length) views.delete(viewKey);
+          changed();
+        },
       };
     },
 
-    hasSource(viewKey, source) {
-      return Boolean(views.get(viewKey)?.[source]);
+    register(viewKey, source, commands) {
+      const slot = registry.openSlot(viewKey, source);
+      slot.set(commands);
+      return slot.remove;
     },
 
     setActiveView(viewKey) {
@@ -174,4 +192,5 @@ export function createCommandRegistry(): CommandRegistry {
       return false;
     },
   };
+  return registry;
 }
