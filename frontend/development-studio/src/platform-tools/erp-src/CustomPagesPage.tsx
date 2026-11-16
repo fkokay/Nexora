@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
+import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
@@ -876,6 +877,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <div><dt>Son kayıt</dt><dd>{current ? new Date(current.updatedAt).toLocaleString("tr-TR") : "Kaydedilmedi"}</dd></div>
           </dl>
           <div className="pd-shortcuts"><b>Kısayollar</b><span><kbd>Ctrl</kbd>+<kbd>S</kbd> Kaydet</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> Geri al / yinele</span><span><kbd>Ctrl</kbd>+<kbd>D</kbd> Kopyala</span><span><kbd>Delete</kbd> Sil · <kbd>Alt</kbd>+<kbd>↑↓</kbd> Taşı</span></div>
+          {current && role === "TenantAdmin" && <CustomPageAccessPanel key={current.code} token={token} pageCode={current.code} hasQueries={Array.isArray((definition as { queries?: unknown }).queries) && ((definition as { queries?: unknown[] }).queries?.length ?? 0) > 0}/>}
           {current && capabilities?.canDelete && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
         </div>}
       </aside>
