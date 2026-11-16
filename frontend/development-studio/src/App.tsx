@@ -187,7 +187,11 @@ function readTenant(): Tenant | null {
 
 function roleLabel(role: string) {
   return (
-    ({ TenantAdmin: "Firma yöneticisi", TenantUser: "Kullanıcı" } as Record<
+    ({
+      TenantAdmin: "Firma yöneticisi",
+      TenantUser: "Kullanıcı",
+      Developer: "Geliştirici",
+    } as Record<
       string,
       string
     >)[role] || role
@@ -262,6 +266,8 @@ function EmptyState({
 
 const requestStatusTone: Record<string, string> = {
   Submitted: "is-warning",
+  Planned: "is-accent",
+  InReview: "is-warning",
   InProgress: "is-info",
   Completed: "is-success",
   Rejected: "is-danger",
@@ -1207,6 +1213,8 @@ export default function App() {
   const statusLabel = (status: string) =>
     ({
       Submitted: "Alındı",
+      Planned: "Planlandı",
+      InReview: "İncelemede",
       InProgress: "Devam ediyor",
       Completed: "Tamamlandı",
       Rejected: "Reddedildi",
