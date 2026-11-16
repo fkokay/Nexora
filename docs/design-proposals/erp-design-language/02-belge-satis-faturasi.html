@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Belge ekranı — Satış Faturası</title>
+<style>
+
+:root{--ink:#0f1b2d;--ink2:#1a2a40;--pri:#1f5fd1;--pri-d:#1846a3;--pri-soft:#e8f0fd;--bg:#f3f5f8;--line:#dfe3e9;--line2:#eef1f4;--tx:#1b2430;--mut:#667085;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b45309;--warn-bg:#fdf1e1;--bad:#c4321f;--bad-bg:#fde9e6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto;margin-bottom:14px}
+.nx{min-width:1720px;font-size:12.5px;display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.k{font-family:Consolas,monospace;font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;white-space:nowrap}
+/* sidebar */
+.side{width:58px;background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0}
+.side .lg{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1f5fd1);margin-bottom:10px}
+.side .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8193ab;font-size:10px;flex-direction:column;gap:1px}
+.side .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.side .ic.on{background:var(--ink2);color:#fff;box-shadow:inset 3px 0 0 #3b82f6}
+.sub-nav{width:178px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.sub-nav .h{font-weight:650;font-size:13.5px;padding:2px 8px 10px}
+.sub-nav .it{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between;color:#344054}
+.sub-nav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.sub-nav .it small{color:var(--mut)}
+.sub-nav .g{font-size:10px;letter-spacing:.08em;color:var(--mut);margin:14px 8px 4px}
+.sub-nav .fav{color:#344054;padding:5px 8px;display:flex;gap:6px}
+.sub-nav .fav b{color:#e0a100}
+/* app */
+.app{flex:1;display:flex;flex-direction:column;min-width:0}
+.topb{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.srch{width:320px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+.wtabs{display:flex;gap:2px;flex:1;align-self:flex-end}
+.wtabs span{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0;background:var(--bg);color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
+.wtabs .on{background:#fff;color:var(--tx);font-weight:600;position:relative;top:1px}
+.wtabs i{font-style:normal;color:#98a2b3}
+.tr{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12px}
+.bell{position:relative}.bell b{position:absolute;top:-6px;right:-8px;background:var(--bad);color:#fff;border-radius:999px;font-size:9px;padding:0 4px}
+.av{width:26px;height:26px;border-radius:50%;background:#dbe6fb;color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.page{background:#fff;flex:1;display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.ph .bc{color:var(--mut);font-size:11.5px}
+.ph h2{margin:1px 0 0;font-size:19px;font-weight:650;display:flex;gap:10px;align-items:center}
+.ph h2 .star{color:#e0a100;font-size:15px}
+.vsel{border:1px solid var(--line);border-radius:7px;padding:5px 10px;display:flex;gap:8px;align-items:center;color:#344054}
+.vsel b{color:var(--tx)}
+.vtabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.vtabs span{padding:7px 12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.vtabs span em{font-style:normal;background:#eef0f3;border-radius:999px;padding:0 7px;font-size:11px;color:#475467}
+.vtabs .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.vtabs .on em{background:var(--pri-soft);color:var(--pri-d)}
+.vtabs .r em{background:var(--bad-bg);color:var(--bad)}
+.vtabs .add{color:var(--pri)}
+.bar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.b{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--tx);font-weight:500;white-space:nowrap}
+.b svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.b.pri{background:var(--pri);color:#fff}.b.pri .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.b.off{opacity:.38}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.b.more{border:1px solid var(--line);background:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:6px}
+.seg span{padding:4px 8px;color:var(--mut)}.seg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+/* body */
+.wrap{display:flex;flex:1;min-height:0}
+.facet{width:200px;border-right:1px solid var(--line);padding:12px 12px;background:#fcfcfd;flex-shrink:0}
+.facet .ft{display:flex;justify-content:space-between;font-weight:650;margin-bottom:8px}
+.facet .ft a{font-weight:400;color:var(--pri);font-size:11.5px}
+.facet .fg{margin-bottom:14px}
+.facet .fg .t{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-bottom:5px;text-transform:uppercase}
+.facet .o{display:flex;align-items:center;gap:7px;padding:3px 0;color:#344054}
+.facet .o small{margin-left:auto;color:var(--mut)}
+.cb{width:13px;height:13px;border:1.5px solid #b8c0cc;border-radius:3px;display:inline-block;flex-shrink:0;position:relative;background:#fff}
+.cb.on{background:var(--pri);border-color:var(--pri)}
+.cb.on::after{content:"";position:absolute;left:3px;top:0px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rng{height:4px;background:#e8ebef;border-radius:3px;position:relative;margin:10px 4px 6px}
+.rng i{position:absolute;left:0;width:35%;height:100%;background:var(--pri);border-radius:3px}
+.rng b{position:absolute;top:-5px;width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--pri)}
+.rngl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px 4px}
+.mk>div{border:1px solid var(--line);border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:10px}
+.mk .icn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mk .tx{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.mk small{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.mk b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
+.mk .tr2{font-size:11px}
+.mk svg.sp{margin-left:auto;width:70px;height:26px}
+.mk .act{border-color:#f0b4ab;background:#fff8f7}
+.chips{display:flex;gap:6px;padding:8px 14px;align-items:center;flex-wrap:wrap}
+.q{width:340px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.r{border-color:#f0b4ab;background:var(--bad-bg);color:var(--bad)}
+.chips .clr{color:var(--pri);font-size:12px}
+.chips .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px}
+.gridw{flex:1;min-height:0;position:relative;border-top:1px solid var(--line);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:#475467;background:#f7f8fa;padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+th .fi{color:#98a2b3;margin-left:3px;font-size:10px}
+th.s{color:var(--pri-d)}
+td{padding:6px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:Consolas,monospace;font-size:12px;color:#344054}
+tr.grp td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px}
+tr.grp td .c{color:var(--mut);font-weight:400}
+tr.sel td{background:var(--pri-soft)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+tr.chk td{background:#f5f9ff}
+tr.tot td{background:#f7f8fa;font-weight:650;border-top:1px solid var(--line)}
+.tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}.t-off{background:#eef0f3;color:#667085}
+.low{color:var(--bad);font-weight:600}
+.lvl{display:inline-block;width:44px;height:5px;border-radius:3px;background:#e8ebef;vertical-align:middle;margin-left:6px;overflow:hidden}
+.lvl i{display:block;height:100%}
+.edit{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important;border-radius:3px}
+.edit::after{content:"|";color:var(--pri);margin-left:1px}
+.thumb{width:22px;height:22px;border-radius:5px;background:#eef1f5;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid var(--line2)}
+.bulk{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:7px 8px 7px 14px;display:flex;gap:4px;align-items:center;box-shadow:0 8px 24px rgba(15,27,45,.35);white-space:nowrap}
+.bulk b{margin-right:8px}
+.bulk span{padding:5px 9px;border-radius:6px;color:#d6deea}
+.bulk span:hover{background:var(--ink2)}
+.bulk .x{color:#8193ab}
+/* detail */
+.det{width:330px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.det .hd{padding:12px 14px 8px;border-bottom:1px solid var(--line2)}
+.det .hd .top{display:flex;justify-content:space-between;color:var(--mut)}
+.det h3{margin:4px 0 6px;font-size:15px}
+.det .dt{display:flex;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}
+.det .dt span{padding:8px 0;color:var(--mut)}.det .dt .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.det .bd{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.st4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st4 div{background:#f7f8fa;border-radius:8px;padding:7px 9px}
+.st4 small{display:block;color:var(--mut);font-size:11px}
+.st4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.sect{font-size:11px;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;display:flex;justify-content:space-between}
+.sect a{color:var(--pri);text-transform:none;letter-spacing:0}
+.whr{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:2px 0}
+.whr .br{height:7px;background:#eef1f4;border-radius:4px;overflow:hidden}.whr .br i{display:block;height:100%;background:var(--pri)}
+.whr b{text-align:right}
+.sugg{border:1px solid #f3cf9c;background:#fffaf2;border-radius:8px;padding:9px 11px;font-size:12px}
+.sugg b{color:var(--warn)}
+.sugg .btns{display:flex;gap:6px;margin-top:7px}
+.sugg .btns span{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px}
+.sugg .btns .p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.foot{display:flex;justify-content:space-between;padding:7px 16px;border-top:1px solid var(--line);background:#fafbfc;color:var(--mut);font-size:11.5px}
+.foot b{color:var(--tx)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin:0 0 34px}
+.notes div{border-left:3px solid var(--pri);padding:2px 10px;background:#fff;border-radius:0 6px 6px 0}
+/* form */
+.fh{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line)}
+.fh .id{display:flex;gap:12px;align-items:center}
+.fh .img{width:46px;height:46px;border-radius:9px;background:#eef1f5;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:10px}
+.fh h2{margin:0;font-size:18px;font-weight:650}
+.fh .m{color:var(--mut);font-size:12px;margin-top:3px;display:flex;gap:10px;align-items:center}
+.fh .rt{display:flex;gap:10px;align-items:center;color:var(--mut)}
+.dirty{color:var(--warn);display:flex;gap:6px;align-items:center}.dirty i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rnav{display:flex;border:1px solid var(--line);border-radius:6px}.rnav span{padding:3px 8px}.rnav span+span{border-left:1px solid var(--line)}
+.fbody{display:flex;flex:1;min-height:0;background:var(--bg);overflow:hidden}
+.snav{width:210px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.snav .it{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;color:#344054}
+.snav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.snav .st{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.snav .done{background:var(--ok-bg);color:var(--ok)}.snav .err{background:var(--bad-bg);color:var(--bad)}.snav .emp{border:1.5px solid #cfd5dd}
+.snav .it small{margin-left:auto;color:var(--mut)}
+.snav .prog{margin:14px 8px 0;font-size:11.5px;color:var(--mut)}
+.snav .pb{height:5px;background:#eef1f4;border-radius:3px;margin-top:5px;overflow:hidden}.snav .pb i{display:block;width:72%;height:100%;background:var(--ok)}
+.fmain{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card .ct{font-weight:650;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card .ct small{font-weight:400;color:var(--mut)}
+.fg3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.w2{grid-column:span 2}.w3{grid-column:span 3}
+.f label{display:flex;justify-content:space-between;font-size:11.5px;color:#475467;margin-bottom:3px;font-weight:500}
+.f label b{color:var(--bad)}.f label i{font-style:normal;color:#98a2b3;font-weight:400}
+.inp{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;background:#fff;min-height:31px;display:flex;justify-content:space-between;align-items:center}
+.inp.focus{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.inp.ro{background:#f6f7f9;color:var(--mut)}
+.inp.errb{border-color:var(--bad);background:#fffafa}
+.inp .suf{color:var(--mut);font-size:11.5px}
+.hint{font-size:11px;color:var(--mut);margin-top:3px}.hint.e{color:var(--bad)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:var(--pri);position:relative;vertical-align:middle;margin-right:6px}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.ut td,.ut th{padding:5px 8px}
+.ut td{border-bottom:1px solid var(--line2)}
+.ut .add{color:var(--pri)}
+.ctx{width:300px;padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.rel{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.rel .code{font-size:11.5px}
+.tl{position:relative;padding-left:14px;font-size:12px;color:#344054}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.tl div{position:relative;padding:3px 0}
+.tl div::before{content:"";position:absolute;left:-13px;top:8px;width:7px;height:7px;border-radius:50%;background:#cfd5dd}
+.tl div:first-child::before{background:var(--pri)}
+.tl small{color:var(--mut)}
+/* ===== belge ekranı ek sınıfları ===== */
+.fh .docic{width:46px;height:46px;border-radius:9px;background:var(--pri-soft);border:1px solid #c9dbf8;display:flex;align-items:center;justify-content:center;color:var(--pri-d);font-weight:700;font-size:12px}
+.fh h2{display:flex;gap:8px;align-items:center}
+.fh h2 .code{font-size:17px;color:var(--tx);font-weight:650}
+.fh h2 .cari{font-weight:500;color:#344054}
+.fh .mid{display:flex;align-items:center;align-self:center}
+.step{display:flex;align-items:center}
+.step .s{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:12px;white-space:nowrap}
+.step .s i{width:20px;height:20px;border-radius:50%;border:1.5px solid #cfd5dd;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:700;background:#fff;color:#98a2b3}
+.step .s.cur{color:var(--pri-d);font-weight:650}
+.step .s.cur i{background:var(--pri);border-color:var(--pri);color:#fff;box-shadow:0 0 0 3px #d6e4fc}
+.step .ln{width:42px;height:2px;background:#e3e7ec;margin:0 8px}
+.bar{position:relative}
+.b.more.open{border-color:var(--pri);background:var(--pri-soft);color:var(--pri-d)}
+.menu{position:absolute;right:12px;top:calc(100% - 2px);width:310px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 32px rgba(15,27,45,.18);padding:6px;z-index:20}
+.menu .mh{font-size:10.5px;letter-spacing:.07em;color:var(--mut);padding:6px 9px 4px;text-transform:uppercase}
+.menu .mi{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:6px;color:var(--tx)}
+.menu .mi svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.menu .mi .k{margin-left:auto}
+.menu .mi.hl{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.menu .mi.off{opacity:.42}
+.menu .mi small{display:block;color:var(--mut);font-size:10.5px;font-weight:400}
+.menu .ms{height:1px;background:var(--line2);margin:4px 2px}
+.fmain{padding:12px 14px;gap:10px;overflow:hidden}
+.card.tight{padding:10px 12px}
+.card.tight .ct{margin-bottom:8px}
+.fg4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 12px}
+.inp.sm{min-height:29px;padding:4px 8px}
+.risk{display:flex;gap:8px;align-items:center;font-size:11px;margin-top:3px;color:var(--mut);white-space:nowrap}
+.risk b{color:var(--tx)}
+.risk .warnx{color:var(--bad);font-weight:600}
+/* satır ızgarası */
+.lines{flex:1;display:flex;flex-direction:column;min-height:0;padding:0;position:relative}
+.lines .ct{padding:9px 12px 0;margin-bottom:0}
+.lines .lh{display:flex;gap:14px;align-items:center;color:var(--mut);font-size:11.5px;font-weight:400}
+.lgw{flex:1;min-height:0;margin-top:5px;border-top:1px solid var(--line)}
+table.lg{table-layout:fixed}
+table.lg th{padding:6px 8px}
+table.lg td{padding:0 8px;height:31px;border-right:1px solid var(--line2);overflow:hidden;text-overflow:ellipsis}
+table.lg td:last-child,table.lg th:last-child{border-right:none}
+table.lg td.ix{color:#98a2b3;text-align:center;font-size:11px;background:#fafbfc}
+table.lg tr.wr td{background:#fffaf2}
+table.lg tr.wr td.ix{box-shadow:inset 3px 0 0 #e0a100;color:var(--warn);font-weight:700}
+table.lg tr.act td{background:#f5f9ff}
+table.lg tr.act td.ix{box-shadow:inset 3px 0 0 var(--pri);color:var(--pri-d);font-weight:700}
+table.lg td.cell{position:relative;overflow:visible}
+table.lg td.ed{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important}
+table.lg td.ed .cur{color:var(--pri)}
+table.lg tr.nw td{color:#98a2b3;background:#fff}
+table.lg td .w{color:var(--warn);font-weight:650}
+table.lg td .pl,table.lg td.pl{color:#98a2b3}
+.wmsg{font-size:11px;color:var(--warn);display:flex;gap:10px;align-items:center}
+.wmsg a{color:var(--pri);text-decoration:underline;text-underline-offset:2px}
+table.lg tr.wrmsg td{background:#fffaf2;height:25px;border-bottom:1px solid #f3dfbf}
+.ac{position:absolute;left:-2px;top:30px;width:580px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(15,27,45,.22);z-index:15;overflow:hidden;white-space:nowrap;font-family:"Segoe UI",Inter,system-ui,sans-serif}
+.ac .ah{display:flex;justify-content:space-between;padding:6px 10px;background:#f7f8fa;border-bottom:1px solid var(--line);font-size:11px;color:var(--mut)}
+.ac .ar{display:grid;grid-template-columns:86px 1fr 50px 90px 64px;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line2);font-size:12px;color:var(--tx)}
+.ac .ar.hl{background:var(--pri-soft);box-shadow:inset 3px 0 0 var(--pri)}
+.ac .ar mark{background:#fde68a;color:inherit;border-radius:2px;padding:0 1px}
+.ac .ar .q2{text-align:right;font-variant-numeric:tabular-nums}
+.ac .ar.hd2{padding:4px 10px;font-size:10.5px;color:var(--mut);background:#fff}
+.ac .af{padding:6px 10px;font-size:11px;color:var(--mut);display:flex;gap:12px}
+.lfoot{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-top:1px solid var(--line);color:var(--mut);font-size:11.5px;background:#fafbfc;border-radius:0 0 9px 9px}
+.lfoot .hk{display:flex;gap:12px;align-items:center}
+/* alt bölge */
+.lower{display:flex;gap:10px;flex-shrink:0}
+.lower>.card{flex:1;min-width:0}
+.ta{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;min-height:50px;color:#344054;font-size:12px;line-height:1.45}
+.lower>.card.tot{width:400px;flex:none;padding:10px 14px}
+.tot .r{display:flex;justify-content:space-between;padding:2px 0;font-variant-numeric:tabular-nums}
+.tot .r span{color:#475467}
+.tot .r.sm span,.tot .r.sm b{font-size:11.5px;color:var(--mut);font-weight:400}
+.tot .r.sm{padding-left:12px}
+.tot .r.g{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:15px}
+.tot .r.g span{color:var(--tx);font-weight:650}
+.tot .r.g b{color:var(--pri-d);font-size:17px}
+.tot .wr2{font-size:11px;color:var(--mut);margin-top:2px}
+/* bağlam paneli */
+.ctx{width:310px;overflow:hidden;padding:12px 14px 12px 0;gap:10px}
+.ctx .card{padding:10px 12px}
+.ctx .card .ct{margin-bottom:8px}
+.rbar{height:7px;background:#eef1f4;border-radius:4px;position:relative;margin:6px 0 3px}
+.rbar i{position:absolute;top:0;height:100%}
+.rbar i:first-child{border-radius:4px 0 0 4px}
+.rbar .lim{position:absolute;top:-3px;width:2px;height:13px;background:var(--tx)}
+.rleg{display:flex;justify-content:space-between;font-size:11px;color:var(--mut)}
+.chain .c{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;line-height:1.3}
+.chain .c .d{width:24px;height:24px;border-radius:6px;background:#f2f4f7;display:flex;align-items:center;justify-content:center;font-size:10px;color:#475467;font-weight:700;flex-shrink:0}
+.chain .c.me .d{background:var(--pri);color:#fff}
+.chain .c .tag{margin-left:auto}
+.chain .ar2{color:#b8c0cc;font-size:10px;padding-left:8px;line-height:1}
+.kv{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
+.kv span{color:var(--mut)}
+</style></head><body>
+
+<h1>Belge ekranı — Satış Faturası (taslak v1)</h1>
+<p class="sub">Satırlı belgelerin ortak şablonu: sipariş, teklif, irsaliye, satış ve alış faturası aynı iskeleti kullanır. Üstte belge kimliği ve durum akışı, stok ekranıyla aynı işlem çubuğu, sıkı başlık alanları; ekranın kahramanı klavyeyle doldurulan satır ızgarası. Sağda cari riski, aktif satırın stok durumu, belge zinciri ve denetim kaydı; sağ altta toplamlar.</p>
+
+<div class="lbl">KAYIT EKRANI — SATIŞ FATURASI SF-2026-0981 (TASLAK, DÜZENLENİYOR)</div>
+<div class="scroll"><div class="nx" style="height:900px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 21V9l6-4v4l6-4v4l6-4v16z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></div>
+ </div>
+ <div class="sub-nav">
+  <div class="h">Satış</div>
+  <div class="it">Satış Talepleri <small>6</small></div>
+  <div class="it">Teklifler <small>14</small></div>
+  <div class="it">Siparişler <small>38</small></div>
+  <div class="it">İrsaliyeler <small>9</small></div>
+  <div class="it on">Satış Faturaları <small>412</small></div>
+  <div class="it">Satış İadeleri</div>
+  <div class="it">Fiyat Listeleri</div>
+  <div class="it">Kampanyalar</div>
+  <div class="g">SIK KULLANILANLAR</div>
+  <div class="fav"><b>★</b>Taslak faturalarım</div>
+  <div class="fav"><b>★</b>e-Fatura bekleyenler</div>
+  <div class="fav"><b>★</b>Vadesi bu hafta</div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Ekran, kayıt veya komut ara…<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Satış Faturaları <i>×</i></span><span>SS-0411 <i>×</i></span><span class="on">SF-2026-0981 ● <i>×</i></span></div>
+   <div class="tr"><span>001 · Merkez ▾</span><span class="bell">🔔<b>3</b></span><div class="av">FT</div></div>
+  </div>
+  <div class="page">
+   <div class="fh">
+    <div class="id"><div class="docic">SF</div><div>
+     <div class="bc" style="color:var(--mut);font-size:11.5px">Satış › Satış Faturaları ›</div>
+     <h2><span class="code">SF-2026-0981</span><span style="color:#cfd5dd;font-weight:400">·</span><span class="cari">Akdeniz Gıda A.Ş.</span></h2>
+     <div class="m"><span class="tag t-off">Taslak</span><span>e-Fatura · Ticari senaryo</span><span>5 satır</span><span>Oluşturan: FATIH · 16.11.2026 09:42</span></div>
+    </div></div>
+    <div class="mid">
+     <div class="step">
+      <div class="s cur"><i>1</i>Taslak</div><div class="ln"></div>
+      <div class="s"><i>2</i>Onaylı</div><div class="ln"></div>
+      <div class="s"><i>3</i>e-Fatura gönderildi</div><div class="ln"></div>
+      <div class="s"><i>4</i>Tahsil edildi</div>
+     </div>
+    </div>
+    <div class="rt"><div class="dirty"><i></i>3 değişiklik kaydedilmedi</div><div class="rnav"><span>‹ <span class="k">PgUp</span></span><span>7 / 31</span><span><span class="k">PgDn</span> ›</span></div></div>
+   </div>
+   <div class="bar">
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b pri"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <div class="b">↶ Değişiklikleri geri al <span class="k">Ctrl+Z</span></div>
+    <div class="b more open">İşlemler ▴<span class="k">Alt+İ</span></div>
+    <div class="menu">
+     <div class="mh">Belge akışı</div>
+     <div class="mi hl"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg><div>Onayla<small>Taslak → Onaylı · önce kaydedilir</small></div><span class="k">Ctrl+Enter</span></div>
+     <div class="mi off"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-7z"/></svg><div>e-Faturaya gönder<small>Önce onaylanmalı</small></div><span class="k">Ctrl+Shift+G</span></div>
+     <div class="mi off"><svg viewBox="0 0 24 24"><path d="M3 7h18v10H3zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><div>Tahsilat al<small>Onaylı faturada açılır</small></div><span class="k">Ctrl+T</span></div>
+     <div class="ms"></div>
+     <div class="mh">Türet</div>
+     <div class="mi"><svg viewBox="0 0 24 24"><path d="M8 8h12v12H8zM4 16V4h12"/></svg><div>Kopyala<small>Yeni taslak, aynı satırlar</small></div><span class="k">Ctrl+Shift+C</span></div>
+     <div class="mi off"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg><div>İade oluştur<small>Taslak faturadan iade yapılamaz</small></div><span class="k">Ctrl+Shift+R</span></div>
+     <div class="ms"></div>
+     <div class="mi"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div>Siparişten satır çek<small>SS-0411 açık satırları</small></div><span class="k">Ctrl+Shift+O</span></div>
+    </div>
+   </div>
+   <div class="fbody">
+    <div class="fmain">
+     <div class="card tight">
+      <div class="ct">Belge bilgileri <small>* zorunlu · Tab ile ilerle</small></div>
+      <div class="fg4">
+       <div class="f w2"><label>Cari <b>*</b><i>120.01.045</i></label><div class="inp sm">Akdeniz Gıda A.Ş. <span class="suf">F9 cari seç ▾</span></div>
+        <div class="risk"><span>Bakiye <b>₺184.320,50</b> borç</span><span>· Risk limiti ₺250.000,00</span><span class="warnx">· Bu faturayla limit %0,5 aşılıyor</span></div></div>
+       <div class="f"><label>Fatura tarihi <b>*</b></label><div class="inp sm">16.11.2026 <span class="suf">📅</span></div></div>
+       <div class="f"><label>Vade tarihi<i>ödeme planından</i></label><div class="inp sm" style="box-shadow:inset 3px 0 0 #e0a100">16.12.2026 <span class="suf">30 gün</span></div></div>
+       <div class="f"><label>Depo <b>*</b></label><div class="inp sm">Merkez Depo <span class="suf">▾</span></div></div>
+       <div class="f"><label>Para birimi · Kur</label><div class="inp sm">TRY <span class="suf">kur 1,0000 · manuel ▾</span></div></div>
+       <div class="f"><label>Satış temsilcisi</label><div class="inp sm">Murat Yılmaz <span class="suf">▾</span></div></div>
+       <div class="f"><label>Ödeme planı<i>önceki: Peşin</i></label><div class="inp sm" style="box-shadow:inset 3px 0 0 #e0a100">30 gün vadeli · havale <span class="suf">▾</span></div></div>
+      </div>
+     </div>
+
+     <div class="card lines">
+      <div class="ct"><span>Satırlar <span style="font-weight:400;color:var(--mut);font-size:11.5px;margin-left:8px">5 satır · <b style="color:var(--warn)">1 uyarı</b> · Fiyatlar <b style="color:var(--tx)">KDV hariç</b> · Fiyat listesi: Toptan 2026</span></span><span class="lh"><span><span class="k">Ins</span> satır ekle</span><span><span class="k">Ctrl+D</span> satırı kopyala</span><span><span class="k">Ctrl+Del</span> satırı sil</span><span><span class="k">F9</span> stok seç</span><span><span class="k">F4</span> hücreyi düzenle</span><span><span class="k">Alt+↑↓</span> satır taşı</span></span></div>
+      <div class="lgw">
+       <table class="lg">
+        <colgroup><col style="width:34px"><col style="width:120px"><col><col style="width:96px"><col style="width:76px"><col style="width:112px"><col style="width:74px"><col style="width:86px"><col style="width:120px"><col style="width:110px"></colgroup>
+        <tr><th style="text-align:center">#</th><th>Stok kodu</th><th>Stok adı</th><th class="num">Miktar</th><th>Birim</th><th class="num">Birim fiyat</th><th class="num">İsk. %</th><th class="num">KDV %</th><th class="num">Tutar</th><th class="num">Kullanılabilir</th></tr>
+        <tr class="wr"><td class="ix">1</td><td class="code">AMB-2040</td><td>Koli 40×30×30 çift oluklu</td><td class="num"><span class="w">⚠ 500</span></td><td>Adet</td><td class="num">52,00</td><td class="num">5</td><td class="num">20 <span class="pl">h</span></td><td class="num">24.700,00</td><td class="num low">160</td></tr>
+        <tr class="wrmsg"><td class="ix"></td><td colspan="9"><span class="wmsg">⚠ Miktar kullanılabilir stoku 340 adet aşıyor (Merkez Depo: 160). Negatif stoka izin verilmez — onayda engellenir. <a>Üretim Ara'dan 120 transfer öner</a><a>Miktarı 160 yap</a><a>Kısmi faturala</a></span></td></tr>
+        <tr><td class="ix">2</td><td class="code">AMB-2060</td><td>Koli 60×40×40 çift oluklu</td><td class="num">50</td><td>Adet</td><td class="num">74,50</td><td class="num">5</td><td class="num">20 <span class="pl">h</span></td><td class="num">3.538,75</td><td class="num">60</td></tr>
+        <tr><td class="ix">3</td><td class="code">AMB-3100</td><td>Streç film 50 cm</td><td class="num">20</td><td>Rulo</td><td class="num">585,00</td><td class="num">0</td><td class="num">20 <span class="pl">h</span></td><td class="num">11.700,00</td><td class="num">35</td></tr>
+        <tr><td class="ix">4</td><td class="code">ETK-0120</td><td>Gıda etiketi 100×150 (1.000'li)</td><td class="num">12</td><td>Paket</td><td class="num">1.240,00</td><td class="num">10</td><td class="num">10 <span class="pl">h</span></td><td class="num">13.392,00</td><td class="num">48</td></tr>
+        <tr><td class="ix">5</td><td class="code">NKL-001</td><td>Nakliye bedeli — Antalya</td><td class="num">1</td><td>Sefer</td><td class="num">3.500,00</td><td class="num">0</td><td class="num">20 <span class="pl">h</span></td><td class="num">3.500,00</td><td class="num pl">hizmet</td></tr>
+        <tr class="act"><td class="ix">6</td><td class="cell ed code">AMB-15<span class="cur">|</span>
+          <div class="ac">
+           <div class="ah"><span>"AMB-15" ile eşleşen 3 stok · Merkez Depo</span><span>↑↓ seç · Enter ekle · F9 gelişmiş arama</span></div>
+           <div class="ar hd2"><span>Kod</span><span>Ad</span><span class="q2">Birim</span><span class="q2">Kullanılabilir</span><span class="q2">Fiyat</span></div>
+           <div class="ar hl"><span class="code"><mark>AMB-15</mark>10</span><span>Gıda kutusu 15×15×8 beyaz kraft</span><span class="q2">Adet</span><span class="q2" style="color:var(--ok);font-weight:600">1.800</span><span class="q2">₺6,80</span></div>
+           <div class="ar"><span class="code"><mark>AMB-15</mark>20</span><span>Gıda kutusu 15×15×12 pencereli</span><span class="q2">Adet</span><span class="q2" style="color:var(--warn);font-weight:600">86</span><span class="q2">₺9,40</span></div>
+           <div class="ar"><span class="code"><mark>AMB-15</mark>50</span><span>Pasta kutusu 15×15 yağ geçirmez</span><span class="q2">Adet</span><span class="q2 low">0 · tükendi</span><span class="q2">₺11,20</span></div>
+           <div class="af"><span>Kod, ad veya barkodla eşleşir · fiyat cariye özel listeden</span><span style="margin-left:auto">Esc kapat</span></div>
+          </div></td><td class="pl">Stok adı veya barkod da yazılabilir</td><td class="num pl">—</td><td class="pl">—</td><td class="num pl">—</td><td class="num pl">0</td><td class="num pl">20</td><td class="num pl">0,00</td><td class="num pl"></td></tr>
+        <tr class="nw"><td class="ix">+</td><td colspan="9">Yeni satır — yazmaya başlayın veya <span class="k">Ins</span> satır ekle · <span class="k">F9</span> stok seç · <span class="k">Ctrl+Shift+O</span> siparişten çek</td></tr>
+       </table>
+      </div>
+      <div class="lfoot"><span>Enter sağdaki hücre · son hücrede Enter yeni satır açar · Esc satır düzenlemeyi bırakır</span><span>Toplam miktar <b style="color:var(--tx)">583</b> · Brüt <b style="color:var(--tx)">₺59.805,00</b> · İskonto <b style="color:var(--tx)">₺2.974,25</b> · Net <b style="color:var(--tx)">₺56.830,75</b></span></div>
+     </div>
+
+     <div class="lower">
+      <div class="card tight">
+       <div class="ct">Açıklama ve e-Fatura <small>faturada yazdırılır</small></div>
+       <div class="fg4" style="grid-template-columns:2fr 1fr 1fr">
+        <div class="f"><label>Açıklama</label><div class="ta">SS-0411 siparişine istinaden. Teslimat: Akdeniz Gıda Kepez deposu, rampa 3. Paletler iade edilecektir.</div></div>
+        <div class="f"><label>Senaryo</label><div class="inp sm">Ticari fatura <span class="suf">▾</span></div><div class="hint">Alıcı e-Fatura mükellefi ✓</div></div>
+        <div class="f"><label>İrsaliye</label><div class="inp sm ro">SI-0981 · 14.11.2026</div><div class="hint">Siparişten bağlandı</div></div>
+       </div>
+      </div>
+      <div class="card tot">
+       <div class="r"><span>Brüt tutar</span><b>₺59.805,00</b></div>
+       <div class="r"><span>Satır iskontoları</span><b style="color:var(--bad)">−₺2.974,25</b></div>
+       <div class="r"><span>Ara toplam (matrah)</span><b>₺56.830,75</b></div>
+       <div class="r sm"><span>KDV %20 · matrah ₺43.438,75</span><b>₺8.687,75</b></div>
+       <div class="r sm"><span>KDV %10 · matrah ₺13.392,00</span><b>₺1.339,20</b></div>
+       <div class="r g"><span>Genel toplam</span><b>₺66.857,70</b></div>
+      </div>
+     </div>
+    </div>
+
+    <div class="ctx">
+     <div class="card">
+      <div class="ct">Belge zinciri <small>tıkla veya Enter ile aç</small></div>
+      <div class="chain">
+       <div class="c"><span class="d">SS</span><span><span class="code">SS-0411</span> Satış siparişi<br><small style="color:var(--mut)">12.11.2026 · 5 satır</small></span><span class="tag t-ok">Tamamlandı</span></div>
+       <div class="ar2">↓</div>
+       <div class="c"><span class="d">Sİ</span><span><span class="code">SI-0981</span> İrsaliye<br><small style="color:var(--mut)">14.11.2026</small></span><span class="tag t-ok">Sevk edildi</span></div>
+       <div class="ar2">↓</div>
+       <div class="c me"><span class="d">SF</span><span><span class="code">SF-2026-0981</span> <b>bu fatura</b><br><small style="color:var(--mut)">kaydedilmemiş değişiklik var</small></span><span class="tag t-off">Taslak</span></div>
+      </div>
+     </div>
+     <div class="card">
+      <div class="ct">Geçmiş <small>denetim kaydı</small></div>
+      <div class="tl">
+       <div>FATIH 6. satırı ekliyor <small>· şimdi</small></div>
+       <div>FATIH ödeme planını Peşin → 30 gün yaptı <small>· 09:51</small></div>
+       <div>FATIH SS-0411'den 5 satır çekti <small>· 09:42</small></div>
+       <div>Sistem taslağı oluşturdu <small>· 09:42</small></div>
+      </div>
+     </div>
+     <div class="card">
+      <div class="ct">Cari özeti <small>120.01.045</small></div>
+      <div class="st4">
+       <div><small>Bakiye (borç)</small><b>₺184.320,50</b></div>
+       <div><small>Vadesi geçen</small><b class="low">₺42.150,00</b></div>
+      </div>
+      <div style="margin-top:9px;font-size:12px;display:flex;justify-content:space-between"><span style="color:var(--mut)">Risk kullanımı (bu fatura dahil)</span><b class="low">%100,5</b></div>
+      <div class="rbar"><i style="left:0;width:73.7%;background:var(--pri)"></i><i style="left:73.7%;width:26.3%;background:#f59e0b;border-radius:0 4px 4px 0"></i><span class="lim" style="left:99.5%"></span></div>
+      <div class="rleg"><span>Bakiye ₺184.320</span><span>+ fatura ₺66.858</span><span>Limit ₺250.000</span></div>
+      <div class="kv" style="margin-top:7px"><span>Vadesi geçen</span><b>2 fatura · en eski 18 gün</b></div>
+     </div>
+     <div class="card">
+      <div class="ct">Stok durumu <small>aktif satır · AMB-1510</small></div>
+      <div class="whr"><span>Merkez Depo</span><div class="br"><i style="width:75%"></i></div><b>1.800</b></div>
+      <div class="whr"><span>Üretim Ara</span><div class="br"><i style="width:25%"></i></div><b>600</b></div>
+      <div class="whr"><span>İzmir Bayi</span><div class="br"><i style="width:0"></i></div><b>0</b></div>
+      <div class="kv" style="margin-top:5px"><span>Rezerve · son satış</span><b>350 · ₺6,50</b></div>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>Tab sonraki alan · Ctrl+S kaydet · Ctrl+Enter onayla · Ctrl+Z geri al · PgUp/PgDn önceki/sonraki belge · Alt+İ işlemler · Esc kapat</span><span>5 satır · Matrah <b>₺56.830,75</b> · KDV <b>₺10.026,95</b> · Genel toplam <b>₺66.857,70</b> · <b style="color:var(--bad)">Onay öncesi: 1 stok uyarısı, risk limiti aşımı</b></span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="notes">
+ <div><b>Durum akışı başlıkta</b> — Taslak → Onaylı → e-Fatura gönderildi → Tahsil edildi. İşlemler menüsü sıradaki adımı vurgular; şimdi yapılamayanlar soluk görünür ve nedeni altında yazar, gizlenmez. Not: bugün uygulamada fatura durumu yalnız "Kesildi / İptal"; Taslak ve Onaylı yeni durumlardır.</div>
+ <div><b>Klavyeyle satır girişi</b> — hücreler arası Enter/Tab; stok kodu yazılırken kod, ad veya barkod eşleşmesi kullanılabilir miktarla açılır. Ins satır ekler, Ctrl+D kopyalar, F9 gelişmiş stok seçimi. Alanlar bugünkü satır modeliyle aynı: miktar, birim (girilen birim saklanır), birim fiyat, iskonto %, KDV % ve KDV dahil/hariç (h = hariç).</div>
+ <div><b>Uyarı satırın altında</b> — negatif stok engellendiği için uyarı onaydan önce, satırın hemen altında görünür ve çözüm önerir (transfer, miktarı düşür, kısmi faturala). Risk limiti aşımı cari alanının altında ve bağlam panelinde.</div>
+ <div><b>Bağlam paneli + toplamlar</b> — cari riski, aktif satırın depo dağılımı, sipariş → irsaliye → fatura zinciri ve denetim kaydı. Toplam bloğu KDV'yi oran bazında matrahıyla ayırır; alt çubuk aynı özeti her an gösterir. (Görselde açık İşlemler menüsü zincir ve geçmiş kartlarının üstüne açılmıştır.)</div>
+</div>
+</body></html>

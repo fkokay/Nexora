@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Rapor ve tanım ekranları</title>
+<style>
+:root{--ink:#0f1b2d;--ink2:#1a2a40;--pri:#1f5fd1;--pri-d:#1846a3;--pri-soft:#e8f0fd;--bg:#f3f5f8;--line:#dfe3e9;--line2:#eef1f4;--tx:#1b2430;--mut:#667085;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b45309;--warn-bg:#fdf1e1;--bad:#c4321f;--bad-bg:#fde9e6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto;margin-bottom:14px}
+.nx{min-width:1720px;font-size:12.5px;display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.k{font-family:Consolas,monospace;font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;white-space:nowrap}
+/* sidebar */
+.side{width:58px;background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0}
+.side .lg{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1f5fd1);margin-bottom:10px}
+.side .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8193ab;font-size:10px;flex-direction:column;gap:1px}
+.side .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.side .ic.on{background:var(--ink2);color:#fff;box-shadow:inset 3px 0 0 #3b82f6}
+.sub-nav{width:178px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.sub-nav .h{font-weight:650;font-size:13.5px;padding:2px 8px 10px}
+.sub-nav .it{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between;color:#344054}
+.sub-nav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.sub-nav .it small{color:var(--mut)}
+.sub-nav .g{font-size:10px;letter-spacing:.08em;color:var(--mut);margin:14px 8px 4px}
+.sub-nav .fav{color:#344054;padding:5px 8px;display:flex;gap:6px}
+.sub-nav .fav b{color:#e0a100}
+/* app */
+.app{flex:1;display:flex;flex-direction:column;min-width:0}
+.topb{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.srch{width:320px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+.wtabs{display:flex;gap:2px;flex:1;align-self:flex-end}
+.wtabs span{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0;background:var(--bg);color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
+.wtabs .on{background:#fff;color:var(--tx);font-weight:600;position:relative;top:1px}
+.wtabs i{font-style:normal;color:#98a2b3}
+.tr{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12px}
+.bell{position:relative}.bell b{position:absolute;top:-6px;right:-8px;background:var(--bad);color:#fff;border-radius:999px;font-size:9px;padding:0 4px}
+.av{width:26px;height:26px;border-radius:50%;background:#dbe6fb;color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.page{background:#fff;flex:1;display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.ph .bc{color:var(--mut);font-size:11.5px}
+.ph h2{margin:1px 0 0;font-size:19px;font-weight:650;display:flex;gap:10px;align-items:center}
+.ph h2 .star{color:#e0a100;font-size:15px}
+.vsel{border:1px solid var(--line);border-radius:7px;padding:5px 10px;display:flex;gap:8px;align-items:center;color:#344054}
+.vsel b{color:var(--tx)}
+.vtabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.vtabs span{padding:7px 12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.vtabs span em{font-style:normal;background:#eef0f3;border-radius:999px;padding:0 7px;font-size:11px;color:#475467}
+.vtabs .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.vtabs .on em{background:var(--pri-soft);color:var(--pri-d)}
+.vtabs .r em{background:var(--bad-bg);color:var(--bad)}
+.vtabs .add{color:var(--pri)}
+.bar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.b{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--tx);font-weight:500;white-space:nowrap}
+.b svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.b.pri{background:var(--pri);color:#fff}.b.pri .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.b.off{opacity:.38}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.b.more{border:1px solid var(--line);background:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:6px}
+.seg span{padding:4px 8px;color:var(--mut)}.seg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+/* body */
+.wrap{display:flex;flex:1;min-height:0}
+.facet{width:200px;border-right:1px solid var(--line);padding:12px 12px;background:#fcfcfd;flex-shrink:0}
+.facet .ft{display:flex;justify-content:space-between;font-weight:650;margin-bottom:8px}
+.facet .ft a{font-weight:400;color:var(--pri);font-size:11.5px}
+.facet .fg{margin-bottom:14px}
+.facet .fg .t{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-bottom:5px;text-transform:uppercase}
+.facet .o{display:flex;align-items:center;gap:7px;padding:3px 0;color:#344054}
+.facet .o small{margin-left:auto;color:var(--mut)}
+.cb{width:13px;height:13px;border:1.5px solid #b8c0cc;border-radius:3px;display:inline-block;flex-shrink:0;position:relative;background:#fff}
+.cb.on{background:var(--pri);border-color:var(--pri)}
+.cb.on::after{content:"";position:absolute;left:3px;top:0px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rng{height:4px;background:#e8ebef;border-radius:3px;position:relative;margin:10px 4px 6px}
+.rng i{position:absolute;left:0;width:35%;height:100%;background:var(--pri);border-radius:3px}
+.rng b{position:absolute;top:-5px;width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--pri)}
+.rngl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px 4px}
+.mk>div{border:1px solid var(--line);border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:10px}
+.mk .icn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mk .tx{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.mk small{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.mk b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
+.mk .tr2{font-size:11px}
+.mk svg.sp{margin-left:auto;width:70px;height:26px}
+.mk .act{border-color:#f0b4ab;background:#fff8f7}
+.chips{display:flex;gap:6px;padding:8px 14px;align-items:center;flex-wrap:wrap}
+.q{width:340px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.r{border-color:#f0b4ab;background:var(--bad-bg);color:var(--bad)}
+.chips .clr{color:var(--pri);font-size:12px}
+.chips .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px}
+.gridw{flex:1;min-height:0;position:relative;border-top:1px solid var(--line);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:#475467;background:#f7f8fa;padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+th .fi{color:#98a2b3;margin-left:3px;font-size:10px}
+th.s{color:var(--pri-d)}
+td{padding:6px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:Consolas,monospace;font-size:12px;color:#344054}
+tr.grp td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px}
+tr.grp td .c{color:var(--mut);font-weight:400}
+tr.sel td{background:var(--pri-soft)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+tr.chk td{background:#f5f9ff}
+tr.tot td{background:#f7f8fa;font-weight:650;border-top:1px solid var(--line)}
+.tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}.t-off{background:#eef0f3;color:#667085}
+.low{color:var(--bad);font-weight:600}
+.lvl{display:inline-block;width:44px;height:5px;border-radius:3px;background:#e8ebef;vertical-align:middle;margin-left:6px;overflow:hidden}
+.lvl i{display:block;height:100%}
+.edit{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important;border-radius:3px}
+.edit::after{content:"|";color:var(--pri);margin-left:1px}
+.thumb{width:22px;height:22px;border-radius:5px;background:#eef1f5;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid var(--line2)}
+.bulk{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:7px 8px 7px 14px;display:flex;gap:4px;align-items:center;box-shadow:0 8px 24px rgba(15,27,45,.35);white-space:nowrap}
+.bulk b{margin-right:8px}
+.bulk span{padding:5px 9px;border-radius:6px;color:#d6deea}
+.bulk span:hover{background:var(--ink2)}
+.bulk .x{color:#8193ab}
+/* detail */
+.det{width:330px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.det .hd{padding:12px 14px 8px;border-bottom:1px solid var(--line2)}
+.det .hd .top{display:flex;justify-content:space-between;color:var(--mut)}
+.det h3{margin:4px 0 6px;font-size:15px}
+.det .dt{display:flex;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}
+.det .dt span{padding:8px 0;color:var(--mut)}.det .dt .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.det .bd{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.st4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st4 div{background:#f7f8fa;border-radius:8px;padding:7px 9px}
+.st4 small{display:block;color:var(--mut);font-size:11px}
+.st4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.sect{font-size:11px;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;display:flex;justify-content:space-between}
+.sect a{color:var(--pri);text-transform:none;letter-spacing:0}
+.whr{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:2px 0}
+.whr .br{height:7px;background:#eef1f4;border-radius:4px;overflow:hidden}.whr .br i{display:block;height:100%;background:var(--pri)}
+.whr b{text-align:right}
+.sugg{border:1px solid #f3cf9c;background:#fffaf2;border-radius:8px;padding:9px 11px;font-size:12px}
+.sugg b{color:var(--warn)}
+.sugg .btns{display:flex;gap:6px;margin-top:7px}
+.sugg .btns span{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px}
+.sugg .btns .p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.foot{display:flex;justify-content:space-between;padding:7px 16px;border-top:1px solid var(--line);background:#fafbfc;color:var(--mut);font-size:11.5px}
+.foot b{color:var(--tx)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin:0 0 34px}
+.notes div{border-left:3px solid var(--pri);padding:2px 10px;background:#fff;border-radius:0 6px 6px 0}
+/* form */
+.fh{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line)}
+.fh .id{display:flex;gap:12px;align-items:center}
+.fh .img{width:46px;height:46px;border-radius:9px;background:#eef1f5;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:10px}
+.fh h2{margin:0;font-size:18px;font-weight:650}
+.fh .m{color:var(--mut);font-size:12px;margin-top:3px;display:flex;gap:10px;align-items:center}
+.fh .rt{display:flex;gap:10px;align-items:center;color:var(--mut)}
+.dirty{color:var(--warn);display:flex;gap:6px;align-items:center}.dirty i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rnav{display:flex;border:1px solid var(--line);border-radius:6px}.rnav span{padding:3px 8px}.rnav span+span{border-left:1px solid var(--line)}
+.fbody{display:flex;flex:1;min-height:0;background:var(--bg);overflow:hidden}
+.snav{width:210px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.snav .it{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;color:#344054}
+.snav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.snav .st{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.snav .done{background:var(--ok-bg);color:var(--ok)}.snav .err{background:var(--bad-bg);color:var(--bad)}.snav .emp{border:1.5px solid #cfd5dd}
+.snav .it small{margin-left:auto;color:var(--mut)}
+.snav .prog{margin:14px 8px 0;font-size:11.5px;color:var(--mut)}
+.snav .pb{height:5px;background:#eef1f4;border-radius:3px;margin-top:5px;overflow:hidden}.snav .pb i{display:block;width:72%;height:100%;background:var(--ok)}
+.fmain{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card .ct{font-weight:650;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card .ct small{font-weight:400;color:var(--mut)}
+.fg3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.w2{grid-column:span 2}.w3{grid-column:span 3}
+.f label{display:flex;justify-content:space-between;font-size:11.5px;color:#475467;margin-bottom:3px;font-weight:500}
+.f label b{color:var(--bad)}.f label i{font-style:normal;color:#98a2b3;font-weight:400}
+.inp{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;background:#fff;min-height:31px;display:flex;justify-content:space-between;align-items:center}
+.inp.focus{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.inp.ro{background:#f6f7f9;color:var(--mut)}
+.inp.errb{border-color:var(--bad);background:#fffafa}
+.inp .suf{color:var(--mut);font-size:11.5px}
+.hint{font-size:11px;color:var(--mut);margin-top:3px}.hint.e{color:var(--bad)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:var(--pri);position:relative;vertical-align:middle;margin-right:6px}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.ut td,.ut th{padding:5px 8px}
+.ut td{border-bottom:1px solid var(--line2)}
+.ut .add{color:var(--pri)}
+.ctx{width:300px;padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.rel{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.rel .code{font-size:11.5px}
+.tl{position:relative;padding-left:14px;font-size:12px;color:#344054}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.tl div{position:relative;padding:3px 0}
+.tl div::before{content:"";position:absolute;left:-13px;top:8px;width:7px;height:7px;border-radius:50%;background:#cfd5dd}
+.tl div:first-child::before{background:var(--pri)}
+.tl small{color:var(--mut)}
+/* ---- rapor ekranı ---- */
+.par{width:248px;border-right:1px solid var(--line);background:#fcfcfd;flex-shrink:0;display:flex;flex-direction:column}
+.par .pt{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 8px;font-weight:650}
+.par .pt span{font-weight:400;color:var(--mut);font-size:11.5px}
+.par .pb2{padding:0 12px;display:flex;flex-direction:column;gap:11px;flex:1}
+.par .f label{margin-bottom:3px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.lvseg{display:flex;border:1px solid #cfd5dd;border-radius:6px;overflow:hidden}
+.lvseg span{flex:1;text-align:center;padding:5px 0;color:var(--mut);border-left:1px solid var(--line)}
+.lvseg span:first-child{border-left:none}
+.lvseg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.tg{display:flex;justify-content:space-between;align-items:center;color:#344054;padding:2px 0}
+.sw.off{background:#cfd5dd}.sw.off::after{right:auto;left:2px}
+.par .acts{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:7px 10px;background:#fff;font-weight:500;white-space:nowrap}
+.btn.p{background:var(--pri);border-color:var(--pri);color:#fff}.btn.p .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.par .last{font-size:11px;color:var(--mut);margin-top:2px}
+.collapse{color:var(--mut);font-size:11.5px}
+.strip{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pchip{border:1px solid var(--line);background:#f7f8fa;color:#344054;border-radius:999px;padding:2px 10px;font-size:12px}
+.pchip b{font-weight:600;color:var(--tx)}
+.strip .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px;align-items:center}
+.strip .run{color:var(--ok);display:flex;gap:6px;align-items:center}
+.strip .run i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.strip .stale{color:var(--warn)}
+.tree td{padding-top:4px;padding-bottom:4px}.tree th{padding-top:6px;padding-bottom:6px}
+.tw{display:inline-block;width:14px;color:var(--mut);font-size:10px}
+.l1 td{font-weight:650}
+.l1 td.code{color:var(--tx)}
+.l2 td.nm{padding-left:28px}.l2 td.code{padding-left:24px}
+.l3 td.nm{padding-left:46px;color:#475467}.l3 td.code{padding-left:40px;color:#667085}
+.l3 td{font-size:12px}
+tr.cls td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px;font-size:11.5px;letter-spacing:.02em}
+tr.cls td .c{color:var(--mut);font-weight:400}
+tr.gt td{background:#eef2f8;font-weight:700;border-top:2px solid #c9d3e1;padding:8px 9px;font-size:13px}
+.dash{color:#c0c6cf}
+.ok-badge{display:inline-flex;gap:5px;align-items:center;background:var(--ok-bg);color:var(--ok);border:1px solid #b5e0c7;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:650}
+.enter{float:right;color:var(--pri-d);font-weight:500;font-size:11px}
+.child{color:var(--mut);font-weight:400;font-size:11px;margin-left:6px}
+.amount-bb{color:#1b2430}
+/* ---- tanım ekranı ---- */
+.ml{width:44%;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.ml .tb{display:flex;gap:8px;align-items:center;padding:10px 12px}
+.ml .q{width:auto;flex:1}
+.ml .tb .seg{margin-left:0}
+.md{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.md .mh{background:#fff;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.md .mh h3{margin:0;font-size:15px;display:flex;gap:8px;align-items:center}
+.md .mh .m{color:var(--mut);font-size:12px;margin-top:2px;display:flex;gap:10px;align-items:center}
+.md .mb{padding:12px 16px 6px;display:grid;grid-template-columns:1fr 330px;gap:12px;align-items:start;overflow:hidden}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.chg{box-shadow:inset 3px 0 0 #e0a100}
+.radio{display:flex;gap:6px;flex-wrap:wrap}
+.radio span{border:1px solid #cfd5dd;border-radius:6px;padding:5px 10px;color:#344054;background:#fff}
+.radio .on{border-color:var(--pri);background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.def{color:#e0a100}
+/* dialog */
+.dlgwrap{position:relative;height:300px;min-width:1720px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.dlgwrap .ghost{position:absolute;inset:0;padding:0;opacity:.9}
+.dlgwrap .ghost table{font-size:12.5px}
+.scrim{position:absolute;inset:0;background:rgba(15,27,45,.42)}
+.dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;background:#fff;border-radius:12px;box-shadow:0 18px 48px rgba(15,27,45,.35);font-size:12.5px}
+.dlg .dh{display:flex;gap:12px;padding:16px 18px 6px}
+.dlg .di{width:34px;height:34px;border-radius:50%;background:var(--warn-bg);color:var(--warn);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
+.dlg h4{margin:0 0 4px;font-size:15px}
+.dlg p{margin:0;color:#475467;line-height:1.5}
+.dlg .facts{margin:10px 18px 0 64px;background:#f7f8fa;border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px;color:#475467}
+.dlg .facts b{text-align:right;color:var(--tx);font-variant-numeric:tabular-nums}
+.dlg .df{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px 16px}
+.dlg .df .btn{min-width:120px}
+.dlg .df .btn.p{box-shadow:0 0 0 3px #d6e4fc}
+</style></head><body>
+
+<h1>Rapor ve tanım ekranları — taslak</h1>
+<p class="sub">İki yeni arketip, stok ekranıyla aynı kabuk ve aynı işlem çubuğunu kullanır: raporlar (mizan, bilanço, yaşlandırma, stok değerleme) için parametre paneli + ağaç tablo; basit ana veriler (depolar, birimler, kategoriler, ödeme vadeleri, vergi oranları) için tek ekranda liste + düzenleme formu.</p>
+
+<div class="lbl">1 · RAPOR EKRANI — MİZAN (GENEL MUHASEBE)</div>
+<div class="scroll"><div class="nx" style="height:820px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 21V9l6-4v4l6-4v4l6-4v16z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></div>
+ </div>
+ <div class="sub-nav">
+  <div class="h">Finans</div>
+  <div class="it">Hesap Planı <small>412</small></div>
+  <div class="it">Yevmiye Fişleri</div>
+  <div class="it">Muavin Defter</div>
+  <div class="it on">Mizan</div>
+  <div class="it">Bilanço</div>
+  <div class="it">Gelir Tablosu</div>
+  <div class="it">Kasa ve Banka</div>
+  <div class="it">Dönem Kapanışı</div>
+  <div class="g">SIK KULLANILANLAR</div>
+  <div class="fav"><b>★</b>Aylık karşılaştırmalı</div>
+  <div class="fav"><b>★</b>Cari yaşlandırma</div>
+  <div class="fav"><b>★</b>Ay sonu değerleme</div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Ekran, kayıt veya komut ara…<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Yevmiye Fişleri <i>×</i></span><span class="on">Mizan <i>×</i></span><span>Muavin · 102.01.001 <i>×</i></span></div>
+   <div class="tr"><span>001 · Merkez ▾</span><span class="bell">🔔<b>3</b></span><div class="av">FT</div></div>
+  </div>
+  <div class="page">
+   <div class="ph">
+    <div><div class="bc">Finans › Genel Muhasebe ›</div><h2>Mizan <span class="star">★</span></h2></div>
+    <div class="vsel">Raporlama esası: <b>TDHP</b> ▾ <span style="color:var(--mut)">· UFRS</span></div>
+   </div>
+   <div class="vtabs"><span class="on">Standart mizan</span><span>Aylık karşılaştırmalı <em>12 ay</em></span><span>Yönetim özeti</span><span class="add">+ Varyant kaydet</span></div>
+   <div class="bar">
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <span style="color:var(--mut)">Seviye: <b style="color:var(--tx)">Tümünü aç</b> <span class="k">Ctrl+→</span> · <b style="color:var(--tx)">Tümünü kapat</b> <span class="k">Ctrl+←</span></span>
+    <div class="seg"><span>Rahat</span><span class="on">Sık</span></div>
+    <div class="b more">İşlemler ▾<span class="k">Alt+İ</span></div>
+   </div>
+   <div class="wrap">
+    <div class="par">
+     <div class="pt">Parametreler <span class="collapse">« Gizle <span class="k">Ctrl+.</span></span></div>
+     <div class="pb2">
+      <div class="f"><label>Dönem <b>*</b></label>
+       <div class="two"><div class="inp">01.01.2026 <span class="suf">▦</span></div><div class="inp focus">31.10.2026 <span class="suf">▦</span></div></div>
+       <div class="hint">Hızlı: Bu ay · Bu çeyrek · <b style="color:var(--pri-d)">Yıl başından</b></div>
+      </div>
+      <div class="f"><label>Hesap seviyesi</label>
+       <div class="lvseg"><span>1 · Ana</span><span>2 · Alt</span><span class="on">3 · Detay</span></div>
+       <div class="hint">100 → 102.01 → 102.01.001</div>
+      </div>
+      <div class="f"><label>Hesap aralığı <i>isteğe bağlı</i></label><div class="two"><div class="inp">100</div><div class="inp">799</div></div></div>
+      <div class="f"><label>Para birimi</label><div class="inp">TRY · Türk lirası <span class="suf">▾</span></div><div class="hint">Dövizli hesaplar raporlama kuruyla çevrilir</div></div>
+      <div class="f"><label>Şube</label><div class="inp">Tüm şubeler (3) <span class="suf">▾</span></div></div>
+      <div class="tg"><span>Sıfır bakiyeleri gizle</span><span class="sw"></span></div>
+      <div class="tg"><span>Açılış fişini dahil et</span><span class="sw"></span></div>
+      <div class="tg"><span>Kapanış fişini dahil et</span><span class="sw off"></span></div>
+     </div>
+     <div class="acts">
+      <div class="btn p">▶ Raporu çalıştır <span class="k">F9</span></div>
+      <div class="btn">Parametreleri kaydet</div>
+      <div class="last">Bu parametreler "Standart mizan" varyantına kayıtlı.</div>
+     </div>
+    </div>
+    <div class="center">
+     <div class="strip">
+      <div class="q" style="width:220px;padding:4px 10px">Hesap kodu veya adı… <span class="k">/</span></div>
+      <span class="pchip">Dönem: <b>01.01.2026 – 31.10.2026</b></span>
+      <span class="pchip">Seviye: <b>3 kademe</b></span>
+      <span class="pchip">Para birimi: <b>TRY</b></span>
+      <span class="pchip">Şube: <b>Tümü</b></span>
+      <span class="pchip">Sıfır bakiyeler: <b>gizli (14 hesap)</b></span>
+            <span class="rt"><span class="run"><i></i>Çalıştırıldı 09:42 · 0,8 sn</span></span>
+     </div>
+     <div class="gridw">
+      <table class="tree">
+       <tr><th style="width:190px">Hesap kodu</th><th>Hesap adı</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Borç bakiye</th><th class="num">Alacak bakiye</th></tr>
+       <tr class="cls"><td colspan="2">▾ 1 · DÖNEN VARLIKLAR <span class="c">· 5 ana hesap</span></td><td class="num">56.174.290,00</td><td class="num">46.179.670,00</td><td class="num">9.994.620,00</td><td class="num dash">—</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>100</td><td class="nm">Kasa <span class="child">2 alt hesap</span></td><td class="num">1.248.350,00</td><td class="num">1.102.920,00</td><td class="num">145.430,00</td><td class="num dash">—</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▾</span>102</td><td class="nm">Bankalar</td><td class="num">18.642.700,00</td><td class="num">16.905.180,00</td><td class="num">1.737.520,00</td><td class="num dash">—</td></tr>
+       <tr class="l2"><td class="code"><span class="tw">▾</span>102.01</td><td class="nm">Ziraat Bankası TL</td><td class="num">9.814.200,00</td><td class="num">8.921.640,00</td><td class="num">892.560,00</td><td class="num dash">—</td></tr>
+       <tr class="l3 sel"><td class="code"><span class="tw"></span>102.01.001</td><td class="nm">Merkez şube vadesiz <span class="enter">Muavini aç ↵ Enter</span></td><td class="num">7.420.000,00</td><td class="num">6.812.300,00</td><td class="num">607.700,00</td><td class="num dash">—</td></tr>
+       <tr class="l3"><td class="code"><span class="tw"></span>102.01.002</td><td class="nm">POS blokeli hesap</td><td class="num">2.394.200,00</td><td class="num">2.109.340,00</td><td class="num">284.860,00</td><td class="num dash">—</td></tr>
+       <tr class="l2"><td class="code"><span class="tw">▸</span>102.02</td><td class="nm">Garanti BBVA TL <span class="child">3 alt hesap</span></td><td class="num">6.218.500,00</td><td class="num">5.704.310,00</td><td class="num">514.190,00</td><td class="num dash">—</td></tr>
+       <tr class="l2"><td class="code"><span class="tw">▸</span>102.03</td><td class="nm">İş Bankası USD <span class="child">USD 9.812,40 · kur 33,71</span></td><td class="num">2.610.000,00</td><td class="num">2.279.230,00</td><td class="num">330.770,00</td><td class="num dash">—</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>120</td><td class="nm">Alıcılar <span class="child">1.214 cari alt hesap</span></td><td class="num">24.380.900,00</td><td class="num">19.716.450,00</td><td class="num">4.664.450,00</td><td class="num dash">—</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>153</td><td class="nm">Ticari mallar</td><td class="num">11.902.340,00</td><td class="num">8.455.120,00</td><td class="num">3.447.220,00</td><td class="num dash">—</td></tr>
+       <tr class="cls"><td colspan="2">▾ 3 · KISA VADELİ YABANCI KAYNAKLAR <span class="c">· 2 ana hesap</span></td><td class="num">10.960.210,00</td><td class="num">17.319.446,00</td><td class="num dash">—</td><td class="num">6.359.236,00</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>320</td><td class="nm">Satıcılar <span class="child">428 cari alt hesap</span></td><td class="num">9.840.210,00</td><td class="num">13.106.830,00</td><td class="num dash">—</td><td class="num">3.266.620,00</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>391</td><td class="nm">Hesaplanan KDV</td><td class="num">1.120.000,00</td><td class="num">4.212.616,00</td><td class="num dash">—</td><td class="num">3.092.616,00</td></tr>
+       <tr class="cls"><td colspan="2">▸ 5 · ÖZKAYNAKLAR <span class="c">· 1 ana hesap</span></td><td class="num">0,00</td><td class="num">2.500.000,00</td><td class="num dash">—</td><td class="num">2.500.000,00</td></tr>
+       <tr class="cls"><td colspan="2">▾ 6 · GELİR TABLOSU HESAPLARI <span class="c">· 3 ana hesap</span></td><td class="num">15.632.400,00</td><td class="num">25.163.080,00</td><td class="num">15.320.000,00</td><td class="num">24.850.680,00</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>600</td><td class="nm">Yurtiçi satışlar</td><td class="num">312.400,00</td><td class="num">21.063.080,00</td><td class="num dash">—</td><td class="num">20.750.680,00</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>601</td><td class="nm">Yurtdışı satışlar</td><td class="num">0,00</td><td class="num">4.100.000,00</td><td class="num dash">—</td><td class="num">4.100.000,00</td></tr>
+       <tr class="l1"><td class="code"><span class="tw">▸</span>621</td><td class="nm">Satılan ticari mallar maliyeti</td><td class="num">15.320.000,00</td><td class="num">0,00</td><td class="num">15.320.000,00</td><td class="num dash">—</td></tr>
+       <tr class="cls"><td colspan="2">▸ 7 · MALİYET HESAPLARI <span class="c">· 1 ana hesap · 770 Genel yönetim giderleri</span></td><td class="num">8.395.296,00</td><td class="num">0,00</td><td class="num">8.395.296,00</td><td class="num dash">—</td></tr>
+       <tr class="gt"><td colspan="2">Genel toplam &nbsp;<span class="ok-badge">✓ Mizan dengede</span></td><td class="num">91.162.196,00</td><td class="num">91.162.196,00</td><td class="num">33.709.916,00</td><td class="num">33.709.916,00</td></tr>
+      </table>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>F9 çalıştır · ↑↓ gez · ← → dalı kapat/aç · Enter muavini aç · Ctrl+. parametreleri gizle · Alt+1/2/3 seviye</span><span>412 hesap · 18.406 hareket · Borç <b>₺91.162.196,00</b> · Alacak <b>₺91.162.196,00</b> · Fark <b style="color:var(--ok)">₺0,00</b></span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="notes">
+ <div><b>Parametre paneli</b> — solda, Ctrl+. ile gizlenir; F9 raporu çalıştırır. Parametre değişince sonuç "güncel değil" olarak işaretlenir, otomatik yeniden hesaplanmaz.</div>
+ <div><b>Kayıtlı varyantlar</b> — parametre + seviye + sütun seti sekme olarak kaydedilir (Standart, Aylık karşılaştırmalı, Yönetim özeti); liste ekranlarındaki görünümlerle aynı mantık.</div>
+ <div><b>Ağaç tablo</b> — hesap sınıfı → ana hesap → alt hesap → detay; seviye arttıkça girinti, ana hesaplar kalın. Enter seçili hesabın muavinini yeni pencere sekmesinde açar.</div>
+ <div><b>Aynı işlem çubuğu</b> — Yeni / Kaydet / Sil raporda anlamsız olduğu için soluk; Yazdır ve Excel etkin. İşlemler: PDF olarak indir, e-posta ile gönder, zamanla (her ay 1'inde).</div>
+</div>
+
+<div class="lbl">2 · TANIM EKRANI — DEPOLAR (LİSTE + KAYIT TEK EKRANDA)</div>
+<div class="scroll"><div class="nx" style="height:640px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 21V9l6-4v4l6-4v4l6-4v16z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></div>
+ </div>
+ <div class="sub-nav">
+  <div class="h">Stok ve Depo</div>
+  <div class="it">Stok Kartları <small>1.284</small></div>
+  <div class="it">Stok Hareketleri</div>
+  <div class="it">Depo Transferleri <small>3</small></div>
+  <div class="it on">Depolar <small>6</small></div>
+  <div class="it">Lokasyonlar</div>
+  <div class="it">Maliyet</div>
+  <div class="it">İzlenebilirlik</div>
+  <div class="g">TANIMLAR</div>
+  <div class="it">Birimler <small>14</small></div>
+  <div class="it">Stok kategorileri <small>9</small></div>
+  <div class="it">Vergi oranları <small>5</small></div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Ekran, kayıt veya komut ara…<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Stok Kartları <i>×</i></span><span class="on">Depolar ● <i>×</i></span><span>Mizan <i>×</i></span></div>
+   <div class="tr"><span>001 · Merkez ▾</span><span class="bell">🔔<b>3</b></span><div class="av">FT</div></div>
+  </div>
+  <div class="page">
+   <div class="ph" style="padding-bottom:10px;border-bottom:1px solid var(--line)">
+    <div><div class="bc">Stok ve Depo › Tanımlar ›</div><h2>Depolar <span class="star">☆</span></h2></div>
+    <div class="vsel">Göster: <b>Tümü (6)</b> ▾</div>
+   </div>
+   <div class="bar">
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b pri"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <div class="b">↶ Değişiklikleri geri al <span class="k">Ctrl+Z</span></div>
+    <div class="b more">İşlemler ▾<span class="k">Alt+İ</span></div>
+   </div>
+   <div class="wrap">
+    <div class="ml">
+     <div class="tb"><div class="q">Depo kodu veya adı… <span class="k">/</span></div><div class="seg"><span class="on">Tümü</span><span>Aktif</span><span>Pasif</span></div></div>
+     <div class="gridw">
+      <table>
+       <tr><th>Kod</th><th>Ad</th><th>Tür</th><th>Şube</th><th>Varsayılan</th><th class="num">Kalem</th><th>Durum</th></tr>
+       <tr><td class="code">DP-01</td><td>Merkez Depo</td><td>Ana depo</td><td>001 · Merkez</td><td><span class="def">★</span></td><td class="num">842</td><td><span class="tag t-ok">Aktif</span></td></tr>
+       <tr><td class="code">DP-02</td><td>Üretim Ara Depo</td><td>Ara depo</td><td>001 · Merkez</td><td></td><td class="num">311</td><td><span class="tag t-ok">Aktif</span></td></tr>
+       <tr class="sel"><td class="code">DP-03</td><td>İzmir Bayi Depo ●</td><td>Konsinye</td><td>003 · İzmir</td><td></td><td class="num">96</td><td><span class="tag t-ok">Aktif</span></td></tr>
+       <tr><td class="code">DP-04</td><td>Ankara Bayi Depo</td><td>Konsinye</td><td>002 · Ankara</td><td></td><td class="num">35</td><td><span class="tag t-ok">Aktif</span></td></tr>
+       <tr><td class="code">DP-05</td><td>Yolda (transit)</td><td>Sanal</td><td>001 · Merkez</td><td></td><td class="num">12</td><td><span class="tag t-ok">Aktif</span></td></tr>
+       <tr><td class="code">DP-09</td><td>Eski Gebze Depo</td><td>Ana depo</td><td>001 · Merkez</td><td></td><td class="num">0</td><td><span class="tag t-off">Pasif</span></td></tr>
+      </table>
+     </div>
+    </div>
+    <div class="md">
+     <div class="mh">
+      <div><h3><span class="code" style="font-size:13px">DP-03</span> İzmir Bayi Depo <span class="tag t-ok">Aktif</span></h3><div class="m">Son değişiklik: Ayşe K. · 08.11.2026 14:20</div></div>
+      <div class="dirty"><i></i>2 alan değişti · kaydedilmedi</div>
+     </div>
+     <div class="mb">
+      <div class="card">
+       <div class="fg2">
+        <div class="f"><label>Depo kodu <b>*</b></label><div class="inp ro">DP-03 <span class="suf">🔒</span></div></div>
+        <div class="f"><label>Depo adı <b>*</b><i>15 / 100</i></label><div class="inp">İzmir Bayi Depo</div></div>
+        <div class="f" style="grid-column:span 2"><label>Tür <b>*</b></label><div class="radio"><span>Ana depo</span><span>Ara depo</span><span class="on chg">● Konsinye</span><span>Sanal</span></div><div class="hint">Önceki: Ara depo</div></div>
+        <div class="f"><label>Konsinye cari <b>*</b></label><div class="inp errb focus" style="border-color:var(--bad);box-shadow:0 0 0 3px #fbd5cf">Cari seçin… <span class="suf">F4 ara</span></div><div class="hint e">Konsinye depo için stokun sahibi olan cari seçilmeli.</div></div>
+        <div class="f"><label>Sorumlu</label><div class="inp">Mehmet Yılmaz <span class="suf">▾</span></div></div>
+        <div class="f" style="grid-column:span 2"><label>Adres</label><div class="inp">Atatürk OSB 10003 Sk. No:7, Çiğli / İzmir</div></div>
+        <div class="f"><label>Negatif stok kuralı</label><div class="inp chg">Uyar, izin verme <span class="suf">▾</span></div><div class="hint">Önceki: Sistem kuralı (izin verme)</div></div>
+        <div class="f"><label>&nbsp;</label><div style="padding-top:6px"><span class="sw"></span>Aktif <span style="color:var(--mut)">· pasif depoya hareket girilemez</span></div></div>
+       </div>
+      </div>
+      <div class="card">
+       <div class="ct">Lokasyonlar <small>3 · tümünü yönet ›</small></div>
+       <table class="ut">
+        <tr><th>Kod</th><th>Ad</th><th class="num">Kalem</th><th>Durum</th></tr>
+        <tr><td class="code">A-01</td><td>Raf bölgesi A</td><td class="num">58</td><td><span class="tag t-ok">Aktif</span></td></tr>
+        <tr><td class="code" style="padding-left:20px">└ A-01-03</td><td>Raf A, göz 3</td><td class="num">21</td><td><span class="tag t-ok">Aktif</span></td></tr>
+        <tr><td class="code">SEV-01</td><td>Sevkiyat rampası</td><td class="num">17</td><td><span class="tag t-ok">Aktif</span></td></tr>
+        <tr><td colspan="4" class="add">+ Lokasyon ekle <span class="k">Ctrl+Enter</span></td></tr>
+       </table>
+      </div>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Ctrl+Z geri al · Esc listeye dön · F2 yeni depo</span><span><b style="color:var(--bad)">Kaydetmeden önce:</b> 1 hata · 6 depo · 5 aktif · 1 pasif</span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="lbl">2b · SİL ONAYI — Ctrl+Del (STOKLU DEPO)</div>
+<div class="scroll"><div class="dlgwrap">
+ <div class="ghost">
+  <table>
+   <tr><th>Kod</th><th>Ad</th><th>Tür</th><th>Şube</th><th>Varsayılan</th><th class="num">Kalem</th><th>Durum</th></tr>
+   <tr class="sel"><td class="code">DP-01</td><td>Merkez Depo</td><td>Ana depo</td><td>001 · Merkez</td><td><span class="def">★</span></td><td class="num">842</td><td><span class="tag t-ok">Aktif</span></td></tr>
+   <tr><td class="code">DP-02</td><td>Üretim Ara Depo</td><td>Ara depo</td><td>001 · Merkez</td><td></td><td class="num">311</td><td><span class="tag t-ok">Aktif</span></td></tr>
+   <tr><td class="code">DP-03</td><td>İzmir Bayi Depo</td><td>Konsinye</td><td>003 · İzmir</td><td></td><td class="num">96</td><td><span class="tag t-ok">Aktif</span></td></tr>
+   <tr><td class="code">DP-04</td><td>Ankara Bayi Depo</td><td>Konsinye</td><td>002 · Ankara</td><td></td><td class="num">35</td><td><span class="tag t-ok">Aktif</span></td></tr>
+   <tr><td class="code">DP-05</td><td>Yolda (transit)</td><td>Sanal</td><td>001 · Merkez</td><td></td><td class="num">12</td><td><span class="tag t-ok">Aktif</span></td></tr>
+   <tr><td class="code">DP-09</td><td>Eski Gebze Depo</td><td>Ana depo</td><td>001 · Merkez</td><td></td><td class="num">0</td><td><span class="tag t-off">Pasif</span></td></tr>
+  </table>
+ </div>
+ <div class="scrim"></div>
+ <div class="dlg">
+  <div class="dh"><div class="di">!</div><div>
+   <h4>DP-01 · Merkez Depo silinemez</h4>
+   <p>Bu depoda 842 kalem stok var; silinemez, pasife alabilirsiniz. Pasif depoya yeni hareket girilemez, geçmiş hareketler ve raporlar korunur.</p>
+  </div></div>
+  <div class="facts"><span>Stok bakiyesi olan kalem</span><b>842</b><span>Açık transfer / sevk belgesi</span><b>3</b><span>Varsayılan depo olarak kullanan stok kartı</span><b>1.106</b></div>
+  <div class="df"><div class="btn">Vazgeç <span class="k">Esc</span></div><div class="btn p">Pasife al <span class="k">Enter</span></div></div>
+ </div>
+</div></div>
+
+<div class="notes" style="margin-top:14px">
+ <div><b>Tek ekranda liste + kayıt</b> — basit tanımlarda sayfa değişmez; solda kompakt liste, sağda seçili kaydın formu. ↑↓ ile kayıt değişince kaydedilmemiş değişiklik varsa önce sorulur.</div>
+ <div><b>Aynı işlem çubuğu</b> — form kirli olduğu için Kaydet birincil; Aç liste ve form yan yana olduğundan soluk. Değişen alanlar sarı çizgi ve "Önceki:" notuyla gösterilir.</div>
+ <div><b>Satır içi doğrulama</b> — hata alanın altında ve alt çubukta yazar; Konsinye seçilince "Konsinye cari" zorunlu olur. Lokasyonlar küçük tabloda, Ctrl+Enter ile satır eklenir.</div>
+ <div><b>Sil onayı</b> — sonucu açıkça söyler ve güvenli alternatifi birincil yapar (Pasife al). Düğmelerde klavye ipucu; Enter birincil, Esc vazgeç. Stoksuz depo için düz "Sil" sorusu çıkar.</div>
+</div>
+</body></html>

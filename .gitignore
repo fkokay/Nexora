@@ -24,3 +24,5 @@ docs/trx-*/
 /.codex-ai-service-deploy-context/
 /.codex-deploy-work/
 /.codeql-model-check/
+
+.superpowers/
