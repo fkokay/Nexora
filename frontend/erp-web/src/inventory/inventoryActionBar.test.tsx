@@ -11,6 +11,7 @@ import InventoryWarehousesPage from '../InventoryWarehousesPage';
 import InventoryTransfersPage from '../InventoryTransfersPage';
 import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import InventoryTrackingPage from '../InventoryTrackingPage';
+import { RecordFormPage } from '../record-form/RecordForm';
 
 const warehouses = [
   { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true },
@@ -116,6 +117,34 @@ describe('Stok Kartları on the action bar', () => {
     await waitFor(() =>
       expect(apiMock).toHaveBeenCalledWith('/api/stock/items/', 't', expect.objectContaining({ method: 'POST' })),
     );
+  });
+});
+
+describe('F2 with forms and dialogs', () => {
+  it('does not run Yeni behind another dialog of the page', async () => {
+    const onNavigate = vi.fn();
+    renderScreen(<InventoryStockPage token="t" role="TenantAdmin" onNavigate={onNavigate} />);
+    await settle();
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Özel alanlar' }));
+    });
+    await waitFor(() => expect(enabled('new')).toBe(false));
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('a record form in a hidden workspace view does not save on F2', async () => {
+    const onSubmit = vi.fn((event: Event) => event.preventDefault());
+    render(
+      <div hidden>
+        <RecordFormPage title="Gizli" mode="create" busy={false} saveLabel="Kaydet" onSubmit={(event) => onSubmit(event.nativeEvent)} onCancel={() => {}}>
+          <input defaultValue="x" />
+        </RecordFormPage>
+      </div>,
+    );
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
 

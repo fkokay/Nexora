@@ -2515,6 +2515,10 @@ export function InventoryPage({
             : warehouseModal
               ? { id: warehouseFormId, busy, onSaveIntent: setStayAfterWarehouseSave }
               : null;
+  // Other dialogs of the page: `new` (F2) must not open a form behind them.
+  const pageDialogOpen =
+    categoryModal || customFieldPickerOpen || importOpen || !!selectedTransfer || !!costTarget ||
+    warehouseAdminModal || warehouseFieldCatalogModal || !!movementItem;
   const pageCommands: PageCommands = {};
   if (openRecordForm) {
     pageCommands.save = {
@@ -2522,6 +2526,8 @@ export function InventoryPage({
       disabledReason: openRecordForm.busy ? "Kaydediliyor…" : undefined,
       run: () => submitRecordForm(openRecordForm.id, openRecordForm.onSaveIntent),
     };
+  } else if (pageDialogOpen) {
+    // no `new` while another dialog of the page is open
   } else if (section === "inventory-stock") {
     pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
   } else if (section === "inventory-warehouses") {

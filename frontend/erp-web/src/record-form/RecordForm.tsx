@@ -62,6 +62,8 @@ export function RecordFormPage({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "F2" || event.altKey || event.shiftKey) return;
+      // A form in a hidden keep-alive view (another workspace tab) must not save.
+      if (formRef.current?.closest("[hidden]")) return;
       // The topmost dialog owns the keyboard: skip unless this form lives inside it.
       const backdrops = document.querySelectorAll(".modal-backdrop");
       const topmost = backdrops[backdrops.length - 1];
