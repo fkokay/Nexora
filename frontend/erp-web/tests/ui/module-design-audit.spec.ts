@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { matchCommonActionText } from '../../src/ui-audit/matchCommonActionText'
 
 type Screen = { group: string; label: string; index: number }
 type Finding = { screen: string; viewport: string; check: string; detail: string }
@@ -120,16 +121,8 @@ async function inspectLayout(page: Page, screen: Screen, viewport: string, findi
 }
 
 const expectedActionOrder = ['new', 'open', 'save', 'delete', 'refresh', 'filter', 'print', 'export', 'more']
-const commonActionTexts = ['yeni', 'kaydet', 'sil', 'yazdır', 'excel', 'xlsx', 'csv', 'dışa aktar', 'yenile']
-
-/** Returns the common action prefix a page-header button text duplicates, or null. */
-export function matchCommonActionText(text: string): string | null {
-  const normalized = text.trim().toLocaleLowerCase('tr-TR')
-  if (!normalized) return null
-  return commonActionTexts.find(action => normalized === action || normalized.startsWith(action)) ?? null
-}
-
 async function inspectActionBar(page: Page, screen: Screen, viewport: string, findings: Finding[]) {
+  await page.waitForSelector('[data-nx-action-bar]', { timeout: 2000 }).catch(() => undefined)
   const state = await page.evaluate(() => {
     const bar = document.querySelector('[data-nx-action-bar]')
     const commands = bar ? [...bar.querySelectorAll('[data-command]')].map(node => node.getAttribute('data-command') || '') : []
@@ -145,9 +138,10 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
         return element.getAttribute('aria-disabled') !== 'true' && !(element as HTMLButtonElement).disabled
       })
       .map(node => ((node as HTMLElement).innerText || '').trim())
-    return { hasBar: Boolean(bar), commands, headerButtons }
+    return { isLauncher: Boolean(document.querySelector('.module-launcher-topbar')), hasBar: Boolean(bar), commands, headerButtons }
   })
 
+  if (state.isLauncher) return // the launcher/dashboard intentionally has no action bar
   if (!state.hasBar) {
     findings.push({ screen: screen.label, viewport, check: 'action-bar-missing', detail: 'No [data-nx-action-bar] element on the screen.' })
   } else {
@@ -157,8 +151,9 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
     }
   }
   for (const text of state.headerButtons) {
-    if (matchCommonActionText(text)) {
-      findings.push({ screen: screen.label, viewport, check: 'duplicate-common-action', detail: `Page header button "${text}" duplicates an action bar command.` })
+    const command = matchCommonActionText(text)
+    if (command) {
+      findings.push({ screen: screen.label, viewport, check: 'duplicate-common-action', detail: `Page header button "${text}" duplicates the action bar "${command}" command.` })
     }
   }
 }
