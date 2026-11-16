@@ -502,7 +502,7 @@ body>.sales-invoice-detail-backdrop>.modal.ledger-modal.invoice-detail-modal{box
 .invoice-detail-meta{order:11;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;margin:0;padding:9px 2px;color:#77889a;font-size:9px}
 .invoice-tax-breakdown{order:1;display:flex;flex-direction:column;gap:10px;margin:0;padding:12px 14px;border:1px solid #e3eaf1;border-radius:10px;background:#fff}
 .invoice-tax-breakdown>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#334a62;font-size:11px}
-.invoice-tax-breakdown>div:first-child span{padding:4px 8px;border-radius:20px;background:#f0edff;color:#5e48d7;font-size:10px;font-weight:700}
+.invoice-tax-breakdown>div:first-child span{padding:4px 8px;border-radius:20px;background:color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface));color:var(--nx-primary-strong);font-size:10px;font-weight:700}
 .invoice-tax-breakdown-list{display:flex;flex-wrap:wrap;gap:7px}
 .invoice-note-view{order:1;display:flex;flex-direction:column;gap:6px;margin:0;padding:12px 14px;border:1px solid #e3eaf1;border-radius:10px;background:#fff}
 .invoice-note-view>b{color:#334a62;font-size:11px}
@@ -712,7 +712,7 @@ html[data-theme="dark"] .sales-invoice-edocument-extra>summary span{background:v
 .sales-invoice-total-panel output{color:var(--erp-text);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .sales-invoice-total-panel .total-row.grand{margin-top:4px;padding-top:7px;border-top:1px solid var(--erp-border);border-radius:0}
 .sales-invoice-total-panel .total-row.grand span,.sales-invoice-total-panel .total-row.grand output{color:var(--erp-text);font-weight:750}
-.sales-invoice-total-panel .total-row.payable{margin-top:4px;min-height:34px;background:#fff8de;box-shadow:inset 3px 0 var(--nexora-gold)}
+.sales-invoice-total-panel .total-row.payable{margin-top:4px;min-height:34px;background:color-mix(in srgb, var(--nx-primary) 12%, var(--nx-surface));box-shadow:inset 3px 0 var(--nexora-gold)}
 .sales-invoice-total-panel .total-row.payable span,.sales-invoice-total-panel .total-row.payable output{color:#172b45;font-size:14px;font-weight:800}
 .sales-invoice-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:4px 0 14px}
 .sales-invoice-kpis article{display:grid;gap:4px;min-width:0;padding:13px 15px;border:1px solid var(--erp-border);border-radius:11px;background:var(--erp-surface);box-shadow:0 3px 12px #29324a08}
@@ -742,7 +742,7 @@ html[data-theme="dark"] .sales-document-dialog .sales-invoice-standalone-lines{b
 .stock-custom-field-picker{width:min(560px,calc(100vw - 32px));display:grid;gap:12px}.stock-custom-field-picker>.muted{margin:0;line-height:1.55}.quote-prospect-toggle{margin:0 0 12px;padding:10px 12px;border:1px solid #dce5ef;border-radius:9px;background:#f7f9fc;color:#42536b;font-size:12px}
 .sales-row-actions-anchor{display:inline-flex;position:relative;vertical-align:middle}
 .sales-row-actions-trigger{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:1px solid #d6deeb;border-radius:9px;background:#fff;color:#435675;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-.sales-row-actions-trigger:hover,.sales-row-actions-trigger[aria-expanded="true"]{background:#f3f5ff;border-color:#8c83ff;color:#6047e8}
+.sales-row-actions-trigger:hover,.sales-row-actions-trigger[aria-expanded="true"]{background:#f3f5ff;border-color:var(--nx-primary);color:var(--nx-primary-strong)}
 .sales-row-actions-menu{position:fixed;z-index:1500;display:flex;flex-direction:column;gap:2px;width:208px;max-height:60vh;overflow-y:auto;padding:6px;border:1px solid #dce3ef;border-radius:11px;background:#fff;box-shadow:0 16px 42px rgb(18 35 65 / 20%);overscroll-behavior:contain}
 .sales-row-menu-item{display:flex;width:100%;min-height:36px;align-items:center;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:#1b2b46;text-align:left;font:inherit;font-size:13px;cursor:pointer}
 .sales-row-menu-item:hover:not(:disabled){background:#f2f5fb}

@@ -11,7 +11,7 @@
 .sales-campaign-layout th { position: sticky; top: 0; padding: 9px 10px; background: #f5f6f9; color: var(--nx-muted); font-size: 9px; text-transform: uppercase; }
 .sales-campaign-layout td { padding: 9px 10px; border-top: 1px solid var(--nx-line); }
 .sales-campaign-layout tbody tr { cursor: pointer; }
-.sales-campaign-layout tbody tr[aria-selected="true"] { background: color-mix(in srgb, #625bd0 7%, #fff); box-shadow: inset 3px 0 #625bd0; }
+.sales-campaign-layout tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--nx-primary) 7%, #fff); box-shadow: inset 3px 0 var(--nx-primary); }
 .sales-campaign-detail { padding: 13px; border: 1px solid var(--nx-line); border-radius: 8px; }
 .sales-campaign-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 10px; }
 .sales-campaign-detail-heading>div:first-child { min-width: 0; }
@@ -330,7 +330,7 @@ html[data-theme="dark"] .sales-promotions-page .sales-campaign-apply .modal-foot
 }
 #root .cf-page .kmp-item .cf-item-top b { min-width: 0; }
 #root .cf-page .cf-state.is-warning { border-color: var(--fh-warn-line); background: var(--fh-warn-bg); color: var(--fh-warn); }
-#root .cf-page .cf-bar.is-warning > i { background: #d69e2e; }
+#root .cf-page .cf-bar.is-warning > i { background: var(--nx-warn); }
 #root .cf-page .kmp-hint {
   margin: 0;
   padding: 9px 12px;

@@ -46,7 +46,7 @@
   font-weight: 600;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: #e2d8f3; background: #f6f2fc; color: #553c9a; }
+#root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: color-mix(in srgb, var(--nx-primary) 19%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); color: var(--nx-primary-strong); }
 #root .general-ledger-panel.list-v2 .gljl-flag {
   flex: 0 0 auto;
   color: var(--lv2-muted);

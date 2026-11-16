@@ -353,10 +353,10 @@ html[data-theme="dark"] #root .fh-page {
 #root .fh-page .fh-legend li.is-negative b { color: var(--fh-danger); }
 #root .fh-page .fh-c1 { background: #2f855a; }
 #root .fh-page .fh-c2 { background: #3182ce; }
-#root .fh-page .fh-c3 { background: #805ad5; }
+#root .fh-page .fh-c3 { background: var(--nx-primary); }
 #root .fh-page .fh-c4 { background: #a0aec0; }
 #root .fh-page .fh-c5 { background: #dd6b20; }
-#root .fh-page .fh-c6 { background: #d69e2e; }
+#root .fh-page .fh-c6 { background: var(--nx-primary); }
 
 /* Recent vouchers and checklist (Muhasebe özeti) */
 #root .fh-page .fh-check { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }

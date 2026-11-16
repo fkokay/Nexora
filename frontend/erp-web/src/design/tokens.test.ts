@@ -94,7 +94,7 @@ describe('design tokens', () => {
       '--erp-subtle', '--erp-color-text', '--erp-color-muted', '--erp-workbench-text', '--erp-workbench-muted',
     ]
     const resolveAlias = (source: string, name: string) =>
-      source.match(new RegExp(`${name}\s*:\s*([^;]+);`))?.[1].trim()
+      source.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))?.[1].trim()
     for (const a of textRole) {
       expect(resolveAlias(css, a), a).toMatch(/^var\(--nx-(text|muted)\)$/)
     }

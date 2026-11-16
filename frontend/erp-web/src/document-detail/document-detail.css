@@ -14,9 +14,9 @@
   --dd-paper: var(--erp-color-surface);
   --dd-band: var(--erp-color-surface-muted);
   --dd-link: var(--nx-primary);
-  --dd-warn: #9a6700;
-  --dd-warn-bg: #fff7e0;
-  --dd-warn-line: #ecd08b;
+  --dd-warn: var(--nx-warn);
+  --dd-warn-bg: var(--nx-warn-bg);
+  --dd-warn-line: var(--nx-warn);
   --dd-danger: var(--erp-color-danger);
   --dd-success: #17643c;
   --dd-bar: #2f855a;
@@ -26,7 +26,7 @@ html[data-theme="dark"] .doc-surface.doc-detail,
 html[data-theme="dark"] .dd-tabs {
   --dd-line-soft: #283043;
   --dd-link: #93c5fd;
-  --dd-warn: #f0d48a;
+  --dd-warn: var(--nx-warn);
   --dd-warn-bg: #2b2613;
   --dd-warn-line: #6b5520;
   --dd-success: #9bdcb6;

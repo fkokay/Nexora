@@ -80,7 +80,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .company-setting-option small, .company-setting-field small { color: var(--erp-muted-ink); font-size: 10px; line-height: 1.55; }
 .company-setting-field { display: grid; gap: 7px; margin: 18px 0; color: var(--erp-ink); font-size: 11px; font-weight: 600; }
 .company-setting-field input { width: min(100%, 220px); height: 40px; padding: 0 11px; border: 1px solid var(--erp-line); border-radius: 8px; background: var(--erp-paper); color: var(--erp-ink); outline: 0; }
-.company-setting-field input:focus { border-color: var(--erp-primary); box-shadow: 0 0 0 3px rgb(101 85 217 / 13%); }
+.company-setting-field input:focus { border-color: var(--erp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 13%, transparent); }
 .company-setting-field input:disabled { opacity: .72; }
 .company-setting-card .modal-foot { gap: 12px; border-top: 1px solid var(--erp-line); padding-top: 13px; }
 .company-setting-card .modal-foot > span { flex: 1; min-width: 0; line-height: 1.5; }
@@ -105,7 +105,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .metric-card small { grid-column: 2; margin-top: 1px; font-size: 10px; }
 .metric-label { font-size: 10px; }
 .lower-grid { gap: 16px; margin-top: 16px; }
-.welcome-banner { min-height: 205px; border-radius: 16px; padding: 27px 30px; box-shadow: 0 10px 28px rgb(60 54 131 / 6%); }
+.welcome-banner { min-height: 205px; border-radius: 16px; padding: 27px 30px; box-shadow: 0 10px 28px color-mix(in srgb, var(--nx-primary) 6%, transparent); }
 .welcome-copy h2 { font-size: 24px; }
 .welcome-copy p { color: #65718a; font-size: 13px; }
 
@@ -127,14 +127,14 @@ input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:f
   box-shadow: 0 0 0 2px rgb(8 118 209 / 18%) !important;
 }
 input::placeholder, textarea::placeholder { color: #9aa4b6; }
-button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px solid rgb(99 85 217 / 34%); outline-offset: 2px; }
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px solid color-mix(in srgb, var(--nx-primary) 34%, transparent); outline-offset: 2px; }
 .customer-search { height: 39px; border-color: #dfe4ed; border-radius: 9px; box-shadow: 0 1px 3px rgb(33 47 75 / 3%); }
 .customer-search input { box-shadow: none !important; }
 .customer-table-wrap, .integration-queue-table-wrap, .module-ui-table-wrap { border-color: var(--erp-line); border-radius: 11px; box-shadow: 0 2px 9px rgb(27 40 70 / 3%); }
 .customer-table { min-width: 680px; }
 .customer-table th, .module-ui-table th { height: 42px; background: #f5f7fa; color: #718097; font-size: 10px; letter-spacing: .015em; }
 .customer-table td, .module-ui-table td { height: 49px; color: #536078; font-size: 11px; }
-.customer-table tbody tr:hover td { background: #f8f8ff; }
+.customer-table tbody tr:hover td { background: color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface)); }
 .customer-name { color: #25324a; font-size: 11px; }
 .form-two { gap: 14px; }
 .modal-backdrop { padding: 24px; }
@@ -205,7 +205,7 @@ html[data-theme="dark"] .company-setting-field input { background: #151d2c; bord
 html[data-theme="dark"] :is(.page-heading h1,.panel-heading h3,.section-title h2,.metric-card strong,.customer-name,.crumb b) { color: #edf1f8; }
 html[data-theme="dark"] :is(.muted,.panel-heading p,.section-title p,.tenant-switch small,.metric-label,.metric-card small) { color: #a7b1c3; }
 html[data-theme="dark"] .nav-item { color: #b0bbcd; }
-html[data-theme="dark"] .nav-item.active { background: #2c2a50; color: #c0b8ff; }
+html[data-theme="dark"] .nav-item.active { background: color-mix(in srgb, var(--nx-primary) 18%, var(--nx-surface)); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .nav-item:hover { background: #222b3c; }
 html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea,.customer-search) { background-color: #151d2c; border-color: #38445b; color: #e4eaf4; }
 html[data-theme="dark"] .customer-table th,

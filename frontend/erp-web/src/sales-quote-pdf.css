@@ -49,7 +49,7 @@
 .sales-quote-logo-upload .small-button{position:relative;flex:none;height:31px;padding:0 9px;overflow:hidden;font-size:9px}
 .sales-quote-logo-upload input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .sales-quote-designer-panel .check-row{display:flex;align-items:center;gap:7px;color:#566b80;font-size:10px}
-.sales-quote-designer-panel .check-row input{accent-color:#7060dc}
+.sales-quote-designer-panel .check-row input{accent-color:var(--nx-primary)}
 .sales-quote-designer-footer{display:flex;justify-content:flex-end;gap:7px;margin-top:2px;padding-top:10px;border-top:1px solid #e8edf2}
 .sales-quote-designer-footer .small-button{font-size:9px}
 .sales-quote-preview-stage{display:grid;min-width:0;min-height:0;padding:15px;background:#e9eef3}

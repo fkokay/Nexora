@@ -1,21 +1,21 @@
 .accounting-rule-profiles{margin-top:22px;padding:20px;border:1px solid #d8e1f0;border-radius:14px;background:#fff;box-shadow:0 4px 14px rgba(20,42,90,.04)}
 .accounting-rule-profiles>header{display:flex;align-items:center;gap:13px;padding-bottom:17px;border-bottom:1px solid #e4eaf4}
-.accounting-rule-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#f0edff;color:#6745ff}
-.accounting-rule-profiles .eyebrow{font-size:10px;letter-spacing:.1em;color:#6951df;font-weight:700}
+.accounting-rule-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface));color:var(--nx-primary-strong)}
+.accounting-rule-profiles .eyebrow{font-size:10px;letter-spacing:.1em;color:var(--nx-primary-strong);font-weight:700}
 .accounting-rule-profiles h2{margin:3px 0;font-size:18px}.accounting-rule-profiles header p{margin:0;color:#65748e;font-size:12px}
 .accounting-rule-layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:18px;padding-top:16px}
 .accounting-rule-layout aside{border:1px solid #e0e7f2;border-radius:10px;padding:14px;min-width:0}
 .accounting-rule-layout .accounting-rule-form-host{border:1px solid #e0e7f2;border-radius:10px;min-width:0}
 .accounting-rule-layout aside h3{font-size:13px;margin:0 0 10px}
 .accounting-rule-layout aside button{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px;text-align:left;background:#fff;border:1px solid transparent;border-radius:8px;color:#17253d;cursor:pointer}
-.accounting-rule-layout aside button.selected{border-color:#cfc5ff;background:#f7f5ff}.accounting-rule-layout aside button span{font-size:11px;color:#71809b}
-.accounting-rule-layout aside button.accounting-rule-new{margin-top:8px;border:1px dashed #ccd6e5;text-align:center;color:#5742d8}
+.accounting-rule-layout aside button.selected{border-color:color-mix(in srgb, var(--nx-primary) 22%, var(--nx-surface));background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface))}.accounting-rule-layout aside button span{font-size:11px;color:#71809b}
+.accounting-rule-layout aside button.accounting-rule-new{margin-top:8px;border:1px dashed #ccd6e5;text-align:center;color:var(--nx-primary-strong)}
 .accounting-rule-form-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;font-size:13px}
 .accounting-rule-form-title>div{display:flex;align-items:center;gap:8px}.accounting-rule-form-title>span{font-size:11px;color:#18834b;background:#e9f8ef;border-radius:20px;padding:4px 9px}
 .accounting-rule-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .accounting-rule-fields label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#4c5b75;font-weight:600}
 .accounting-rule-fields input,.accounting-rule-fields textarea{min-width:0;border:1px solid #d5dfec;border-radius:7px;padding:9px 10px;color:#15213a;font:inherit;font-weight:400;outline:none}
-.accounting-rule-fields input:focus,.accounting-rule-fields textarea:focus{border-color:#8876ff;box-shadow:0 0 0 2px rgba(111,83,255,.12)}
+.accounting-rule-fields input:focus,.accounting-rule-fields textarea:focus{border-color:var(--nx-primary);box-shadow:0 0 0 2px color-mix(in srgb, var(--nx-primary) 12%, transparent)}
 .accounting-rule-fields .source-field,.accounting-rule-fields .parameters-field{grid-column:span 3}
 .accounting-rule-layout form footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:13px;border-top:1px solid #e4eaf4}
 .accounting-rule-layout .profile-active{display:flex;align-items:center;gap:7px;font-size:12px;color:#56647d}
@@ -26,7 +26,7 @@
 .tax-preview-tools>b{grid-column:1/-1;color:#263650;font-size:12px}
 .tax-preview-tools label{display:flex;flex-direction:column;gap:5px}
 .tax-preview-tools input,.tax-preview-tools select{min-width:0;padding:8px;border:1px solid #d5dfec;border-radius:7px;background:white;color:#15213a}
-.tax-preview-tools>button{height:35px;padding:0 12px;border:0;border-radius:7px;background:#6045ed;color:white;font-weight:600;cursor:pointer}
+.tax-preview-tools>button{height:35px;padding:0 12px;border:0;border-radius:7px;background:var(--nx-primary);color:white;font-weight:600;cursor:pointer}
 .tax-preview-tools>button:disabled{opacity:.6;cursor:wait}
 .tax-preview-result{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;padding-top:9px;border-top:1px solid #e0e7f2}
 .tax-preview-result span{padding:7px 9px;border-radius:6px;background:white}.tax-preview-result small{align-self:center;color:#67758c}

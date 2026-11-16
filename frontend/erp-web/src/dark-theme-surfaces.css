@@ -72,7 +72,7 @@ html[data-theme='dark'] .app-shell .sales-invoice-total-panel .total-row.payable
   background-color: color-mix(in srgb, var(--nx-warn) 12%, var(--nx-surface)) !important;
 }
 html[data-theme='dark'] .app-shell .sales-invoice-total-panel .total-row.payable :is(span, output) {
-  color: #ffe7a3 !important;
+  color: var(--nx-primary-strong) !important;
 }
 
 /* Pastel status pills keep their tint; the shared muted text colour is too light on them. */
@@ -84,7 +84,7 @@ html[data-theme='dark'] .app-shell :is(
   color: #1b2333 !important;
 }
 /* Selected items get the gold primary-focus background from global-components.css. */
-html[data-theme='dark'] .app-shell :is(.is-selected, [aria-selected='true']) small { color: #3a2f0b !important; }
+html[data-theme='dark'] .app-shell :is(.is-selected, [aria-selected='true']) small { color: var(--nx-primary-strong) !important; }
 
 /* Navy and dark-blue text written for light cards. */
 html[data-theme='dark'] .app-shell :is(

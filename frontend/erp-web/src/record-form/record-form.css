@@ -7,9 +7,9 @@
   --rf-text: #0f1b2e;
   --rf-label: #1f2a3d;
   --rf-muted: #55647a;
-  --rf-accent: #f5b731;
-  --rf-accent-edge: #b98206;
-  --rf-must-bg: #fffbea;
+  --rf-accent: var(--nx-primary);
+  --rf-accent-edge: var(--nx-primary);
+  --rf-must-bg: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface));
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -87,8 +87,8 @@ html[data-theme="dark"] .record-form .rf-badge { border-color: #2f5f8f; backgrou
   font: inherit;
   font-size: 11px;
 }
-.record-form .rf-btn--primary { border-color: var(--rf-accent-edge); background: var(--rf-accent); color: #2b1d00; font-weight: 700; }
-.record-form .rf-btn--primary kbd { border-color: var(--rf-accent-edge); background: #ffe08a; color: #4a3500; }
+.record-form .rf-btn--primary { border-color: var(--rf-accent-edge); background: var(--rf-accent); color: var(--nx-primary-strong); font-weight: 700; }
+.record-form .rf-btn--primary kbd { border-color: var(--rf-accent-edge); background: var(--nx-primary); color: #fff; }
 .record-form .rf-error { margin: 16px 32px 0; }
 
 /* Form gövdesi */

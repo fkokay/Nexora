@@ -12,7 +12,7 @@
 .warehouse-panel{min-width:0;width:100%;padding:20px 22px}
 .warehouse-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:13px;margin-bottom:12px;border-bottom:1px solid var(--erp-border)}
 .warehouse-panel-heading>div:first-child{min-width:0}
-.warehouse-panel-heading .eyebrow{margin:0 0 4px;font-size:9px;letter-spacing:.12em;color:#7b70e9;font-weight:700}
+.warehouse-panel-heading .eyebrow{margin:0 0 4px;font-size:9px;letter-spacing:.12em;color:var(--nx-primary-strong);font-weight:700}
 .warehouse-panel-heading h2{margin:0;color:var(--erp-ink);font-size:17px;line-height:1.25}
 .warehouse-panel-heading p:not(.eyebrow){margin:4px 0 0;color:var(--erp-muted);font-size:11px;line-height:1.45}
 .warehouse-panel-tools{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-shrink:0}
@@ -35,7 +35,7 @@
 .transfer-stock-results>button>small,.transfer-stock-results>span{color:var(--erp-muted);font-size:10px}
 .transfer-stock-results>button>svg{color:#2874ca}
 .transfer-stock-results>span{padding:8px}
-.warehouse-row-icon,.warehouse-empty-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#f0edff;color:#6d5ce7}
+.warehouse-row-icon,.warehouse-empty-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface));color:var(--nx-primary-strong)}
 .warehouse-row-icon.transfer,.warehouse-empty-icon.transfer{background:#eaf3ff;color:#2875d5}
 .warehouse-row-info{display:grid;gap:3px;min-width:0}
 .warehouse-row-info>b{display:flex;align-items:center;gap:5px;min-width:0;color:var(--erp-ink);font-size:12px;line-height:1.35}

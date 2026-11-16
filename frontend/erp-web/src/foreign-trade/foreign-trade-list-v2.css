@@ -8,9 +8,9 @@
   --ft-accent: #0f6cbd;
   --ft-accent-tint: #eaf3fb;
   --ft-accent-strong: #0f548c;
-  --ft-warn: #8a5a00;
-  --ft-warn-tint: #fff6e0;
-  --ft-warn-border: #f1d79a;
+  --ft-warn: color-mix(in srgb, var(--nx-warn) 18%, var(--nx-surface));
+  --ft-warn-tint: var(--nx-warn-bg);
+  --ft-warn-border: var(--nx-warn);
   --ft-danger: var(--erp-color-danger);
   --ft-success: #12734a;
   --ft-success-tint: #e9f7f0;
@@ -20,7 +20,7 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page {
   --ft-accent: #8ec5fa;
   --ft-accent-tint: #1e3045;
   --ft-accent-strong: #b9dcff;
-  --ft-warn: #f2c66d;
+  --ft-warn: var(--nx-warn);
   --ft-warn-tint: #33291a;
   --ft-warn-border: #5c4823;
   --ft-danger: #f19999;

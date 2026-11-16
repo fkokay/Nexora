@@ -212,8 +212,8 @@
   color: #8a4308;
 }
 #root .app-shell .list-v2 .list-v2-list .party-pill.dealer {
-  background: #e9e6fb;
-  color: #4a35a8;
+  background: color-mix(in srgb, var(--nx-primary) 11%, var(--nx-surface));
+  color: var(--nx-primary-strong);
 }
 
 /* Detail panel. */
@@ -242,7 +242,7 @@
 }
 #root .list-v2 .list-v2-kind.is-customer { color: #134e9b; }
 #root .list-v2 .list-v2-kind.is-supplier { color: #8a4308; }
-#root .list-v2 .list-v2-kind.is-dealer { color: #4a35a8; }
+#root .list-v2 .list-v2-kind.is-dealer { color: var(--nx-primary-strong); }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-customer { color: #8ab8f5; }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-supplier { color: #f0b37a; }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: var(--nx-primary-strong); }

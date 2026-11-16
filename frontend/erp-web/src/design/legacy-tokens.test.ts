@@ -28,6 +28,62 @@ function offenders(pattern: RegExp): string[] {
 // Non-color legacy tokens (radius, sizes, shadows) may stay in the legacy stylesheets.
 const colorValue = /^(#[0-9a-f]{3,8}|(rgb|hsl)a?\(|color-mix\(|var\(--nx-)/i
 
+
+// ---- hue test helpers -------------------------------------------------------
+const colorLiteral = /#(?<hex>[0-9a-f]{3,8})(?![0-9a-z_-])|(?<fn>rgba?|hsla?)\((?<args>[^()]*)\)/gi
+
+function toHsl(m: RegExpMatchArray): { h: number; s: number; l: number } | null {
+  let r: number, g: number, b: number
+  const hex = m.groups?.hex
+  if (hex) {
+    const full = hex.length <= 4 ? [...hex].map((c) => c + c).join('') : hex
+    if (full.length !== 6 && full.length !== 8) return null
+    ;[r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+  } else {
+    const parts = (m.groups?.args ?? '').trim().split(/[\s,/]+/)
+    if (m.groups?.fn?.toLowerCase().startsWith('rgb')) {
+      const v = (x: string) => (x.endsWith('%') ? parseFloat(x) / 100 : parseFloat(x) / 255)
+      ;[r, g, b] = parts.slice(0, 3).map(v)
+    } else {
+      const h = (((parseFloat(parts[0]) % 360) + 360) % 360) / 360
+      const s = parseFloat(parts[1]) / 100
+      const l = parseFloat(parts[2]) / 100
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      const p = 2 * l - q
+      const channel = (t: number) => {
+        const x = (t + 1) % 1
+        return x < 1 / 6 ? p + (q - p) * 6 * x : x < 1 / 2 ? q : x < 2 / 3 ? p + (q - p) * (2 / 3 - x) * 6 : p
+      }
+      ;[r, g, b] = [channel(h + 1 / 3), channel(h), channel(h - 1 / 3)]
+    }
+  }
+  if ([r, g, b].some((n) => Number.isNaN(n))) return null
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return { h: 0, s: 0, l }
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return { h: h * 60, s, l }
+}
+
+// Purple/violet family: hue 235-300, saturation >= 0.20, not near-black/near-white
+// (the 0.95-0.995 band is pale lilac tint, also forbidden; pure white stays allowed).
+const isPurple = ({ h, s, l }: { h: number; s: number; l: number }) => h >= 235 && h <= 300 && s >= 0.2 && l >= 0.08 && l < 0.995
+const isGold = ({ h, s }: { h: number; s: number; l: number }) => h >= 38 && h <= 52 && s >= 0.6
+
+// Gold is allowed ONLY for the brand logo mark: the login/launcher/sidebar/topbar "N" badge and wordmark.
+// Selectors (and the --nexora-brand-gold custom property) listed here are the complete allowlist.
+const brandMark = /brand-mark|auth-logo|auth-wordmark|side-brand|topbar-brand|module-launcher-brand/
+function isBrandMark(code: string, index: number): boolean {
+  const open = code.lastIndexOf('{', index)
+  const selector = code.slice(Math.max(code.lastIndexOf('}', open), code.lastIndexOf(';', open)) + 1, open)
+  const declStart = Math.max(code.lastIndexOf(';', index), open)
+  const declaration = code.slice(declStart + 1, index)
+  return brandMark.test(selector) || /--nexora-brand-gold\s*:/.test(declaration)
+}
+
 describe('legacy stylesheets converge on --nx tokens', () => {
   it('scans a non-trivial set of stylesheets', () => {
     expect(sheets.length).toBeGreaterThan(50)
@@ -47,7 +103,25 @@ describe('legacy stylesheets converge on --nx tokens', () => {
   })
 
   it('old accent colors are gone', () => {
-    expect(offenders(/#(7060df|6844df|a99bff|0876d1|0A192F|c4baff|2b2850|b3adff|3a3220|b6a9ff|7968d3|6366f1|25213d|282344|2a2340|2a2444|302346|322d50|3b2d4d|413970|43386a|49416d|4a3d6b|4b408d|51447e|514a7a|645a9a|7969d2|a99aff|b5a8f2|c2b8ff|c4b9ff|c8b8f0|c8bcff|c9bdff|c9c0ff|d0a8f3|d0c7ff|d0c8ff|d1baff|d1c9ff|d2c9ff|d2caff|d4b3f5)(?![0-9a-f])/i)).toEqual([])
+    expect(offenders(/#(7060df|6844df|a99bff|0876d1|0A192F)(?![0-9a-f])/i)).toEqual([])
+  })
+
+  it('no purple/violet or gold color literal remains (one accent: --nx-primary)', () => {
+    const found = sheets.flatMap(({ name, text }) => {
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+      const hits: string[] = []
+      for (const m of code.matchAll(colorLiteral)) {
+        const hsl = toHsl(m)
+        if (!hsl) continue
+        const family = isPurple(hsl) ? 'purple' : isGold(hsl) ? 'gold' : null
+        if (!family) continue
+        const line = code.slice(0, m.index).split('\n').length
+        if (family === 'gold' && isBrandMark(code, m.index ?? 0)) continue
+        hits.push(`${name}:${line} ${family} ${m[0]}`)
+      }
+      return hits
+    })
+    expect(found).toEqual([])
   })
 
   it('color-mix tints use the theme surface, not white', () => {

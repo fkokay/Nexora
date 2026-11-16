@@ -148,7 +148,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
 #root .purchase-requests-page .pr-list-quote-supplier > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .purchase-requests-page .pr-list-quote-supplier > svg { flex: 0 0 auto; color: #b7791f; }
 #root .purchase-requests-page .pr-list-quote-amount { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-html[data-theme="dark"] #root .purchase-requests-page .pr-list-quote-supplier > svg { color: #f6c453; }
+html[data-theme="dark"] #root .purchase-requests-page .pr-list-quote-supplier > svg { color: var(--nx-warn); }
 
 /* Satır içi onay / ret (sağ panel ve talep ayrıntısı) */
 #root .pr-decision { display: grid; gap: 6px; }

@@ -96,7 +96,7 @@
 .finance-budget-page .budget-plan-item:hover,
 .finance-budget-page .budget-plan-item.active {
   border-color: #818cf8;
-  box-shadow: 0 0 0 2px rgb(99 102 241 / 10%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nx-primary) 10%, transparent);
 }
 
 .finance-budget-page .budget-plan-item.active {
@@ -107,7 +107,7 @@
 .finance-budget-page button:focus-visible,
 .finance-budget-page input:focus-visible,
 .finance-budget-page select:focus-visible {
-  outline: 3px solid rgb(79 70 229 / 38%);
+  outline: 3px solid color-mix(in srgb, var(--nx-primary) 38%, transparent);
   outline-offset: 2px;
 }
 
@@ -288,9 +288,9 @@
   min-width: 0;
   margin: 0 0 14px;
   padding: 12px 14px;
-  border: 1px solid #e7c77d;
+  border: 1px solid var(--nx-warn);
   border-radius: 10px;
-  background: #fff9e8;
+  background: var(--nx-warn-bg);
   color: #704d12;
   font-size: 13px;
   line-height: 1.55;
@@ -362,7 +362,7 @@ html[data-theme="dark"] .finance-budget-page .budget-entry-row { border-color: v
 html[data-theme="dark"] .finance-budget-page .budget-empty strong { color: var(--erp-text); }
 html[data-theme="dark"] .finance-budget-page .budget-load-error { border-color: #704448; background: #302125; }
 html[data-theme="dark"] .finance-budget-page .budget-load-error strong { color: #f3aaaa; }
-html[data-theme="dark"] .finance-budget-page .budget-currency-warning { border-color: #66552c; background: #302b1d; color: #f4dfaa; }
+html[data-theme="dark"] .finance-budget-page .budget-currency-warning { border-color: #66552c; background: #302b1d; color: var(--nx-warn); }
 
 /* Ledger workbench: keep plan selection, entry capture and review in a clear
    hierarchy while increasing useful information density. */

@@ -200,9 +200,9 @@ html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel,
   font-weight: 650;
 }
 .app-shell:not(.standalone-studio) .advanced-grid-table td { color: #172B45; font-size: 12px; }
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #FFF9E5; }
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 10%, var(--nx-surface)); }
 .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #FFF4CC !important; }
+.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: color-mix(in srgb, var(--nx-primary) 19%, var(--nx-surface)) !important; }
 .app-shell:not(.standalone-studio) .advanced-grid-footer {
   padding: 8px 12px;
   border-color: #D7DEE7;

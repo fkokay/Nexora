@@ -7,7 +7,7 @@ html #root .module-launcher.has-custom-background {
   background-repeat: no-repeat, no-repeat;
 }
 /* Light theme: images get a soft veil so the translucent panels keep their contrast. */
-html #root .module-launcher.is-image-background { --launcher-bg-overlay: linear-gradient(135deg, #f5f6faa0 0%, #f6f2faa0 48%, #eef2f9a0 100%); }
+html #root .module-launcher.is-image-background { --launcher-bg-overlay: linear-gradient(135deg, #f5f6faa0 0%, color-mix(in srgb, var(--nx-primary) 63%, transparent) 48%, #eef2f9a0 100%); }
 /* Dark theme: any colour or image is dimmed so the dark panels and their text stay readable. */
 html[data-theme="dark"] #root .module-launcher.has-custom-background {
   --launcher-bg-overlay: linear-gradient(135deg, #0f1727c4 0%, #161f33b0 48%, #0f1727c8 100%);
@@ -70,9 +70,9 @@ html[data-theme="dark"] #root .module-launcher.is-color-background { background-
   cursor: pointer;
 }
 #root .launcher-background-panel [aria-pressed="true"],
-#root .launcher-background-custom[data-selected="true"] { outline: 2px solid #6550df; outline-offset: 2px; }
+#root .launcher-background-custom[data-selected="true"] { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 #root .launcher-background-panel [aria-pressed="true"] svg { filter: drop-shadow(0 0 2px #0009); }
-#root .launcher-background-custom { background: conic-gradient(#f87171, #fbbf24, #4ade80, #38bdf8, #a78bfa, #f472b6, #f87171); }
+#root .launcher-background-custom { background: conic-gradient(#f87171, var(--nx-primary), #4ade80, #38bdf8, var(--nx-primary), #f472b6, #f87171); }
 #root .launcher-background-custom input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-upload,
 #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-reset {
@@ -88,7 +88,7 @@ html[data-theme="dark"] #root .module-launcher.is-color-background { background-
 #root .launcher-background-url input { flex: 1; min-width: 0; height: 32px; padding: 0 9px; border: 1px solid #d5d9e6; border-radius: 8px; background: #fff; color: #283550; font-size: 11px; }
 #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-url button { height: 32px; padding: 0 10px; }
 #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-close { display: grid; width: 26px; height: 26px; place-items: center; padding: 0; border: 0; background: transparent; color: #66728a; }
-#root .launcher-background-message { margin: 0; padding: 7px 9px; border-radius: 8px; background: #f3f1ff; color: #4336a6; font-size: 10px; line-height: 1.35; }
+#root .launcher-background-message { margin: 0; padding: 7px 9px; border-radius: 8px; background: color-mix(in srgb, var(--nx-primary) 5%, var(--nx-surface)); color: var(--nx-primary-strong); font-size: 10px; line-height: 1.35; }
 
 html[data-theme="dark"] #root .launcher-background-panel { border-color: #37455d; background: #172235; color: #e3e9f4; }
 html[data-theme="dark"] #root .launcher-background-panel > header strong { color: #e3e9f4; }
