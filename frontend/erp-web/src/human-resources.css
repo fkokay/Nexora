@@ -1,10 +1,10 @@
 .hr-page {
   --hr-accent: #0f6cbd;
-  --hr-surface: var(--erp-surface, #fff);
-  --hr-background: var(--erp-bg, #f3f6fa);
-  --hr-line: var(--erp-border, #e5e7ee);
-  --hr-text: var(--erp-text, #1f2937);
-  --hr-muted: var(--erp-muted, #858c9b);
+  --hr-surface: var(--erp-surface);
+  --hr-background: var(--erp-bg);
+  --hr-line: var(--erp-border);
+  --hr-text: var(--erp-text);
+  --hr-muted: var(--erp-muted);
   --hr-soft: color-mix(in srgb, var(--hr-accent) 6%, var(--hr-surface));
   display: grid;
   gap: 18px;
@@ -714,7 +714,7 @@ html[data-theme="dark"] .hr-filter-card { border-color: var(--hr-line); backgrou
 #root .hr-page .hr-status--pending { border-color: #f0d28a; background: #fff6dd; color: #8a5a00; }
 #root .hr-page .hr-status--approved { border-color: #b7e0c8; background: #eaf7ef; color: #17643a; }
 #root .hr-page .hr-status--rejected { border-color: #f1c2c4; background: #fdeeee; color: #a2333a; }
-#root .hr-page .hr-status--muted { border-color: var(--hr-line); background: var(--lv2-surface-muted, #f4f6f8); color: var(--hr-muted); }
+#root .hr-page .hr-status--muted { border-color: var(--hr-line); background: var(--nx-canvas); color: var(--hr-muted); }
 html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: #6b5419; background: #34290f; color: #f3cf7a; }
 html[data-theme="dark"] #root .hr-page .hr-status--approved { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
 html[data-theme="dark"] #root .hr-page .hr-status--rejected { border-color: #6a2d33; background: #34171b; color: #f3a6ab; }

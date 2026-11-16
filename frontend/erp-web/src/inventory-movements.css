@@ -1,20 +1,20 @@
 .inventory-movements-page { display: grid; gap: 20px; padding: 28px; }
 .inventory-movements-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .inventory-movements-heading h1 { margin: 4px 0 6px; font-size: clamp(25px, 3vw, 34px); }
-.inventory-movements-heading p:last-child { margin: 0; color: var(--muted, #65738a); }
+.inventory-movements-heading p:last-child { margin: 0; color: var(--nx-muted); }
 .inventory-movements-heading-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 15px; color: #2563eb; background: #eff6ff; }
-.inventory-movements-filters { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(220px, .6fr) auto; align-items: end; gap: 14px; padding: 18px; border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); }
+.inventory-movements-filters { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(220px, .6fr) auto; align-items: end; gap: 14px; padding: 18px; border: 1px solid var(--nx-line); border-radius: 14px; background: var(--nx-surface); }
 .inventory-movements-filters label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 650; }
-.inventory-movements-filters select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border, #dbe2ec); border-radius: 9px; background: var(--surface, #fff); color: inherit; }
+.inventory-movements-filters select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--nx-line); border-radius: 9px; background: var(--nx-surface); color: inherit; }
 .inventory-movements-refresh { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
 .inventory-movements-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.inventory-movements-summary > div { display: grid; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; background: var(--surface, #fff); }
-.inventory-movements-summary span { color: var(--muted, #65738a); font-size: 12px; }
+.inventory-movements-summary > div { display: grid; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--nx-line); border-radius: 12px; background: var(--nx-surface); }
+.inventory-movements-summary span { color: var(--nx-muted); font-size: 12px; }
 .inventory-movements-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; }
-.inventory-movements-table-card { overflow: hidden; border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fff); }
+.inventory-movements-table-card { overflow: hidden; border: 1px solid var(--nx-line); border-radius: 14px; background: var(--nx-surface); }
 .inventory-movements-table-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 18px 20px; }
 .inventory-movements-table-heading h2 { margin: 0 0 5px; font-size: 17px; }
-.inventory-movements-table-heading span { color: var(--muted, #65738a); font-size: 13px; }
+.inventory-movements-table-heading span { color: var(--nx-muted); font-size: 13px; }
 .inventory-movements-table th, .inventory-movements-table td { white-space: nowrap; }
 .inventory-movement-direction { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 20px; font-size: 12px; font-weight: 650; }
 .inventory-movements-summary .is-receipt, .inventory-movement-direction.is-receipt { color: #15803d; }
@@ -22,7 +22,7 @@
 .inventory-movement-direction.is-receipt { background: #f0fdf4; }
 .inventory-movement-direction.is-issue { background: #fff7ed; }
 .inventory-movement-quantity { font-weight: 650; }
-.inventory-movements-empty { padding: 38px 18px !important; text-align: center; color: var(--muted, #65738a); }
+.inventory-movements-empty { padding: 38px 18px !important; text-align: center; color: var(--nx-muted); }
 @media (max-width: 760px) { .inventory-movements-page { padding: 18px 12px; } .inventory-movements-filters { grid-template-columns: 1fr; } .inventory-movements-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inventory-movements-refresh { justify-content: center; } }
 
 /* Refined stock movement screen */

@@ -116,7 +116,7 @@
   list-style: none;
 }
 #root .inv-modal-more > summary::-webkit-details-marker { display: none; }
-#root .inv-modal-more[open] > summary { border-color: #0a192f; }
+#root .inv-modal-more[open] > summary { border-color: var(--nx-primary); }
 #root .inv-modal-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -128,7 +128,7 @@
   border: 1px solid #dfe5ee;
   border-radius: 9px;
   background: #fff;
-  box-shadow: 0 10px 28px #0a192f1f;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--nx-ink) 12%, transparent);
 }
 /* The last rows open upward so the menu is not clipped by the dialog's scrolling body. */
 #root .inv-modal-row:last-child:not(:first-child) .inv-modal-menu { top: auto; bottom: calc(100% + 4px); }
@@ -203,7 +203,7 @@
   content: "";
   transition: transform .15s ease;
 }
-#root .inv-modal-switch > input:checked { background: #0a192f; }
+#root .inv-modal-switch > input:checked { background: var(--nx-primary); }
 #root .inv-modal-switch > input:checked::after { transform: translateX(14px); }
 #root .inv-modal-switch > input:focus-visible { outline: 2px solid #4b8fda; outline-offset: 2px; }
 #root .inv-modal-switch > span { display: grid; gap: 2px; }

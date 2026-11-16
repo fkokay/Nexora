@@ -11,7 +11,7 @@
   --ft-warn: #8a5a00;
   --ft-warn-tint: #fff6e0;
   --ft-warn-border: #f1d79a;
-  --ft-danger: var(--erp-color-danger, #b91c1c);
+  --ft-danger: var(--erp-color-danger);
   --ft-success: #12734a;
   --ft-success-tint: #e9f7f0;
   gap: 12px;
@@ -395,7 +395,7 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page {
 
 /* Create/edit form: format hints under coded inputs. */
 #root .foreign-trade-create .foreign-trade-field-hint {
-  color: var(--rf-muted, #6b778c);
+  color: var(--rf-muted);
   font-size: 11px;
   font-weight: 400;
   line-height: 1.35;

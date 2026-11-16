@@ -1,6 +1,6 @@
 /* Launcher dashboard background chosen in "Customize screen" mode. Values come from inline custom properties. */
 html #root .module-launcher.has-custom-background {
-  background-color: var(--launcher-bg-color, #e9edf8);
+  background-color: var(--nx-canvas);
   background-image: var(--launcher-bg-overlay, linear-gradient(transparent, transparent)), var(--launcher-bg-fill, none);
   background-position: center, center;
   background-size: cover, cover;
@@ -13,7 +13,7 @@ html[data-theme="dark"] #root .module-launcher.has-custom-background {
   --launcher-bg-overlay: linear-gradient(135deg, #0f1727c4 0%, #161f33b0 48%, #0f1727c8 100%);
   background-color: #111827;
 }
-html[data-theme="dark"] #root .module-launcher.is-color-background { background-color: color-mix(in srgb, var(--launcher-bg-color, #111827) 22%, #111827); }
+html[data-theme="dark"] #root .module-launcher.is-color-background { background-color: color-mix(in srgb, var(--nx-canvas) 22%, #111827); }
 
 #root .launcher-background-picker { position: relative; display: inline-flex; }
 #root .launcher-dashboard-edit-toolbar button.launcher-background-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; font-size: 10px; }

@@ -146,7 +146,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--erp-link, #315f8b);
+  color: var(--nx-primary);
   font: inherit;
   font-weight: 600;
   text-align: left;

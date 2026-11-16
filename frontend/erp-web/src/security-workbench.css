@@ -27,9 +27,9 @@
 .access-control-page>section.panel:last-of-type>.security-record-pane{grid-column:2;grid-row:2;position:sticky;top:90px}
 .audit-log-page .audit-toolbar{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #d9e2f0;border-radius:8px;background:#fff}
 .audit-log-page .audit-filter-card{display:grid;gap:10px;padding:14px 16px}
-.audit-log-page .audit-filter-heading{padding-bottom:9px;border-bottom:1px solid var(--erp-border,#dce5ef)}
-.audit-log-page .audit-filter-heading h2{margin:0;color:var(--erp-text,#263b58);font-size:15px}
-.audit-log-page .audit-filter-heading p{margin:4px 0 0;color:var(--erp-muted,#7b899c);font-size:11px}
+.audit-log-page .audit-filter-heading{padding-bottom:9px;border-bottom:1px solid var(--erp-border)}
+.audit-log-page .audit-filter-heading h2{margin:0;color:var(--erp-text);font-size:15px}
+.audit-log-page .audit-filter-heading p{margin:4px 0 0;color:var(--erp-muted);font-size:11px}
 .audit-log-page .audit-filter-card .audit-toolbar{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 .audit-log-page .audit-toolbar .customer-search{flex:1;min-width:200px}
 .audit-log-page .audit-date-filter{min-width:145px}
@@ -190,7 +190,7 @@ html[data-theme="dark"] .access-control-page>section.panel:last-of-type .request
 @media(max-width:900px){.access-page-scope{display:none}.access-control-page>section.panel:nth-of-type(2) form>.form-two{padding-bottom:0;border-bottom:0}}
 @media(max-width:680px){.access-page-heading{align-items:flex-start;gap:10px}.access-page-title-icon{flex-basis:36px;width:36px;height:36px}.access-control-page>.panel{padding:15px}.access-control-page .access-member-list{padding:6px}.access-control-page .access-member-row{grid-template-columns:minmax(0,1fr);gap:8px;padding:11px}.access-control-page .access-member-row .access-member-role{max-width:none}.access-control-page .access-member-row>.row-action{justify-self:start}.access-control-page>section.panel:last-of-type .panel-heading{align-items:flex-start;flex-direction:column}.access-control-page>section.panel:last-of-type .compact-search{width:100%;max-width:none}.access-control-page>section.panel:nth-of-type(2) .modal-foot>span{max-width:none}}
 .audit-workbench{grid-template-columns:minmax(0,1fr)}
-.audit-detail-dialog{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));max-width:none;max-height:min(80vh,680px);overflow:auto;padding:20px;border:1px solid #dce5ef;border-radius:14px;background:var(--erp-surface,#fff);box-shadow:0 24px 80px #10233b40;color:var(--erp-text,#263b58)}
+.audit-detail-dialog{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));max-width:none;max-height:min(80vh,680px);overflow:auto;padding:20px;border:1px solid #dce5ef;border-radius:14px;background:var(--erp-surface);box-shadow:0 24px 80px #10233b40;color:var(--erp-text)}
 .audit-detail-dialog::backdrop{background:#0e1a2b80;backdrop-filter:blur(2px)}
 .audit-detail-dialog .security-record-heading{align-items:flex-start}
 .audit-detail-dialog .security-record-heading h3{font-size:16px}

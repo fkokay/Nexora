@@ -1,5 +1,4 @@
 /* Dynamics-inspired ERP workbench shell and home dashboard. */
-.app-shell:not(.standalone-studio){--erp-blue:#0876e8;--erp-blue-dark:#0a2e55;--erp-blue-soft:#eaf3ff}
 .app-shell:not(.standalone-studio) .topbar{background:#092e56;color:#fff;border-color:#173f69;box-shadow:0 2px 8px #092e5618}
 .app-shell:not(.standalone-studio) .crumb,.app-shell:not(.standalone-studio) .crumb b,.app-shell:not(.standalone-studio) .crumb .slash{color:#e7f0fb}
 .app-shell:not(.standalone-studio) .crumb .slash{opacity:.58}
@@ -24,7 +23,7 @@
 
 .erp-home-dashboard{display:grid;gap:18px}
 .erp-home-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:3px 0 2px}
-.erp-home-heading h1{font:700 clamp(23px,2.1vw,31px) Manrope,sans-serif;letter-spacing:-.8px;color:#17283d;margin:0 0 6px}
+.erp-home-heading h1{font:700 clamp(23px,2.1vw,31px) var(--nx-font);letter-spacing:-.8px;color:#17283d;margin:0 0 6px}
 .erp-home-heading .eyebrow{margin-bottom:7px}
 .erp-home-heading-actions{display:flex;align-items:center;gap:9px;flex:none}
 .erp-home-tabs{display:flex;align-items:center;gap:25px;min-height:45px;padding:0 13px;background:#fff;border:1px solid #e5ebf2;border-radius:7px;box-shadow:0 1px 3px #122b4308}
@@ -54,7 +53,7 @@
 .erp-home-side-panels{display:grid;gap:13px;min-width:0}
 .erp-home-panel{padding:16px;background:#fff;border:1px solid #e4eaf2;border-radius:8px;box-shadow:0 1px 4px #112f4b08}
 .erp-home-panel>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px;color:#0876e8}
-.erp-home-panel>header h2{margin:0 0 4px;color:#17283d;font:700 14px Manrope,sans-serif}
+.erp-home-panel>header h2{margin:0 0 4px;color:#17283d;font:700 14px var(--nx-font)}
 .erp-home-panel>header p{margin:0;color:#8190a2;font-size:10px}
 .erp-home-shortcuts{display:grid}
 .erp-home-shortcuts button{display:flex;align-items:center;gap:10px;width:100%;min-height:55px;padding:8px 1px;border:0;border-top:1px solid #edf1f5;background:#fff;text-align:left;color:#0876e8}
@@ -245,9 +244,9 @@ html[data-theme="dark"] .customer-company-hierarchy small{color:var(--erp-muted)
 .global-search{cursor:pointer;text-align:left;font:inherit}
 .global-search:hover{background:#ffffff20;border-color:#ffffff45}
 .global-search-backdrop{z-index:20;align-items:start;padding:15vh 20px 20px}
-.global-search-dialog{width:min(560px,100%);max-height:min(70vh,620px);overflow:hidden;background:var(--erp-surface,#fff);border:1px solid var(--erp-border,#dce3ee);border-radius:14px;box-shadow:0 24px 80px #0b1d3540;color:var(--erp-text,#182032);display:flex;flex-direction:column}
-.global-search-input-row{height:58px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--erp-border,#e5e9f0);color:#7c8798}
-.global-search-input-row input{flex:1;min-width:0;border:0!important;outline:0!important;box-shadow:none!important;background:transparent;color:var(--erp-text,#182032);font:inherit;font-size:14px}
+.global-search-dialog{width:min(560px,100%);max-height:min(70vh,620px);overflow:hidden;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:14px;box-shadow:0 24px 80px #0b1d3540;color:var(--erp-text);display:flex;flex-direction:column}
+.global-search-input-row{height:58px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--erp-border);color:#7c8798}
+.global-search-input-row input{flex:1;min-width:0;border:0!important;outline:0!important;box-shadow:none!important;background:transparent;color:var(--erp-text);font:inherit;font-size:14px}
 .global-search-input-row kbd,.global-search-results kbd{font-family:inherit;font-weight:500;font-size:10px;color:#8993a3;background:#f1f4f8;border:1px solid #e4e8ef;border-radius:5px;padding:4px 6px}
 .global-search-results{padding:7px;overflow:auto}
 .global-search-results>button{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left}
@@ -257,9 +256,8 @@ html[data-theme="dark"] .customer-company-hierarchy small{color:var(--erp-muted)
 .global-search-results b{font-size:12px;font-weight:600}
 .global-search-results small{font-size:10px;color:#8993a3}
 .global-search-empty{margin:0;padding:24px 12px;text-align:center;color:#8993a3;font-size:12px}
-.global-search-dialog footer{display:flex;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--erp-border,#e5e9f0);font-size:10px;color:#8993a3}
+.global-search-dialog footer{display:flex;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--erp-border);font-size:10px;color:#8993a3}
 .global-search-dialog footer span{padding:2px 5px;border:1px solid #e4e8ef;border-radius:4px;background:#f1f4f8}
-html[data-theme="dark"] .global-search-dialog{--erp-surface:#171d2b;--erp-border:#303849;--erp-text:#e5e9f1}
 html[data-theme="dark"] .global-search-input-row input{color:#e5e9f1}
 html[data-theme="dark"] .global-search-input-row kbd,html[data-theme="dark"] .global-search-results kbd,html[data-theme="dark"] .global-search-dialog footer span{background:#232b3b;border-color:#3a4559;color:#b7c1d1}
 html[data-theme="dark"] .global-search-results>button:hover,html[data-theme="dark"] .global-search-results>button:focus-visible{background:#222d40}
@@ -271,8 +269,8 @@ html[data-theme="dark"] .global-search-result-icon{background:#202a3b;border-col
 .global-search-edit-button:hover{background:#eef4fc}
 .global-search-results.is-quick-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .global-search-results.is-quick-menu>button{min-height:56px}
-.global-quick-menu-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:8px 14px;max-height:240px;overflow:auto;border-bottom:1px solid var(--erp-border,#e5e9f0)}
-.global-quick-menu-editor label{display:flex;align-items:center;gap:9px;min-width:0;padding:7px;border-radius:6px;color:var(--erp-text,#182032);cursor:pointer}
+.global-quick-menu-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:8px 14px;max-height:240px;overflow:auto;border-bottom:1px solid var(--erp-border)}
+.global-quick-menu-editor label{display:flex;align-items:center;gap:9px;min-width:0;padding:7px;border-radius:6px;color:var(--erp-text);cursor:pointer}
 .global-quick-menu-editor label:hover{background:#f3f6fa}
 .global-quick-menu-editor input{width:14px;height:14px;flex:none;accent-color:#2877c7}
 .global-quick-menu-editor label>span{display:grid;gap:2px;min-width:0}

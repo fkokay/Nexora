@@ -67,7 +67,7 @@ html[data-theme='dark'] .app-shell :is(
   color: var(--erp-color-text) !important;
 }
 html[data-theme='dark'] .launcher-metric > span { color: var(--erp-color-muted) !important; }
-html[data-theme='dark'] .launcher-center-hero > .launcher-all-modules { color: #c4baff !important; }
+html[data-theme='dark'] .launcher-center-hero > .launcher-all-modules { color: var(--nx-primary-strong) !important; }
 html[data-theme='dark'] .app-shell .sales-invoice-total-panel .total-row.payable {
   background-color: #2b2613 !important;
 }
@@ -103,7 +103,7 @@ html[data-theme='dark'] .app-shell :is(
 ) {
   color: #9cc8f5 !important;
 }
-html[data-theme='dark'] .app-shell :is(.marketplace-card summary, .module-starter-card summary) { color: #c4baff !important; }
+html[data-theme='dark'] .app-shell :is(.marketplace-card summary, .module-starter-card summary) { color: var(--nx-primary-strong) !important; }
 
 /* Hover and focus states that switch to a light background, measured by forcing each
  * :hover / :focus rule on every workspace page in the dark theme. */
@@ -111,7 +111,7 @@ html[data-theme='dark'] .module-launcher :is(
   .launcher-all-modules, .launcher-notifications-collapse, .launcher-quick-actions-collapse
 ):is(:hover, :focus-visible) {
   background-color: #2b2850 !important;
-  color: #c4baff !important;
+  color: var(--nx-primary-strong) !important;
 }
 
 /* Record links and table text written in dark blue or navy for light tables. */

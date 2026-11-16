@@ -1,8 +1,8 @@
 .credit-facilities-page {
-  --credit-border: var(--erp-border, #e2e6ef);
-  --credit-muted: var(--erp-muted, #697386);
-  --credit-text: var(--erp-text, #273047);
-  --credit-surface: var(--erp-surface, #fff);
+  --credit-border: var(--erp-border);
+  --credit-muted: var(--erp-muted);
+  --credit-text: var(--erp-text);
+  --credit-surface: var(--erp-surface);
   gap: 12px;
   min-width: 0;
 }
@@ -255,7 +255,7 @@
 
 html[data-theme="dark"] .credit-facilities-page .credit-overview-card,
 html[data-theme="dark"] .credit-facilities-page .credit-facility-card,
-html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { background: var(--erp-surface, #1b2130); }
+html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { background: var(--erp-surface); }
 
 /* Compact Fluent finance workbench */
 .credit-facilities-page { gap: 12px; }
@@ -288,7 +288,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 
 /* Refined credit workbench: clearer hierarchy between overview, entry forms and records. */
 .credit-facilities-page {
-  --credit-accent: #0876d1;
+  --credit-accent: var(--nx-primary);
   --credit-accent-soft: #eaf4ff;
   gap: 14px;
 }
@@ -298,7 +298,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
   padding: 7px 10px 7px 15px;
   border: 1px solid var(--credit-border);
   border-radius: 10px;
-  background: linear-gradient(110deg, var(--credit-surface), color-mix(in srgb, var(--credit-surface) 92%, #0876d1));
+  background: linear-gradient(110deg, var(--credit-surface), color-mix(in srgb, var(--credit-surface) 92%, var(--nx-primary)));
 }
 .credit-facilities-page .credit-page-actions > span {
   display: flex;
@@ -383,7 +383,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
   align-content: center;
   padding: 10px 11px;
   border: 1px solid color-mix(in srgb, var(--credit-border) 78%, transparent);
-  background: color-mix(in srgb, var(--credit-surface) 95%, #0876d1);
+  background: color-mix(in srgb, var(--credit-surface) 95%, var(--nx-primary));
 }
 .credit-facilities-page .credit-overview-card .credit-overview-emphasis,
 .credit-facilities-page .credit-balance-grid .credit-balance-emphasis {
@@ -395,7 +395,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
   border-radius: 11px;
   box-shadow: 0 5px 18px rgba(20, 52, 84, .045);
 }
-.credit-facilities-page .finance-two-column > .panel:first-child { border-top: 3px solid #0876d1; }
+.credit-facilities-page .finance-two-column > .panel:first-child { border-top: 3px solid var(--nx-primary); }
 .credit-facilities-page .finance-two-column > .panel:last-child { border-top: 3px solid #6c63d9; }
 .credit-facilities-page .collection-form .form-two { gap: 12px 16px; }
 .credit-facilities-page .collection-form input,
@@ -431,19 +431,19 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
   border-radius: 11px;
   box-shadow: 0 4px 14px rgba(20, 52, 84, .04);
 }
-.credit-facilities-page .credit-state { border-radius: 11px; background: color-mix(in srgb, var(--credit-surface) 94%, #0876d1); }
+.credit-facilities-page .credit-state { border-radius: 11px; background: color-mix(in srgb, var(--credit-surface) 94%, var(--nx-primary)); }
 .credit-facilities-page .boundary-note { border-radius: 9px; }
 
 html[data-theme="dark"] .credit-facilities-page .credit-page-actions,
 html[data-theme="dark"] .credit-facilities-page .credit-overview-card dl > div,
 html[data-theme="dark"] .credit-facilities-page .credit-balance-grid > div,
 html[data-theme="dark"] .credit-facilities-page .credit-state {
-  background: color-mix(in srgb, var(--credit-surface) 92%, #0876d1);
+  background: color-mix(in srgb, var(--credit-surface) 92%, var(--nx-primary));
 }
 html[data-theme="dark"] .credit-facilities-page .credit-overview-title span,
 html[data-theme="dark"] .credit-facilities-page .credit-overview-card .credit-overview-emphasis,
 html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-balance-emphasis {
-  background: color-mix(in srgb, var(--credit-surface) 80%, #0876d1);
+  background: color-mix(in srgb, var(--credit-surface) 80%, var(--nx-primary));
 }
 
 /* Credit operations use dedicated workspace pages instead of stacked forms. */

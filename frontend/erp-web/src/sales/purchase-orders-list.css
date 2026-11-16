@@ -16,8 +16,8 @@
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-code-cell,
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-supplier-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-code-cell .customer-code { font-weight: 700; }
-#root .app-shell :is(.purchase-orders-page, .purchase-requests-page) .po-list-overdue { color: var(--erp-color-danger, #b91c1c) !important; font-weight: 600; }
-#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-muted { color: var(--erp-color-muted, #526174); }
+#root .app-shell :is(.purchase-orders-page, .purchase-requests-page) .po-list-overdue { color: var(--erp-color-danger) !important; font-weight: 600; }
+#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-muted { color: var(--erp-color-muted); }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-amount { display: block; text-align: right; font-variant-numeric: tabular-nums; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-received { display: flex; flex-direction: column; gap: 4px; min-width: 96px; font-variant-numeric: tabular-nums; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-bar {
@@ -40,9 +40,9 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
   gap: 10px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid var(--erp-color-border, #d8e0e8);
+  border: 1px solid var(--erp-color-border);
   border-radius: 8px;
-  background: var(--erp-color-surface, #fff);
+  background: var(--erp-color-surface);
 }
 @media (min-width: 1100px) {
   #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside { position: sticky; top: 12px; }
@@ -54,12 +54,12 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
   font-weight: 700 !important;
   overflow-wrap: anywhere;
 }
-#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-party { margin: 0; color: var(--erp-color-muted, #526174); font-size: 12.5px; overflow-wrap: anywhere; }
+#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-party { margin: 0; color: var(--erp-color-muted); font-size: 12.5px; overflow-wrap: anywhere; }
 #root .app-shell :is(.purchase-orders-page, .purchase-requests-page) table.po-list-aside-lines { width: 100%; font-size: 12.5px !important; }
 #root .app-shell :is(.purchase-orders-page, .purchase-requests-page) table.po-list-aside-lines :is(th, td) {
   height: auto !important;
   padding: 5px 0 !important;
-  border-bottom: 1px solid var(--erp-color-border, #d8e0e8);
+  border-bottom: 1px solid var(--erp-color-border);
   background: transparent !important;
   text-align: left;
 }
@@ -69,9 +69,9 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
 #root .app-shell :is(.purchase-orders-page, .purchase-requests-page) table.po-list-aside-lines .po-num { width: 45%; text-align: right; font-variant-numeric: tabular-nums; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts { display: grid; gap: 6px; margin: 0; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts > div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
-#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts dt { color: var(--erp-color-muted, #526174); }
+#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts dt { color: var(--erp-color-muted); }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts > .is-total { padding-top: 6px; border-top: 1px solid var(--erp-color-border, #d8e0e8); }
+#root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts > .is-total { padding-top: 6px; border-top: 1px solid var(--erp-color-border); }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-facts > .is-total dd { font-weight: 700; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #root :is(.purchase-orders-page, .purchase-requests-page) .po-list-aside-actions > button { flex: 1 1 auto; }
@@ -109,7 +109,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
 }
 #root .purchase-requests-page .pr-list-quotes { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #root .app-shell .purchase-requests-page .pr-list-aside-kicker {
-  color: var(--erp-color-muted, #526174);
+  color: var(--erp-color-muted);
   font-size: 11.5px !important;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -122,7 +122,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
   padding: 0;
   border: 0;
   background: none;
-  color: var(--erp-color-link, #1769bb);
+  color: var(--nx-primary);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;
@@ -132,7 +132,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
   display: grid;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--erp-color-border, #d8e0e8);
+  border-top: 1px solid var(--erp-color-border);
 }
 #root .app-shell .purchase-requests-page .pr-list-quotes-box h3 { margin: 0; font-size: 12.5px !important; font-weight: 700 !important; }
 #root .purchase-requests-page .pr-list-quotes-box p { margin: 0; font-size: 12.5px; }
@@ -152,27 +152,27 @@ html[data-theme="dark"] #root .purchase-requests-page .pr-list-quote-supplier > 
 
 /* Satır içi onay / ret (sağ panel ve talep ayrıntısı) */
 #root .pr-decision { display: grid; gap: 6px; }
-#root .app-shell .pr-decision > label { font-size: 12px !important; font-weight: 600; color: var(--erp-color-muted, #526174); }
+#root .app-shell .pr-decision > label { font-size: 12px !important; font-weight: 600; color: var(--erp-color-muted); }
 #root .pr-decision textarea {
   width: 100%;
   min-height: 52px;
   padding: 6px 8px;
-  border: 1px solid var(--erp-color-border, #d8e0e8);
+  border: 1px solid var(--erp-color-border);
   border-radius: 6px;
   font: inherit;
   font-size: 12.5px;
   resize: vertical;
 }
-#root .pr-decision textarea[aria-invalid="true"] { border-color: var(--erp-color-danger, #b91c1c); }
-#root .app-shell .pr-decision-error { margin: 0; color: var(--erp-color-danger, #b91c1c) !important; font-size: 12px; font-weight: 600; }
+#root .pr-decision textarea[aria-invalid="true"] { border-color: var(--erp-color-danger); }
+#root .app-shell .pr-decision-error { margin: 0; color: var(--erp-color-danger) !important; font-size: 12px; font-weight: 600; }
 #root .pr-decision-confirm { display: grid; gap: 6px; font-size: 12.5px; font-weight: 600; }
 #root .pr-decision-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #root .pr-decision-actions > button { flex: 1 1 auto; }
-#root .pr-decision-own { margin: 0; color: var(--erp-color-muted, #526174); font-size: 12.5px; }
+#root .pr-decision-own { margin: 0; color: var(--erp-color-muted); font-size: 12.5px; }
 #root .pr-detail-decision { margin: 18px 0; padding: 16px; }
 #root .pr-detail-decision .pr-decision-actions { justify-content: flex-end; }
 #root .pr-detail-decision .pr-decision-actions > button { flex: 0 0 auto; }
-html[data-theme="dark"] #root .pr-decision textarea { background: var(--erp-surface, #161c2a); color: var(--erp-text, #e6ebf2); border-color: var(--erp-border, #2a3346); }
+html[data-theme="dark"] #root .pr-decision textarea { background: var(--erp-surface); color: var(--erp-text); border-color: var(--erp-border); }
 
 /* Talep grid'i, sipariş grid'inin sales-purchasing-workbench.css'teki tablo kurallarını aynı özgüllükle paylaşır (koyu tema kuralları geçerli kalır). */
 .purchase-requests-page .customer-table-wrap { border: 1px solid #d9e2f0; border-radius: 8px; background: #fff; overflow: auto; max-height: min(64vh, 700px); }

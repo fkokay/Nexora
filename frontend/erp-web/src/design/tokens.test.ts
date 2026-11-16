@@ -52,20 +52,39 @@ describe('design tokens', () => {
   it('light values match the spec', () => {
     expect(light).toMatchObject({
       '--nx-primary': '#1f5fd1',
+      '--nx-primary-strong': '#1846a3',
+      '--nx-primary-soft': '#e8f0fd',
       '--nx-ink': '#0f1b2d',
+      '--nx-ink-2': '#1a2a40',
       '--nx-canvas': '#f3f5f8',
+      '--nx-surface': '#ffffff',
       '--nx-line': '#dfe3e9',
+      '--nx-line-soft': '#eef1f4',
       '--nx-text': '#1b2430',
       '--nx-muted': '#667085',
       '--nx-ok': '#13804b',
+      '--nx-ok-bg': '#e5f5ec',
       '--nx-warn': '#b45309',
+      '--nx-warn-bg': '#fdf1e1',
       '--nx-bad': '#c4321f',
+      '--nx-bad-bg': '#fde9e6',
       '--nx-changed': '#e0a100',
       '--nx-font': '"Segoe UI", Inter, system-ui, sans-serif',
       '--nx-control-h': '31px',
       '--nx-row-h-dense': '30px',
       '--nx-row-h-comfort': '38px',
     })
+  })
+
+  it('legacy --erp-* aliases point at --nx tokens', () => {
+    const aliases = [
+      '--erp-primary', '--erp-accent', '--erp-color-primary', '--erp-bg', '--erp-surface',
+      '--erp-border', '--erp-text', '--erp-canvas', '--erp-ink', '--erp-line',
+    ]
+    for (const a of aliases) {
+      const m = css.match(new RegExp(`${a}\\s*:\\s*([^;]+);`))
+      expect(m?.[1].trim(), a).toMatch(/^var\(--nx-[\w-]+\)$/)
+    }
   })
 
   it('dark text/surface pairs meet 4.5:1', () => {

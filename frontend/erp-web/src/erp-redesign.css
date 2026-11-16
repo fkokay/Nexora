@@ -1,16 +1,6 @@
 /* Nexora ERP product-wide redesign: clear information hierarchy, denser work areas,
    and consistent controls across every current module. */
 :root {
-  --erp-canvas: #f3f6fa;
-  --erp-paper: #fff;
-  --erp-paper-soft: #f8f9fc;
-  --erp-line: #dfe5ec;
-  --erp-ink: #1f2937;
-  --erp-muted-ink: #637083;
-  --erp-faint-ink: #8994a8;
-  --erp-primary: #0876d1;
-  --erp-primary-dark: #005a9e;
-  --erp-primary-soft: #e8f2fb;
   --erp-radius: 8px;
   --erp-shadow: 0 2px 8px rgb(26 39 68 / 5%);
 }
@@ -37,7 +27,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .finance-subnav { margin: 2px 0 8px 23px; padding-left: 8px; border-left: 1px solid #dfe3ed; }
 .finance-subnav-item { min-height: 32px; border-radius: 7px; }
 .finance-subnav-item.active { background: #e8f2fb; color: var(--erp-primary-dark); font-weight: 650; }
-.budget-layout{display:grid;grid-template-columns:minmax(260px,.75fr) minmax(480px,1.5fr);gap:18px;align-items:start}.budget-plan-list{display:grid;gap:8px}.budget-plan-item{display:grid;grid-template-columns:1fr auto;gap:5px 12px;text-align:left;padding:13px 14px;border:1px solid var(--erp-border,#e4e7ef);border-radius:12px;background:var(--erp-surface,#fff);color:inherit;cursor:pointer}.budget-plan-item.active{border-color:var(--erp-primary,#7060df);background:var(--erp-accent-soft,#f4f1ff)}.budget-plan-item>span:first-child{display:grid;gap:4px}.budget-plan-item small{color:var(--erp-muted,#81899c);font-size:11px}.budget-plan-item>strong,.budget-plan-item>small:last-child{grid-column:1/-1}.budget-entry-header,.budget-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.budget-entry-header{margin-top:10px}.budget-entry-header h3{font-size:14px}.budget-entry-row{display:grid;grid-template-columns:minmax(150px,1.4fr) minmax(120px,.8fr) minmax(130px,.9fr) minmax(130px,1fr) auto;gap:10px;align-items:end;padding:12px 0;border-bottom:1px solid var(--erp-border,#e4e7ef)}.budget-entry-row label{min-width:0}.budget-entry-row input,.budget-entry-row select{min-width:0}.budget-detail{margin-top:18px}.budget-detail .panel-heading{align-items:center}.positive{color:#23885b}.negative{color:#c84d58}.inline-notice{margin:10px 0;padding:10px 13px;border-radius:9px;color:#22724f;background:#eaf7f0}.budget-list,.budget-editor{min-width:0}.budget-list>.panel-heading{margin-bottom:14px}
+.budget-layout{display:grid;grid-template-columns:minmax(260px,.75fr) minmax(480px,1.5fr);gap:18px;align-items:start}.budget-plan-list{display:grid;gap:8px}.budget-plan-item{display:grid;grid-template-columns:1fr auto;gap:5px 12px;text-align:left;padding:13px 14px;border:1px solid var(--erp-border);border-radius:12px;background:var(--erp-surface);color:inherit;cursor:pointer}.budget-plan-item.active{border-color:var(--erp-primary);background:var(--erp-accent-soft)}.budget-plan-item>span:first-child{display:grid;gap:4px}.budget-plan-item small{color:var(--erp-muted);font-size:11px}.budget-plan-item>strong,.budget-plan-item>small:last-child{grid-column:1/-1}.budget-entry-header,.budget-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.budget-entry-header{margin-top:10px}.budget-entry-header h3{font-size:14px}.budget-entry-row{display:grid;grid-template-columns:minmax(150px,1.4fr) minmax(120px,.8fr) minmax(130px,.9fr) minmax(130px,1fr) auto;gap:10px;align-items:end;padding:12px 0;border-bottom:1px solid var(--erp-border)}.budget-entry-row label{min-width:0}.budget-entry-row input,.budget-entry-row select{min-width:0}.budget-detail{margin-top:18px}.budget-detail .panel-heading{align-items:center}.positive{color:#23885b}.negative{color:#c84d58}.inline-notice{margin:10px 0;padding:10px 13px;border-radius:9px;color:#22724f;background:#eaf7f0}.budget-list,.budget-editor{min-width:0}.budget-list>.panel-heading{margin-bottom:14px}
 @media(max-width:1100px){.budget-layout{grid-template-columns:1fr}.budget-entry-row{grid-template-columns:repeat(2,minmax(0,1fr))}.budget-entry-row>.row-action{justify-self:start}}
 @media(max-width:620px){.budget-entry-row{grid-template-columns:1fr}.budget-detail .panel-heading{align-items:flex-start;flex-direction:column}.budget-actions{width:100%}.budget-plan-item{grid-template-columns:1fr auto}.budget-plan-item>strong,.budget-plan-item>small:last-child{grid-column:1/-1}}
 .cash-forecast-panel{margin-top:18px}.cash-forecast-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.cash-forecast-controls label{min-width:132px}.cash-forecast-currency+.cash-forecast-currency{margin-top:18px}.cash-forecast-panel .ledger-list{max-width:100%}
@@ -120,7 +110,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .welcome-copy p { color: #65718a; font-size: 13px; }
 
 .primary, .secondary { min-height: 36px; border-radius: 5px; padding: 0 14px; font-size: 11px; transition: background .15s, border-color .15s; }
-.primary { background: #0876d1; box-shadow: none; }
+.primary { background: var(--nx-primary); box-shadow: none; }
 .primary:hover:not(:disabled) { background: #005a9e; box-shadow: none; }
 .secondary { border-color: #cfd7e1; background: #fff; color: #344054; }
 .secondary:hover:not(:disabled) { border-color: #87b9e4; background: #f1f8fd; }
@@ -132,7 +122,7 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   background-color: #fff;
 }
 input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
-  border-color: #0876d1 !important;
+  border-color: var(--nx-primary) !important;
   outline: 0;
   box-shadow: 0 0 0 2px rgb(8 118 209 / 18%) !important;
 }

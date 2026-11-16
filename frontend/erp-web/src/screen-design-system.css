@@ -11,7 +11,7 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: var(--erp-ink, #182032);
+  color: var(--erp-ink);
 }
 
 .app-shell .screen-page-header > div:has(> .eyebrow) {
@@ -21,8 +21,8 @@
 
 .app-shell .screen-page-header h1 {
   margin: 0 0 6px;
-  color: var(--erp-ink, #182032);
-  font: 700 clamp(23px, 2vw, 29px) Manrope, sans-serif;
+  color: var(--erp-ink);
+  font: 700 clamp(23px, 2vw, 29px) var(--nx-font);
   line-height: 1.2;
   letter-spacing: -.045em;
 }
@@ -30,14 +30,14 @@
 .app-shell .screen-page-header > div:has(> .eyebrow) > p:not(.eyebrow) {
   max-width: 760px;
   margin: 0;
-  color: var(--erp-muted-ink, #737f91);
+  color: var(--erp-muted-ink);
   font-size: 13px;
   line-height: 1.6;
 }
 
 .app-shell .screen-page-header > div:has(> .eyebrow) > p.eyebrow {
   margin: 0 0 7px;
-  color: var(--erp-primary, #0876e8);
+  color: var(--erp-primary);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -61,8 +61,8 @@
   height: 38px;
   border: 0;
   border-radius: 8px;
-  background: var(--erp-blue-soft, #eaf3ff);
-  color: var(--erp-blue, #0876e8);
+  background: var(--erp-blue-soft);
+  color: var(--erp-blue);
   box-shadow: none;
 }
 
@@ -82,19 +82,19 @@
   max-width: 290px;
   margin-left: auto;
   padding: 9px 12px;
-  border: 1px solid var(--erp-line, #e1e7f0);
+  border: 1px solid var(--erp-line);
   border-radius: 8px;
-  background: var(--erp-paper-soft, #f5f8fc);
+  background: var(--erp-paper-soft);
   box-shadow: none;
 }
 
 .app-shell .screen-page-header .crm-hero-total span {
-  color: var(--erp-muted-ink, #737f91);
+  color: var(--erp-muted-ink);
   font-size: 10px;
 }
 
 .app-shell .screen-page-header .crm-hero-total b {
-  color: var(--erp-ink, #182032);
+  color: var(--erp-ink);
   font-size: 13px;
 }
 
@@ -103,10 +103,10 @@
   align-items: center;
   gap: 6px;
   padding: 7px 9px;
-  border: 1px solid var(--erp-line, #e1e7f0);
+  border: 1px solid var(--erp-line);
   border-radius: 7px;
-  background: var(--erp-paper-soft, #f5f8fc);
-  color: var(--erp-muted-ink, #65748a);
+  background: var(--erp-paper-soft);
+  color: var(--erp-muted-ink);
   font-size: 10px;
   white-space: nowrap;
 }

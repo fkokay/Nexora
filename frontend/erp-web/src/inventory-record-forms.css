@@ -20,9 +20,9 @@
 /* Sayfa içine gömülü kısa kayıt formu (konum oluştur, operasyonel tanım). */
 .inv-rf-embedded {
   margin-top: 16px;
-  border: 1px solid var(--erp-border, #cfd8e4);
+  border: 1px solid var(--erp-border);
   border-radius: 8px;
-  background: var(--erp-surface, #fff);
+  background: var(--erp-surface);
   overflow: hidden;
 }
 /* Kapsayıcının eski başlığı, formun kendi komut çubuğu başlığıyla yinelenmesin. */

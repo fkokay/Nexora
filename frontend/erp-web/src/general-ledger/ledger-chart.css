@@ -90,7 +90,7 @@
   padding: 0 10px;
   border: 1px solid var(--glrp-line);
   border-radius: 7px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
   color: var(--glrp-ink);
   font-size: 13px;
 }

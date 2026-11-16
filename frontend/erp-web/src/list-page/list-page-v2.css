@@ -7,13 +7,13 @@
  * touched. Selectors start with #root because the shared rules they sit beside do.
  */
 #root .list-v2 {
-  --lv2-text: var(--erp-color-text, #0a192f);
-  --lv2-muted: var(--erp-color-muted, #526174);
-  --lv2-border: var(--erp-color-border, #d8e0e8);
-  --lv2-surface: var(--erp-color-surface, #ffffff);
-  --lv2-surface-muted: var(--erp-color-surface-muted, #f8f9fa);
-  --lv2-strong: var(--erp-color-primary, #0a192f);
-  --lv2-accent: var(--nexora-gold, #f6c23e);
+  --lv2-text: var(--erp-color-text);
+  --lv2-muted: var(--erp-color-muted);
+  --lv2-border: var(--erp-color-border);
+  --lv2-surface: var(--erp-color-surface);
+  --lv2-surface-muted: var(--erp-color-surface-muted);
+  --lv2-strong: var(--erp-color-primary);
+  --lv2-accent: var(--nexora-gold);
 }
 
 /* Header: a plain title row instead of a card, so the list starts higher. */
@@ -526,7 +526,7 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
   cursor: pointer;
 }
 #root .list-v2 .list-v2-detail-foot button.is-danger {
-  color: var(--erp-color-danger, #b91c1c);
+  color: var(--erp-color-danger);
 }
 #root .list-v2 .list-v2-detail-foot button:hover {
   background: var(--lv2-surface-muted);

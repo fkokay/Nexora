@@ -5,7 +5,7 @@
 .app-shell:not(.standalone-studio) :is(.customer-create-modal,.customer-edit-modal)>.modal-sub{color:var(--nexora-muted);font-size:13px}
 .app-shell:not(.standalone-studio) :is(.customer-create-fields,.customer-edit-fields){grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:14px;overflow:auto}
 .app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section){min-width:0;padding:15px 16px 17px;border:1px solid var(--nexora-border);border-radius:6px;background:#fff;gap:13px}
-.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) legend{padding:0 5px;color:var(--nexora-navy);font:700 15px/1.3 Inter,system-ui,sans-serif}
+.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) legend{padding:0 5px;color:var(--nexora-navy);font:700 15px/1.3 var(--nx-font)}
 .app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section)>label,.app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) .form-two>label{gap:6px;color:#24364D;font-size:12px;font-weight:600}
 .app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) :is(input,select,textarea){min-height:40px;padding:0 10px;border:1px solid #C9D2DF;border-radius:5px;background:#fff;color:var(--nexora-text);font-size:13px;box-shadow:none}
 .app-shell:not(.standalone-studio) :is(.customer-create-section,.customer-edit-section) textarea{min-height:78px;padding:10px;resize:vertical}
@@ -45,7 +45,7 @@
   padding: 16px clamp(16px, 2.6vw, 34px) 30px;
   overflow: visible;
   background: #f6f8fb;
-  color: #0a192f;
+  color: var(--nx-text);
 }
 .customer-create-breadcrumbs {
   display: flex;
@@ -94,13 +94,13 @@
   content: '';
 }
 .customer-create-page-title { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.customer-create-page-icon { display: grid; width: 52px; height: 52px; place-items: center; flex: none; border-radius: 11px; background: #fff2c5; color: #0a192f; }
+.customer-create-page-icon { display: grid; width: 52px; height: 52px; place-items: center; flex: none; border-radius: 11px; background: #fff2c5; color: var(--nx-text); }
 .customer-create-page-title .eyebrow { margin: 0 0 4px; color: #1672b8; font-size: 9px; font-weight: 750; letter-spacing: .1em; }
-.customer-create-page-title h1 { margin: 0 0 4px; color: #0a192f; font: 750 clamp(22px, 2vw, 28px)/1.2 Manrope, Inter, sans-serif; letter-spacing: -.035em; }
+.customer-create-page-title h1 { margin: 0 0 4px; color: var(--nx-text); font: 750 clamp(22px, 2vw, 28px)/1.2 var(--nx-font); letter-spacing: -.035em; }
 .customer-create-page-title p:last-child { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
 .customer-create-page-actions { display: flex; align-items: center; justify-content: flex-end; flex: none; flex-wrap: wrap; gap: 8px; }
 .customer-create-page-actions button { min-height: 40px; border-radius: 6px; font-size: 12px; }
-.customer-create-page-actions .primary { border-color: #e5b52e; background: #f6c23e; color: #0a192f; }
+.customer-create-page-actions .primary { border-color: #e5b52e; background: #f6c23e; color: var(--nx-text); }
 .customer-create-page-error { margin: 12px 20px 0; }
 .customer-create-form { display: flex; flex: none; min-width: 0; min-height: 0; flex-direction: column; gap: 0; }
 .customer-create-tabs {
@@ -111,7 +111,7 @@
   background: #fff;
 }
 .customer-create-tabs button { height: 50px; padding: 0 18px; color: #334155; font-size: 12px; }
-.customer-create-tabs button[aria-current="page"] { border-bottom-width: 3px; border-bottom-color: #f6c23e; color: #0a192f; font-weight: 700; }
+.customer-create-tabs button[aria-current="page"] { border-bottom-width: 3px; border-bottom-color: #f6c23e; color: var(--nx-text); font-weight: 700; }
 .customer-create-fields {
   box-sizing: border-box;
   display: grid;
@@ -253,7 +253,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .inventory-create-ext
   border-bottom: 1px solid #edf1f6;
   background: #f4f7fb;
   color: #172b45;
-  font: 700 14px/1.3 Manrope, Inter, sans-serif;
+  font: 700 14px/1.3 var(--nx-font);
 }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section legend svg { flex: none; color: #1768c4; }
 .app-shell:not(.standalone-studio) .customer-create-page .customer-create-section>p { margin: 0; color: #64748b; font-size: 11px; line-height: 1.5; }
@@ -450,7 +450,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .customer-create-tabs
   background: var(--form-group-heading);
   color: var(--form-group-text);
   box-shadow: none;
-  font: 600 14px/1.5 Inter, system-ui, sans-serif;
+  font: 600 14px/1.5 var(--nx-font);
 }
 .app-shell:not(.standalone-studio) :is(.customer-create-page, .inventory-create-page, .customer-edit-modal) fieldset.erp-form-group > legend svg {
   flex: 0 0 auto;
@@ -524,7 +524,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-
   .budget-editor > .panel-heading,
   .credit-operation-page-heading
 ) {
-  border-color: var(--record-form-border, #d5dfeb);
+  border-color: var(--record-form-border);
   background: #fff;
 }
 .app-shell:not(.standalone-studio) :is(
@@ -540,8 +540,8 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-
   .budget-editor > .panel-heading h2,
   .credit-operation-page-heading h1
 ) {
-  color: #0a192f;
-  font-family: Manrope, Inter, system-ui, sans-serif;
+  color: var(--nx-text);
+  font-family: var(--nx-font);
   font-weight: 700;
   letter-spacing: -.025em;
 }
@@ -567,7 +567,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-
   .hr-employee-form-heading p,
   .crm-create-modal .crm-create-heading p:last-child,
   .credit-operation-page-heading .muted
-) { color: var(--record-form-muted, #64748b); }
+) { color: var(--record-form-muted); }
 .app-shell:not(.standalone-studio) :is(
   .sales-order-create-card,
   .credit-operation-page,
@@ -682,7 +682,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.customer-create-
 ) :is(.primary, button[type="submit"]) {
   border-color: #e5b52e;
   background: #f6c23e;
-  color: #0a192f;
+  color: var(--nx-text);
 }
 /* Modal based record editors share the same shell and field treatment, even in
    feature modules that still keep their editor inside a dialog. */
@@ -743,7 +743,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(.modal, dialog, [
   border-radius: 6px;
   border-color: #e5b52e;
   background: #f6c23e;
-  color: #0a192f;
+  color: var(--nx-text);
   font-weight: 650;
 }
 html[data-theme="dark"] .app-shell:not(.standalone-studio) :is(
