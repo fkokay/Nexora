@@ -21,6 +21,7 @@
   <ItemGroup>
     <None Update="EvaluationSets\erp-assistant-orchestration-v1.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="EvaluationSets\erp-assistant-live-quality-v1.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\deploy\sql\Grant-TenantQueryPrincipals.sql" Link="Grant-TenantQueryPrincipals.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,6 +16,62 @@ public sealed class TenantDatabaseProvisionerTests
         Assert.Equal(expectedCode, TenantDatabaseProvisioner.ComponentCode(component));
     }
 
+    [Fact]
+    public void Query_read_access_sql_grants_only_datareader()
+    {
+        var sql = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.ErpQueryRead, "aierp_tr_x");
+        Assert.Contains("ALTER ROLE [db_datareader] ADD MEMBER [aierp_tr_x]", sql);
+        Assert.DoesNotContain("[db_datawriter] ADD MEMBER", sql);
+        Assert.Contains("ALTER ROLE [db_datawriter] DROP MEMBER [aierp_tr_x]", sql);
+        Assert.DoesNotContain("GRANT EXECUTE", sql);
+        Assert.Contains("THROW 51001", sql);
+    }
+
+    [Fact]
+    public void Query_write_access_sql_grants_reader_and_writer_without_execute()
+    {
+        var sql = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_x");
+        Assert.Contains("ALTER ROLE [db_datareader] ADD MEMBER [aierp_tw_x]", sql);
+        Assert.Contains("ALTER ROLE [db_datawriter] ADD MEMBER [aierp_tw_x]", sql);
+        Assert.DoesNotContain("DROP MEMBER", sql);
+        Assert.DoesNotContain("GRANT EXECUTE", sql);
+        Assert.Contains("THROW 51001", sql);
+    }
+
+    [Fact]
+    public void Erp_runtime_access_sql_keeps_existing_grants()
+    {
+        var sql = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.Erp, "aierp_t_x");
+        Assert.Contains("CREATE USER [aierp_t_x] FOR LOGIN [aierp_t_x]", sql);
+        Assert.Contains("ALTER ROLE [db_datareader] ADD MEMBER [aierp_t_x]", sql);
+        Assert.Contains("ALTER ROLE [db_datawriter] ADD MEMBER [aierp_t_x]", sql);
+        Assert.Contains("GRANT EXECUTE ON dbo.PurgeExpiredAuditEvents TO [aierp_t_x]", sql);
+        Assert.DoesNotContain("DROP MEMBER", sql);
+        Assert.Contains("THROW 51001", sql);
+    }
+
+    [Theory]
+    [InlineData("aierp_t_x]; DROP TABLE x;--")]
+    [InlineData("aierp t x")]
+    [InlineData("")]
+    public void Database_access_sql_rejects_non_identifier_user_names(string userName)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.Erp, userName));
+    }
+
+    [Theory]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryRead, "aierp_tr_")]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_")]
+    public void Dba_grant_script_runs_the_same_access_sql_as_provisioning(TenantSqlDatabaseComponent component, string prefix)
+    {
+        const string placeholder = "TENANTIDPLACEHOLDER";
+        var expected = TenantDatabaseProvisioner.BuildDatabaseAccessSql(component, prefix + placeholder)
+            .Replace(placeholder, "$(TenantId)", StringComparison.Ordinal).ReplaceLineEndings("\n").Trim();
+        var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Grant-TenantQueryPrincipals.sql")).ReplaceLineEndings("\n");
+        Assert.Contains(expected, script);
+    }
+
     [Theory]
     [InlineData(TenantSqlDatabaseComponent.ErpQueryRead, "aierp_tr_")]
     [InlineData(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_")]

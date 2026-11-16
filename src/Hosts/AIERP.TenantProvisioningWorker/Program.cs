@@ -5,8 +5,12 @@ using Microsoft.Extensions.Hosting;
 const string cutoverArgument = "--migrate-existing-tenant-sql-credentials";
 const string stoppedServicesConfirmation = "--confirm-api-ai-studio-stopped";
 const string migrateExistingErpTenantArgument = "--migrate-existing-erp-tenant";
+const string provisionQueryCredentialsArgument = "--provision-tenant-query-credentials";
 var runExistingCredentialCutover = args.Contains(cutoverArgument, StringComparer.Ordinal);
 var servicesStoppedConfirmed = args.Contains(stoppedServicesConfirmation, StringComparer.Ordinal);
+var runQueryCredentialProvisioning = args.Contains(provisionQueryCredentialsArgument, StringComparer.Ordinal);
+if (runQueryCredentialProvisioning && args.Length != 1)
+    throw new ArgumentException($"Usage: {provisionQueryCredentialsArgument} (no other arguments)");
 var migrateExistingErpTenantIndex = Array.IndexOf(args, migrateExistingErpTenantArgument);
 Guid? migrateExistingErpTenantId = null;
 if (migrateExistingErpTenantIndex >= 0)
@@ -20,6 +24,7 @@ var builder = Host.CreateApplicationBuilder(args.Where(argument =>
     !string.Equals(argument, cutoverArgument, StringComparison.Ordinal)
     && !string.Equals(argument, stoppedServicesConfirmation, StringComparison.Ordinal)
     && !string.Equals(argument, migrateExistingErpTenantArgument, StringComparison.Ordinal)
+    && !string.Equals(argument, provisionQueryCredentialsArgument, StringComparison.Ordinal)
     && !(migrateExistingErpTenantId.HasValue && Guid.TryParse(argument, out var parsed) && parsed == migrateExistingErpTenantId.Value)).ToArray());
 var platformConnection = DeploymentSecretConfiguration.GetValue(builder.Configuration, "ConnectionStrings:Provisioning")
     ?? throw new InvalidOperationException("ConnectionStrings:Provisioning is required.");
@@ -45,7 +50,7 @@ builder.Services.AddVaultTenantSqlCredentialWriter(options =>
     options.AllowHttpForLocalDevelopment = builder.Configuration.GetValue<bool>("Vault:AllowHttpForLocalDevelopment");
 });
 
-if (!runExistingCredentialCutover && !migrateExistingErpTenantId.HasValue)
+if (!runExistingCredentialCutover && !migrateExistingErpTenantId.HasValue && !runQueryCredentialProvisioning)
 {
     builder.Services.AddSingleton<TenantProvisioningWorker>();
     builder.Services.AddHostedService(services => services.GetRequiredService<TenantProvisioningWorker>());
@@ -63,6 +68,22 @@ if (runExistingCredentialCutover)
         builder.Configuration["Database:SeparationBackupPath"], writer, reader);
     var result = await provisioner.MigrateExistingReadyTenantCredentialsAsync();
     Console.WriteLine($"Vault credential cutover verified: ERP databases={result.ErpDatabaseCount}; AI Studio databases={result.AiStudioDatabaseCount}.");
+    return;
+}
+
+if (runQueryCredentialProvisioning)
+{
+    var reader = host.Services.GetRequiredService<ITenantSqlCredentialReader>();
+    var writer = host.Services.GetRequiredService<ITenantSqlCredentialWriter>();
+    var provisioner = new TenantDatabaseProvisioner(platformConnection,
+        builder.Configuration["Database:SeparationBackupPath"], writer, reader);
+    // Creates/rotates the query logins and their Vault secrets only. Database users and
+    // role memberships are applied per tenant by deploy/sql/Grant-TenantQueryPrincipals.sql.
+    var result = await provisioner.ProvisionQueryCredentialsForReadyTenantsAsync();
+    Console.WriteLine($"Tenant query credentials provisioned: tenants={result.TenantCount}; failed={result.FailedTenantIds.Count}.");
+    foreach (var failedTenantId in result.FailedTenantIds)
+        Console.Error.WriteLine($"Tenant query credential provisioning failed for tenant {failedTenantId:D}.");
+    if (result.FailedTenantIds.Count > 0) Environment.ExitCode = 1;
     return;
 }
 
