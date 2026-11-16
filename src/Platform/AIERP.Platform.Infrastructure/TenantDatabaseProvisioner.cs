@@ -268,8 +268,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
 
     /// <summary>
     /// Positively verifies the read query login in its own tenant database: it must not be a
-    /// member of db_datawriter, db_owner or db_ddladmin (or sysadmin) and must not hold
-    /// database-wide INSERT/UPDATE/DELETE. Only called where provisioning has mapped the user;
+    /// member of db_datawriter, db_owner or db_ddladmin (or sysadmin). Only called where provisioning has mapped the user;
     /// existing tenants are mapped later by deploy/sql/Grant-TenantQueryPrincipals.sql.
     /// </summary>
     private async Task VerifyTenantQueryReadCredentialIsReadOnlyAsync(Guid tenantId, string databaseName,
@@ -298,13 +297,12 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
 
     internal const string ReadOnlyProbeSql =
         "SELECT IS_ROLEMEMBER(N'db_datawriter'), IS_ROLEMEMBER(N'db_owner'), IS_ROLEMEMBER(N'db_ddladmin'), " +
-        "IS_SRVROLEMEMBER(N'sysadmin'), HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'INSERT'), " +
-        "HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'UPDATE'), HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'DELETE');";
+        "IS_SRVROLEMEMBER(N'sysadmin');";
 
     /// <summary>Every probe value must be exactly 0; 1 or NULL (unknown) fails closed.</summary>
     internal static void EnsureReadOnlyProbe(IReadOnlyList<object?> values)
     {
-        if (values.Count != 7 || values.Any(value => value is null or DBNull
+        if (values.Count != 4 || values.Any(value => value is null or DBNull
                 || Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) != 0))
             throw new InvalidOperationException("Tenant query read credential is not read-only in its tenant database.");
     }

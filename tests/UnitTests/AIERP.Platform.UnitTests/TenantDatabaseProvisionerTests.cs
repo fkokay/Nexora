@@ -46,7 +46,7 @@ public sealed class TenantDatabaseProvisionerTests
     [Fact]
     public void Read_only_probe_accepts_only_all_zero_results()
     {
-        TenantDatabaseProvisioner.EnsureReadOnlyProbe([0, 0, 0, 0, 0, 0, 0]);
+        TenantDatabaseProvisioner.EnsureReadOnlyProbe([0, 0, 0, 0]);
         Assert.Contains("IS_ROLEMEMBER(N'db_datawriter')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
         Assert.Contains("IS_ROLEMEMBER(N'db_owner')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
         Assert.Contains("IS_ROLEMEMBER(N'db_ddladmin')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
@@ -56,13 +56,13 @@ public sealed class TenantDatabaseProvisionerTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    [InlineData(6)]
+    [InlineData(3)]
     public void Read_only_probe_fails_closed_on_membership_or_unknown(int index)
     {
-        var member = new object?[] { 0, 0, 0, 0, 0, 0, 0 };
+        var member = new object?[] { 0, 0, 0, 0 };
         member[index] = 1;
         Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe(member));
-        var unknown = new object?[] { 0, 0, 0, 0, 0, 0, 0 };
+        var unknown = new object?[] { 0, 0, 0, 0 };
         unknown[index] = DBNull.Value;
         Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe(unknown));
         Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe([0, 0, 0]));

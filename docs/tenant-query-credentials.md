@@ -27,7 +27,7 @@ sqlcmd -S <server> -d master -v TenantProvisioningLoginName=<worker-login> -i de
 
 ## Yeni kiracılar
 
-Tenant Provisioning Worker, ERP kimlik bilgisini oluşturup doğruladıktan sonra iki sorgu login'ini de oluşturur, Vault'a yazar, geri okuyarak doğrular, veritabanı kullanıcısını ve rol üyeliklerini kurar, login'lerin diğer kiracı veritabanlarını ve PlatformDB'yi okuyamadığını doğrular ve okuma login'iyle kendi veritabanına bağlanıp `db_datawriter`, `db_owner`, `db_ddladmin` (ve `sysadmin`) üyesi olmadığını, veritabanı genelinde `INSERT/UPDATE/DELETE` yetkisi bulunmadığını doğrular. **Ek işlem:** sunucu düzeyi DENY'ler için DBA'nın kiracı aktifleştikten sonra adım 3'teki betiği bu kiracı için de çalıştırması gerekir.
+Tenant Provisioning Worker, ERP kimlik bilgisini oluşturup doğruladıktan sonra iki sorgu login'ini de oluşturur, Vault'a yazar, geri okuyarak doğrular, veritabanı kullanıcısını ve rol üyeliklerini kurar, login'lerin diğer kiracı veritabanlarını ve PlatformDB'yi okuyamadığını doğrular ve okuma login'iyle kendi veritabanına bağlanıp `db_datawriter`, `db_owner`, `db_ddladmin` (ve `sysadmin`) üyesi olmadığını doğrular. **Ek işlem:** sunucu düzeyi DENY'ler için DBA'nın kiracı aktifleştikten sonra adım 3'teki betiği bu kiracı için de çalıştırması gerekir.
 
 ## Mevcut (Ready) kiracılar
 
