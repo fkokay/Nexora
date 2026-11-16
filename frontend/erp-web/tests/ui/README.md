@@ -2,6 +2,14 @@
 
 The audit discovers every module screen currently available to the signed-in tenant from the app's **All modules** index. It opens each screen and checks navigation, JavaScript runtime errors, server errors (HTTP 5xx), visible content, unlabeled controls, and page-level horizontal overflow at desktop (`1440×900`) and mobile (`390×844`) sizes. It does not create, edit, or delete business records.
 
+## İşlem Çubuğu findings
+
+At desktop size every screen is also checked against the shared action bar (`[data-nx-action-bar]`):
+
+- `action-bar-missing`: the screen renders no action bar.
+- `action-bar-order`: the `data-command` sequence (ignoring the optional `undo`) is not `new, open, save, delete, refresh, filter, print, export, more`.
+- `duplicate-common-action`: a visible, enabled button or link outside the bar, inside the page header area (`.heading-actions`, `.page-heading`, `.list-v2-heading`, `.list-v2-export-slot`; dialogs excluded), whose text equals or starts with Yeni, Kaydet, Sil, Yazdır, Excel, XLSX, CSV, Dışa aktar or Yenile. The detail records the matched text. Screens with this finding still need wiring to the bar and removal of the old header button.
+
 ## Run it
 
 From `frontend/erp-web`:

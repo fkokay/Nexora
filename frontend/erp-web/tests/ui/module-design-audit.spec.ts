@@ -119,6 +119,50 @@ async function inspectLayout(page: Page, screen: Screen, viewport: string, findi
   }
 }
 
+const expectedActionOrder = ['new', 'open', 'save', 'delete', 'refresh', 'filter', 'print', 'export', 'more']
+const commonActionTexts = ['yeni', 'kaydet', 'sil', 'yazdır', 'excel', 'xlsx', 'csv', 'dışa aktar', 'yenile']
+
+/** Returns the common action prefix a page-header button text duplicates, or null. */
+export function matchCommonActionText(text: string): string | null {
+  const normalized = text.trim().toLocaleLowerCase('tr-TR')
+  if (!normalized) return null
+  return commonActionTexts.find(action => normalized === action || normalized.startsWith(action)) ?? null
+}
+
+async function inspectActionBar(page: Page, screen: Screen, viewport: string, findings: Finding[]) {
+  const state = await page.evaluate(() => {
+    const bar = document.querySelector('[data-nx-action-bar]')
+    const commands = bar ? [...bar.querySelectorAll('[data-command]')].map(node => node.getAttribute('data-command') || '') : []
+    const headerSelector = '.heading-actions, .page-heading, .list-v2-heading, .list-v2-export-slot'
+    const headerButtons = [...document.querySelectorAll('button, a')]
+      .filter((node) => {
+        const element = node as HTMLElement
+        if (element.closest('[data-nx-action-bar]') || element.closest('[role="dialog"]')) return false
+        if (!element.closest(headerSelector)) return false
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return false
+        return element.getAttribute('aria-disabled') !== 'true' && !(element as HTMLButtonElement).disabled
+      })
+      .map(node => ((node as HTMLElement).innerText || '').trim())
+    return { hasBar: Boolean(bar), commands, headerButtons }
+  })
+
+  if (!state.hasBar) {
+    findings.push({ screen: screen.label, viewport, check: 'action-bar-missing', detail: 'No [data-nx-action-bar] element on the screen.' })
+  } else {
+    const actual = state.commands.filter(command => command !== 'undo')
+    if (actual.join(',') !== expectedActionOrder.join(',')) {
+      findings.push({ screen: screen.label, viewport, check: 'action-bar-order', detail: `Expected ${expectedActionOrder.join(',')} but found ${actual.join(',') || '(none)'}.` })
+    }
+  }
+  for (const text of state.headerButtons) {
+    if (matchCommonActionText(text)) {
+      findings.push({ screen: screen.label, viewport, check: 'duplicate-common-action', detail: `Page header button "${text}" duplicates an action bar command.` })
+    }
+  }
+}
+
 async function verifyGlobalSearch(page: Page, screen: Screen) {
   await page.keyboard.press('Control+k')
   const dialog = page.getByRole('dialog', { name: /modül ve ekran arama|module and screen search/i })
@@ -178,6 +222,7 @@ test('authorized module screens render, navigate, and remain usable at desktop a
     try {
       await openScreen(page, screen)
       await inspectLayout(page, screen, 'desktop 1440×900', findings)
+      await inspectActionBar(page, screen, 'desktop 1440×900', findings)
 
       await page.setViewportSize({ width: 390, height: 844 })
       await inspectLayout(page, screen, 'mobile 390×844', findings)
