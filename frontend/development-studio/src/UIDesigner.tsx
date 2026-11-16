@@ -102,7 +102,7 @@ export function UiDesignPlanPreview({ plan }: { plan: UiDesignPlan }) {
             <h2>{plan.title}</h2>
             <span>{plan.description}</span>
           </div>
-          <span className="ui-preview-breakpoint">Masaüstü önizleme</span>
+          <span className="ns-badge ui-preview-breakpoint">Masaüstü önizleme</span>
         </header>
         <div className="ui-preview-sections">
           {plan.sections.map((section, index) => (
@@ -124,7 +124,7 @@ export function UiDesignPlanPreview({ plan }: { plan: UiDesignPlan }) {
               <button
                 type="button"
                 disabled
-                className={`ui-preview-button ${action.style}`}
+                className={`ns-btn ns-btn-sm ui-preview-button ${action.style === "primary" ? "ns-btn-primary" : ""}`}
                 key={`${action.label}-${index}`}
               >
                 {action.label}
@@ -138,7 +138,7 @@ export function UiDesignPlanPreview({ plan }: { plan: UiDesignPlan }) {
         </p>
       </div>
       <div className="ui-design-guidance">
-        <section>
+        <section className="ns-card">
           <h4>Mobil davranış</h4>
           <ul>
             {plan.responsiveBehaviors.map((note, index) => (
@@ -146,7 +146,7 @@ export function UiDesignPlanPreview({ plan }: { plan: UiDesignPlan }) {
             ))}
           </ul>
         </section>
-        <section>
+        <section className="ns-card">
           <h4>Erişilebilirlik</h4>
           <ul>
             {plan.accessibilityNotes.map((note, index) => (

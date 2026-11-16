@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Circle, CloudUpload, Info, Loader2, RefreshCw } from "lucide-react";
 import { api } from "./api";
 import { confirmDialog } from "./ui/confirmDialog";
+import "./studio-tools.css";
 
 type Job = { id: string; packageId: string; status: string; commitSha: string; output: string };
 type JobTone = "running" | "success" | "info" | "error";
 
 const activeStatuses = new Set(["Queued", "Building", "Deploying"]);
 const steps = ["Değişiklik analizi", "İmaj derleme", "Servisleri yenile", "Hazır"];
+const calloutTone: Record<JobTone, string> = { running: "is-info", success: "is-success", info: "is-info", error: "is-danger" };
 
 export function WebImageUpdate({ projectId, packageId, commitSha, token }: { projectId: string; packageId: string; commitSha: string; token: string }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -96,57 +98,56 @@ export function WebImageUpdate({ projectId, packageId, commitSha, token }: { pro
     Failed: "Ayrıntıları açarak hata çıktısını ve varsa geri alma sonucunu görebilirsin.",
   };
 
-  return <section className={`release-publish-card tone-${tone}`} aria-busy={busy || running || loading}>
-    <header className="release-publish-header">
-      <span className="release-publish-icon" aria-hidden="true"><CloudUpload size={21} /></span>
-      <div className="release-publish-copy">
-        <span className="release-publish-eyebrow">DOCKER YAYINI</span>
-        <h3>Değişen uygulamaları yayınla</h3>
+  return <section className="ns-card wiu-card" aria-busy={busy || running || loading} aria-labelledby={`wiu-title-${packageId}`}>
+    <header className="wiu-head">
+      <span className="wiu-icon" aria-hidden="true"><CloudUpload size={18} /></span>
+      <div className="wiu-copy">
+        <span className="ns-eyebrow">Docker yayını</span>
+        <h3 id={`wiu-title-${packageId}`}>Değişen uygulamaları yayınla</h3>
         <p>Commit farkı incelenir; yalnız değişen ve çalışan projeler güncellenir.</p>
       </div>
-      <button className="release-publish-refresh" type="button" title="Durumu yenile" aria-label="Durumu yenile" disabled={loading || running} onClick={() => setRefreshKey(value => value + 1)}>
-        {loading ? <Loader2 size={16} className="release-spin" /> : <RefreshCw size={16} />}
+      <button className="ns-btn ns-btn-sm ns-btn-ghost wiu-refresh" type="button" title="Durumu yenile" aria-label="Durumu yenile" disabled={loading || running} onClick={() => setRefreshKey(value => value + 1)}>
+        {loading ? <Loader2 size={16} className="wiu-spin" /> : <RefreshCw size={16} />}
       </button>
     </header>
 
-    <div className="release-publish-meta">
-      <span><span className="release-publish-dot" /> Sürüm paketi hazır</span>
-      <code title={commitSha}>{commitSha.slice(0, 12)}</code>
+    <div className="wiu-meta">
+      <span className="ns-badge is-success">Sürüm paketi hazır</span>
+      <code className="ns-mono" title={commitSha}>{commitSha.slice(0, 12)}</code>
     </div>
 
-    {enabled === false && <div className="release-publish-notice" role="status"><Info size={17} /><span><b>Yayın bu proje için etkin değil</b><small>Sunucu yöneticisinin uygulama yayını ayarını açması gerekiyor.</small></span></div>}
-    {enabled === null && loading && <div className="release-publish-loading"><Loader2 size={16} className="release-spin" /> Sunucu durumu alınıyor…</div>}
-    {loadError && <div className="release-publish-notice is-error" role="alert"><AlertCircle size={17} /><span><b>Sunucuya ulaşılamadı</b><small>{loadError}</small></span><button type="button" onClick={() => setRefreshKey(value => value + 1)}>Yeniden dene</button></div>}
-    {actionError && <div className="release-publish-notice is-error" role="alert"><AlertCircle size={17} /><span><b>Son güncelleme isteği başlatılamadı</b><small>{actionError}{status === "Succeeded" ? " Aşağıdaki yeşil durum, önceki başarılı yayını gösteriyor." : ""}</small></span></div>}
+    {enabled === false && <div className="ns-callout is-warning" role="status"><Info size={16} /><span><b>Yayın bu proje için etkin değil</b>Sunucu yöneticisinin uygulama yayını ayarını açması gerekiyor.</span></div>}
+    {enabled === null && loading && <div className="wiu-loading"><Loader2 size={16} className="wiu-spin" /> Sunucu durumu alınıyor…</div>}
+    {loadError && <div className="ns-callout is-danger" role="alert"><AlertCircle size={16} /><span><b>Sunucuya ulaşılamadı</b>{loadError}</span><button type="button" className="ns-btn ns-btn-sm" onClick={() => setRefreshKey(value => value + 1)}>Yeniden dene</button></div>}
+    {actionError && <div className="ns-callout is-danger" role="alert"><AlertCircle size={16} /><span><b>Son güncelleme isteği başlatılamadı</b>{actionError}{status === "Succeeded" ? " Aşağıdaki yeşil durum, önceki başarılı yayını gösteriyor." : ""}</span></div>}
 
-    <button className="release-publish-action" type="button" disabled={enabled !== true || loading || busy || running} onClick={() => void update()}>
-      {busy || running ? <Loader2 size={17} className="release-spin" /> : <CloudUpload size={17} />}
-      <span>{busy || running ? "Yayın hazırlanıyor…" : status === "Failed" ? "Yeniden dene" : status === "Succeeded" ? "Yeni sürümü yayınla" : status === "NoChanges" ? "Yeniden kontrol et" : "Değişen projeleri güncelle"}</span>
-      {!busy && !running && <span className="release-publish-action-arrow" aria-hidden="true">→</span>}
-    </button>
+    {job && <div className={`ns-callout wiu-result ${calloutTone[tone]}`} role="status" aria-live="polite">
+      {tone === "success" ? <CheckCircle2 size={18} /> : tone === "info" ? <Info size={18} /> : tone === "error" ? <AlertCircle size={18} /> : <Loader2 size={18} className="wiu-spin" />}
+      <div className="wiu-result-body">
+        <span><b>{statusTitle[status] ?? status}</b>{statusDescription[status] ?? "Yayın durumu sunucudan alındı."}</span>
 
-    {job && <div className={`release-publish-result is-${tone}`} role="status" aria-live="polite">
-      <div className="release-result-heading">
-        <span className="release-result-symbol" aria-hidden="true">
-          {tone === "success" ? <CheckCircle2 size={19} /> : tone === "info" ? <Info size={19} /> : tone === "error" ? <AlertCircle size={19} /> : <Loader2 size={19} className="release-spin" />}
-        </span>
-        <div><b>{statusTitle[status] ?? status}</b><small>{statusDescription[status] ?? "Yayın durumu sunucudan alındı."}</small></div>
+        {(activeStatuses.has(status) || status === "Succeeded") && <ol className="wiu-steps" aria-label="Yayın aşamaları">
+          {steps.map((label, index) => {
+            const complete = status === "Succeeded" || index < stage;
+            const current = status !== "Succeeded" && index === stage;
+            return <li key={label} className={complete ? "is-complete" : current ? "is-current" : ""}>
+              <span aria-hidden="true">{complete ? <Check size={12} /> : current ? <Loader2 size={12} className="wiu-spin" /> : <Circle size={12} />}</span>{label}
+            </li>;
+          })}
+        </ol>}
+
+        {(job.output || status === "Failed") && <details className="wiu-log" open={status === "Failed"}>
+          <summary>{status === "Failed" ? "Hata ve geri alma ayrıntıları" : "Teknik çıktıyı göster"}</summary>
+          <pre className="ns-code">{job.output || "Sunucu ayrıntılı çıktı döndürmedi."}</pre>
+        </details>}
       </div>
-
-      {(activeStatuses.has(status) || status === "Succeeded") && <ol className="release-publish-steps" aria-label="Yayın aşamaları">
-        {steps.map((label, index) => {
-          const complete = status === "Succeeded" || index < stage;
-          const current = status !== "Succeeded" && index === stage;
-          return <li key={label} className={complete ? "is-complete" : current ? "is-current" : ""}>
-            <span>{complete ? <Check size={13} /> : current ? <Loader2 size={13} className="release-spin" /> : <Circle size={13} />}</span>{label}
-          </li>;
-        })}
-      </ol>}
-
-      {(job.output || status === "Failed") && <details className="release-publish-log" open={status === "Failed"}>
-        <summary>{status === "Failed" ? "Hata ve geri alma ayrıntıları" : "Teknik çıktıyı göster"}</summary>
-        <pre>{job.output || "Sunucu ayrıntılı çıktı döndürmedi."}</pre>
-      </details>}
     </div>}
+
+    <div className="wiu-actions">
+      <button className="ns-btn ns-btn-primary" type="button" disabled={enabled !== true || loading || busy || running} onClick={() => void update()}>
+        {busy || running ? <Loader2 size={16} className="wiu-spin" /> : <CloudUpload size={16} />}
+        <span>{busy || running ? "Yayın hazırlanıyor…" : status === "Failed" ? "Yeniden dene" : status === "Succeeded" ? "Yeni sürümü yayınla" : status === "NoChanges" ? "Yeniden kontrol et" : "Değişen projeleri güncelle"}</span>
+      </button>
+    </div>
   </section>;
 }

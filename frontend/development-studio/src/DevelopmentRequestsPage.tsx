@@ -49,6 +49,33 @@ const statuses: Record<string, string> = {
   InReview: "İncelemede",
   Approved: "Onaylandı",
 };
+const statusTones: Record<string, string> = {
+  Completed: "is-success",
+  Approved: "is-success",
+  InProgress: "is-info",
+  Submitted: "is-warning",
+  Planned: "is-warning",
+  InReview: "is-warning",
+  Rejected: "is-danger",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`ns-badge ${statusTones[status] ?? ""}`.trim()}
+      data-status={status}
+    >
+      {statuses[status] || status}
+    </span>
+  );
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
 
 export function DevelopmentRequestsPage({
   requests,
@@ -64,6 +91,16 @@ export function DevelopmentRequestsPage({
   const [view, setView] = useState<"list" | "cards">("list");
   const [selected, setSelected] = useState<Request | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  // React unmounts the <dialog>, so the browser cannot restore focus itself.
+  function closeDetail() {
+    setSelected(null);
+    const opener = openerRef.current;
+    openerRef.current = null;
+    requestAnimationFrame(() => {
+      if (opener && document.contains(opener)) opener.focus();
+    });
+  }
   useEffect(() => {
     if (selected && detailRef.current && !detailRef.current.open)
       detailRef.current.showModal();
@@ -116,6 +153,66 @@ export function DevelopmentRequestsPage({
       tone: "amber",
     },
   ];
+
+  function renderProject(item: Request) {
+    const project = projects.find((project) => project.id === item.projectId);
+    return (
+      <div className="dr-project">
+        <span>
+          <Boxes size={13} />
+          {item.projectName || project?.name || "Genel talep"}
+        </span>
+        {project && (
+          <span className="ns-mono" title="Projenin varsayılan dalı">
+            <GitBranch size={13} />
+            {project.defaultBranch}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function renderActions(item: Request) {
+    return (
+      <div className="dr-actions">
+        {item.canEdit && (
+          <>
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm"
+              disabled={busy}
+              onClick={() => onEdit(item)}
+            >
+              <Pencil size={14} />
+              Düzenle
+            </button>
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm dr-delete"
+              disabled={busy}
+              onClick={() => onDelete(item)}
+              aria-label={`${item.title} talebini sil`}
+            >
+              <Trash2 size={14} />
+              Sil
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="ns-btn ns-btn-sm ns-btn-ghost dr-more"
+          aria-label={`${item.title} talep detayını aç`}
+          onClick={(event) => {
+            openerRef.current = event.currentTarget;
+            setSelected(item);
+          }}
+        >
+          <MoreHorizontal size={17} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <section className="studio-metrics" aria-label="Geliştirme talebi özeti">
@@ -133,21 +230,20 @@ export function DevelopmentRequestsPage({
         ))}
       </section>
       <section
-        className="studio-demand-panel"
+        className="ns-card dr-panel"
         id="requests"
         aria-labelledby="studio-demands-title"
       >
-        <header className="studio-demand-heading">
+        <header className="dr-head">
           <div>
             <h2 id="studio-demands-title">Proje geliştirme talepleri</h2>
             <p>
-              {requests.length} tenant/proje kapsamında {filtered.length} kayıt
-              gösteriliyor
+              {requests.length} talepten {filtered.length} kayıt gösteriliyor
             </p>
           </div>
-          <div className="studio-demand-controls">
-            <label className="studio-demand-search">
-              <Search size={17} />
+          <div className="dr-controls">
+            <label className="dr-control dr-search">
+              <Search size={15} />
               <input
                 type="search"
                 aria-label="Geliştirme taleplerinde ara"
@@ -161,12 +257,12 @@ export function DevelopmentRequestsPage({
                   aria-label="Aramayı temizle"
                   onClick={() => setQuery("")}
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               )}
             </label>
-            <label>
-              <Filter size={17} />
+            <label className="dr-control">
+              <Filter size={15} />
               <select
                 aria-label="Talep durumuna göre filtrele"
                 value={status}
@@ -182,8 +278,8 @@ export function DevelopmentRequestsPage({
                   ))}
               </select>
             </label>
-            <label>
-              <List size={17} />
+            <label className="dr-control">
+              <List size={15} />
               <select
                 aria-label="Talep sıralaması"
                 value={sort}
@@ -193,18 +289,14 @@ export function DevelopmentRequestsPage({
                 <option value="oldest">En eski</option>
               </select>
             </label>
-            <div
-              className="studio-demand-view"
-              role="group"
-              aria-label="Talep görünümü"
-            >
+            <div className="dr-view" role="group" aria-label="Talep görünümü">
               <button
                 type="button"
                 aria-label="Liste görünümü"
                 aria-pressed={view === "list"}
                 onClick={() => setView("list")}
               >
-                <List size={20} />
+                <List size={17} />
               </button>
               <button
                 type="button"
@@ -212,113 +304,97 @@ export function DevelopmentRequestsPage({
                 aria-pressed={view === "cards"}
                 onClick={() => setView("cards")}
               >
-                <LayoutGrid size={20} />
+                <LayoutGrid size={17} />
               </button>
             </div>
           </div>
         </header>
-        <div className={`studio-demand-records studio-demand-records--${view}`}>
-          {filtered.map((item) => {
-            const project = projects.find(
-              (project) => project.id === item.projectId,
-            );
-            return (
-              <article className="studio-demand-record" key={item.id}>
-                <div className="studio-demand-copy">
-                  <span className="studio-demand-icon">
-                    <FileText size={25} />
+        {filtered.length > 0 && view === "list" && (
+          <div className="ns-table-wrap dr-table-wrap">
+            <table className="ns-table dr-table">
+              <thead>
+                <tr>
+                  <th scope="col">Talep</th>
+                  <th scope="col">Proje</th>
+                  <th scope="col">Durum</th>
+                  <th scope="col">Tarih</th>
+                  <th scope="col">
+                    <span className="ns-sr-only">İşlemler</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id}>
+                    <td className="dr-title-cell">
+                      <b>{item.title}</b>
+                      <p>{item.description}</p>
+                    </td>
+                    <td>{renderProject(item)}</td>
+                    <td>
+                      <StatusBadge status={item.status} />
+                    </td>
+                    <td className="dr-date">
+                      <time dateTime={item.createdAt}>
+                        {formatDate(item.createdAt)}
+                      </time>
+                    </td>
+                    <td>{renderActions(item)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {filtered.length > 0 && view === "cards" && (
+          <div className="dr-cards">
+            {filtered.map((item) => (
+              <article className="dr-card" key={item.id}>
+                <div className="dr-card-top">
+                  <span className="dr-card-icon" aria-hidden="true">
+                    <FileText size={18} />
                   </span>
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
-                  </div>
+                  <StatusBadge status={item.status} />
                 </div>
-                <div className="studio-demand-meta">
-                  <div className="studio-demand-tags">
-                    <span>
-                      <Boxes size={14} />
-                      {item.projectName || project?.name || "Genel talep"}
-                    </span>
-                    {project && (
-                      <span title="Projenin varsayılan dalı">
-                        <GitBranch size={14} />
-                        {project.defaultBranch}
-                      </span>
-                    )}
-                  </div>
-                  <div className="studio-demand-status">
-                    Durum:{" "}
-                    <span data-status={item.status}>
-                      {statuses[item.status] || item.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="studio-demand-date">
-                  <CalendarDays size={17} />
-                  <time dateTime={item.createdAt}>
-                    {new Date(item.createdAt).toLocaleString("tr-TR", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </div>
-                <div className="studio-demand-actions">
-                  {item.canEdit && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => onEdit(item)}
-                      >
-                        <Pencil size={16} />
-                        Düzenle
-                      </button>
-                      <button
-                        type="button"
-                        className="studio-demand-delete"
-                        disabled={busy}
-                        onClick={() => onDelete(item)}
-                        aria-label={`${item.title} talebini sil`}
-                      >
-                        <Trash2 size={16} />
-                        Sil
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    className="studio-demand-more"
-                    aria-label={`${item.title} talep detayını aç`}
-                    onClick={() => setSelected(item)}
-                  >
-                    <MoreHorizontal size={19} />
-                  </button>
-                </div>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+                {renderProject(item)}
+                <footer>
+                  <span className="dr-date">
+                    <CalendarDays size={14} />
+                    <time dateTime={item.createdAt}>
+                      {formatDate(item.createdAt)}
+                    </time>
+                  </span>
+                  {renderActions(item)}
+                </footer>
               </article>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
         {filtered.length === 0 && (
-          <div className="studio-demand-empty">
-            <ListTodo size={30} />
-            <h3>
+          <div className="ns-empty dr-empty">
+            <span className="dr-empty-icon" aria-hidden="true">
+              <ListTodo size={22} />
+            </span>
+            <b>
               {requests.length
                 ? query
                   ? "Aramanızla eşleşen talep bulunamadı"
                   : "Bu duruma uygun talep bulunamadı"
                 : "Henüz geliştirme talebi yok"}
-            </h3>
-            <p>
+            </b>
+            <span>
               {requests.length
                 ? query
                   ? "Farklı bir ifade deneyin veya filtreleri temizleyin."
                   : "Durum filtresini değiştirerek diğer talepleri görebilirsiniz."
                 : "Yeni bir ihtiyaç ekleyerek geliştirme akışını başlatın."}
-            </p>
+            </span>
             {requests.length ? (
               <button
                 type="button"
-                className="secondary"
+                className="ns-btn ns-btn-sm"
                 onClick={() => {
                   setStatus("all");
                   setQuery("");
@@ -327,8 +403,12 @@ export function DevelopmentRequestsPage({
                 Filtreleri temizle
               </button>
             ) : (
-              <button type="button" className="primary" onClick={onCreate}>
-                <Plus size={16} />
+              <button
+                type="button"
+                className="ns-btn ns-btn-sm ns-btn-primary"
+                onClick={onCreate}
+              >
+                <Plus size={15} />
                 Talep oluştur
               </button>
             )}
@@ -338,9 +418,9 @@ export function DevelopmentRequestsPage({
       {selected && (
         <dialog
           ref={detailRef}
-          className="studio-demand-detail"
+          className="dr-detail"
           aria-labelledby="studio-demand-detail-title"
-          onCancel={() => setSelected(null)}
+          onCancel={closeDetail}
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               const box = event.currentTarget.getBoundingClientRect();
@@ -350,41 +430,63 @@ export function DevelopmentRequestsPage({
                 event.clientY < box.top ||
                 event.clientY > box.bottom
               )
-                setSelected(null);
+                closeDetail();
             }
           }}
         >
-          <header>
+          <header className="ns-dialog-head">
             <div>
-              <small>GELİŞTİRME TALEBİ</small>
+              <span className="ns-eyebrow">Geliştirme talebi</span>
               <h2 id="studio-demand-detail-title">{selected.title}</h2>
             </div>
             <button
               type="button"
+              className="ns-btn ns-btn-sm ns-btn-ghost"
               autoFocus
               aria-label="Talep detayını kapat"
-              onClick={() => setSelected(null)}
+              onClick={closeDetail}
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </header>
-          <div className="studio-demand-detail-context">
-            <span>{selected.projectName || "Genel talep"}</span>
-            <b>{statuses[selected.status] || selected.status}</b>
+          <div className="ns-dialog-body">
+            <dl className="ns-confirm-facts">
+              <div>
+                <dt>Durum</dt>
+                <dd>
+                  <StatusBadge status={selected.status} />
+                </dd>
+              </div>
+              <div>
+                <dt>Proje</dt>
+                <dd>{selected.projectName || "Genel talep"}</dd>
+              </div>
+              <div>
+                <dt>Oluşturulma</dt>
+                <dd>
+                  <time dateTime={selected.createdAt}>
+                    {formatDate(selected.createdAt)}
+                  </time>
+                </dd>
+              </div>
+            </dl>
+            <div className="dr-detail-copy">
+              <h3>Açıklama</h3>
+              <p>{selected.description}</p>
+            </div>
           </div>
-          <p>{selected.description}</p>
-          <footer>
+          <footer className="ns-dialog-foot">
             <button
               type="button"
-              className="secondary"
-              onClick={() => setSelected(null)}
+              className="ns-btn"
+              onClick={closeDetail}
             >
               Kapat
             </button>
             {selected.canEdit && (
               <button
                 type="button"
-                className="primary"
+                className="ns-btn ns-btn-primary"
                 onClick={() => {
                   setSelected(null);
                   onEdit(selected);

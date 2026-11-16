@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { Database, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, Database, FileCode2, ShieldCheck, X } from "lucide-react";
 import { api } from "./api";
+import { Dialog } from "./ui/Dialog";
+import "./studio-tools.css";
 
 type DatabaseEngineeringPlan = {
   summary: string;
@@ -66,6 +68,10 @@ export function DatabaseEngineer({
         ),
       );
       setConsent(false);
+      // The submit button unmounts with the form; move focus to the result.
+      requestAnimationFrame(() =>
+        document.getElementById("database-engineer-result")?.focus(),
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -83,52 +89,53 @@ export function DatabaseEngineer({
           setError("");
         }}
       >
-        <Database size={14} /> AI Database Engineer
+        <Database size={14} /> AI veritabanı mühendisi
       </button>
       {open && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !loading)
-              setOpen(false);
-          }}
+        <Dialog
+          onClose={() => setOpen(false)}
+          dismissible={!loading}
+          labelledBy="database-engineer-title"
+          describedBy="database-engineer-sub"
+          className="ns-tool-dialog is-wide"
         >
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="database-engineer-title"
-          >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">AI AGENT · VERİTABANI MÜHENDİSİ</p>
-                <h2 id="database-engineer-title">
-                  {projectName} · {workspaceName}
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setOpen(false)}
-                disabled={loading}
-                aria-label="Kapat"
-              >
-                <X size={18} />
-              </button>
+          <header className="ns-dialog-head">
+            <div>
+              <span className="ns-eyebrow">AI ajanı · veritabanı mühendisi</span>
+              <h2 id="database-engineer-title">
+                {projectName} · {workspaceName}
+              </h2>
             </div>
-            <p className="muted modal-sub">
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm ns-btn-ghost"
+              onClick={() => setOpen(false)}
+              disabled={loading}
+              aria-label="Kapat"
+            >
+              <X size={18} />
+            </button>
+          </header>
+          <div className="ns-dialog-body">
+            <p className="ns-dialog-sub" id="database-engineer-sub">
               Seçtiğiniz SQL, ORM, uygulama modeli veya API sözleşmelerine göre
               sorgu, migration, indeks, performans ve veri bütünlüğü önerileri
               hazırlar. OpenAPI, protobuf, GraphQL, WSDL/XSD, Thrift ve Avro
               dosyaları desteklenir. Öneriler çalıştırılmaz ve canlı
               veritabanına bağlanılmaz.
             </p>
-            {error && <div className="alert">{error}</div>}
+            {error && (
+              <div className="ns-callout is-danger" role="alert">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
             {!result && (
-              <form onSubmit={createPlan}>
-                <label>
-                  Veritabanı görevi
+              <form className="tools-form" onSubmit={createPlan}>
+                <label className="ns-field">
+                  <span className="ns-field-label">Veritabanı görevi</span>
                   <textarea
+                    id="database-engineer-request"
                     value={request}
                     onChange={(event) => setRequest(event.target.value)}
                     required
@@ -137,14 +144,10 @@ export function DatabaseEngineer({
                     placeholder="Örn. Müşteri hareketleri için tenant güvenli ve sayfalı SQL Server sorgusu tasarla"
                   />
                 </label>
-                <label>
-                  İncelenecek dosya yolları{" "}
-                  <small>
-                    Her satıra bir dosya yazın. En fazla 10 dosya; SQL, Prisma,
-                    protobuf, GraphQL, WSDL/XSD, Thrift ve Avro dosyaları kabul
-                    edilir.
-                  </small>
+                <label className="ns-field">
+                  <span className="ns-field-label">İncelenecek dosya yolları</span>
                   <textarea
+                    className="ns-mono"
                     value={pathsText}
                     onChange={(event) => setPathsText(event.target.value)}
                     required
@@ -153,21 +156,18 @@ export function DatabaseEngineer({
                       "db/schema.sql\ncontracts/orders.proto\ncontracts/orders.wsdl"
                     }
                   />
+                  <span className="ns-field-hint">
+                    Her satıra bir dosya yazın. En fazla 10 dosya; SQL, Prisma,
+                    protobuf, GraphQL, WSDL/XSD, Thrift ve Avro dosyaları kabul
+                    edilir.
+                  </span>
                 </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 9,
-                    marginTop: 12,
-                  }}
-                >
+                <label className="ns-check">
                   <input
                     type="checkbox"
                     checked={consent}
                     onChange={(event) => setConsent(event.target.checked)}
                     required
-                    style={{ width: 16, marginTop: 3 }}
                   />
                   <span>
                     Seçtiğim dosyaların içeriğinin güvenlik taramasından sonra
@@ -175,12 +175,15 @@ export function DatabaseEngineer({
                     migration uygulanmaz ve plan otomatik kaydedilmez.
                   </span>
                 </label>
-                <div className="modal-foot">
+                <div className="tools-form-foot">
                   <span>
                     En çok 32 KiB/dosya, 128 KiB toplam. Sadece seçtiğiniz
                     dosyalar okunur.
                   </span>
-                  <button className="primary" disabled={loading || !consent}>
+                  <button
+                    className="ns-btn ns-btn-primary"
+                    disabled={loading || !consent}
+                  >
                     {loading ? "Analiz ediliyor…" : "Veritabanı planı hazırla"}
                   </button>
                 </div>
@@ -188,95 +191,118 @@ export function DatabaseEngineer({
             )}
             {result && (
               <>
-                <div className="notice">{result.plan.summary}</div>
-                <div className="boundary-note">
-                  <ShieldCheck size={17} />
+                <div
+                  className="ns-callout is-success"
+                  role="status"
+                  id="database-engineer-result"
+                  tabIndex={-1}
+                >
+                  <Database size={16} />
+                  <span>{result.plan.summary}</span>
+                </div>
+                <div className="ns-callout is-info">
+                  <ShieldCheck size={16} />
                   <span>
-                    <b>Çalıştırılmadı</b> SQL önerileri yalnızca SELECT
+                    <b>Çalıştırılmadı</b>SQL önerileri yalnızca SELECT
                     sorgularıdır. Migration taslakları açıklama niteliğindedir;
                     kodda veya veritabanında değişiklik yapılmadı.
                   </span>
                 </div>
-                <div className="requests-list" style={{ marginTop: 12 }}>
-                  {result.sources.map((source) => (
-                    <article className="request-row" key={source.path}>
-                      <div className="request-info">
-                        <b>{source.path}</b>
-                        <small>SHA-256 · {source.sha256.slice(0, 16)}</small>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                <section
+                  className="tools-section"
+                  aria-labelledby="database-engineer-sources"
+                >
+                  <div className="ns-card-head">
+                    <h3 id="database-engineer-sources">İncelenen dosyalar</h3>
+                    <span className="ns-badge">
+                      {result.sources.length} dosya
+                    </span>
+                  </div>
+                  <ul className="tools-sources">
+                    {result.sources.map((source) => (
+                      <li key={source.path}>
+                        <FileCode2 size={14} aria-hidden="true" />
+                        <b className="ns-mono">{source.path}</b>
+                        <small className="ns-mono">
+                          SHA-256 · {source.sha256.slice(0, 16)}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
                 {result.plan.readOnlySqlQueries.length > 0 && (
-                  <section className="panel" style={{ marginTop: 12 }}>
-                    <div className="panel-heading">
-                      <b>Salt okunur SQL Server sorguları</b>
+                  <section
+                    className="tools-section"
+                    aria-labelledby="database-engineer-sql"
+                  >
+                    <div className="ns-card-head">
+                      <h3 id="database-engineer-sql">
+                        Salt okunur SQL Server sorguları
+                      </h3>
+                      <span className="ns-badge is-info">Çalıştırılmadı</span>
                     </div>
-                    {result.plan.readOnlySqlQueries.map((item, index) => (
-                      <article className="request-row expanded" key={index}>
-                        <div className="request-info">
-                          <b>{item.purpose}</b>
-                          <pre
-                            style={{
-                              whiteSpace: "pre-wrap",
-                              overflowWrap: "anywhere",
-                            }}
-                          >
+                    <div className="tools-queries">
+                      {result.plan.readOnlySqlQueries.map((item, index) => (
+                        <figure className="tools-query" key={index}>
+                          <figcaption>{item.purpose}</figcaption>
+                          <pre className="ns-code">
                             <code>{item.sql}</code>
                           </pre>
-                        </div>
-                      </article>
-                    ))}
+                        </figure>
+                      ))}
+                    </div>
                   </section>
                 )}
-                {(
-                  [
-                    ["Migration tasarımı", result.plan.migrationDesign],
-                    ["İndeks önerileri", result.plan.indexRecommendations],
-                    ["Performans analizi", result.plan.performanceAnalysis],
-                    ["Veri bütünlüğü kontrolleri", result.plan.integrityChecks],
+                <div className="tools-plan-grid">
+                  {(
                     [
-                      "Varsayımlar ve riskler",
-                      [...result.plan.assumptions, ...result.plan.risks],
-                    ],
-                  ] as [string, string[]][]
-                ).map(
-                  ([title, items]) =>
-                    items.length > 0 && (
-                      <section
-                        className="panel"
-                        style={{ marginTop: 12 }}
-                        key={title}
-                      >
-                        <div className="panel-heading">
-                          <b>{title}</b>
-                        </div>
-                        <ul>
-                          {items.map((item, index) => (
-                            <li key={index}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ),
-                )}
-                <div className="modal-foot">
-                  <span>İnsan incelemesi ve bağımsız doğrulama gerekli.</span>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => {
-                      setResult(null);
-                      setRequest("");
-                      setPathsText("");
-                    }}
-                  >
-                    Yeni analiz
-                  </button>
+                      ["Migration tasarımı", result.plan.migrationDesign],
+                      ["İndeks önerileri", result.plan.indexRecommendations],
+                      ["Performans analizi", result.plan.performanceAnalysis],
+                      ["Veri bütünlüğü kontrolleri", result.plan.integrityChecks],
+                      [
+                        "Varsayımlar ve riskler",
+                        [...result.plan.assumptions, ...result.plan.risks],
+                      ],
+                    ] as [string, string[]][]
+                  ).map(
+                    ([title, items]) =>
+                      items.length > 0 && (
+                        <section className="ns-card tools-plan-card" key={title}>
+                          <h3>{title}</h3>
+                          <ul>
+                            {items.map((item, index) => (
+                              <li key={index}>{item}</li>
+                            ))}
+                          </ul>
+                        </section>
+                      ),
+                  )}
                 </div>
               </>
             )}
-          </section>
-        </div>
+          </div>
+          {result && (
+            <footer className="ns-dialog-foot tools-dialog-foot">
+              <span>İnsan incelemesi ve bağımsız doğrulama gerekli.</span>
+              <button
+                type="button"
+                className="ns-btn"
+                onClick={() => {
+                  setResult(null);
+                  setRequest("");
+                  setPathsText("");
+                  // The button unmounts with the result; keep focus inside the dialog.
+                  requestAnimationFrame(() =>
+                    document.getElementById("database-engineer-request")?.focus(),
+                  );
+                }}
+              >
+                Yeni analiz
+              </button>
+            </footer>
+          )}
+        </Dialog>
       )}
     </>
   );
