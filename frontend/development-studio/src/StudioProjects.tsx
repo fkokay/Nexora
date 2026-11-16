@@ -8,21 +8,18 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  ArrowLeft,
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
   Code2,
   FileCode,
   Folder,
-  FolderKanban,
   FolderTree,
   GitBranch,
   History,
   MessageCircle,
   Play,
   Plus,
-  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -91,8 +88,6 @@ import type {
 } from "./studio-projects/types";
 import {
   maxManualWorkspaceFileBytes,
-  projectAccessLabel,
-  workspaceStatusTone,
   linkedDevelopmentContext,
   updateWorkspaceRoute,
 } from "./studio-projects/helpers";
@@ -110,6 +105,9 @@ import { ProjectMapDialog } from "./studio-projects/ProjectMapDialog";
 import { TestDiscoveryDialog } from "./studio-projects/TestDiscoveryDialog";
 import { UiDesignerDialog } from "./studio-projects/UiDesignerDialog";
 import { SourceSearchDialog } from "./studio-projects/SourceSearchDialog";
+import { WorkspaceRequestsScreen } from "./studio-projects/WorkspaceRequestsScreen";
+import { ProjectsSection } from "./studio-projects/ProjectsSection";
+import { ApprovalQueueSection } from "./studio-projects/ApprovalQueueSection";
 
 export function StudioProjects({
   token,
@@ -4365,266 +4363,32 @@ export function StudioProjects({
   return (
     <>
       {pendingApprovals.length > 0 && (
-        <section className="ns-card sp-queue" aria-labelledby="sp-queue-title">
-          <header className="ns-card-head">
-            <div>
-              <h3 id="sp-queue-title">Onay kuyruğu</h3>
-              <p className="sp-sub">
-                Yetkili olduğunuz projelerde bekleyen çalışma alanı talepleri
-              </p>
-            </div>
-            <span className="ns-badge is-warning">
-              {pendingApprovals.length} bekliyor
-            </span>
-          </header>
-          {error && <div className="alert">{error}</div>}
-          <ul className="sp-queue-list">
-            {pendingApprovals.map((request) => (
-              <li className="sp-queue-item" key={request.id}>
-                <span className="sp-avatar" aria-hidden="true">
-                  <Code2 size={16} />
-                </span>
-                <div className="sp-queue-info">
-                  <b>
-                    {request.projectName} · <code>{request.branchName}</code>
-                  </b>
-                  <small>
-                    {request.requesterEmail} ·{" "}
-                    {new Date(request.createdAt).toLocaleString("tr-TR", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </small>
-                  {request.developmentRequestTitle && (
-                    <small>
-                      Bağlı talep: <b>{request.developmentRequestTitle}</b>
-                    </small>
-                  )}
-                  {request.developmentRequestDescription && (
-                    <p>{request.developmentRequestDescription}</p>
-                  )}
-                </div>
-                <div className="sp-actions">
-                  <button
-                    className="ns-btn ns-btn-sm small-button"
-                    disabled={busy || !reviewNote.trim()}
-                    title={
-                      reviewNote.trim()
-                        ? undefined
-                        : "Reddetmek için aşağıya gerekçe yazın"
-                    }
-                    onClick={() => void reviewPendingApproval(request, "Reject")}
-                  >
-                    Reddet
-                  </button>
-                  <button
-                    className="ns-btn ns-btn-sm small-button ns-btn-primary"
-                    disabled={busy}
-                    onClick={() => void reviewPendingApproval(request, "Approve")}
-                  >
-                    Onayla
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {approvalQueueLoading && (
-            <div className="ns-empty">Onay kuyruğu yükleniyor…</div>
-          )}
-          <div className="sp-queue-foot">
-            <label className="ns-field">
-              <span className="ns-field-label">Ret gerekçesi</span>
-              <textarea
-                value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)}
-                maxLength={500}
-                rows={2}
-                placeholder="Ret kararının kısa gerekçesini yazın…"
-              />
-              <small className="ns-field-hint">
-                Reddetmek için gerekli. Gerekçe inceleme geçmişine kaydedilir.
-                Talep sahibi kendi talebini inceleyemez.
-              </small>
-            </label>
-            <nav className="sp-pager" aria-label="Onay kuyruğu sayfaları">
-              <span>
-                {pendingApprovalsOffset + 1}–
-                {pendingApprovalsOffset + pendingApprovals.length}. kayıtlar
-              </span>
-              {pendingApprovalsOffset > 0 && (
-                <button
-                  className="ns-btn ns-btn-sm small-button"
-                  disabled={approvalQueueLoading || busy}
-                  onClick={() =>
-                    void loadPendingApprovals(
-                      Math.max(0, pendingApprovalsOffset - 100),
-                    )
-                  }
-                >
-                  Önceki
-                </button>
-              )}
-              {pendingApprovalsNextOffset !== null && (
-                <button
-                  className="ns-btn ns-btn-sm small-button"
-                  disabled={approvalQueueLoading || busy}
-                  onClick={() =>
-                    void loadPendingApprovals(pendingApprovalsNextOffset)
-                  }
-                >
-                  Sonraki
-                </button>
-              )}
-            </nav>
-          </div>
-        </section>
+        <ApprovalQueueSection
+          approvalQueueLoading={approvalQueueLoading}
+          busy={busy}
+          error={error}
+          loadPendingApprovals={loadPendingApprovals}
+          pendingApprovals={pendingApprovals}
+          pendingApprovalsNextOffset={pendingApprovalsNextOffset}
+          pendingApprovalsOffset={pendingApprovalsOffset}
+          reviewNote={reviewNote}
+          reviewPendingApproval={reviewPendingApproval}
+          setReviewNote={setReviewNote}
+        />
       )}
-      <section className="ns-card sp-projects" aria-labelledby="sp-projects-title">
-        <header className="ns-card-head">
-          <div>
-            <h3 id="sp-projects-title">Projeler</h3>
-            <p className="sp-sub">
-              Erişiminiz olan depolar · {projects.length} proje
-            </p>
-          </div>
-          <div className="sp-actions">
-            <button
-              className="ns-btn ns-btn-sm small-button"
-              disabled={busy}
-              onClick={() => void refreshProjectStatus()}
-            >
-              <RefreshCw size={14} aria-hidden="true" /> Bağlantıları yenile
-            </button>
-            {tenant.role === "TenantAdmin" && (
-              <button
-                className="ns-btn ns-btn-sm small-button ns-btn-primary"
-                onClick={() => setShowCreate(true)}
-              >
-                <Plus size={15} aria-hidden="true" /> Proje kaydet
-              </button>
-            )}
-          </div>
-        </header>
-        {error && <div className="alert">{error}</div>}
-        {notice && <div className="notice">{notice}</div>}
-        {aiConfigured === false && (
-          <div className="notice">
-            <b>AI sağlayıcısı yapılandırılmadı.</b> AI özelliklerini açmak için
-            Docker ortamına <code>OPENAI_API_KEY</code> ekleyip{" "}
-            <code>ai-service</code> servisini yeniden başlatın. Anahtar
-            tarayıcıya gönderilmez.
-          </div>
-        )}
-        {projects.length ? (
-          <div className="sp-table-wrap">
-            <table className="sp-table">
-              <thead>
-                <tr>
-                  <th scope="col">Proje / depo</th>
-                  <th scope="col">Varsayılan dal</th>
-                  <th scope="col">Rolünüz</th>
-                  <th scope="col">GitHub</th>
-                  <th scope="col">
-                    <span className="ns-sr-only">İşlemler</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <div className="sp-project-name">
-                        <span className="sp-avatar" aria-hidden="true">
-                          {project.name.slice(0, 1).toLocaleUpperCase("tr-TR")}
-                        </span>
-                        <div>
-                          <button
-                            type="button"
-                            className="sp-link"
-                            onClick={() => void openWorkspace(project)}
-                          >
-                            {project.name}
-                          </button>
-                          <small title={project.repositoryUrl}>
-                            {project.repositoryUrl}
-                          </small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <code className="sp-branch">{project.defaultBranch}</code>
-                    </td>
-                    <td>{projectAccessLabel(project.accessLevel)}</td>
-                    <td>
-                      <span
-                        className={`ns-badge ${project.githubAuthorized ? "is-success" : "is-warning"}`}
-                      >
-                        {project.githubAuthorized ? "Bağlı" : "Yetki gerekli"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="sp-actions sp-row-actions">
-                        {(project.accessLevel === "Maintainer" ||
-                          project.accessLevel === "TenantAdmin") && (
-                          <>
-                            <button
-                              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
-                              onClick={() => void openAccess(project)}
-                            >
-                              <ShieldCheck size={14} aria-hidden="true" />
-                              Erişimler
-                            </button>
-                            <button
-                              className="ns-btn ns-btn-sm small-button ns-btn-ghost"
-                              onClick={() => setModuleMappingProject(project)}
-                            >
-                              <Code2 size={14} aria-hidden="true" />
-                              Modül kaynağı
-                            </button>
-                          </>
-                        )}
-                        <button
-                          className="ns-btn ns-btn-sm small-button"
-                          onClick={() => void openWorkspace(project)}
-                        >
-                          <Folder size={14} aria-hidden="true" />
-                          Çalışma alanı
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="ns-empty">
-            <span className="sp-avatar" aria-hidden="true">
-              <FolderKanban size={16} />
-            </span>
-            <b>Henüz erişebildiğiniz proje yok</b>
-            <span>
-              {tenant.role === "TenantAdmin"
-                ? "İlk depoyu kaydederek başlayın."
-                : "Firma yöneticisi bir depo kaydedip size erişim verebilir."}
-            </span>
-            {tenant.role === "TenantAdmin" && (
-              <button
-                className="ns-btn ns-btn-sm small-button ns-btn-primary"
-                onClick={() => setShowCreate(true)}
-              >
-                <Plus size={15} aria-hidden="true" /> Proje kaydet
-              </button>
-            )}
-          </div>
-        )}
-        <p className="sp-footnote">
-          <ShieldCheck size={15} aria-hidden="true" />
-          Proje gezgini onaylı checkout'taki dosya adlarını ve türlerini
-          listeler. Git kimlik bilgisi alınmaz, önizleme salt okunurdur ve kod
-          çalıştırılmaz.
-        </p>
-      </section>
+      <ProjectsSection
+        aiConfigured={aiConfigured}
+        busy={busy}
+        error={error}
+        notice={notice}
+        openAccess={openAccess}
+        openWorkspace={openWorkspace}
+        projects={projects}
+        refreshProjectStatus={refreshProjectStatus}
+        setModuleMappingProject={setModuleMappingProject}
+        setShowCreate={setShowCreate}
+        tenant={tenant}
+      />
       {showCreate && (
         <ProjectCreateDialog
           busy={busy}
@@ -4655,460 +4419,39 @@ export function StudioProjects({
         />
       )}
       {workspaceProject && (
-        <section className="studio-workspace-screen">
-          <div className="studio-workspace-page">
-            <nav className="studio-workspace-nav">
-              <button
-                type="button"
-                className="studio-workspace-back"
-                onClick={() => setWorkspaceProject(null)}
-              >
-                <ArrowLeft size={16} /> Projelere dön
-              </button>
-              <span>
-                Studio <ChevronRight size={13} /> Projeler{" "}
-                <ChevronRight size={13} /> Çalışma alanı
-              </span>
-            </nav>
-            <header className="studio-workspace-hero">
-              <div className="studio-workspace-hero-copy">
-                <p className="eyebrow">İZOLE ÇALIŞMA ALANI</p>
-                <h1>{workspaceProject.name}</h1>
-                <p>
-                  Seçtiğiniz dal başlangıç noktasıdır. Onaydan sonra Runner her
-                  talep için ayrı bir yerel AI çalışma dalı açar; uzak depoya
-                  push yapılmaz.
-                </p>
-                <div className="studio-workspace-meta">
-                  <span>
-                    <Code2 size={14} />
-                    {workspaceProject.repositoryUrl}
-                  </span>
-                  <span>
-                    <span className="studio-workspace-meta-dot" />
-                    Başlangıç dalı: <b>{workspaceProject.defaultBranch}</b>
-                  </span>
-                </div>
-              </div>
-              <span className="studio-workspace-access">
-                {workspaceProject.accessLevel === "TenantAdmin"
-                  ? "Yönetici"
-                  : workspaceProject.accessLevel === "Maintainer"
-                    ? "Bakım sorumlusu"
-                    : workspaceProject.accessLevel === "Contributor"
-                      ? "Katılımcı"
-                      : "Görüntüleyici"}
-              </span>
-            </header>
-            <main className="studio-workspace-content">
-              <section className="studio-workspace-intro">
-                <div>
-                  <p className="eyebrow">YENİ TALEP</p>
-                  <h2>Çalışma alanı oluştur</h2>
-                  <p>
-                    Bir başlangıç dalı seçin ve isterseniz geliştirme talebine
-                    bağlayın.
-                  </p>
-                </div>
-              </section>
-              {!workspaceProject.githubAuthorized && (
-                <div className="boundary-note">
-                  <ShieldCheck size={17} />
-                  <span>
-                    <b>GitHub depo erişimi</b>
-                    {workspaceProject.githubAuthorized
-                      ? "Bu proje GitHub App ile yetkilendirildi."
-                      : "Özel depolar için GitHub App yetkilendirmesi gerekir."}
-                  </span>
-                  {(workspaceProject.accessLevel === "TenantAdmin" ||
-                    workspaceProject.accessLevel === "Maintainer") && (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {!workspaceProject.githubAuthorized &&
-                        workspaceProject.repositoryUrl.startsWith(
-                          "https://github.com/",
-                        ) && (
-                          <button
-                            type="button"
-                            className="ns-btn ns-btn-sm small-button ns-btn-primary"
-                            disabled={busy}
-                            onClick={() => void connectProjectGitHub()}
-                          >
-                            GitHub ile yetkilendir
-                          </button>
-                        )}
-                      {workspaceProject.githubAuthorized && (
-                        <button
-                          type="button"
-                          className="ns-btn ns-btn-sm small-button"
-                          disabled={busy}
-                          onClick={() => void disconnectProjectGitHub()}
-                        >
-                          Bağlantıyı kaldır
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              {error && <div className="alert">{error}</div>}
-              <div className="studio-workspace-layout">
-                {(workspaceProject.accessLevel === "TenantAdmin" ||
-                  workspaceProject.accessLevel === "Contributor" ||
-                  workspaceProject.accessLevel === "Maintainer") && (
-                  <section className="studio-workspace-create-card">
-                    <form onSubmit={createWorkspaceRequest}>
-                      <label>
-                        Çalışma dalı
-                        <select
-                          aria-label="Çalışma dalı seçin"
-                          value={
-                            customWorkspaceBranch ? "__custom" : workspaceBranch
-                          }
-                          disabled={branchesLoading}
-                          onChange={(e) => {
-                            if (e.target.value === "__custom") {
-                              setCustomWorkspaceBranch(true);
-                              setWorkspaceBranch("");
-                            } else {
-                              setCustomWorkspaceBranch(false);
-                              setWorkspaceBranch(e.target.value);
-                            }
-                          }}
-                        >
-                          {workspaceBranches.map((branch) => (
-                            <option value={branch} key={branch}>
-                              {branch}
-                            </option>
-                          ))}
-                          <option value="__custom">
-                            Başka bir dal adı gir…
-                          </option>
-                        </select>
-                        {customWorkspaceBranch && (
-                          <input
-                            aria-label="Yeni çalışma dalı adı"
-                            value={workspaceBranch}
-                            onChange={(e) => setWorkspaceBranch(e.target.value)}
-                            required
-                            maxLength={256}
-                            placeholder="feature/cari-hesaplar"
-                          />
-                        )}
-                        <small>
-                          {branchesLoading
-                            ? "Git dalları yükleniyor…"
-                            : branchesAvailable
-                              ? `${workspaceBranches.length} dal seçilebilir; başka dal adı da girebilirsiniz.`
-                              : branchListError ||
-                                "Depo dalları şu anda alınamadı; varsayılan dalı seçebilir veya başka dal adı girebilirsiniz."}
-                        </small>
-                      </label>
-                      {!branchesAvailable && !branchesLoading && (
-                        <button
-                          type="button"
-                          className="ns-btn ns-btn-sm small-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void loadProjectBranches(workspaceProject)
-                          }
-                        >
-                          Dalları yeniden yükle
-                        </button>
-                      )}
-                      <label>
-                        Bağlı geliştirme talebi
-                        <select
-                          value={selectedDevelopmentRequestId}
-                          onChange={(e) =>
-                            setSelectedDevelopmentRequestId(e.target.value)
-                          }
-                        >
-                          <option value="">Bağımsız çalışma alanı</option>
-                          {projectDevelopmentRequests.map((item) => (
-                            <option value={item.id} key={item.id}>
-                              {item.title}
-                            </option>
-                          ))}
-                        </select>
-                        <small>
-                          Seçilen talep, onay sırasında ve AI
-                          Architect/Developer araçlarında bağlam olarak görünür.
-                        </small>
-                      </label>
-                      <div className="modal-foot">
-                        <span>
-                          <ShieldCheck size={14} /> Onay bekleyen talep
-                          oluşturulur
-                        </span>
-                        <button
-                          className="ns-btn ns-btn-primary"
-                          disabled={
-                            busy ||
-                            !workspaceBranch.trim() ||
-                            (!customWorkspaceBranch &&
-                              !workspaceBranches.includes(workspaceBranch))
-                          }
-                        >
-                          {busy ? "Gönderiliyor…" : "Çalışma alanı iste"}{" "}
-                          <span>→</span>
-                        </button>
-                      </div>
-                    </form>
-                  </section>
-                )}
-                <section className="studio-workspace-requests">
-                  <div className="list-toolbar">
-                    <div>
-                      <h3>Çalışma alanı talepleri</h3>
-                      <p>{workspaceRequests.length} kayıt</p>
-                    </div>
-                    <button
-                      className="ns-btn ns-btn-sm small-button"
-                      onClick={() => setShowPlanHistory(true)}
-                    >
-                      Plan geçmişi ({savedArchitecturePlans.length})
-                    </button>
-                  </div>
-                  <div className="requests-list">
-                    {workspaceRequests.length ? (
-                      workspaceRequests.map((request) => (
-                        <article
-                          className="request-row expanded workspace-request-row"
-                          key={request.id}
-                        >
-                          <div className="request-symbol">
-                            <Code2 size={17} />
-                          </div>
-                          <div
-                            className="request-info workspace-launch-area"
-                            role={
-                              request.status === "Ready" ? "button" : undefined
-                            }
-                            tabIndex={
-                              request.status === "Ready" ? 0 : undefined
-                            }
-                            title={
-                              request.status === "Ready"
-                                ? "Çalışma alanının dosyalarını aç"
-                                : undefined
-                            }
-                            onClick={() => {
-                              if (request.status === "Ready")
-                                void loadWorkspaceFiles(request, "");
-                            }}
-                            onKeyDown={(event) => {
-                              if (
-                                request.status === "Ready" &&
-                                (event.key === "Enter" || event.key === " ")
-                              ) {
-                                event.preventDefault();
-                                void loadWorkspaceFiles(request, "");
-                              }
-                            }}
-                          >
-                            <div className="workspace-request-heading">
-                              <b>
-                                {request.workspaceBranchName
-                                  ? `${request.branchName} → ${request.workspaceBranchName}`
-                                  : request.branchName}
-                              </b>
-                              <span
-                                className={`ns-badge ${workspaceStatusTone(request.status)}`}
-                              >
-                                {request.status === "PendingApproval"
-                                  ? "Onay bekliyor"
-                                  : request.status === "Approved"
-                                    ? "Onaylandı"
-                                    : request.status === "Provisioning"
-                                      ? "Hazırlanıyor"
-                                      : request.status === "ProvisioningFailed"
-                                        ? "Başarısız"
-                                        : request.status === "Cancelled"
-                                          ? "İptal edildi"
-                                          : request.status === "Ready"
-                                            ? "Hazır"
-                                            : request.status === "Rejected"
-                                              ? "Reddedildi"
-                                              : "Reddedildi"}
-                              </span>
-                            </div>
-                            {request.developmentRequestTitle && (
-                              <small>
-                                Talep: {request.developmentRequestTitle}
-                              </small>
-                            )}
-                            <small>
-                              {new Date(request.createdAt).toLocaleString(
-                                "tr-TR",
-                                { dateStyle: "medium", timeStyle: "short" },
-                              )}
-                              {request.reviewNote
-                                ? " · " + request.reviewNote
-                                : ""}
-                              {request.provisioningError
-                                ? " · " + request.provisioningError
-                                : ""}
-                              {request.commitSha
-                                ? " · " + request.commitSha
-                                : ""}
-                              {request.provisionedAt
-                                ? " · " +
-                                  new Date(
-                                    request.provisionedAt,
-                                  ).toLocaleString("tr-TR", {
-                                    dateStyle: "medium",
-                                    timeStyle: "short",
-                                  })
-                                : ""}
-                              {request.status === "PendingApproval" &&
-                              !request.canReview
-                                ? " · farklı yetkili onayı bekleniyor"
-                                : ""}
-                            </small>
-                          </div>
-                          {request.status === "PendingApproval" &&
-                            (request.canReview || request.canCancel) && (
-                              <div style={{ display: "flex", gap: 6 }}>
-                                {request.canReview && (
-                                  <>
-                                    <button
-                                      className="ns-btn ns-btn-sm small-button"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void reviewWorkspaceRequest(
-                                          request,
-                                          "Approve",
-                                        )
-                                      }
-                                    >
-                                      Onayla
-                                    </button>
-                                    <button
-                                      className="ns-btn ns-btn-sm small-button"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void reviewWorkspaceRequest(
-                                          request,
-                                          "Reject",
-                                        )
-                                      }
-                                    >
-                                      Reddet
-                                    </button>
-                                  </>
-                                )}
-                                {request.canCancel && (
-                                  <button
-                                    className="ns-btn ns-btn-sm small-button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void cancelWorkspaceRequest(request)
-                                    }
-                                  >
-                                    Talebi iptal et
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          {request.canDelete &&
-                            request.status !== "Provisioning" && (
-                              <button
-                                type="button"
-                                className="ns-btn ns-btn-sm small-button workspace-request-delete"
-                                disabled={busy}
-                                onClick={() =>
-                                  void archiveWorkspaceRequest(request)
-                                }
-                                title="Talebi etkin listeden sil"
-                              >
-                                Sil
-                              </button>
-                            )}
-                          {(request.status === "Approved" ||
-                            request.status === "ProvisioningFailed") &&
-                            (workspaceProject.accessLevel === "TenantAdmin" ||
-                              workspaceProject.accessLevel ===
-                                "Maintainer") && (
-                              <button
-                                className="ns-btn ns-btn-sm small-button"
-                                disabled={busy}
-                                onClick={() => void provisionWorkspace(request)}
-                              >
-                                {request.status === "ProvisioningFailed"
-                                  ? "Yeniden dene"
-                                  : "Checkout oluştur"}
-                              </button>
-                            )}
-                          {request.status === "Ready" && (
-                            <div className="workspace-request-actions">
-                              {request.workspaceBranchName === null &&
-                                (workspaceProject.accessLevel ===
-                                  "TenantAdmin" ||
-                                  workspaceProject.accessLevel ===
-                                    "Maintainer") && (
-                                  <button
-                                    className="ns-btn ns-btn-sm small-button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void ensureWorkspaceBranch(request)
-                                    }
-                                  >
-                                    İzole dal oluştur
-                                  </button>
-                                )}
-                              <button
-                                type="button"
-                                className="ns-btn ns-btn-sm small-button ns-btn-primary"
-                                disabled={fileLoading}
-                                onClick={() =>
-                                  void loadWorkspaceFiles(request, "")
-                                }
-                              >
-                                <Code2 size={14} /> Dosyaları aç{" "}
-                                <ChevronRight size={14} />
-                              </button>
-                            </div>
-                          )}
-                        </article>
-                      ))
-                    ) : (
-                      <div className="empty-small">
-                        <div>
-                          <b>Bekleyen çalışma alanı talebi yok</b>
-                          <small>Yeni talepler onay kuyruğunda görünür.</small>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
-              {workspaceRequests.some(
-                (x) => x.status === "PendingApproval" && x.canReview,
-              ) && (
-                <label className="review-note-field">
-                  <span>Ret gerekçesi</span>
-                  <small>Gerekçe inceleme geçmişine kaydedilir.</small>
-                  <textarea
-                    value={reviewNote}
-                    onChange={(e) => setReviewNote(e.target.value)}
-                    maxLength={500}
-                    rows={2}
-                    placeholder="Ret kararının kısa gerekçesini yazın…"
-                  />
-                </label>
-              )}
-              <div className="boundary-note">
-                <ShieldCheck size={17} />
-                <span>
-                  <b>Yetkili onay</b>Yetkili onaydan sonra Runner seçilen kaynak
-                  dalından ayrı bir yerel çalışma dalı oluşturur. Bu dal
-                  şimdilik yalnız izole checkout içinde bulunur; push/PR ve kod
-                  çalıştırma yapılmaz.
-                </span>
-              </div>
-            </main>
-          </div>
-        </section>
+        <WorkspaceRequestsScreen
+          archiveWorkspaceRequest={archiveWorkspaceRequest}
+          branchListError={branchListError}
+          branchesAvailable={branchesAvailable}
+          branchesLoading={branchesLoading}
+          busy={busy}
+          cancelWorkspaceRequest={cancelWorkspaceRequest}
+          connectProjectGitHub={connectProjectGitHub}
+          createWorkspaceRequest={createWorkspaceRequest}
+          customWorkspaceBranch={customWorkspaceBranch}
+          disconnectProjectGitHub={disconnectProjectGitHub}
+          ensureWorkspaceBranch={ensureWorkspaceBranch}
+          error={error}
+          fileLoading={fileLoading}
+          loadProjectBranches={loadProjectBranches}
+          loadWorkspaceFiles={loadWorkspaceFiles}
+          projectDevelopmentRequests={projectDevelopmentRequests}
+          provisionWorkspace={provisionWorkspace}
+          reviewNote={reviewNote}
+          reviewWorkspaceRequest={reviewWorkspaceRequest}
+          savedArchitecturePlans={savedArchitecturePlans}
+          selectedDevelopmentRequestId={selectedDevelopmentRequestId}
+          setCustomWorkspaceBranch={setCustomWorkspaceBranch}
+          setReviewNote={setReviewNote}
+          setSelectedDevelopmentRequestId={setSelectedDevelopmentRequestId}
+          setShowPlanHistory={setShowPlanHistory}
+          setWorkspaceBranch={setWorkspaceBranch}
+          setWorkspaceProject={setWorkspaceProject}
+          workspaceBranch={workspaceBranch}
+          workspaceBranches={workspaceBranches}
+          workspaceProject={workspaceProject}
+          workspaceRequests={workspaceRequests}
+        />
       )}
       {gitStatusWorkspace && (
         <ReleaseDialog
