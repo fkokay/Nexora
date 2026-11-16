@@ -92,10 +92,10 @@ public sealed class CustomSqlReportSqlAcceptanceTests
         Assert.Equal("Seçilen firmalarda sorgu farklı sütunlar döndürdü.", Assert.Single(Assert.IsType<HttpValidationProblemDetails>(problem.ProblemDetails).Errors["sqlQuery"]));
     }
 
-    private sealed record TenantFixture(Guid TenantId, string CompanyName, string DatabaseName, string LoginName, string ReadConnectionString, string CustomerCode);
+    internal sealed record TenantFixture(Guid TenantId, string CompanyName, string DatabaseName, string LoginName, string ReadConnectionString, string CustomerCode);
 
     /// <summary>Her kiracı için izole ERP veritabanı ve yalnız db_datareader üyesi bir okuma login'i oluşturur.</summary>
-    private sealed class ReadOnlyTenantEnvironment : IAsyncDisposable
+    internal sealed class ReadOnlyTenantEnvironment : IAsyncDisposable
     {
         private readonly string _adminConnection;
         public List<TenantFixture> Tenants { get; } = [];

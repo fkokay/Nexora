@@ -33,7 +33,7 @@ internal sealed class CustomSqlCharacterBudget(long totalCharacters)
 /// db_datareader) ve DBA'nın sunucu düzeyinde uyguladığı DENY VIEW ANY DATABASE / xp_* DENY adımı
 /// (docs/tenant-query-credentials.md). Login'in veritabanı yetkileri tek başına sunucu meta verisini gizlemez.
 /// </summary>
-internal static class CustomSqlReportRunner
+internal static partial class CustomSqlReportRunner
 {
     internal const int CommandTimeoutSeconds = 30;
     internal const int MaxRows = 5000;
@@ -102,6 +102,32 @@ internal static class CustomSqlReportRunner
         {
             // SqlClient belirteç iptalini SqlException, fabrika ise TenantQueryUnavailableException olarak
             // yüzeye çıkarabilir; toplam süre dolduysa tür ne olursa olsun süre hatasına çevrilir.
+            throw new CustomSqlDeadlineExceededException();
+        }
+    }
+
+    /// <summary>
+    /// Runs one parameterized read query in a single tenant with the same limits as SQL reports: read login only,
+    /// 30 s command timeout, 5 000 rows, 4 000 characters per cell, 10 000 000 characters per response and a 60 s
+    /// total deadline. Parameter values are sent only as SqlParameters; the SQL text is never altered.
+    /// </summary>
+    internal static async Task<CustomSqlResult> ExecuteSingleAsync(string sql, IReadOnlyList<SqlParameter> parameters, Guid tenantId,
+        ITenantQueryConnectionFactory factory, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TotalTimeout);
+        try
+        {
+            await using var connection = await factory.OpenAsync(tenantId, TenantQueryAccess.Read, deadline.Token);
+            await using var command = connection.CreateCommand();
+            command.CommandType = CommandType.Text;
+            command.CommandText = sql;
+            command.CommandTimeout = CommandTimeoutSeconds;
+            foreach (var parameter in parameters) command.Parameters.Add(parameter);
+            return await ExecuteCommandAsync(command, MaxRows, new CustomSqlCharacterBudget(MaxResponseCharacters), deadline.Token);
+        }
+        catch (Exception exception) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
             throw new CustomSqlDeadlineExceededException();
         }
     }

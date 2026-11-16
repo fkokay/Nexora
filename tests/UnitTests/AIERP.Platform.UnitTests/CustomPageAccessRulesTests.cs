@@ -94,5 +94,22 @@ public sealed class CustomPageAccessRulesTests
         Assert.Equal(action, permission.Permission.Action);
     }
 
+    [Fact]
+    public void Query_run_route_resolves_to_custom_page_runtime_read_permission()
+    {
+        // Running a published page's query is runtime page use, like opening /{code}/published.
+        var run = PlatformPermissionCatalog.TryResolve("/api/custom-pages/asset-dashboard/queries/q1/run", "POST", "/api/custom-pages/{code}/queries/{queryId}/run",
+            new Dictionary<string, string?> { ["code"] = "asset-dashboard", ["queryId"] = "q1" }, Guid.NewGuid(), User, "TenantUser", out var permission);
+        Assert.True(run);
+        Assert.Equal("erp.custom-menus", permission!.Permission.ResourceType);
+        Assert.Equal("read", permission.Permission.Action);
+
+        var id = Guid.NewGuid().ToString("D");
+        var preview = PlatformPermissionCatalog.TryResolve($"/api/custom-pages/{id}/preview/queries/q1/run", "POST", "/api/custom-pages/{id:guid}/preview/queries/{queryId}/run",
+            new Dictionary<string, string?> { ["id"] = id, ["queryId"] = "q1" }, Guid.NewGuid(), User, "TenantAdmin", out var previewPermission);
+        Assert.True(preview);
+        Assert.Equal("erp.tenant-customizations", previewPermission!.Permission.ResourceType);
+    }
+
     private static TenantCustomPageAccess Access(string mode) => new() { TenantId = Guid.NewGuid(), PageCode = "asset-dashboard", Mode = mode, Revision = 1 };
 }
