@@ -3081,6 +3081,45 @@ public sealed class TenantCustomPageRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Per-page access settings keyed by page code; draft and published rows of the same code share them.</summary>
+public sealed class TenantCustomPageAccess
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string PageCode { get; set; } = "";
+    public string Mode { get; set; } = CustomPageAccessModes.AllUsers;
+    public bool AllUsersCanInsert { get; set; }
+    public bool AllUsersCanUpdate { get; set; }
+    public bool AllUsersCanDelete { get; set; }
+    public int Revision { get; set; }
+    public Guid UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ICollection<TenantCustomPageAccessUser> Users { get; set; } = new List<TenantCustomPageAccessUser>();
+}
+
+public sealed class TenantCustomPageAccessUser
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AccessId { get; set; }
+    public Guid UserId { get; set; }
+    public bool CanView { get; set; }
+    public bool CanInsert { get; set; }
+    public bool CanUpdate { get; set; }
+    public bool CanDelete { get; set; }
+}
+
+/// <summary>Immutable snapshot of a page's access settings after each change.</summary>
+public sealed class TenantCustomPageAccessRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string PageCode { get; set; } = "";
+    public int Revision { get; set; }
+    public string SnapshotJson { get; set; } = "{}";
+    public Guid ChangedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 /// <summary>A tenant-owned logical table. Its user-defined schema is declarative metadata, never executable SQL.</summary>
 public sealed class TenantCustomDataEntity
 {
