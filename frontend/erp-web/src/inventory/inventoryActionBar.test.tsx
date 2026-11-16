@@ -207,7 +207,10 @@ describe('other Stok screens on the action bar', () => {
     renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
     await settle();
     expect(primary('save')).toBe(true);
-    expect(enabled('save')).toBe(true);
+    // The empty create form cannot be saved yet; the bar says why.
+    expect(enabled('save')).toBe(false);
+    expect(command('save').title).toBe('Konum kodu ve adı zorunludur.');
+    expect(enabled('new')).toBe(true);
     expect(enabled('open')).toBe(false);
     expect(command('open').title).toBe('Önce bir kayıt seçin');
     expect(headerButtonTexts()).toEqual([]);

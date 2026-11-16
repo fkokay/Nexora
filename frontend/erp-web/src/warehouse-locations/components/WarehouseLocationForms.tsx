@@ -51,6 +51,13 @@ export function CreateLocationForm({
         busy={busy}
         saveLabel="Konumu kaydet"
         formId={formId}
+        saveDisabledReason={
+          !warehouseId
+            ? "Konum eklemek için önce depo seçin."
+            : !code.trim() || !name.trim()
+              ? "Konum kodu ve adı zorunludur."
+              : undefined
+        }
         onSubmit={(event) => {
           // Same gate the old save button had through its disabled state.
           if (blocked) {
@@ -179,6 +186,7 @@ export function EditLocationModal({
           mode="edit"
           busy={busy}
           saveLabel="Değişiklikleri kaydet"
+          saveDisabledReason={!editCode.trim() || !editName.trim() ? "Konum kodu ve adı zorunludur." : undefined}
           onSubmit={(event) => {
             // Same gate the old save button had through its disabled state.
             if (!editCode.trim() || !editName.trim()) {

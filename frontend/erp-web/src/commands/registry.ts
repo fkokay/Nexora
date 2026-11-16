@@ -6,7 +6,7 @@ export type DispatchEnv = {
   modalOpen: boolean;
   /** Focus is on a button, link, [role=button], [role=menuitem] or summary: Enter keeps its native activation. */
   onInteractive?: boolean;
-  /** The topmost open modal belongs to the active view (not a document-level dialog such as confirmDialog). */
+  /** Every open modal belongs to the active view (none is a document-level dialog such as confirmDialog). */
   modalInActiveView?: boolean;
 };
 
@@ -18,7 +18,8 @@ export type GlobalCommand = {
   allowInModal?: boolean;
 };
 
-export type CommandSlot = { set(commands: PageCommands): void; remove(): void };
+/** `touch` marks the slot as the most recently used (a record form reports focus inside it). */
+export type CommandSlot = { set(commands: PageCommands): void; remove(): void; touch(): void };
 
 export type CommandRegistry = {
   /**
@@ -55,7 +56,8 @@ function isFunctionKey(key: string): boolean {
 }
 
 export function createCommandRegistry(): CommandRegistry {
-  type Slot = { commands?: PageCommands };
+  type Slot = { commands?: PageCommands; activity: number };
+  let activityCounter = 0;
   const views = new Map<string, Partial<Record<CommandSource, Slot[]>>>();
   const globals: GlobalCommand[] = [];
   const listeners = new Set<() => void>();
@@ -71,10 +73,12 @@ export function createCommandRegistry(): CommandRegistry {
   function compute(): PageCommands | undefined {
     const sources = activeView === undefined ? undefined : views.get(activeView);
     if (!sources) return undefined;
-    // `form` slots: the most recently opened record form (e.g. a dialog over an embedded form) is effective.
+    // `form` slots: the record form with the latest activity (focus inside it, else mounting) is effective, so the
+    // focused one of two embedded forms wins and a newly opened dialog form beats the form behind it.
     const effective = (source: CommandSource) => {
       const slots = sources[source]?.filter((slot) => slot.commands);
-      return source === 'form' ? slots?.[slots.length - 1]?.commands : slots?.[0]?.commands;
+      if (source !== 'form') return slots?.[0]?.commands;
+      return slots?.reduce<Slot | undefined>((best, slot) => (!best || slot.activity > best.activity ? slot : best), undefined)?.commands;
     };
     const merged: PageCommands = {};
     for (const id of STANDARD_IDS) {
@@ -115,12 +119,17 @@ export function createCommandRegistry(): CommandRegistry {
   const registry: CommandRegistry = {
     openSlot(viewKey, source) {
       const entry = views.get(viewKey) ?? {};
-      const slot: Slot = {};
+      const slot: Slot = { activity: ++activityCounter };
       (entry[source] ??= []).push(slot);
       views.set(viewKey, entry);
       return {
         set(commands) {
           slot.commands = commands;
+          changed();
+        },
+        touch() {
+          if (slot.activity === activityCounter) return;
+          slot.activity = ++activityCounter;
           changed();
         },
         remove() {

@@ -28,6 +28,7 @@ export const english: Record<string, string> = {
   'Transfer için en az iki aktif depo gerekir': 'A transfer needs at least two active warehouses',
   'Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?': 'Unsaved changes will be lost. Continue?',
   'Devam': 'Continue',
+  'Konum kodu ve adı zorunludur.': 'Location code and name are required.',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []

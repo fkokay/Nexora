@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createCommandRegistry, type CommandRegistry, type CommandSlot } from './registry';
 import type { CommandSource, MenuCommand, PageCommands, StandardCommandId } from './types';
 import { STANDARD_SHORTCUTS } from './shortcuts';
@@ -11,21 +11,22 @@ const INTERACTIVE_SELECTOR = 'button, a[href], [role=button], [role=menuitem], [
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 
 // A modal left mounted inside a hidden keep-alive view must not block shortcuts of the active view.
-function openModals(): Element[] {
+export function openModals(): Element[] {
   return Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((el) => !el.closest('[hidden]'));
 }
 
 /**
- * The topmost modal belongs to the active view when it is rendered inside the view's KeepAliveViews wrapper, or
- * when a page portals it elsewhere and marks it with `data-nx-view-owner` (see `useViewDialogOwner`). Document-level
- * dialogs (confirmDialog, shortcut help) are neither.
+ * Open modals belong to the active view when every one of them is rendered inside the view's KeepAliveViews
+ * wrapper, or is portalled elsewhere and marked with `data-nx-view-owner` (see `useViewDialogOwner`). One
+ * document-level dialog (confirmDialog, prompt, shortcut help) anywhere makes this false.
  */
-function isModalInActiveView(modals: Element[], activeView: string | undefined): boolean {
-  const topmost = modals[modals.length - 1];
-  if (!topmost || activeView === undefined) return false;
-  const view = topmost.closest('[data-nx-view]');
-  if (view) return view.getAttribute('data-nx-view') === activeView;
-  return topmost.closest('[data-nx-view-owner]')?.getAttribute('data-nx-view-owner') === activeView;
+export function modalsBelongToView(modals: Element[], activeView: string | undefined): boolean {
+  if (!modals.length || activeView === undefined) return false;
+  return modals.every((modal) => {
+    const view = modal.closest('[data-nx-view]');
+    if (view) return view.getAttribute('data-nx-view') === activeView;
+    return modal.closest('[data-nx-view-owner]')?.getAttribute('data-nx-view-owner') === activeView;
+  });
 }
 
 /** Marks a page dialog that is portalled out of its view as belonging to that view (spread on the dialog root). */
@@ -42,7 +43,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       registry.handleKeyDown(event, {
         typing: Boolean(target?.closest(TYPING_SELECTOR)),
         modalOpen: modals.length > 0,
-        modalInActiveView: isModalInActiveView(modals, registry.getActiveView()),
+        modalInActiveView: modalsBelongToView(modals, registry.getActiveView()),
         onInteractive: Boolean(target?.closest(INTERACTIVE_SELECTOR)),
       });
     };
@@ -99,7 +100,7 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
  * Registrations sharing a (view, source) are first-wins: the earliest mounted one is effective and the next takes
  * over when it unmounts. A handler/structure change updates the slot in place, so it keeps its position.
  */
-export function usePageCommands(commands: PageCommands, source: CommandSource = 'page'): void {
+export function usePageCommands(commands: PageCommands, source: CommandSource = 'page'): () => void {
   const registry = useCommandRegistry();
   const viewKey = useContext(ViewKeyContext);
   const ref = useRef(commands);
@@ -117,6 +118,8 @@ export function usePageCommands(commands: PageCommands, source: CommandSource = 
   useEffect(() => {
     slotRef.current?.set(buildStable(ref));
   }, [registry, viewKey, source, signature]);
+  // Marks this registration as the most recently used one (see the `form` source).
+  return useCallback(() => slotRef.current?.touch(), []);
 }
 
 export function useActivePageCommands(): PageCommands | undefined {

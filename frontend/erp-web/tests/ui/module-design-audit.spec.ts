@@ -130,7 +130,7 @@ async function inspectActionBar(page: Page, screen: Screen, viewport: string, fi
     const headerButtons = [...document.querySelectorAll('button, a')]
       .filter((node) => {
         const element = node as HTMLElement
-        if (element.closest('[data-nx-action-bar]') || element.closest('[role="dialog"]')) return false
+        if (element.closest('[data-nx-action-bar]') || element.closest('[role="dialog"], [aria-modal="true"], .modal-backdrop')) return false
         if (!element.closest(headerSelector)) return false
         const style = getComputedStyle(element)
         const rect = element.getBoundingClientRect()

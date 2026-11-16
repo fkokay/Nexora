@@ -3904,6 +3904,9 @@ export function InventoryPage({
               mode="create"
               busy={busy}
               saveLabel="Transferi kaydet"
+              saveDisabledReason={
+                transferReady ? undefined : "Kaydetmek için hedef depo seçin ve en az bir kaleme miktar girin."
+              }
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!transferReady) {
