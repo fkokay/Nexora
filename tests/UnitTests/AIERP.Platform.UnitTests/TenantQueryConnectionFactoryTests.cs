@@ -68,6 +68,35 @@ public sealed class TenantQueryConnectionFactoryTests
     }
 
     [Fact]
+    public async Task OpenAsync_logs_failure_type_server_side_without_details()
+    {
+        var id = Guid.NewGuid();
+        var db = await DbWithEntryAsync(id, TenantDatabaseProvisioningState.Ready);
+        var reader = new FakeReader(() => new TenantSqlCredential($"AIERPTenant_{id:N}", $"aierp_t_{id:N}", "secret-pw", 1));
+        var logger = new CapturingLogger();
+        var factory = new TenantQueryConnectionFactory(Template, true, reader, () => db, logger);
+
+        await Assert.ThrowsAsync<TenantQueryUnavailableException>(() => factory.OpenAsync(id, TenantQueryAccess.Read, default));
+
+        var entry = Assert.Single(logger.Messages);
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Warning, entry.Level);
+        Assert.Contains(id.ToString(), entry.Message);
+        Assert.Contains("InvalidOperationException", entry.Message);
+        Assert.DoesNotContain("secret-pw", entry.Message);
+        Assert.DoesNotContain("aierp_t_", entry.Message);
+        Assert.Null(entry.Exception);
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<TenantQueryConnectionFactory>
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel Level, string Message, Exception? Exception)> Messages { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter) => Messages.Add((logLevel, formatter(state, exception), exception));
+    }
+
+    [Fact]
     public void BuildConnectionString_uses_read_login_and_application_name()
     {
         var id = Guid.NewGuid();

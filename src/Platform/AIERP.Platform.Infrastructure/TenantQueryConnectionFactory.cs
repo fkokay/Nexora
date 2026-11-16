@@ -1,6 +1,7 @@
 using AIERP.Platform.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AIERP.Platform.Infrastructure;
 
@@ -19,7 +20,8 @@ public interface ITenantQueryConnectionFactory
 /// ya da Vault kimliği beklenenle uyuşmuyorsa başarısız-kapalı davranır ve ayrıntı sızdırmaz.
 /// </summary>
 public sealed class TenantQueryConnectionFactory(string connectionTemplate, bool separationEnabled,
-    ITenantSqlCredentialReader credentialReader, Func<PlatformDbContext> platformDbFactory) : ITenantQueryConnectionFactory
+    ITenantSqlCredentialReader credentialReader, Func<PlatformDbContext> platformDbFactory,
+    ILogger<TenantQueryConnectionFactory>? logger = null) : ITenantQueryConnectionFactory
 {
     private const string UnavailableMessage = "Sorgu veritabanı erişimi bu firma için hazır değil.";
 
@@ -35,7 +37,11 @@ public sealed class TenantQueryConnectionFactory(string connectionTemplate, bool
                 .Where(x => x.TenantId == tenantId).SingleOrDefaultAsync(cancellationToken);
             if (entry is null || entry.State != TenantDatabaseProvisioningState.Ready
                 || !string.Equals(entry.DatabaseName, expectedDatabase, StringComparison.Ordinal))
+            {
+                logger?.LogWarning("Tenant query connection unavailable for tenant {TenantId} ({Access}): ERP catalog entry is missing, not Ready or not canonical.",
+                    tenantId, access);
                 throw new TenantQueryUnavailableException(UnavailableMessage);
+            }
 
             var credential = await credentialReader.ReadAsync(tenantId, component,
                 TenantSqlCredentialPath.ForTenant(tenantId, component), cancellationToken);
@@ -53,9 +59,12 @@ public sealed class TenantQueryConnectionFactory(string connectionTemplate, bool
             connection?.Dispose();
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // Vault/SQL ayrıntıları çağırana sızdırılmaz.
+            // Vault/SQL ayrıntıları çağırana sızdırılmaz; sunucu günlüğüne yalnız tür ve SQL hata numarası yazılır
+            // (ileti, bağlantı dizesi veya kimlik bilgisi yazılmaz).
+            logger?.LogWarning("Tenant query connection failed for tenant {TenantId} ({Access}): {ExceptionType} SqlNumber={SqlNumber}.",
+                tenantId, access, exception.GetType().FullName, (exception as SqlException)?.Number);
             connection?.Dispose();
             throw new TenantQueryUnavailableException(UnavailableMessage);
         }

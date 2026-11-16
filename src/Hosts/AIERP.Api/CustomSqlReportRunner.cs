@@ -10,16 +10,42 @@ internal sealed record CustomSqlResult(IReadOnlyList<ReportColumn> Columns, IRea
 /// <summary>Seçilen firmalar sorgu için farklı sütun kümesi döndürdüğünde atılır.</summary>
 internal sealed class CustomSqlColumnMismatchException() : Exception("Seçilen firmalarda sorgu farklı sütunlar döndürdü.");
 
+/// <summary>Tüm firmalardaki sorgular toplam süre sınırını aştığında atılır.</summary>
+internal sealed class CustomSqlDeadlineExceededException() : Exception("Sorgular toplam 60 saniye içinde tamamlanmadı.");
+
+/// <summary>Bir istekteki tüm hücreler için ortak karakter bütçesi; firmalar arasında paylaşılır.</summary>
+internal sealed class CustomSqlCharacterBudget(long totalCharacters)
+{
+    public long Remaining { get; private set; } = totalCharacters;
+
+    public bool TryConsume(long characters)
+    {
+        if (characters > Remaining) { Remaining = 0; return false; }
+        Remaining -= characters;
+        return true;
+    }
+}
+
 /// <summary>
 /// Yöneticinin yazdığı SQL raporunu her firmanın salt okunur sorgu bağlantısıyla çalıştırır.
-/// Yazma/çapraz veritabanı koruması SQL login yetkileriyle sağlanır; ön doğrulama yalnızca erken hata içindir.
+/// Koruma üç katmanlıdır: metin doğrulayıcı (yazma, kilit, dış kaynak, sistem kataloğu/veritabanı adı fonksiyonları
+/// ve başka veritabanı adlarını reddeder), veritabanı yetkileri (okuma login'i yalnız kendi veritabanında
+/// db_datareader) ve DBA'nın sunucu düzeyinde uyguladığı DENY VIEW ANY DATABASE / xp_* DENY adımı
+/// (docs/tenant-query-credentials.md). Login'in veritabanı yetkileri tek başına sunucu meta verisini gizlemez.
 /// </summary>
 internal static class CustomSqlReportRunner
 {
     internal const int CommandTimeoutSeconds = 30;
     internal const int MaxRows = 5000;
     internal const int MaxPageSize = 500;
+    internal const int MaxCellCharacters = 4000;
+    internal const long MaxResponseCharacters = 10_000_000;
     internal const string CompanyColumnCode = "companyName";
+    internal const string BinaryPlaceholder = "[ikili veri]";
+    internal const string UnsupportedPlaceholder = "[desteklenmeyen veri]";
+    internal static readonly TimeSpan TotalTimeout = TimeSpan.FromSeconds(60);
+    // Metin dışı (sayı, tarih, Guid...) hücreler için yaklaşık karakter maliyeti.
+    private const int ScalarCellCost = 32;
 
     /// Yetki: her CompanyId için kullanıcının aktif üyeliği Role=="TenantAdmin" olmalı; değilse null döner (çağıran 403 verir).
     internal static async Task<IReadOnlyList<(Guid TenantId, string CompanyName)>?> AuthorizeCompaniesAsync(
@@ -38,25 +64,68 @@ internal static class CustomSqlReportRunner
         return ids.Select(id => (id, byId[id])).ToArray();
     }
 
+    /// <summary>
+    /// Denetim kayıtlarını yönlendirir. Çağıranın kiracı veritabanına yalnız çağıran kiracı için TEK satır eklenir:
+    /// kiracı veritabanında başka TenantId'li satır ayrım doğrulamasını (TenantDatabaseSeparationVerifier) bozar ve
+    /// denetim tablosu yalnız eklemeli olduğundan bu satır sonradan silinemez. Firma başına okuma izi PlatformDB
+    /// denetim tablosuna TenantId = firma olarak eklenir. Sorgu metni hiçbir yere yazılmaz; yalnız uzunluğu kaydedilir.
+    /// </summary>
+    internal static void AddAuditEvents(TenantDbContext tenantDb, PlatformDbContext platformDb, Guid callerTenantId, Guid userId,
+        IReadOnlyList<(Guid TenantId, string CompanyName)> companies, bool export, int sqlLength, int rowCount)
+    {
+        var action = export ? "erp.report.exported" : "erp.report.executed";
+        tenantDb.AuditEvents.Add(new AuditEvent
+        {
+            TenantId = callerTenantId, UserId = userId, Action = action,
+            Resource = $"customSql:companies={companies.Count}:sqlLength={sqlLength}:rows={rowCount}"
+        });
+        foreach (var company in companies)
+            platformDb.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = company.TenantId, UserId = userId, Action = action,
+                Resource = $"customSql:callerTenant={callerTenantId:N}:sqlLength={sqlLength}:rows={rowCount}"
+            });
+    }
+
     internal static async Task<CustomSqlResult> ExecuteAsync(string sql,
+        IReadOnlyList<(Guid TenantId, string CompanyName)> companies, ITenantQueryConnectionFactory factory, CancellationToken ct,
+        TimeSpan? totalTimeout = null)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(totalTimeout ?? TotalTimeout);
+        try
+        {
+            return await ExecuteCoreAsync(sql, companies, factory, deadline.Token);
+        }
+        catch (Exception exception) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested
+            && exception is not CustomSqlColumnMismatchException)
+        {
+            // SqlClient belirteç iptalini SqlException, fabrika ise TenantQueryUnavailableException olarak
+            // yüzeye çıkarabilir; toplam süre dolduysa tür ne olursa olsun süre hatasına çevrilir.
+            throw new CustomSqlDeadlineExceededException();
+        }
+    }
+
+    private static async Task<CustomSqlResult> ExecuteCoreAsync(string sql,
         IReadOnlyList<(Guid TenantId, string CompanyName)> companies, ITenantQueryConnectionFactory factory, CancellationToken ct)
     {
         var multiCompany = companies.Count > 1;
         IReadOnlyList<ReportColumn>? columns = null;
         var rows = new List<IReadOnlyDictionary<string, object?>>();
         var truncated = false;
+        // Toplam karakter bütçesi tüm firmalar arasında paylaşılır.
+        var budget = new CustomSqlCharacterBudget(MaxResponseCharacters);
         for (var index = 0; index < companies.Count; index++)
         {
             var remaining = MaxRows - rows.Count;
-            if (remaining <= 0) { truncated = true; break; }
+            if (remaining <= 0 || budget.Remaining <= 0) { truncated = true; break; }
             var company = companies[index];
             await using var connection = await factory.OpenAsync(company.TenantId, TenantQueryAccess.Read, ct);
             await using var command = connection.CreateCommand();
             command.CommandType = CommandType.Text;
             command.CommandText = sql;
             command.CommandTimeout = CommandTimeoutSeconds;
-            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
-            var result = await ReadAsync(reader, remaining, ct);
+            var result = await ExecuteCommandAsync(command, remaining, budget, ct);
             if (columns is null) columns = result.Columns;
             else if (!SameShape(columns, result.Columns)) throw new CustomSqlColumnMismatchException();
             foreach (var row in result.Rows)
@@ -73,22 +142,126 @@ internal static class CustomSqlReportRunner
         return new CustomSqlResult(columns, rows, truncated);
     }
 
-    /// DbDataReader'dan en fazla maxRows satır okur; sütun kodlarını benzersizleştirir. Saf, birim test edilebilir.
-    internal static async Task<CustomSqlResult> ReadAsync(DbDataReader reader, int maxRows, CancellationToken ct)
+    /// <summary>
+    /// Komutu çalıştırıp okur. Okuma tamamlanmadan çıkılıyorsa (satır/karakter sınırı ya da hata) okuyucu kapatılmadan
+    /// önce command.Cancel() çağrılır; böylece sonuç kümesinin kalanı sunucudan boşaltılmaz.
+    /// </summary>
+    internal static async Task<CustomSqlResult> ExecuteCommandAsync(DbCommand command, int maxRows, CustomSqlCharacterBudget budget,
+        CancellationToken ct)
     {
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
+        var completed = false;
+        try
+        {
+            var result = await ReadAsync(reader, maxRows, ct, budget);
+            completed = !result.Truncated;
+            return result;
+        }
+        finally
+        {
+            if (!completed) CancelQuietly(command);
+        }
+    }
+
+    private static void CancelQuietly(DbCommand command)
+    {
+        try { command.Cancel(); }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException) { }
+    }
+
+    /// DbDataReader'dan en fazla maxRows satır okur; sütun kodlarını benzersizleştirir; hücre başına
+    /// MaxCellCharacters ve toplam karakter bütçesini uygular. Saf, birim test edilebilir.
+    internal static async Task<CustomSqlResult> ReadAsync(DbDataReader reader, int maxRows, CancellationToken ct,
+        CustomSqlCharacterBudget? budget = null)
+    {
+        budget ??= new CustomSqlCharacterBudget(MaxResponseCharacters);
         var columns = DescribeColumns(reader);
+        var kinds = new CellKind[columns.Count];
+        for (var ordinal = 0; ordinal < columns.Count; ordinal++) kinds[ordinal] = KindOf(TryGetFieldType(reader, ordinal));
         var rows = new List<IReadOnlyDictionary<string, object?>>();
         var truncated = false;
+        var buffer = new char[MaxCellCharacters + 1];
         while (await reader.ReadAsync(ct))
         {
             if (rows.Count >= maxRows) { truncated = true; break; }
             var row = new Dictionary<string, object?>(columns.Count, StringComparer.Ordinal);
             // SequentialAccess: her sıra numarası bir kez ve artan sırayla okunur.
-            for (var ordinal = 0; ordinal < columns.Count; ordinal++)
-                row[columns[ordinal].Code] = ConvertValue(await reader.IsDBNullAsync(ordinal, ct) ? null : reader.GetValue(ordinal));
+            for (var ordinal = 0; ordinal < columns.Count && !truncated; ordinal++)
+            {
+                var (value, cost) = await ReadCellAsync(reader, ordinal, kinds[ordinal], buffer, ct);
+                if (budget.TryConsume(cost)) row[columns[ordinal].Code] = value;
+                else truncated = true;
+            }
+            // Bütçe satırın ortasında biterse eksik satır döndürülmez.
+            if (truncated) break;
             rows.Add(row);
         }
         return new CustomSqlResult(columns, rows, truncated);
+    }
+
+    private enum CellKind { Text, Binary, Scalar, Other, Unsupported }
+
+    private static async Task<(object? Value, long Cost)> ReadCellAsync(DbDataReader reader, int ordinal, CellKind kind,
+        char[] buffer, CancellationToken ct)
+    {
+        try
+        {
+            if (await reader.IsDBNullAsync(ordinal, ct)) return (null, 1);
+            switch (kind)
+            {
+                case CellKind.Binary:
+                    // İkili veri hiç okunmaz.
+                    return (BinaryPlaceholder, BinaryPlaceholder.Length);
+                case CellKind.Unsupported:
+                    return (UnsupportedPlaceholder, UnsupportedPlaceholder.Length);
+                case CellKind.Text:
+                {
+                    // En fazla MaxCellCharacters + 1 karakter okunur; büyük (max) değerler belleğe alınmaz.
+                    using var text = reader.GetTextReader(ordinal);
+                    var read = await text.ReadBlockAsync(buffer.AsMemory(), ct);
+                    var value = read > MaxCellCharacters ? new string(buffer, 0, MaxCellCharacters) + "…" : new string(buffer, 0, read);
+                    return (value, value.Length);
+                }
+                case CellKind.Scalar:
+                    return (reader.GetValue(ordinal), ScalarCellCost);
+                default:
+                {
+                    // sql_variant (typeof(object)) vb.: değer değişmez kültürle metne çevrilir ve sınırlanır.
+                    var value = reader.GetValue(ordinal) switch
+                    {
+                        null or DBNull => null,
+                        byte[] => BinaryPlaceholder,
+                        var other => Convert.ToString(other, System.Globalization.CultureInfo.InvariantCulture) ?? ""
+                    };
+                    if (value is null) return (null, 1);
+                    if (value.Length > MaxCellCharacters) value = value[..MaxCellCharacters] + "…";
+                    return (value, value.Length);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is not (DbException or OperationCanceledException))
+        {
+            // UDT/geography gibi istemcinin çözemediği türler 500 yerine yer tutucu olarak döner.
+            return (UnsupportedPlaceholder, UnsupportedPlaceholder.Length);
+        }
+    }
+
+    private static CellKind KindOf(Type? type)
+    {
+        if (type is null) return CellKind.Unsupported;
+        type = Nullable.GetUnderlyingType(type) ?? type;
+        if (type == typeof(string) || type == typeof(char[])) return CellKind.Text;
+        if (type == typeof(byte[])) return CellKind.Binary;
+        if (type.IsPrimitive || type == typeof(decimal) || type == typeof(DateTime) || type == typeof(DateTimeOffset)
+            || type == typeof(DateOnly) || type == typeof(TimeOnly) || type == typeof(TimeSpan) || type == typeof(Guid)) return CellKind.Scalar;
+        return CellKind.Other;
+    }
+
+    private static Type? TryGetFieldType(DbDataReader reader, int ordinal)
+    {
+        // UDT (ör. geography) derlemesi yüklenemezse GetFieldType atabilir; sütun metin olarak raporlanır.
+        try { return reader.GetFieldType(ordinal); }
+        catch (Exception exception) when (exception is not (DbException or OperationCanceledException)) { return null; }
     }
 
     internal static IReadOnlyList<ReportColumn> DescribeColumns(DbDataReader reader)
@@ -102,17 +275,10 @@ internal static class CustomSqlReportRunner
             var baseName = string.IsNullOrWhiteSpace(name) ? $"Sütun {ordinal + 1}" : name;
             var code = baseName;
             for (var n = 2; !used.Add(code); n++) code = $"{baseName} ({n})";
-            columns.Add(new ReportColumn(code, code, ReportType(reader.GetFieldType(ordinal))));
+            columns.Add(new ReportColumn(code, code, ReportType(TryGetFieldType(reader, ordinal))));
         }
         return columns;
     }
-
-    private static object? ConvertValue(object? value) => value switch
-    {
-        null or DBNull => null,
-        byte[] => "[ikili veri]",
-        _ => value
-    };
 
     private static string ReportType(Type? type)
     {
@@ -132,6 +298,7 @@ internal static class CustomSqlReportRunner
     /// SQL/erişim hatalarını kullanıcıya gösterilecek sonuca çevirir; eşleşmeyen hatalar için null döner.
     internal static IResult? MapError(Exception exception) => exception switch
     {
+        CustomSqlDeadlineExceededException deadline => Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = [deadline.Message] }),
         SqlException { Number: -2 } => Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = ["Sorgu 30 saniye içinde tamamlanmadı."] }),
         SqlException sqlException => Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = [$"SQL hatası: {sqlException.Message}"] }),
         CustomSqlColumnMismatchException mismatch => Results.ValidationProblem(new Dictionary<string, string[]> { ["sqlQuery"] = [mismatch.Message] }),

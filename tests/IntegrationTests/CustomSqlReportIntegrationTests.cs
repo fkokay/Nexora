@@ -82,6 +82,25 @@ public sealed class CustomSqlReportIntegrationTests
         Assert.Equal(TenantQueryAccess.Read, factory.LastAccess);
     }
 
+    [Theory]
+    [InlineData("/api/reports/run")]
+    [InlineData("/api/reports/export")]
+    public async Task CustomSql_rejects_database_enumeration_before_opening_a_connection(string endpoint)
+    {
+        var factory = new RecordingQueryConnectionFactory(unavailable: false);
+        await using var app = await StartApplicationAsync(factory, tenantBRole: "TenantAdmin");
+        using var client = CreateClient(app, role: "TenantAdmin");
+
+        var response = await client.PostAsJsonAsync(endpoint,
+            new { source = "customSql", sqlQuery = "SELECT DB_NAME(5) AS name", companyIds = new[] { TenantA }, page = 1, pageSize = 50 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var message = problem.RootElement.GetProperty("errors").GetProperty("sqlQuery")[0].GetString();
+        Assert.Contains("veritabanlarını", message);
+        Assert.Equal(0, factory.Calls);
+    }
+
     [Fact]
     public async Task Catalog_lists_customSql_only_for_tenant_admin()
     {

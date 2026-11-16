@@ -277,6 +277,11 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
         var writerLogin = $"aierp_tw_{readyTenantId:N}";
         var notReadyReaderLogin = $"aierp_tr_{notReadyTenantId:N}";
         var notReadyWriterLogin = $"aierp_tw_{notReadyTenantId:N}";
+        // Production path of --provision-tenant-query-credentials: an active tenant whose ERP catalog is Ready.
+        var activeReadyTenantId = Guid.NewGuid();
+        var activeReadyDatabase = $"AIERPTenant_{activeReadyTenantId:N}";
+        var activeReaderLogin = $"aierp_tr_{activeReadyTenantId:N}";
+        var activeWriterLogin = $"aierp_tw_{activeReadyTenantId:N}";
 
         var masterKeyCreated = false;
         try
@@ -297,6 +302,7 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                     "CREATE LOGIN " + Q(workerLogin) + " WITH PASSWORD=" + Literal(workerPassword) + ", CHECK_POLICY=ON, CHECK_EXPIRATION=OFF;");
                 await ExecuteAsync(setup, "CREATE DATABASE " + Q(readyDatabase) + ";");
                 await ExecuteAsync(setup, "CREATE DATABASE " + Q(notReadyDatabase) + ";");
+                await ExecuteAsync(setup, "CREATE DATABASE " + Q(activeReadyDatabase) + ";");
             }
 
             var platformConnection = new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
@@ -319,6 +325,8 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 await SeedTenantAsync(platform, readyTenantId, isActive: false, readyDatabase, erpState: 3, includeStudio: false);
                 // Not-Ready tenant: active, but its ERP catalog row is still Copying.
                 await SeedTenantAsync(platform, notReadyTenantId, isActive: true, notReadyDatabase, erpState: 2, includeStudio: false);
+                // Active tenant with a Ready ERP catalog row and existing database.
+                await SeedTenantAsync(platform, activeReadyTenantId, isActive: true, activeReadyDatabase, erpState: 3, includeStudio: false);
             }
 
             var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Install-TenantProvisioningBoundary.sql"));
@@ -352,6 +360,12 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 var notReady4 = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, notReadyTenantId, component: 4, CreatePassword()));
                 Assert.Equal(51023, notReady4.Number);
 
+                // Active + Ready: create, then rotate (second call takes the ALTER LOGIN branch).
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 4, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, activeReadyTenantId, component: 4, CreatePassword());
+
                 var invalid = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, readyTenantId, component: 5, CreatePassword()));
                 Assert.Equal(51020, invalid.Number);
             }
@@ -366,12 +380,17 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 Assert.Equal(0, await ScalarAsync<int>(verify,
                     "SELECT COUNT(*) FROM sys.server_principals WHERE name IN (@a,@b);",
                     ("@a", notReadyReaderLogin), ("@b", notReadyWriterLogin)));
+                Assert.Equal(activeReadyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeReaderLogin)));
+                Assert.Equal(activeReadyDatabase, await ScalarAsync<string>(verify,
+                    "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeWriterLogin)));
             }
         }
         finally
         {
-            await CleanupAsync(rootConnection, [readyDatabase, notReadyDatabase],
-                [workerLogin, readerLogin, writerLogin, notReadyReaderLogin, notReadyWriterLogin], masterKeyCreated);
+            await CleanupAsync(rootConnection, [readyDatabase, notReadyDatabase, activeReadyDatabase],
+                [workerLogin, readerLogin, writerLogin, notReadyReaderLogin, notReadyWriterLogin, activeReaderLogin, activeWriterLogin],
+                masterKeyCreated);
         }
     }
 

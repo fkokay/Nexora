@@ -76,7 +76,8 @@ if (runQueryCredentialProvisioning)
     var reader = host.Services.GetRequiredService<ITenantSqlCredentialReader>();
     var writer = host.Services.GetRequiredService<ITenantSqlCredentialWriter>();
     var provisioner = new TenantDatabaseProvisioner(platformConnection,
-        builder.Configuration["Database:SeparationBackupPath"], writer, reader);
+        builder.Configuration["Database:SeparationBackupPath"], writer, reader,
+        host.Services.GetRequiredService<ILoggerFactory>().CreateLogger<TenantDatabaseProvisioner>());
     // Creates/rotates the query logins and their Vault secrets only. Database users and
     // role memberships are applied per tenant by deploy/sql/Grant-TenantQueryPrincipals.sql.
     var result = await provisioner.ProvisionQueryCredentialsForReadyTenantsAsync();

@@ -684,7 +684,7 @@ public static class ReportEndpoints
         // SQL raporları yalnız yöneticiye açıktır; yetkisiz kullanıcı doğrulayıcı geri bildirimi de almaz.
         if (request?.Source == "customSql" && role != "TenantAdmin") return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, userId, db, context, export: false, ct);
+        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, tenantId, userId, db, context, export: false, ct);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
@@ -753,7 +753,7 @@ public static class ReportEndpoints
         // SQL raporları yalnız yöneticiye açıktır; yetkisiz kullanıcı doğrulayıcı geri bildirimi de almaz.
         if (request?.Source == "customSql" && role != "TenantAdmin") return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, userId, db, context, export: true, ct);
+        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, tenantId, userId, db, context, export: true, ct);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
@@ -1484,7 +1484,7 @@ public static class ReportEndpoints
 
     private static ReportColumn WarehouseStockColumnByCode(string code) => WarehouseStockColumns.First(x => x.Code == code);
 
-    private static async Task<IResult> RunCustomSqlAsync(NormalizedReport report, Guid userId, TenantDbContext db,
+    private static async Task<IResult> RunCustomSqlAsync(NormalizedReport report, Guid callerTenantId, Guid userId, TenantDbContext db,
         HttpContext context, bool export, CancellationToken ct)
     {
         var platformDb = context.RequestServices.GetRequiredService<PlatformDbContext>();
@@ -1501,11 +1501,10 @@ public static class ReportEndpoints
         {
             return CustomSqlReportRunner.MapError(exception)!;
         }
-        // Sorgu metni denetime yazılmaz; yalnız uzunluğu kaydedilir.
-        foreach (var company in companies)
-            db.AuditEvents.Add(new AuditEvent { TenantId = company.TenantId, UserId = userId,
-                Action = export ? "erp.report.exported" : "erp.report.executed",
-                Resource = $"customSql:sqlLength={report.SqlQuery!.Length}:rows={result.Rows.Count}" });
+        // Kiracı veritabanına yalnız çağıran kiracı için tek satır; firma başına iz PlatformDB'ye. Sorgu metni yazılmaz.
+        CustomSqlReportRunner.AddAuditEvents(db, platformDb, callerTenantId, userId, companies, export,
+            report.SqlQuery!.Length, result.Rows.Count);
+        await platformDb.SaveChangesAsync(ct);
         await db.SaveChangesAsync(ct);
         if (export)
         {
@@ -5469,7 +5468,7 @@ public static class ReportEndpoints
         return true;
     }
 
-    private static bool TryValidateReadOnlySql(string? sql, out string? error)
+    internal static bool TryValidateReadOnlySql(string? sql, out string? error)
     {
         error = null;
         if (string.IsNullOrWhiteSpace(sql) || sql.Length > 10000)
@@ -5533,6 +5532,14 @@ public static class ReportEndpoints
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             error = "Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.";
+            return false;
+        }
+        // Sunucudaki diğer (kiracı) veritabanlarının adlarını/dosyalarını listeleyen katalog ve fonksiyonlar.
+        if (Regex.IsMatch(normalized,
+                @"\b(sysdatabases|sysaltfiles|sysfiles|master_files|DB_NAME|DB_ID|ORIGINAL_DB_NAME|HAS_DBACCESS|DATABASEPROPERTYEX|SUSER_[A-Z_]+|sysservers|syslogins|sql_logins|server_principals|dm_[A-Z0-9_]+)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = "Sorgu sunucudaki veritabanlarını, dosyaları veya oturum açma bilgilerini listeleyemez; yalnız bu firmanın tablolarını okuyun.";
             return false;
         }
         if (Regex.IsMatch(normalized, @"\b[A-Za-z_][\w$#]*\s*\.\s*[A-Za-z_][\w$#]*\s*\(", RegexOptions.CultureInvariant))

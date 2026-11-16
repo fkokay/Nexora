@@ -28,6 +28,58 @@ public sealed class TenantDatabaseProvisionerTests
     }
 
     [Fact]
+    public void Query_read_access_sql_fails_if_principal_has_any_other_role_or_explicit_grant()
+    {
+        var sql = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.ErpQueryRead, "aierp_tr_x");
+        Assert.Contains("[role].[name] <> N'db_datareader' AND [member].[name] = N'aierp_tr_x'", sql);
+        Assert.Contains("THROW 51002", sql);
+        Assert.Contains("[permission].[permission_name] <> N'CONNECT'", sql);
+        Assert.Contains("THROW 51003", sql);
+        // The guard runs after the writer membership is removed.
+        Assert.True(sql.IndexOf("DROP MEMBER", StringComparison.Ordinal) < sql.IndexOf("THROW 51002", StringComparison.Ordinal));
+
+        var write = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_x");
+        Assert.DoesNotContain("THROW 51002", write);
+        Assert.DoesNotContain("THROW 51003", write);
+    }
+
+    [Fact]
+    public void Read_only_probe_accepts_only_all_zero_results()
+    {
+        TenantDatabaseProvisioner.EnsureReadOnlyProbe([0, 0, 0, 0, 0, 0, 0]);
+        Assert.Contains("IS_ROLEMEMBER(N'db_datawriter')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
+        Assert.Contains("IS_ROLEMEMBER(N'db_owner')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
+        Assert.Contains("IS_ROLEMEMBER(N'db_ddladmin')", TenantDatabaseProvisioner.ReadOnlyProbeSql);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(6)]
+    public void Read_only_probe_fails_closed_on_membership_or_unknown(int index)
+    {
+        var member = new object?[] { 0, 0, 0, 0, 0, 0, 0 };
+        member[index] = 1;
+        Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe(member));
+        var unknown = new object?[] { 0, 0, 0, 0, 0, 0, 0 };
+        unknown[index] = DBNull.Value;
+        Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe(unknown));
+        Assert.Throws<InvalidOperationException>(() => TenantDatabaseProvisioner.EnsureReadOnlyProbe([0, 0, 0]));
+    }
+
+    [Fact]
+    public void Dba_grant_script_applies_server_level_denies_for_both_query_logins()
+    {
+        var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Grant-TenantQueryPrincipals.sql"));
+        foreach (var login in new[] { "aierp_tr_$(TenantId)", "aierp_tw_$(TenantId)" })
+            Assert.Contains($"DENY VIEW ANY DATABASE TO [{login}];", script);
+        foreach (var procedure in new[] { "xp_dirtree", "xp_fileexist", "xp_subdirs" })
+            Assert.Contains($"DENY EXECUTE ON OBJECT::[sys].[{procedure}] TO [aierp_tr_$(TenantId)], [aierp_tw_$(TenantId)];", script);
+        Assert.Contains("COLLATE Latin1_General_BIN2 LIKE N'%[^0-9a-f]%'", script);
+    }
+
+    [Fact]
     public void Query_write_access_sql_grants_reader_and_writer_without_execute()
     {
         var sql = TenantDatabaseProvisioner.BuildDatabaseAccessSql(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_x");

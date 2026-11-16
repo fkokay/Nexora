@@ -91,7 +91,8 @@ builder.Services.AddScoped<ITenantQueryConnectionFactory>(sp => new TenantQueryC
     tenantConnectionString,
     builder.Configuration.GetValue<bool>("Database:SeparationEnabled"),
     sp.GetRequiredService<ITenantSqlCredentialReader>(),
-    () => sp.GetRequiredService<PlatformDbContext>()));
+    () => sp.GetRequiredService<PlatformDbContext>(),
+    sp.GetService<ILogger<TenantQueryConnectionFactory>>()));
 builder.Services.AddScoped<ITenantStorageLimitProvider, TenantStorageLimitProvider>();
 builder.Services.AddScoped<TenantStorageQuotaInterceptor>();
 builder.Services.AddDbContext<TenantDbContext>((services, options) =>

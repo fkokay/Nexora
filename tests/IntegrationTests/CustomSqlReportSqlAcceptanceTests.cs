@@ -73,9 +73,9 @@ public sealed class CustomSqlReportSqlAcceptanceTests
             "SELECT * FROM YokTablo", [(tenant.TenantId, tenant.CompanyName)], environment.Factory, CancellationToken.None));
         var mapped = CustomSqlReportRunner.MapError(exception);
 
-        var problem = Assert.IsType<ValidationProblem>(mapped);
+        var problem = Assert.IsType<ProblemHttpResult>(mapped);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
-        Assert.StartsWith("SQL hatası: ", Assert.Single(problem.ProblemDetails.Errors["sqlQuery"]));
+        Assert.StartsWith("SQL hatası: ", Assert.Single(Assert.IsType<HttpValidationProblemDetails>(problem.ProblemDetails).Errors["sqlQuery"]));
     }
 
     [SqlServerAcceptanceFact]
@@ -87,9 +87,9 @@ public sealed class CustomSqlReportSqlAcceptanceTests
 
         var exception = await Assert.ThrowsAsync<CustomSqlColumnMismatchException>(() =>
             CustomSqlReportRunner.ExecuteAsync(sql, companies, environment.Factory, CancellationToken.None));
-        var problem = Assert.IsType<ValidationProblem>(CustomSqlReportRunner.MapError(exception));
+        var problem = Assert.IsType<ProblemHttpResult>(CustomSqlReportRunner.MapError(exception));
 
-        Assert.Equal("Seçilen firmalarda sorgu farklı sütunlar döndürdü.", Assert.Single(problem.ProblemDetails.Errors["sqlQuery"]));
+        Assert.Equal("Seçilen firmalarda sorgu farklı sütunlar döndürdü.", Assert.Single(Assert.IsType<HttpValidationProblemDetails>(problem.ProblemDetails).Errors["sqlQuery"]));
     }
 
     private sealed record TenantFixture(Guid TenantId, string CompanyName, string DatabaseName, string LoginName, string ReadConnectionString, string CustomerCode);

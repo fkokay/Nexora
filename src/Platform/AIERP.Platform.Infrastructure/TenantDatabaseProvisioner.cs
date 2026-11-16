@@ -2,11 +2,13 @@ using AIERP.Platform.Domain;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.Extensions.Logging;
 
 namespace AIERP.Platform.Infrastructure;
 
 public sealed class TenantDatabaseProvisioner(string platformConnection, string? separationBackupPath = null,
-    ITenantSqlCredentialWriter? credentialWriter = null, ITenantSqlCredentialReader? credentialReader = null)
+    ITenantSqlCredentialWriter? credentialWriter = null, ITenantSqlCredentialReader? credentialReader = null,
+    ILogger? logger = null)
 {
     private bool _sourceBackupVerified;
 
@@ -108,6 +110,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
                                 await VerifyTenantCredentialCannotReadOtherDatabasesAsync(tenantId, TenantSqlDatabaseComponent.Erp,
                                     credential, entry.DatabaseName, verifyToken);
                                 await VerifyTenantQueryCredentialsCannotReadOtherDatabasesAsync(tenantId, entry.DatabaseName, verifyToken);
+                                await VerifyTenantQueryReadCredentialIsReadOnlyAsync(tenantId, entry.DatabaseName, verifyToken);
                             },
                             persistState: async (state, error, persistToken) =>
                             {
@@ -178,6 +181,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
                     await VerifyTenantCredentialCannotReadOtherDatabasesAsync(tenantId, TenantSqlDatabaseComponent.Erp,
                         credential, databaseName, token);
                     await VerifyTenantQueryCredentialsCannotReadOtherDatabasesAsync(tenantId, databaseName, token);
+                    await VerifyTenantQueryReadCredentialIsReadOnlyAsync(tenantId, databaseName, token);
                 },
                 persistState: async (state, error, token) =>
                 {
@@ -262,6 +266,49 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
         }
     }
 
+    /// <summary>
+    /// Positively verifies the read query login in its own tenant database: it must not be a
+    /// member of db_datawriter, db_owner or db_ddladmin (or sysadmin) and must not hold
+    /// database-wide INSERT/UPDATE/DELETE. Only called where provisioning has mapped the user;
+    /// existing tenants are mapped later by deploy/sql/Grant-TenantQueryPrincipals.sql.
+    /// </summary>
+    private async Task VerifyTenantQueryReadCredentialIsReadOnlyAsync(Guid tenantId, string databaseName,
+        CancellationToken cancellationToken)
+    {
+        var credential = await ReadTenantRuntimeCredentialAsync(tenantId, TenantSqlDatabaseComponent.ErpQueryRead, cancellationToken);
+        var builder = new SqlConnectionStringBuilder(platformConnection)
+        {
+            InitialCatalog = databaseName,
+            UserID = credential.UserName,
+            Password = credential.Password,
+            IntegratedSecurity = false,
+            PersistSecurityInfo = false
+        };
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = ReadOnlyProbeSql;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            throw new InvalidOperationException("Tenant query read credential role probe returned no result.");
+        var values = new object?[reader.FieldCount];
+        reader.GetValues(values!);
+        EnsureReadOnlyProbe(values);
+    }
+
+    internal const string ReadOnlyProbeSql =
+        "SELECT IS_ROLEMEMBER(N'db_datawriter'), IS_ROLEMEMBER(N'db_owner'), IS_ROLEMEMBER(N'db_ddladmin'), " +
+        "IS_SRVROLEMEMBER(N'sysadmin'), HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'INSERT'), " +
+        "HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'UPDATE'), HAS_PERMS_BY_NAME(NULL, N'DATABASE', N'DELETE');";
+
+    /// <summary>Every probe value must be exactly 0; 1 or NULL (unknown) fails closed.</summary>
+    internal static void EnsureReadOnlyProbe(IReadOnlyList<object?> values)
+    {
+        if (values.Count != 7 || values.Any(value => value is null or DBNull
+                || Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) != 0))
+            throw new InvalidOperationException("Tenant query read credential is not read-only in its tenant database.");
+    }
+
     private async Task EnsureTenantSqlPrincipalAsync(TenantSqlCredential credential, TenantSqlDatabaseComponent component,
         CancellationToken cancellationToken, bool configureDatabaseAccess = true)
     {
@@ -315,7 +362,8 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
         };
         var user = Q(userName);
         var login = $"N'{userName}'";
-        string Membership(string role) =>
+        string Membership(string role) => MembershipWhere($"[role].[name] = N'{role}'");
+        string MembershipWhere(string roleCondition) =>
             "(\n" +
             "    SELECT 1\n" +
             "    FROM sys.database_role_members AS [membership]\n" +
@@ -323,7 +371,7 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
             "        ON [role].[principal_id] = [membership].[role_principal_id]\n" +
             "    INNER JOIN sys.database_principals AS [member]\n" +
             "        ON [member].[principal_id] = [membership].[member_principal_id]\n" +
-            $"    WHERE [role].[name] = N'{role}' AND [member].[name] = {login}\n" +
+            $"    WHERE {roleCondition} AND [member].[name] = {login}\n" +
             ")";
         var sql = new System.Text.StringBuilder();
         sql.Append($"IF DATABASE_PRINCIPAL_ID({login}) IS NULL CREATE USER {user} FOR LOGIN {user};\n")
@@ -343,6 +391,22 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
             sql.Append($"IF NOT EXISTS\n{Membership("db_datawriter")} ALTER ROLE [db_datawriter] ADD MEMBER {user};\n");
         else
             sql.Append($"IF EXISTS\n{Membership("db_datawriter")} ALTER ROLE [db_datawriter] DROP MEMBER {user};\n");
+        if (component == TenantSqlDatabaseComponent.ErpQueryRead)
+        {
+            // The read principal must end up in db_datareader only, with no explicit grants beyond CONNECT.
+            sql.Append($"IF EXISTS\n{MembershipWhere("[role].[name] <> N'db_datareader'")}\n")
+                .Append("    THROW 51002, 'Tenant query read principal must be a member of db_datareader only.', 1;\n")
+                .Append("IF EXISTS\n")
+                .Append("(\n")
+                .Append("    SELECT 1\n")
+                .Append("    FROM sys.database_permissions AS [permission]\n")
+                .Append("    INNER JOIN sys.database_principals AS [grantee]\n")
+                .Append("        ON [grantee].[principal_id] = [permission].[grantee_principal_id]\n")
+                .Append($"    WHERE [grantee].[name] = {login}\n")
+                .Append("      AND [permission].[state] IN ('G', 'W') AND [permission].[permission_name] <> N'CONNECT'\n")
+                .Append(")\n")
+                .Append("    THROW 51003, 'Tenant query read principal must not hold explicit permissions beyond CONNECT.', 1;\n");
+        }
         if (execute)
             sql.Append($"IF OBJECT_ID(N'dbo.PurgeExpiredAuditEvents', N'P') IS NOT NULL GRANT EXECUTE ON dbo.PurgeExpiredAuditEvents TO {user};\n");
         return sql.ToString();
@@ -746,8 +810,11 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
                 await EnsureTenantQueryCredentialsAsync(tenantId, databaseName, cancellationToken, configureDatabaseAccess: false);
                 await VerifyTenantQueryCredentialsCannotReadOtherDatabasesAsync(tenantId, databaseName, cancellationToken);
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
+                // Server-side diagnostics only: exception type, SQL error number and the redacted message.
+                logger?.LogError("Tenant query credential provisioning failed for tenant {TenantId}: {ExceptionType} SqlNumber={SqlNumber} {Error}",
+                    tenantId, exception.GetType().FullName, (exception as SqlException)?.Number, FormatSafeMigrationError(exception));
                 failed.Add(tenantId);
             }
         }
