@@ -1,0 +1,384 @@
+/*
+ * Studio araç ekranları (Grup G): web imaj güncelleme kartı, modül kaynak eşlemeleri ve AI veritabanı mühendisi.
+ * Değerler tokens.css'ten gelir. Diyalog paneli ui/Dialog'dan `.modal` sınıfını da aldığı için base.css ve
+ * studio.css'teki `.modal label/input` kuralları burada `.ns-tool-dialog` kapsamıyla, yükleme sırasına
+ * güvenmeden daha özgül seçicilerle eziliyor.
+ */
+
+/* ---------- Diyalog paneli ---------- */
+.modal-backdrop > .modal.ns-tool-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--ns-radius-lg);
+}
+.modal-backdrop > .modal.ns-tool-dialog.is-wide {
+  width: min(880px, 100%);
+}
+.modal.ns-tool-dialog .ns-dialog-body {
+  flex: 1;
+}
+.modal.ns-tool-dialog .ns-dialog-foot {
+  margin-top: 0;
+}
+.modal.ns-tool-dialog .ns-dialog-sub b {
+  color: var(--ns-ink);
+}
+.modal.ns-tool-dialog .tools-repo {
+  font-size: var(--ns-text-sm);
+  overflow-wrap: anywhere;
+}
+.modal.ns-tool-dialog .ns-eyebrow {
+  margin-bottom: 4px;
+}
+
+/* .modal label / input / textarea kurallarını ns-field görünümüne geri getir. */
+.modal.ns-tool-dialog label.ns-field {
+  display: grid;
+  gap: 6px;
+  color: var(--ns-text);
+  font-size: var(--ns-text-md);
+  font-weight: 400;
+}
+.modal.ns-tool-dialog .ns-field :is(input, textarea, select) {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--ns-line-strong);
+  border-radius: var(--ns-radius-sm);
+  background: var(--ns-surface);
+  color: var(--ns-ink);
+  font: 400 var(--ns-text-md) / 1.45 var(--ns-font-body);
+}
+.modal.ns-tool-dialog .ns-field :is(input, textarea).ns-mono {
+  font-family: var(--ns-font-mono);
+  font-size: var(--ns-text-sm);
+}
+.modal.ns-tool-dialog .ns-field :is(input, textarea, select):focus {
+  border-color: var(--ns-accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ns-accent-soft) !important;
+}
+.modal.ns-tool-dialog .ns-field :is(input, textarea)::placeholder {
+  color: var(--ns-faint);
+}
+.modal.ns-tool-dialog .ns-field select:disabled {
+  background: var(--ns-soft);
+  color: var(--ns-muted);
+}
+.modal.ns-tool-dialog label.ns-check {
+  display: flex;
+  color: var(--ns-text);
+  font-size: var(--ns-text-md);
+  font-weight: 400;
+}
+.modal.ns-tool-dialog .ns-check input[type="checkbox"] {
+  width: 16px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none !important;
+}
+
+/* ---------- Form ve bölümler ---------- */
+.tools-form {
+  display: grid;
+  gap: var(--ns-space-4);
+  padding: var(--ns-space-4);
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-md);
+  background: var(--ns-soft);
+}
+.tools-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--ns-space-3);
+}
+.tools-form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ns-space-3);
+  padding-top: var(--ns-space-3);
+  border-top: 1px solid var(--ns-line);
+}
+.tools-form-foot > span,
+.tools-dialog-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.tools-form-foot > span > svg {
+  color: var(--ns-accent);
+}
+.tools-dialog-foot {
+  align-items: center;
+  justify-content: space-between;
+}
+.tools-section {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+.tools-section > .ns-card-head h3 {
+  font-size: var(--ns-text-md);
+}
+.tools-table td {
+  vertical-align: top;
+}
+.tools-table td:last-child,
+.tools-table th:last-child {
+  width: 1%;
+  text-align: right;
+}
+.tools-cell-mono {
+  color: var(--ns-muted);
+  font: 400 var(--ns-text-sm) / 1.5 var(--ns-font-mono);
+  overflow-wrap: anywhere;
+}
+.tools-cell-mono .ns-badge {
+  margin-left: 6px;
+  font-family: var(--ns-font-mono);
+}
+.tools-danger {
+  border-color: var(--ns-danger-line);
+  color: var(--ns-danger);
+}
+.tools-danger:hover:not(:disabled) {
+  background: var(--ns-danger-soft);
+}
+
+/* ---------- Veritabanı mühendisi sonuçları ---------- */
+.tools-sources {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-md);
+  list-style: none;
+}
+.tools-sources li {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-2);
+  min-width: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--ns-line);
+}
+.tools-sources li:last-child {
+  border-bottom: 0;
+}
+.tools-sources li > svg {
+  flex: none;
+  color: var(--ns-faint);
+}
+.tools-sources b {
+  min-width: 0;
+  color: var(--ns-ink);
+  font-size: var(--ns-text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.tools-sources small {
+  margin-left: auto;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-xs);
+  white-space: nowrap;
+}
+.tools-queries {
+  display: grid;
+  gap: var(--ns-space-3);
+}
+.tools-query {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.tools-query figcaption {
+  color: var(--ns-ink);
+  font-size: var(--ns-text-md);
+  font-weight: 600;
+}
+.tools-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--ns-space-3);
+}
+.tools-plan-card h3 {
+  margin: 0 0 8px;
+  color: var(--ns-ink);
+  font: 700 var(--ns-text-md) / 1.3 var(--ns-font-display);
+}
+.tools-plan-card ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ns-text);
+  font-size: var(--ns-text-md);
+  line-height: 1.5;
+}
+#database-engineer-result:focus,
+#module-source-list-title:focus {
+  outline: none;
+}
+#database-engineer-result:focus-visible {
+  box-shadow: var(--ns-focus);
+}
+
+/* ---------- Web imaj güncelleme kartı ---------- */
+.ns-card.wiu-card {
+  display: grid;
+  gap: var(--ns-space-3);
+  margin: var(--ns-space-3) 0 2px;
+}
+.wiu-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ns-space-3);
+}
+.wiu-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ns-radius-sm);
+  background: var(--ns-accent-soft);
+  color: var(--ns-accent);
+}
+.wiu-copy h3 {
+  margin: 0;
+  color: var(--ns-ink);
+  font: 700 var(--ns-text-lg) / 1.3 var(--ns-font-display);
+}
+.wiu-copy p {
+  margin: 3px 0 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+  line-height: 1.5;
+}
+.wiu-copy .ns-eyebrow {
+  color: var(--ns-faint);
+}
+.wiu-refresh {
+  width: var(--ns-control-h-sm);
+  padding: 0;
+}
+.wiu-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ns-space-2);
+}
+.wiu-meta code {
+  padding: 1px 8px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-xs);
+  background: var(--ns-soft);
+  color: var(--ns-text);
+  font-size: var(--ns-text-xs);
+}
+.wiu-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-2);
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.wiu-card .ns-callout > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wiu-card .ns-callout > .ns-btn {
+  flex: none;
+}
+.wiu-result-body {
+  display: grid;
+  flex: 1;
+  gap: var(--ns-space-3);
+  min-width: 0;
+}
+.wiu-result-body > span {
+  color: var(--ns-text);
+}
+.wiu-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ns-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wiu-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.wiu-steps li > span {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--ns-line-strong);
+  border-radius: 50%;
+  background: var(--ns-surface);
+  color: var(--ns-faint);
+}
+.wiu-steps li.is-complete {
+  color: var(--ns-ink);
+}
+.wiu-steps li.is-complete > span {
+  border-color: var(--ns-success);
+  background: var(--ns-success);
+  color: var(--ns-on-accent);
+}
+.wiu-steps li.is-current {
+  color: var(--ns-ink);
+  font-weight: 600;
+}
+.wiu-steps li.is-current > span {
+  border-color: var(--ns-info);
+  color: var(--ns-info);
+}
+.wiu-log summary {
+  color: var(--ns-ink);
+  font-size: var(--ns-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.wiu-log .ns-code {
+  max-height: 280px;
+  margin-top: var(--ns-space-2);
+}
+.wiu-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.wiu-spin {
+  animation: wiu-spin 1.2s linear infinite;
+}
+@keyframes wiu-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiu-spin { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .tools-form-row { grid-template-columns: minmax(0, 1fr); }
+  .wiu-steps { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .wiu-actions .ns-btn { width: 100%; }
+}
