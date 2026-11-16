@@ -57,3 +57,50 @@
 .low-code-pages-custom>.custom-pages-tool{padding:0;min-height:unset;border-radius:0;background:transparent}
 @media(max-width:1200px){.screen-view-page-builder{grid-template-columns:185px minmax(0,1fr)}.screen-view-live-preview{grid-column:2}}
 @media(max-width:760px){.low-code-designer{padding:10px;gap:10px}.low-code-designer-header{align-items:flex-start;padding:14px}.low-code-designer-state{display:none}.low-code-designer-tabs button{min-width:54px;justify-content:center}.low-code-designer-tabs button>span{display:none}.low-code-designer-content .custom-pages-layout{grid-template-columns:1fr}.low-code-pages-actions{align-items:flex-start;flex-direction:column}.low-code-pages-actions>button{width:100%}.low-code-page-catalog-heading{align-items:stretch;flex-direction:column}.low-code-page-catalog-heading>label{min-width:0}.low-code-page-catalog-list article{align-items:flex-start;flex-wrap:wrap}.low-code-page-catalog-list article>button{width:100%;margin:2px 0 0}.screen-view-page-builder{grid-template-columns:1fr}.screen-view-widget-palette{position:static;grid-template-columns:1fr}.screen-view-live-preview{grid-column:auto}.screen-view-page-fields{grid-template-columns:1fr}.screen-view-page-fields>label.wide{grid-column:auto}.screen-view-grid-widget-body{align-items:flex-start;flex-direction:column}.screen-view-grid-widget-body button{width:100%}.screen-view-grid-dialog-backdrop,.low-code-custom-pages-backdrop{padding:6px}.screen-view-grid-dialog{width:98vw;max-height:98vh;padding:8px}.low-code-custom-pages-backdrop>section{width:98vw;max-height:98vh;padding:9px}}
+
+/* Page catalog: filterable card grid; the designer itself takes over the whole tool area. */
+.low-code-designer.is-designing{gap:0;padding:clamp(8px,1vw,14px)}
+.lcp-catalog{display:grid;gap:14px;padding:18px;border:1px solid var(--lcd-line);border-radius:14px;background:#fff;box-shadow:0 4px 14px #18244706}
+.lcp-catalog-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lcp-catalog-head h2{margin:0 0 4px;font-size:18px;letter-spacing:-.01em}
+.lcp-catalog-head p{margin:0;color:var(--lcd-muted);font-size:12.5px}
+.lcp-primary{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 14px;border:1px solid #6844df;border-radius:8px;background:#6844df;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.lcp-primary:hover{background:#5a37d2}
+.lcp-catalog-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.lcp-filter{display:inline-flex;gap:3px;padding:3px;border:1px solid var(--lcd-line);border-radius:10px;background:#f5f7fb}
+.lcp-filter button{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border:0;border-radius:7px;background:transparent;color:#5d6b82;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.lcp-filter button span{padding:0 6px;border-radius:999px;background:#e8ecf4;color:#5d6b82;font-size:11px}
+.lcp-filter button.active{background:#fff;color:#5132c7;box-shadow:0 1px 3px #18244720}
+.lcp-filter button.active span{background:#f1edff;color:#5132c7}
+.lcp-search{display:flex;align-items:center;gap:7px;min-width:min(320px,100%);height:36px;padding:0 10px;border:1px solid #dce4f0;border-radius:8px;color:#70809a}
+.lcp-search:focus-within{border-color:#cfc4f8;box-shadow:0 0 0 3px #6844df14}
+.lcp-search input{width:100%;border:0;outline:0;background:transparent;color:var(--lcd-ink);font:inherit;font-size:13px}
+.lcp-group-title{margin:4px 0 -4px;color:#8a96aa;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.lcp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.lcp-card{display:grid;align-content:start;gap:5px;min-width:0;padding:14px;border:1px solid #e4eaf4;border-radius:12px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.lcp-card:hover{border-color:#d9d0fb;box-shadow:0 6px 18px #2a1f6a12}
+.lcp-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.lcp-card-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#eef1f7;color:#55647c}
+.lcp-card-icon.custom{background:#f1edff;color:#6242d8}
+.lcp-card>b{overflow:hidden;font-size:14px;text-overflow:ellipsis;white-space:nowrap}
+.lcp-card>small{color:var(--lcd-muted);font-size:12px}
+.lcp-card>p{display:-webkit-box;margin:2px 0 0;overflow:hidden;color:#5d6b82;font-size:12px;line-height:1.45;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lcp-status{padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.lcp-status.published{background:#e9f8f0;color:#17704a}
+.lcp-status.draft{background:#fff5dd;color:#8a5307}
+.lcp-status.builtin{background:#eef1f7;color:#55647c}
+.lcp-card-actions{display:flex;gap:6px;margin-top:8px}
+.lcp-open{flex:1;min-height:32px;padding:0 10px;border:1px solid #d8d0fb;border-radius:8px;background:#f8f6ff;color:#5638c7;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.lcp-open:hover{background:#efeaff}
+.lcp-delete{display:grid;place-items:center;width:32px;min-height:32px;border:1px solid #e4eaf4;border-radius:8px;background:#fff;color:#8a96aa;cursor:pointer}
+.lcp-delete:hover:not(:disabled){border-color:#f1c4c8;background:#fff5f6;color:#b42318}
+.lcp-delete:disabled{opacity:.4;cursor:not-allowed}
+.lcp-state{display:grid;justify-items:center;gap:6px;margin:0;padding:28px 12px;border:1px dashed #d9e1ee;border-radius:10px;color:var(--lcd-muted);font-size:12.5px;text-align:center}
+.lcp-state p{margin:0}
+.lcp-state b{color:var(--lcd-ink);font-size:14px}
+.lcp-state.error{border-style:solid;border-color:#f3c6ca;background:#fff5f6;color:#b42318}
+@media(max-width:640px){.lcp-catalog{padding:12px}.lcp-catalog-head{flex-direction:column;align-items:flex-start}.lcp-search{min-width:100%}}
+/* The designer shows its own title, so embedded tool heroes are hidden — but heroes that carry the tool's only
+   create action ("Yeni iş akışı", "Yeni form") keep that button visible. */
+.low-code-designer-content .forms-page>.forms-hero:has(>button),.low-code-designer-content .workflow-page>header:first-child:has(>button){display:flex;justify-content:flex-end;min-height:0;padding:0;border:0;background:none;box-shadow:none}
+.low-code-designer-content .forms-page>.forms-hero:has(>button)>:not(button),.low-code-designer-content .workflow-page>header:first-child:has(>button)>:not(button){display:none}
