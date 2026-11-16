@@ -7,8 +7,9 @@ import { ModuleLauncher } from "./ModuleLauncherPage";
 import type { ErpDashboardSummary } from "./dashboard/types";
 import type { ExchangeRate } from "./exchange-rates/types";
 import type { FinancialAccount } from "./erp-types";
+import { CommandProvider } from "./commands/CommandProvider";
 import { useWorkspaceTabs } from "./useWorkspaceTabs";
-import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
+import { useWorkspaceGlobalCommands } from "./useWorkspaceGlobalCommands";
 import { useWorkspaceSearch } from "./useWorkspaceSearch";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import { useEffect, useMemo, useState } from "react";
@@ -64,6 +65,14 @@ const defaultGlobalQuickMenuPages = [
 ];
 
 export default function App() {
+  return (
+    <CommandProvider>
+      <AppContent />
+    </CommandProvider>
+  );
+}
+
+function AppContent() {
   const searchParams = new URLSearchParams(window.location.search);
   const standaloneStudio = searchParams.get("app") === "studio";
   const embeddedStudioTool = searchParams.get("embeddedStudio") === "1";
@@ -552,7 +561,7 @@ export default function App() {
       return next;
     });
   }
-  useWorkspaceShortcuts({
+  useWorkspaceGlobalCommands({
     page,
     moduleTabs,
     searchOpen: globalSearchOpen,

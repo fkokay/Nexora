@@ -1,4 +1,5 @@
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useCommandRegistry, ViewKeyContext } from "./commands/CommandProvider";
 import { Home, X } from "lucide-react";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 export type Locale = "tr" | "en";
@@ -127,6 +128,8 @@ export function KeepAliveViews({
   openKeys: string[];
   children: ReactNode;
 }) {
+  const registry = useCommandRegistry();
+  useEffect(() => registry.setActiveView(activeKey), [registry, activeKey]);
   const cache = useRef(new Map<string, ReactNode>());
   const allowed = new Set([...openKeys, activeKey]);
   for (const key of cache.current.keys())
@@ -136,7 +139,7 @@ export function KeepAliveViews({
     <div className="workspace-keepalive">
       {Array.from(cache.current.entries()).map(([key, view]) => (
         <div className="workspace-view" key={key} hidden={key !== activeKey}>
-          {view}
+          <ViewKeyContext.Provider value={key}>{view}</ViewKeyContext.Provider>
         </div>
       ))}
     </div>
