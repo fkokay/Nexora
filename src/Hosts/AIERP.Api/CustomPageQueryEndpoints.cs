@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
@@ -105,6 +106,60 @@ internal static class CustomPageQueryParameters
     };
 
     private static string Truncate(string value) => value.Length <= 64 ? value : value[..64] + "…";
+
+    /// <summary>
+    /// The supplied values with every session-bound parameter (binding root <c>kullanici</c> or <c>bugun</c>) replaced by the
+    /// server's value. A client value for such a parameter is ignored and may be omitted.
+    /// </summary>
+    internal static Dictionary<string, JsonElement> WithSessionValues(IReadOnlyList<PageQueryParameter> declared,
+        IReadOnlyDictionary<string, JsonElement>? supplied, CustomPageSession session)
+    {
+        var values = supplied is null ? new Dictionary<string, JsonElement>(StringComparer.Ordinal) : new Dictionary<string, JsonElement>(supplied, StringComparer.Ordinal);
+        foreach (var parameter in declared)
+            if (SessionValue(parameter.Binding, session, out var value)) values[parameter.Name] = value;
+        return values;
+    }
+
+    /// <summary>
+    /// True when the binding is a session variable: <c>kullanici.id</c> (sub claim), <c>kullanici.ad</c> (name claim, empty when
+    /// absent) or <c>bugun</c> (server UTC date, YYYY-MM-DD). Any other path under these roots binds to null.
+    /// </summary>
+    private static bool SessionValue(string binding, CustomPageSession session, out JsonElement value)
+    {
+        value = default;
+        if (!TenantCustomPageQueries.TryParseBinding(binding, out var path)) return false;
+        var root = TenantCustomPageQueries.RootOf(path);
+        if (!TenantCustomPageQueries.ReservedNames.Contains(root)) return false;
+        string? text = path.ToLowerInvariant() switch
+        {
+            "kullanici.id" => session.UserId,
+            "kullanici.ad" => session.DisplayName,
+            "bugun" => session.Today,
+            _ => null
+        };
+        value = JsonSerializer.SerializeToElement(text);
+        return true;
+    }
+}
+
+/// <summary>Server-side values of the page session variables, taken from the verified claims and the server clock.</summary>
+internal sealed record CustomPageSession(string UserId, string DisplayName, string Today)
+{
+    internal static CustomPageSession From(ClaimsPrincipal user) => new(user.FindFirstValue("sub") ?? "", user.FindFirstValue("name") ?? "",
+        DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+}
+
+/// <summary>Write runs (published and preview) share one budget of 60 per user per minute, on top of the route limits.</summary>
+internal sealed class CustomPageWriteRateLimiter : IDisposable
+{
+    internal const int PermitsPerMinute = 60;
+    private readonly PartitionedRateLimiter<string> limiter = PartitionedRateLimiter.Create<string, string>(key =>
+        RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = PermitsPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+
+    internal RateLimitLease Acquire(Guid userId) => limiter.AttemptAcquire(userId.ToString("D"));
+
+    public void Dispose() => limiter.Dispose();
 }
 
 /// <summary>
@@ -123,6 +178,8 @@ internal static class CustomPageQueryEndpoints
     /// <summary>
     /// Runtime runs: 300 per user per minute (a page may hold 20 load queries that re-run as inputs change).
     /// Studio preview runs have their own budget of 120 per user per minute. Both are fixed windows keyed by the sub claim.
+    /// Write runs (published and preview) additionally draw from <see cref="CustomPageWriteRateLimiter"/> (60 per user per
+    /// minute), checked in the handler because the query kind is known only after the page definition is loaded.
     /// </summary>
     internal static void ConfigureRateLimiting(RateLimiterOptions options)
     {
@@ -187,12 +244,14 @@ internal static class CustomPageQueryEndpoints
         var query = TenantCustomPageQueries.ReadQueries(definitionJson).FirstOrDefault(x => string.Equals(x.Id, queryId, StringComparison.Ordinal));
         if (query is null || query.Kind is not ("read" or "insert" or "update" or "delete")) return Results.NotFound(new { error = "Sorgu bu sayfada bulunamadı." });
         if (!Allows(rights, query.Kind)) return Results.Json(new { error = ForbiddenWriteError }, statusCode: StatusCodes.Status403Forbidden);
-        var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, request?.Parameters);
+        // Session variables are bound from the verified claims, never from the request.
+        var values = CustomPageQueryParameters.WithSessionValues(query.Parameters, request?.Parameters, CustomPageSession.From(http.User));
+        var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, values);
         if (parameters is null) return Results.BadRequest(new { error });
         if (query.Kind != "read")
         {
             if (isPreview && request?.ConfirmWrite != true) return Results.BadRequest(new { error = PreviewWriteConfirmationError });
-            return await RunWriteAsync(pageCode, query, parameters, request, tenant, userId, isPreview, platformDb, http, ct);
+            return await RunWriteAsync(pageCode, query, parameters, values, tenant, userId, isPreview, platformDb, http, ct);
         }
         var auditAction = isPreview ? "custom-page.query.preview" : "custom-page.query.run";
         // Stored definitions were validated on save, but the read-only rules may have tightened since; never run SQL
@@ -217,22 +276,42 @@ internal static class CustomPageQueryEndpoints
         return Results.Ok(new CustomPageQueryRunResult(result.Columns, result.Rows, result.Rows.Count, result.Truncated));
     }
 
+    internal const string WriteRateLimitError = "Çok fazla yazma isteği gönderildi; bir dakika sonra yeniden deneyin.";
+    internal const string WriteAuditUnavailableError = "Yazma işlemi denetim kaydı oluşturulamadığı için çalıştırılmadı; daha sonra yeniden deneyin.";
+
     /// <summary>
-    /// Runs a write query through the write login. Every attempt that reaches the connection stage is recorded in
-    /// TenantCustomPageWriteAudits, with its parameter values, whether it succeeded or not.
+    /// Runs a write query through the write login. Audit fails closed: the attempt row (Succeeded = false) is stored in
+    /// TenantCustomPageWriteAudits before the tenant connection is opened, and no write runs when that insert fails.
+    /// The row is completed with the outcome afterwards; a failure there is logged and never changes the response.
     /// </summary>
     private static async Task<IResult> RunWriteAsync(string pageCode, PageQuery query, IReadOnlyList<SqlParameter> parameters,
-        CustomPageQueryRunRequest? request, Guid tenant, Guid userId, bool isPreview, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
+        IReadOnlyDictionary<string, JsonElement> values, Guid tenant, Guid userId, bool isPreview, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
     {
         // The write rules may have tightened since the page was saved; never run SQL today's validator would reject.
         if (!ReportEndpoints.TryValidateWriteSql(query.Sql, query.Kind, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
-        // The connection factory is resolved only after every authorization and validation check has passed.
-        var factory = http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
+        using var lease = http.RequestServices.GetRequiredService<CustomPageWriteRateLimiter>().Acquire(userId);
+        if (!lease.IsAcquired) return Results.Json(new { error = WriteRateLimitError }, statusCode: StatusCodes.Status429TooManyRequests);
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CustomPageQueryEndpoints).FullName!);
+
         var audit = new TenantCustomPageWriteAudit
         {
             TenantId = tenant, UserId = userId, PageCode = pageCode, QueryName = query.Name, Kind = query.Kind,
-            ParametersJson = ParametersJson(request?.Parameters), IsPreview = isPreview
+            ParametersJson = ParametersJson(values), IsPreview = isPreview, Succeeded = false, OccurredAt = DateTimeOffset.UtcNow
         };
+        platformDb.TenantCustomPageWriteAudits.Add(audit);
+        try
+        {
+            await platformDb.SaveChangesAsync(ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Custom page write audit row could not be stored for page {PageCode}, query {QueryName}; the write was not run.", pageCode, query.Name);
+            return Results.Json(new { error = WriteAuditUnavailableError }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        // The connection factory is resolved only after every authorization, validation and audit step has passed.
+        var factory = http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         int affectedRows;
         try
         {
@@ -240,33 +319,45 @@ internal static class CustomPageQueryEndpoints
         }
         catch (Exception exception)
         {
-            audit.Succeeded = false;
             audit.ErrorNumber = (exception as SqlException)?.Number;
-            await SaveWriteAuditAsync(platformDb, audit);
+            audit.DurationMs = ElapsedMs(stopwatch);
+            await CompleteWriteAuditAsync(platformDb, audit, logger);
             var mapped = CustomSqlReportRunner.MapError(exception);
             if (mapped is null) throw;
             return mapped;
         }
         audit.Succeeded = true;
         audit.AffectedRows = affectedRows;
-        await SaveWriteAuditAsync(platformDb, audit);
+        audit.DurationMs = ElapsedMs(stopwatch);
+        await CompleteWriteAuditAsync(platformDb, audit, logger);
         return Results.Ok(new CustomPageWriteResult(affectedRows));
     }
 
-    /// <summary>Not cancellable: a committed (or attempted) write must not lose its audit row to a client disconnect.</summary>
-    private static async Task SaveWriteAuditAsync(PlatformDbContext platformDb, TenantCustomPageWriteAudit audit)
+    private static int ElapsedMs(System.Diagnostics.Stopwatch stopwatch) => (int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds);
+
+    /// <summary>
+    /// Stores the outcome on the attempt row. Not cancellable, so a client disconnect cannot drop it; a failure is logged
+    /// and swallowed, so the caller still gets the real result of the write.
+    /// </summary>
+    private static async Task CompleteWriteAuditAsync(PlatformDbContext platformDb, TenantCustomPageWriteAudit audit, ILogger logger)
     {
-        audit.OccurredAt = DateTimeOffset.UtcNow;
-        platformDb.TenantCustomPageWriteAudits.Add(audit);
-        await platformDb.SaveChangesAsync(CancellationToken.None);
+        try
+        {
+            await platformDb.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Custom page write audit {AuditId} could not be completed (succeeded: {Succeeded}, affected rows: {AffectedRows}).",
+                audit.Id, audit.Succeeded, audit.AffectedRows);
+        }
     }
 
-    /// <summary>The supplied parameter values as JSON, cut at <see cref="TenantCustomPageWriteAudit.MaxParametersJsonLength"/> characters.</summary>
-    internal static string ParametersJson(IReadOnlyDictionary<string, JsonElement>? parameters)
-    {
-        var json = JsonSerializer.Serialize(parameters ?? new Dictionary<string, JsonElement>());
-        return json.Length <= TenantCustomPageWriteAudit.MaxParametersJsonLength ? json : json[..TenantCustomPageWriteAudit.MaxParametersJsonLength];
-    }
+    /// <summary>Non-ASCII text (Turkish letters) stays readable; the value is stored as a column value, never rendered as HTML.</summary>
+    private static readonly JsonSerializerOptions AuditJsonOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>The effective parameter values (session variables included) as complete JSON.</summary>
+    internal static string ParametersJson(IReadOnlyDictionary<string, JsonElement>? parameters) =>
+        JsonSerializer.Serialize(parameters ?? new Dictionary<string, JsonElement>(), AuditJsonOptions);
 
     private static bool TryContext(ClaimsPrincipal user, out Guid tenant, out Guid userId, out string role)
     { tenant = default; userId = default; role = user.FindFirstValue("role") ?? ""; return Guid.TryParse(user.FindFirstValue("tenant_id"), out tenant) && Guid.TryParse(user.FindFirstValue("sub"), out userId) && role.Length > 0; }

@@ -19786,6 +19786,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int?>("AffectedRows")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("int");
+
                     b.Property<int?>("ErrorNumber")
                         .HasColumnType("int");
 

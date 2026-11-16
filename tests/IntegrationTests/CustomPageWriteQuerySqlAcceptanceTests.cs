@@ -38,7 +38,7 @@ public sealed class CustomPageWriteQuerySqlAcceptanceTests
             {
                 // Gives every customer the same code: violates the unique (TenantId, Code) index when there are two.
                 id = "kodlariBirlestir", name = "kodlariBirlestir", kind = "update", runOn = "manual",
-                sql = "UPDATE CustomerAccounts SET Code = @kod",
+                sql = "UPDATE CustomerAccounts SET Code = @kod WHERE Code IS NOT NULL",
                 parameters = new object[] { new { name = "kod", binding = "{{kod.value}}", type = "text" } }
             }
         },

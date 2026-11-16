@@ -83,6 +83,37 @@ public sealed class WriteSqlValidatorTests
         AssertRejected("UPDATE T SET a = 1 WHERE b = '" + new string('x', 10_000) + "'", "update");
     }
 
+    [Theory]
+    [InlineData("update", "UPDATE T SET a = @a")]
+    [InlineData("update", "UPDATE c SET c.Name = @ad FROM CustomerAccounts c")]
+    [InlineData("update", "UPDATE T SET a = (SELECT b FROM U WHERE U.id = @id)")]
+    [InlineData("delete", "DELETE FROM T")]
+    [InlineData("delete", "DELETE T")]
+    [InlineData("delete", "DELETE FROM T WHERE_X = 1")]
+    [InlineData("delete", "DELETE FROM T OUTPUT deleted.id")]
+    public void Update_and_delete_without_top_level_where_are_rejected(string kind, string sql)
+    {
+        Assert.False(ReportEndpoints.TryValidateWriteSql(sql, kind, out var error), $"Kabul edilmemeliydi: {sql}");
+        Assert.Equal(ReportEndpoints.MissingWhereError, error);
+    }
+
+    [Theory]
+    [InlineData("UPDATE X..T SET a = 1 WHERE id = 1", "update")]
+    [InlineData("UPDATE [X]..[T] SET a = 1 WHERE id = 1", "update")]
+    [InlineData("INSERT INTO T(a) SELECT a FROM X .. T", "insert")]
+    [InlineData("DELETE FROM T WHERE id IN (SELECT id FROM X..T)", "delete")]
+    public void Write_sql_with_empty_schema_database_name_is_rejected(string sql, string kind) => AssertRejected(sql, kind);
+
+    [Theory]
+    [InlineData("SELECT * FROM X..T")]
+    [InlineData("SELECT * FROM [X]..[T]")]
+    [InlineData("SELECT a FROM T WHERE id IN (SELECT id FROM X . . T)")]
+    public void Read_sql_with_empty_schema_database_name_is_rejected(string sql)
+    {
+        Assert.False(ReportEndpoints.TryValidateReadOnlySql(sql, out var error), $"Kabul edilmemeliydi: {sql}");
+        Assert.Equal("Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.", error);
+    }
+
     [Fact]
     public void Read_validator_behaviour_unchanged()
     {

@@ -5485,7 +5485,7 @@ public static class ReportEndpoints
             return false;
         }
         if (Regex.IsMatch(normalized,
-                @"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|NEXT\s+VALUE|UPDLOCK|XLOCK|TABLOCKX|HOLDLOCK|XP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*",
+                @"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|NEXT\s+VALUE|UPDLOCK|XLOCK|TABLOCKX|HOLDLOCK|XP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*|\.\s*\.",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             error = "Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.";
@@ -5572,6 +5572,8 @@ public static class ReportEndpoints
         return true;
     }
 
+    internal const string MissingWhereError = "UPDATE/DELETE sorgusunda WHERE koşulu zorunludur.";
+
     private static readonly IReadOnlyDictionary<string, string> WriteVerbs = new Dictionary<string, string>(StringComparer.Ordinal)
     { ["insert"] = "INSERT", ["update"] = "UPDATE", ["delete"] = "DELETE" };
 
@@ -5579,7 +5581,8 @@ public static class ReportEndpoints
     /// Early, text-level check for a page write query of the given kind (insert, update or delete). The real boundary is
     /// the write login's database permissions; this only rejects what a single parameterized DML statement never needs:
     /// a second statement (with or without ';'), CTEs, procedures, DDL, permissions, MERGE/BULK, external sources,
-    /// SELECT … INTO / OUTPUT … INTO, comments, <c>{{ }}</c>, other databases and server catalogs.
+    /// SELECT … INTO / OUTPUT … INTO, comments, <c>{{ }}</c>, other databases (including <c>db..table</c>) and server
+    /// catalogs. UPDATE and DELETE must have a top-level WHERE.
     /// </summary>
     internal static bool TryValidateWriteSql(string? sql, string kind, out string? error)
     {
@@ -5596,7 +5599,7 @@ public static class ReportEndpoints
         if (!Regex.IsMatch(structure, $@"^\s*{verb}\b", Options))
         { error = $"{kind} sorgusu {verb} ile başlamalıdır; WITH ile başlayan sorgu veya başka türde ifade kullanılamaz."; return false; }
         if (Regex.IsMatch(named,
-                @"\b(MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|RECONFIGURE|CHECKPOINT|XP_[A-Z0-9_]+|SP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*",
+                @"\b(MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|RECONFIGURE|CHECKPOINT|XP_[A-Z0-9_]+|SP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*|\.\s*\.",
                 Options))
         { error = "Sorgu prosedür çalıştırma, şema değiştirme (DDL), yetki, MERGE, BULK, dış kaynak ve başka veritabanı erişimi içeremez."; return false; }
         if (Regex.IsMatch(named, DatabaseListingPattern, Options)) { error = DatabaseListingError; return false; }
@@ -5617,6 +5620,8 @@ public static class ReportEndpoints
             _ => sets == 0 && selects == 0 && values == 0
         };
         if (!shapeOk) { error = SecondStatementError; return false; }
+        // An UPDATE or DELETE without a top-level WHERE changes every row of the table.
+        if (verb is "UPDATE" or "DELETE" && Count("WHERE") == 0) { error = MissingWhereError; return false; }
 
         var allowedInto = verb == "INSERT" && Regex.IsMatch(structure, @"^\s*INSERT\s+INTO\b", Options) ? 1 : 0;
         if (Regex.Matches(structure, @"\bINTO\b", Options).Count != allowedInto)

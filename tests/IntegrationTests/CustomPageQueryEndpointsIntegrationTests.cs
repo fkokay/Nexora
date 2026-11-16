@@ -30,7 +30,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         parameters = new object[]
         {
             new { name = "kod", binding = "{{arama.value}}", type = "text" },
-            new { name = "adet", binding = "{{bugun}}", type = "int" }
+            new { name = "adet", binding = "{{arama.value}}", type = "int" }
         }
     };
 
@@ -242,6 +242,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         builder.Services.AddSingleton<ITenantQueryConnectionFactory>(factory);
         builder.Services.AddAuthorization();
         builder.Services.AddRateLimiter(CustomPageQueryEndpoints.ConfigureRateLimiting);
+        builder.Services.AddSingleton<CustomPageWriteRateLimiter>();
 
         var app = builder.Build();
         app.UseAuthentication();

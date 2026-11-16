@@ -136,6 +136,14 @@ internal static partial class TenantCustomPageQueries
         return true;
     }
 
+    /// <summary>The path of a single <c>{{PATH}}</c> binding expression, without braces and surrounding spaces.</summary>
+    internal static bool TryParseBinding(string expression, out string path)
+    {
+        var match = SingleBinding().Match(expression ?? "");
+        path = match.Success ? match.Groups[1].Value : "";
+        return match.Success;
+    }
+
     internal static string RootOf(string path)
     {
         var end = path.IndexOfAny(['.', '[']);

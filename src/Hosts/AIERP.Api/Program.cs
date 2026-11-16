@@ -152,6 +152,8 @@ builder.Services.AddRateLimiter(o =>
     // Custom page query runs: 300 per user per minute; Studio preview runs: 120 per user per minute (fixed windows, sub claim).
     CustomPageQueryEndpoints.ConfigureRateLimiting(o);
 });
+// Custom page write runs (published and preview): 60 per user per minute, checked in the handler.
+builder.Services.AddSingleton<CustomPageWriteRateLimiter>();
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Trace-Id")));
 builder.Services.AddOpenApi();
