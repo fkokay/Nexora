@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import {
   ArrowLeftRight,
   FilePlus2,
-  Plus,
   X,
 } from "lucide-react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
@@ -147,6 +150,7 @@ export function SalesDeliveriesScreen({
   // Arama sunucuda yapılır; yalnızca açık sayfa değil tüm irsaliyeler taranır.
   const [filter, setFilter] = useState("");
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
   async function load() {
     setLoading(true);
     setError("");
@@ -543,10 +547,59 @@ export function SalesDeliveriesScreen({
       setBusy(false);
     }
   }
+  // Action bar of the delivery list and of an open delivery. A shipped (Posted) delivery is cancelled, never
+  // deleted; only a cancelled one can be deleted. The create page's Yeni comes from StandaloneFulfillmentPanel.
+  const busyReason = busy ? "İşleniyor…" : undefined;
+  const target = detail
+    ? items.find((item) => item.id === detail.id)
+    : items.find((item) => item.id === selectedId);
+  const commands: PageCommands = {
+    new: { primary: !detail, run: () => setCreating(true) },
+  };
+  if (!detail)
+    commands.open = {
+      disabledReason: target ? undefined : "Önce bir kayıt seçin",
+      run: () => (target ? open(target.id) : undefined),
+    };
+  if (role === "TenantAdmin")
+    commands.delete = {
+      disabledReason: !target
+        ? "Önce bir kayıt seçin"
+        : target.status !== "Voided"
+          ? "Sevk edilmiş irsaliye silinemez — İşlemler › İptal et"
+          : busyReason,
+      run: () => (target ? deleteDelivery(target) : undefined),
+    };
+  const more: MenuCommand[] = [];
+  if (target?.status === "Posted" && !target.hasSalesInvoice)
+    more.push({
+      id: "delivery-invoice",
+      label: "Faturalaştır",
+      disabledReason: busyReason,
+      run: () => (target.orderId ? createInvoice(target.id) : startOrderlessInvoice(target.id)),
+    });
+  if (target?.invoiceId)
+    more.push({ id: "delivery-open-invoice", label: "Faturayı aç", run: () => setInvoiceId(target.invoiceId) });
+  if (target?.status === "Posted")
+    more.push({
+      id: "delivery-void",
+      label: "İptal et",
+      disabledReason:
+        busyReason ??
+        (role !== "TenantAdmin"
+          ? "İrsaliye iptali için yönetici yetkisi gerekir."
+          : target.invoiceStatus === "Posted"
+            ? "Önce bağlı satış faturasını iptal edin."
+            : undefined),
+      run: () => voidDelivery(target),
+    });
+  if (!detail) more.push(csvExportCommand(gridExportRef));
+  commands.more = more;
   return (
     <div
       className={`delivery-screen list-v2${creating ? " delivery-create-screen" : ""}`}
     >
+      {!creating && !invoiceId && <PageCommandsSlot commands={commands} />}
       {creating ? (
         <div className="page-heading customer-heading">
           <div>
@@ -570,12 +623,7 @@ export function SalesDeliveriesScreen({
             title="Satış İrsaliyeleri"
             description="Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."
             count={total}
-          >
-            <button className="primary" onClick={() => setCreating(true)}>
-              <Plus size={16} />
-              Yeni irsaliye
-            </button>
-          </ListPageHeader>
+          />
           <ListToolbar
             search={search}
             onSearchChange={setSearch}
@@ -604,12 +652,15 @@ export function SalesDeliveriesScreen({
           warehouses={warehouses}
           initialCustomerId={customerActionId}
           onCancel={() => setCreating(false)}
+          ownsActionBar={!invoiceId}
         />
       ) : (
         <>
           <section className="list-v2-list">
             <SalesDocumentGrid
               gridId="sales-deliveries"
+              hideExport
+              exportActionsRef={gridExportRef}
               fields={visibleFields}
               items={items}
               selectedId={selected?.id ?? null}
@@ -778,6 +829,7 @@ export function SalesDeliveriesScreen({
                 mode="create"
                 busy={busy}
                 saveLabel="Faturayı oluştur"
+                saveDisabledReason={detail.orderId === null && !invoiceCustomerId ? "Kaydetmek için müşteri seçin." : undefined}
                 onCancel={() => {
                   if (!busy) setInvoiceEditing(false);
                 }}

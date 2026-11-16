@@ -9,6 +9,10 @@ import { ListToolbar } from "../list-page/ListToolbar";
 import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
 import { salesRequestStatus } from "../document-page/documentStatus";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
+import type { GridExportActions } from "../AdvancedDataGrid";
+import { PageCommandsSlot } from "../commands/PageCommandsSlot";
+import { csvExportCommand } from "../commands/gridCommands";
+import type { MenuCommand, PageCommands } from "../commands/types";
 import { SalesRequestCreateForm } from "./components/SalesRequestCreateForm";
 import { SalesRequestDetailSurface } from "./components/SalesRequestDetailSurface";
 import { formatRequestDate, quoteFromRequestStorageKey, type SalesRequestDetail, type SalesRequestSummary } from "./types";
@@ -48,6 +52,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [detailNotice, setDetailNotice] = useState("");
+  const gridExportRef = useRef<GridExportActions | null>(null);
 
   async function load() {
     setLoading(true);
@@ -167,15 +172,32 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
     }
   };
 
+  // Action bar of the request list and of an open request (requests are cancelled, not deleted).
+  const selected = items.find((item) => item.id === selectedId);
+  const commands: PageCommands = { new: { primary: !detail, run: () => setCreating(true) } };
+  const more: MenuCommand[] = [];
+  if (detail) {
+    if (detail.status !== "Cancelled")
+      more.push({ id: "request-quote", label: "Teklif hazırla", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => createQuote(detail.id) });
+    if (detail.status === "Open")
+      more.push({ id: "request-cancel", label: "Talebi iptal et", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => cancelRequest() });
+  } else {
+    commands.open = {
+      disabledReason: selected ? undefined : "Önce bir kayıt seçin",
+      run: () => (selected ? openDetail(selected.id) : undefined),
+    };
+    more.push(csvExportCommand(gridExportRef));
+  }
+  commands.more = more;
+
   return (
     <div className="sales-lv2-stack list-v2" ref={rootRef}>
+      <PageCommandsSlot commands={commands} />
       <ListPageHeader
         title="Satış Talepleri"
         description="Müşterilerden gelen ürün talepleri. Talepten teklif hazırlanır; satış akışının ilk adımıdır."
         count={loading && total === 0 ? null : total}
-      >
-        <button type="button" className="primary" onClick={() => setCreating(true)}>Yeni talep</button>
-      </ListPageHeader>
+      />
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -194,6 +216,8 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
       <section className="list-v2-list">
         <SalesDocumentGrid
           gridId="sales-customer-requests"
+          hideExport
+          exportActionsRef={gridExportRef}
           fields={fields}
           items={items}
           selectedId={selectedId}

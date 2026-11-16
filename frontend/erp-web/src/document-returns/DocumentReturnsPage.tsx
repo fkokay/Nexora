@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
@@ -9,6 +9,10 @@ import { ListToolbar } from "../list-page/ListToolbar";
 import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
 import { returnStatus } from "../document-page/documentStatus";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
+import type { GridExportActions } from "../AdvancedDataGrid";
+import { PageCommandsSlot } from "../commands/PageCommandsSlot";
+import { csvExportCommand } from "../commands/gridCommands";
+import type { MenuCommand, PageCommands } from "../commands/types";
 import { SalesInvoiceModal } from "../SalesInvoiceModal";
 import { PurchaseInvoiceModal } from "../PurchaseInvoiceModal";
 import { ReturnDetailSurface } from "./components/ReturnDetailSurface";
@@ -45,6 +49,7 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
   const [detailNotice, setDetailNotice] = useState("");
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<AppTypes.Warehouse[]>([]);
+  const gridExportRef = useRef<GridExportActions | null>(null);
 
   const fields: AppTypes.BuiltInScreenLayoutField[] = [
     { key: "code", label: "İade no", width: 130 },
@@ -146,13 +151,29 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
     }
   };
 
+  // Action bar of the return list and of an open return. A return is created from its invoice (Yeni opens the
+  // invoice list) and a posted return is cancelled, never deleted. An open invoice holds the bar itself.
+  const selected = items.find((item) => item.id === selectedId);
+  const commands: PageCommands = { new: { primary: !detail, run: () => onNavigate(config.invoicePage) } };
+  const more: MenuCommand[] = [];
+  if (detail) {
+    if (detail.status === "Posted") commands.delete = { disabledReason: "Kesilmiş belge silinemez — İşlemler › İadeyi iptal et" };
+    more.push({ id: "return-open-invoice", label: "Faturayı aç", run: () => setInvoiceId(detail.invoiceId) });
+    if (detail.status === "Posted")
+      more.push({ id: "return-void", label: "İadeyi iptal et", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => voidReturn() });
+  } else {
+    commands.open = {
+      disabledReason: selected ? undefined : "Önce bir kayıt seçin",
+      run: () => (selected ? openDetail(selected.id) : undefined),
+    };
+    more.push(csvExportCommand(gridExportRef));
+  }
+  commands.more = more;
+
   return (
     <div className="sales-lv2-stack list-v2">
-      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total}>
-        <button type="button" className="primary" title="İade, fatura detayından oluşturulur" onClick={() => onNavigate(config.invoicePage)}>
-          Faturadan iade oluştur
-        </button>
-      </ListPageHeader>
+      {!invoiceId && <PageCommandsSlot commands={commands} />}
+      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total} />
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -171,6 +192,8 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
       <section className="list-v2-list">
         <SalesDocumentGrid
           gridId={config.gridId}
+          hideExport
+          exportActionsRef={gridExportRef}
           fields={fields}
           items={items}
           selectedId={selectedId}
