@@ -1,0 +1,86 @@
+/* Grup D: koyu IDE yüzeyi. Eski katmanların (studio.css, studio-reference.css) üstüne yazar. */
+
+/* Dosya başlığı tek satır: simge, yol, boyut. */
+.studio-ide-page .studio-vscode-main .studio-explorer-path {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+}
+.studio-ide-page .studio-vscode-main .studio-explorer-path::before {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ns-radius-sm);
+  font-size: var(--ns-text-xs);
+}
+
+/* "Yeni dosya" düğmesi vurgu zeminli: simge beyaz ve sıkışmaz (dar ekranda yalnız simge kalır). */
+.studio-ide-page .studio-vscode-explorer-actions > button svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ns-on-accent);
+  stroke: currentColor;
+}
+
+/* Dar ekranda dosya başlığı iki satır: yol, altında işlemler. */
+@media (max-width: 720px) {
+  .studio-ide-page .studio-vscode-main {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 0;
+    padding: 8px 12px;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location .studio-explorer-path {
+    flex: 1 1 100%;
+  }
+  .studio-ide-page .studio-vscode-main > .studio-explorer-location .studio-explorer-file-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Koyu yüzeyde düğmeler: modallar açık temada kalır. */
+.studio-ide-page .ns-btn:not(.modal .ns-btn) {
+  border-color: var(--ns-code-line);
+  background: var(--ns-code-panel);
+  color: var(--ns-code-text);
+}
+.studio-ide-page .ns-btn:not(.modal .ns-btn):hover:not(:disabled) {
+  border-color: var(--ns-code-muted);
+  background: var(--ns-code-line);
+}
+.studio-ide-page .ns-btn-primary:not(.modal .ns-btn) {
+  border-color: var(--ns-accent);
+  background: var(--ns-accent);
+  color: var(--ns-on-accent);
+}
+.studio-ide-page .ns-btn-primary:not(.modal .ns-btn):hover:not(:disabled) {
+  border-color: var(--ns-accent-hover);
+  background: var(--ns-accent-hover);
+}
+.studio-ide-page .ns-btn-ghost:not(.modal .ns-btn) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ns-code-muted);
+}
+.studio-ide-page .ns-btn-danger:not(.modal .ns-btn) {
+  border-color: var(--ns-danger);
+  background: transparent;
+  color: var(--ns-danger-line);
+}
+
+/* Simgesi olmayan liste satırları (kayıtlı test/mimari planları): bilgi + işlemler. */
+.modal .request-row:not(:has(> .request-symbol)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.modal .panel-heading > div:has(> b + small) {
+  display: grid;
+  gap: 2px;
+}
