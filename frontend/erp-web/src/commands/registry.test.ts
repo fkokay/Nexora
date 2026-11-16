@@ -1,0 +1,221 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createCommandRegistry, RESERVED_BROWSER_CHORDS } from './registry';
+
+function key(init: KeyboardEventInit & { key: string }): KeyboardEvent {
+  return new KeyboardEvent('keydown', { cancelable: true, ...init });
+}
+const idle = { typing: false, modalOpen: false };
+
+describe('command registry', () => {
+  it('dispatches only to the active view', () => {
+    const r = createCommandRegistry();
+    const a = vi.fn();
+    const b = vi.fn();
+    r.register('a', 'page', { save: { run: a } });
+    r.register('b', 'page', { save: { run: b } });
+    r.setActiveView('b');
+    expect(r.handleKeyDown(key({ key: 's', ctrlKey: true }), idle)).toBe(true);
+    expect(a).not.toHaveBeenCalled();
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it('merges sources per command: page overrides list overrides grid', () => {
+    const r = createCommandRegistry();
+    const gridExport = vi.fn();
+    const listFilter = vi.fn();
+    const listRefresh = vi.fn();
+    const pageNew = vi.fn();
+    const gridFilter = vi.fn();
+    r.register('v', 'grid', { export: { run: gridExport }, filter: { run: gridFilter } });
+    r.register('v', 'list', { filter: { run: listFilter }, refresh: { run: listRefresh } });
+    r.register('v', 'page', { new: { run: pageNew }, more: [{ id: 'x', label: 'X' }] });
+    r.setActiveView('v');
+    const active = r.getActive()!;
+    expect(active.export?.run).toBe(gridExport);
+    expect(active.filter?.run).toBe(listFilter);
+    expect(active.refresh?.run).toBe(listRefresh);
+    expect(active.new?.run).toBe(pageNew);
+    expect(active.more).toEqual([{ id: 'x', label: 'X' }]);
+  });
+
+  it('more comes only from the page source', () => {
+    const r = createCommandRegistry();
+    r.register('v', 'list', { more: [{ id: 'l', label: 'L' }], refresh: { run: () => {} } });
+    r.setActiveView('v');
+    expect(r.getActive()!.more).toBeUndefined();
+  });
+
+  it('unregister removes only that source', () => {
+    const r = createCommandRegistry();
+    const list = vi.fn();
+    const page = vi.fn();
+    r.register('v', 'list', { refresh: { run: list } });
+    const off = r.register('v', 'page', { new: { run: page } });
+    r.setActiveView('v');
+    off();
+    const active = r.getActive()!;
+    expect(active.new).toBeUndefined();
+    expect(active.refresh?.run).toBe(list);
+  });
+
+  it('does not run a disabled command but still prevents default for reserved chords', () => {
+    const r = createCommandRegistry();
+    const run = vi.fn();
+    r.register('v', 'page', { print: { run, disabledReason: 'Yok' } });
+    r.setActiveView('v');
+    const e = key({ key: 'p', ctrlKey: true });
+    expect(r.handleKeyDown(e, idle)).toBe(true);
+    expect(run).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(true);
+  });
+
+  it('prevents browser defaults for reserved chords even when the command is absent', () => {
+    const r = createCommandRegistry();
+    r.register('v', 'page', {});
+    r.setActiveView('v');
+    const e = key({ key: 'F5' });
+    expect(r.handleKeyDown(e, idle)).toBe(true);
+    expect(e.defaultPrevented).toBe(true);
+    expect(RESERVED_BROWSER_CHORDS).toContain('F5');
+  });
+
+  it('does not touch non-reserved chords without a command', () => {
+    const r = createCommandRegistry();
+    r.setActiveView('v');
+    const e = key({ key: 'F2' });
+    expect(r.handleKeyDown(e, idle)).toBe(false);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('typing guard', () => {
+    const r = createCommandRegistry();
+    const fns = { open: vi.fn(), undo: vi.fn(), delete: vi.fn(), save: vi.fn(), new: vi.fn(), filter: vi.fn() };
+    r.register('v', 'page', {
+      open: { run: fns.open }, undo: { run: fns.undo }, delete: { run: fns.delete },
+      save: { run: fns.save }, new: { run: fns.new }, filter: { run: fns.filter },
+    });
+    r.setActiveView('v');
+    const typing = { typing: true, modalOpen: false };
+    for (const init of [
+      { key: 'Enter' }, { key: 'z', ctrlKey: true }, { key: 'a', ctrlKey: true }, { key: 'Delete', ctrlKey: true },
+    ]) {
+      const e = key(init);
+      expect(r.handleKeyDown(e, typing)).toBe(false);
+      expect(e.defaultPrevented).toBe(false);
+    }
+    expect(fns.open).not.toHaveBeenCalled();
+    expect(fns.undo).not.toHaveBeenCalled();
+    expect(fns.delete).not.toHaveBeenCalled();
+    for (const init of [{ key: 's', ctrlKey: true }, { key: 'F2' }, { key: 'f', ctrlKey: true }]) {
+      expect(r.handleKeyDown(key(init), typing)).toBe(true);
+    }
+    expect(fns.save).toHaveBeenCalled();
+    expect(fns.new).toHaveBeenCalled();
+    expect(fns.filter).toHaveBeenCalled();
+  });
+
+  it('Enter opens when idle', () => {
+    const r = createCommandRegistry();
+    const open = vi.fn();
+    r.register('v', 'list', { open: { run: open } });
+    r.setActiveView('v');
+    expect(r.handleKeyDown(key({ key: 'Enter' }), idle)).toBe(true);
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('Enter does not open when focus is on a button', () => {
+    const r = createCommandRegistry();
+    const open = vi.fn();
+    r.register('v', 'list', { open: { run: open } });
+    r.setActiveView('v');
+    const e = key({ key: 'Enter' });
+    expect(r.handleKeyDown(e, { ...idle, onInteractive: true })).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('suppresses page commands while a modal is open', () => {
+    const r = createCommandRegistry();
+    const save = vi.fn();
+    const inModal = vi.fn();
+    const outModal = vi.fn();
+    r.register('v', 'page', { save: { run: save } });
+    r.setActiveView('v');
+    r.registerGlobal({ id: 'palette', shortcut: 'Ctrl+K', run: inModal, allowInModal: true });
+    r.registerGlobal({ id: 'other', shortcut: 'Ctrl+B', run: outModal });
+    const modal = { typing: false, modalOpen: true };
+    const e = key({ key: 's', ctrlKey: true });
+    expect(r.handleKeyDown(e, modal)).toBe(false);
+    expect(e.defaultPrevented).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+    expect(r.handleKeyDown(key({ key: 'b', ctrlKey: true }), modal)).toBe(false);
+    expect(outModal).not.toHaveBeenCalled();
+    expect(r.handleKeyDown(key({ key: 'k', ctrlKey: true }), modal)).toBe(true);
+    expect(inModal).toHaveBeenCalledTimes(1);
+  });
+
+  it('Alt+İ runs the "open more menu" global', () => {
+    const r = createCommandRegistry();
+    const run = vi.fn();
+    r.registerGlobal({ id: 'more', shortcut: 'Alt+İ', run });
+    expect(r.handleKeyDown(key({ key: 'İ', altKey: true }), idle)).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('global commands run regardless of active view and respect allowWhileTyping', () => {
+    const r = createCommandRegistry();
+    const k = vi.fn();
+    const b = vi.fn();
+    r.registerGlobal({ id: 'palette', shortcut: 'Ctrl+K', run: k, allowWhileTyping: true });
+    r.registerGlobal({ id: 'rail', shortcut: 'Ctrl+B', run: b });
+    const typing = { typing: true, modalOpen: false };
+    expect(r.handleKeyDown(key({ key: 'k', ctrlKey: true }), typing)).toBe(true);
+    expect(r.handleKeyDown(key({ key: 'b', ctrlKey: true }), typing)).toBe(false);
+    expect(r.handleKeyDown(key({ key: 'b', ctrlKey: true }), idle)).toBe(true);
+    expect(k).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it('unregistering a global removes it', () => {
+    const r = createCommandRegistry();
+    const run = vi.fn();
+    const off = r.registerGlobal({ id: 'g', shortcut: 'Ctrl+K', run });
+    off();
+    expect(r.handleKeyDown(key({ key: 'k', ctrlKey: true }), idle)).toBe(false);
+  });
+
+  it('subscribe notifies on register, unregister and setActiveView', () => {
+    const r = createCommandRegistry();
+    const listener = vi.fn();
+    const unsub = r.subscribe(listener);
+    const off = r.register('v', 'page', { save: { run: () => {} } });
+    expect(listener).toHaveBeenCalledTimes(1);
+    r.setActiveView('v');
+    expect(listener).toHaveBeenCalledTimes(2);
+    off();
+    expect(listener).toHaveBeenCalledTimes(3);
+    unsub();
+    r.setActiveView('w');
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it('getActive returns the same reference until something changes', () => {
+    const r = createCommandRegistry();
+    expect(r.getActive()).toBeUndefined();
+    r.register('v', 'page', { save: { run: () => {} } });
+    r.setActiveView('v');
+    const first = r.getActive();
+    expect(r.getActive()).toBe(first);
+    r.register('v', 'list', { refresh: { run: () => {} } });
+    expect(r.getActive()).not.toBe(first);
+  });
+
+  it('does not await async commands', () => {
+    const r = createCommandRegistry();
+    const run = vi.fn(() => new Promise<void>(() => {}));
+    r.register('v', 'page', { save: { run } });
+    r.setActiveView('v');
+    expect(r.handleKeyDown(key({ key: 's', ctrlKey: true }), idle)).toBe(true);
+    expect(run).toHaveBeenCalled();
+  });
+});
