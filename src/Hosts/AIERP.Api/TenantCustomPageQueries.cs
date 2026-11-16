@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 internal sealed record PageQueryParameter(string Name, string Binding, string Type);
@@ -9,6 +10,8 @@ internal static partial class TenantCustomPageQueries
 {
     internal const string PathPattern = @"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d{1,4}\])*";
     internal static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "kullanici", "bugun" };
+    /// <summary>Names that collide with JavaScript object internals when used as runtime scope keys.</summary>
+    internal static readonly IReadOnlySet<string> ObjectKeyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "__proto__", "constructor", "prototype" };
 
     [GeneratedRegex(@"^\{\{\s*(" + PathPattern + @")\s*\}\}$", RegexOptions.CultureInvariant)]
     private static partial Regex SingleBinding();
@@ -18,6 +21,21 @@ internal static partial class TenantCustomPageQueries
 
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,63}$", RegexOptions.CultureInvariant)]
     internal static partial Regex NamePattern();
+
+    /// <summary>Query, component and parameter name rule: <see cref="NamePattern"/> and not a JavaScript object key.</summary>
+    internal static bool IsValidName(string? name) => name is not null && NamePattern().IsMatch(name) && !ObjectKeyNames.Contains(name);
+
+    /// <summary>
+    /// Returns the definition with <c>queries[].sql</c> removed, for runtime consumers that only run queries by id.
+    /// Definitions without queries are returned unchanged.
+    /// </summary>
+    internal static string WithoutQuerySql(string definitionJson)
+    {
+        if (!HasQueries(definitionJson)) return definitionJson;
+        if (JsonNode.Parse(definitionJson) is not JsonObject root || root["queries"] is not JsonArray queries) return definitionJson;
+        foreach (var query in queries.OfType<JsonObject>()) query.Remove("sql");
+        return root.ToJsonString();
+    }
 
     /// <summary>Reads the queries of a v2 definition. v1, malformed or query-less definitions yield an empty list.</summary>
     internal static IReadOnlyList<PageQuery> ReadQueries(string definitionJson)

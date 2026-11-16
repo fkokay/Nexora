@@ -95,6 +95,66 @@ public sealed class CustomPageQueryRulesIntegrationTests
     }
 
     [Fact]
+    public async Task Tenant_user_cannot_replace_delete_or_restore_over_stored_query_definition()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+
+        // Admin: a page whose revision 1 is static and revision 2 adds queries, then published.
+        SetIdentity(client, Admin, "TenantAdmin");
+        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", StaticDefinition()));
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{pageId}",
+            new { expectedRevision = 1, name = "Sorgulu", definition = QueryDefinition() })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/query-page/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{pageId}/publish", new { expectedRevision = 2 })).StatusCode);
+        var staticRevisionId = (await client.GetFromJsonAsync<JsonElement[]>($"/api/custom-pages/{pageId}/history") ?? [])
+            .Single(x => x.GetProperty("revision").GetInt32() == 1).GetProperty("id").GetGuid();
+
+        // 1) drafts: a static draft for the code of a published query page.
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "query-page", StaticDefinition())).StatusCode);
+
+        // 2) restore: the restored revision is static, but the stored row has queries.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/custom-pages/{pageId}/restore/{staticRevisionId}", null)).StatusCode);
+
+        // 3) publish: the draft is static (created by the admin), but it would replace a published query page.
+        SetIdentity(client, Admin, "TenantAdmin");
+        var staticDraft = await CreateDraftAsync(client, "query-page", StaticDefinition());
+        Assert.Equal(HttpStatusCode.Created, staticDraft.StatusCode);
+        var staticDraftId = await IdOf(staticDraft);
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/custom-pages/{staticDraftId}/publish", new { expectedRevision = 1 })).StatusCode);
+
+        // 4) delete: the published page has queries.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/api/custom-pages/{pageId}")).StatusCode);
+        // Control: the static draft itself may still be deleted by a tenant user.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/custom-pages/{staticDraftId}")).StatusCode);
+
+        // The admin can do all of these.
+        SetIdentity(client, Admin, "TenantAdmin");
+        var adminDraft = await CreateDraftAsync(client, "query-page", StaticDefinition());
+        Assert.Equal(HttpStatusCode.Created, adminDraft.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{await IdOf(adminDraft)}/publish", new { expectedRevision = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsync($"/api/custom-pages/{pageId}/restore/{staticRevisionId}", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Tenant_user_cannot_delete_published_query_page_but_admin_can()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/query-page/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{pageId}/publish", new { expectedRevision = 1 })).StatusCode);
+
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/api/custom-pages/{pageId}")).StatusCode);
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/custom-pages/{pageId}")).StatusCode);
+    }
+
+    [Fact]
     public async Task Tenant_admin_claim_without_admin_membership_cannot_create_page_with_queries()
     {
         await using var app = await StartApplicationAsync();

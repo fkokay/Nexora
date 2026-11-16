@@ -111,6 +111,22 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(V2([Query("q 1", "a", "SELECT 1 AS x")]));
     }
 
+    [Theory]
+    [InlineData("__proto__")]
+    [InlineData("__PROTO__")]
+    [InlineData("constructor")]
+    [InlineData("Constructor")]
+    [InlineData("prototype")]
+    [InlineData("PROTOTYPE")]
+    public void Rejects_javascript_object_key_names_for_queries_components_and_parameters(string name)
+    {
+        AssertRejected(V2([Query("q1", name, "SELECT 1 AS x")]), "ayrılmış");
+        AssertRejected(V2(components: [new { id = "c1", type = "input", name, props = new { inputType = "text" } }]), "ayrılmış");
+        AssertRejected(V2([Query("q1", "a", $"SELECT 1 AS x WHERE @{name} = 1", Param(name, "{{bugun}}", "int"))]), "ayrılmış");
+        Assert.False(TenantCustomPageQueries.IsValidName(name));
+        Assert.True(TenantCustomPageQueries.IsValidName(name + "_x"));
+    }
+
     [Fact]
     public void Rejects_cyclic_query_dependencies()
     {

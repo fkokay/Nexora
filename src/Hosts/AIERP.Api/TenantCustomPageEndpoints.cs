@@ -51,10 +51,11 @@ internal static class TenantCustomPageEndpoints
                 .ToListAsync(ct);
             var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
                 JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, page.DefinitionJson, embeddedForms));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms));
         });
 
-        // Runtime consumers receive only the currently published declarative definition.
+        // Runtime consumers receive only the currently published declarative definition. Query SQL is never sent to the
+        // runtime (queries run by id); the admin designer reads the full definition through GET /{id}.
         pages.MapGet("/{code}/published", async (string code, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
             IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
         {
@@ -71,7 +72,7 @@ internal static class TenantCustomPageEndpoints
                 .ToListAsync(ct);
             var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
                 JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, page.DefinitionJson, embeddedForms));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms));
         });
 
         pages.MapPost("/drafts", async (DraftRequest? request, ClaimsPrincipal user, TenantDbContext db,
@@ -80,8 +81,12 @@ internal static class TenantCustomPageEndpoints
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "create", ct)) return Results.Forbid();
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition, out var json, out var error)) return Results.BadRequest(new { error });
-            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, json!)) return Results.Forbid();
             var code = request!.Code.Trim();
+            // A new draft for a code whose published page or open draft has queries is admin-only too; otherwise a
+            // non-admin could replace a query page with a static one.
+            var liveDefinitions = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived)
+                .Select(x => x.DefinitionJson).ToListAsync(ct);
+            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, [json!, .. liveDefinitions])) return Results.Forbid();
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
             var now = DateTimeOffset.UtcNow;
@@ -114,11 +119,12 @@ internal static class TenantCustomPageEndpoints
         });
 
         pages.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
-            IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
+            IPlatformPermissionAuthorizer auth, HttpContext http, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "delete", ct)) return Results.Forbid();
             var page = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id && !x.IsArchived, ct);
             if (page is null) return Results.NotFound();
+            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, page.DefinitionJson)) return Results.Forbid();
 
             // Retain the page and its revisions for audit/history, while removing it from
             // the catalog and published runtime.
@@ -142,9 +148,12 @@ internal static class TenantCustomPageEndpoints
             if (draft is null) return Results.NotFound();
             if (draft.IsPublished || request?.ExpectedRevision != draft.Revision) return Results.Conflict(new { error = "Taslak değişti veya zaten yayımlandı.", currentRevision = draft.Revision });
             if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error)) return Results.BadRequest(new { error });
+            var previous = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == draft.Code && x.IsPublished, ct);
+            // Replacing a published query page (even with a static draft) is admin-only.
+            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, previous is null ? [draft.DefinitionJson] : [draft.DefinitionJson, previous.DefinitionJson]))
+                return Results.Forbid();
             if (TenantCustomPageQueries.HasQueries(draft.DefinitionJson))
             {
-                if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, draft.DefinitionJson)) return Results.Forbid();
                 // Without a saved row a query page would silently become AdminsOnly; require an explicit choice.
                 var platformDb = http.RequestServices.GetRequiredService<PlatformDbContext>();
                 if (!await platformDb.TenantCustomPageAccesses.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.PageCode == draft.Code, ct))
@@ -160,7 +169,6 @@ internal static class TenantCustomPageEndpoints
                 var missingForms = referencedForms.Except(publishedForms, StringComparer.Ordinal).ToArray();
                 if (missingForms.Length > 0) return Results.Conflict(new { error = "Sayfada yayımlanmamış veya bulunamayan özel formlar var.", formCodes = missingForms });
             }
-            var previous = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == draft.Code && x.IsPublished, ct);
             if (previous is not null)
             {
                 previous.IsPublished = false; previous.IsArchived = true; previous.Revision++; previous.UpdatedByUserId = userId; previous.UpdatedAt = DateTimeOffset.UtcNow;
@@ -191,7 +199,12 @@ internal static class TenantCustomPageEndpoints
             var original = await db.TenantCustomPages.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
             var revision = await db.TenantCustomPageRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant && x.CustomPageId == id && x.Id == revisionId, ct);
             if (original is null || revision is null) return Results.NotFound();
-            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, revision.DefinitionJson)) return Results.Forbid();
+            // The restored revision, the row it belongs to and the currently published page of that code all count.
+            var publishedDefinition = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == original.Code && x.IsPublished)
+                .Select(x => x.DefinitionJson).FirstOrDefaultAsync(ct);
+            if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct,
+                publishedDefinition is null ? [revision.DefinitionJson, original.DefinitionJson] : [revision.DefinitionJson, original.DefinitionJson, publishedDefinition]))
+                return Results.Forbid();
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == original.Code && !x.IsPublished && !x.IsArchived, ct)) return Results.Conflict(new { error = "Bu sayfa için açık taslak zaten var." });
             var now = DateTimeOffset.UtcNow;
             var draft = new TenantCustomPage { TenantId = tenant, Code = revision.Code, Name = revision.Name, Description = revision.Description, DefinitionJson = revision.DefinitionJson, CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now };

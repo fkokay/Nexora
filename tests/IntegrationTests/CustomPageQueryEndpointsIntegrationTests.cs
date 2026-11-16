@@ -148,6 +148,69 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         Assert.Equal(TenantQueryAccess.Read, factory.LastAccess);
     }
 
+    [Fact]
+    public async Task Published_and_preview_definitions_do_not_contain_query_sql()
+    {
+        var factory = new RecordingQueryConnectionFactory(unavailable: false);
+        await using var app = await StartApplicationAsync(factory);
+        using var client = app.GetTestClient();
+        var publishedId = await PublishAsync(client, accessForAyse: true);
+        var draftId = (await (await client.PostAsJsonAsync("/api/custom-pages/drafts",
+            new { code = Code, name = "Pano v2", definition = Definition(Query("q1", "liste")) })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        static void AssertNoSql(JsonElement page)
+        {
+            var definitionJson = page.GetProperty("definitionJson").GetString()!;
+            var query = Assert.Single(JsonDocument.Parse(definitionJson).RootElement.GetProperty("queries").EnumerateArray());
+            Assert.False(query.TryGetProperty("sql", out _));
+            Assert.Equal(["id", "kind", "name", "parameters", "runOn"], query.EnumerateObject().Select(x => x.Name).Order(StringComparer.Ordinal));
+            Assert.Equal(2, query.GetProperty("parameters").GetArrayLength());
+            Assert.DoesNotContain("CustomerAccounts", definitionJson, StringComparison.Ordinal);
+        }
+
+        AssertNoSql(await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{draftId}/preview"));
+        SetIdentity(client, Ayse, "TenantUser");
+        AssertNoSql(await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{Code}/published"));
+
+        // The admin designer still reads the full definition by id.
+        SetIdentity(client, Admin, "TenantAdmin");
+        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{publishedId}");
+        Assert.Contains("CustomerAccounts", detail.GetProperty("definitionJson").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Run_rejects_stored_sql_that_fails_read_only_validation_before_connecting()
+    {
+        var factory = new RecordingQueryConnectionFactory(unavailable: true);
+        await using var app = await StartApplicationAsync(factory);
+        // Seed a published row directly: the API itself would never store this SQL.
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var tenantDb = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            tenantDb.TenantCustomPages.Add(new TenantCustomPage
+            {
+                TenantId = TenantA, Code = Code, Name = "Bozuk", Revision = 1, IsPublished = true,
+                DefinitionJson = JsonSerializer.Serialize(new
+                {
+                    schemaVersion = 2,
+                    queries = new object[] { new { id = "q1", name = "liste", kind = "read", runOn = "load", sql = "DELETE FROM CustomerAccounts", parameters = Array.Empty<object>() } },
+                    components = Array.Empty<object>()
+                }),
+                CreatedByUserId = Admin, UpdatedByUserId = Admin, CreatedAt = now, UpdatedAt = now
+            });
+            await tenantDb.SaveChangesAsync();
+        }
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(CustomPageQueryEndpoints.InvalidStoredSqlError, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal(0, factory.Calls);
+    }
+
     /// <summary>Publishes a page with query q1 as admin; optionally grants Ayse View. Leaves the admin identity set.</summary>
     private static async Task<Guid> PublishAsync(HttpClient client, bool accessForAyse)
     {

@@ -107,12 +107,25 @@ internal static class CustomPageQueryParameters
 internal static class CustomPageQueryEndpoints
 {
     internal const string RateLimitPolicy = "custom-page-query";
+    internal const string PreviewRateLimitPolicy = "custom-page-query-preview";
+    internal const int RunPermitsPerMinute = 300;
+    internal const int PreviewPermitsPerMinute = 120;
+    internal const string InvalidStoredSqlError = "Sorgu tanımı geçersiz; sayfayı yönetici yeniden kaydetmeli.";
     private const int MaxAuditResourceLength = 240;
 
-    internal static void ConfigureRateLimiting(RateLimiterOptions options) =>
-        options.AddPolicy(RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-            context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    /// <summary>
+    /// Runtime runs: 300 per user per minute (a page may hold 20 load queries that re-run as inputs change).
+    /// Studio preview runs have their own budget of 120 per user per minute. Both are fixed windows keyed by the sub claim.
+    /// </summary>
+    internal static void ConfigureRateLimiting(RateLimiterOptions options)
+    {
+        options.AddPolicy(RateLimitPolicy, context => PerUser(context, RunPermitsPerMinute));
+        options.AddPolicy(PreviewRateLimitPolicy, context => PerUser(context, PreviewPermitsPerMinute));
+    }
+
+    private static RateLimitPartition<string> PerUser(HttpContext context, int permitsPerMinute) => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = permitsPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true });
 
     public static void MapCustomPageQueryEndpoints(this WebApplication app)
     {
@@ -140,7 +153,7 @@ internal static class CustomPageQueryEndpoints
                 .Select(x => new { x.Code, x.DefinitionJson }).SingleOrDefaultAsync(ct);
             if (draft is null) return Results.NotFound();
             return await RunAsync(draft.Code, draft.DefinitionJson, queryId, request, tenant, userId, "custom-page.query.preview", platformDb, http, ct);
-        }).RequireRateLimiting(RateLimitPolicy);
+        }).RequireRateLimiting(PreviewRateLimitPolicy);
     }
 
     private static async Task<IResult> RunAsync(string pageCode, string definitionJson, string queryId, CustomPageQueryRunRequest? request,
@@ -150,6 +163,9 @@ internal static class CustomPageQueryEndpoints
         if (query is null || query.Kind != "read") return Results.NotFound(new { error = "Sorgu bu sayfada bulunamadı." });
         var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, request?.Parameters);
         if (parameters is null) return Results.BadRequest(new { error });
+        // Stored definitions were validated on save, but the read-only rules may have tightened since; never run SQL
+        // that today's validator would reject.
+        if (!ReportEndpoints.TryValidateReadOnlySql(query.Sql, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
         // The connection factory is resolved only after every authorization and validation check has passed.
         var factory = http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
         CustomSqlResult result;

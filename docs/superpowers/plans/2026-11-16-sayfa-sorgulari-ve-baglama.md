@@ -46,9 +46,9 @@
 - **Denetim:** Platform `AuditEvents`'e kayıt yazılır.
   - Action: `custom-page.query.run` (önizlemede `custom-page.query.preview`).
   - Resource: `{code}:{queryName}:rows={n}:params={adlar virgüllü}`, 240 karakterde kesilir. Okuma sorgularında parametre değerleri yazılmaz (bkz. Ruling).
-- **Hız sınırı:** sorgu çalıştırma uç noktalarına kullanıcı başına dakikada **60** istek (sabit pencere, `custom-page-query` politikası).
+- **Hız sınırı:** çalışma zamanı sorgu çalıştırmaya kullanıcı başına dakikada **300** istek (sabit pencere, `custom-page-query` politikası); Studio önizleme çalıştırmasına ayrı olarak kullanıcı başına dakikada **120** istek (`custom-page-query-preview` politikası).
 - **Sorgulu sayfa kuralları** (tanımda boş olmayan `queries` varsa):
-  - Taslak oluşturma, güncelleme, yayımlama ve geri yükleme yalnız TenantAdmin'e açıktır; diğer kullanıcılar 403 alır. Geri yüklemede kontrol, geri yüklenecek revizyonun tanımına bakar.
+  - Taslak oluşturma, güncelleme, yayımlama, silme ve geri yükleme yalnız TenantAdmin'e açıktır; diğer kullanıcılar 403 alır. Kontrol hem gelen/geri yüklenen tanıma hem de aynı koddaki saklı tanımlara (yayımlanmış sürüm, açık taslak, silinen veya geri yüklenen satır) bakar.
   - Erişim kaydı yoksa yayın 409 döner: "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin."
   - `CustomPageAccessRules.Evaluate`: kayıt yoksa ve sayfanın yayınlanmış tanımında sorgu varsa sonuç `AdminsOnly` olur; kayıt yoksa ve sorgu yoksa bugünkü gibi `AllUsers` + `View`.
 - **İstemci:**

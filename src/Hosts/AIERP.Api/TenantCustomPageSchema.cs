@@ -102,7 +102,9 @@ internal static class TenantCustomPageSchema
                 if (parameter.ValueKind != JsonValueKind.Object || !OnlyKeys(parameter, ParameterKeys) || ParameterKeys.Any(key => !parameter.TryGetProperty(key, out _)))
                 { error = $"'{name}' sorgusu: parametreler yalnız name, binding ve type alanlarını içermelidir."; return false; }
                 var parameterName = StringOf(parameter, "name");
-                if (parameterName is null || !TenantCustomPageQueries.NamePattern().IsMatch(parameterName) || !declared.Add(parameterName))
+                if (parameterName is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(parameterName))
+                { error = $"'{name}' sorgusu: '{parameterName}' ayrılmış bir addır; başka bir parametre adı seçin."; return false; }
+                if (!TenantCustomPageQueries.IsValidName(parameterName) || !declared.Add(parameterName!))
                 { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
                 var type = StringOf(parameter, "type");
                 if (type is null || !ParameterTypes.Contains(type))
@@ -126,10 +128,11 @@ internal static class TenantCustomPageSchema
     private static bool ValidName(string? name, Context context, out string? error)
     {
         error = null;
-        if (name is null || !TenantCustomPageQueries.NamePattern().IsMatch(name))
+        if (name is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(name)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
+        if (!TenantCustomPageQueries.IsValidName(name))
         { error = "Sorgu ve bileşen adları harf veya _ ile başlamalı, en fazla 64 harf/rakam/_ içermelidir."; return false; }
-        if (TenantCustomPageQueries.ReservedNames.Contains(name)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
-        if (!context.Names.Add(name)) { error = $"'{name}' adı sayfada birden fazla kez kullanılıyor (büyük/küçük harf fark etmez)."; return false; }
+        if (TenantCustomPageQueries.ReservedNames.Contains(name!)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
+        if (!context.Names.Add(name!)) { error = $"'{name}' adı sayfada birden fazla kez kullanılıyor (büyük/küçük harf fark etmez)."; return false; }
         return true;
     }
 
