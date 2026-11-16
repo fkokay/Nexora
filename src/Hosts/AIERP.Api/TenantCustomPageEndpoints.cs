@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 /// <summary>Tenant-owned declarative pages. Existing ERP screens continue to use /api/screen-views overlays.</summary>
 internal static class TenantCustomPageEndpoints
 {
-    private const int MaxDefinitionBytes = 64 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static void MapTenantCustomPageEndpoints(this WebApplication app)
@@ -198,7 +197,7 @@ internal static class TenantCustomPageEndpoints
         { error = "Kod, ad veya açıklama biçimi geçersiz."; return false; }
         if (definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) { error = "Sayfa tanımı gerekli."; return false; }
         json = definition.GetRawText();
-        if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxDefinitionBytes) { error = "Sayfa tanımı 64 KiB sınırını aşıyor."; return false; }
+        // Size limits depend on the schema version (v1: 64 KiB, v2: 128 KiB) and are enforced by the schema.
         if (!TenantCustomPageSchema.Validate(json, out error)) { json = null; return false; }
         return true;
     }
