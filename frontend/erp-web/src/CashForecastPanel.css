@@ -69,7 +69,7 @@
 .cash-forecast-panel input:focus-visible,
 .cash-forecast-panel select:focus-visible,
 .cash-forecast-table-wrap:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--nx-primary) 70%, white);
+  outline: 3px solid color-mix(in srgb, var(--nx-primary) 70%, var(--nx-surface));
   outline-offset: 2px;
 }
 
@@ -123,7 +123,7 @@
 .cash-forecast-spinner,
 .cash-forecast-empty-icon {
   align-items: center;
-  background: color-mix(in srgb, var(--nx-primary) 12%, white);
+  background: color-mix(in srgb, var(--nx-primary) 12%, var(--nx-surface));
   border-radius: 12px;
   color: var(--nx-primary);
   display: inline-flex;
@@ -135,7 +135,7 @@
 
 .cash-forecast-spinner {
   animation: cash-forecast-spin 0.9s linear infinite;
-  border: 3px solid color-mix(in srgb, var(--nx-primary) 22%, white);
+  border: 3px solid color-mix(in srgb, var(--nx-primary) 22%, var(--nx-surface));
   border-right-color: var(--nx-primary);
   border-radius: 50%;
 }
@@ -261,7 +261,7 @@
 }
 
 .cash-forecast-closing {
-  background: color-mix(in srgb, var(--nx-primary) 5%, white);
+  background: color-mix(in srgb, var(--nx-primary) 5%, var(--nx-surface));
 }
 
 .cash-forecast-negative {

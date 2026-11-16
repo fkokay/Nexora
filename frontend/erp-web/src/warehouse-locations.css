@@ -40,9 +40,9 @@
 .warehouse-locations-page .form-three label{display:grid;gap:6px;color:var(--erp-muted);font-size:10px;font-weight:600}
 .warehouse-locations-page .form-three input,.warehouse-locations-page .form-three select{box-sizing:border-box;width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid var(--erp-border);border-radius:8px;background:var(--erp-surface);color:var(--erp-text);font:inherit}
 .warehouse-locations-page .modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--erp-border);color:var(--erp-muted);font-size:10px}
-html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:#211d3a;border-color:#4b408d}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:#211d3a;border-color:var(--nx-primary)}
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-select[aria-pressed="true"] b{color:var(--nx-primary-strong)}
-html[data-theme="dark"] .warehouse-locations-page .warehouse-location-search button:hover{background:#302d4d;color:#d0c8ff}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-search button:hover{background:#302d4d;color:var(--nx-primary-strong)}
 html[data-theme="dark"] .warehouse-locations-page :is(button,select,input):focus-visible,html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap:focus-visible{outline-color:#b4a8ff}
 @media(max-width:900px){.warehouse-locations-page .warehouse-location-layout{grid-template-columns:1fr}.warehouse-locations-page .form-three{grid-template-columns:1fr 1fr}}
 @media(max-width:720px){.warehouse-locations-page .page-heading{align-items:flex-start;gap:12px}.warehouse-locations-page .page-heading .heading-actions{flex:0 0 auto}.warehouse-locations-page .customer-summary{flex-wrap:wrap}.warehouse-locations-page .customer-summary .tenant-scope{margin-left:45px}.warehouse-locations-page .warehouse-location-layout{gap:12px}.warehouse-locations-page .warehouse-location-list-panel,.warehouse-locations-page .warehouse-location-detail{padding:14px}}
@@ -71,7 +71,7 @@ html[data-theme="dark"] .warehouse-locations-page :is(button,select,input):focus
 html[data-theme="dark"] .warehouse-locations-page .customer-summary,
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-list-panel,
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-detail{background:var(--erp-surface);border-color:var(--erp-border)}
-html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:#25213d;border-color:#4b408d}
+html[data-theme="dark"] .warehouse-locations-page .warehouse-location-row.selected{background:var(--nx-primary-soft);border-color:var(--nx-primary)}
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap{border-color:var(--erp-border)}
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-table-wrap .customer-table th{background:var(--erp-surface-soft);color:var(--erp-text-muted)}
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-form{background:var(--erp-surface-soft);border-color:var(--erp-border)}
@@ -149,7 +149,7 @@ html[data-theme="dark"] .warehouse-locations-page .panel-heading{border-color:va
 html[data-theme="dark"] .warehouse-locations-page .page-heading,
 html[data-theme="dark"] .warehouse-locations-page .customer-toolbar,
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-form { background: var(--erp-surface); border-color: var(--erp-border); }
-html[data-theme="dark"] .warehouse-location-kpis > .tenant-scope { border-color: #413970; background: #25213d; color: var(--nx-primary-strong); }
+html[data-theme="dark"] .warehouse-location-kpis > .tenant-scope { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-layout .empty-small,
 html[data-theme="dark"] .warehouse-locations-page .warehouse-location-reconciliation > .empty-small { border-color: var(--erp-border); background: var(--erp-surface-soft); }
 @media (max-width: 900px) {

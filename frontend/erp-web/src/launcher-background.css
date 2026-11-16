@@ -97,9 +97,9 @@ html[data-theme="dark"] #root .launcher-background-hint { color: #9aa6bd; }
 html[data-theme="dark"] #root .launcher-background-swatch,
 html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar .launcher-background-panel .launcher-background-thumb { border-color: #434e67; }
 html[data-theme="dark"] #root .launcher-background-url input { border-color: #434e67; background: #202c42; color: #e3e9f4; }
-html[data-theme="dark"] #root .launcher-background-message { background: #282344; color: #d0c8ff; }
+html[data-theme="dark"] #root .launcher-background-message { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .launcher-background-panel [aria-pressed="true"],
-html[data-theme="dark"] #root .launcher-background-custom[data-selected="true"] { outline-color: #a99aff; }
+html[data-theme="dark"] #root .launcher-background-custom[data-selected="true"] { outline-color: var(--nx-primary-strong); }
 
 @media (max-width: 650px) {
   #root .launcher-background-panel { position: fixed; top: 76px; right: 16px; left: 16px; width: auto; }

@@ -245,7 +245,7 @@
 #root .list-v2 .list-v2-kind.is-dealer { color: #4a35a8; }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-customer { color: #8ab8f5; }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-supplier { color: #f0b37a; }
-html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: #b5a8f2; }
+html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: var(--nx-primary-strong); }
 #root .list-v2 .list-v2-detail-head-actions {
   display: flex;
   flex: none;

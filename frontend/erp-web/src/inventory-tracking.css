@@ -58,9 +58,9 @@
 }
 
 html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-toolbar select{background-color:var(--erp-surface);border-color:var(--erp-border);color:var(--erp-text)}
-html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-clear{color:#c2b8ff}
+html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-clear{color:var(--nx-primary-strong)}
 html[data-theme="dark"] .inventory-tracking-results{color:var(--erp-muted)}
-html[data-theme="dark"] .inventory-tracking-mode.is-lot{color:#c2b8ff;background:#302b50}
+html[data-theme="dark"] .inventory-tracking-mode.is-lot{color:var(--nx-primary-strong);background:#302b50}
 html[data-theme="dark"] .inventory-tracking-mode.is-serial{color:#94d8cc;background:#203d3b}
 html[data-theme="dark"] .inventory-tracking-field-error{color:#ffb5b8}
 @media(prefers-reduced-motion:no-preference){.inventory-tracking-page .secondary,.inventory-tracking-clear{transition:background-color .15s,border-color .15s,color .15s}}
@@ -132,7 +132,7 @@ html[data-theme="dark"] .inventory-workbench-summary article>span,html[data-them
 .inventory-detail-empty{padding:24px 8px;color:var(--erp-text-muted);font-size:10px;line-height:1.5;text-align:center}
 html[data-theme="dark"] .inventory-list-pane,html[data-theme="dark"] .inventory-record-detail{background:var(--erp-surface);border-color:var(--erp-border)}
 html[data-theme="dark"] .inventory-list-title,html[data-theme="dark"] .inventory-record-detail dl,html[data-theme="dark"] .inventory-record-detail dl>div{border-color:var(--erp-border)}
-html[data-theme="dark"] .inventory-tracking-table tbody tr.selected{background:#25213d}
+html[data-theme="dark"] .inventory-tracking-table tbody tr.selected{background:var(--nx-primary-soft)}
 html[data-theme="dark"] .inventory-detail-note{background:var(--erp-surface-soft)}
 @media(max-width:1100px){.inventory-workbench-body{grid-template-columns:minmax(0,1fr)}}
 
@@ -188,7 +188,7 @@ html[data-theme="dark"] .inventory-tracking-filter-card { background: var(--erp-
 html[data-theme="dark"] .inventory-tracking-page .inventory-tracking-filter-card .inventory-tracking-toolbar { background: transparent; border-color: transparent; }
 html[data-theme="dark"] .inventory-tracking-filter-heading h2 { color: var(--erp-text); }
 html[data-theme="dark"] .inventory-tracking-filter-heading p { color: var(--erp-text-muted); }
-html[data-theme="dark"] .inventory-workbench-summary > .tenant-scope { border-color: #413970; background: #25213d; color: var(--nx-primary-strong); }
+html[data-theme="dark"] .inventory-workbench-summary > .tenant-scope { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] .inventory-tracking-table tbody tr.selected { background: #202b3f; }
 @media (max-width: 760px) { .inventory-workbench-body { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) {

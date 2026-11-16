@@ -1099,7 +1099,7 @@ html[data-theme="dark"] .maturity-table-wrap .customer-table th { color: #c6d2e1
 html[data-theme="dark"] .maturity-table-wrap .customer-table td { border-bottom-color: #303d50; }
 html[data-theme="dark"] .maturity-table-wrap .customer-table tbody tr:hover { background: #263449; }
 html[data-theme="dark"] .maturity-direction.receivable { color: #9acfff; background: #203c57; }
-html[data-theme="dark"] .maturity-direction.payable { color: #d4b3f5; background: #3b2d4d; }
+html[data-theme="dark"] .maturity-direction.payable { color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
 html[data-theme="dark"] .maturity-status.overdue { color: #ffb2a7; background: #4a2d2b; }
 html[data-theme="dark"] .maturity-status.upcoming { color: #f4cf82; background: #46391f; }
 @media (max-width: 900px) { .maturity-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

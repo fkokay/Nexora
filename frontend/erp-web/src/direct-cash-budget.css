@@ -17,7 +17,7 @@
 .direct-cash-budget-detail .panel-heading>div>h2{margin:4px 0}
 .direct-cash-budget-page .direct-cash-budget-plan-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;min-width:0;padding:13px 14px;border:1px solid var(--erp-border);border-radius:11px;background:var(--erp-surface);color:var(--erp-text);cursor:default;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
 .direct-cash-budget-page .direct-cash-budget-plan-card:hover,.direct-cash-budget-page .direct-cash-budget-plan-card.active{border-color:#818cf8;box-shadow:0 0 0 2px rgb(99 102 241 / 10%)}
-.direct-cash-budget-page .direct-cash-budget-plan-card.active{background:color-mix(in srgb,var(--erp-surface) 94%,#6366f1)}
+.direct-cash-budget-page .direct-cash-budget-plan-card.active{background:color-mix(in srgb,var(--erp-surface) 94%,var(--nx-primary))}
 .direct-cash-budget-page .direct-cash-budget-plan-fields{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 18px;min-width:0}
 .direct-cash-budget-page .direct-cash-budget-plan-field{display:grid;gap:3px;min-width:72px}
 .direct-cash-budget-page .direct-cash-budget-plan-field small{color:var(--erp-muted);font-size:11px;line-height:1.3}

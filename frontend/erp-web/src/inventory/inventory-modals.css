@@ -255,5 +255,5 @@ html[data-theme='dark'] #root .inv-modal-pill.is-success { background: #173a2a; 
 html[data-theme='dark'] #root .inv-modal-pill.is-warning { background: #3a2e12; color: #f3c867; }
 html[data-theme='dark'] #root .inv-modal-pill.is-muted { background: #26324a; color: #b6c3d6; }
 html[data-theme='dark'] #root .inv-modal-switch > input { background: #4a5a73; }
-html[data-theme='dark'] #root .inv-modal-switch > input:checked { background: #f6c23e; }
+html[data-theme='dark'] #root .inv-modal-switch > input:checked { background: var(--nx-primary); }
 html[data-theme='dark'] #root .inv-modal :is(input, textarea)::placeholder { color: #7d8ba0; opacity: 1; }

@@ -3,7 +3,7 @@
   --erp-radius-control: 4px;
   --erp-control-height: 40px;
 
-  --credit-ink: var(--nx-ink);
+  --credit-ink: var(--nx-text);
   --credit-muted: var(--nx-muted);
   --credit-border: var(--nx-line);
   --credit-surface: var(--nx-surface);
@@ -758,7 +758,7 @@ html[data-theme='dark'] .auth-input-wrap, html[data-theme='dark'] .auth-language
 html[data-theme='dark'] .auth-shell .auth-login-form .auth-input-wrap input { color: #F8FAFC; }
 html[data-theme='dark'] .auth-tenant-option { border-color: #47566A; background: #172335; }
 html[data-theme='dark'] .auth-tenant-option span:nth-child(2) b { color: #F8FAFC; }
-html[data-theme='dark'] .auth-tenant-icon { background: #243247; color: #F6C23E; }
+html[data-theme='dark'] .auth-tenant-icon { background: #243247; color: var(--nx-primary-strong); }
 html[data-theme='dark'] .auth-secure-note { border-color: #344256; color: #AAB6C8; }
 @media (max-width: 900px) {
   .auth-shell.auth-shell-split { grid-template-columns: minmax(310px, .82fr) minmax(440px, 1.18fr); }

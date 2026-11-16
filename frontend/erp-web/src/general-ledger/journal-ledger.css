@@ -115,7 +115,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-lines :is(th, 
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-facts dd { border-color: var(--erp-border); color: var(--erp-text); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.gljl-lines thead th, .gljl-lines td:first-child small, .gljl-facts dt, .gljl-side-note, .gljl-side-empty) { color: var(--erp-text-muted); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-src-tag { border-color: #2f4a69; background: #1b2b40; color: #9cc3ec; }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: #4a3d6b; background: #2a2340; color: #c8b8f0; }
+html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.gljl-row.is-selected > td,
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.gljl-row.is-selected:hover > td { background: #1f3350 !important; }
 

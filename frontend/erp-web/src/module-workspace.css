@@ -345,10 +345,10 @@ html[data-theme="dark"] #root .module-launcher-search > kbd { background: #2c345
 }
 html[data-theme="dark"] #root .weather-reading>span>small{color:#abb8ca}
 html[data-theme="dark"] #root .weather-city{color:#c2cbe0}
-html[data-theme="dark"] #root .weather-city:hover,html[data-theme="dark"] #root .weather-city[aria-expanded="true"]{background:#272746;color:#c4b9ff}
+html[data-theme="dark"] #root .weather-city:hover,html[data-theme="dark"] #root .weather-city[aria-expanded="true"]{background:#272746;color:var(--nx-primary-strong)}
 html[data-theme="dark"] #root .weather-location-picker{border-color:#34445c;background:#172235;box-shadow:0 8px 20px #0004}
 html[data-theme="dark"] #root .weather-location-search input{border-color:#3c4b63;background:#101a2a;color:#e4eaf3}
-html[data-theme="dark"] #root .weather-browser-location{background:#292648;color:#c4b9ff}
+html[data-theme="dark"] #root .weather-browser-location{background:#292648;color:var(--nx-primary-strong)}
 html[data-theme="dark"] #root .weather-location-results>button{color:#e4eaf3}
 html[data-theme="dark"] #root .weather-location-results>button:hover{background:#243149}
 html[data-theme="dark"] #root .weather-location-results>button>small{color:#a9b6ca}
@@ -1195,7 +1195,7 @@ html[data-theme="dark"] #root .workspace-page-main :is(.customer-actions-menu > 
 html[data-theme="dark"] #root .workspace-page-main .customer-detail-tabs { border-color: #35435b; background: #111c2e; }
 html[data-theme="dark"] #root .workspace-page-main .customer-detail-tabs button { color: #bac6d9; }
 html[data-theme="dark"] #root .workspace-page-main .customer-detail-tabs button:hover:not(.active) { background: #243149; color: #f1f5fa; }
-html[data-theme="dark"] #root .workspace-page-main .customer-detail-tabs button.active { border-color: #46556e; background: #26334a; color: #c9bdff; }
+html[data-theme="dark"] #root .workspace-page-main .customer-detail-tabs button.active { border-color: #46556e; background: #26334a; color: var(--nx-primary-strong); }
 
 /* Make the side-widget toggle readable as a control, not an unlabeled icon. */
 #root .app-shell:not(.standalone-studio) .topbar .topbar-widgets-toggle {
@@ -3549,7 +3549,7 @@ html[data-theme="dark"] #root .launcher-center-hero{background:#11182770}
 #root .module-launcher-actions .icon-button:hover { background: #f0effb; color: #6550df; }
 /* The dark icon colour above outranks the light hover, so the icon vanished on #f0effb. */
 html[data-theme="dark"] #root .module-launcher-actions .icon-button:hover,
-html[data-theme="dark"] #root .module-launcher-actions .icon-button:focus-visible { background: #2b2850; color: var(--nx-primary-strong); }
+html[data-theme="dark"] #root .module-launcher-actions .icon-button:focus-visible { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .module-launcher-actions .launcher-notification-button > i { box-shadow: 0 0 0 2px #101a31; }
 #root .module-launcher-actions .launcher-notification-button > i { box-shadow: 0 0 0 2px #f8f8ff; }
 #root .module-launcher-profile { position: relative; }
@@ -3713,7 +3713,7 @@ html[data-theme="dark"] #root .module-launcher-profile-menu > button:hover { bac
 #root .customer-directory-layout .erp-list-pane,
 #root .customer-directory-layout .erp-record-pane { min-width: 0; }
 html[data-theme="dark"] #root .customer-directory-tabs button { color: #c9d2e2; }
-html[data-theme="dark"] #root .customer-directory-tabs button.active { border-color: #51447e; border-bottom-color: #9788ff; background: #292640; color: #d9d2ff; }
+html[data-theme="dark"] #root .customer-directory-tabs button.active { border-color: var(--nx-primary); border-bottom-color: #9788ff; background: #292640; color: #d9d2ff; }
 html[data-theme="dark"] #root .customer-directory-toolbar { border-color: #35435b; background: #1a263a; }
 html[data-theme="dark"] #root .customer-directory-toolbar .customer-filter-field { color: #b4c0d4; }
 html[data-theme="dark"] #root .customer-directory-toolbar .customer-filter-field select,
@@ -3827,7 +3827,7 @@ html[data-theme="dark"] #root .workspace-content.standard-list-screen .workspace
 #root .launcher-dashboard-editor input { width: 14px; height: 14px; accent-color: #6550df; }
 #root .launcher-notifications:focus { outline: none; }
 #root .launcher-notifications.notification-focused { border-color: #7867e8; box-shadow: 0 0 0 3px #7867e83b, 0 8px 24px #3b47700c; transition: box-shadow .2s ease, border-color .2s ease; }
-html[data-theme="dark"] #root .launcher-dashboard-edit { border-color: #49416d; background: #211f35eb; color: #d2caff; }
+html[data-theme="dark"] #root .launcher-dashboard-edit { border-color: var(--nx-primary-soft); background: #211f35eb; color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .launcher-dashboard-editor { border-color: #37455d; background: #172235; color: #e3e9f4; }
 html[data-theme="dark"] #root .launcher-dashboard-editor > label:hover { background: #242f46; }
 @media (max-width: 650px) {
@@ -3935,11 +3935,11 @@ html[data-theme="dark"] #root .launcher-dashboard-editor > label:hover { backgro
 #root .launcher-dashboard-edit-toolbar button.finish-editing { padding: 0 12px; background: #6550df; color: #fff; font-size: 11px; }
 #root .launcher-dashboard-tools { display: flex; align-items: center; gap: 6px; }
 #root .launcher-dashboard-edit[aria-pressed="true"] { background: #6550df; color: #fff; }
-html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget] { outline-color: #7969d2; }
-html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget][data-selected="true"] { outline-color: #a99aff; box-shadow: 0 0 0 4px #a99aff25; }
-html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget]:not(.launcher-center-hero)::after { background: #282344; color: #d0c8ff; }
+html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget] { outline-color: var(--nx-primary-strong); }
+html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget][data-selected="true"] { outline-color: var(--nx-primary-strong); box-shadow: 0 0 0 4px #a99aff25; }
+html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing [data-dashboard-widget]:not(.launcher-center-hero)::after { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar { border-color: #3c4560; background: #1b263b; color: #c0cbe0; }
-html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar > span > b { color: #d1c9ff; }
+html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar > span > b { color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .launcher-dashboard-edit-toolbar button { border-color: #434e67; background: #202c42; color: #ddd7ff; }
 html[data-theme="dark"] #root .launcher-dashboard-drop-preview { border-color: #78aef5; background: #78aef51a; box-shadow: 0 0 0 4px #78aef51c; }
 @media (max-width: 650px) {
@@ -3969,7 +3969,7 @@ html[data-theme="dark"] #root .launcher-dashboard-drop-preview { border-color: #
   line-height: 18px;
   pointer-events: none;
 }
-html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing .launcher-center-hero::after { background: #282344; color: #d0c8ff; }
+html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-customizing .launcher-center-hero::after { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 /* Fixed row tracks keep each card at its own chosen height instead of stretching to its row neighbor. */
 #root .module-launcher-main.launcher-dashboard.has-custom-layout {
   grid-auto-rows: 18px;
@@ -4061,8 +4061,8 @@ html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-custom
 @keyframes launcher-agenda-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .launcher-agenda-spin { animation: none; } }
 html[data-theme="dark"] #root .launcher-agenda-add { color: #a6b5ca; }
-html[data-theme="dark"] #root .launcher-agenda-add:hover { background: #2a2a4a; color: #c9c0ff; }
-html[data-theme="dark"] #root .launcher-agenda-empty-add { border-color: #3d3a6b; background: #24233f; color: #c9c0ff; }
+html[data-theme="dark"] #root .launcher-agenda-add:hover { background: #2a2a4a; color: var(--nx-primary-strong); }
+html[data-theme="dark"] #root .launcher-agenda-empty-add { border-color: #3d3a6b; background: #24233f; color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .launcher-agenda-empty-add:hover { background: #2e2c52; }
 html[data-theme="dark"] #root .launcher-agenda-list > li:hover { background: #1d2a3d; }
 html[data-theme="dark"] #root .launcher-agenda-check { border-color: #5d5a99; background: #142033; }
@@ -4080,7 +4080,7 @@ html[data-theme="dark"] .launcher-agenda-dialog h2 > svg { color: #a99cff; }
 html[data-theme="dark"] .launcher-agenda-dialog label > span { color: #abb8ca; }
 html[data-theme="dark"] .launcher-agenda-dialog input, html[data-theme="dark"] .launcher-agenda-dialog textarea { border-color: #2f3f58; background: #0f1826; color: #e4eaf3; color-scheme: dark; }
 html[data-theme="dark"] .launcher-agenda-close { color: #a6b5ca; }
-html[data-theme="dark"] .launcher-agenda-close:hover { background: #2a2a4a; color: #c9c0ff; }
+html[data-theme="dark"] .launcher-agenda-close:hover { background: #2a2a4a; color: var(--nx-primary-strong); }
 html[data-theme="dark"] .launcher-agenda-secondary { border-color: #2f3f58; background: #18243a; color: #d5deea; }
 html[data-theme="dark"] .launcher-agenda-secondary:hover:not(:disabled) { background: #1f2d45; }
 html[data-theme="dark"] .launcher-agenda-primary { background: #6f5cf0; }

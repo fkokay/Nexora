@@ -100,7 +100,7 @@
 }
 
 .finance-budget-page .budget-plan-item.active {
-  background: color-mix(in srgb, var(--erp-surface) 94%, #6366f1);
+  background: color-mix(in srgb, var(--erp-surface) 94%, var(--nx-primary));
 }
 
 .finance-budget-page .budget-plan-item:focus-visible,
@@ -163,7 +163,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid var(--erp-border);
-  border-top-color: #6366f1;
+  border-top-color: var(--nx-primary);
   border-radius: 50%;
   animation: budget-spin .75s linear infinite;
 }

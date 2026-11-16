@@ -60,7 +60,7 @@ html[data-theme="dark"] {
   --erp-border: var(--nx-line);
   --erp-text: var(--nx-text);
   --erp-canvas: var(--nx-canvas);
-  --erp-ink: var(--nx-ink);
+  --erp-ink: var(--nx-text);
   --erp-line: var(--nx-line);
   --erp-muted: var(--nx-muted);
   --erp-muted-ink: var(--nx-muted);

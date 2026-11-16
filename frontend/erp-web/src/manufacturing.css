@@ -309,7 +309,7 @@ html[data-theme="dark"] .manufacturing-page .calendar-override-form small,html[d
 .manufacturing-inspector-section>small{color:var(--erp-text-muted);font-size:10px}
 .manufacturing-inspector-actions{display:grid;gap:7px;padding-top:10px;border-top:1px solid var(--erp-border)}
 .manufacturing-inspector-actions button{justify-content:center}
-html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected{background:#25213d}
+html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected{background:var(--nx-primary-soft)}
 html[data-theme="dark"] .manufacturing-order-inspector{background:var(--erp-surface-soft);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-inspector-title,html[data-theme="dark"] .manufacturing-inspector-actions{border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-inspector-section li{background:var(--erp-surface);border-color:var(--erp-border)}
@@ -338,9 +338,9 @@ html[data-theme="dark"] .manufacturing-order-filterbar{background:var(--erp-surf
 html[data-theme="dark"] .manufacturing-order-search,html[data-theme="dark"] .manufacturing-order-status-filter select{background:var(--erp-surface);border-color:var(--erp-border);color:var(--erp-text)}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-operation-detail{background:var(--erp-surface-soft);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-components span{background:var(--erp-surface);border-color:var(--erp-border)}
-html[data-theme="dark"] .manufacturing-order-list .manufacturing-components b{background:#25213d;color:#d1ccff}
+html[data-theme="dark"] .manufacturing-order-list .manufacturing-components b{background:var(--nx-primary-soft);color:#d1ccff}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-operation-detail .actual-cost{background:#18372d}
-html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected>td{background:#25213d}
+html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected>td{background:var(--nx-primary-soft)}
 @media(max-width:650px){.manufacturing-order-filterbar{align-items:stretch}.manufacturing-order-search{flex-basis:100%;min-width:0}.manufacturing-order-status-filter{flex:1}.manufacturing-order-status-filter select{width:100%;min-width:0}}
 
 /* Keep the work-center screen focused; expose planning rules on demand. */
@@ -539,7 +539,7 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
 }
 html[data-theme='dark'] #root .manufacturing-page :is(.work-center-card, .mrp-card) { border-color: #35435b; background: #1a263a; }
 html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: #22314a; }
-html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 #f6c23e; }
+html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 var(--nx-primary); }
 html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments { border-color: #35435b; }
 html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button { border-color: #35435b; background: #1a263a; color: #a7afbf; }
 html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button.is-on { background: #e4e7ed; color: #0f1726; }

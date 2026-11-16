@@ -87,6 +87,22 @@ describe('design tokens', () => {
     }
   })
 
+  it('text-role legacy aliases never resolve to ink, canvas or surface', () => {
+    const globalComponents = readFileSync(resolve(__dirname, '..', 'global-components.css'), 'utf8')
+    const textRole = [
+      '--erp-ink', '--erp-text', '--erp-muted', '--erp-muted-ink', '--erp-faint-ink', '--erp-text-muted',
+      '--erp-subtle', '--erp-color-text', '--erp-color-muted', '--erp-workbench-text', '--erp-workbench-muted',
+    ]
+    const resolveAlias = (source: string, name: string) =>
+      source.match(new RegExp(`${name}\s*:\s*([^;]+);`))?.[1].trim()
+    for (const a of textRole) {
+      expect(resolveAlias(css, a), a).toMatch(/^var\(--nx-(text|muted)\)$/)
+    }
+    for (const a of ['--credit-ink', '--credit-muted']) {
+      expect(resolveAlias(globalComponents, a), a).toMatch(/^var\(--nx-(text|muted)\)$/)
+    }
+  })
+
   it('dark text/surface pairs meet 4.5:1', () => {
     expect(contrast(dark['--nx-text'], dark['--nx-surface'])).toBeGreaterThanOrEqual(4.5)
     expect(contrast(dark['--nx-muted'], dark['--nx-surface'])).toBeGreaterThanOrEqual(4.5)
