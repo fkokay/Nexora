@@ -1,0 +1,65 @@
+/* Nexora design tokens (spec §5.1–5.3). Single source of truth for --nx-*.
+   Legacy --erp-* names are aliased at the bottom until the old CSS is migrated. */
+:root {
+  --nx-ink: #0f1b2d;
+  --nx-ink-2: #1a2a40;
+  --nx-primary: #1f5fd1;
+  --nx-primary-strong: #1846a3;
+  --nx-primary-soft: #e8f0fd;
+  --nx-canvas: #f3f5f8;
+  --nx-surface: #ffffff;
+  --nx-line: #dfe3e9;
+  --nx-line-soft: #eef1f4;
+  --nx-text: #1b2430;
+  --nx-muted: #667085;
+  --nx-ok: #13804b;
+  --nx-ok-bg: #e5f5ec;
+  --nx-warn: #b45309;
+  --nx-warn-bg: #fdf1e1;
+  --nx-bad: #c4321f;
+  --nx-bad-bg: #fde9e6;
+  --nx-changed: #e0a100;
+
+  --nx-font: "Segoe UI", Inter, system-ui, sans-serif;
+  --nx-font-mono: Consolas, "Cascadia Mono", monospace;
+  --nx-radius-control: 6px;
+  --nx-radius-card: 8px;
+  --nx-control-h: 31px;
+  --nx-row-h-dense: 30px;
+  --nx-row-h-comfort: 38px;
+}
+
+html[data-theme="dark"] {
+  --nx-ink: #070d17;
+  --nx-ink-2: #15233a;
+  --nx-primary: #5b8def;
+  --nx-primary-strong: #9dbcff;
+  --nx-primary-soft: #1b2c4d;
+  --nx-canvas: #0e1520;
+  --nx-surface: #151e2c;
+  --nx-line: #2a3649;
+  --nx-line-soft: #1f2a3b;
+  --nx-text: #e5eaf2;
+  --nx-muted: #9aa7ba;
+  --nx-ok: #4cc58a;
+  --nx-ok-bg: #12301f;
+  --nx-warn: #f0a24b;
+  --nx-warn-bg: #35260f;
+  --nx-bad: #f27a69;
+  --nx-bad-bg: #3a1a16;
+  --nx-changed: #e8b72a;
+}
+
+/* Legacy aliases (removed once old stylesheets use --nx-* directly). */
+:root {
+  --erp-primary: var(--nx-primary);
+  --erp-accent: var(--nx-primary);
+  --erp-color-primary: var(--nx-primary);
+  --erp-bg: var(--nx-canvas);
+  --erp-surface: var(--nx-surface);
+  --erp-border: var(--nx-line);
+  --erp-text: var(--nx-text);
+  --erp-canvas: var(--nx-canvas);
+  --erp-ink: var(--nx-ink);
+  --erp-line: var(--nx-line);
+}
