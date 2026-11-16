@@ -33,6 +33,7 @@ export function useWorkspaceGlobalCommands(props: Props) {
         id: 'workspace.search',
         shortcut: 'Ctrl+K',
         allowWhileTyping: true,
+        allowInModal: true,
         run: () => {
           const { searchOpen, page, searchInputRef, onClearSearch, onOpenSearch } = latest.current
           if (searchOpen) onClearSearch()
@@ -67,6 +68,7 @@ export function useWorkspaceGlobalCommands(props: Props) {
       id: 'workspace.search-close',
       shortcut: 'Escape',
       allowWhileTyping: true,
+      allowInModal: true,
       run: () => latest.current.onCloseSearch(),
     })
   }, [registry, searchOpen])

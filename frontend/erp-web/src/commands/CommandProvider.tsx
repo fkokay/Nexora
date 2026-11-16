@@ -10,6 +10,11 @@ const TYPING_SELECTOR = 'input,textarea,select,[contenteditable="true"]';
 const INTERACTIVE_SELECTOR = 'button, a[href], [role=button], [role=menuitem], [role=tab], summary';
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 
+// A modal left mounted inside a hidden keep-alive view must not block shortcuts of the active view.
+function isModalOpen(): boolean {
+  return Array.from(document.querySelectorAll('[aria-modal="true"]')).some((el) => !el.closest('[hidden]'));
+}
+
 export function CommandProvider({ children }: { children: ReactNode }) {
   const [registry] = useState(createCommandRegistry);
   useEffect(() => {
@@ -17,7 +22,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       const target = event.target instanceof Element ? event.target : null;
       registry.handleKeyDown(event, {
         typing: Boolean(target?.closest(TYPING_SELECTOR)),
-        modalOpen: document.querySelector('[aria-modal="true"]:not([hidden])') !== null,
+        modalOpen: isModalOpen(),
         onInteractive: Boolean(target?.closest(INTERACTIVE_SELECTOR)),
       });
     };

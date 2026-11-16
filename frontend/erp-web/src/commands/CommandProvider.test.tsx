@@ -54,11 +54,30 @@ describe('CommandProvider', () => {
 
   it('does not dispatch while a confirm dialog is open', async () => {
     const save = vi.fn();
-    render(<CommandProvider><Page onSave={save} /><ConfirmDialogHost /></CommandProvider>);
+    render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><Page onSave={save} /></KeepAliveViews>
+        <ConfirmDialogHost />
+      </CommandProvider>,
+    );
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
     act(() => { void confirmDialog({ title: 'Emin misiniz?', message: 'x' }); });
     await screen.findByRole('alertdialog');
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
-    expect(save).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores modals inside hidden views', () => {
+    const save = vi.fn();
+    render(
+      <CommandProvider>
+        <div hidden><div aria-modal="true" role="dialog" /></div>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><Page onSave={save} /></KeepAliveViews>
+      </CommandProvider>,
+    );
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -152,6 +171,16 @@ describe('workspace global commands', () => {
     expect(h.onSelectTab).toHaveBeenLastCalledWith('module:a');
     fireEvent.keyDown(screen.getByLabelText('field'), { key: 'ArrowLeft', altKey: true });
     expect(h.onSelectTab).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps Ctrl+K and Escape working while the search modal is open', () => {
+    const h = makeHandlers(true);
+    render(<CommandProvider><Host handlers={h} /><div role="dialog" aria-modal="true" /></CommandProvider>);
+    fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
+    expect(h.onClearSearch).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByLabelText('field'));
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(h.onCloseSearch).toHaveBeenCalledTimes(1);
   });
 
   it('closes search with Escape only while search is open', () => {
