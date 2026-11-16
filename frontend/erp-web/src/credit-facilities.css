@@ -323,7 +323,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 .credit-facilities-page .credit-page-heading-copy { min-width: 0; }
 .credit-facilities-page .credit-page-heading-copy .eyebrow {
   margin: 0 0 5px;
-  color: var(--credit-accent);
+  color: var(--nx-primary-strong);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .1em;
@@ -374,7 +374,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
   padding: 4px 8px;
   border-radius: 999px;
   background: var(--credit-accent-soft);
-  color: var(--credit-accent);
+  color: var(--nx-primary-strong);
   font-weight: 650;
 }
 .credit-facilities-page .credit-overview-card dl > div,
@@ -449,7 +449,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-bal
 /* Credit operations use dedicated workspace pages instead of stacked forms. */
 .credit-facilities-page.credit-operation-screen { max-width: 1120px; margin-inline: auto; }
 .credit-operation-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border: 1px solid var(--credit-border); border-left: 3px solid var(--credit-accent); border-radius: 10px; background: var(--credit-surface); }
-.credit-operation-page-heading .eyebrow { margin: 14px 0 4px; color: var(--credit-accent); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.credit-operation-page-heading .eyebrow { margin: 14px 0 4px; color: var(--nx-primary-strong); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
 .credit-operation-page-heading h1 { margin: 0 0 5px; color: var(--credit-text); font-size: clamp(20px, 2.2vw, 26px); }
 .credit-operation-page-heading .muted { margin: 0; color: var(--credit-muted); font-size: 12px; }
 .credit-operation-page { width: 100%; box-sizing: border-box; padding: 20px; }

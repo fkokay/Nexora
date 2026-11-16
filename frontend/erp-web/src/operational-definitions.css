@@ -342,7 +342,7 @@ html[data-theme="dark"] .operational-definitions-page {
 .op-definitions-panel .ledger-list .table-empty { height: auto; padding: 0; }
 .op-def-empty { display: grid; justify-items: center; gap: 6px; padding: 36px 16px; color: var(--op-def-muted); font-size: 13px; text-align: center; }
 .op-def-empty b { color: var(--op-def-text); font-size: 14px; }
-.op-def-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 10px; background: var(--op-def-tint); color: var(--op-def-accent); }
+.op-def-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 10px; background: var(--op-def-tint); color: var(--nx-primary-strong); }
 .op-definitions-panel .ledger-list td.table-empty:not(:has(.op-def-empty)) { height: 88px; }
 
 .op-def-form-card { position: sticky; top: 12px; min-width: 0; border: 1px solid var(--op-def-border); border-radius: 12px; background: var(--op-def-surface); }
@@ -398,7 +398,7 @@ html[data-theme="dark"] .operational-definitions-page {
 }
 .op-def-related-card:hover { border-color: color-mix(in srgb, var(--op-def-accent) 45%, var(--op-def-border)); }
 .op-def-related-card:focus-visible { outline: 2px solid var(--op-def-accent); outline-offset: 2px; }
-.op-def-related-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--op-def-tint); color: var(--op-def-accent); }
+.op-def-related-icon { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--op-def-tint); color: var(--nx-primary-strong); }
 .op-def-related-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
 .op-def-related-text b { font-size: 13px; }
 .op-def-related-text span { overflow: hidden; color: var(--op-def-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }

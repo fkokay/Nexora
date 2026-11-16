@@ -37,7 +37,7 @@
 .platform-provisioning-status{display:grid;gap:16px}
 .platform-provisioning-status .panel-heading{padding-bottom:12px;border-bottom:1px solid #e5ebf2}
 .platform-provisioning-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
-.platform-provisioning-badge.is-queued,.platform-provisioning-badge.is-running{color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.platform-provisioning-badge.is-queued,.platform-provisioning-badge.is-running{color:var(--nx-primary-strong);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
 .platform-provisioning-badge.is-completed{color:var(--nx-ok);background:color-mix(in srgb,var(--nx-ok) 8%,var(--surface))}
 .platform-provisioning-badge.is-failed{color:var(--nx-bad);background:color-mix(in srgb,var(--nx-bad) 8%,var(--surface))}
 .platform-provisioning-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}

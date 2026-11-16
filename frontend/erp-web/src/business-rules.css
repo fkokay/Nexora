@@ -5,7 +5,7 @@
   --rules-muted: var(--erp-muted);
   --rules-subtle: var(--erp-subtle);
   --rules-border: var(--erp-border);
-  --rules-accent: var(--erp-accent);
+  --rules-accent: var(--nx-primary-strong);
   --rules-accent-soft: var(--erp-accent-soft);
   --rules-input: var(--nx-surface);
   --rules-control-border: var(--nx-line);

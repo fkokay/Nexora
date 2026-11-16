@@ -111,7 +111,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 
 .primary, .secondary { min-height: 36px; border-radius: 5px; padding: 0 14px; font-size: 11px; transition: background .15s, border-color .15s; }
 .primary { background: var(--nx-primary); box-shadow: none; }
-.primary:hover:not(:disabled) { background: #005a9e; box-shadow: none; }
+.primary:hover:not(:disabled) { background: var(--nx-primary-hover); color: var(--nx-on-primary); box-shadow: none; }
 .secondary { border-color: #cfd7e1; background: #fff; color: #344054; }
 .secondary:hover:not(:disabled) { border-color: #87b9e4; background: #f1f8fd; }
 input:not([type="checkbox"]):not([type="radio"]), select, textarea {
