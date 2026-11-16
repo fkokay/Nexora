@@ -12,6 +12,7 @@ type Props = {
   ariaLabel?: string;
   disabled?: boolean;
   invalid?: boolean;
+  maxLength?: number;
 };
 
 /** İmlecin önündeki kapanmamış "{{" ifadesini bulur: başlangıç konumu ve yazılan yol öneki. */
@@ -27,7 +28,7 @@ function openExpression(text: string, caret: number): { start: number; prefix: s
  * Bağlanabilir alan girişi: değer monospace yazılır, "{{" yazılınca değişken önerileri açılır.
  * Öneri listesi sağ paneldeki taşma kırpmasından etkilenmesin diye gövdeye sabit konumla çizilir.
  */
-export default function BindingInput({ value, onChange, suggestions, multiline = false, placeholder, ariaLabel, disabled = false, invalid = false }: Props) {
+export default function BindingInput({ value, onChange, suggestions, multiline = false, placeholder, ariaLabel, disabled = false, invalid = false, maxLength }: Props) {
   const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const [expression, setExpression] = useState<{ start: number; prefix: string } | null>(null);
   const [active, setActive] = useState(0);
@@ -91,6 +92,7 @@ export default function BindingInput({ value, onChange, suggestions, multiline =
     value,
     placeholder,
     disabled,
+    maxLength,
     spellCheck: false,
     "aria-label": ariaLabel,
     "aria-autocomplete": "list" as const,

@@ -8,7 +8,7 @@ import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
-import QueriesPanel, { MAX_QUERIES, nameProblem, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
+import QueriesPanel, { MAX_QUERIES, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
 import "./custom-pages.css";
@@ -73,13 +73,26 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn"]);
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı).
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue"]);
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }];
+const MAX_REFRESH_QUERIES = 10;
 const bindingNote = "Değerler SQL'e her zaman parametre olarak gider.";
 const variantOptions = [{ value: "info", label: "Bilgi" }, { value: "success", label: "Başarılı" }, { value: "warning", label: "Uyarı" }, { value: "danger", label: "Kritik" }];
 const numericKeys = ["width", "margin", "padding", "borderRadius"];
+/** Bileşenin silinen ya da yazma türüne çevrilen sorguya başvurularını kaldırır; düğmenin kendi sorgusu (queryId) yalnız silmede kalkar. */
+function dropQueryReferences(component: PageComponent, queryId: string, removed: boolean): PageComponent {
+  const refresh = component.props.refreshQueries;
+  const staleRefresh = Array.isArray(refresh) && refresh.includes(queryId);
+  if (component.props.query !== queryId && component.props.optionsQuery !== queryId && !staleRefresh && !(removed && component.props.queryId === queryId)) return component;
+  const props = { ...component.props };
+  if (props.query === queryId) delete props.query;
+  if (props.optionsQuery === queryId) delete props.optionsQuery;
+  if (removed && props.queryId === queryId) delete props.queryId;
+  if (staleRefresh) { const next = (refresh as string[]).filter((item) => item !== queryId); if (next.length > 0) props.refreshQueries = next; else delete props.refreshQueries; }
+  return { ...component, props };
+}
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
 const normalizeDefinition = (raw: unknown): PageDefinition => {
   const value = (raw ?? {}) as { components?: unknown; queries?: unknown };
@@ -559,6 +572,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => parameterMemory.current.get(`${id}:${name.toLowerCase()}`), defaultParameterBinding);
         return next;
       }),
+      // Izgara, gösterge ve açılır liste yalnız okuma sorgusuna bağlanabilir; yazma türüne çevrilen sorgunun başvuruları aynı adımda kalkar.
+      components: patch.kind && isWriteKind(patch.kind) ? state.components.map((component) => dropQueryReferences(component, id, false)) : state.components,
     }), coalesceKey);
   };
   const removeQuery = (id: string) => {
@@ -568,13 +583,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     commit((state) => ({
       ...state,
       queries: state.queries.filter((item) => item.id !== id),
-      components: state.components.map((component) => {
-        if (component.props.query !== id && component.props.optionsQuery !== id) return component;
-        const props = { ...component.props };
-        if (props.query === id) delete props.query;
-        if (props.optionsQuery === id) delete props.optionsQuery;
-        return { ...component, props };
-      }),
+      components: state.components.map((component) => dropQueryReferences(component, id, true)),
     }));
     setQueryPreviews((current) => { const next = { ...current }; delete next[id]; return next; });
     setSelectedQueryId(definition.queries.find((item) => item.id !== id)?.id ?? null);
@@ -585,6 +594,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const scope: PageScope = { kullanici: sessionUser(token), bugun: localToday() };
     const state = definitionRef.current;
     for (const query of state.queries) {
+      if (isWriteKind(query.kind)) continue;
       const preview = queryPreviews[query.id];
       if (preview) scope[query.name] = { rows: preview.rows, rowCount: preview.rowCount, columns: preview.columns, truncated: preview.truncated };
     }
@@ -670,7 +680,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return null;
   };
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
-  const runQueryPreview = async (queryId: string) => {
+  const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
     if (current?.isPublished) throw new Error("Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun.");
     const saved = dirty || !current ? await saveDraft() : current;
     if (!saved) throw new Error("Taslak kaydedilemedi; üstteki hata mesajına bakın.");
@@ -681,8 +691,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const path = bindingPath(parameter.binding);
       return [parameter.name, path ? coerceParameter(resolvePath(scope, path), parameter.type) : null];
     }));
-    const result = await request<QueryPreview>(`/api/custom-pages/${saved.id}/preview/queries/${encodeURIComponent(queryId)}/run`, { method: "POST", body: JSON.stringify({ parameters }) });
+    const url = `/api/custom-pages/${saved.id}/preview/queries/${encodeURIComponent(queryId)}/run`;
+    if (isWriteKind(query.kind)) {
+      const written = await request<{ affectedRows: number }>(url, { method: "POST", body: JSON.stringify({ parameters, confirmWrite }) });
+      return written.affectedRows;
+    }
+    const result = await request<QueryPreview>(url, { method: "POST", body: JSON.stringify({ parameters }) });
     setQueryPreviews((value) => ({ ...value, [queryId]: result }));
+    return null;
   };
   const openErpPreview = async () => {
     if (!platformOrigin) { setError("ERP adresi bulunamadı. Studio'yu ERP ekranındaki bağlantıdan açın."); return; }
@@ -874,7 +890,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // {{ önerileri: sorgu sonuçları (son önizleme sütunları), adlı girişler, sorguya bağlı adlı ızgaraların seçili satırı ve oturum.
   const bindingSuggestions: BindingSuggestion[] = [];
   for (const query of definition.queries) {
-    if (!identifier.test(query.name)) continue;
+    if (!identifier.test(query.name) || isWriteKind(query.kind)) continue;
     bindingSuggestions.push({ path: `${query.name}.rows`, detail: "Sorgu satırları" }, { path: `${query.name}.rowCount`, detail: "Satır sayısı" });
     for (const column of queryPreviews[query.id]?.columns ?? []) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}` });
   }
@@ -885,6 +901,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       for (const column of queryPreviews[component.props.query]?.columns ?? []) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${component.name}.seciliSatir.${column.code}`, detail: "Izgarada seçili satır" });
   }
   bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)" });
+  const readQueries = definition.queries.filter((query) => !isWriteKind(query.kind));
+  const isQueryAction = !!selected && selected.type === "button" && selected.props.actionType === "query";
+  const actionQuery = selected && typeof selected.props.queryId === "string" ? definition.queries.find((query) => query.id === selected.props.queryId) : undefined;
+  const refreshIds = selected && Array.isArray(selected.props.refreshQueries) ? selected.props.refreshQueries.filter((id): id is string => typeof id === "string" && readQueries.some((query) => query.id === id)) : [];
+  const refreshOptions = readQueries.filter((query) => !refreshIds.includes(query.id));
   const selectedQueryRef = selected && typeof selected.props.query === "string" ? selected.props.query : null;
   const selectedQueryColumns = selectedQueryRef ? queryPreviews[selectedQueryRef]?.columns ?? [] : [];
 
@@ -1038,7 +1059,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "input" && section("input", "Giriş", <>
               <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, event.target.value === "select" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               {selected.props.inputType === "select" && <>
-                <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{definition.queries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{definition.queries.length === 0 && <small>Önce Sorgular sekmesinde bir sorgu ekleyin.</small>}</label>
+                <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 {typeof selected.props.optionsQuery === "string" && (["optionValueColumn", "optionLabelColumn"] as const).map((key) => {
                   const columns = queryPreviews[String(selected.props.optionsQuery)]?.columns ?? [];
                   const chosen = String(selected.props[key] || "");
@@ -1053,10 +1074,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {(selected.type === "metric" || selected.type === "dataTable") && section("data", "Veri", <>
               <div className="pd-field">Veri kaynağı<div className="pd-segment">
                 <button type="button" className={selectedQueryRef ? "" : "active"} onClick={() => { if (selectedQueryRef) patchComponent(selected.id, { query: undefined, ...(selected.type === "dataTable" ? { columns: [] } : {}) }); }}>Rapor kaynağı</button>
-                <button type="button" className={selectedQueryRef ? "active" : ""} disabled={definition.queries.length === 0} title={definition.queries.length === 0 ? "Önce Sorgular sekmesinde bir sorgu ekleyin." : undefined} onClick={() => { if (!selectedQueryRef && definition.queries[0]) patchComponent(selected.id, { query: definition.queries[0].id, ...(selected.type === "dataTable" ? { columns: [] } : {}) }); }}>Sorgu</button>
-              </div>{definition.queries.length === 0 && <small>Sorguya bağlamak için önce Sorgular sekmesinde bir sorgu ekleyin.</small>}</div>
+                <button type="button" className={selectedQueryRef ? "active" : ""} disabled={readQueries.length === 0} title={readQueries.length === 0 ? "Önce Sorgular sekmesinde bir okuma sorgusu ekleyin." : undefined} onClick={() => { if (!selectedQueryRef && readQueries[0]) patchComponent(selected.id, { query: readQueries[0].id, ...(selected.type === "dataTable" ? { columns: [] } : {}) }); }}>Sorgu</button>
+              </div>{readQueries.length === 0 && <small>Sorguya bağlamak için önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</div>
               {selectedQueryRef ? <>
-                <label className="pd-field">Sorgu<select value={selectedQueryRef} onChange={(event) => patchComponent(selected.id, { query: event.target.value, ...(selected.type === "dataTable" ? { columns: [] } : {}) })}>{definition.queries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>
+                <label className="pd-field">Sorgu<select value={selectedQueryRef} onChange={(event) => patchComponent(selected.id, { query: event.target.value, ...(selected.type === "dataTable" ? { columns: [] } : {}) })}>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>
                   <small>{selected.type === "metric" ? "Gösterge, ilk satırın ilk sütununu gösterir." : "Seçim yoksa tüm sütunlar gösterilir."}</small></label>
                 {selected.type === "dataTable" && (selectedQueryColumns.length === 0 ? <p className="pd-binding-note">Sütunları seçmek için sorguyu Sorgular sekmesinde önizleyin.</p>
                   : <div className="pd-field">Kolonlar<small>{selectedColumns.length || "Tüm"} sütun gösterilecek.</small><ul className="pd-columns">{selectedQueryColumns.map((column) => <li key={column.code} className={selectedColumns.includes(column.code) ? "is-on" : ""}><label><input type="checkbox" checked={selectedColumns.includes(column.code)} onChange={(event) => updateComponent(selected.id, "columns", event.target.checked ? [...selectedColumns, column.code] : selectedColumns.filter((item) => item !== column.code))}/><span>{column.label || column.code}</span></label></li>)}</ul></div>)}
@@ -1081,7 +1102,30 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <label className="pd-field">İş akışı<select value={String(selected.props.rowActionWorkflowId || "")} onChange={(event) => updateComponent(selected.id, "rowActionWorkflowId", event.target.value)}><option value="">Yayımlanmış akış seçin</option>{workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · {workflow.code}</option>)}</select>{workflows.length === 0 && <small>Önce yayımlanmış bir iş akışı oluşturun.</small>}</label>
               </>}
             </>)}
-            {selected.type === "button" && section("action", "Eylem", <label className="pd-field">İş akışı<select value={String(selected.props.workflowId || "")} onChange={(event) => updateComponent(selected.id, "workflowId", event.target.value)}><option value="">Yayımlanmış akış seçin</option>{workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · {workflow.code}</option>)}</select>{workflows.length === 0 && <small>Önce İş akışları bölümünde bir akış oluşturup yayımlayın.</small>}</label>)}
+            {selected.type === "button" && section("action", "Eylem", <>
+              <div className="pd-field">Eylem türü<div className="pd-segment pd-action-type" role="group" aria-label="Eylem türü">
+                <button type="button" aria-pressed={!isQueryAction} className={isQueryAction ? "" : "active"} onClick={() => { if (isQueryAction) patchComponent(selected.id, { actionType: "workflow" }); }}>İş akışı</button>
+                <button type="button" aria-pressed={isQueryAction} className={isQueryAction ? "active" : ""} onClick={() => { if (!isQueryAction) patchComponent(selected.id, { actionType: "query" }); }}>Sorgu</button>
+              </div></div>
+              {!isQueryAction ? <label className="pd-field">İş akışı<select value={String(selected.props.workflowId || "")} onChange={(event) => updateComponent(selected.id, "workflowId", event.target.value)}><option value="">Yayımlanmış akış seçin</option>{workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · {workflow.code}</option>)}</select>{workflows.length === 0 && <small>Önce İş akışları bölümünde bir akış oluşturup yayımlayın.</small>}</label> : <>
+                <label className="pd-field">Çalıştırılacak sorgu<select value={actionQuery?.id ?? ""} onChange={(event) => {
+                  const chosen = definition.queries.find((query) => query.id === event.target.value);
+                  // Güncelle/Sil sorguları verileri değiştirdiği için onay otomatik açılır.
+                  patchComponent(selected.id, { queryId: event.target.value || undefined, ...(chosen && (chosen.kind === "update" || chosen.kind === "delete") ? { confirmEnabled: true } : {}) });
+                }}><option value="">Sorgu seçin</option>{definition.queries.map((query) => <option key={query.id} value={query.id}>{query.name} ({queryKindLabels[query.kind]})</option>)}</select>
+                  {definition.queries.length === 0 && <small>Önce Sorgular sekmesinde bir sorgu ekleyin.</small>}</label>
+                <label className="pd-check"><input type="checkbox" checked={selected.props.confirmEnabled === true} onChange={(event) => patchComponent(selected.id, { confirmEnabled: event.target.checked })}/>Onay iste</label>
+                {selected.props.confirmEnabled === true && <label className="pd-field">Onay metni<BindingInput value={String(selected.props.confirmText ?? "")} maxLength={300} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Onay metni" placeholder="Boşsa standart onay sorusu gösterilir" onChange={(next) => patchComponent(selected.id, { confirmText: next || undefined })}/></label>}
+                <div className="pd-field">Sonra yenile<small>Eylemden sonra yeniden çalışacak okuma sorguları.</small>
+                  {refreshIds.length > 0 && <ul className="pd-action-chips">{refreshIds.map((id) => <li key={id}><span>{definition.queries.find((query) => query.id === id)?.name}</span>
+                    <button type="button" aria-label={`${definition.queries.find((query) => query.id === id)?.name} yenilemesini kaldır`} onClick={() => patchComponent(selected.id, { refreshQueries: refreshIds.length > 1 ? refreshIds.filter((item) => item !== id) : undefined })}><X size={11}/></button></li>)}</ul>}
+                  <select value="" aria-label="Yenilenecek sorgu ekle" disabled={refreshOptions.length === 0 || refreshIds.length >= MAX_REFRESH_QUERIES} onChange={(event) => { if (event.target.value) patchComponent(selected.id, { refreshQueries: [...refreshIds, event.target.value] }); }}>
+                    <option value="">{readQueries.length === 0 ? "Okuma sorgusu yok" : refreshOptions.length === 0 ? "Tümü eklendi" : "Okuma sorgusu ekle"}</option>{refreshOptions.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select></div>
+                <label className="pd-field">Başarı mesajı<BindingInput value={String(selected.props.successMessage ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Başarı mesajı" onChange={(next) => patchComponent(selected.id, { successMessage: next || undefined })}/></label>
+                <label className="pd-field">Hata mesajı<BindingInput value={String(selected.props.errorMessage ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Hata mesajı" onChange={(next) => patchComponent(selected.id, { errorMessage: next || undefined })}/></label>
+                <p className="pd-binding-note">{bindingNote}</p>
+              </>}
+            </>)}
             {selected.type === "form" && section("form", "Form", <>
               <label className="pd-field">Yayımlanmış form<select value={String(selected.props.formCode || "")} onChange={(event) => updateComponent(selected.id, "formCode", event.target.value)}><option value="">Form seçin</option>{forms.map((form) => <option key={form.id} value={form.code}>{form.name} · {form.code}</option>)}</select></label>
               <button type="button" className="pd-button small" onClick={() => setFormEditorOpen(true)}><FilePlus2 size={13}/>Formu tanımla / düzenle</button>

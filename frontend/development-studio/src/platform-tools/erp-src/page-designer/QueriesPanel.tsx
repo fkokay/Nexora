@@ -6,16 +6,19 @@ import { bindingPath } from "./pageBindings";
 
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid";
 export type PageQueryParameter = { name: string; binding: string; type: QueryParameterType };
-export type PageQuery = { id: string; name: string; kind: "read"; sql: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
+export type QueryKind = "read" | "insert" | "update" | "delete";
+export type PageQuery = { id: string; name: string; kind: QueryKind; sql: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean };
 
+export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
+export const isWriteKind = (kind: QueryKind) => kind !== "read";
 export const MAX_QUERIES = 20;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 export const RESERVED_NAMES = ["kullanici", "bugun"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
-const MANUAL_RUN_HINT = "Elle çalışan sorgular 4. aşamada düğmelerle tetiklenecek; şimdilik çalışmaz.";
+const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";
 const parameterTypes: [QueryParameterType, string][] = [["text", "Metin"], ["int", "Tam sayı"], ["decimal", "Ondalık"], ["date", "Tarih"], ["bool", "Evet/Hayır"], ["guid", "Kimlik (GUID)"]];
 const runOnLabels: Record<PageQuery["runOn"], string> = { load: "Açılışta + değişince", manual: "Elle" };
 
@@ -75,6 +78,12 @@ export function syncParameters(sql: string, existing: PageQueryParameter[], reme
   });
 }
 
+const sqlStatements: Record<QueryKind, string> = {
+  read: "Yalnız tek bir SELECT ya da WITH sorgusu.",
+  insert: "Yalnız tek bir INSERT deyimi.",
+  update: "Yalnız tek bir UPDATE deyimi; WHERE koşulu gerekir.",
+  delete: "Yalnız tek bir DELETE deyimi; WHERE koşulu gerekir.",
+};
 const cellText = (value: unknown) => value == null ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value);
 
 type Props = {
@@ -91,34 +100,44 @@ type Props = {
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<PageQuery>, coalesceKey?: string) => void;
   onRemove: (id: string) => void;
-  onPreview: (id: string) => Promise<void>;
+  /** Yazma türünde `confirmWrite` true gönderilir; etkilenen kayıt sayısı döner (okumada null). */
+  onPreview: (id: string, confirmWrite: boolean) => Promise<number | null>;
 };
 
 /** Tasarımcının "Sorgular" sekmesi: sorgu kartları, seçili sorgunun SQL'i, parametreleri ve önizlemesi. */
 export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview }: Props) {
   const [running, setRunning] = useState<string | null>(null);
+  const [affected, setAffected] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const selected = queries.find((query) => query.id === selectedId) ?? null;
+  const write = !!selected && isWriteKind(selected.kind);
   const preview = selected ? previews[selected.id] : undefined;
   // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
   const ownSuggestions = selected ? suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${selected.name.toLowerCase()}.`)) : suggestions;
-  const run = async (id: string) => {
+  const run = async (query: PageQuery) => {
+    const id = query.id;
+    const writing = isWriteKind(query.kind);
+    if (writing && !window.confirm(WRITE_CONFIRM)) return;
     setRunning(id);
     setErrors((current) => { const next = { ...current }; delete next[id]; return next; });
-    try { await onPreview(id); }
+    setAffected((current) => { const next = { ...current }; delete next[id]; return next; });
+    try {
+      const rows = await onPreview(id, writing);
+      if (rows !== null) setAffected((current) => ({ ...current, [id]: rows }));
+    }
     catch (error) { setErrors((current) => ({ ...current, [id]: (error as Error).message })); }
     finally { setRunning(null); }
   };
 
   return <div className="pd-left-body pd-query-panel">
     {readOnlyReason && <p className="pd-query-readonly">{readOnlyReason}</p>}
-    {queries.length === 0 ? <p className="pd-empty-note">Bu sayfada henüz sorgu yok. Sorgular okuma (SELECT) sorgusudur; sonuçları ızgara, gösterge ve metinlere bağlanır.</p>
+    {queries.length === 0 ? <p className="pd-empty-note">Bu sayfada henüz sorgu yok. Okuma sorgularının sonuçları ızgara, gösterge ve metinlere bağlanır; Ekle, Güncelle ve Sil sorguları düğmeyle çalışır.</p>
       : <ul className="pd-query-list">{queries.map((query) => {
         const result = previews[query.id];
         return <li key={query.id}>
           <button type="button" className={`pd-query-card ${query.id === selectedId ? "is-selected" : ""}`} aria-pressed={query.id === selectedId} onClick={() => onSelect(query.id)}>
-            <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className="pd-query-kind">Okuma</span></span>
-            <small>{runOnLabels[query.runOn]}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
+            <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className={`pd-query-kind${isWriteKind(query.kind) ? " is-write" : ""}`}>{queryKindLabels[query.kind]}</span></span>
+            <small>{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnLabels[query.runOn]}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
           </button>
         </li>;
       })}</ul>}
@@ -130,14 +149,18 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
         <div className="pd-field-row pd-query-meta">
           <label className="pd-field">Ad<input className="pd-query-name" value={selected.name} maxLength={64} spellCheck={false}
             onChange={(event) => onUpdate(selected.id, { name: event.target.value }, `query:${selected.id}:name`)}/></label>
-          <label className="pd-field">Çalışma<select value={selected.runOn} onChange={(event) => onUpdate(selected.id, { runOn: event.target.value as PageQuery["runOn"] })}>
-            <option value="load">{runOnLabels.load}</option><option value="manual" title={MANUAL_RUN_HINT}>{runOnLabels.manual}</option>
-          </select></label>
+          {write ? <div className="pd-field">Çalışma<small className="pd-query-manual">Yalnız düğmeyle çalışır.</small></div>
+            : <label className="pd-field">Çalışma<select value={selected.runOn} onChange={(event) => onUpdate(selected.id, { runOn: event.target.value as PageQuery["runOn"] })}>
+              <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
+            </select></label>}
         </div>
-        {selected.runOn === "manual" && <small className="pd-query-warning">{MANUAL_RUN_HINT}</small>}
+        <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
+          {(Object.keys(queryKindLabels) as QueryKind[]).map((kind) => <button type="button" key={kind} aria-pressed={selected.kind === kind} className={`${selected.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
+            onClick={() => { if (kind !== selected.kind) onUpdate(selected.id, isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
+        </div></div>
         {nameProblem(selected.name, takenNames(selected.id)) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames(selected.id))}</small>}
       </fieldset>
-      <div className="pd-field">SQL<small>Yalnız tek bir SELECT ya da WITH sorgusu. Değerleri <code>@ad</code> parametreleriyle verin.</small>
+      <div className="pd-field">SQL<small>{sqlStatements[selected.kind]} Değerleri <code>@ad</code> parametreleriyle verin.</small>
         <SqlQueryEditor queryId={selected.id} value={selected.sql} readOnly={!editable} schema={schema}
           onChange={(sql) => onUpdate(selected.id, { sql }, `query:${selected.id}:sql`)}/>
       </div>
@@ -160,12 +183,13 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
       </div>
       <div className="pd-query-actions">
         <button type="button" className="pd-button small primary" disabled={!editable || !!previewBlockedReason || running !== null} title={previewBlockedReason ?? undefined}
-          onClick={() => void run(selected.id)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : "Çalıştır ve önizle"}</button>
+          onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>
         <button type="button" className="pd-button small danger" disabled={!editable} onClick={() => onRemove(selected.id)}><Trash2 size={13}/>Sorguyu sil</button>
       </div>
       {previewBlockedReason && editable && <small className="pd-query-muted">{previewBlockedReason}</small>}
       {errors[selected.id] && <div className="pd-query-error" role="alert">{errors[selected.id]}</div>}
-      {preview && <div className="pd-query-result">
+      {write && affected[selected.id] !== undefined && <div className="pd-query-affected" role="status">{affected[selected.id].toLocaleString("tr-TR")} kayıt etkilendi.</div>}
+      {!write && preview && <div className="pd-query-result">
         <small>{preview.rowCount.toLocaleString("tr-TR")} satır{preview.rowCount > 20 ? " · ilk 20 satır gösteriliyor" : ""}{preview.truncated ? " · sonuç 5.000 satırda kesildi" : ""}</small>
         {preview.columns.length === 0 ? <p className="pd-query-muted">Sorgu sütun döndürmedi.</p>
           : <div className="pd-query-result-scroll"><table><thead><tr>{preview.columns.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
