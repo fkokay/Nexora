@@ -810,9 +810,10 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
-                // Server-side diagnostics only: exception type, SQL error number and the redacted message.
-                logger?.LogError("Tenant query credential provisioning failed for tenant {TenantId}: {ExceptionType} SqlNumber={SqlNumber} {Error}",
-                    tenantId, exception.GetType().FullName, (exception as SqlException)?.Number, FormatSafeMigrationError(exception));
+                // Server-side diagnostics only: exception type and SQL error number. The message is not
+                // logged because SQL login errors can echo credential material.
+                logger?.LogError("Tenant query credential provisioning failed for tenant {TenantId}: {ExceptionType} SqlNumber={SqlNumber}",
+                    tenantId, exception.GetType().FullName, (exception as SqlException)?.Number);
                 failed.Add(tenantId);
             }
         }
