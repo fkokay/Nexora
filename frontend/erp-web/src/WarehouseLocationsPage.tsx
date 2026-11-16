@@ -1,12 +1,17 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand, submitRecordForm } from "./commands/gridCommands";
+import type { PageCommands } from "./commands/types";
 import "./warehouse-locations.css";
 import {
   CreateLocationForm,
@@ -68,6 +73,8 @@ export default function WarehouseLocationsPage({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const createFormId = `warehouse-location-create${useId()}`;
   const [balanceFields, setBalanceFields] = useState<ScreenField[]>([
     { key: "stockItemCode", label: "Stok kodu", visible: true, position: 0 },
     { key: "stockItemName", label: "Stok adı", visible: true, position: 1 },
@@ -421,6 +428,28 @@ export default function WarehouseLocationsPage({
     }
   }
 
+  const pageCommands: PageCommands = { more: [csvExportCommand(gridExportRef)] };
+  if (role === "TenantAdmin") {
+    // Same permission and busy gate as the detail panel's "Düzenle" button.
+    pageCommands.open = {
+      disabledReason: !selected ? "Önce bir kayıt seçin" : busy ? "Kaydediliyor…" : undefined,
+      run: () => {
+        if (selected) beginEdit(selected);
+      },
+    };
+    // The create form is always on screen for admins; Kaydet submits it through its own gate.
+    pageCommands.save = {
+      primary: true,
+      disabledReason: !warehouseId
+        ? "Konum eklemek için önce depo seçin."
+        : busy
+          ? "Kaydediliyor…"
+          : undefined,
+      run: () => submitRecordForm(createFormId),
+    };
+  }
+  usePageCommands(pageCommands);
+
   return (
     <div className="warehouse-locations-page list-v2">
       <WarehouseLocationOverview
@@ -459,6 +488,8 @@ export default function WarehouseLocationsPage({
           loading={loading}
           warehouseId={warehouseId}
           toolbarContainer={toolsSlot}
+          hideExport
+          exportActionsRef={gridExportRef}
           onSelect={setSelectedId}
         />
         <LocationBalancePanel
@@ -487,6 +518,7 @@ export default function WarehouseLocationsPage({
           name={name}
           parentLocationId={parentLocationId}
           busy={busy}
+          formId={createFormId}
           onCodeChange={setCode}
           onNameChange={setName}
           onParentChange={setParentLocationId}

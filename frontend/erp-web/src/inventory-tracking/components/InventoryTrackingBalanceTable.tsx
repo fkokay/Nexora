@@ -1,5 +1,5 @@
-import type { MouseEvent, ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { MouseEvent, MutableRefObject, ReactNode } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { Balance, ScreenField } from "../types";
@@ -14,6 +14,9 @@ type Props = {
   renderField: (row: Balance, field: ScreenField) => ReactNode;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
+  /** Hides the grid's XLSX/CSV buttons; the page offers export through the action bar instead. */
+  hideExport?: boolean;
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
 
 export default function InventoryTrackingBalanceTable({
@@ -25,6 +28,8 @@ export default function InventoryTrackingBalanceTable({
   onClick,
   renderField,
   toolbarContainer,
+  hideExport,
+  exportActionsRef,
 }: Props) {
   return (
     <section
@@ -42,6 +47,8 @@ export default function InventoryTrackingBalanceTable({
           hideSearch
           externalPagination
           toolbarContainer={toolbarContainer}
+          hideExport={hideExport}
+          exportActionsRef={exportActionsRef}
           enableRowSelection={false}
           className="customer-table quote-table inventory-tracking-table"
           gridId="inventory-trace-balances"

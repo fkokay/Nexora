@@ -1,4 +1,5 @@
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { MutableRefObject } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { Pencil, Warehouse } from "lucide-react";
@@ -14,6 +15,9 @@ type LocationListProps = {
   warehouseId: string;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
+  /** Hides the grid's XLSX/CSV buttons; the page offers export through the action bar instead. */
+  hideExport?: boolean;
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
   onSelect: (id: string) => void;
 };
 
@@ -26,6 +30,8 @@ export function LocationListPanel({
   loading,
   warehouseId,
   toolbarContainer,
+  hideExport,
+  exportActionsRef,
   onSelect,
 }: LocationListProps) {
   // The code is shown under the name, and row actions live in the detail panel, so
@@ -71,6 +77,8 @@ export function LocationListPanel({
             enableRowSelection={false}
             hideSearch
             toolbarContainer={toolbarContainer}
+            hideExport={hideExport}
+            exportActionsRef={exportActionsRef}
             className="customer-table"
             gridId="inventory-warehouse-locations"
             {...screenViewGridDefaults(fields)}

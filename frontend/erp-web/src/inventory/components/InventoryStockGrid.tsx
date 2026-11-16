@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { MutableRefObject, ReactNode } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import type {
   BuiltInScreenLayoutField,
   InventoryBalance,
@@ -21,6 +21,9 @@ type Props = {
   pagination: ReactNode;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
+  /** Hides the grid's XLSX/CSV buttons; the page offers export through the action bar instead. */
+  hideExport?: boolean;
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
 
 export function InventoryStockGrid({
@@ -34,6 +37,8 @@ export function InventoryStockGrid({
   renderCell,
   pagination,
   toolbarContainer,
+  hideExport,
+  exportActionsRef,
 }: Props) {
   const widths: Record<string, number> = {
     code: 180,
@@ -77,6 +82,8 @@ export function InventoryStockGrid({
           externalPagination
           hideSearch
           toolbarContainer={toolbarContainer}
+          hideExport={hideExport}
+          exportActionsRef={exportActionsRef}
           enableRowSelection={false}
           aria-label="Depo stok bakiyeleri"
         >

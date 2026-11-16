@@ -3,7 +3,9 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { api } from "./erpApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import type { InventoryMovement, ScreenColumnPin, StockItem, Warehouse } from "./erp-types";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { Locale } from "./WorkspaceComponents";
 import { ListPageHeader } from "./list-page/ListPageHeader";
@@ -51,6 +53,8 @@ export default function InventoryMovementsPage({
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  usePageCommands({ more: [csvExportCommand(gridExportRef)] });
   const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultMovementFields);
   const visibleFields = useMemo(
     () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
@@ -218,6 +222,8 @@ export default function InventoryMovementsPage({
             hideSearch
             enableRowSelection={false}
             toolbarContainer={toolsSlot}
+            hideExport
+            exportActionsRef={gridExportRef}
           >
             <thead><tr>{visibleFields.map((field) => <th key={field.key}>{fieldLabel(field)}</th>)}</tr></thead>
             <tbody>

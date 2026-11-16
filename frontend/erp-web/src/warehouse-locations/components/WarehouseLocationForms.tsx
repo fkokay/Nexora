@@ -14,6 +14,8 @@ type CreateLocationFormProps = {
   name: string;
   parentLocationId: string;
   busy: boolean;
+  /** Lets the page's action bar submit this form. */
+  formId?: string;
   onCodeChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onParentChange: (value: string) => void;
@@ -27,6 +29,7 @@ export function CreateLocationForm({
   name,
   parentLocationId,
   busy,
+  formId,
   onCodeChange,
   onNameChange,
   onParentChange,
@@ -47,6 +50,7 @@ export function CreateLocationForm({
         mode="create"
         busy={busy}
         saveLabel="Konumu kaydet"
+        formId={formId}
         onSubmit={(event) => {
           // Same gate the old save button had through its disabled state.
           if (blocked) {

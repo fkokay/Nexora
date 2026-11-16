@@ -1,6 +1,9 @@
 import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import InventoryTrackingHeader from "./inventory-tracking/components/InventoryTrackingHeader";
 import InventoryTrackingAlerts from "./inventory-tracking/components/InventoryTrackingAlerts";
 import InventoryTrackingFilters from "./inventory-tracking/components/InventoryTrackingFilters";
@@ -59,6 +62,8 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
     },
   ]);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  usePageCommands({ more: [csvExportCommand(gridExportRef)] });
   const latestRequest = useRef(0);
   const pageSize = 50;
 
@@ -264,6 +269,8 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
           error={error}
           hasFilters={hasFilters}
           toolbarContainer={toolsSlot}
+          hideExport
+          exportActionsRef={gridExportRef}
           onClick={selectTableRow}
           renderField={renderField}
         />

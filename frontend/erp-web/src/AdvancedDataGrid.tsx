@@ -15,6 +15,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type DragEvent as ReactDragEvent,
+  type MutableRefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Download, SlidersHorizontal } from "lucide-react";
@@ -83,7 +84,10 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   toolbarContainer?: HTMLElement | null;
   /** Hides the grid's own XLSX/CSV buttons when the page offers export elsewhere. */
   hideExport?: boolean;
+  /** Receives the grid's export functions while mounted, so the page can offer them (e.g. CSV in the actions menu). */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
+export type GridExportActions = { exportExcel: () => Promise<void>; exportCsv: () => void };
 type Row = {
   element: ReactElement<any>;
   key: string;
@@ -446,6 +450,7 @@ export default function AdvancedDataGrid({
   onEditRows,
   toolbarContainer,
   hideExport = false,
+  exportActionsRef,
   ...tableProps
 }: Props) {
   const tableElement = Children.toArray(children).find(
@@ -1031,6 +1036,17 @@ export default function AdvancedDataGrid({
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   usePageCommands({ export: { run: () => exportExcel() } }, "grid");
+  // Refreshed after every render so the page always calls the export over the current rows.
+  useLayoutEffect(() => {
+    if (!exportActionsRef) return;
+    exportActionsRef.current = { exportExcel, exportCsv };
+  });
+  useLayoutEffect(() => {
+    if (!exportActionsRef) return;
+    return () => {
+      exportActionsRef.current = null;
+    };
+  }, [exportActionsRef]);
   async function exportExcel() {
     const XLSX = await import("xlsx");
     const exportColumns = visibleColumns.filter((index) => !["işlemler", "actions"].includes((columns[index]?.label || "").trim().toLocaleLowerCase("tr-TR")));

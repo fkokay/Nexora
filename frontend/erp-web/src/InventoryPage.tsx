@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as IconPack from "lucide-react";
 import { X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import type * as AppTypes from "./erp-types";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand, submitRecordForm } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import MasterDataImportDialog from "./MasterDataImportDialog";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
@@ -2491,6 +2494,67 @@ export function InventoryPage({
         return null;
     }
   }
+  const formKey = useId();
+  const itemFormId = `inventory-item-form${formKey}`;
+  const transferFormId = `inventory-transfer-form${formKey}`;
+  const warehouseFormId = `inventory-warehouse-form${formKey}`;
+  const warehouseFieldsFormId = `inventory-warehouse-fields-form${formKey}`;
+  const customFieldValuesFormId = `inventory-custom-field-values-form${formKey}`;
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  // The RecordForm the bar's Kaydet submits (topmost first). While one is open F2 belongs to it
+  // (RecordFormPage saves on F2), so `new` is not registered then.
+  const openRecordForm: { id: string; busy: boolean; onSaveIntent?: (stay: boolean) => void } | null =
+    customFieldItem
+      ? { id: customFieldValuesFormId, busy: customFieldBusy }
+      : warehouseFieldTarget
+        ? { id: warehouseFieldsFormId, busy: warehouseFieldBusy }
+        : itemModal && (section === "inventory-stock-create" || !!editingItem)
+          ? { id: itemFormId, busy, onSaveIntent: setStayAfterItemSave }
+          : transferModal
+            ? { id: transferFormId, busy }
+            : warehouseModal
+              ? { id: warehouseFormId, busy, onSaveIntent: setStayAfterWarehouseSave }
+              : null;
+  const pageCommands: PageCommands = {};
+  if (openRecordForm) {
+    pageCommands.save = {
+      primary: true,
+      disabledReason: openRecordForm.busy ? "Kaydediliyor…" : undefined,
+      run: () => submitRecordForm(openRecordForm.id, openRecordForm.onSaveIntent),
+    };
+  } else if (section === "inventory-stock") {
+    pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
+  } else if (section === "inventory-warehouses") {
+    pageCommands.new = { primary: true, run: () => void openWarehouseModal() };
+  } else if (section === "inventory-transfers") {
+    pageCommands.new = {
+      primary: true,
+      disabledReason:
+        warehouses.filter((x) => x.isActive).length < 2
+          ? "Transfer için en az iki aktif depo gerekir"
+          : undefined,
+      run: () => void openTransferModal(),
+    };
+  }
+  // Former page-header actions; the list and its header are not shown while a stock card is edited.
+  if (!editingItem && section !== "inventory-stock-create") {
+    const more: MenuCommand[] = [];
+    if (section === "inventory-stock") {
+      if (role === "TenantAdmin") {
+        more.push({ id: "stock-categories", label: "Kategorileri yönet", run: () => void openCategoryManager() });
+        more.push({ id: "stock-import-csv", label: "CSV içe aktar", run: () => setImportOpen(true) });
+      }
+      more.push({ id: "stock-custom-fields", label: "Özel alanlar", run: () => setCustomFieldPickerOpen(true) });
+    }
+    if (section === "inventory-warehouses") {
+      if (role === "TenantAdmin" || role === "TenantDeveloper")
+        more.push({ id: "warehouse-field-catalog", label: "Depo alan tanımları", run: () => void openWarehouseFieldCatalog() });
+      more.push({ id: "warehouse-admin", label: "Depoları yönet", run: () => setWarehouseAdminModal(true) });
+    }
+    if (section !== "inventory-cost") more.push(csvExportCommand(gridExportRef));
+    pageCommands.more = more;
+  }
+  usePageCommands(pageCommands);
   return (
     <>
       {!editingItem && (
@@ -2528,70 +2592,7 @@ export function InventoryPage({
                       ? warehouses.length
                       : null
               }
-            >
-              {section === "inventory-transfers" && (
-                <button
-                  className="primary"
-                  disabled={warehouses.filter((x) => x.isActive).length < 2}
-                  onClick={openTransferModal}
-                >
-                  <IconPack.Plus size={16} /> Yeni transfer
-                </button>
-              )}
-              {section === "inventory-warehouses" && (
-                <>
-                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                    <button
-                      className="secondary"
-                      onClick={() => void openWarehouseFieldCatalog()}
-                    >
-                      Depo alan tanımları
-                    </button>
-                  )}
-                  <button
-                    className="secondary"
-                    onClick={() => setWarehouseAdminModal(true)}
-                  >
-                    Depoları yönet
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => void openWarehouseModal()}
-                  >
-                    <IconPack.Plus size={16} /> Depo ekle
-                  </button>
-                </>
-              )}
-              {section === "inventory-stock" && role === "TenantAdmin" && (
-                <button
-                  className="secondary"
-                  onClick={() => void openCategoryManager()}
-                >
-                  <IconPack.Settings size={16} /> Kategorileri yönet
-                </button>
-              )}
-              {section === "inventory-stock" && role === "TenantAdmin" && (
-                <button
-                  className="secondary"
-                  onClick={() => setImportOpen(true)}
-                >
-                  <IconPack.Upload size={15} /> CSV içe aktar
-                </button>
-              )}
-              {section === "inventory-stock" && (
-                <button className="secondary" onClick={() => setCustomFieldPickerOpen(true)}>
-                  Özel alanlar
-                </button>
-              )}
-              {section === "inventory-stock" && (
-                <button
-                  className="primary"
-                  onClick={() => onNavigate?.("inventory-stock-create")}
-                >
-                  <IconPack.Plus size={17} /> Yeni stok kartı
-                </button>
-              )}
-            </ListPageHeader>
+            />
           )}
           {section !== "inventory-stock-create" && error && (
             <div className="alert inline-alert">
@@ -2742,6 +2743,8 @@ export function InventoryPage({
               renderCell={renderStockScreenCell}
               pagination={renderInventoryPagination()}
               toolbarContainer={stockToolsSlot}
+              hideExport
+              exportActionsRef={gridExportRef}
             />
           )}
           {section === "inventory-warehouses" && (
@@ -2769,7 +2772,7 @@ export function InventoryPage({
                 {loading ? (
                   <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
                 ) : visibleWarehouses.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot} hideExport exportActionsRef={gridExportRef}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
                 )}
@@ -2799,7 +2802,7 @@ export function InventoryPage({
               </ListToolbar>
               <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
                 {visibleTransfers.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
+                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot} hideExport exportActionsRef={gridExportRef}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
                 ) : (
                   <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
                 )}
@@ -3017,6 +3020,7 @@ export function InventoryPage({
                   mode="edit"
                   busy={customFieldBusy}
                   saveLabel="Değerleri kaydet"
+                  formId={customFieldValuesFormId}
                   onSubmit={saveCustomFieldValues}
                   onCancel={() => setCustomFieldItem(null)}
                   error={error}
@@ -3376,7 +3380,7 @@ export function InventoryPage({
           mode={editingItem ? "edit" : "create"}
           busy={busy}
           saveLabel={editingItem ? "Değişiklikleri Kaydet" : "Stok Kartını Kaydet"}
-          formId="inventory-item-create-form"
+          formId={itemFormId}
           onSubmit={createItem}
           onCancel={closeItemForm}
           onSaveIntent={setStayAfterItemSave}
@@ -3902,6 +3906,7 @@ export function InventoryPage({
               mode="create"
               busy={busy}
               saveLabel="Transferi kaydet"
+              formId={transferFormId}
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!transferReady) {
@@ -4201,6 +4206,7 @@ export function InventoryPage({
               mode="create"
               busy={busy}
               saveLabel="Depo oluştur"
+              formId={warehouseFormId}
               onSubmit={createWarehouse}
               onCancel={() => setWarehouseModal(false)}
               onSaveIntent={setStayAfterWarehouseSave}
@@ -4665,6 +4671,7 @@ export function InventoryPage({
               mode="edit"
               busy={warehouseFieldBusy}
               saveLabel="Değerleri kaydet"
+              formId={warehouseFieldsFormId}
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!warehouseFieldTarget.isActive) {

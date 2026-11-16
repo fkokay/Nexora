@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import AdvancedDataGrid from '../AdvancedDataGrid';
+import AdvancedDataGrid, { type GridExportActions } from '../AdvancedDataGrid';
 import { ListToolbar } from '../list-page/ListToolbar';
 import { CommandProvider, useActivePageCommands, usePageCommands } from './CommandProvider';
 import { useCommandRegistry } from './CommandProvider';
@@ -142,6 +142,23 @@ describe('fallback commands', () => {
     );
     expect(active?.filter).toBeUndefined();
     expect(active?.refresh).toBeDefined();
+  });
+
+  it('grid hands its export functions to exportActionsRef while mounted', () => {
+    const ref: { current: GridExportActions | null } = { current: null };
+    const { unmount } = render(
+      <CommandProvider>
+        <AdvancedDataGrid hideExport exportActionsRef={ref}>
+          <thead><tr><th>Ad</th></tr></thead>
+          <tbody><tr><td>Ali</td></tr></tbody>
+        </AdvancedDataGrid>
+      </CommandProvider>,
+    );
+    expect(ref.current?.exportCsv).toBeTypeOf('function');
+    expect(ref.current?.exportExcel).toBeTypeOf('function');
+    expect(screen.queryByRole('button', { name: 'CSV' })).toBeNull();
+    unmount();
+    expect(ref.current).toBeNull();
   });
 
   it('page command overrides grid export', () => {

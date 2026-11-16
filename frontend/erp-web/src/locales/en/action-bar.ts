@@ -23,6 +23,9 @@ export const english: Record<string, string> = {
   'Sonraki ekran': 'Next screen',
   'Önceki ekran': 'Previous screen',
   'Kısayol yardımı': 'Shortcut help',
+  'Önce bir kayıt seçin': 'Select a record first',
+  'CSV olarak dışa aktar': 'Export as CSV',
+  'Transfer için en az iki aktif depo gerekir': 'A transfer needs at least two active warehouses',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []
