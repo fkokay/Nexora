@@ -278,4 +278,48 @@
   .sp-grant {
     grid-template-columns: 1fr;
   }
+
+  /* Proje tablosu dar ekranda kart listesi olur: ad, ardından dal/rol/GitHub, en altta işlemler. */
+  .sp-projects .sp-table-wrap {
+    overflow: visible;
+    border: 0;
+  }
+  .sp-projects .sp-table {
+    min-width: 0;
+  }
+  .sp-projects .sp-table thead {
+    display: none;
+  }
+  .sp-projects .sp-table tbody {
+    display: grid;
+    gap: var(--ns-space-2);
+  }
+  .sp-projects .sp-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px var(--ns-space-2);
+    padding: var(--ns-space-3);
+    border: 1px solid var(--ns-line);
+    border-radius: var(--ns-radius-sm);
+  }
+  .sp-projects .sp-table td {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sp-projects .sp-table tbody tr:hover td {
+    background: none;
+  }
+  .sp-projects .sp-table td:first-child,
+  .sp-projects .sp-table td:last-child {
+    flex-basis: 100%;
+  }
+  .sp-projects .sp-project-name small {
+    max-width: 100%;
+  }
+  .sp-projects .sp-row-actions {
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
 }
