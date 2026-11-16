@@ -132,7 +132,8 @@ let monacoReady: Promise<MonacoApi> | null = null;
 
 // Monaco ve çalışanları yerel paketten, ayrı parçalar halinde yüklenir.
 // CDN kullanılmaz; Editor bileşeni bu söz tamamlanmadan bağlanmaz.
-function loadMonaco() {
+// Sayfa tasarımcısının SQL editörü de aynı kurulumu kullanır.
+export function loadMonaco() {
   monacoReady ??= (async () => {
     // Çalışanlar Vite'ın `new Worker(new URL(...))` kalıbıyla ayrı dosyalar
     // olarak paketlenir ve aynı kaynaktan yüklenir. `?worker` modüllerinin

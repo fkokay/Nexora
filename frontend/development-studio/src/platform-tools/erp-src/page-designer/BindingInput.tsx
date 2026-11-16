@@ -1,0 +1,112 @@
+import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+
+export type BindingSuggestion = { path: string; detail: string };
+
+type Props = {
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: BindingSuggestion[];
+  multiline?: boolean;
+  placeholder?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  invalid?: boolean;
+};
+
+/** İmlecin önündeki kapanmamış "{{" ifadesini bulur: başlangıç konumu ve yazılan yol öneki. */
+function openExpression(text: string, caret: number): { start: number; prefix: string } | null {
+  const before = text.slice(0, caret);
+  const start = before.lastIndexOf("{{");
+  if (start < 0 || before.indexOf("}}", start) >= 0) return null;
+  const prefix = before.slice(start + 2).trimStart();
+  return /^[A-Za-z0-9_.[\]]*$/.test(prefix) ? { start, prefix } : null;
+}
+
+/**
+ * Bağlanabilir alan girişi: değer monospace yazılır, "{{" yazılınca değişken önerileri açılır.
+ * Öneri listesi sağ paneldeki taşma kırpmasından etkilenmesin diye gövdeye sabit konumla çizilir.
+ */
+export default function BindingInput({ value, onChange, suggestions, multiline = false, placeholder, ariaLabel, disabled = false, invalid = false }: Props) {
+  const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const [expression, setExpression] = useState<{ start: number; prefix: string } | null>(null);
+  const [active, setActive] = useState(0);
+  const [position, setPosition] = useState<CSSProperties | null>(null);
+  const pendingCaret = useRef<number | null>(null);
+
+  const prefix = expression?.prefix.toLowerCase() ?? "";
+  const matches = expression ? suggestions.filter((item) => item.path.toLowerCase().startsWith(prefix) || (prefix.length > 1 && item.path.toLowerCase().includes(prefix))).slice(0, 40) : [];
+  const open = !!expression && matches.length > 0 && !disabled;
+
+  useLayoutEffect(() => {
+    if (pendingCaret.current != null && fieldRef.current) {
+      fieldRef.current.setSelectionRange(pendingCaret.current, pendingCaret.current);
+      pendingCaret.current = null;
+    }
+  });
+  useLayoutEffect(() => {
+    if (!open || !fieldRef.current) { setPosition(null); return; }
+    const place = () => {
+      const rect = fieldRef.current!.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      setPosition(below > 220 || below > rect.top
+        ? { position: "fixed", left: rect.left, top: rect.bottom + 4, width: Math.max(rect.width, 240) }
+        : { position: "fixed", left: rect.left, bottom: window.innerHeight - rect.top + 4, width: Math.max(rect.width, 240) });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
+
+  const refresh = (text: string, caret: number | null) => {
+    const next = caret == null ? null : openExpression(text, caret);
+    setExpression(next);
+    if (next?.prefix !== expression?.prefix) setActive(0);
+  };
+  const choose = (suggestion: BindingSuggestion) => {
+    const field = fieldRef.current;
+    if (!field || !expression) return;
+    const caret = field.selectionStart ?? value.length;
+    // Hemen sonra gelen "}}" varsa tekrar eklenmez.
+    const rest = value.slice(caret).replace(/^\s*\}\}/, "");
+    const inserted = `{{${suggestion.path}}}`;
+    const next = value.slice(0, expression.start) + inserted + rest;
+    pendingCaret.current = expression.start + inserted.length;
+    setExpression(null);
+    onChange(next);
+    field.focus();
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (!open) return;
+    if (event.key === "ArrowDown") { event.preventDefault(); setActive((index) => (index + 1) % matches.length); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => (index - 1 + matches.length) % matches.length); }
+    else if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); choose(matches[Math.min(active, matches.length - 1)]); }
+    else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setExpression(null); }
+  };
+
+  const common = {
+    ref: fieldRef,
+    className: `pd-binding-input${invalid ? " is-invalid" : ""}`,
+    value,
+    placeholder,
+    disabled,
+    spellCheck: false,
+    "aria-label": ariaLabel,
+    "aria-autocomplete": "list" as const,
+    "aria-expanded": open,
+    onKeyDown,
+    onBlur: () => setExpression(null),
+    onClick: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement }) => refresh(event.currentTarget.value, event.currentTarget.selectionStart),
+    onChange: (event: { target: HTMLInputElement | HTMLTextAreaElement }) => { onChange(event.target.value); refresh(event.target.value, event.target.selectionStart); },
+  };
+  return <>
+    {multiline ? <textarea rows={3} {...common} /> : <input {...common} />}
+    {open && position && createPortal(<ul className="pd-binding-suggestions" role="listbox" aria-label="Değişken önerileri" style={position}>
+      {matches.map((item, index) => <li key={item.path} role="option" aria-selected={index === active} className={index === active ? "is-active" : ""}
+        onMouseDown={(event) => { event.preventDefault(); choose(item); }} onMouseEnter={() => setActive(index)}>
+        <code>{item.path}</code><small>{item.detail}</small>
+      </li>)}
+    </ul>, document.body)}
+  </>;
+}
