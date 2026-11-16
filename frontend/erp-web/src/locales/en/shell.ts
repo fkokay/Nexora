@@ -1,19 +1,11 @@
-/** English text for the application frame: module sub-menu titles and groups. Keys are exact Turkish source texts. */
+/** English text for the application frame. Keys are exact Turkish source texts.
+ * The sub-menu renders its module titles from [tr, en] tuples (shell/moduleMenus.ts); the other titles
+ * ("Stok", "Depo", "Finans", "Özel", "Tanımlar" …) already have entries in earlier dictionaries. */
 export const english: Record<string, string> = {
   'Modül menüsü': 'Module menu',
-  'Özel': 'Custom',
-  'Cari Hesaplar': 'Customer accounts',
-  'Stok': 'Inventory',
-  'Depo': 'Warehousing',
-  'Satış': 'Sales',
-  'Satın Alma': 'Purchasing',
-  'Finans': 'Finance',
-  'Üretim': 'Production',
-  'İnsan Kaynakları': 'Human resources',
   'Duran Varlıklar': 'Fixed assets',
   'Dış Ticaret': 'Foreign trade',
   'Raporlar': 'Reports',
-  'Tanımlar': 'Definitions',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []

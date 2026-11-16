@@ -37,8 +37,20 @@ export function WorkspaceTabs({
     ...tabs.filter((tab) => tab.id !== "dashboard"),
   ];
   const homeActive = activeId === "launcher" || activeId === "dashboard";
+  // The strip scrolls sideways inside the top bar; keep the active screen's tab in view.
+  const stripRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    const tab = strip?.querySelector<HTMLElement>(".workspace-tab.active");
+    if (!strip || !tab) return;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < stripBox.left) strip.scrollLeft -= stripBox.left - tabBox.left;
+    else if (tabBox.right > stripBox.right) strip.scrollLeft += tabBox.right - stripBox.right;
+  }, [activeId, tabs.length]);
   return (
     <nav
+      ref={stripRef}
       className="workspace-tabs"
       aria-label={locale === "en" ? "Open screens" : "Açık ekranlar"}
     >

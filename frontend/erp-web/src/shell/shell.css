@@ -438,3 +438,9 @@
   #root .app-shell:not(.standalone-studio) .top-actions { gap: 2px; }
   #root .app-shell:not(.standalone-studio) .topbar .tenant-context { max-width: 120px; }
 }
+
+/* Embedded Studio tool (iframe): the top bar stays hidden as before except for the open-screen tabs,
+   and the sub-menu is not shown (it stays mounted for the search index). */
+html.embedded-studio-tool #root .app-shell:not(.standalone-studio) .topbar { display: flex !important; }
+html.embedded-studio-tool #root .app-shell:not(.standalone-studio) .topbar > :not(.topbar-tabs) { display: none; }
+html.embedded-studio-tool #root .app-shell:not(.standalone-studio) > .workspace-subnav { display: none; }
