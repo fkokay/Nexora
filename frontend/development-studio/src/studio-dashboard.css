@@ -448,6 +448,10 @@ button.st-tenant-box:hover:not(:disabled) {
   margin: 0 auto;
   padding: var(--ns-space-5) var(--ns-space-5) 48px;
 }
+/* Sayfa tasarımcısı üç panelli bir çalışma alanı: içerik sınırını kaldır. */
+.st-content:has(.studio-native-tool .pd-shell) {
+  max-width: none;
+}
 
 /* ---------- Sayfa başlığı, KPI, kart, tablo ---------- */
 .st-page-head > div:first-child {
