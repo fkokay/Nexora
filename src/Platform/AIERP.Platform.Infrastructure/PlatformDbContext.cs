@@ -3156,6 +3156,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasIndex(x => new { x.TenantId, x.PageCode }).IsUnique();
             e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
             e.Property(x => x.Mode).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(x => x.Users).WithOne().HasForeignKey(x => x.AccessId).OnDelete(DeleteBehavior.Cascade);
         });

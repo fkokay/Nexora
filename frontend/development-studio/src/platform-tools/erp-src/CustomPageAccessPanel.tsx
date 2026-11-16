@@ -27,10 +27,7 @@ const signature = (draft: Draft) => JSON.stringify({
 });
 
 async function call<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await authenticatedFetch(url, token, {
-    ...init,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...init?.headers },
-  });
+  const response = await authenticatedFetch(url, token, init);
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string } | null;
     const error = new Error(body?.error || body?.detail || body?.title || `İstek başarısız (${response.status})`) as Error & { status?: number };

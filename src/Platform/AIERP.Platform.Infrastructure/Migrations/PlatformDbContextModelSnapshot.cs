@@ -19629,6 +19629,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nvarchar(80)");
 
                     b.Property<int>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -20,7 +21,7 @@ internal static class CustomPageAccessEndpoints
         pages.MapGet("/{code}/access", async (string code, ClaimsPrincipal user, PlatformDbContext platformDb,
             TenantDbContext tenantDb, CancellationToken ct) =>
         {
-            if (!TryAdminContext(user, out var tenant, out _)) return Results.Forbid();
+            if (await AdminContextAsync(user, platformDb, ct) is not var (tenant, _)) return Results.Forbid();
             if (!TenantCustomPageEndpoints.ValidCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
             var pageCode = await FindPageCodeAsync(tenantDb, tenant, code, ct);
             if (pageCode is null) return Results.NotFound();
@@ -32,7 +33,7 @@ internal static class CustomPageAccessEndpoints
         pages.MapPut("/{code}/access", async (string code, CustomPageAccessRequest? request, ClaimsPrincipal user,
             PlatformDbContext platformDb, TenantDbContext tenantDb, CancellationToken ct) =>
         {
-            if (!TryAdminContext(user, out var tenant, out var userId)) return Results.Forbid();
+            if (await AdminContextAsync(user, platformDb, ct) is not var (tenant, userId)) return Results.Forbid();
             if (!TenantCustomPageEndpoints.ValidCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             var pageCode = await FindPageCodeAsync(tenantDb, tenant, code, ct);
@@ -95,10 +96,13 @@ internal static class CustomPageAccessEndpoints
             {
                 await platformDb.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex) when (IsConflict(ex))
             {
-                // A concurrent save won the unique (TenantId, PageCode) or (TenantId, PageCode, Revision) index.
-                return Results.Conflict(new { error = "Erişim ayarları başka biri tarafından değiştirildi. Son sürümü yeniden yükleyin." });
+                // A concurrent save won the Revision concurrency token or the unique (TenantId, PageCode)
+                // / (TenantId, PageCode, Revision) index; any other database failure is not a conflict.
+                var latest = await platformDb.TenantCustomPageAccesses.AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.PageCode == pageCode).Select(x => x.Revision).SingleOrDefaultAsync(ct);
+                return Results.Conflict(new { error = "Erişim ayarları başka biri tarafından değiştirildi. Son sürümü yeniden yükleyin.", currentRevision = latest });
             }
             return Results.Ok(view);
         });
@@ -127,12 +131,20 @@ internal static class CustomPageAccessEndpoints
             access.AllUsersCanDelete, access.Revision, users);
     }
 
-    private static bool TryAdminContext(ClaimsPrincipal user, out Guid tenant, out Guid userId)
+    /// <summary>True for optimistic-concurrency failures and SQL Server unique-index violations (2601/2627).</summary>
+    internal static bool IsConflict(DbUpdateException exception) =>
+        exception is DbUpdateConcurrencyException
+        || exception.GetBaseException() is SqlException { Number: 2601 or 2627 };
+
+    /// <summary>Tenant and user from the verified claims, but only when the membership row is still TenantAdmin.</summary>
+    private static async Task<(Guid Tenant, Guid UserId)?> AdminContextAsync(ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct)
     {
-        userId = default;
-        return Guid.TryParse(user.FindFirstValue("tenant_id"), out tenant)
-            && Guid.TryParse(user.FindFirstValue("sub"), out userId)
-            && user.FindFirstValue("role") == "TenantAdmin";
+        if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenant)
+            || !Guid.TryParse(user.FindFirstValue("sub"), out var userId)
+            || user.FindFirstValue("role") != "TenantAdmin") return null;
+        var isAdmin = await platformDb.TenantMemberships.AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.UserId == userId && x.Role == "TenantAdmin", ct);
+        return isAdmin ? (tenant, userId) : null;
     }
 }
 

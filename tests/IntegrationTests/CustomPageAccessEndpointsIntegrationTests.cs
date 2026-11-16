@@ -179,6 +179,43 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Access_endpoints_rechecks_membership_role_instead_of_trusting_the_claim()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        await CreatePageAsync(client);
+
+        // Ayse's token claims TenantAdmin, but her membership row says TenantUser.
+        SetIdentity(client, TenantA, Ayse, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/custom-pages/{Code}/access")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access",
+            new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Stale_revision_conflict_reports_current_revision()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+        await CreatePageAsync(client);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
+
+        var conflict = await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AllUsers", expectedRevision = 0 });
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal(1, (await conflict.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("currentRevision").GetInt32());
+    }
+
+    [Fact]
+    public void IsConflict_maps_only_concurrency_and_unique_violations()
+    {
+        Assert.True(CustomPageAccessEndpoints.IsConflict(new DbUpdateConcurrencyException("stale")));
+        Assert.False(CustomPageAccessEndpoints.IsConflict(new DbUpdateException("other", new InvalidOperationException("boom"))));
+        Assert.False(CustomPageAccessEndpoints.IsConflict(new DbUpdateException("no inner")));
+    }
+
+    [Fact]
     public async Task Get_access_omits_removed_members()
     {
         await using var app = await StartApplicationAsync();

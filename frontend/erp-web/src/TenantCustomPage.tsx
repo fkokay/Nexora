@@ -1,7 +1,6 @@
 import { type CSSProperties, type FormEvent, useEffect, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { api } from "./erpApi";
-import { authenticatedFetch } from "./authApi";
 import TenantReportWidget from "./TenantReportWidget";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import "./tenant-custom-page.css";
@@ -153,13 +152,11 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
       ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview`
       : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
     // api() maps every 403 to a generic text; the published endpoint's own 403 message
-    // ("Bu sayfayı görüntüleme yetkiniz yok.") is the one users should see.
+    // ("Bu sayfayı görüntüleme yetkiniz yok.") travels on the error as serverError.
     void api<PublishedPage>(endpoint, token)
-      .catch(async (cause: unknown) => {
-        if ((cause as Error).message !== "Bu işlem için yetkiniz yok.") throw cause;
-        const response = await authenticatedFetch(endpoint, token);
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(payload?.error || (cause as Error).message);
+      .catch((cause: unknown) => {
+        const failure = cause as Error & { status?: number; serverError?: string };
+        throw failure.status === 403 && failure.serverError ? new Error(failure.serverError) : cause;
       })
       .then((result) => {
         if (!active) return;
