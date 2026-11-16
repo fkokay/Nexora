@@ -12,6 +12,8 @@ import "./form-design-system.css";
 import "./page-design-polish.css";
 import "./dark-theme-surfaces.css";
 import "./modal-usability.css";
+// The app frame is styled last so it is the single source for rail, sub-menu and top bar.
+import "./shell/shell.css";
 import { installModalBehavior } from "./modalBehavior";
 import { ConfirmDialogHost } from "./confirmDialog";
 

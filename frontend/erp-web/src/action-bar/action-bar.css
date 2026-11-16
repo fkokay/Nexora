@@ -1,4 +1,6 @@
 .nx-action-bar {
+  /* Contains the absolutely positioned screen-reader reasons, which otherwise widen the page at 390px. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 2px;

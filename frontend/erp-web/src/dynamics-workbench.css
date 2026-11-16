@@ -1,19 +1,7 @@
 /* Dynamics-inspired ERP workbench shell and home dashboard. */
-.app-shell:not(.standalone-studio) .topbar{background:#092e56;color:#fff;border-color:#173f69;box-shadow:0 2px 8px #092e5618}
-.app-shell:not(.standalone-studio) .crumb,.app-shell:not(.standalone-studio) .crumb b,.app-shell:not(.standalone-studio) .crumb .slash{color:#e7f0fb}
-.app-shell:not(.standalone-studio) .crumb .slash{opacity:.58}
-.app-shell:not(.standalone-studio) .topbar .icon-button,.app-shell:not(.standalone-studio) .topbar .theme-toggle{color:#dce9f8}
-.app-shell:not(.standalone-studio) .topbar .icon-button:hover{background:#ffffff18;color:#fff}
-.app-shell:not(.standalone-studio) .topbar .global-search{background:#ffffff16;border-color:#ffffff27;color:#dce9f8}
-.app-shell:not(.standalone-studio) .topbar .global-search kbd{background:#ffffff18;color:#fff}
-.app-shell:not(.standalone-studio) .topbar .locale-switch{background:#ffffff16;border-color:#ffffff27}
-.app-shell:not(.standalone-studio) .topbar .locale-switch button{color:#dce9f8}
-.app-shell:not(.standalone-studio) .topbar .locale-switch button[aria-pressed=true]{background:#fff;color:#0b3764;box-shadow:0 1px 3px #071e382a}
 .app-shell:not(.standalone-studio) .developer-mode-trigger{color:#e7f0fb;border-color:#ffffff35;background:#ffffff12}
 .app-shell:not(.standalone-studio) .developer-mode-trigger:hover{background:#ffffff22}
-.app-shell:not(.standalone-studio) .nav-item.active{background:#eaf3ff;color:#0864c3;box-shadow:inset 3px 0 #0876e8}
-.app-shell:not(.standalone-studio) .nav-item.active svg{color:#0876e8}
-.app-shell:not(.standalone-studio) .nav-item:hover,.app-shell:not(.standalone-studio) .finance-subnav-item:hover,.app-shell:not(.standalone-studio) .finance-subnav-item.active{background:#f0f6fd;color:#0864c3}
+.app-shell:not(.standalone-studio) .finance-subnav-item:hover,.app-shell:not(.standalone-studio) .finance-subnav-item.active {background:#f0f6fd;color:#0864c3}
 .app-shell:not(.standalone-studio) .side-brand strong,.app-shell:not(.standalone-studio) .eyebrow{color:#0876e8}
 .app-shell:not(.standalone-studio) .primary{background:#0876e8;box-shadow:0 3px 9px #0876e82b}
 .app-shell:not(.standalone-studio) .primary:hover{background:#0668d0}
@@ -130,19 +118,8 @@
 @media(max-width:720px){.erp-home-heading{align-items:flex-start;flex-direction:column}.erp-home-heading-actions{width:100%}.erp-home-heading-actions button{flex:1}.erp-home-tabs{overflow-x:auto;gap:19px}.erp-home-tabs button{white-space:nowrap}.erp-home-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-home-kpis .metric-card{padding:12px}.erp-home-side-panels{grid-template-columns:1fr}.erp-home-note{grid-column:auto}.erp-home-main-panel .dashboard-widgets{padding:12px}}
 
 /* Keep the ERP command bar calm and legible at narrow desktop widths. */
-.app-shell:not(.standalone-studio) .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;height:58px;margin-left:0;padding-inline:clamp(14px,2vw,28px);overflow:visible}
-.app-shell:not(.standalone-studio) .crumb{display:flex;align-items:center;gap:9px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden}
-.app-shell:not(.standalone-studio) .crumb>span,.app-shell:not(.standalone-studio) .crumb .slash{flex:none}
-.app-shell:not(.standalone-studio) .crumb>b{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.app-shell:not(.standalone-studio) .top-actions{display:flex;align-items:center;flex:0 0 auto;flex-wrap:nowrap;gap:7px;min-width:0}
 .app-shell:not(.standalone-studio) .developer-mode-trigger{display:inline-flex;flex:none;align-items:center;gap:7px;height:34px;padding:0 10px;border:1px solid transparent;border-radius:6px;background:transparent;color:#e7f0fb;font-size:10px;white-space:nowrap}
 .app-shell:not(.standalone-studio) .developer-mode-trigger:hover,.app-shell:not(.standalone-studio) .developer-mode-trigger[aria-expanded=true]{border-color:#ffffff20;background:#ffffff12}
-.app-shell:not(.standalone-studio) .topbar .theme-toggle,.app-shell:not(.standalone-studio) .topbar .notification{width:34px;height:34px;flex:none;border:0;border-radius:6px;background:transparent;color:#dce9f8}
-.app-shell:not(.standalone-studio) .topbar .locale-switch{display:flex;flex:none;gap:2px;padding:2px;border:1px solid #ffffff1d;border-radius:6px;background:#ffffff0d}
-.app-shell:not(.standalone-studio) .topbar .locale-switch button{min-width:28px;height:25px;padding:0 6px;border-radius:4px;font-size:9px}
-.app-shell:not(.standalone-studio) .topbar .global-search{display:flex;flex:0 1 205px;min-width:145px;width:clamp(145px,18vw,205px);height:34px;gap:8px;padding-inline:10px;border:1px solid #ffffff20;border-radius:6px;background:#ffffff0d;color:#dce9f8}
-.app-shell:not(.standalone-studio) .topbar .global-search span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.app-shell:not(.standalone-studio) .topbar .global-search kbd{flex:none;margin-left:auto;padding:3px 5px;border-radius:4px;background:#ffffff12;color:#fff;font-size:8px}
 .app-shell:not(.standalone-studio) .top-avatar{flex:none;width:30px;height:30px;border:1px solid #ffffff2a;border-radius:50%;background:var(--nx-primary);color:var(--nx-on-primary)}
 .app-shell:not(.standalone-studio) .profile-menu-wrap{position:relative;flex:none}
 .app-shell:not(.standalone-studio) .top-avatar{display:grid;place-items:center;padding:0;font-size:12px;font-weight:700;cursor:pointer}
@@ -155,8 +132,6 @@
 .app-shell:not(.standalone-studio) .profile-dropdown>button:hover{background:#f2f6fb;color:#0864c3}
 .app-shell:not(.standalone-studio) .profile-dropdown>button.profile-dropdown-signout{margin-top:4px;border-top:1px solid #edf1f5;border-radius:0 0 6px 6px;color:#bd4350}
 .app-shell:not(.standalone-studio) .profile-dropdown>button.profile-dropdown-signout:hover{background:#fff2f3;color:#a92f3c}
-@media(max-width:1180px){.app-shell:not(.standalone-studio) .topbar{gap:8px;padding-inline:14px}.app-shell:not(.standalone-studio) .top-actions{gap:4px}.app-shell:not(.standalone-studio) .topbar .global-search{flex-basis:145px;min-width:125px;width:145px}}
-@media(max-width:900px){.app-shell:not(.standalone-studio) .topbar .developer-mode-trigger span{display:none}.app-shell:not(.standalone-studio) .topbar .developer-mode-trigger{width:34px;justify-content:center;padding:0}.app-shell:not(.standalone-studio) .topbar .global-search{flex:0 0 36px;min-width:36px;width:36px;justify-content:center;padding:0;border-color:transparent;background:transparent}.app-shell:not(.standalone-studio) .topbar .global-search span,.app-shell:not(.standalone-studio) .topbar .global-search kbd{display:none}}
 
 /* Customer directory: fit the core columns at desktop widths and preserve readable boundaries. */
 .customer-directory-grid.advanced-grid-table{width:100%;min-width:1000px;table-layout:auto}
@@ -241,8 +216,6 @@ html[data-theme="dark"] .customer-company-hierarchy small{color:var(--erp-muted)
 .customer-code-link { padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .customer-code-link:hover { color: #0f6cbd; text-decoration: underline; }
 .customer-code-link:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; border-radius: 2px; }
-.global-search{cursor:pointer;text-align:left;font:inherit}
-.global-search:hover{background:#ffffff20;border-color:#ffffff45}
 .global-search-backdrop{z-index:20;align-items:start;padding:15vh 20px 20px}
 .global-search-dialog{width:min(560px,100%);max-height:min(70vh,620px);overflow:hidden;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:14px;box-shadow:0 24px 80px #0b1d3540;color:var(--erp-text);display:flex;flex-direction:column}
 .global-search-input-row{height:58px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--erp-border);color:#7c8798}

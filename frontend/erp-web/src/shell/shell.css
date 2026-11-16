@@ -1,0 +1,440 @@
+/* Application frame (spec §5.4, draft 01): 58px icon rail, ~178px module sub-menu, 44px top bar
+   with the open-screen tabs. Single source of truth for these regions; imported last in main.tsx.
+   Widths (spec §9): ≥1280 rail + sub-menu; <1280 rail only; ≤760 the rail becomes a bottom bar. */
+
+#root .app-shell:not(.standalone-studio) {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+#root .app-shell:not(.standalone-studio) > .main-area {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 0;
+}
+
+/* ---- Icon rail ---------------------------------------------------------- */
+#root .app-shell:not(.standalone-studio) > .workspace-rail {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  display: flex;
+  flex: 0 0 58px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 58px;
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: var(--nx-ink);
+}
+#root .workspace-rail::-webkit-scrollbar { display: none; }
+#root .workspace-rail-brand {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--nx-primary);
+  color: var(--nx-on-primary);
+}
+#root .workspace-rail > nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+#root .workspace-rail-item,
+#root .workspace-rail-edit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--nx-on-primary) 55%, var(--nx-ink));
+  cursor: pointer;
+}
+#root .workspace-rail-item:hover,
+#root .workspace-rail-edit:hover {
+  background: var(--nx-ink-2);
+  color: var(--nx-on-primary);
+}
+#root .workspace-rail-item.active {
+  background: var(--nx-ink-2);
+  color: var(--nx-on-primary);
+  /* .app-shell * clears box-shadow with !important; the active bar must survive it. */
+  box-shadow: inset 3px 0 0 var(--nx-primary) !important;
+}
+#root .workspace-rail-item:focus-visible,
+#root .workspace-rail-edit:focus-visible {
+  outline: 2px solid var(--nx-primary-on-ink);
+  outline-offset: 1px;
+}
+#root .workspace-rail-edit { margin-top: auto; }
+
+/* Personal menu editor (order / hidden items). */
+#root .workspace-rail-editor-backdrop { position: fixed; z-index: 1600; inset: 0; display: grid; align-items: end; justify-items: start; padding: 16px 0 16px 70px; background: color-mix(in srgb, var(--nx-ink) 38%, transparent); backdrop-filter: blur(3px); }
+#root .workspace-rail-editor { display: flex; flex-direction: column; width: min(390px, calc(100vw - 86px)); max-height: min(760px, calc(100vh - 32px)); overflow: hidden; border: 1px solid var(--nx-line); border-radius: 12px; background: var(--nx-surface); color: var(--nx-text); }
+#root .workspace-rail-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 18px 12px; }
+#root .workspace-rail-editor > header small { color: var(--nx-primary-strong); font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+#root .workspace-rail-editor > header h2 { margin: 4px 0 0; font-size: 19px; }
+#root .workspace-rail-editor > header button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--nx-line); border-radius: 8px; background: var(--nx-surface); color: var(--nx-muted); cursor: pointer; }
+#root .workspace-rail-editor > p { margin: 0; padding: 0 18px 13px; color: var(--nx-muted); font-size: 11px; line-height: 1.5; }
+#root .workspace-rail-editor ol { display: grid; gap: 5px; overflow: auto; margin: 0; padding: 0 12px 12px; list-style: none; }
+#root .workspace-rail-editor li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 5px 7px 5px 10px; border: 1px solid var(--nx-line-soft); border-radius: 9px; background: var(--nx-surface); }
+#root .workspace-rail-editor li.is-hidden { opacity: .58; background: var(--nx-canvas); }
+#root .workspace-rail-editor-item { display: flex; align-items: center; gap: 9px; min-width: 0; color: var(--nx-text); font-size: 11px; }
+#root .workspace-rail-editor-item svg { flex: 0 0 auto; color: var(--nx-primary-strong); }
+#root .workspace-rail-editor-item b { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+#root .workspace-rail-editor-actions { display: flex; flex: 0 0 auto; gap: 4px; }
+#root .workspace-rail-editor-actions button { display: grid; width: 29px; height: 29px; place-items: center; border: 1px solid var(--nx-line); border-radius: 7px; background: var(--nx-surface); color: var(--nx-muted); cursor: pointer; }
+#root .workspace-rail-editor-actions button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--nx-primary) 24%, var(--nx-surface)); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+#root .workspace-rail-editor-actions button:disabled { opacity: .34; cursor: default; }
+#root .workspace-rail-editor-error { margin: 0 16px 10px; padding: 8px 10px; border: 1px solid var(--nx-bad); border-radius: 7px; background: var(--nx-bad-bg); color: var(--nx-bad); font-size: 11px; }
+#root .workspace-rail-editor > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--nx-line-soft); background: var(--nx-canvas); }
+#root .workspace-rail-editor > footer button { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 11px; }
+
+/* ---- Module sub-menu ---------------------------------------------------- */
+#root .app-shell:not(.standalone-studio) > .workspace-subnav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex: 0 0 178px;
+  width: 178px;
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--nx-line);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 12.5px;
+}
+/* Screens outside every module, with no tenant entries either, have nothing to list. */
+#root .app-shell:not(.standalone-studio) > .workspace-subnav:not(:has(button)) { display: none; }
+#root .workspace-subnav-title { padding: 2px 8px 10px; font-size: 13.5px; font-weight: 650; }
+#root .workspace-subnav nav { display: grid; gap: 1px; }
+#root .workspace-subnav-item,
+#root .workspace-subnav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: auto;
+  min-height: 28px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-text);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+#root .workspace-subnav-item:hover,
+#root .workspace-subnav .nav-item:hover {
+  background: var(--nx-canvas);
+  color: var(--nx-text);
+}
+#root .workspace-subnav-item.active,
+#root .workspace-subnav .nav-item.active {
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+  font-weight: 600;
+}
+#root .workspace-subnav-item:focus-visible,
+#root .workspace-subnav .nav-item:focus-visible {
+  outline: 2px solid var(--nx-primary);
+  outline-offset: -2px;
+}
+#root .workspace-subnav .nav-item svg { flex: none; color: var(--nx-muted); }
+#root .workspace-subnav .nav-item.active svg { color: var(--nx-primary-strong); }
+#root .workspace-subnav .nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .workspace-subnav .custom-menu-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--nx-primary); }
+#root .workspace-subnav-custom:not(:has(.nav-item)) { display: none; }
+/* One "Özel" heading covers tenant modules and custom menus. */
+#root .workspace-subnav-custom .side-label { display: none; }
+#root .workspace-subnav-group {
+  margin: 14px 8px 4px;
+  color: var(--nx-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+#root .workspace-subnav-custom:first-child .workspace-subnav-group { margin-top: 2px; }
+
+@media (max-width: 1279.98px) {
+  #root .app-shell:not(.standalone-studio) > .workspace-subnav { display: none; }
+}
+
+/* ---- Top bar ------------------------------------------------------------ */
+#root .app-shell:not(.standalone-studio) .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-size: 12px;
+}
+#root .app-shell:not(.standalone-studio) .topbar .global-search {
+  display: flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: var(--nx-canvas);
+  color: var(--nx-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+#root .app-shell:not(.standalone-studio) .topbar .global-search > span { flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+#root .app-shell:not(.standalone-studio) .topbar .global-search kbd {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font: 10px var(--nx-font-mono);
+  white-space: nowrap;
+}
+#root .app-shell:not(.standalone-studio) .topbar .global-search:hover { border-color: color-mix(in srgb, var(--nx-primary) 35%, var(--nx-line)); }
+
+#root .app-shell:not(.standalone-studio) .topbar-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: stretch;
+  align-items: flex-end;
+  min-width: 0;
+}
+#root .app-shell:not(.standalone-studio) .top-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+#root .app-shell:not(.standalone-studio) .tenant-context-wrap { position: relative; min-width: 0; }
+#root .app-shell:not(.standalone-studio) .topbar .tenant-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+#root .app-shell:not(.standalone-studio) .topbar .tenant-context > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .app-shell:not(.standalone-studio) .topbar .tenant-context > svg { flex: none; }
+#root .app-shell:not(.standalone-studio) .topbar :is(.tenant-context, .assistant-trigger, .icon-button, .topbar-widgets-toggle):hover,
+#root .app-shell:not(.standalone-studio) .topbar .tenant-context[aria-expanded="true"] {
+  background: var(--nx-canvas);
+  color: var(--nx-text);
+}
+#root .app-shell:not(.standalone-studio) .topbar .assistant-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-primary-strong);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#root .app-shell:not(.standalone-studio) .topbar .icon-button,
+#root .app-shell:not(.standalone-studio) .topbar .topbar-widgets-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+#root .app-shell:not(.standalone-studio) .topbar .topbar-widgets-toggle[aria-pressed="true"] { color: var(--nx-primary-strong); }
+#root .app-shell:not(.standalone-studio) .topbar .notification-count { border-color: var(--nx-surface); background: var(--nx-bad); color: var(--nx-on-primary); }
+#root .app-shell:not(.standalone-studio) .topbar .top-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: auto;
+  height: 30px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nx-muted);
+  cursor: pointer;
+}
+#root .app-shell:not(.standalone-studio) .topbar .top-avatar-initial {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+#root .app-shell:not(.standalone-studio) .topbar :is(.global-search, .tenant-context, .assistant-trigger, .icon-button, .topbar-widgets-toggle, .top-avatar):focus-visible {
+  outline: 2px solid var(--nx-primary);
+  outline-offset: 1px;
+}
+
+/* ---- Open-screen tabs (inside the top bar; studio mode keeps them as a row) ---- */
+#root .workspace-tabs {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+#root .workspace-tabs::-webkit-scrollbar { display: none; }
+#root .app-shell.standalone-studio .workspace-tabs { height: 40px; padding: 0 14px; border-bottom: 1px solid var(--nx-line); background: var(--nx-surface); }
+#root .app-shell:not(.standalone-studio) .topbar .workspace-tabs { position: static; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; }
+#root .workspace-tab-list { display: flex; flex: 0 0 auto; align-items: flex-end; gap: 2px; min-width: max-content; }
+#root .workspace-tab {
+  position: relative;
+  top: 1px;
+  display: flex;
+  align-items: center;
+  max-width: 220px;
+  height: 31px;
+  border: 1px solid var(--nx-line);
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: var(--nx-canvas);
+  color: var(--nx-muted);
+  font-size: 12px;
+}
+#root .workspace-tab.active { background: var(--nx-surface); color: var(--nx-text); font-weight: 600; }
+#root .workspace-tab-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 12px;
+  border: 0;
+  border-radius: 7px 7px 0 0;
+  /* Beats the generic [aria-selected='true'] tint in global-components.css. */
+  background: transparent !important;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#root .workspace-tab-select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .workspace-tab-home .workspace-tab-select { justify-content: center; width: 34px; padding: 0; }
+#root .workspace-tab.is-dirty .workspace-tab-select i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--nx-changed); }
+#root .workspace-tab-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nx-muted);
+  cursor: pointer;
+}
+#root .workspace-tab-close:hover { background: var(--nx-line-soft); color: var(--nx-text); }
+#root .workspace-tab-select:focus-visible,
+#root .workspace-tab-close:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+
+/* ---- Narrower widths ---------------------------------------------------- */
+@media (max-width: 1599.98px) {
+  #root .app-shell:not(.standalone-studio) .topbar .topbar-widgets-toggle > span { display: none; }
+}
+@media (max-width: 1439.98px) {
+  #root .app-shell:not(.standalone-studio) .topbar .assistant-trigger > span { display: none; }
+  #root .app-shell:not(.standalone-studio) .topbar .global-search { flex-basis: 240px; }
+}
+@media (max-width: 1023.98px) {
+  #root .app-shell:not(.standalone-studio) .topbar .global-search { flex: none; min-width: 0; width: 30px; padding: 0; justify-content: center; }
+  #root .app-shell:not(.standalone-studio) .topbar .global-search > span,
+  #root .app-shell:not(.standalone-studio) .topbar .global-search kbd { display: none; }
+  #root .app-shell:not(.standalone-studio) .topbar :is(.topbar-settings, .topbar-modules) { display: none; }
+  #root .app-shell:not(.standalone-studio) .topbar .tenant-context { max-width: 140px; }
+}
+
+/* Phones: the rail is a horizontally scrolling bottom bar, the tabs get their own top-bar row. */
+@media (max-width: 760px) {
+  #root .app-shell:not(.standalone-studio) > .workspace-rail {
+    position: fixed;
+    inset: auto 0 0;
+    flex-direction: row;
+    gap: 6px;
+    width: 100%;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    border-top: 1px solid var(--nx-ink-2);
+  }
+  #root .workspace-rail-brand { display: none; }
+  #root .app-shell:not(.standalone-studio) > .workspace-rail > nav {
+    flex: 1 1 auto;
+    flex-direction: row;
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  #root .app-shell:not(.standalone-studio) > .workspace-rail > nav::-webkit-scrollbar { display: none; }
+  #root .workspace-rail-item,
+  #root .workspace-rail-edit { width: 48px; height: 52px; }
+  #root .workspace-rail-item.active { box-shadow: inset 0 -3px 0 var(--nx-primary) !important; }
+  #root .workspace-rail-edit { margin: 0; }
+  #root .workspace-rail-editor-backdrop { align-items: center; justify-items: center; padding: 16px; }
+  #root .workspace-rail-editor { width: min(390px, calc(100vw - 32px)); }
+  #root .app-shell:not(.standalone-studio) > .main-area > .workspace-content { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+
+  #root .app-shell:not(.standalone-studio) .topbar { flex-wrap: wrap; row-gap: 0; height: auto; min-height: 44px; padding: 6px 10px 0; }
+  #root .app-shell:not(.standalone-studio) .topbar-tabs { order: 3; flex: 1 0 100%; height: 36px; }
+  #root .app-shell:not(.standalone-studio) .top-actions { gap: 2px; }
+  #root .app-shell:not(.standalone-studio) .topbar .tenant-context { max-width: 120px; }
+}

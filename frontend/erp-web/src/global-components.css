@@ -26,8 +26,6 @@ html[data-theme='dark'] {
 
 /* Workspace chrome painted with fixed light colours in module-workspace.css. */
 html[data-theme='dark'] #root .app-shell:not(.standalone-studio) > .main-area > .content { background: var(--erp-color-surface-muted); }
-html[data-theme='dark'] .workspace-tabs { background: #171c29; border-bottom-color: var(--erp-color-border); }
-html[data-theme='dark'] .workspace-tab:not(.active) { background: #202638; border-color: var(--erp-color-border); color: var(--erp-color-text); }
 
 /* Shared theme defaults for every ERP module and legacy screen class. */
 html {
@@ -248,25 +246,6 @@ body,
   color: var(--nx-ink);
 }
 
-.app-shell .nav-item {
-  border-radius: var(--erp-radius-control) !important;
-  color: #FFFFFF !important;
-}
-
-.app-shell .nav-item:hover,
-.app-shell .nav-item.active {
-  background: var(--nx-primary) !important;
-  color: #fff !important;
-}
-
-.app-shell .nav-item.active {
-  font-weight: 600;
-}
-
-.app-shell .nav-item.active svg {
-  color: var(--nx-on-primary);
-}
-
 .app-shell .eyebrow,
 .app-shell .link-button,
 .app-shell .text-button {
@@ -275,27 +254,6 @@ body,
 
 .app-shell .sidebar .side-brand strong {
   color: #F6C23E !important;
-}
-
-.app-shell .sidebar .nav-item.active svg {
-  color: #fff !important;
-}
-
-.app-shell .topbar {
-  background: var(--nx-ink) !important;
-  border-bottom: 1px solid var(--nx-primary) !important;
-  box-shadow: none !important;
-}
-
-.app-shell .topbar :is(.crumb, .top-actions, .crumb b, .icon-button) {
-  color: #fff;
-}
-
-.app-shell .topbar .global-search {
-  border-color: #64748b;
-  border-radius: var(--erp-radius-control);
-  background: #fff;
-  color: var(--erp-color-muted);
 }
 
 .app-shell .credit-facilities-page {

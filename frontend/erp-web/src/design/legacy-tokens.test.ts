@@ -147,8 +147,8 @@ describe('legacy stylesheets converge on --nx tokens', () => {
   })
 
   it('--nx-primary-on-ink is used only on fixed-dark surfaces', () => {
-    // Login story panel, launcher welcome banner and the (always dark) topbar assistant trigger.
-    const fixedDark = /auth-story|auth-feature|module-launcher-welcome|assistant-trigger/
+    // Login story panel, launcher welcome banner and the (always --nx-ink) workspace icon rail.
+    const fixedDark = /auth-story|auth-feature|module-launcher-welcome|workspace-rail/
     const found = rules
       .filter((r) => r.body.includes('--nx-primary-on-ink') && !fixedDark.test(r.selector))
       .map((r) => `${r.name}: ${r.selector.slice(-120)}`)
