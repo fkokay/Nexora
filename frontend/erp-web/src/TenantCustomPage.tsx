@@ -151,12 +151,17 @@ function QueryError({ message }: { message: string }) {
   return <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{message}</span></div>;
 }
 
+const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
+/** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
+const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
+
 function QueryMetric({ state, title, description, style }: { state: QueryState; title: string; description: string; style: CSSProperties }) {
   const first = state.columns[0]?.code;
   const value = state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
   return <article className={`tenant-page-metric tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
     {title && <span>{title}</span>}
-    {state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} /> : <strong>{value}</strong>}
+    {state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
+      : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>}
     {description && <small>{description}</small>}
   </article>;
 }
@@ -175,6 +180,7 @@ function QueryTable({ state, columns, title, description, style, selected, onSel
     {description && <p>{description}</p>}
     {state.loading ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
       : state.error ? <QueryError message={state.error} />
+        : neverRan(state) ? <div className="tenant-report-state" role="status">{MANUAL_QUERY_IDLE}</div>
         : <div className="tenant-page-table-scroll"><table>
           <thead><tr>{visible.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
           <tbody>
@@ -206,7 +212,7 @@ function PageInput({ component, props, raw, onChange, optionsState, style }: {
     const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
     const options = (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]) }));
     control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{optionsState?.loading ? "Yükleniyor…" : "Seçin"}</option>
+      <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
     </select>;
   } else {

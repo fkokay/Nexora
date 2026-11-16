@@ -13,13 +13,16 @@ export const MAX_QUERIES = 20;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 export const RESERVED_NAMES = ["kullanici", "bugun"];
+/** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
+export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
+const MANUAL_RUN_HINT = "Elle çalışan sorgular 4. aşamada düğmelerle tetiklenecek; şimdilik çalışmaz.";
 const parameterTypes: [QueryParameterType, string][] = [["text", "Metin"], ["int", "Tam sayı"], ["decimal", "Ondalık"], ["date", "Tarih"], ["bool", "Evet/Hayır"], ["guid", "Kimlik (GUID)"]];
 const runOnLabels: Record<PageQuery["runOn"], string> = { load: "Açılışta + değişince", manual: "Elle" };
 
 /** Sorgu/bileşen adı kuralları (sunucudaki şemayla aynı); sorun yoksa null. */
 export function nameProblem(value: string, taken: string[]): string | null {
   if (!NAME_PATTERN.test(value)) return "Ad harf veya _ ile başlamalı; yalnız İngilizce harf, rakam ve _ içermelidir.";
-  if (RESERVED_NAMES.includes(value.toLowerCase())) return `“${value}” ayrılmış bir addır.`;
+  if (RESERVED_NAMES.includes(value.toLowerCase()) || OBJECT_KEY_NAMES.includes(value.toLowerCase())) return `“${value}” ayrılmış bir addır.`;
   if (taken.includes(value.toLowerCase())) return "Bu ad sayfada başka bir sorgu ya da bileşende kullanılıyor.";
   return null;
 }
@@ -128,9 +131,10 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
           <label className="pd-field">Ad<input className="pd-query-name" value={selected.name} maxLength={64} spellCheck={false}
             onChange={(event) => onUpdate(selected.id, { name: event.target.value }, `query:${selected.id}:name`)}/></label>
           <label className="pd-field">Çalışma<select value={selected.runOn} onChange={(event) => onUpdate(selected.id, { runOn: event.target.value as PageQuery["runOn"] })}>
-            <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
+            <option value="load">{runOnLabels.load}</option><option value="manual" title={MANUAL_RUN_HINT}>{runOnLabels.manual}</option>
           </select></label>
         </div>
+        {selected.runOn === "manual" && <small className="pd-query-warning">{MANUAL_RUN_HINT}</small>}
         {nameProblem(selected.name, takenNames(selected.id)) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames(selected.id))}</small>}
       </fieldset>
       <div className="pd-field">SQL<small>Yalnız tek bir SELECT ya da WITH sorgusu. Değerleri <code>@ad</code> parametreleriyle verin.</small>

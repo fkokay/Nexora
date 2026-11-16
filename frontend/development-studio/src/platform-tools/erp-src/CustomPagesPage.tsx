@@ -110,6 +110,15 @@ const summaryOf = (component: PageComponent) => {
   return typeof value === "string" && value.trim() ? value : titleFor(component.type);
 };
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
+const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
+/** Sunucudaki TenantCustomPageQueries.HasQueries ile aynı: schemaVersion 2 ve boş olmayan queries dizisi. */
+const definitionHasQueries = (definitionJson: string | undefined) => {
+  if (!definitionJson) return false;
+  try {
+    const raw = JSON.parse(definitionJson) as { schemaVersion?: unknown; queries?: unknown };
+    return raw?.schemaVersion === 2 && Array.isArray(raw.queries) && raw.queries.length > 0;
+  } catch { return false; }
+};
 const newId = (type: ComponentType) => `${type}-${crypto.randomUUID().slice(0, 8)}`;
 const componentStyle = (type: ComponentType, props: PageComponent["props"]): CSSProperties => {
   const bounded = (value: unknown, fallback: number, min: number, max: number) => {
@@ -213,10 +222,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const lastCommit = useRef<{ key: string; at: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const resizing = useRef(false);
-  const canEdit = current
-    ? !current.isPublished && !!capabilities?.canUpdate
-    : creating && !!capabilities?.canCreate;
   const isAdmin = role === "TenantAdmin";
+  // Kayıtlı tanımı SQL sorgusu içeren sayfayı (sunucudaki kuralla aynı) yalnız tenant yöneticisi değiştirebilir.
+  const storedHasQueries = useMemo(() => definitionHasQueries(current?.definitionJson), [current?.definitionJson]);
+  const queryPageLocked = storedHasQueries && !isAdmin;
+  const canEdit = current
+    ? !current.isPublished && !!capabilities?.canUpdate && !queryPageLocked
+    : creating && !!capabilities?.canCreate;
   // Sorgu eklemek, SQL düzenlemek ve önizlemek yalnız tenant yöneticisine açıktır.
   const queryEditable = canEdit && isAdmin;
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
@@ -418,7 +430,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (!capabilities?.canCreate) { setError("Yeni taslak oluşturma yetkiniz yok."); return; }
     setSaving(true); setError(""); setNotice("");
     try {
-      const published = await request<PageDetail>(`/api/custom-pages/${encodeURIComponent(page.code)}/published`);
+      // Çalışma zamanı uç noktası sorgu SQL'ini göndermez; tam tanım kimlikle okunur.
+      const published = await request<PageDetail>(`/api/custom-pages/${encodeURIComponent(page.id)}`);
       const detail = await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: page.code, name: page.name, description: page.description, definition: JSON.parse(published.definitionJson) }) });
       await openPage(detail);
       await refresh();
@@ -891,11 +904,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" className="pd-button" onClick={() => void openErpPreview()} disabled={saving}><Eye size={15}/>{current?.isPublished ? "ERP'de aç" : "ERP'de önizle"}</button>
         {(current ? capabilities?.canUpdate : capabilities?.canCreate) && !current?.isPublished && <button type="button" className="pd-button" onClick={() => void saveDraft()} disabled={saving || !canEdit || (!dirty && !!current)} title="Kaydet (Ctrl+S)"><Save size={15}/>{saving ? "Kaydediliyor…" : "Kaydet"}</button>}
         {!current?.isPublished && capabilities?.canPublish && <button type="button" className="pd-button primary" onClick={() => void publish()} disabled={saving || !canEdit}><Send size={15}/>{dirty || !current ? "Kaydet ve yayımla" : "Yayımla"}</button>}
-        {current?.isPublished && capabilities?.canCreate && <button type="button" className="pd-button primary" onClick={() => void createFromPublished(current)} disabled={saving}><FilePlus2 size={15}/>Yeni taslakta düzenle</button>}
+        {current?.isPublished && capabilities?.canCreate && !queryPageLocked && <button type="button" className="pd-button primary" onClick={() => void createFromPublished(current)} disabled={saving}><FilePlus2 size={15}/>Yeni taslakta düzenle</button>}
       </div>
     </header>
     {(error || notice || (current && !canEdit)) && <div className="pd-messages">
-      {current && !canEdit && <div className="pd-message readonly"><Lock size={14}/><span>{current.isPublished ? "Yayımlanmış sürüm salt okunur. Değişiklik yapmak için yeni bir taslak oluşturun." : "Bu taslağı düzenleme yetkiniz yok; yalnızca görüntüleyebilirsiniz."}</span></div>}
+      {current && !canEdit && <div className="pd-message readonly"><Lock size={14}/><span>{current.isPublished && !queryPageLocked ? "Yayımlanmış sürüm salt okunur. Değişiklik yapmak için yeni bir taslak oluşturun." : queryPageLocked ? QUERY_PAGE_ADMIN_ONLY : "Bu taslağı düzenleme yetkiniz yok; yalnızca görüntüleyebilirsiniz."}</span></div>}
       {error && <div className="pd-message error" role="alert"><span>{error}</span><button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={14}/></button></div>}
       {notice && !error && <div className="pd-message success" role="status"><span>{notice}{previewHref && notice === blockedPreviewNotice && <> <a href={previewHref} target="_blank" rel="noopener noreferrer" onClick={() => { setPreviewHref(null); setNotice(""); }}>ERP önizlemesini aç</a></>}</span><button type="button" aria-label="Kapat" onClick={() => { setNotice(""); setPreviewHref(null); }}><X size={14}/></button></div>}
     </div>}
@@ -1107,7 +1120,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           </dl>
           <div className="pd-shortcuts"><b>Kısayollar</b><span><kbd>Ctrl</kbd>+<kbd>S</kbd> Kaydet</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> Geri al / yinele</span><span><kbd>Ctrl</kbd>+<kbd>D</kbd> Kopyala</span><span><kbd>Delete</kbd> Sil · <kbd>Alt</kbd>+<kbd>↑↓</kbd> Taşı</span></div>
           {current && role === "TenantAdmin" && <CustomPageAccessPanel key={current.code} token={token} pageCode={current.code} hasQueries={definition.queries.length > 0}/>}
-          {current && capabilities?.canDelete && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
+          {current && capabilities?.canDelete && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
         </div>}
       </aside>
     </div>

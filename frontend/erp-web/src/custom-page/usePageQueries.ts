@@ -9,11 +9,13 @@ export type PageQueryDefinition = {
 export type QueryColumn = { code: string; label: string; dataType?: string };
 export type QueryState = {
   rows: Record<string, unknown>[]; rowCount: number; columns: QueryColumn[]; truncated: boolean; loading: boolean; error: string;
+  /** Sorgu en az bir kez yanıt (sonuç ya da hata) aldı mı; elle çalışan ve hiç çalışmamış sorguyu boş sonuçtan ayırır. */
+  ran: boolean;
 };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
 
 export const QUERY_DEBOUNCE_MS = 300;
-const emptyState = (loading: boolean): QueryState => ({ rows: [], rowCount: 0, columns: [], truncated: false, loading, error: "" });
+const emptyState = (loading: boolean): QueryState => ({ rows: [], rowCount: 0, columns: [], truncated: false, loading, error: "", ran: false });
 
 /** v2 sayfa tanımındaki `queries` dizisini savunmacı biçimde okur; okunamayan girdiler atlanır. */
 export function readPageQueries(definition: unknown): PageQueryDefinition[] {
@@ -89,12 +91,12 @@ export function usePageQueries(options: {
         const rows = Array.isArray(result.rows) ? result.rows : [];
         setStates((current) => ({ ...current, [query.name]: {
           rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length,
-          columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "",
+          columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "", ran: true,
         } }));
       } catch (cause) {
         if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
         const failure = cause as Error & { serverError?: string };
-        setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı." } }));
+        setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
       }
     };
 
