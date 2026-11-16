@@ -205,6 +205,8 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
             {
                 TenantSqlDatabaseComponent.Erp => $"aierp_t_{tenantId:N}",
                 TenantSqlDatabaseComponent.AiStudio => $"aierp_s_{tenantId:N}",
+                TenantSqlDatabaseComponent.ErpQueryRead => $"aierp_tr_{tenantId:N}",
+                TenantSqlDatabaseComponent.ErpQueryWrite => $"aierp_tw_{tenantId:N}",
                 _ => throw new ArgumentOutOfRangeException(nameof(component))
             }, Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)), 1);
 
@@ -456,6 +458,8 @@ public sealed class TenantDatabaseProvisioner(string platformConnection, string?
     {
         TenantSqlDatabaseComponent.Erp => 1,
         TenantSqlDatabaseComponent.AiStudio => 2,
+        TenantSqlDatabaseComponent.ErpQueryRead => 3,
+        TenantSqlDatabaseComponent.ErpQueryWrite => 4,
         _ => throw new ArgumentOutOfRangeException(nameof(component))
     };
 

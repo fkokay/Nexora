@@ -145,6 +145,21 @@ public sealed class TenantDatabaseRoutingTests
     }
 
     [Fact]
+    public void Query_read_connection_uses_read_login_on_tenant_erp_database()
+    {
+        var tenantId = Guid.NewGuid();
+        var credential = new TenantSqlCredential($"AIERPTenant_{tenantId:N}", $"aierp_tr_{tenantId:N}", "pw", 1);
+        var connection = new SqlConnectionStringBuilder(TenantDatabaseRouting.BuildComponentConnectionString(
+            RuntimeConnection, tenantId, TenantSqlDatabaseComponent.ErpQueryRead, credential));
+        Assert.Equal($"AIERPTenant_{tenantId:N}", connection.InitialCatalog);
+        Assert.Equal($"aierp_tr_{tenantId:N}", connection.UserID);
+
+        var erpCredential = credential with { UserName = $"aierp_t_{tenantId:N}" };
+        Assert.Throws<InvalidOperationException>(() => TenantDatabaseRouting.BuildComponentConnectionString(
+            RuntimeConnection, tenantId, TenantSqlDatabaseComponent.ErpQueryRead, erpCredential));
+    }
+
+    [Fact]
     public async Task Authenticated_company_data_request_without_tenant_selection_is_marked_for_403_handling()
     {
         var context = new DefaultHttpContext();

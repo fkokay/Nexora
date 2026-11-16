@@ -8,10 +8,25 @@ public sealed class TenantDatabaseProvisionerTests
     [Theory]
     [InlineData(TenantSqlDatabaseComponent.Erp, 1)]
     [InlineData(TenantSqlDatabaseComponent.AiStudio, 2)]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryRead, 3)]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryWrite, 4)]
     public void Signed_sql_component_contract_maps_zero_based_enum_to_one_based_code(
         TenantSqlDatabaseComponent component, byte expectedCode)
     {
         Assert.Equal(expectedCode, TenantDatabaseProvisioner.ComponentCode(component));
+    }
+
+    [Theory]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryRead, "aierp_tr_")]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryWrite, "aierp_tw_")]
+    public void Query_credentials_target_the_tenant_erp_database_with_dedicated_logins(TenantSqlDatabaseComponent component, string prefix)
+    {
+        var tenantId = Guid.NewGuid();
+        var credential = TenantDatabaseProvisioner.CreateTenantRuntimeCredential(tenantId, component);
+        Assert.Equal($"AIERPTenant_{tenantId:N}", credential.DatabaseName);
+        Assert.Equal($"{prefix}{tenantId:N}", credential.UserName);
+        Assert.True(TenantSqlCredentialPath.IsValidUserName(tenantId, component, credential.UserName));
+        Assert.False(TenantSqlCredentialPath.IsValidUserName(tenantId, TenantSqlDatabaseComponent.Erp, credential.UserName));
     }
 
     [Fact]

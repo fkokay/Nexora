@@ -15,7 +15,9 @@ public sealed record TenantSqlCredential(string DatabaseName, string UserName, s
 public enum TenantSqlDatabaseComponent
 {
     Erp,
-    AiStudio
+    AiStudio,
+    ErpQueryRead,
+    ErpQueryWrite
 }
 
 /// <summary>Read-only access to a single tenant's SQL credential.</summary>
@@ -176,6 +178,8 @@ public static class TenantSqlCredentialPath
         {
             TenantSqlDatabaseComponent.Erp => "erp",
             TenantSqlDatabaseComponent.AiStudio => "ai-studio",
+            TenantSqlDatabaseComponent.ErpQueryRead => "erp-query-read",
+            TenantSqlDatabaseComponent.ErpQueryWrite => "erp-query-write",
             _ => throw new ArgumentOutOfRangeException(nameof(component))
         };
         return $"tenants/{tenantId:D}/sql/{componentPath}";
@@ -183,9 +187,11 @@ public static class TenantSqlCredentialPath
 
     public static string DatabaseName(Guid tenantId, TenantSqlDatabaseComponent component) => component switch
     {
-        TenantSqlDatabaseComponent.Erp when tenantId != Guid.Empty => $"AIERPTenant_{tenantId:N}",
+        TenantSqlDatabaseComponent.Erp or TenantSqlDatabaseComponent.ErpQueryRead or TenantSqlDatabaseComponent.ErpQueryWrite
+            when tenantId != Guid.Empty => $"AIERPTenant_{tenantId:N}",
         TenantSqlDatabaseComponent.AiStudio when tenantId != Guid.Empty => $"AIERPStudio_{tenantId:N}",
-        TenantSqlDatabaseComponent.Erp or TenantSqlDatabaseComponent.AiStudio => throw new ArgumentException("Tenant id is required.", nameof(tenantId)),
+        TenantSqlDatabaseComponent.Erp or TenantSqlDatabaseComponent.AiStudio
+            or TenantSqlDatabaseComponent.ErpQueryRead or TenantSqlDatabaseComponent.ErpQueryWrite => throw new ArgumentException("Tenant id is required.", nameof(tenantId)),
         _ => throw new ArgumentOutOfRangeException(nameof(component))
     };
 
@@ -195,6 +201,8 @@ public static class TenantSqlCredentialPath
         {
             TenantSqlDatabaseComponent.Erp => $"aierp_t_{tenantId:N}",
             TenantSqlDatabaseComponent.AiStudio => $"aierp_s_{tenantId:N}",
+            TenantSqlDatabaseComponent.ErpQueryRead => $"aierp_tr_{tenantId:N}",
+            TenantSqlDatabaseComponent.ErpQueryWrite => $"aierp_tw_{tenantId:N}",
             _ => null
         };
         return tenantId != Guid.Empty && expected is not null && string.Equals(userName, expected, StringComparison.Ordinal);
@@ -303,6 +311,8 @@ internal sealed class VaultKvV2Client
         {
             "erp" => TenantSqlDatabaseComponent.Erp,
             "ai-studio" => TenantSqlDatabaseComponent.AiStudio,
+            "erp-query-read" => TenantSqlDatabaseComponent.ErpQueryRead,
+            "erp-query-write" => TenantSqlDatabaseComponent.ErpQueryWrite,
             _ => throw new InvalidOperationException("Vault tenant SQL path is invalid.")
         };
         if (!string.Equals(path, TenantSqlCredentialPath.ForTenant(tenantId, component), StringComparison.Ordinal))
