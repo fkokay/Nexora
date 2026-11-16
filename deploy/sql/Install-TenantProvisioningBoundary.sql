@@ -120,15 +120,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-    IF @TenantId IS NULL OR @TenantId = '00000000-0000-0000-0000-000000000000' OR @Component IS NULL OR @Component NOT IN (1,2)
+    IF @TenantId IS NULL OR @TenantId = '00000000-0000-0000-0000-000000000000' OR @Component IS NULL OR @Component NOT IN (1,2,3,4)
        OR @Password IS NULL OR LEN(@Password) < 16
         THROW 51020, 'Invalid tenant SQL credential request.', 1;
 
     DECLARE @DatabaseName sysname = CASE @Component
         WHEN 1 THEN N'AIERPTenant_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
+        WHEN 3 THEN N'AIERPTenant_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
+        WHEN 4 THEN N'AIERPTenant_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
         WHEN 2 THEN N'AIERPStudio_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N'')) END;
     DECLARE @LoginName sysname = CASE @Component
         WHEN 1 THEN N'aierp_t_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
+        WHEN 3 THEN N'aierp_tr_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
+        WHEN 4 THEN N'aierp_tw_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''))
         WHEN 2 THEN N'aierp_s_' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N'')) END;
     DECLARE @ComponentKey nvarchar(64)=N'AIStudio:' + LOWER(REPLACE(CONVERT(nvarchar(36), @TenantId), N'-', N''));
 
@@ -142,7 +146,7 @@ BEGIN
          canonical database. New database/login provisioning remains bound to an
          inactive tenant and a live provisioning lease. */
       IF @Active=1 AND NOT (
-          (@Comp=1 AND EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]
+          (@Comp IN (1,3,4) AND EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]
               WHERE [TenantId]=@Tid AND [DatabaseName]=@Db AND [State]=3) AND DB_ID(@Db) IS NOT NULL)
           OR (@Comp=2 AND EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]
               WHERE [TenantId]=@Tid AND [DatabaseName]=N''AIERPTenant_''+LOWER(REPLACE(CONVERT(nvarchar(36),@Tid),N''-'',N'''')) AND [State]=3)
@@ -154,7 +158,7 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantProvisioningJobs]
             WHERE [TenantId]=@Tid AND [Status]=2 AND [LeaseExpiresAt] > TODATETIMEOFFSET(SYSUTCDATETIME(), ''+00:00''))
             THROW 51024, ''A running, unexpired provisioning job is required.'', 1;
-        IF @Comp=1 AND NOT EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]
+        IF @Comp IN (1,3,4) AND NOT EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]
             WHERE [TenantId]=@Tid AND [DatabaseName]=@Db AND ([State]=2 OR ([State]=3 AND DB_ID(@Db) IS NOT NULL)))
             THROW 51025, ''ERP catalog must be Copying, or Ready with its database already present.'', 1;
         IF @Comp=2 AND (NOT EXISTS (SELECT 1 FROM [AIERPPlatform].[dbo].[TenantDatabaseCatalog]

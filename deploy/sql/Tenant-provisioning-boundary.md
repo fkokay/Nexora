@@ -43,6 +43,14 @@ refreshed; do not edit the volume contents from the running Worker.
 ## Gate and contract
 
 The SQL procedure contract uses component values `1 = ERP`, `2 = AIStudio`.
+`NexoraEnsureTenantSqlLogin` additionally accepts `3 = ERP query read` and
+`4 = ERP query write` (logins `aierp_tr_<guidN>` / `aierp_tw_<guidN>`, both on
+the canonical ERP database `AIERPTenant_<guidN>`); they follow the same state
+gates as component 1. `NexoraEnsureTenantDatabase` and
+`NexoraTenantDatabaseExists` accept only 1/2. After upgrading, re-run
+`Install-TenantProvisioningBoundary.sql`: it re-signs every procedure after
+`CREATE OR ALTER`, which is required because altering a procedure drops its
+signature.
 The current C# enum is zero-based (`Erp = 0`, `AiStudio = 1`), so the application
 adapter must map explicitly (`(byte)component + 1`) when invoking these SQL
 procedures. The procedures derive the only
