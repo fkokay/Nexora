@@ -775,12 +775,13 @@ export default function AdvancedDataGrid({
     onSelectionChange?.(selectedKeySignature ? selectedKeySignature.split("|") : []);
   }, [onSelectionChange, selectedKeySignature]);
   const virtualized = pageRows.length > 180,
+    // Same row heights as advanced-data-grid.css (normal = --nx-row-h-dense, comfortable = --nx-row-h-comfort).
     rowHeight =
       settings.density === "compact"
-        ? 32
+        ? 26
         : settings.density === "comfortable"
-          ? 52
-          : 42,
+          ? 38
+          : 30,
     virtualStart = virtualized
       ? Math.max(
           0,

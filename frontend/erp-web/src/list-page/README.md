@@ -1,31 +1,49 @@
 # Liste sayfası yapısı (list-v2)
 
 Listeleme ekranlarının ortak yapısı. Referans uygulama: `CustomersPage.tsx` ve
-`customers/components/` (Cari Hesaplar).
+`customers/components/` (Cari Hesaplar). Görsel referans: onaylı taslak
+`docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (üst bölüm).
 
 ## Sayfanın bölümleri
 
 Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kökün altında geçerlidir.
 
-1. **Başlık satırı** – `ListPageHeader`: başlık, yanında kayıt sayısı, sağda sayfa
-   işlemleri. Açıklama metni başlığın ipucudur, ayrı satır olmaz. Birincil işlem
-   (`className="primary"`) en sonda, diğerleri `secondary`.
-2. **Araç satırı** – `ListToolbar`: arama kutusu, filtre etiketleri (`ListChipGroup`),
+1. **Başlık satırı** – `ListPageHeader`: başlık (19px/650), yanında kayıt sayısı, sağda
+   sayfa işlemleri. Açıklama metni başlığın ipucudur, ayrı satır olmaz. Birincil işlem
+   (`className="primary"`) en sonda, diğerleri `secondary`. İşlem Çubuğu başlığın hemen
+   altındaki yuvaya yerleşir; başlık → çubuk → araç satırı arasını sayfa yığınının
+   boşluğu (12px) verir.
+2. **Özet kartları** (varsa) – `ListSummaryCards`, aşağıdaki kurala uyan en çok 5 kart.
+3. **Araç satırı** – `ListToolbar`: arama kutusu, filtre etiketleri (`ListChipGroup`),
    sağda tablonun kendi araçları ve yenile düğmesi. Tek satırdır; dar ekranda sarar.
-3. **Liste** – `AdvancedDataGrid`. Bölüm öğesine `list-v2-list` sınıfı verilir.
-4. **Detay paneli** (varsa) – seçili kaydın özeti; `list-v2-detail-*` sınıfları.
+4. **Liste** – `AdvancedDataGrid`. Bölüm öğesine `list-v2-list` sınıfı verilir.
+5. **Alt bilgi** (varsa) – `ListFooter`: solda klavye ipuçları, sağda seçim / toplam /
+   `ListPagination`. Liste alanının altında durur (pencereye sabitlenmez).
+6. **Detay paneli** (varsa) – seçili kaydın özeti; `list-v2-detail-*` sınıfları.
 
 ## Kurallar
 
-- **Özet/sayaç kartları yoktur.** Bir filtreye karşılık gelen sayaçlar o filtrenin
-  etiketine sayı olarak yazılır (`count`). Filtre karşılığı olmayan, karar için gereken
-  bir gösterge varsa kart yerinde kalabilir; süs amaçlı olanlar kaldırılır.
+- **Özet kartı yalnızca uyarı taşıyorsa ya da filtre işi görüyorsa.** `ListSummaryCards`
+  ile çizilir (ikon kutusu, etiket, değer, isteğe bağlı alt satır `hint`). Uyarı taşıyan
+  kart `tone="warn"` / `"bad"` alır (değer de o renkte yazılır). `onFilter` verilen kart
+  tıklanabilir bir düğmedir (`aria-pressed`): "Filtrele" yazar, liste o kartla süzülürken
+  (`filterActive`) çerçevesi renklenir ve "süzülüyor ✕" yazar; tekrar tıklamak filtreyi
+  kaldırır. Süs amaçlı sayaçlar konmaz. Yalnızca filtre karşılığı olan basit sayaçlar
+  kart yerine filtre etiketinin sayısına (`count`) yazılabilir.
+- **Durum etiketi `StatusTag`.** Tam yuvarlak, 11px/600; ton: `ok` (yeşil), `warn`
+  (turuncu), `bad` (kırmızı), `off` (gri, pasif/iptal), `info` (mavi, taslak/bilgi).
+- **Tablo görünümü ortaktır.** `AdvancedDataGrid` bütün ekranlarda aynı görünür: açık gri
+  başlık 11,5px/600, sık satır 30px (görünüm menüsündeki "Normal"; "Sıkı" 26px, "Rahat"
+  38px), hücre 12,5px normal ağırlık ve `tabular-nums`. Seçili / odaktaki satır
+  `--nx-primary-soft` zemin ve solda 3px mavi çizgiyle; işaretlenen satırlar açık tonla
+  gösterilir. Sağa hizalı sayı hücresine `nx-num`, eş aralıklı kod hücresine `nx-code`
+  sınıfı verilir; sayılar kalın yazılmaz.
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
   bulunur; olmayanlarda `allowClear` verilir (etkin etikete tekrar tıklamak filtreyi
   kaldırır). Uzun ya da veriye bağlı seçenek listeleri ve tarih aralıkları
   `<label className="list-v2-filter">` içinde `select` / `input` olarak kalır.
-- **"Filtrele" / "Ara" düğmesi yoktur.** Arama yazarken (350 ms sonra) ve Enter ile
+- **Filtreyi uygulayan "Filtrele" / "Ara" düğmesi yoktur.** Arama yazarken (350 ms sonra) ve Enter ile
   uygulanır: `onSearchApply`. Etiketler tıklanınca hemen uygulanır.
 - **Tablo araçları araç satırında durur.** `toolsSlotRef` ile alınan öğe state'te tutulur
   ve `AdvancedDataGrid`'e `toolbarContainer` olarak verilir. Sayfa başlığında dışa aktarma
@@ -78,6 +96,22 @@ const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 </div>
 ```
 
+Özet kartı, durum etiketi ve alt bilgi:
+
+```tsx
+<ListSummaryCards cards={[
+  { id: "value", label: "Stok değeri", value: formatMoney(total), icon: CircleDollarSign },
+  { id: "below", label: "Minimum altı", value: belowCount, icon: AlertTriangle, tone: "bad",
+    filterActive: belowOnly, onFilter: () => setBelowOnly((on) => !on) },
+]} />
+…
+<td><StatusTag tone={item.isActive ? "ok" : "off"}>{item.isActive ? "Aktif" : "Pasif"}</StatusTag></td>
+…
+<ListFooter hints="↑↓ gez · Enter aç">
+  <ListPagination page={page} total={total} onPageChange={setPage} />
+</ListFooter>
+```
+
 ## Detay paneli sınıfları
 
 `CustomerDetailPanel.tsx` örnektir. Sıra: `list-v2-detail-head` (tür etiketi
@@ -89,6 +123,9 @@ düğmeleri) → `list-v2-detail-foot` (pasife alma gibi seyrek/riskli işlem; `
 
 ## Stil
 
-Tüm stiller `list-page-v2.css` dosyasındadır ve tema değişkenlerini (`--erp-color-*`)
-kullanır; açık ve koyu temada çalışır. Sayfaya özel CSS yazmadan önce buradaki
+Tüm stiller `list-page-v2.css` dosyasındadır (tablo görünümü `advanced-data-grid.css`)
+ve tema değişkenlerini (`--nx-*`, eski kurallarda `--erp-color-*`) kullanır; açık ve koyu
+temada çalışır. Kabuktaki genel kurallar `[class*='-card']`, `[class*='-icon']`,
+`[class*='-tag']` gibi adlara `!important` ile köşe ve zemin verir; yeni sınıf adlarında
+bu eklerden kaçının. Sayfaya özel CSS yazmadan önce buradaki
 sınıfların yetip yetmediğine bakın; eksik bir parça varsa bu dosyaya ekleyin.

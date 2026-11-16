@@ -53,7 +53,6 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-master input,.advanced-grid-row-select input { margin: 0; accent-color: #1475c9; cursor: pointer; }
 .advanced-grid-row-select { display: inline-flex; align-items: center; gap: 7px; margin-right: 9px; vertical-align: middle; white-space: nowrap; color: var(--grid-muted); }
 .advanced-grid-row-select > span { display: inline-block; min-width: 2ch; color: var(--grid-muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
-.advanced-grid-row-selected { background: #eaf4ff !important; }
 .advanced-grid-empty { padding: 28px 12px !important; color: var(--grid-muted); text-align: center !important; }
 .advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface); color: var(--grid-muted); font-size: 10px; }
 .advanced-grid[data-server-hide-footer="true"] .advanced-grid-footer { display: none; }
@@ -117,10 +116,6 @@ html[data-theme="dark"] :is(.advanced-grid-view-trigger, .advanced-grid-view-pop
 .advanced-grid-batch label { display: grid; gap: 4px; color: var(--grid-muted); font-size: 10px; }
 .advanced-grid-batch input,.advanced-grid-batch select { min-width: 140px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); }
 .advanced-grid-scroll.is-virtualized { contain: content; }
-.advanced-grid.compact .advanced-grid-table th,.advanced-grid.compact .advanced-grid-table td { padding-block: 5px; }
-.advanced-grid.normal .advanced-grid-table th,.advanced-grid.normal .advanced-grid-table td { padding-block: 9px; }
-.advanced-grid.comfortable .advanced-grid-table th,.advanced-grid.comfortable .advanced-grid-table td { padding-block: 13px; }
-html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !important; }
 @media print { .advanced-grid-toolbar,.advanced-grid-footer { display: none !important; }.advanced-grid-scroll { overflow: visible !important; border: 0 !important; }.advanced-grid-scroll table { width: 100% !important; }.advanced-grid-menu { display: none !important; } }
 @media(max-width:700px) { .advanced-grid-toolbar { gap: 5px; padding: 7px; }.advanced-grid-count { flex: 1 1 100%; margin-left: 0; }.advanced-grid-search { flex-basis: 100%; max-width: none; }.advanced-grid-footer { align-items: flex-start; }.advanced-grid-filter { grid-template-columns: minmax(60px,.7fr) minmax(95px,1fr); }.advanced-grid-filter input { grid-column: 2; }.advanced-grid-filter input + input { grid-column: 2; } }
 
@@ -187,22 +182,6 @@ html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel,
   border-radius: 0 0 4px 4px;
   background: #FFFFFF;
 }
-.app-shell:not(.standalone-studio) .advanced-grid-table th,
-.app-shell:not(.standalone-studio) .advanced-grid-table td {
-  padding: 10px 12px;
-  border-bottom-color: #E2E7ED;
-  line-height: 1.35;
-}
-.app-shell:not(.standalone-studio) .advanced-grid-table th {
-  background: #F3F4F6;
-  color: #526174;
-  font-size: 11px;
-  font-weight: 650;
-}
-.app-shell:not(.standalone-studio) .advanced-grid-table td { color: #172B45; font-size: 12px; }
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 10%, var(--nx-surface)); }
-.app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: color-mix(in srgb, var(--nx-primary) 19%, var(--nx-surface)) !important; }
 .app-shell:not(.standalone-studio) .advanced-grid-footer {
   padding: 8px 12px;
   border-color: #D7DEE7;
@@ -222,8 +201,60 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-density select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table th { background: #202A39; color: #C2CBD7; border-bottom-color: var(--erp-border); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table td { color: var(--erp-text); border-bottom-color: var(--erp-border); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #243247; }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: color-mix(in srgb, var(--nx-primary) 14%, var(--nx-surface)) !important; }
+
+/* ---- Table look (mockup 01): light header, dense rows, tabular numbers, current row with a left bar ----
+   One rule set for every grid in the app (light and dark through the --nx tokens). #root and !important:
+   global-components.css sets `.app-shell table :is(th, td) { height: 44px !important; padding … !important }`
+   and the thead colours with !important, and older shell / page table rules (module-workspace.css) are more
+   specific than plain grid selectors.
+   Row height per density setting: compact 26px, normal (default) --nx-row-h-dense 30px,
+   comfortable --nx-row-h-comfort 38px (AdvancedDataGrid's virtualisation uses the same numbers). */
+#root .advanced-grid-table {
+  --grid-row-h: var(--nx-row-h-dense);
+  --grid-header-bg: color-mix(in srgb, var(--nx-canvas) 67%, var(--nx-surface));
+}
+#root .advanced-grid.compact .advanced-grid-table { --grid-row-h: 26px; }
+#root .advanced-grid.comfortable .advanced-grid-table { --grid-row-h: var(--nx-row-h-comfort); }
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th {
+  height: var(--nx-row-h-dense) !important;
+  padding: 6px 9px !important;
+  border-bottom: 1px solid var(--nx-line) !important;
+  background: var(--grid-header-bg) !important;
+  color: var(--nx-muted) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 17px;
+  white-space: nowrap;
+}
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td {
+  height: var(--grid-row-h) !important;
+  padding: 0 9px !important;
+  border-bottom: 1px solid var(--nx-line-soft) !important;
+  color: var(--nx-text);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface)); }
+/* Checked rows (row selection): a light tint. */
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr.advanced-grid-row-selected > td { background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); }
+/* Current row (the page's selected record, or the row that holds the keyboard focus): soft fill + 3px bar.
+   The bar is a pseudo element because `.app-shell * { box-shadow: none !important }` removes inset shadows. */
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:is(.erp-selected-row, [aria-current="true"], :focus-visible) > td,
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr[aria-selected="true"]:not(.advanced-grid-row-selected) > td { background: var(--nx-primary-soft); }
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:is(.erp-selected-row, [aria-current="true"], :focus-visible) > td:first-child::before,
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr[aria-selected="true"]:not(.advanced-grid-row-selected) > td:first-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--nx-primary);
+  pointer-events: none;
+}
+#root .advanced-grid-table > tbody > tr:focus-visible { outline: none; }
+/* Opt-in cell classes for page renderers: right-aligned numbers and monospace codes. */
+#root .advanced-grid-table :is(th, td).nx-num { text-align: right; }
+#root .advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }

@@ -6,6 +6,8 @@ export const english: Record<string, string> = {
   'Duran Varlıklar': 'Fixed assets',
   'Dış Ticaret': 'Foreign trade',
   'Raporlar': 'Reports',
+  // List kit (list-page/ListSummaryCards): a summary card that filters the list. 'Filtrele' is in locale.ts.
+  'süzülüyor': 'filtering',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []
