@@ -9,7 +9,7 @@ import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
-import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
 import type { CommandSpec, PageCommands } from "./commands/types";
 import { salesInvoiceStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
@@ -663,7 +663,7 @@ export function SalesInvoiceModal({
           (returnedByLine.get(line.salesInvoiceLineId) || 0) + line.quantity,
         );
   // Action bar while the invoice is open: a posted (kesilmiş) invoice is cancelled, never deleted.
-  const commands: PageCommands = {};
+  const commands: PageCommands = documentOpenCommands(() => load());
   if (newCommand) commands.new = newCommand;
   if (invoice?.status === "Posted") {
     const blocked = invoice.paidAmount > 0 || invoice.returnedAmount > 0;

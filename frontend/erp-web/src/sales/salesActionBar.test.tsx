@@ -211,6 +211,16 @@ describe('Satış Teklifleri', () => {
     const detailButtons = Array.from(document.querySelectorAll('.doc-surface-actions button')).map((node) => node.textContent?.trim());
     expect(detailButtons).toContain('Düzenle');
     expect(detailButtons.some((text) => /Yazdır|^Sil$/.test(text ?? ''))).toBe(false);
+    // The hidden list's Excel and filter do not apply to the open quote; F5 reloads the quote, not the list.
+    expect(enabled('export')).toBe(false);
+    expect(reason('export')).toContain('Belge açıkken kullanılamaz');
+    expect(reason('filter')).toContain('Belge açıkken kullanılamaz');
+    const listLoads = () => apiMock.mock.calls.filter(([url]) => String(url).startsWith('/api/sales/quotes/?')).length;
+    const quoteLoads = () => apiMock.mock.calls.filter(([url]) => url === '/api/sales/quotes/q1').length;
+    const [lists, quotes] = [listLoads(), quoteLoads()];
+    fireEvent.keyDown(window, { key: 'F5' });
+    await waitFor(() => expect(quoteLoads()).toBe(quotes + 1));
+    expect(listLoads()).toBe(lists);
   });
 
   it('non-admins get no delete and no field catalog', async () => {
@@ -324,14 +334,35 @@ describe('Satış İrsaliyeleri', () => {
     expect(primary('new')).toBe(true);
     expect(screen.queryByRole('button', { name: /Yeni irsaliye/ })).toBeNull();
     expect(duplicates()).toEqual([]);
-    // The list highlights the first row until one is chosen; the bar acts on that row.
-    expect(enabled('open')).toBe(true);
+    // The grid highlights the first row until one is chosen, but the bar acts only on a chosen row.
+    expect(enabled('open')).toBe(false);
+    expect(reason('open')).toContain('Önce bir kayıt seçin');
+    expect(reason('delete')).toContain('Önce bir kayıt seçin');
+    expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
     fireEvent.click(row('I-d1'));
     await waitFor(() => expect(enabled('open')).toBe(true));
     expect(reason('delete')).toContain('Sevk edilmiş irsaliye silinemez — İşlemler › İptal et');
     expect(openMenu()).toEqual(['Faturalaştır', 'İptal et', 'CSV olarak dışa aktar']);
     fireEvent.click(row('I-d2'));
     await waitFor(() => expect(enabled('delete')).toBe(true));
+  });
+
+  it('an open delivery: Faturalaştır opens the invoice editor like the detail button, list commands are off', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'I-d1 irsaliye ayrıntılarını aç' }));
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    await waitFor(() => expect(reason('export')).toContain('Belge açıkken kullanılamaz'));
+    expect(reason('delete')).toContain('Sevk edilmiş irsaliye silinemez — İşlemler › İptal et');
+    expect(openMenu()).toEqual(['Faturalaştır', 'İptal et']);
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Faturalaştır' }));
+    });
+    await waitFor(() => expect(screen.getByText('Fatura bilgileri')).toBeTruthy());
+    expect(apiMock).not.toHaveBeenCalledWith('/api/sales/deliveries/d1/invoice', 't', expect.anything());
+    // While the editor is open the item is gone, as the detail's own button is.
+    expect(openMenu()).toEqual(['İptal et']);
   });
 
   it('F2 over an open delivery closes it and shows the create form', async () => {

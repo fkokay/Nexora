@@ -10,7 +10,7 @@ import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
 import { returnStatus } from "../document-page/documentStatus";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
 import type { GridExportActions } from "../AdvancedDataGrid";
-import { PageCommandsSlot } from "../commands/PageCommandsSlot";
+import { PageCommandsSlot, documentOpenCommands } from "../commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
 import type { MenuCommand, PageCommands } from "../commands/types";
 import { SalesInvoiceModal } from "../SalesInvoiceModal";
@@ -157,6 +157,7 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
   const commands: PageCommands = { new: { primary: !detail, run: () => onNavigate(config.invoicePage) } };
   const more: MenuCommand[] = [];
   if (detail) {
+    Object.assign(commands, documentOpenCommands(() => openDetail(detail.id)));
     if (detail.status === "Posted") commands.delete = { disabledReason: "Kesilmiş belge silinemez — İşlemler › İadeyi iptal et" };
     more.push({ id: "return-open-invoice", label: "Faturayı aç", run: () => setInvoiceId(detail.invoiceId) });
     if (detail.status === "Posted")

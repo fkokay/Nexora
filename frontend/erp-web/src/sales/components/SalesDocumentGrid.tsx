@@ -89,7 +89,8 @@ export default function SalesDocumentGrid<T extends { id: string }>({
                 tabIndex={0}
                 onClick={() => onSelect(item.id)}
                 onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) return;
+                  // The action bar may already have run Aç (Enter) for this row.
+                  if (event.target !== event.currentTarget || event.defaultPrevented) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(item.id);

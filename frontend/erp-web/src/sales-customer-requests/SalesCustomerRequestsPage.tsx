@@ -10,7 +10,7 @@ import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
 import { salesRequestStatus } from "../document-page/documentStatus";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
 import type { GridExportActions } from "../AdvancedDataGrid";
-import { PageCommandsSlot } from "../commands/PageCommandsSlot";
+import { PageCommandsSlot, documentOpenCommands } from "../commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
 import type { MenuCommand, PageCommands } from "../commands/types";
 import { SalesRequestCreateForm } from "./components/SalesRequestCreateForm";
@@ -177,8 +177,9 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
   const commands: PageCommands = { new: { primary: !detail, run: () => setCreating(true) } };
   const more: MenuCommand[] = [];
   if (detail) {
+    Object.assign(commands, documentOpenCommands(() => openDetail(detail.id)));
     if (detail.status !== "Cancelled")
-      more.push({ id: "request-quote", label: "Teklif hazırla", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => createQuote(detail.id) });
+      more.push({ id: "request-quote", label: "Teklif hazırla", disabledReason: detailBusy ? "İşleniyor…" : undefined, run: () => createQuote(detail.id) });
     if (detail.status === "Open")
       more.push({ id: "request-cancel", label: "Talebi iptal et", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => cancelRequest() });
   } else {

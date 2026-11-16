@@ -42,6 +42,7 @@ export const english: Record<string, string> = {
   'Dışa aktarılacak kampanya yok.': 'There are no campaigns to export.',
   'Performans raporu': 'Performance report',
   'Kampanya listesi': 'Campaign list',
+  'Belge açıkken kullanılamaz': 'Not available while a document is open',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []

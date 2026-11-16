@@ -7,7 +7,7 @@ import {
   X,
 } from "lucide-react";
 import type { GridExportActions } from "./AdvancedDataGrid";
-import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
@@ -550,8 +550,10 @@ export function SalesDeliveriesScreen({
   // Action bar of the delivery list and of an open delivery. A shipped (Posted) delivery is cancelled, never
   // deleted; only a cancelled one can be deleted. The create page's Yeni comes from StandaloneFulfillmentPanel.
   const busyReason = busy ? "İşleniyor…" : undefined;
-  // The list highlights `selected` (the first row until one is chosen), so the bar acts on that row too.
-  const target = detail ? items.find((item) => item.id === detail.id) : (selected ?? undefined);
+  // The bar acts on the open delivery, else on the row the user chose (not the grid's first-row highlight).
+  const target: SalesDeliverySummary | undefined = detail
+    ? ({ warehouseId: "", lineCount: detail.lines.length, createdAt: "", ...detail } as SalesDeliverySummary)
+    : items.find((item) => item.id === selectedId);
   const commands: PageCommands = {
     // The create page replaces the list; an open delivery is closed first so the form is what shows.
     new: {
@@ -561,6 +563,8 @@ export function SalesDeliveriesScreen({
         setCreating(true);
       },
     },
+    // While a delivery is open the list's refresh / filter / Excel must not act on the hidden list.
+    ...(detail ? documentOpenCommands(() => open(detail.id)) : {}),
   };
   if (!detail)
     commands.open = {
@@ -580,12 +584,18 @@ export function SalesDeliveriesScreen({
       run: () => (target ? deleteDelivery(target) : undefined),
     };
   const more: MenuCommand[] = [];
-  if (target?.status === "Posted" && !target.hasSalesInvoice)
+  // Same handler as the visible control: the row menu on the list, the detail's button (invoice editor) when open.
+  if (target?.status === "Posted" && !target.hasSalesInvoice && !(detail && invoiceEditing))
     more.push({
       id: "delivery-invoice",
       label: "Faturalaştır",
       disabledReason: busyReason,
-      run: () => (target.orderId ? createInvoice(target.id) : startOrderlessInvoice(target.id)),
+      run: () =>
+        detail
+          ? startOrderlessInvoice(detail.id)
+          : target.orderId
+            ? createInvoice(target.id)
+            : startOrderlessInvoice(target.id),
     });
   if (target?.invoiceId)
     more.push({ id: "delivery-open-invoice", label: "Faturayı aç", run: () => setInvoiceId(target.invoiceId) });

@@ -26,7 +26,7 @@ import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
-import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
+import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { CommandSpec, MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
@@ -2045,6 +2045,7 @@ export function SalesPage({
         run: () => deleteQuote(detail),
       };
     salesCommands.print = { run: () => setQuotePrintOpen(true) };
+    Object.assign(salesCommands, documentOpenCommands(() => openQuote(detail.id)));
     const more: MenuCommand[] = [];
     if (detail.status === "Draft" && !detail.hasSalesOrder)
       more.push({ id: "quote-edit", label: "Düzenle", disabledReason: busyReason, run: () => beginQuoteEdit(detail.id) });
@@ -3561,6 +3562,7 @@ export function SalesPage({
           onInvoiceCreated={openInvoice}
           newCommand={detailNewCommand}
           ownsActionBar={!invoiceId}
+          onReload={() => openOrder(orderDetail.id)}
         />
       )}
       {invoiceId && (
@@ -9871,6 +9873,7 @@ function SalesOrderModal({
   onInvoiceCreated,
   newCommand,
   ownsActionBar = true,
+  onReload,
 }: {
   order: SalesOrderDetail;
   token: string;
@@ -9881,6 +9884,8 @@ function SalesOrderModal({
   onInvoiceCreated: (id: string) => void;
   /** The owning screen's Yeni while this detail holds the action bar. */
   newCommand?: CommandSpec;
+  /** Reloads this order (the bar's Yenile while it is open). */
+  onReload?: () => void | Promise<void>;
   /** False while an invoice opened from this order holds the action bar. */
   ownsActionBar?: boolean;
 }) {
@@ -10247,7 +10252,7 @@ function SalesOrderModal({
   }
   const activeReservation = order.lines.some((x) => x.reservationId !== null);
   // The order's one-click actions in İşlemler (labels and conditions of the buttons in the detail).
-  const orderCommands: PageCommands = {};
+  const orderCommands: PageCommands = documentOpenCommands(onReload);
   if (newCommand) orderCommands.new = newCommand;
   const orderMore: MenuCommand[] = [];
   if (order.status === "Open" && !activeReservation)
@@ -10269,7 +10274,7 @@ function SalesOrderModal({
       label: "İrsaliye oluştur",
       disabledReason: busy
         ? "Kaydediliyor…"
-        : warehouses.length === 0
+        : !warehouses.some((warehouse) => warehouse.isActive)
           ? "Aktif depo yok."
           : order.lines.every((x) => x.remainingQuantity === 0)
             ? "Sevk edilecek kalan miktar yok."
@@ -10970,7 +10975,8 @@ function SalesInvoiceTable({
                 type="button"
                 role="menuitem"
                 className="sales-row-menu-item danger-action"
-                disabled={busy}
+                disabled={busy || item.status === "Posted"}
+                title={item.status === "Posted" ? "Kesilmiş belge silinemez — İşlemler › İptal et" : undefined}
                 onClick={() => void deleteInvoice(item)}
               >
                 Sil
