@@ -57,8 +57,8 @@ export function usePageQueries(options: {
   states: Record<string, QueryState>; scope: PageScope;
   /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
   rerun: (queryIds: string[]) => void;
-  /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. */
-  runWrite: (query: PageQueryDefinition, values: Record<string, unknown>) => Promise<WriteResult>;
+  /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. Önizlemede `confirmWrite` açık onayı taşır. */
+  runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean) => Promise<WriteResult>;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const endpointFor = (query: PageQueryDefinition) => previewId
@@ -124,9 +124,10 @@ export function usePageQueries(options: {
       if (plan.query.kind === "read" && queryIds.includes(plan.query.id) && !plan.waiting) void execute(plan.query, plan.values);
     }
   };
-  const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<WriteResult> => {
+  const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false): Promise<WriteResult> => {
     const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(confirmWrite ? { parameters: values, confirmWrite: true } : { parameters: values }),
     });
     return { affectedRows: typeof result.affectedRows === "number" ? result.affectedRows : 0 };
   };

@@ -44,8 +44,12 @@ type PageRuntime = {
   queryById: Record<string, PageQueryDefinition>;
   rights: NonNullable<PublishedPage["rights"]>;
   rerun: (queryIds: string[]) => void;
-  writeFor: (query: PageQueryDefinition) => Promise<{ affectedRows: number }>;
+  /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
+  isPreview: boolean;
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
 };
+
+const PREVIEW_WRITE_WARNING = "Bu taslak önizlemesinde veriler gerçekten değişecek. Devam edilsin mi?";
 
 const bindProps = (props: Record<string, unknown>, scope: PageScope): Record<string, unknown> => {
   const bound = { ...props };
@@ -203,12 +207,25 @@ function QueryTable({ state, columns, title, description, style, selected, onSel
   </section>;
 }
 
+/**
+ * Yazma hatasının metni. 400/403 yanıtlarında sunucunun nedeni her zaman gösterilir: yapılandırılmış hata mesajı varsa
+ * "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
+ */
+function writeErrorText(configured: string, cause: unknown): string {
+  const failure = cause as Error & { status?: number; serverError?: string };
+  const server = failure.status === 400 || failure.status === 403 ? (failure.serverError || failure.message || "").trim() : "";
+  if (configured) return server ? `${configured} (${server})` : configured;
+  return failure.serverError || failure.message || "İşlem tamamlanamadı.";
+}
+
 /** Sorgu eylemli düğme: hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif kalır ve sonucu bildirir. */
 function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const allowed = runtime.rights[query.kind === "read" ? "view" : query.kind] === true;
   const mounted = useRef(true);
+  // Çift tıklamada ikinci yazma isteğini engeller; busy durumu bir sonraki çizime kadar görünmez.
+  const inFlight = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   if (!allowed) return null;
   const write = query.kind !== "read";
@@ -216,27 +233,34 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
 
   const click = async () => {
-    if (busy) return;
-    setFeedback(null);
-    if (!write) { runtime.rerun([query.id]); return; }
-    if (props.confirmEnabled === true) {
-      const confirmed = await confirmDialog({
-        title: "Emin misiniz?", message: bound("confirmText") || undefined, confirmLabel: "Onayla", cancelLabel: "Vazgeç",
-        tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
-      });
-      if (!confirmed) return;
-    }
-    setBusy(true);
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
-      const result = await runtime.writeFor(query);
-      const message = `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)`;
-      if (mounted.current) setFeedback({ tone: "success", text: message });
-      runtime.rerun(refreshIds);
-    } catch (cause) {
-      const failure = cause as Error & { serverError?: string };
-      if (mounted.current) setFeedback({ tone: "error", text: bound("errorMessage") || failure.serverError || failure.message || "İşlem tamamlanamadı." });
+      setFeedback(null);
+      if (!write) { runtime.rerun([query.id]); return; }
+      // Önizlemede onay her zaman sorulur (düğmede onay kapalı olsa da), çünkü taslak gerçek veriyi değiştirir.
+      if (props.confirmEnabled === true || runtime.isPreview) {
+        const configured = props.confirmEnabled === true ? bound("confirmText") : "";
+        const message = runtime.isPreview ? [configured, PREVIEW_WRITE_WARNING].filter(Boolean).join(" ") : configured;
+        const confirmed = await confirmDialog({
+          title: "Emin misiniz?", message: message || undefined, confirmLabel: "Onayla", cancelLabel: "Vazgeç",
+          tone: query.kind === "delete" || query.kind === "update" || runtime.isPreview ? "danger" : "default",
+        });
+        if (!confirmed) return;
+      }
+      setBusy(true);
+      try {
+        const result = await runtime.writeFor(query, runtime.isPreview);
+        const message = `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)`;
+        if (mounted.current) setFeedback({ tone: "success", text: message });
+        runtime.rerun(refreshIds);
+      } catch (cause) {
+        if (mounted.current) setFeedback({ tone: "error", text: writeErrorText(bound("errorMessage"), cause) });
+      } finally {
+        if (mounted.current) setBusy(false);
+      }
     } finally {
-      if (mounted.current) setBusy(false);
+      inFlight.current = false;
     }
   };
   return <div className="tenant-page-query-action">
@@ -377,8 +401,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, rights: page.rights ?? { view: true }, rerun,
-    writeFor: (query) => runWrite(query, resolveQueryParameters(query, scope)),
+    queryById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
   } : undefined;
 
   return <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}</div>;
