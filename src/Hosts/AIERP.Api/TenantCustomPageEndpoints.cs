@@ -199,7 +199,7 @@ internal static class TenantCustomPageEndpoints
         if (!TenantCustomPageSchema.Validate(json, out error)) { json = null; return false; }
         return true;
     }
-    private static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+    internal static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static HashSet<string> ReferencedFormCodes(string json)
     {

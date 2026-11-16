@@ -1,3 +1,4 @@
+using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using Xunit;
 
@@ -59,6 +60,18 @@ public sealed class CustomPageAccessRulesTests
         Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: false));
         Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: true, isMember: false));
         Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(Access(CustomPageAccessModes.AllUsers), User, isTenantAdmin: false, isMember: false));
+    }
+
+    [Theory]
+    [InlineData("GET", "read")]
+    [InlineData("PUT", "update")]
+    public void Access_routes_resolve_to_tenant_customization_permission(string method, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve("/api/custom-pages/asset-dashboard/access", method, "/api/custom-pages/{code}/access",
+            new Dictionary<string, string?> { ["code"] = "asset-dashboard" }, Guid.NewGuid(), User, "TenantAdmin", out var permission);
+        Assert.True(resolved);
+        Assert.Equal("erp.tenant-customizations", permission!.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
     }
 
     private static TenantCustomPageAccess Access(string mode) => new() { TenantId = Guid.NewGuid(), PageCode = "asset-dashboard", Mode = mode, Revision = 1 };
