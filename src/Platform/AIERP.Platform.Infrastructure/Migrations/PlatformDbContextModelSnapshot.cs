@@ -19603,6 +19603,121 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllUsersCanDelete")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllUsersCanInsert")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllUsersCanUpdate")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PageCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PageCode")
+                        .IsUnique();
+
+                    b.ToTable("TenantCustomPageAccesses", (string)null);
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccessRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PageCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PageCode", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("TenantCustomPageAccessRevisions", (string)null);
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccessUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccessId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("CanDelete")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanInsert")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanUpdate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanView")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("AccessId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("TenantCustomPageAccessUsers", (string)null);
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -23694,6 +23809,39 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccess", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccessRevision", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccessUser", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.TenantCustomPageAccess", null)
+                        .WithMany("Users")
+                        .HasForeignKey("AccessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageRevision", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.TenantCustomPage", "CustomPage")
@@ -24320,6 +24468,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPage", b =>
                 {
                     b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCustomPageAccess", b =>
+                {
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantSavedReport", b =>

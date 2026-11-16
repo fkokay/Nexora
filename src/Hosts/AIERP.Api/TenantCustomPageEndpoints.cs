@@ -35,7 +35,7 @@ internal static class TenantCustomPageEndpoints
         });
 
         // Studio preview uses the normal ERP runtime against an unpublished draft, without publishing it.
-        pages.MapGet("/{id:guid}/preview", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
+        pages.MapGet("/{id:guid}/preview", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
             IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
@@ -44,6 +44,7 @@ internal static class TenantCustomPageEndpoints
                 .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson))
                 .SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
+            if (!(await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, userId, role, ct)).View) return ViewForbidden();
             var formCodes = ReferencedFormCodes(page.DefinitionJson);
             var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
@@ -55,13 +56,15 @@ internal static class TenantCustomPageEndpoints
         });
 
         // Runtime consumers receive only the currently published declarative definition.
-        pages.MapGet("/{code}/published", async (string code, ClaimsPrincipal user, TenantDbContext db,
+        pages.MapGet("/{code}/published", async (string code, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
             IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
         {
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct, "erp.custom-menus")) return Results.Forbid();
             var page = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && x.IsPublished)
                 .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson)).SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
+            // Rights are keyed by the stored page code, never by the route value's casing.
+            if (!(await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, userId, role, ct)).View) return ViewForbidden();
             var formCodes = ReferencedFormCodes(page.DefinitionJson);
             var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
@@ -199,7 +202,7 @@ internal static class TenantCustomPageEndpoints
         if (!TenantCustomPageSchema.Validate(json, out error)) { json = null; return false; }
         return true;
     }
-    private static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+    internal static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static HashSet<string> ReferencedFormCodes(string json)
     {
@@ -247,6 +250,7 @@ internal static class TenantCustomPageEndpoints
         var attributes = new Dictionary<string, string> { ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role, ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenant.ToString("D"), ["request.action"] = action };
         return await auth.IsAllowedAsync(tenant, userId, role, new ResolvedPlatformPermission(definition, attributes), ct);
     }
+    private static IResult ViewForbidden() => Results.Json(new { error = "Bu sayfayı görüntüleme yetkiniz yok." }, statusCode: StatusCodes.Status403Forbidden);
     private static TenantCustomPageRevision RevisionOf(TenantCustomPage x, Guid userId, string kind) => new() { TenantId = x.TenantId, CustomPageId = x.Id, Revision = x.Revision, Code = x.Code, Name = x.Name, Description = x.Description, DefinitionJson = x.DefinitionJson, ChangeKind = kind, ChangedByUserId = userId, CreatedAt = DateTimeOffset.UtcNow };
     private static void AddAudit(TenantDbContext db, Guid tenant, Guid userId, string action, string code) => db.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = userId, Action = action, Resource = $"custom-page:{code}" });
     private static PageDetail ToDetail(TenantCustomPage x) => new(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.DefinitionJson, x.UpdatedAt);

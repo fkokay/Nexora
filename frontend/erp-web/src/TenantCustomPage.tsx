@@ -151,7 +151,13 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
     const endpoint = previewId
       ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview`
       : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+    // api() maps every 403 to a generic text; the published endpoint's own 403 message
+    // ("Bu sayfayı görüntüleme yetkiniz yok.") travels on the error as serverError.
     void api<PublishedPage>(endpoint, token)
+      .catch((cause: unknown) => {
+        const failure = cause as Error & { status?: number; serverError?: string };
+        throw failure.status === 403 && failure.serverError ? new Error(failure.serverError) : cause;
+      })
       .then((result) => {
         if (!active) return;
         const definition = JSON.parse(result.definitionJson) as { schemaVersion?: unknown; components?: unknown };

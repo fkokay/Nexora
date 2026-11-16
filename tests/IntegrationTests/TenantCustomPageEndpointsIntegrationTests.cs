@@ -119,6 +119,8 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         builder.Services.AddDbContext<TenantDbContext>(options => options
             .UseInMemoryDatabase(databaseName)
             .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
+        // Published/preview pages check custom page access against Platform memberships.
+        builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase($"{databaseName}-platform"));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
         builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
@@ -135,6 +137,16 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
             new Tenant { Id = TenantA, Name = "Tenant A", Slug = "tenant-a" },
             new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" });
         await db.SaveChangesAsync();
+        var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        await platform.Database.EnsureCreatedAsync();
+        platform.Tenants.AddRange(
+            new Tenant { Id = TenantA, Name = "Tenant A", Slug = "tenant-a" },
+            new Tenant { Id = TenantB, Name = "Tenant B", Slug = "tenant-b" });
+        platform.Users.Add(new AppUser { Id = UserA, Email = "user-a@example.test", DisplayName = "User A" });
+        platform.TenantMemberships.AddRange(
+            new TenantMembership { TenantId = TenantA, UserId = UserA, Role = "TenantAdmin" },
+            new TenantMembership { TenantId = TenantB, UserId = UserA, Role = "TenantAdmin" });
+        await platform.SaveChangesAsync();
         return app;
     }
 

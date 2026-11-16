@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 public static class CustomMenuEndpoints
 {
     private const int MaxEntries = 30;
+    private const string CustomPageTargetPrefix = "custom-page:";
     private static readonly IReadOnlyDictionary<string, string> Targets = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["dashboard"] = "Genel Bakış", ["customers"] = "Cari Hesaplar", ["inventory-stock"] = "Stok Kartları",
@@ -31,7 +32,7 @@ public static class CustomMenuEndpoints
             return Results.Ok(targets.Select(item => new CustomMenuTarget(item.Key, item.Value)));
         });
 
-        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
+        menus.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId, out var role)
                 || !await IsAllowedAsync(authorizer, tenantId, userId, role, "read", ct)) return Results.Forbid();
@@ -39,6 +40,15 @@ public static class CustomMenuEndpoints
                 .OrderBy(x => x.Position).ThenBy(x => x.CreatedAt)
                 .Select(x => new { x.Id, x.Code, x.Label, x.TargetPage, x.Position, x.CreatedAt, x.UpdatedAt })
                 .Take(MaxEntries).ToListAsync(ct);
+            // Hide entries for custom pages the user cannot view; rights for all codes are read in one batch.
+            var pageCodes = entries.Where(x => x.TargetPage.StartsWith(CustomPageTargetPrefix, StringComparison.Ordinal))
+                .Select(x => x.TargetPage[CustomPageTargetPrefix.Length..]).ToArray();
+            if (pageCodes.Length > 0)
+            {
+                var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenantId, pageCodes, userId, role, ct);
+                entries = entries.Where(x => !x.TargetPage.StartsWith(CustomPageTargetPrefix, StringComparison.Ordinal)
+                    || rights[x.TargetPage[CustomPageTargetPrefix.Length..]].View).ToList();
+            }
             var targets = await GetTargetsAsync(db, tenantId, ct);
             return Results.Ok(entries.Select(x => new CustomMenuEntryView(x.Id, x.Code, x.Label, x.TargetPage,
                 targets.GetValueOrDefault(x.TargetPage, "Yayımlanmış sayfa bulunamadı"), x.Position, x.CreatedAt, x.UpdatedAt)));
@@ -119,7 +129,7 @@ public static class CustomMenuEndpoints
             .OrderBy(x => x.Name)
             .Select(x => new { x.Code, x.Name })
             .ToListAsync(ct);
-        foreach (var page in pages) targets[$"custom-page:{page.Code}"] = page.Name;
+        foreach (var page in pages) targets[$"{CustomPageTargetPrefix}{page.Code}"] = page.Name;
         return targets;
     }
 

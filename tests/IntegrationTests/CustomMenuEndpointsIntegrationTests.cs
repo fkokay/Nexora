@@ -113,6 +113,8 @@ public sealed class CustomMenuEndpointsIntegrationTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddDbContext<TenantDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        // The menu list consults custom page access in the Platform database.
+        builder.Services.AddDbContext<PlatformDbContext>(options => options.UseInMemoryDatabase($"{databaseName}-platform"));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
         builder.Services.AddSingleton<AIERP.Platform.Application.IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         builder.Services.AddAuthorization();
