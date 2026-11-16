@@ -3,7 +3,7 @@ import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
 
 export type PageQueryDefinition = {
-  id: string; name: string; runOn: "load" | "manual";
+  id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
   parameters: { name: string; binding: string; type: string }[];
 };
 export type QueryColumn = { code: string; label: string; dataType?: string };
@@ -12,6 +12,7 @@ export type QueryState = {
   /** Sorgu en az bir kez yanıt (sonuç ya da hata) aldı mı; elle çalışan ve hiç çalışmamış sorguyu boş sonuçtan ayırır. */
   ran: boolean;
 };
+export type WriteResult = { affectedRows: number };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
 
 export const QUERY_DEBOUNCE_MS = 300;
@@ -23,13 +24,25 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
   if (!Array.isArray(raw)) return [];
   const result: PageQueryDefinition[] = [];
   for (const item of raw as Record<string, unknown>[]) {
-    if (!item || typeof item.id !== "string" || typeof item.name !== "string" || item.kind !== "read") continue;
+    if (!item || typeof item.id !== "string" || typeof item.name !== "string") continue;
+    const kind = item.kind;
+    if (kind !== "read" && kind !== "insert" && kind !== "update" && kind !== "delete") continue;
     const parameters = Array.isArray(item.parameters) ? (item.parameters as Record<string, unknown>[])
       .filter((p) => p && typeof p.name === "string" && typeof p.binding === "string" && typeof p.type === "string")
       .map((p) => ({ name: p.name as string, binding: p.binding as string, type: p.type as string })) : [];
-    result.push({ id: item.id, name: item.name, runOn: item.runOn === "manual" ? "manual" : "load", parameters });
+    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters });
   }
   return result;
+}
+
+/** Sorgu parametrelerini bağlama kapsamından çözer (okuma ve yazma çağrıları aynı yolu kullanır). */
+export function resolveQueryParameters(query: PageQueryDefinition, scope: PageScope): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const parameter of query.parameters) {
+    const path = bindingPath(parameter.binding);
+    values[parameter.name] = path ? coerceParameter(resolvePath(scope, path), parameter.type) : null;
+  }
+  return values;
 }
 
 /**
@@ -40,8 +53,17 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
 export function usePageQueries(options: {
   queries: PageQueryDefinition[]; token: string; pageCode: string; previewId?: string;
   buildScope: (states: Record<string, QueryState>) => PageScope;
-}): { states: Record<string, QueryState>; scope: PageScope } {
+}): {
+  states: Record<string, QueryState>; scope: PageScope;
+  /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
+  rerun: (queryIds: string[]) => void;
+  /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. */
+  runWrite: (query: PageQueryDefinition, values: Record<string, unknown>) => Promise<WriteResult>;
+} {
   const { queries, token, pageCode, previewId, buildScope } = options;
+  const endpointFor = (query: PageQueryDefinition) => previewId
+    ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview/queries/${encodeURIComponent(query.id)}/run`
+    : `/api/custom-pages/${encodeURIComponent(pageCode)}/queries/${encodeURIComponent(query.id)}/run`;
   const [states, setStates] = useState<Record<string, QueryState>>(() =>
     Object.fromEntries(queries.map((query) => [query.name, emptyState(query.runOn === "load")])));
   const lastKeys = useRef(new Map<string, string>());
@@ -53,11 +75,10 @@ export function usePageQueries(options: {
   const byName = new Map(queries.map((query) => [query.name, query]));
   const plans = queryOrder(queries).map((name) => {
     const query = byName.get(name)!;
-    const values: Record<string, unknown> = {};
+    const values = resolveQueryParameters(query, scope);
     const upstream = new Set<string>();
     for (const parameter of query.parameters) {
       const path = bindingPath(parameter.binding);
-      values[parameter.name] = path ? coerceParameter(resolvePath(scope, path), parameter.type) : null;
       const root = path?.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
       if (root && root !== query.name && byName.has(root)) upstream.add(root);
     }
@@ -74,32 +95,43 @@ export function usePageQueries(options: {
     lastKeys.current.clear();
   }, []);
 
-  useEffect(() => {
-    const execute = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
-      const sequence = (sequences.current.get(query.name) ?? 0) + 1;
-      sequences.current.set(query.name, sequence);
-      const currentGeneration = generation.current;
-      setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(true)), loading: true, error: "" } }));
-      const endpoint = previewId
-        ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview/queries/${encodeURIComponent(query.id)}/run`
-        : `/api/custom-pages/${encodeURIComponent(pageCode)}/queries/${encodeURIComponent(query.id)}/run`;
-      try {
-        const result = await api<RunResult>(endpoint, token, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
-        });
-        if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
-        const rows = Array.isArray(result.rows) ? result.rows : [];
-        setStates((current) => ({ ...current, [query.name]: {
-          rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length,
-          columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "", ran: true,
-        } }));
-      } catch (cause) {
-        if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
-        const failure = cause as Error & { serverError?: string };
-        setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
-      }
-    };
+  const execute = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+    const sequence = (sequences.current.get(query.name) ?? 0) + 1;
+    sequences.current.set(query.name, sequence);
+    const currentGeneration = generation.current;
+    setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(true)), loading: true, error: "" } }));
+    try {
+      const result = await api<RunResult>(endpointFor(query), token, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
+      });
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      setStates((current) => ({ ...current, [query.name]: {
+        rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length,
+        columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "", ran: true,
+      } }));
+    } catch (cause) {
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      const failure = cause as Error & { serverError?: string };
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
+    }
+  };
 
+  const latestPlans = useRef(plans);
+  latestPlans.current = plans;
+  const rerun = (queryIds: string[]) => {
+    for (const plan of latestPlans.current) {
+      if (plan.query.kind === "read" && queryIds.includes(plan.query.id) && !plan.waiting) void execute(plan.query, plan.values);
+    }
+  };
+  const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<WriteResult> => {
+    const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
+    });
+    return { affectedRows: typeof result.affectedRows === "number" ? result.affectedRows : 0 };
+  };
+
+  useEffect(() => {
     for (const plan of plans) {
       const { query } = plan;
       if (query.runOn !== "load") continue;
@@ -122,5 +154,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope };
+  return { states, scope, rerun, runWrite };
 }
