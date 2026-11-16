@@ -9,6 +9,8 @@ import SearchableRecordPicker from "./SearchableRecordPicker";
 import { financeGridDefaults } from "./financeCatalog";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { CommandSpec, PageCommands } from "./commands/types";
 import { salesInvoiceStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type CustomerCollection = AppTypes.CustomerCollection;
@@ -38,6 +40,7 @@ export function SalesInvoiceModal({
   warehouses,
   onClose,
   onSaved,
+  newCommand,
 }: {
   invoiceId: string;
   token: string;
@@ -45,6 +48,8 @@ export function SalesInvoiceModal({
   warehouses: Warehouse[];
   onClose: () => void;
   onSaved: () => Promise<void>;
+  /** The owning screen's Yeni while this detail holds the action bar. */
+  newCommand?: CommandSpec;
 }) {
   const [detailTab, setDetailTab] = useState<"information" | "transactions">("information");
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null),
@@ -657,6 +662,21 @@ export function SalesInvoiceModal({
           line.salesInvoiceLineId,
           (returnedByLine.get(line.salesInvoiceLineId) || 0) + line.quantity,
         );
+  // Action bar while the invoice is open: a posted (kesilmiş) invoice is cancelled, never deleted.
+  const commands: PageCommands = {};
+  if (newCommand) commands.new = newCommand;
+  if (invoice?.status === "Posted") {
+    const blocked = invoice.paidAmount > 0 || invoice.returnedAmount > 0;
+    commands.delete = { disabledReason: "Kesilmiş belge silinemez — İşlemler › Faturayı iptal et" };
+    commands.more = [
+      {
+        id: "invoice-void",
+        label: "Faturayı iptal et",
+        disabledReason: busy ? "İptal ediliyor…" : blocked ? "Önce tahsilat ve iadeleri iptal edin." : undefined,
+        run: () => voidInvoice(),
+      },
+    ];
+  }
   return (
     <DocumentSurface
       title="Satış faturası"
@@ -667,6 +687,7 @@ export function SalesInvoiceModal({
       className="sales-invoice-detail-backdrop"
       bodyClassName="modal ledger-modal invoice-detail-modal"
     >
+        <PageCommandsSlot commands={commands} />
         {error && (
           <div className="alert inline-alert">
             {error}
