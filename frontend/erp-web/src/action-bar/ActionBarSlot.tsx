@@ -12,11 +12,14 @@ const SlotContext = createContext<SlotContextValue | null>(null);
 
 function visibleSlotOfView(slots: Set<HTMLElement>, activeView: string | undefined): HTMLElement | null {
   if (activeView === undefined) return null;
+  let first: HTMLElement | null = null;
   for (const slot of slots) {
     if (slot.closest('[data-nx-view]')?.getAttribute('data-nx-view') !== activeView) continue;
-    if (!slot.closest('[hidden]')) return slot;
+    if (slot.closest('[hidden]')) continue;
+    // First in DOM order, not registration order.
+    if (!first || slot.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) first = slot;
   }
-  return null;
+  return first;
 }
 
 /**

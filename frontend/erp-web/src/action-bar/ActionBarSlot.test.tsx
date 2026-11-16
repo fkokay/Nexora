@@ -110,4 +110,52 @@ describe('ListPageHeader / RecordFormPage slots', () => {
     );
     expect(document.querySelector('.rf-toolbar + [data-nx-action-bar-slot]')).toBeTruthy();
   });
+
+  it('page-variant form inside a modal keeps no slot and the bar stays out of the modal', async () => {
+    const { RecordFormPage } = await import('../record-form/RecordForm');
+    render(
+      <CommandProvider><ActionBarSlotProvider breadcrumb={null}>
+        <ActionBar locale="tr" />
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <div className="modal">
+            <RecordFormPage title="T" mode="create" busy={false} saveLabel="x" onSubmit={() => undefined} onCancel={() => undefined}>{null}</RecordFormPage>
+          </div>
+        </KeepAliveViews>
+      </ActionBarSlotProvider></CommandProvider>,
+    );
+    expect(document.querySelector('[data-nx-action-bar-slot]')).toBeNull();
+    expect(toolbars()).toHaveLength(1);
+    expect(toolbars()[0].closest('.modal')).toBeNull();
+  });
+});
+
+describe('slot order', () => {
+  it('picks the first slot in DOM order, not registration order', () => {
+    function Late() {
+      const [show, setShow] = useState(false);
+      return (
+        <>
+          <button onClick={() => setShow(true)}>show</button>
+          {show && <div data-testid="first"><ActionBarSlot /></div>}
+        </>
+      );
+    }
+    function Page() {
+      return (
+        <CommandProvider><ActionBarSlotProvider breadcrumb={null}>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="v" openKeys={['v']}>
+            <Late />
+            <div data-testid="second"><ActionBarSlot /></div>
+          </KeepAliveViews>
+        </ActionBarSlotProvider></CommandProvider>
+      );
+    }
+    render(<Page />);
+    expect(screen.getByTestId('second').contains(toolbars()[0])).toBe(true);
+    act(() => screen.getByText('show').click());
+    // The earlier-in-DOM slot registered later, and still wins.
+    expect(screen.getByTestId('first').contains(toolbars()[0])).toBe(true);
+    expect(toolbars()).toHaveLength(1);
+  });
 });

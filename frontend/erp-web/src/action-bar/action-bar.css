@@ -141,7 +141,10 @@
 .nx-shortcut-help dd { margin: 0; }
 
 /* Page slot under the title row (the bar is portalled here); the breadcrumb sits above the title in the title block. */
-.nx-action-bar-slot:not(:empty) { margin: 10px 0 12px; min-width: 0; }
+.nx-action-bar-slot { min-width: 0; }
+.nx-action-bar-slot:empty { display: none; }
+/* Spacing comes from the title row (not the slot), so a parent grid/flex gap is not doubled. */
+.nx-action-bar-slot:not(:empty) { padding-top: 10px; }
 #root .list-v2-title--crumb, #root .rf-title--crumb { flex-wrap: wrap; }
 #root .list-v2-title--crumb > .workspace-breadcrumb,
 #root .rf-title--crumb > .workspace-breadcrumb { flex: 0 0 100%; margin: 0 0 2px; min-height: 0; }
