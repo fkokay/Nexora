@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Circle, CloudUpload, Info, Loader2, RefreshCw } from "lucide-react";
 import { api } from "./api";
+import { confirmDialog } from "./ui/confirmDialog";
 
 type Job = { id: string; packageId: string; status: string; commitSha: string; output: string };
 type JobTone = "running" | "success" | "info" | "error";
@@ -50,7 +51,15 @@ export function WebImageUpdate({ projectId, packageId, commitSha, token }: { pro
   }, [statusPath, token, refreshKey]);
 
   async function update() {
-    if (!window.confirm(`${commitSha.slice(0, 12)} commit’inde değişen çalışan servisler belirlenecek ve yalnız bunların Docker imajları güncellenecek. Devam edilsin mi?`)) return;
+    if (
+      !(await confirmDialog({
+        title: "Değişen servislerin imajları güncellensin mi?",
+        message: "Bu commit'te değişen çalışan servisler belirlenecek ve yalnız onların Docker imajları yeniden oluşturulacak.",
+        details: [["Commit", commitSha.slice(0, 12)]],
+        confirmLabel: "İmajları güncelle",
+      }))
+    )
+      return;
     setBusy(true);
     setActionError("");
     try {

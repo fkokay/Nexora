@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ShieldCheck, X } from "lucide-react";
 import { api } from "./api";
+import { confirmDialog } from "./ui/confirmDialog";
 
 type Project = {
   id: string;
@@ -93,7 +94,14 @@ export function ModuleSourceMappings({
     }
   }
   async function remove(item: Mapping) {
-    if (!window.confirm(`${item.moduleCode} kaynak eşlemesi kaldırılsın mı?`))
+    if (
+      !(await confirmDialog({
+        title: `${item.moduleCode} kaynak eşlemesi kaldırılsın mı?`,
+        message: "Modül bu projedeki kaynak koduyla eşleşmez. Eşlemeyi daha sonra yeniden ekleyebilirsiniz.",
+        tone: "danger",
+        confirmLabel: "Eşlemeyi kaldır",
+      }))
+    )
       return;
     setBusy(true);
     setError("");

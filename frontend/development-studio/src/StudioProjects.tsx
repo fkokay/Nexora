@@ -44,6 +44,7 @@ import { DatabaseEngineer } from "./DatabaseEngineer";
 import { ModuleSourceMappings } from "./ModuleSourceMappings";
 import { WorkspaceCodeEditor } from "./WorkspaceCodeEditor";
 import { moduleStarterFiles } from "./moduleStarterFiles";
+import { confirmDialog, promptDialog } from "./ui/confirmDialog";
 import "./ui-designer-workflow.css";
 
 const maxManualWorkspaceFileBytes = 900 * 1024;
@@ -1218,9 +1219,7 @@ export function StudioProjects({
   async function revokeAccess(member: ProjectMember) {
     if (
       !accessProject ||
-      !window.confirm(
-        `${member.email} kullanıcısının proje erişimi kaldırılsın mı?`,
-      )
+      !(await confirmDialog({ title: "Proje erişimi kaldırılsın mı?", message: `${member.email} kullanıcısının proje erişimi kaldırılsın mı?`, tone: "danger", confirmLabel: "Erişimi kaldır" }))
     )
       return;
     setBusy(true);
@@ -1339,7 +1338,7 @@ export function StudioProjects({
   async function disconnectProjectGitHub() {
     if (
       !workspaceProject ||
-      !window.confirm("Bu projenin GitHub App bağlantısı kaldırılsın mı?")
+      !(await confirmDialog({ title: "GitHub App bağlantısı kaldırılsın mı?", message: "Bu projenin GitHub App bağlantısı kaldırılsın mı?", tone: "danger", confirmLabel: "Bağlantıyı kaldır" }))
     )
       return;
     setBusy(true);
@@ -1474,9 +1473,7 @@ export function StudioProjects({
   async function cancelWorkspaceRequest(request: WorkspaceRequest) {
     if (
       !workspaceProject ||
-      !window.confirm(
-        `${request.branchName} dalı için bekleyen çalışma alanı talebi iptal edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Çalışma alanı talebi iptal edilsin mi?", message: `${request.branchName} dalı için bekleyen çalışma alanı talebi iptal edilsin mi?`, tone: "warning", confirmLabel: "Talebi iptal et" }))
     )
       return;
     setBusy(true);
@@ -1510,9 +1507,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `"${request.branchName}" çalışma alanı talebi etkin listeden silinsin mi? Denetim geçmişi ve izole çalışma alanındaki dosyalar korunur.`,
-      )
+      !(await confirmDialog({ title: "Çalışma alanı talebi listeden kaldırılsın mı?", message: `"${request.branchName}" çalışma alanı talebi etkin listeden silinsin mi? Denetim geçmişi ve izole çalışma alanındaki dosyalar korunur.`, tone: "warning", confirmLabel: "Listeden kaldır" }))
     )
       return;
     setBusy(true);
@@ -1678,9 +1673,7 @@ export function StudioProjects({
         return;
       }
       if (
-        !window.confirm(
-          `${missing.map((file) => file.path).join("\n")} dosyaları izole çalışma alanına eklenecek. Var olan dosyalar değiştirilmez; kod çalıştırılmaz. Devam edilsin mi?`,
-        )
+        !(await confirmDialog({ title: "Eksik dosyalar çalışma alanına eklensin mi?", message: `${missing.map((file) => file.path).join("\n")} dosyaları izole çalışma alanına eklenecek. Var olan dosyalar değiştirilmez; kod çalıştırılmaz. Devam edilsin mi?`, tone: "default", confirmLabel: "Dosyaları ekle" }))
       )
         return;
       for (const file of missing) {
@@ -1720,9 +1713,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh ? ` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce workspace içinden otomatik yenilenecek.` : ""} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Dosyalar bilgi tabanına eklensin mi?", message: `${knowledgePaths.length} dosya ve ${knowledgeHistoryIds.length} onaylanmış geliştirme geçmişi kaydı tenant'a ait AI Studio bilgi tabanında saklanacak ve seçili AI sağlayıcısına anlamsal indeksleme için gönderilecek.${enableKnowledgeAutoRefresh ? ` Seçilen ${knowledgePaths.length} dosya, bilgi tabanı seçilen sonraki sohbetlerde tekrar kullanılmadan önce workspace içinden otomatik yenilenecek.` : ""} Yalnızca seçtikleriniz paylaşılır. Devam edilsin mi?`, tone: "warning", confirmLabel: "Bilgi tabanına ekle" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1772,9 +1763,7 @@ export function StudioProjects({
     if (
       !workspaceProject ||
       !fileWorkspace ||
-      !window.confirm(
-        "Bu workspace için otomatik bilgi tabanı yenileme izni kaldırılsın mı?",
-      )
+      !(await confirmDialog({ title: "Otomatik yenileme izni kaldırılsın mı?", message: "Bu workspace için otomatik bilgi tabanı yenileme izni kaldırılsın mı?", tone: "warning", confirmLabel: "İzni kaldır" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1802,9 +1791,7 @@ export function StudioProjects({
   async function enableKnowledgeAutoRefreshAll() {
     if (!workspaceProject || !fileWorkspace || knowledgeLoading) return;
     if (
-      !window.confirm(
-        `Her sohbet mesajı öncesinde bu izole workspace içindeki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Sohbette kaynak kod araması açılsın mı?", message: `Her sohbet mesajı öncesinde bu izole workspace içindeki desteklenen kaynak kodunda ilgili arama yapılacak; güvenli eşleşmeler tenant'ta seçili AI sağlayıcısına gönderilecek. Bu izin bu workspace için kalıcıdır; ERP kayıtları, sır dosyaları ve ikili dosyalar kapsam dışıdır. Açmak istiyor musunuz?`, tone: "warning", confirmLabel: "İzni ver" }))
     )
       return;
     setKnowledgeLoading(true);
@@ -1834,9 +1821,7 @@ export function StudioProjects({
     if (
       !workspaceProject ||
       !fileWorkspace ||
-      !window.confirm(
-        `${document.path} dosyasının bu sürümünü bilgi tabanından silmek istiyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Dosya bilgi tabanından silinsin mi?", message: `${document.path} dosyasının bu sürümünü bilgi tabanından silmek istiyor musunuz?`, tone: "danger", confirmLabel: "Sil" }))
     )
       return;
     try {
@@ -1928,9 +1913,7 @@ export function StudioProjects({
       return;
     const path = manualFileCreating ? manualFilePath : fileContent.path;
     if (
-      !window.confirm(
-        `Manuel kod ${path} dosyasına izole workspace içinde uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Manuel kod dosyaya uygulansın mı?", message: `Manuel kod ${path} dosyasına izole workspace içinde uygulanacak. Güncel dosya değişmişse işlem durdurulur. Kod çalıştırılmayacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Uygula" }))
     )
       return;
     setManualFileSaving(true);
@@ -1989,23 +1972,19 @@ export function StudioProjects({
         : manualFileContent !== fileContent?.content)
     );
   }
-  function cancelManualFileEdit() {
+  async function cancelManualFileEdit() {
     if (
       hasUnsavedManualFileChanges() &&
-      !window.confirm(
-        "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Düzenlemeyi iptal etmek istiyor musunuz?",
-      )
+      !(await confirmDialog({ title: "Düzenleme iptal edilsin mi?", message: "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Düzenlemeyi iptal etmek istiyor musunuz?", tone: "warning", confirmLabel: "Değişiklikleri at" }))
     )
       return;
     setManualFileEditing(false);
     setManualFileCreating(false);
   }
-  function closeWorkspaceFileExplorer() {
+  async function closeWorkspaceFileExplorer() {
     if (
       hasUnsavedManualFileChanges() &&
-      !window.confirm(
-        "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Dosya gezginini kapatmak istiyor musunuz?",
-      )
+      !(await confirmDialog({ title: "Dosya gezgini kapatılsın mı?", message: "Kaydedilmemiş manuel kod değişiklikleri kaybolacak. Dosya gezginini kapatmak istiyor musunuz?", tone: "warning", confirmLabel: "Kaydetmeden kapat" }))
     )
       return;
     updateWorkspaceRoute();
@@ -2252,9 +2231,7 @@ export function StudioProjects({
             ? "Yalnız bağımsız Cargo paketleri çalışır; crate bağımlılıkları ve Cargo workspace desteği yoktur."
             : "dotnet restore yalnız sandbox paket önbelleğini kullanır.";
     if (
-      !window.confirm(
-        `“${target.path}”${executionLabel} ağsız ve kaynak sınırları uygulanmış sandbox içinde çalıştırılacak. ${limitation} Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Test sandbox'ta çalıştırılsın mı?", message: `“${target.path}”${executionLabel} ağsız ve kaynak sınırları uygulanmış sandbox içinde çalıştırılacak. ${limitation} Devam edilsin mi?`, tone: "default", confirmLabel: "Testi çalıştır" }))
     )
       return;
     setTestExecutionLoading(true);
@@ -2346,9 +2323,7 @@ export function StudioProjects({
             ? "Yalnız bağımsız, harici bağımlılığı olmayan Cargo paketleri desteklenir."
             : "Paket yüklenmez ve proje komut dosyaları çalıştırılmaz.";
     if (
-      !window.confirm(
-        `“${target.path}” ${buildCommand} ile ağsız ve kaynak sınırları uygulanmış sandbox içinde işlenecek. ${limitation} Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Build sandbox'ta çalıştırılsın mı?", message: `“${target.path}” ${buildCommand} ile ağsız ve kaynak sınırları uygulanmış sandbox içinde işlenecek. ${limitation} Devam edilsin mi?`, tone: "default", confirmLabel: "Build'i çalıştır" }))
     )
       return;
     setBuildExecutionLoading(true);
@@ -2497,9 +2472,7 @@ export function StudioProjects({
   ) {
     if (!workspaceProject || sandboxErrorAnalysisLoading) return;
     if (
-      !window.confirm(
-        "Sandbox durum ve çıktısının hassas değerleri maskelenerek hata analizi için OpenAI’ye gönderilmesini onaylıyor musunuz? Ham çıktı veritabanında saklanmaz.",
-      )
+      !(await confirmDialog({ title: "Hata analizi için çıktı gönderilsin mi?", message: "Sandbox durum ve çıktısının hassas değerleri maskelenerek hata analizi için OpenAI’ye gönderilmesini onaylıyor musunuz? Ham çıktı veritabanında saklanmaz.", tone: "warning", confirmLabel: "Analiz için gönder" }))
     )
       return;
     setSandboxErrorAnalysisLoading(true);
@@ -2656,9 +2629,7 @@ export function StudioProjects({
   async function deleteSavedAITestPlan(saved: SavedAITestPlan) {
     if (!workspaceProject || !saved.canDelete) return;
     if (
-      !window.confirm(
-        `“${saved.summary}” test planını kalıcı olarak silmek istiyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Test planı silinsin mi?", message: `“${saved.summary}” test planını kalıcı olarak silmek istiyor musunuz?`, tone: "danger", confirmLabel: "Planı sil" }))
     )
       return;
     setError("");
@@ -2792,9 +2763,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole workspace’e yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Ekran taslağı çalışma alanına yazılsın mı?", message: `${uiDesignResult.filePath} ekran taslağı önizlemeden üretildi ve yalnızca yeni dosya olarak izole workspace’e yazılacak. Kod çalıştırılmayacak. Onaylıyor musunuz?`, tone: "default", confirmLabel: "Dosyayı yaz" }))
     )
       return;
     setUiDesignLoading(true);
@@ -2991,9 +2960,7 @@ export function StudioProjects({
       !workspaceProject ||
       !multiDeveloperWorkspace ||
       multiFileApplied.includes(change.filePath) ||
-      !window.confirm(
-        `Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole workspace'e uygulansın mı? Kod çalıştırılmaz.`,
-      )
+      !(await confirmDialog({ title: "Bu dosyadaki değişiklik uygulansın mı?", message: `Yalnız ${change.filePath} dosyasındaki değişiklik açık onayla izole workspace'e uygulansın mı? Kod çalıştırılmaz.`, tone: "default", confirmLabel: "Değişikliği uygula" }))
     )
       return;
     setMultiFileLoading(true);
@@ -3165,10 +3132,7 @@ export function StudioProjects({
         );
         return;
       }
-      const message = window.prompt(
-        "İzole dal için tek satırlık commit mesajı girin (8–160 karakter).",
-        "Apply approved Studio changes",
-      );
+      const message = (await promptDialog({ title: "Commit mesajı", label: "Tek satırlık commit mesajı", defaultValue: "Apply approved Studio changes", required: true, hint: "8–160 karakter, tek satır.", confirmLabel: "Devam", tone: "default" }));
       if (message === null) return;
       if (
         !message.trim() ||
@@ -3180,9 +3144,7 @@ export function StudioProjects({
         return;
       }
       if (
-        !window.confirm(
-          `Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Commit tamamlanınca değişikliklerle eşleşen test hedefi otomatik seçilip yalıtılmış sandbox'ta çalıştırılacak. Uzak depoya push yapılmayacak.\n\n${paths.join("\n")}`,
-        )
+        !(await confirmDialog({ title: "Onaylı değişiklikler commit edilsin mi?", message: `Yalnızca şu onaylı dosyalar ${workspaceGitStatus.branchName} dalına commit edilecek. Commit tamamlanınca değişikliklerle eşleşen test hedefi otomatik seçilip yalıtılmış sandbox'ta çalıştırılacak. Uzak depoya push yapılmayacak.\n\n${paths.join("\n")}`, tone: "default", confirmLabel: "Commit et" }))
       )
         return;
       const result = await api<WorkspaceCommitResult>(
@@ -3437,18 +3399,14 @@ export function StudioProjects({
       pullRequestDraftLoading
     )
       return;
-    const summary = window.prompt(
-      "Değişikliklerin kısa özeti (1–1500 karakter). Kaynak kod veya sır eklemeyin.",
-    );
+    const summary = (await promptDialog({ title: "PR taslağı için değişiklik özeti", label: "Kısa özet", required: true, multiline: true, hint: "1–1500 karakter. Kaynak kod veya sır eklemeyin.", confirmLabel: "Devam", tone: "default" }));
     if (summary === null) return;
     if (!summary.trim()) {
       setError("Değişiklik özeti boş olamaz.");
       return;
     }
     if (
-      !window.confirm(
-        `Bu özet ile proje/dal adı, commit kimliği ve başarılı sandbox test metadata'sı PR taslağı oluşturmak için OpenAI'ye gönderilecek. Kaynak kodu ve test çıktısı gönderilmez. Onaylıyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "PR taslağı için bilgiler gönderilsin mi?", message: `Bu özet ile proje/dal adı, commit kimliği ve başarılı sandbox test metadata'sı PR taslağı oluşturmak için OpenAI'ye gönderilecek. Kaynak kodu ve test çıktısı gönderilmez. Onaylıyor musunuz?`, tone: "warning", confirmLabel: "Taslak oluştur" }))
     )
       return;
     setPullRequestDraftLoading(true);
@@ -3485,9 +3443,7 @@ export function StudioProjects({
       return;
     const draft = pullRequestDraft.draft;
     if (
-      !window.confirm(
-        `GitHub'a yalnız ${draft.commitSha.slice(0, 12)} commit'ini içeren ${draft.sourceBranch} dalı push edilecek ve ${draft.baseBranch} tabanına draft PR oluşturulacak. Mevcut remote dal farklıysa üzerine yazılmaz. Onaylıyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Dal push edilip draft PR açılsın mı?", message: `GitHub'a yalnız ${draft.commitSha.slice(0, 12)} commit'ini içeren ${draft.sourceBranch} dalı push edilecek ve ${draft.baseBranch} tabanına draft PR oluşturulacak. Mevcut remote dal farklıysa üzerine yazılmaz. Onaylıyor musunuz?`, tone: "warning", confirmLabel: "Push et ve PR aç" }))
     )
       return;
     setPullRequestPublishLoading(true);
@@ -3540,18 +3496,14 @@ export function StudioProjects({
       APPROVE: "Onay",
       REQUEST_CHANGES: "Değişiklik isteği",
     };
-    const body = window.prompt(
-      `${labels[event]} açıklamasını girin (1–4000 karakter).`,
-    );
+    const body = (await promptDialog({ title: `${labels[event]}`, label: "Açıklama", required: true, multiline: true, hint: "1–4000 karakter.", confirmLabel: "Devam", tone: "default" }));
     if (body === null) return;
     if (!body.trim()) {
       setError("GitHub inceleme açıklaması boş olamaz.");
       return;
     }
     if (
-      !window.confirm(
-        `Bu ${labels[event].toLocaleLowerCase("tr-TR")} yorumu GitHub PR #${candidate.githubPullRequestNumber} üzerinde yayınlanacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "İnceleme GitHub'da yayınlansın mı?", message: `Bu ${labels[event].toLocaleLowerCase("tr-TR")} yorumu GitHub PR #${candidate.githubPullRequestNumber} üzerinde yayınlanacak. Devam edilsin mi?`, tone: "warning", confirmLabel: "Yayınla" }))
     )
       return;
     setError("");
@@ -3575,9 +3527,7 @@ export function StudioProjects({
       !candidate.githubPullRequestNumber
     )
       return;
-    const input = window.prompt(
-      "İnceleme isteği gönderilecek GitHub kullanıcı adlarını virgülle ayırarak girin (en fazla 10).",
-    );
+    const input = (await promptDialog({ title: "İnceleme talebi", label: "GitHub kullanıcı adları", required: true, hint: "Virgülle ayırın, en fazla 10 kişi.", confirmLabel: "Devam", tone: "default" }));
     if (input === null) return;
     const reviewers = input
       .split(",")
@@ -3588,9 +3538,7 @@ export function StudioProjects({
       return;
     }
     if (
-      !window.confirm(
-        `${reviewers.join(", ")} kullanıcılara PR #${candidate.githubPullRequestNumber} inceleme talebi gönderilecek. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "İnceleme talebi gönderilsin mi?", message: `${reviewers.join(", ")} kullanıcılara PR #${candidate.githubPullRequestNumber} inceleme talebi gönderilecek. Devam edilsin mi?`, tone: "default", confirmLabel: "Talep gönder" }))
     )
       return;
     setError("");
@@ -3616,9 +3564,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `Yetkili Studio onayı alınmış ${candidate.commitSha.slice(0, 12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Draft PR incelemeye açılsın mı?", message: `Yetkili Studio onayı alınmış ${candidate.commitSha.slice(0, 12)} commit’ine bağlı GitHub draft PR #${candidate.githubPullRequestNumber} incelemeye açılacak ve GitHub inceleme bildirimleri gönderilecek. Devam edilsin mi?`, tone: "warning", confirmLabel: "İncelemeye aç" }))
     )
       return;
     setPullRequestReadyLoading(candidate.id);
@@ -3655,9 +3601,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `Bu çalışma alanındaki ${candidate.commitSha.slice(0, 12)} commit’ine bağlı, henüz aktarılmamış dosya yorumları GitHub PR #${candidate.githubPullRequestNumber} üzerine yayınlanacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Dosya yorumları GitHub'a aktarılsın mı?", message: `Bu çalışma alanındaki ${candidate.commitSha.slice(0, 12)} commit’ine bağlı, henüz aktarılmamış dosya yorumları GitHub PR #${candidate.githubPullRequestNumber} üzerine yayınlanacak. Devam edilsin mi?`, tone: "warning", confirmLabel: "Yorumları aktar" }))
     )
       return;
     setError("");
@@ -3680,9 +3624,7 @@ export function StudioProjects({
     )
       return;
     if (
-      !window.confirm(
-        `GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu workspace’e salt okunur şekilde alınacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "GitHub yorumları içe alınsın mı?", message: `GitHub PR #${candidate.githubPullRequestNumber} üzerindeki dosya inceleme yorumları bu workspace’e salt okunur şekilde alınacak. Devam edilsin mi?`, tone: "default", confirmLabel: "Yorumları al" }))
     )
       return;
     setError("");
@@ -3711,14 +3653,10 @@ export function StudioProjects({
       releaseVersions.some((x) => x.releaseCandidateId === candidate.id)
     )
       return;
-    const version = window.prompt(
-      "Bu onaylı adaya SemVer sürüm numarası ata (örn. 1.2.3 veya 1.2.3-rc.1).",
-    );
+    const version = (await promptDialog({ title: "Sürüm numarası", label: "SemVer sürüm numarası", required: true, hint: "Örn. 1.2.3 veya 1.2.3-rc.1", confirmLabel: "Devam", tone: "default" }));
     if (version === null) return;
     if (
-      !window.confirm(
-        `${version.trim()} numarası bu projede benzersiz ve değiştirilemez sürüm kimliği olarak kaydedilecek. Dağıtım veya paket oluşturulmayacak. Onaylıyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Sürüm numarası kaydedilsin mi?", message: `${version.trim()} numarası bu projede benzersiz ve değiştirilemez sürüm kimliği olarak kaydedilecek. Dağıtım veya paket oluşturulmayacak. Onaylıyor musunuz?`, tone: "warning", confirmLabel: "Sürümü kaydet" }))
     )
       return;
     setError("");
@@ -3743,9 +3681,7 @@ export function StudioProjects({
     if (!workspaceProject || !gitStatusWorkspace || releasePackageLoading)
       return;
     if (
-      !window.confirm(
-        `${version.version} sürümü için onaylı commit ve başarılı sandbox testinden doğrulanmış ZIP paketi oluşturulsun mu? Bu işlem dağıtım başlatmaz.`,
-      )
+      !(await confirmDialog({ title: "Sürüm paketi oluşturulsun mu?", message: `${version.version} sürümü için onaylı commit ve başarılı sandbox testinden doğrulanmış ZIP paketi oluşturulsun mu? Bu işlem dağıtım başlatmaz.`, tone: "default", confirmLabel: "Paket oluştur" }))
     )
       return;
     setReleasePackageLoading(version.id);
@@ -3825,9 +3761,7 @@ export function StudioProjects({
       ? `Rollback: ${pkg.version} (${pkg.commitSha.slice(0, 12)}) eski sürümü aynı staging veritabanı üzerinde devreye alınacak.`
       : `${pkg.version} sürümü yerel Docker Compose staging ortamına kurulacak.`;
     if (
-      !window.confirm(
-        `${description}\n\nYalnız bu bilgisayarda localhost üzerinden erişilir. İlk kurulumda staging yönetici parolası bir kez gösterilir. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Staging ortamına kurulsun mu?", message: `${description}\n\nYalnız bu bilgisayarda localhost üzerinden erişilir. İlk kurulumda staging yönetici parolası bir kez gösterilir. Devam edilsin mi?`, tone: "warning", confirmLabel: "Staging'e kur" }))
     )
       return;
     setReleaseDeploymentLoading(true);
@@ -3878,15 +3812,11 @@ export function StudioProjects({
           ),
         )[0] ?? null;
     if (
-      !window.confirm(
-        `${approval.version} sürümü onaylı yerel Docker Compose production ortamına kurulacak. Servis yalnız localhost üzerinden erişilir; production SQL verisi sürümler arasında korunur ve güncelleme öncesi yedeklenir. Dağıtım başlatılsın mı?`,
-      )
+      !(await confirmDialog({ title: "Production ortamına kurulsun mu?", message: `${approval.version} sürümü onaylı yerel Docker Compose production ortamına kurulacak. Servis yalnız localhost üzerinden erişilir; production SQL verisi sürümler arasında korunur ve güncelleme öncesi yedeklenir. Dağıtım başlatılsın mı?`, tone: "danger", confirmLabel: "Production'a kur" }))
     )
       return;
     if (
-      !window.confirm(
-        "Ayrı migration adımı onaylanıyor. Bekleyen SQL Server şema migration’ları production veritabanına uygulanacak. Başarısız güncellemede Deployer önceki uygulama sürümünü yeniden başlatmayı dener ve Compose başarılı olursa sağlık kontrolü yapar; sonucu yalnız Deployer loglarına yazar. Gerekirse production dağıtım geçmişindeki TenantAdmin geri yükleme kontrolü, o sürüm öncesindeki veritabanı ve uygulama paketini birlikte kurtarır; yedekten sonraki kayıtlar kaybolur. Devam edilsin mi?",
-      )
+      !(await confirmDialog({ title: "Veritabanı migration'ları uygulansın mı?", message: "Ayrı migration adımı onaylanıyor. Bekleyen SQL Server şema migration’ları production veritabanına uygulanacak. Başarısız güncellemede Deployer önceki uygulama sürümünü yeniden başlatmayı dener ve Compose başarılı olursa sağlık kontrolü yapar; sonucu yalnız Deployer loglarına yazar. Gerekirse production dağıtım geçmişindeki TenantAdmin geri yükleme kontrolü, o sürüm öncesindeki veritabanı ve uygulama paketini birlikte kurtarır; yedekten sonraki kayıtlar kaybolur. Devam edilsin mi?", tone: "danger", confirmLabel: "Migration'ları uygula" }))
     )
       return;
     setReleaseDeploymentLoading(true);
@@ -3946,18 +3876,21 @@ export function StudioProjects({
         : deployment.id;
     if (!expectedActiveDeploymentId) return;
     if (
-      !window.confirm(
-        `Etkin production veritabanı ${deployment.version} sürümü öncesi alınan doğrulanmış yedekten geri yüklenecek. Bu yedekten sonra oluşan ERP kayıtları kaybolur. Önceki uygulama sürümü de yeniden başlatılacak. Devam edilsin mi?`,
-      )
+      !(await confirmDialog({ title: "Production veritabanı yedekten geri yüklensin mi?", message: `Etkin production veritabanı ${deployment.version} sürümü öncesi alınan doğrulanmış yedekten geri yüklenecek. Bu yedekten sonra oluşan ERP kayıtları kaybolur. Önceki uygulama sürümü de yeniden başlatılacak. Devam edilsin mi?`, tone: "danger", confirmLabel: "Devam et" }))
     )
       return;
-    const confirmationText = window.prompt(
-      `Geri yüklemeyi onaylamak için şu metni aynen yazın:\nRESTORE ${deployment.id.replaceAll("-", "")}`,
-    );
-    if (confirmationText !== `RESTORE ${deployment.id.replaceAll("-", "")}`) {
-      setError("Geri yükleme metni eşleşmedi; işlem başlatılmadı.");
+    const confirmationText = `RESTORE ${deployment.id.replaceAll("-", "")}`;
+    if (
+      !(await confirmDialog({
+        title: "Geri yükleme kodunu yazın",
+        message: "Bu son adım. Kod eşleşmeden geri yükleme başlamaz.",
+        tone: "danger",
+        details: [["Sürüm", deployment.version], ["Kod", confirmationText]],
+        confirmText: confirmationText,
+        confirmLabel: "Production'ı geri yükle",
+      }))
+    )
       return;
-    }
     setReleaseDeploymentLoading(true);
     setError("");
     try {
@@ -3994,18 +3927,14 @@ export function StudioProjects({
   }
   async function requestProductionApproval(deployment: ReleaseDeployment) {
     if (!workspaceProject || releaseDeploymentLoading) return;
-    const note = window.prompt(
-      "Üretim onay gerekçesini yazın (1–1000 karakter). Bu işlem canlıya yayın yapmaz.",
-    );
+    const note = (await promptDialog({ title: "Production onayı talep et", label: "Onay gerekçesi", required: true, multiline: true, hint: "1–1000 karakter. Bu adım canlıya yayın yapmaz.", confirmLabel: "Devam", tone: "default" }));
     if (note === null) return;
     if (!note.trim()) {
       setError("Onay talebi gerekçesi boş olamaz.");
       return;
     }
     if (
-      !window.confirm(
-        "Başarılı staging sürümü TenantAdmin bağımsız incelemesine gönderilecek. Canlı üretime dağıtım BAŞLATILMAYACAK. Devam edilsin mi?",
-      )
+      !(await confirmDialog({ title: "Staging sürümü onaya gönderilsin mi?", message: "Başarılı staging sürümü TenantAdmin bağımsız incelemesine gönderilecek. Canlı üretime dağıtım BAŞLATILMAYACAK. Devam edilsin mi?", tone: "default", confirmLabel: "Onaya gönder" }))
     )
       return;
     setReleaseDeploymentLoading(true);
@@ -4032,11 +3961,7 @@ export function StudioProjects({
     decision: "Approved" | "Rejected",
   ) {
     if (!workspaceProject || tenant.role !== "TenantAdmin") return;
-    const note = window.prompt(
-      decision === "Approved"
-        ? "Üretim onay notunu yazın (1–1000 karakter)."
-        : "Üretim ret gerekçesini yazın (1–1000 karakter).",
-    );
+    const note = (await promptDialog({ title: decision === "Approved" ? "Onay notu" : "Ret gerekçesi", label: decision === "Approved" ? "Onay notu" : "Ret gerekçesi", tone: decision === "Approved" ? "default" : "danger", confirmLabel: decision === "Approved" ? "Onayla" : "Reddet", required: true, multiline: true, hint: "1–1000 karakter." }));
     if (note === null) return;
     if (!note.trim()) {
       setError("İnceleme notu boş olamaz.");
@@ -4064,9 +3989,7 @@ export function StudioProjects({
     if (
       !workspaceProject ||
       releaseDeploymentLoading ||
-      !window.confirm(
-        `Yerel staging Compose servisleri, SQL veritabanı ve workspace verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Staging ortamı silinsin mi?", message: `Yerel staging Compose servisleri, SQL veritabanı ve workspace verileri kalıcı olarak silinecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`, tone: "danger", confirmLabel: "Staging'i sil" }))
     )
       return;
     setReleaseDeploymentLoading(true);
@@ -4092,11 +4015,7 @@ export function StudioProjects({
     decision: "Approved" | "Rejected",
   ) {
     if (!workspaceProject || !gitStatusWorkspace) return;
-    const note = window.prompt(
-      decision === "Approved"
-        ? "Onay gerekçesini yazın (1–1000 karakter)."
-        : "Ret gerekçesini yazın (1–1000 karakter).",
-    );
+    const note = (await promptDialog({ title: decision === "Approved" ? "Onay notu" : "Ret gerekçesi", label: decision === "Approved" ? "Onay notu" : "Ret gerekçesi", tone: decision === "Approved" ? "default" : "danger", confirmLabel: decision === "Approved" ? "Onayla" : "Reddet", required: true, multiline: true, hint: "1–1000 karakter." }));
     if (note === null) return;
     if (!note.trim()) {
       setError("İnceleme notu boş olamaz.");
@@ -4407,9 +4326,7 @@ export function StudioProjects({
       !workspaceProject ||
       !chatWorkspace ||
       !chatConversation?.canDelete ||
-      !window.confirm(
-        `“${chatConversation.title}” sohbeti ve mesaj geçmişi silinsin mi? Bu işlem geri alınamaz.`,
-      )
+      !(await confirmDialog({ title: "Sohbet silinsin mi?", message: `“${chatConversation.title}” sohbeti ve mesaj geçmişi silinsin mi? Bu işlem geri alınamaz.`, tone: "danger", confirmLabel: "Sohbeti sil" }))
     )
       return;
     setChatLoading(true);
@@ -4633,9 +4550,7 @@ export function StudioProjects({
       !workspaceProject ||
       !chatWorkspace ||
       chatCodeChangeApplied.includes(change.filePath) ||
-      !window.confirm(
-        `AI önerisi ${change.filePath} dosyasına yalnızca bu izole çalışma alanında uygulansın mı? Dosyanın güncel özeti eşleşmezse işlem durdurulur. Kod çalıştırılmaz ve uzak depoya gönderilmez.`,
-      )
+      !(await confirmDialog({ title: "AI önerisi dosyaya uygulansın mı?", message: `AI önerisi ${change.filePath} dosyasına yalnızca bu izole çalışma alanında uygulansın mı? Dosyanın güncel özeti eşleşmezse işlem durdurulur. Kod çalıştırılmaz ve uzak depoya gönderilmez.`, tone: "default", confirmLabel: "Öneriyi uygula" }))
     )
       return;
     setChatCodeChangeLoading(true);
@@ -4861,9 +4776,7 @@ export function StudioProjects({
   async function deleteSavedArchitecturePlan(saved: SavedArchitecturePlan) {
     if (!workspaceProject || !saved.canDelete) return;
     if (
-      !window.confirm(
-        `“${saved.summary}” mimari planını kalıcı olarak silmek istiyor musunuz?`,
-      )
+      !(await confirmDialog({ title: "Mimari plan silinsin mi?", message: `“${saved.summary}” mimari planını kalıcı olarak silmek istiyor musunuz?`, tone: "danger", confirmLabel: "Planı sil" }))
     )
       return;
     setError("");
@@ -9921,12 +9834,10 @@ export function StudioProjects({
                     type="button"
                     title="Sekmeyi kapat"
                     aria-label="Dosya sekmesini kapat"
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         manualFileEditing &&
-                        !window.confirm(
-                          "Kaydedilmemiş düzenlemeyi kapatmak istiyor musunuz?",
-                        )
+                        !(await confirmDialog({ title: "Sekme kaydetmeden kapatılsın mı?", message: "Kaydedilmemiş düzenlemeyi kapatmak istiyor musunuz?", tone: "warning", confirmLabel: "Kaydetmeden kapat" }))
                       )
                         return;
                       setManualFileEditing(false);
