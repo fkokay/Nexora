@@ -43,6 +43,7 @@ const palette: PaletteItem[] = [
   { type: "code", label: "Yalıtılmış kod alanı", group: "Bildirim ve gelişmiş", icon: Code2, sample: { title: "Özel bileşen", css: "", javascript: "" } },
 ];
 const paletteGroups = ["Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
+const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
   heading: [{ key: "text", label: "Başlık metni", kind: "text" }],
   text: [{ key: "text", label: "Metin", kind: "textarea" }],
@@ -158,6 +159,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -519,8 +521,27 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const openErpPreview = async () => {
     if (!platformOrigin) { setError("ERP adresi bulunamadı. Studio'yu ERP ekranındaki bağlantıdan açın."); return; }
+    setPreviewHref(null);
     const previewWindow = window.open("about:blank", "_blank");
-    if (!previewWindow) { setError("ERP önizlemesi açılamadı. Tarayıcı açılır pencereyi engelledi."); return; }
+    if (!previewWindow) {
+      // The browser blocked the new window. Still prepare the preview (saving the draft
+      // if needed) and offer a normal link, which popup blockers do not stop.
+      try {
+        const destination = new URL("/", platformOrigin);
+        if (current?.isPublished) destination.searchParams.set("customPage", current.code);
+        else {
+          const saved = dirty || !current ? await saveDraft() : current;
+          if (!saved) return;
+          destination.searchParams.set("customPagePreview", saved.id);
+        }
+        setError("");
+        setNotice(blockedPreviewNotice);
+        setPreviewHref(destination.toString());
+      } catch {
+        setError("ERP önizlemesi açılamadı. Taslağı kaydedip yeniden deneyin.");
+      }
+      return;
+    }
     previewWindow.opener = null;
     try {
       if (current?.isPublished) {
@@ -684,7 +705,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     {(error || notice || (current && !canEdit)) && <div className="pd-messages">
       {current && !canEdit && <div className="pd-message readonly"><Lock size={14}/><span>{current.isPublished ? "Yayımlanmış sürüm salt okunur. Değişiklik yapmak için yeni bir taslak oluşturun." : "Bu taslağı düzenleme yetkiniz yok; yalnızca görüntüleyebilirsiniz."}</span></div>}
       {error && <div className="pd-message error" role="alert"><span>{error}</span><button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={14}/></button></div>}
-      {notice && !error && <div className="pd-message success" role="status"><span>{notice}</span><button type="button" aria-label="Kapat" onClick={() => setNotice("")}><X size={14}/></button></div>}
+      {notice && !error && <div className="pd-message success" role="status"><span>{notice}{previewHref && notice === blockedPreviewNotice && <> <a href={previewHref} target="_blank" rel="noopener noreferrer" onClick={() => { setPreviewHref(null); setNotice(""); }}>ERP önizlemesini aç</a></>}</span><button type="button" aria-label="Kapat" onClick={() => { setNotice(""); setPreviewHref(null); }}><X size={14}/></button></div>}
     </div>}
 
     <div className="pd-workspace">
