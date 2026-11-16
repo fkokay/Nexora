@@ -40,6 +40,15 @@ const delivery = (id: string, status: string) => ({
   status, lineCount: 1, createdAt: '2026-11-01', hasSalesInvoice: false, invoiceStatus: null, invoiceId: null,
 });
 
+const order = {
+  id: 'o1', code: 'S-o1', quoteId: null, quoteCode: '', customerId: 'c1', customerName: 'Acme', orderDate: '2026-11-01',
+  requestedDeliveryDate: null, currencyCode: 'TRY', status: 'Open', grandTotal: 100, lineCount: 1, createdAt: '2026-11-01',
+};
+const salesReturn = {
+  id: 'r1', code: 'IADE-r1', salesInvoiceId: 'i1', invoiceCode: 'F-i1', customerName: 'Acme', warehouseName: 'Ana depo',
+  returnDate: '2026-11-02', status: 'Posted', currencyCode: 'TRY', grandTotal: 100, lineCount: 1,
+};
+
 // Answers the Satış screens' requests with small, well-formed data.
 function respond(url: string): unknown {
   const path = url.split('?')[0];
@@ -53,7 +62,14 @@ function respond(url: string): unknown {
   if (path === '/api/sales/invoices/') return page([invoice('i1', 'Posted'), invoice('i2', 'Voided')]);
   if (path === '/api/sales/invoices/i1') return invoiceDetail('i1', 'Posted');
   if (path === '/api/sales/invoices/i2') return invoiceDetail('i2', 'Voided');
-  if (path === '/api/sales/deliveries/') return page([delivery('d1', 'Posted'), delivery('d2', 'Voided')]);
+  if (path === '/api/sales/deliveries/')
+    return page([delivery('d1', 'Posted'), delivery('d2', 'Voided'), { ...delivery('d3', 'Posted'), hasSalesInvoice: true, invoiceStatus: 'Posted', invoiceId: 'i1' }]);
+  if (path === '/api/sales/deliveries/d1') return { ...delivery('d1', 'Posted'), lines: [] };
+  if (path === '/api/sales/orders/') return page([order]);
+  if (path === '/api/sales/orders/o1') return { ...order, subtotal: 100, discountTotal: 0, taxTotal: 0, lines: [], customFields: [] };
+  if (path === '/api/sales/orders/o1/deliveries') return [];
+  if (path === '/api/sales/returns/') return page([salesReturn]);
+  if (path === '/api/sales/returns/r1') return { ...salesReturn, subtotal: 100, discountTotal: 0, taxTotal: 0, lines: [] };
   if (path === '/api/sales/promotions/') return [];
   return page([]);
 }
@@ -168,6 +184,18 @@ describe('Satış Teklifleri', () => {
     await waitFor(() => expect(enabled('delete')).toBe(true));
   });
 
+  it('Enter on a focused row opens that row, not the previously selected one', async () => {
+    renderScreen(<SalesQuotesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(row('T-q2'));
+    await waitFor(() => expect(enabled('open')).toBe(true));
+    const focused = row('T-q1');
+    focused.focus();
+    fireEvent.keyDown(focused, { key: 'Enter' });
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith('/api/sales/quotes/q1', 't'));
+    expect(apiMock).not.toHaveBeenCalledWith('/api/sales/quotes/q2', 't');
+  });
+
   it('the open draft quote prints and deletes from the bar, with its actions in İşlemler', async () => {
     renderScreen(<SalesQuotesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
@@ -227,6 +255,19 @@ describe('Satış Siparişleri', () => {
     expect(onNavigate).toHaveBeenCalledWith('sales-order-create');
   });
 
+  it('an open order holds the bar with its own actions, and gives it back when closed', async () => {
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(row('S-o1'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
+    await waitFor(() => expect(openMenu()).toEqual(['Stok ayır', 'İrsaliye oluştur']));
+    expect(enabled('new')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Listeye dön' }));
+    await waitFor(() => expect(openMenu()).toEqual(['Sipariş alanları', 'CSV olarak dışa aktar']));
+  });
+
   it('the order create page saves through the bar', async () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantUser" onNavigate={vi.fn()} createOrderPage />);
     await waitFor(() => expect(enabled('save')).toBe(true));
@@ -283,13 +324,39 @@ describe('Satış İrsaliyeleri', () => {
     expect(primary('new')).toBe(true);
     expect(screen.queryByRole('button', { name: /Yeni irsaliye/ })).toBeNull();
     expect(duplicates()).toEqual([]);
-    expect(enabled('open')).toBe(false);
+    // The list highlights the first row until one is chosen; the bar acts on that row.
+    expect(enabled('open')).toBe(true);
     fireEvent.click(row('I-d1'));
     await waitFor(() => expect(enabled('open')).toBe(true));
     expect(reason('delete')).toContain('Sevk edilmiş irsaliye silinemez — İşlemler › İptal et');
     expect(openMenu()).toEqual(['Faturalaştır', 'İptal et', 'CSV olarak dışa aktar']);
     fireEvent.click(row('I-d2'));
     await waitFor(() => expect(enabled('delete')).toBe(true));
+  });
+
+  it('F2 over an open delivery closes it and shows the create form', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'I-d1 irsaliye ayrıntılarını aç' }));
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    fireEvent.keyDown(window, { key: 'F2' });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).toBeNull());
+    expect(document.querySelector('.sales-rf-fulfillment')).not.toBeNull();
+    await waitFor(() => expect(enabled('save')).toBe(true));
+  });
+
+  it('an invoice opened from a delivery holds the bar until it is closed', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(row('I-d3'));
+    await waitFor(() => expect(openMenu()).toContain('Faturayı aç'));
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Faturayı aç' }));
+    });
+    await waitFor(() => expect(openMenu()).toEqual(['Faturayı iptal et']));
+    fireEvent.click(screen.getByRole('button', { name: 'Listeye dön' }));
+    await waitFor(() => expect(openMenu()).toContain('CSV olarak dışa aktar'));
   });
 
   it('the create page keeps Yeni (a fresh draft) and Kaydet', async () => {
@@ -310,6 +377,15 @@ describe('Other Satış screens', () => {
     expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
     fireEvent.keyDown(window, { key: 'F2' });
     await waitFor(() => expect(enabled('save')).toBe(true));
+    // Ctrl+S in the open form submits it: the empty required fields stop it at the browser's validation.
+    const field = document.querySelector<HTMLInputElement>('.record-form input:not([type=hidden])')!;
+    const form = field.form!;
+    const attempts: string[] = [];
+    form.addEventListener('invalid', () => attempts.push('invalid'), true);
+    form.addEventListener('submit', () => attempts.push('submit'), true);
+    field.focus();
+    fireEvent.keyDown(field, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(attempts.length).toBeGreaterThan(0));
   });
 
   it('Satış İadeleri: Yeni opens the invoice list', async () => {
@@ -321,6 +397,15 @@ describe('Other Satış screens', () => {
     expect(duplicates()).toEqual([]);
     fireEvent.keyDown(window, { key: 'F2' });
     expect(onNavigate).toHaveBeenCalledWith('sales-invoices');
+  });
+
+  it('Satış İadeleri: a posted return is cancelled, not deleted', async () => {
+    renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.click(row('IADE-r1'));
+    await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › İadeyi iptal et'));
+    expect(enabled('delete')).toBe(false);
+    expect(openMenu()).toEqual(['Faturayı aç', 'İadeyi iptal et']);
   });
 
   it('Dağıtım planı: Excel from the grid, CSV in İşlemler', async () => {

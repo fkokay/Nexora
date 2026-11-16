@@ -84,6 +84,7 @@ export default function SalesDocumentGrid<T extends { id: string }>({
             items.map((item) => (
               <tr
                 key={item.id}
+                data-record-id={item.id}
                 className={selectedId === item.id ? "erp-selected-row" : ""}
                 tabIndex={0}
                 onClick={() => onSelect(item.id)}

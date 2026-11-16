@@ -11,7 +11,7 @@ import { salesRequestStatus } from "../document-page/documentStatus";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
 import type { GridExportActions } from "../AdvancedDataGrid";
 import { PageCommandsSlot } from "../commands/PageCommandsSlot";
-import { csvExportCommand } from "../commands/gridCommands";
+import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
 import type { MenuCommand, PageCommands } from "../commands/types";
 import { SalesRequestCreateForm } from "./components/SalesRequestCreateForm";
 import { SalesRequestDetailSurface } from "./components/SalesRequestDetailSurface";
@@ -184,7 +184,10 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
   } else {
     commands.open = {
       disabledReason: selected ? undefined : "Önce bir kayıt seçin",
-      run: () => (selected ? openDetail(selected.id) : undefined),
+      run: () => {
+        const id = focusedRecordId() ?? selected?.id;
+        if (id) return openDetail(id);
+      },
     };
     more.push(csvExportCommand(gridExportRef));
   }

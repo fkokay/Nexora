@@ -27,7 +27,7 @@ import "./sales/sales-list-v2.css";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
-import { csvExportCommand } from "./commands/gridCommands";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { CommandSpec, MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import PurchaseInvoiceEntryPage from "./PurchaseInvoiceEntryPage";
@@ -2067,7 +2067,11 @@ export function SalesPage({
     const selectedRecord = selectedQuote ?? selectedOrder;
     salesCommands.open = {
       disabledReason: selectedRecord ? undefined : "Önce bir kayıt seçin",
-      run: () => (selectedQuote ? openQuote(selectedQuote.id) : selectedOrder ? openOrder(selectedOrder.id) : undefined),
+      run: () => {
+        const id = focusedRecordId() ?? selectedRecord?.id;
+        if (!id) return;
+        return quoteListScreen ? openQuote(id) : openOrder(id);
+      },
     };
     if (role === "TenantAdmin")
       salesCommands.delete = {
@@ -10997,7 +11001,10 @@ function SalesInvoiceTable({
     commands.new = { primary: true, run: onNew };
     commands.open = {
       disabledReason: selected ? undefined : "Önce bir kayıt seçin",
-      run: () => (selected ? onOpen(selected.id) : undefined),
+      run: () => {
+        const id = focusedRecordId() ?? selected?.id;
+        if (id) onOpen(id);
+      },
     };
     const more: MenuCommand[] = [];
     if (role === "TenantAdmin") {

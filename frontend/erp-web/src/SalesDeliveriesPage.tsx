@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
-import { csvExportCommand } from "./commands/gridCommands";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
@@ -550,16 +550,25 @@ export function SalesDeliveriesScreen({
   // Action bar of the delivery list and of an open delivery. A shipped (Posted) delivery is cancelled, never
   // deleted; only a cancelled one can be deleted. The create page's Yeni comes from StandaloneFulfillmentPanel.
   const busyReason = busy ? "İşleniyor…" : undefined;
-  const target = detail
-    ? items.find((item) => item.id === detail.id)
-    : items.find((item) => item.id === selectedId);
+  // The list highlights `selected` (the first row until one is chosen), so the bar acts on that row too.
+  const target = detail ? items.find((item) => item.id === detail.id) : (selected ?? undefined);
   const commands: PageCommands = {
-    new: { primary: !detail, run: () => setCreating(true) },
+    // The create page replaces the list; an open delivery is closed first so the form is what shows.
+    new: {
+      primary: !detail,
+      run: () => {
+        setDetail(null);
+        setCreating(true);
+      },
+    },
   };
   if (!detail)
     commands.open = {
       disabledReason: target ? undefined : "Önce bir kayıt seçin",
-      run: () => (target ? open(target.id) : undefined),
+      run: () => {
+        const id = focusedRecordId() ?? target?.id;
+        if (id) return open(id);
+      },
     };
   if (role === "TenantAdmin")
     commands.delete = {
