@@ -128,6 +128,7 @@ public static class PlatformPermissionCatalog
         var explicitUpdateAction = false;
         var explicitCreateAction = false;
         var explicitExecuteAction = false;
+        var explicitReadAction = false;
         var stateTransitionAction = false;
         var ownTimeEntryCreate = method.Equals("POST", StringComparison.OrdinalIgnoreCase)
             && path.StartsWith("/api/projects/", StringComparison.OrdinalIgnoreCase)
@@ -256,9 +257,13 @@ public static class PlatformPermissionCatalog
             || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))
         {
             // Published pages are runtime content reached through tenant navigation;
-            // use the same read permission as menu navigation. Draft management stays
-            // under the low-code customization permission family.
-            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase)
+            // use the same read permission as menu navigation. Running a published page's
+            // read query is part of viewing that page (POST only carries parameter values),
+            // so it is a read as well. Draft management and draft preview runs stay under the
+            // low-code customization permission family.
+            var publishedQueryRun = normalizedRoute.EndsWith("/{code}/queries/{queryId}/run", StringComparison.OrdinalIgnoreCase);
+            explicitReadAction = publishedQueryRun;
+            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun
                 ? Resources.First(x => x.ResourceType == "erp.custom-menus")
                 : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
         }
@@ -276,6 +281,7 @@ public static class PlatformPermissionCatalog
                 : routePattern.TrimEnd('/').EndsWith("/employees", StringComparison.OrdinalIgnoreCase) ? "change"
                 : method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase) ? "view"
                 : method.Equals("POST", StringComparison.OrdinalIgnoreCase) ? "change" : null
+            : explicitReadAction ? "read"
             : stateTransitionAction || explicitExecuteAction ? "execute"
             : nestedWriteAction ? "create"
             : explicitUpdateAction ? "update"

@@ -149,6 +149,8 @@ builder.Services.AddRateLimiter(o =>
         context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     LiveAiEvaluationEndpoints.ConfigureRateLimiting(o);
+    // Custom page query runs: 300 per user per minute; Studio preview runs: 120 per user per minute (fixed windows, sub claim).
+    CustomPageQueryEndpoints.ConfigureRateLimiting(o);
 });
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Trace-Id")));
@@ -243,6 +245,7 @@ app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
 app.MapCustomPageAccessEndpoints();
+app.MapCustomPageQueryEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();

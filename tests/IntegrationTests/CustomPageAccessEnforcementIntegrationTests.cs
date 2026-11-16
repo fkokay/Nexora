@@ -108,6 +108,40 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         Assert.Equal($"custom-page:{Code}", Assert.Single(menu).GetProperty("targetPage").GetString());
     }
 
+    [Fact]
+    public async Task Published_page_with_queries_and_no_row_is_hidden_from_tenant_user()
+    {
+        await using var app = await StartApplicationAsync();
+        // Publishing a query page via the API requires an access row, so seed a legacy published row directly.
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var tenantDb = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            tenantDb.TenantCustomPages.Add(new TenantCustomPage
+            {
+                TenantId = TenantA, Code = Code, Name = "Sorgulu", Revision = 1, IsPublished = true,
+                DefinitionJson = JsonSerializer.Serialize(CustomPageQueryRulesIntegrationTests.QueryDefinition()),
+                CreatedByUserId = Admin, UpdatedByUserId = Admin, CreatedAt = now, UpdatedAt = now
+            });
+            await tenantDb.SaveChangesAsync();
+        }
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-menus/", new { code = "query-menu", label = "Sorgulu", targetPage = $"custom-page:{Code}" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/custom-pages/{Code}/published")).StatusCode);
+        // An open draft with queries is also admin-only in preview.
+        var draft = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Sorgulu v2", definition = CustomPageQueryRulesIntegrationTests.QueryDefinition() });
+        Assert.Equal(HttpStatusCode.Created, draft.StatusCode);
+        var draftId = (await draft.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        SetIdentity(client, Ayse, "TenantUser");
+        var published = await client.GetAsync($"/api/custom-pages/{Code}/published");
+        Assert.Equal(HttpStatusCode.Forbidden, published.StatusCode);
+        Assert.DoesNotContain("CustomerAccounts", await published.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/custom-pages/{draftId}/preview")).StatusCode);
+        Assert.Empty(await client.GetFromJsonAsync<JsonElement[]>("/api/custom-menus/") ?? []);
+    }
+
     /// <summary>Publishes the page and adds a menu entry for it; optionally leaves an open draft for preview.</summary>
     private static async Task<Guid?> PublishPageAsync(HttpClient client, bool keepDraft = false)
     {

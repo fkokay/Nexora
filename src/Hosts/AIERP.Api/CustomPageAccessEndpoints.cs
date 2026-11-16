@@ -137,30 +137,54 @@ internal static class CustomPageAccessEndpoints
         || exception.GetBaseException() is SqlException { Number: 2601 or 2627 };
 
     /// <summary>Tenant and user from the verified claims, but only when the membership row is still TenantAdmin.</summary>
-    private static async Task<(Guid Tenant, Guid UserId)?> AdminContextAsync(ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct)
+    internal static async Task<(Guid Tenant, Guid UserId)?> AdminContextAsync(ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct)
     {
         if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenant)
-            || !Guid.TryParse(user.FindFirstValue("sub"), out var userId)
-            || user.FindFirstValue("role") != "TenantAdmin") return null;
-        var isAdmin = await platformDb.TenantMemberships.AsNoTracking()
-            .AnyAsync(x => x.TenantId == tenant && x.UserId == userId && x.Role == "TenantAdmin", ct);
-        return isAdmin ? (tenant, userId) : null;
+            || !Guid.TryParse(user.FindFirstValue("sub"), out var userId)) return null;
+        return await IsVerifiedTenantAdminAsync(platformDb, tenant, userId, user.FindFirstValue("role") ?? "", ct) ? (tenant, userId) : null;
     }
+
+    /// <summary>True only when the role claim is TenantAdmin and the membership row still says TenantAdmin.</summary>
+    internal static async Task<bool> IsVerifiedTenantAdminAsync(PlatformDbContext platformDb, Guid tenant, Guid userId, string role, CancellationToken ct) =>
+        role == "TenantAdmin" && await platformDb.TenantMemberships.AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.UserId == userId && x.Role == "TenantAdmin", ct);
 }
 
 /// <summary>Shared rights lookup for every place that serves or lists custom pages.</summary>
 internal static class CustomPageAccess
 {
+    /// <summary>
+    /// Rights on one page. <paramref name="pageHasQueries"/> describes the definition being served: the published
+    /// definition at runtime, the draft definition in preview.
+    /// </summary>
     public static async Task<CustomPageRights> GetRightsAsync(PlatformDbContext platformDb, Guid tenantId, string pageCode,
-        Guid userId, string role, CancellationToken ct)
+        bool pageHasQueries, Guid userId, string role, CancellationToken ct)
     {
-        var rights = await GetRightsAsync(platformDb, tenantId, [pageCode], userId, role, ct);
+        var rights = await EvaluateAsync(platformDb, tenantId, [pageCode], userId, role,
+            _ => Task.FromResult<IReadOnlySet<string>>(pageHasQueries
+                ? new HashSet<string>([pageCode], StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase)), ct);
         return rights[pageCode];
     }
 
-    /// <summary>Evaluates rights for several page codes with one membership and one access query.</summary>
-    public static async Task<IReadOnlyDictionary<string, CustomPageRights>> GetRightsAsync(PlatformDbContext platformDb, Guid tenantId,
-        IReadOnlyCollection<string> pageCodes, Guid userId, string role, CancellationToken ct)
+    /// <summary>
+    /// Evaluates rights for several page codes with one membership and one access query. Query presence is read from
+    /// each page's published definition, and only for non-admin members and codes without an access row.
+    /// </summary>
+    public static Task<IReadOnlyDictionary<string, CustomPageRights>> GetRightsAsync(PlatformDbContext platformDb, TenantDbContext tenantDb,
+        Guid tenantId, IReadOnlyCollection<string> pageCodes, Guid userId, string role, CancellationToken ct) =>
+        EvaluateAsync(platformDb, tenantId, pageCodes, userId, role, async codes =>
+        {
+            var definitions = await tenantDb.TenantCustomPages.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.IsPublished && codes.Contains(x.Code))
+                .Select(x => new { x.Code, x.DefinitionJson }).ToListAsync(ct);
+            return definitions.Where(x => TenantCustomPageQueries.HasQueries(x.DefinitionJson)).Select(x => x.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }, ct);
+
+    private static async Task<IReadOnlyDictionary<string, CustomPageRights>> EvaluateAsync(PlatformDbContext platformDb, Guid tenantId,
+        IReadOnlyCollection<string> pageCodes, Guid userId, string role,
+        Func<IReadOnlyCollection<string>, Task<IReadOnlySet<string>>> codesWithQueries, CancellationToken ct)
     {
         var codes = pageCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var result = new Dictionary<string, CustomPageRights>(StringComparer.OrdinalIgnoreCase);
@@ -174,8 +198,11 @@ internal static class CustomPageAccess
         // SQL Server compares codes case-insensitively; match the same way so a casing difference never
         // falls back to the permissive "no access row" default.
         var byCode = accesses.ToDictionary(x => x.PageCode, StringComparer.OrdinalIgnoreCase);
+        // Query presence only matters for a non-admin member on a page without an access row.
+        var withoutRow = !isMember || isTenantAdmin ? [] : codes.Where(code => !byCode.ContainsKey(code)).ToArray();
+        var withQueries = withoutRow.Length == 0 ? new HashSet<string>() : await codesWithQueries(withoutRow);
         foreach (var code in codes)
-            result[code] = CustomPageAccessRules.Evaluate(byCode.GetValueOrDefault(code), userId, isTenantAdmin, isMember);
+            result[code] = CustomPageAccessRules.Evaluate(byCode.GetValueOrDefault(code), userId, isTenantAdmin, isMember, withQueries.Contains(code));
         return result;
     }
 }
