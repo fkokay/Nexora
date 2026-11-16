@@ -163,6 +163,8 @@ Uygulama planı her ekranı (`src/WorkspacePageRouter.tsx` içindeki ~92 sayfa a
 
 **Faz 1 — Çerçeve ve İşlem Çubuğu.** Sol ikon şeridi + alt menü, üst çubuk, ekran sekmeleri. Tek `ActionBar` bileşeni + merkezi kısayol kaydı (ekran, hangi komutun etkin olduğunu bildirir; kısayol ve düğme aynı komutu çağırır) + `F1` kısayol yardımı. Bu fazın sonunda **tüm ekranlar** aynı İşlem Çubuğu'nu gösterir; henüz yeni tipe geçmemiş ekranlarda mevcut düğmeler bu çubuğa bağlanır. Bu, modül onay kapısının istisnasıdır (kullanıcı kararı, 2026-11-16): Faz 1'de ekranların yalnızca ortak düğmeleri İşlem Çubuğu'na taşınır, aynı işi yapan eski başlık düğmeleri kaldırılır; ekranın geri kalan düzeni Faz 3'teki onaya kadar değişmez.
 
+**Sıra değişikliği (kullanıcı kararı, 2026-11-17):** Ekranlar taslaklardaki gibi görünmeli. Faz 1'in modül bağlantıları Satış'tan sonra durdurulur; Faz 2 tip bileşenleri hemen yapılır ve önce Stok taslak 01 ile birebir hale getirilir. Sonraki her modül işlem çubuğu + ekran düzeniyle birlikte, modül onay kapısından geçerek taşınır. Kayıt ekranı düzeni taslak 01 alt (v3: sol bölüm gezgini, tek katman kartlar, sağ bağlam paneli). Plan: `docs/superpowers/plans/2026-11-17-erp-design-language-faz-2-stok.md`.
+
 **Faz 2 — Ekran tipi bileşenleri.** A–F tipleri ve onay penceresi; mevcut verilerle çalışan kısımlar (gruplama/kayıtlı görünüm gibi Faz 4 özellikleri hariç).
 
 **Faz 3 — Modül modül geçiş.** Sıra: Stok (pilot) → Satış → Satınalma → Cari/CRM → Finans → Üretim → Diğer modüller → Ayarlar → Low-code/platform. Her modül ayrı PR; her PR'da Playwright UI denetimi geçer.
