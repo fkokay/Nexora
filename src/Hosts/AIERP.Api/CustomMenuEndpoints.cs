@@ -45,7 +45,7 @@ public static class CustomMenuEndpoints
                 .Select(x => x.TargetPage[CustomPageTargetPrefix.Length..]).ToArray();
             if (pageCodes.Length > 0)
             {
-                var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenantId, pageCodes, userId, role, ct);
+                var rights = await CustomPageAccess.GetRightsAsync(platformDb, db, tenantId, pageCodes, userId, role, ct);
                 entries = entries.Where(x => !x.TargetPage.StartsWith(CustomPageTargetPrefix, StringComparison.Ordinal)
                     || rights[x.TargetPage[CustomPageTargetPrefix.Length..]].View).ToList();
             }

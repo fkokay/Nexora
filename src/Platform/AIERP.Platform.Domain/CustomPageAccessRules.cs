@@ -18,14 +18,15 @@ public static class CustomPageAccessRules
     /// <summary>
     /// Computes a user's rights on a custom page. Precedence: a non-member gets nothing (tenant tokens are
     /// only issued from a membership, so this only affects removed members); a TenantAdmin gets everything
-    /// and cannot be locked out; a page without an access row is treated as AllUsers with View only;
-    /// otherwise the configured mode decides.
+    /// and cannot be locked out; a page without an access row is treated as AdminsOnly when its definition contains
+    /// SQL queries, otherwise as AllUsers with View only; with an access row the configured mode decides.
     /// </summary>
-    public static CustomPageRights Evaluate(TenantCustomPageAccess? access, Guid userId, bool isTenantAdmin, bool isMember)
+    public static CustomPageRights Evaluate(TenantCustomPageAccess? access, Guid userId, bool isTenantAdmin, bool isMember,
+        bool pageHasQueries)
     {
         if (!isMember) return CustomPageRights.None;
         if (isTenantAdmin) return CustomPageRights.All;
-        if (access is null) return new CustomPageRights(true, false, false, false);
+        if (access is null) return pageHasQueries ? CustomPageRights.None : new CustomPageRights(true, false, false, false);
         switch (access.Mode)
         {
             case CustomPageAccessModes.AllUsers:

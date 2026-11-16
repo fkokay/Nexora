@@ -12,19 +12,39 @@ public sealed class CustomPageAccessRulesTests
     [Fact]
     public void Evaluate_without_access_row_grants_view_only()
     {
-        Assert.Equal(new CustomPageRights(true, false, false, false), CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: true));
+        Assert.Equal(new CustomPageRights(true, false, false, false), CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: true, pageHasQueries: false));
         // A missing row never widens rights for admins (they already get all) and never reaches non-members.
-        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: true, isMember: true));
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: false));
+        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: true, isMember: true, pageHasQueries: false));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: false, pageHasQueries: false));
+    }
+
+    [Fact]
+    public void Evaluate_without_row_and_with_queries_is_admins_only()
+    {
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: true, pageHasQueries: true));
+        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: true, isMember: true, pageHasQueries: true));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: true, isMember: false, pageHasQueries: true));
+    }
+
+    [Fact]
+    public void Access_rule_uses_queries_only_when_no_access_row()
+    {
+        // A saved row decides regardless of queries; without a row, only a page with queries falls back to AdminsOnly.
+        var allUsers = Access(CustomPageAccessModes.AllUsers);
+        Assert.Equal(new CustomPageRights(true, false, false, false), CustomPageAccessRules.Evaluate(allUsers, User, isTenantAdmin: false, isMember: true, pageHasQueries: true));
+        var selected = Access(CustomPageAccessModes.SelectedUsers);
+        selected.Users.Add(new TenantCustomPageAccessUser { AccessId = selected.Id, UserId = User, CanView = true });
+        Assert.Equal(new CustomPageRights(true, false, false, false), CustomPageAccessRules.Evaluate(selected, User, isTenantAdmin: false, isMember: true, pageHasQueries: true));
+        Assert.Equal(new CustomPageRights(true, false, false, false), CustomPageAccessRules.Evaluate(null, User, isTenantAdmin: false, isMember: true, pageHasQueries: false));
     }
 
     [Fact]
     public void Evaluate_grants_all_rights_to_tenant_admin()
     {
         var access = Access(CustomPageAccessModes.AdminsOnly);
-        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: true, isMember: true));
+        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: true, isMember: true, pageHasQueries: false));
         var selected = Access(CustomPageAccessModes.SelectedUsers);
-        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(selected, User, isTenantAdmin: true, isMember: true));
+        Assert.Equal(CustomPageRights.All, CustomPageAccessRules.Evaluate(selected, User, isTenantAdmin: true, isMember: true, pageHasQueries: false));
     }
 
     [Fact]
@@ -32,7 +52,7 @@ public sealed class CustomPageAccessRulesTests
     {
         var access = Access(CustomPageAccessModes.AdminsOnly);
         access.Users.Add(new TenantCustomPageAccessUser { AccessId = access.Id, UserId = User, CanView = true, CanInsert = true });
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true, pageHasQueries: false));
     }
 
     [Fact]
@@ -40,7 +60,7 @@ public sealed class CustomPageAccessRulesTests
     {
         var access = Access(CustomPageAccessModes.AllUsers);
         access.AllUsersCanUpdate = true;
-        Assert.Equal(new CustomPageRights(true, false, true, false), CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true));
+        Assert.Equal(new CustomPageRights(true, false, true, false), CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true, pageHasQueries: false));
     }
 
     [Fact]
@@ -48,8 +68,8 @@ public sealed class CustomPageAccessRulesTests
     {
         var access = Access(CustomPageAccessModes.SelectedUsers);
         access.Users.Add(new TenantCustomPageAccessUser { AccessId = access.Id, UserId = User, CanView = true, CanInsert = true });
-        Assert.Equal(new CustomPageRights(true, true, false, false), CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true));
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, OtherUser, isTenantAdmin: false, isMember: true));
+        Assert.Equal(new CustomPageRights(true, true, false, false), CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: true, pageHasQueries: false));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, OtherUser, isTenantAdmin: false, isMember: true, pageHasQueries: false));
     }
 
     [Fact]
@@ -57,9 +77,9 @@ public sealed class CustomPageAccessRulesTests
     {
         var access = Access(CustomPageAccessModes.SelectedUsers);
         access.Users.Add(new TenantCustomPageAccessUser { AccessId = access.Id, UserId = User, CanView = true, CanInsert = true, CanUpdate = true, CanDelete = true });
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: false));
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: true, isMember: false));
-        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(Access(CustomPageAccessModes.AllUsers), User, isTenantAdmin: false, isMember: false));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: false, isMember: false, pageHasQueries: false));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(access, User, isTenantAdmin: true, isMember: false, pageHasQueries: false));
+        Assert.Equal(CustomPageRights.None, CustomPageAccessRules.Evaluate(Access(CustomPageAccessModes.AllUsers), User, isTenantAdmin: false, isMember: false, pageHasQueries: false));
     }
 
     [Theory]
