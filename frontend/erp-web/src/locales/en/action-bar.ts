@@ -29,6 +29,19 @@ export const english: Record<string, string> = {
   'Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?': 'Unsaved changes will be lost. Continue?',
   'Devam': 'Continue',
   'Konum kodu ve adı zorunludur.': 'Location code and name are required.',
+  'Yeni kayıt': 'New record',
+  'Kesilmiş belge silinemez — İşlemler › İptal et': 'An issued document cannot be deleted — Actions › Cancel',
+  'Kesilmiş belge silinemez — İşlemler › Faturayı iptal et': 'An issued document cannot be deleted — Actions › Cancel invoice',
+  'Kesilmiş belge silinemez — İşlemler › İadeyi iptal et': 'An issued document cannot be deleted — Actions › Void return',
+  'Sevk edilmiş irsaliye silinemez — İşlemler › İptal et': 'A shipped delivery note cannot be deleted — Actions › Cancel',
+  'Yalnızca taslak teklifler silinebilir.': 'Only draft quotes can be deleted.',
+  'Aktif depo yok.': 'There is no active warehouse.',
+  'Sevk edilecek kalan miktar yok.': 'There is no remaining quantity to ship.',
+  'Kaydetmek için depo seçin.': 'Select a warehouse to save.',
+  'Kaydetmek için müşteri seçin.': 'Select a customer to save.',
+  'Dışa aktarılacak kampanya yok.': 'There are no campaigns to export.',
+  'Performans raporu': 'Performance report',
+  'Kampanya listesi': 'Campaign list',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = []
