@@ -43,7 +43,8 @@ internal static class TenantCustomPageEndpoints
                 .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson))
                 .SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
-            if (!(await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct)).View) return ViewForbidden();
+            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct);
+            if (!rights.View) return ViewForbidden();
             var formCodes = ReferencedFormCodes(page.DefinitionJson);
             var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
@@ -51,7 +52,7 @@ internal static class TenantCustomPageEndpoints
                 .ToListAsync(ct);
             var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
                 JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         // Runtime consumers receive only the currently published declarative definition. Query SQL is never sent to the
@@ -64,7 +65,8 @@ internal static class TenantCustomPageEndpoints
                 .Select(x => new PageDefinition(x.Id, x.Code, x.Name, x.Description, x.Revision, x.DefinitionJson)).SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
             // Rights are keyed by the stored page code, never by the route value's casing.
-            if (!(await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct)).View) return ViewForbidden();
+            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct);
+            if (!rights.View) return ViewForbidden();
             var formCodes = ReferencedFormCodes(page.DefinitionJson);
             var forms = await db.TenantCustomFormDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.Status == "Published" && formCodes.Contains(x.Code))
@@ -72,7 +74,7 @@ internal static class TenantCustomPageEndpoints
                 .ToListAsync(ct);
             var embeddedForms = forms.Select(x => new EmbeddedForm(x.Id, x.Code, x.Name, x.Description, x.Version,
                 JsonSerializer.Deserialize<List<DynamicFormField>>(x.FieldsJson, JsonOptions) ?? [])).ToArray();
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         pages.MapPost("/drafts", async (DraftRequest? request, ClaimsPrincipal user, TenantDbContext db,
@@ -295,7 +297,8 @@ internal static class TenantCustomPageEndpoints
     private sealed record RevisionRequest(int ExpectedRevision);
     private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt);
     private sealed record PageDefinition(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson);
-    private sealed record PublishedPage(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson, IReadOnlyList<EmbeddedForm> Forms);
+    private sealed record PublishedPage(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson, IReadOnlyList<EmbeddedForm> Forms,
+        CustomPageRightsView Rights);
     private sealed record EmbeddedForm(Guid Id, string Code, string Name, string? Description, int Version, IReadOnlyList<DynamicFormField> Fields);
     private sealed record PageDetail(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, string DefinitionJson, DateTimeOffset UpdatedAt);
     private sealed record RevisionDetail(Guid Id, int Revision, string Code, string Name, string? Description, string ChangeKind, Guid ChangedByUserId, DateTimeOffset CreatedAt, string DefinitionJson);

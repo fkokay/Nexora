@@ -3101,6 +3101,8 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     public DbSet<TenantCustomPageAccess> TenantCustomPageAccesses => Set<TenantCustomPageAccess>();
     public DbSet<TenantCustomPageAccessUser> TenantCustomPageAccessUsers => Set<TenantCustomPageAccessUser>();
     public DbSet<TenantCustomPageAccessRevision> TenantCustomPageAccessRevisions => Set<TenantCustomPageAccessRevision>();
+    // Write-query audit sits next to the access rows it is checked against.
+    public DbSet<TenantCustomPageWriteAudit> TenantCustomPageWriteAudits => Set<TenantCustomPageWriteAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -3174,6 +3176,17 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.HasIndex(x => new { x.TenantId, x.PageCode, x.Revision }).IsUnique();
             e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
             e.Property(x => x.SnapshotJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomPageWriteAudit>(e =>
+        {
+            e.ToTable("TenantCustomPageWriteAudits");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.PageCode, x.OccurredAt });
+            e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
+            e.Property(x => x.QueryName).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(10).IsRequired();
+            e.Property(x => x.ParametersJson).HasColumnType("nvarchar(max)").IsRequired();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
     }

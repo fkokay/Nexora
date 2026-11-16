@@ -3120,6 +3120,30 @@ public sealed class TenantCustomPageAccessRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>
+/// One attempt to run a custom page write query (insert, update or delete), successful or not. Unlike read-query audit
+/// events, the parameter values are kept (truncated to 16 KiB) so a change can be traced to its input.
+/// </summary>
+public sealed class TenantCustomPageWriteAudit
+{
+    public const int MaxParametersJsonLength = 16 * 1024;
+
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public string PageCode { get; set; } = "";
+    public string QueryName { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public string ParametersJson { get; set; } = "{}";
+    /// <summary>Rows reported by SQL Server; null when the attempt failed.</summary>
+    public int? AffectedRows { get; set; }
+    public bool Succeeded { get; set; }
+    /// <summary>SQL Server error number when the attempt failed with a SQL error.</summary>
+    public int? ErrorNumber { get; set; }
+    public bool IsPreview { get; set; }
+    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 /// <summary>A tenant-owned logical table. Its user-defined schema is declarative metadata, never executable SQL.</summary>
 public sealed class TenantCustomDataEntity
 {
