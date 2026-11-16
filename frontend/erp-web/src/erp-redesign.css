@@ -64,7 +64,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .company-setting-card { min-width: 0; padding: 20px; border-radius: 13px; box-shadow: 0 3px 12px rgb(39 50 74 / 4%); }
 .company-setting-card .panel-heading { align-items: flex-start; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--erp-line); }
 .company-setting-card .panel-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; color: var(--erp-ink); font-size: 14px; }
-.company-setting-card .panel-heading h3 svg { color: var(--erp-primary); }
+.company-setting-card .panel-heading h3 svg { color: var(--nx-primary-strong); }
 .company-setting-card .panel-heading p { max-width: 430px; color: var(--erp-muted-ink); font-size: 11px; line-height: 1.55; }
 .company-setting-card .status-live { display: inline-flex; align-items: center; gap: 5px; flex: none; }
 .company-identity-card { margin-bottom: 16px; }
@@ -85,7 +85,7 @@ body { background: var(--erp-canvas); color: var(--erp-ink); }
 .company-setting-card .modal-foot { gap: 12px; border-top: 1px solid var(--erp-line); padding-top: 13px; }
 .company-setting-card .modal-foot > span { flex: 1; min-width: 0; line-height: 1.5; }
 .company-setting-card .inline-alert, .company-setting-card .notice { margin: 12px 0; }
-.eyebrow { margin-bottom: 7px; color: var(--erp-primary); font-size: 9px; letter-spacing: .14em; }
+.eyebrow { margin-bottom: 7px; color: var(--nx-primary-strong); font-size: 9px; letter-spacing: .14em; }
 .panel, .customer-summary, .metric-card, .request-row, .empty-state, .boundary-note {
   border-color: var(--erp-line);
   border-radius: var(--erp-radius);

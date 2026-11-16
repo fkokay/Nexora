@@ -495,7 +495,7 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   accent-color: var(--erp-primary);
 }
 .fixed-assets-page .fixed-asset-vuk-confirm { margin-top: 12px; font-weight: 600; }
-.fixed-assets-page .fixed-asset-form-section a { color: var(--erp-primary); font-weight: 600; }
+.fixed-assets-page .fixed-asset-form-section a { color: var(--nx-primary-strong); font-weight: 600; }
 .fixed-assets-page .fixed-asset-tax-profile {
   display: flex;
   flex-wrap: wrap;

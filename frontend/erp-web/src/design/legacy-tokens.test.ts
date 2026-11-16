@@ -82,12 +82,14 @@ const brandMark = /brand-mark|auth-logo|auth-wordmark|side-brand|topbar-brand|mo
 // The launcher background "custom color" swatch is a hue picker (conic-gradient across the whole wheel),
 // so amber and violet stops are the point of the control, not an accent.
 const huePicker = /launcher-background-custom/
-function isAllowed(code: string, index: number): boolean {
+function isAllowed(code: string, index: number, family: 'purple' | 'gold'): boolean {
   const open = code.lastIndexOf('{', index)
   const selector = code.slice(Math.max(code.lastIndexOf('}', open), code.lastIndexOf(';', open)) + 1, open)
   const declStart = Math.max(code.lastIndexOf(';', index), open)
   const declaration = code.slice(declStart + 1, index)
-  return brandMark.test(selector) || huePicker.test(selector) || /--nexora-brand-gold\s*:/.test(declaration)
+  if (huePicker.test(selector)) return true
+  // The brand-mark exemption covers gold only; purple is never allowed, not even on the logo.
+  return family === 'gold' && (brandMark.test(selector) || /--nexora-brand-gold\s*:/.test(declaration))
 }
 
 describe('legacy stylesheets converge on --nx tokens', () => {
@@ -122,11 +124,34 @@ describe('legacy stylesheets converge on --nx tokens', () => {
         const family = isPurple(hsl) ? 'purple' : isGold(hsl) ? 'gold' : null
         if (!family) continue
         const line = code.slice(0, m.index).split('\n').length
-        if (isAllowed(code, m.index ?? 0)) continue
+        if (isAllowed(code, m.index ?? 0, family)) continue
         hits.push(`${name}:${line} ${family} ${m[0]}`)
       }
       return hits
     })
+    expect(found).toEqual([])
+  })
+
+  // Selector + declaration-body pairs of every plain rule (comments stripped).
+  const rules = sheets.flatMap(({ name, text }) => {
+    const code = text.replace(/\/\*[\s\S]*?\*\//g, '')
+    return [...code.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ name, selector: m[1].trim(), body: m[2] }))
+  })
+
+  it('hover/pressed fills on blue buttons use --nx-primary-hover, never --nx-primary-strong', () => {
+    // --nx-primary-strong is a TEXT color (light #1846a3, dark #9dbcff); as a fill under white text it is unreadable in dark.
+    const found = rules
+      .filter((r) => /background(-color)?\s*:\s*var\(--nx-primary-strong\)/.test(r.body))
+      .map((r) => `${r.name}: ${r.selector.slice(-120)}`)
+    expect(found).toEqual([])
+  })
+
+  it('--nx-primary-on-ink is used only on fixed-dark surfaces', () => {
+    // Login story panel, launcher welcome banner and the (always dark) topbar assistant trigger.
+    const fixedDark = /auth-story|auth-feature|module-launcher-welcome|assistant-trigger/
+    const found = rules
+      .filter((r) => r.body.includes('--nx-primary-on-ink') && !fixedDark.test(r.selector))
+      .map((r) => `${r.name}: ${r.selector.slice(-120)}`)
     expect(found).toEqual([])
   })
 

@@ -14,7 +14,7 @@
 }
 
 .cash-forecast-eyebrow {
-  color: var(--nx-primary);
+  color: var(--nx-primary-strong);
   display: inline-block;
   font-size: 0.68rem;
   font-weight: 800;
@@ -101,7 +101,7 @@
 .cash-forecast-result-copy strong { font-size: 0.88rem; }
 .cash-forecast-result-copy p { color: var(--nx-muted); font-size: 0.8rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .cash-forecast-result-copy p b { color: var(--nx-text); font-variant-numeric: tabular-nums; }
-.cash-forecast-refreshing { align-items: center; color: var(--nx-primary); display: inline-flex; flex: 0 0 auto; font-size: 0.76rem; font-weight: 700; gap: 8px; white-space: nowrap; }
+.cash-forecast-refreshing { align-items: center; color: var(--nx-primary-strong); display: inline-flex; flex: 0 0 auto; font-size: 0.76rem; font-weight: 700; gap: 8px; white-space: nowrap; }
 .cash-forecast-refreshing .cash-forecast-spinner { flex-basis: 17px; height: 17px; width: 17px; }
 
 .cash-forecast-state {
@@ -125,7 +125,7 @@
   align-items: center;
   background: color-mix(in srgb, var(--nx-primary) 12%, var(--nx-surface));
   border-radius: 12px;
-  color: var(--nx-primary);
+  color: var(--nx-primary-strong);
   display: inline-flex;
   flex: 0 0 42px;
   height: 42px;

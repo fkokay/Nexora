@@ -40,8 +40,10 @@
 .workspace-tab-select span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .workspace-tab.active .workspace-tab-select{font-weight:700;color:#fff}
 .workspace-tab-close{width:28px;height:28px;display:grid;place-items:center;margin-right:5px;border-radius:4px;color:var(--nx-text)}
-.workspace-tab-close:hover{background:var(--nx-primary-strong);color:#fff}
-.workspace-tab.is-dirty .workspace-tab-select i{width:6px;height:6px;background:var(--nexora-gold);border-radius:50%}
+.workspace-tab-close:hover{background:var(--nx-primary-hover);color:var(--nx-on-primary)}
+.workspace-tab.active .workspace-tab-close{color:var(--nx-on-primary)}
+.workspace-tab.is-dirty .workspace-tab-select i{width:6px;height:6px;background:var(--nx-changed);border-radius:50%}
+.workspace-tab.active.is-dirty .workspace-tab-select i{background:var(--nx-on-primary)}
 .app-shell:not(.standalone-studio) .content{width:100%;max-width:none;min-width:0;margin:0;padding:20px 24px 36px;background:var(--nexora-bg)}
 .workspace-breadcrumb{min-height:24px;display:flex;align-items:center;gap:8px;margin:0 0 12px;color:var(--nexora-muted);font-size:11px;line-height:1.35}
 .workspace-breadcrumb>button{display:inline-flex;align-items:center;gap:6px;padding:3px 5px;margin-left:-5px;border:0;border-radius:4px;background:transparent;color:#52647b;font:inherit;font-weight:600;cursor:pointer}
@@ -57,7 +59,7 @@ html[data-theme="dark"] .workspace-breadcrumb>[aria-current="page"]{color:#e7edf
 .workspace-keepalive{min-width:0}
 .workspace-view[hidden]{display:none!important}
 .app-shell:not(.standalone-studio) .primary{background:var(--nexora-gold);color:#fff;border:1px solid var(--nx-primary);border-radius:4px;box-shadow:none}
-.app-shell:not(.standalone-studio) .primary:hover{background:var(--nx-primary-strong)}
+.app-shell:not(.standalone-studio) .primary:hover{background:var(--nx-primary-hover);color:var(--nx-on-primary)}
 .app-shell:not(.standalone-studio) .secondary,.app-shell:not(.standalone-studio) .input-field{border-radius:4px}
 .app-shell:not(.standalone-studio) .nav-item.has-submenu{border-radius:4px}
 .app-shell:not(.standalone-studio) .top-avatar{background:var(--nexora-gold);color:#fff;border-radius:50%}
@@ -646,7 +648,7 @@ html[data-theme="dark"] .customer-mobile-actions>div button{color:var(--erp-text
 #root .customer-heading .primary,
 #root .inventory-page-heading .primary { border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; box-shadow: 0 4px 11px color-mix(in srgb, var(--nx-primary) 22%, transparent); }
 #root .customer-heading .primary:hover,
-#root .inventory-page-heading .primary:hover { background: var(--nx-primary-strong); }
+#root .inventory-page-heading .primary:hover { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 #root .customer-directory-tabs { min-height: 48px; padding: 0 10px; border: 1px solid #e2e6f0; border-radius: 11px 11px 0 0; background: #fff; }
 #root .customer-directory-tabs button.active { border-bottom-color: var(--nx-primary); color: var(--nx-primary-strong); }
 #root .customer-directory-layout { gap: 12px; }
@@ -2338,7 +2340,7 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .content .customer-di
 .app-shell:not(.standalone-studio) .content button.primary,
 .app-shell:not(.standalone-studio) .content button.btn-primary { min-height: 38px; border: 1px solid var(--nx-primary); background: var(--nx-primary); color: #fff; }
 .app-shell:not(.standalone-studio) .content button.primary:hover:not(:disabled),
-.app-shell:not(.standalone-studio) .content button.btn-primary:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-primary-strong); }
+.app-shell:not(.standalone-studio) .content button.btn-primary:hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 .app-shell:not(.standalone-studio) .content button.secondary,
 .app-shell:not(.standalone-studio) .content button.secondary-button { min-height: 38px; border: 1px solid #D4DDE8; background: #FFFFFF; color: var(--nx-text); }
 .app-shell:not(.standalone-studio) .content button.secondary:hover:not(:disabled),
@@ -3291,7 +3293,7 @@ html[data-theme="dark"] .hub-center-icon{background:#1b2a3e}
 #root .module-launcher-search>svg{color:#71839a}
 #root .module-launcher-search input,#root .module-launcher-search input:hover,#root .module-launcher-search input:active,#root .module-launcher-search input:focus,#root .module-launcher-search input:focus-visible{font-size:17px}
 #root .module-launcher-search>button[type=submit]{width:42px;height:42px;border-radius:11px;transition:transform .15s,background .15s}
-#root .module-launcher-search>button[type=submit]:hover{transform:translateY(-1px);background:var(--nx-primary-strong)}
+#root .module-launcher-search>button[type=submit]:hover{transform:translateY(-1px);background:var(--nx-primary-hover);color:var(--nx-on-primary)}
 #root .module-launcher-quick{margin:30px 0 0;padding:24px 26px 26px;border:1px solid #e1e7ef;border-radius:18px;background:#fff;box-shadow:0 8px 24px #152a440a}
 #root .module-launcher-section-heading{margin-bottom:18px}
 #root .module-launcher-section-heading h2{color:#152a44;font-size:17px;font-weight:720;letter-spacing:-.2px}
@@ -4052,7 +4054,7 @@ html[data-theme="dark"] #root .module-launcher-main.launcher-dashboard.is-custom
 .launcher-agenda-close:hover { background: color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface)); color: var(--nx-primary-strong); }
 .launcher-agenda-primary, .launcher-agenda-secondary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .launcher-agenda-primary { border: 0; background: var(--nx-primary); color: #fff; }
-.launcher-agenda-primary:hover:not(:disabled) { background: var(--nx-primary-strong); }
+.launcher-agenda-primary:hover:not(:disabled) { background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 .launcher-agenda-secondary { border: 1px solid #d9ddea; background: #fff; color: #3d4862; }
 .launcher-agenda-secondary:hover:not(:disabled) { background: #f5f6fb; }
 .launcher-agenda-primary:disabled, .launcher-agenda-secondary:disabled, .launcher-agenda-close:disabled { cursor: default; opacity: .6; }
@@ -4084,7 +4086,7 @@ html[data-theme="dark"] .launcher-agenda-close:hover { background: color-mix(in 
 html[data-theme="dark"] .launcher-agenda-secondary { border-color: #2f3f58; background: #18243a; color: #d5deea; }
 html[data-theme="dark"] .launcher-agenda-secondary:hover:not(:disabled) { background: #1f2d45; }
 html[data-theme="dark"] .launcher-agenda-primary { background: var(--nx-primary); }
-html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { background: var(--nx-primary-strong); }
+html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 .launcher-action-error{width:min(900px,calc(100% - 32px));margin:12px auto 0;padding:11px 14px;border:1px solid #f0c7c5;border-radius:10px;background:#fff6f5;color:#a52c28;font-size:12px;line-height:1.5}
 .launcher-assistant-widget{display:flex;min-width:0;min-height:0;flex-direction:column;gap:10px;overflow:hidden}
 .launcher-assistant-widget>header{padding-bottom:9px;border-bottom:1px solid #e9eaf4}
@@ -4140,7 +4142,7 @@ html[data-theme="dark"] .launcher-agenda-primary:hover:not(:disabled) { backgrou
 .app-confirm-field [aria-invalid="true"] { border-color: #b93c4a; }
 .app-confirm-error { color: #b93c4a; font-size: 11px; font-weight: 600; }
 .workspace-confirm-actions button.app-confirm-primary { border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; }
-.workspace-confirm-actions button.app-confirm-primary:hover { border-color: var(--nx-primary); background: var(--nx-primary-strong); }
+.workspace-confirm-actions button.app-confirm-primary:hover { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 html[data-theme="dark"] .app-confirm.is-danger .workspace-confirm-icon { background: #3a1d23; color: #f2a3ad; }
 html[data-theme="dark"] .app-confirm.is-default .workspace-confirm-icon { background: #1c2a3d; color: #93c5fd; }
 html[data-theme="dark"] .app-confirm-field { color: #aebbd0; }

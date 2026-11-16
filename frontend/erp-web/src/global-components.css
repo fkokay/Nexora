@@ -121,9 +121,9 @@ body,
 }
 
 .app-shell :is(.primary, .btn-primary):hover:not(:disabled):not([aria-disabled='true']) {
-  border-color: var(--nx-primary);
-  background: var(--nx-primary) !important;
-  color: #fff !important;
+  border-color: var(--nx-primary-hover);
+  background: var(--nx-primary-hover) !important;
+  color: var(--nx-on-primary) !important;
 }
 
 .app-shell :is(.secondary, .secondary-button, .advanced-grid-action, .advanced-grid-pagination button, .advanced-grid-filter-actions button) {
@@ -263,11 +263,14 @@ body,
   font-weight: 600;
 }
 
-.app-shell .nav-item.active svg,
+.app-shell .nav-item.active svg {
+  color: var(--nx-on-primary);
+}
+
 .app-shell .eyebrow,
 .app-shell .link-button,
 .app-shell .text-button {
-  color: var(--erp-color-primary);
+  color: var(--nx-primary-strong);
 }
 
 .app-shell .sidebar .side-brand strong {
@@ -372,8 +375,8 @@ body,
 }
 
 .auth-shell :is(.primary, .btn-primary):hover:not(:disabled) {
-  background: var(--nx-primary);
-  color: #fff;
+  background: var(--nx-primary-hover);
+  color: var(--nx-on-primary);
 }
 
 .auth-shell :is(input, select, textarea):focus {
@@ -468,9 +471,9 @@ body,
 }
 
 .btn-primary:hover:not(:disabled) {
-  border-color: var(--nx-primary);
-  background: var(--nx-primary);
-  color: #fff;
+  border-color: var(--nx-primary-hover);
+  background: var(--nx-primary-hover);
+  color: var(--nx-on-primary);
 }
 
 .btn-primary:focus-visible,
@@ -660,7 +663,7 @@ body,
 .auth-remember input:focus-visible+.auth-check { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 .auth-help-text { color: #536176; font-size: 10px; text-align: right; }
 .auth-submit.primary { height: 46px; margin-top: 1px; justify-content: center; border: 1px solid var(--nx-primary); border-radius: 5px; background: var(--nx-primary); color: #fff; box-shadow: none; font-size: 13px; font-weight: 700; }
-.auth-submit.primary:hover { background: var(--nx-primary-strong); }
+.auth-submit.primary:hover { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); color: var(--nx-on-primary); }
 .auth-submit.primary span { margin-left: 8px; font-size: 17px; }
 .auth-secure-note { margin-top: 26px; padding-top: 19px; border-top: 1px solid #E6E9ED; color: #64748B; font-size: 10px; }
 .auth-secure-note svg { color: #168A58; }

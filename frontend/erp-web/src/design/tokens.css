@@ -20,6 +20,8 @@
   --nx-bad-bg: #fde9e6;
   --nx-changed: #e0a100;
   --nx-primary-on-ink: #9dbcff;
+  --nx-primary-hover: #1846a3;
+  --nx-on-primary: #ffffff;
 
   --nx-font: "Segoe UI", Inter, system-ui, sans-serif;
   --nx-font-mono: Consolas, "Cascadia Mono", monospace;
@@ -33,7 +35,8 @@
 html[data-theme="dark"] {
   --nx-ink: #070d17;
   --nx-ink-2: #15233a;
-  --nx-primary: #5b8def;
+  /* #5b8def gave only 3.2:1 under white button text; #3a6fd8 keeps 4.7:1 with --nx-on-primary. */
+  --nx-primary: #3a6fd8;
   --nx-primary-strong: #9dbcff;
   --nx-primary-soft: #1b2c4d;
   --nx-canvas: #0e1520;
@@ -50,6 +53,8 @@ html[data-theme="dark"] {
   --nx-bad-bg: #3a1a16;
   --nx-changed: #e8b72a;
   --nx-primary-on-ink: #9dbcff;
+  --nx-primary-hover: #2c5bc0;
+  --nx-on-primary: #ffffff;
 }
 
 /* Legacy aliases (removed once old stylesheets use --nx-* directly). */
@@ -79,7 +84,7 @@ html[data-theme="dark"] {
   --erp-blue-dark: var(--nx-primary-strong);
   --erp-blue-soft: var(--nx-primary-soft);
   --erp-accent-soft: var(--nx-primary-soft);
-  --erp-color-primary-hover: var(--nx-primary-strong);
+  --erp-color-primary-hover: var(--nx-primary-hover);
   --erp-color-primary-focus: var(--nx-primary);
   --erp-color-text: var(--nx-text);
   --erp-color-muted: var(--nx-muted);

@@ -122,7 +122,7 @@ html[data-theme="dark"] #root :is(.purchase-orders-page, .purchase-requests-page
   padding: 0;
   border: 0;
   background: none;
-  color: var(--nx-primary);
+  color: var(--nx-primary-strong);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;

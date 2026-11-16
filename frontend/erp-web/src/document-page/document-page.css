@@ -58,7 +58,7 @@ html[data-theme="dark"] .doc-surface.doc-surface-floating { background: #10141f;
   cursor: pointer;
 }
 .doc-surface .doc-surface-back:hover,
-.doc-surface .doc-surface-back:focus-visible { border-color: var(--erp-primary); color: var(--erp-primary); }
+.doc-surface .doc-surface-back:focus-visible { border-color: var(--erp-primary); color: var(--nx-primary-strong); }
 .doc-surface .doc-surface-title { flex: 1 1 240px; min-width: 0; }
 .doc-surface .doc-surface-title h1 {
   display: flex;

@@ -20,7 +20,7 @@ const colorTokens = [
   '--nx-ink', '--nx-ink-2', '--nx-primary', '--nx-primary-strong', '--nx-primary-soft',
   '--nx-canvas', '--nx-surface', '--nx-line', '--nx-line-soft', '--nx-text', '--nx-muted',
   '--nx-ok', '--nx-ok-bg', '--nx-warn', '--nx-warn-bg', '--nx-bad', '--nx-bad-bg', '--nx-changed',
-  '--nx-primary-on-ink',
+  '--nx-primary-on-ink', '--nx-primary-hover', '--nx-on-primary',
 ]
 const otherTokens = [
   '--nx-font', '--nx-font-mono', '--nx-radius-control', '--nx-radius-card',
@@ -107,6 +107,20 @@ describe('design tokens', () => {
   it('--nx-primary-on-ink is readable on --nx-ink in both themes', () => {
     expect(contrast(light['--nx-primary-on-ink'], light['--nx-ink'])).toBeGreaterThanOrEqual(4.5)
     expect(contrast(dark['--nx-primary-on-ink'], dark['--nx-ink'])).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('--nx-on-primary is readable on --nx-primary and --nx-primary-hover in both themes', () => {
+    for (const theme of [light, dark]) {
+      expect(contrast(theme['--nx-on-primary'], theme['--nx-primary'])).toBeGreaterThanOrEqual(4.5)
+      expect(contrast(theme['--nx-on-primary'], theme['--nx-primary-hover'])).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('--nx-primary-hover is a visibly different fill from --nx-primary', () => {
+    for (const theme of [light, dark]) {
+      expect(theme['--nx-primary-hover']).not.toBe(theme['--nx-primary'])
+      expect(contrast(theme['--nx-primary-hover'], theme['--nx-primary'])).toBeGreaterThanOrEqual(1.2)
+    }
   })
 
   it('dark text/surface pairs meet 4.5:1', () => {

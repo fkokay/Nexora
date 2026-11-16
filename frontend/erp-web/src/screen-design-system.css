@@ -37,7 +37,7 @@
 
 .app-shell .screen-page-header > div:has(> .eyebrow) > p.eyebrow {
   margin: 0 0 7px;
-  color: var(--erp-primary);
+  color: var(--nx-primary-strong);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -62,7 +62,7 @@
   border: 0;
   border-radius: 8px;
   background: var(--erp-blue-soft);
-  color: var(--erp-blue);
+  color: var(--nx-primary-strong);
   box-shadow: none;
 }
 
