@@ -42,6 +42,7 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import { DefinitionEmptyPane, DefinitionLayout } from "./list-page/DefinitionLayout";
 import { ListSummaryCards, type SummaryCard } from "./list-page/ListSummaryCards";
 import { StatusTag } from "./list-page/StatusTag";
 import type { GridExportActions } from "./AdvancedDataGrid";
@@ -457,6 +458,9 @@ export default function ManufacturingPage({
     [wcCapacity, setWcCapacity] = useState("480"),
     [wcLabor, setWcLabor] = useState("0"),
     [wcOverhead, setWcOverhead] = useState("0");
+  // İş merkezleri definition screen: Yeni (F2) opens the create form in the right pane.
+  const [wcCreating, setWcCreating] = useState(false);
+  const workCenterDefRef = useRef<HTMLDivElement>(null);
   const [calendarReloadKey, setCalendarReloadKey] = useState(0);
   const [calendarCenterId, setCalendarCenterId] = useState(""),
     [calendarMask, setCalendarMask] = useState(127),
@@ -991,17 +995,31 @@ export default function ManufacturingPage({
       workCenterSettingsSavePending.current = false;
     };
   }, [section]);
+  // Definition screen: no work centre is opened by itself (the user picks one); one that left the list is dropped.
   useEffect(() => {
     if (
       section === "manufacturing-work-centers" &&
-      workCenters.length > 0 &&
+      !loading &&
+      calendarCenterId &&
       !workCenters.some((x) => x.id === calendarCenterId)
-    ) {
-      changeCalendarCenter(
-        (workCenters.find((x) => x.isActive) ?? workCenters[0]).id,
-      );
-    }
-  }, [section, workCenters, calendarCenterId]);
+    )
+      changeCalendarCenter("");
+  }, [section, workCenters, calendarCenterId, loading]);
+  // Esc = Vazgeç on the definition screen: closes the create form or the open work centre (and the drawer below 1280px).
+  useEffect(() => {
+    if (section !== "manufacturing-work-centers" || (!wcCreating && !calendarCenterId)) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const root = workCenterDefRef.current;
+      if (!root || root.closest("[hidden]")) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu']") || document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      void closeWorkCenterPane();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
   useEffect(() => {
     if (section !== "manufacturing-work-centers" || !calendarCenterId) return;
     let active = true;
@@ -1228,14 +1246,15 @@ export default function ManufacturingPage({
       if (mutationIsCurrent(captured)) setBusy(false);
     }
   }
-  async function createWorkCenter(e: FormEvent) {
+  /** `onCreated`: the definition screen's pane closes the form and opens the new record instead of the notice. */
+  async function createWorkCenter(e: FormEvent, onCreated?: (id: string | undefined) => void) {
     e.preventDefault();
     const captured = captureMutationEpoch();
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await request("/api/manufacturing/work-centers/", {
+      const created = await request<{ id?: string } | undefined>("/api/manufacturing/work-centers/", {
         method: "POST",
         body: JSON.stringify({
           code: wcCode,
@@ -1248,6 +1267,10 @@ export default function ManufacturingPage({
       if (!mutationIsCurrent(captured)) return;
       setWcCode("");
       setWcName("");
+      if (onCreated) {
+        onCreated(created?.id);
+        return;
+      }
       setNotice("İş merkezi oluşturuldu. Liste ekranına dönebilirsiniz.");
     } catch (e) {
       if (mutationIsCurrent(captured)) setError((e as Error).message);
@@ -1267,6 +1290,46 @@ export default function ManufacturingPage({
       setBusy(false);
     }
     setCalendarCenterId(centerId);
+  }
+  // İş merkezleri definition screen (list left, record right). The create form asks before a typed draft is dropped;
+  // an open work centre's calendar / rule edits keep today's behaviour (switching rows does not ask).
+  const workCenterDraftDirty = wcCreating && !!(wcCode.trim() || wcName.trim());
+  async function confirmWorkCenterDiscard() {
+    return (
+      !workCenterDraftDirty ||
+      (await confirmDialog({
+        title: "İş merkezi",
+        message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?",
+        confirmLabel: "Devam",
+      }))
+    );
+  }
+  const focusWorkCenterList = () =>
+    window.setTimeout(
+      () => workCenterDefRef.current?.querySelector<HTMLElement>(".nx-def-list .advanced-grid-scroll")?.focus(),
+      0,
+    );
+  async function closeWorkCenterPane() {
+    if (!(await confirmWorkCenterDiscard())) return;
+    setWcCreating(false);
+    changeCalendarCenter("");
+    focusWorkCenterList();
+  }
+  async function openWorkCenter(id: string) {
+    if (id === calendarCenterId && !wcCreating) return;
+    if (!(await confirmWorkCenterDiscard())) return;
+    setWcCreating(false);
+    changeCalendarCenter(id);
+  }
+  function startWorkCenterCreate() {
+    setError("");
+    setNotice("");
+    changeCalendarCenter("");
+    setWcCreating(true);
+    window.setTimeout(
+      () => document.getElementById("mfg-wc-create")?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus(),
+      0,
+    );
   }
   async function saveWorkCenterCalendar() {
     const selectionGeneration = calendarSelectionGeneration.current;
@@ -3224,7 +3287,8 @@ export default function ManufacturingPage({
       </div>
     );
   }
-  if (section === "manufacturing-work-center-create") {
+  /** Fields of the work centre create form: the create page and the definition screen's pane (one POST). */
+  const workCenterFormBody = (tip: ReactNode) => {
     const wcCurrency = "TRY";
     const wcCapacityMinutes = Number(wcCapacity);
     const wcHourly =
@@ -3239,23 +3303,6 @@ export default function ManufacturingPage({
         maximumFractionDigits: 2,
       });
     return (
-      <div className="manufacturing-page manufacturing-record-form-host">
-        <RecordFormPage
-          className="mfg-rf"
-          title="İş Merkezi Tanımlama"
-          mode="create"
-          busy={busy}
-          saveLabel="İş Merkezini Kaydet"
-          onSubmit={(event) => void createWorkCenter(event)}
-          onCancel={() => onNavigate("manufacturing-work-centers")}
-          error={error}
-          onDismissError={() => setError("")}
-          status={
-            notice ? (
-              <span className="rf-status-notice">{notice}</span>
-            ) : undefined
-          }
-        >
           <div className="mfg-rf-layout">
             <section className="mfg-rf-card mfg-rf-main">
               <label className="mfg-rf-lead">
@@ -3347,12 +3394,33 @@ export default function ManufacturingPage({
                   </small>
                 </div>
               </section>
-              <p className="mfg-rf-tip">
-                Kaydettikten sonra çalışma takvimini iş merkezleri listesinden
-                ayarlayın.
-              </p>
+              <p className="mfg-rf-tip">{tip}</p>
             </aside>
           </div>
+    );
+  };
+  if (section === "manufacturing-work-center-create") {
+    return (
+      <div className="manufacturing-page manufacturing-record-form-host">
+        <RecordFormPage
+          className="mfg-rf"
+          title="İş Merkezi Tanımlama"
+          mode="create"
+          busy={busy}
+          saveLabel="İş Merkezini Kaydet"
+          onSubmit={(event) => void createWorkCenter(event)}
+          onCancel={() => onNavigate("manufacturing-work-centers")}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            notice ? (
+              <span className="rf-status-notice">{notice}</span>
+            ) : undefined
+          }
+        >
+          {workCenterFormBody(
+            "Kaydettikten sonra çalışma takvimini iş merkezleri listesinden ayarlayın.",
+          )}
         </RecordFormPage>
       </div>
     );
@@ -3452,12 +3520,25 @@ export default function ManufacturingPage({
     ],
   };
   const workCenterCommands: PageCommands = {
+    // Yeni (F2) opens the empty form in the right pane (the menu's "İş merkezi tanımla" page stays).
     new: {
-      primary: true,
+      primary: !wcCreating,
+      disabledReason: busyReason,
       run: () => {
-        setError("");
-        setNotice("");
-        onNavigate("manufacturing-work-center-create");
+        if (wcCreating) {
+          document.getElementById("mfg-wc-create")?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
+          return;
+        }
+        void confirmWorkCenterDiscard().then((ok) => ok && startWorkCenterCreate());
+      },
+    },
+    open: {
+      disabledReason: selectedWorkCenter ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        window.setTimeout(
+          () => workCenterDefRef.current?.querySelector<HTMLElement>(".nx-def-pane [role='tab'][aria-selected='true']")?.focus(),
+          0,
+        );
       },
     },
     delete: {
@@ -3512,7 +3593,7 @@ export default function ManufacturingPage({
           ) : undefined
         }
       />
-      {error && !trackingOrder && (
+      {error && !trackingOrder && !(section === "manufacturing-work-centers" && wcCreating) && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button onClick={() => setError("")}>×</button>
@@ -3543,6 +3624,13 @@ export default function ManufacturingPage({
         )}
       </div>
       {section === "manufacturing-work-centers" && (
+        <DefinitionLayout
+          rootRef={workCenterDefRef}
+          className="work-center-def"
+          paneOpen={wcCreating || !!selectedWorkCenter}
+          paneLabel="İş merkezi kaydı"
+          list={
+            <>
         <ListToolbar
           search={workCenterSearch}
           onSearchChange={setWorkCenterSearch}
@@ -3566,9 +3654,6 @@ export default function ManufacturingPage({
             ]}
           />
         </ListToolbar>
-      )}
-      {section === "manufacturing-work-centers" && (
-        <div className="work-center-layout">
           <section
             className="work-center-card work-center-list-card"
             aria-label="Tanımlı iş merkezleri"
@@ -3597,7 +3682,7 @@ export default function ManufacturingPage({
                   selectable
                   currentRowKey={calendarCenterId || null}
                   onCurrentRowChange={(id) => {
-                    if (id) changeCalendarCenter(id);
+                    if (id) void openWorkCenter(id);
                   }}
                 >
                   <thead>
@@ -3636,6 +3721,41 @@ export default function ManufacturingPage({
               </div>
             )}
           </section>
+            </>
+          }
+          pane={
+            wcCreating ? (
+              <section id="mfg-wc-create" className="inv-rf-embedded mfg-wc-embedded">
+                <RecordFormPage
+                  variant="dialog"
+                  className="mfg-rf"
+                  title="İş Merkezi Tanımlama"
+                  mode="create"
+                  busy={busy}
+                  saveLabel="İş Merkezini Kaydet"
+                  onSubmit={(event) =>
+                    void createWorkCenter(event, (id) => {
+                      setWcCreating(false);
+                      setNotice("İş merkezi oluşturuldu.");
+                      void refresh().then(() => {
+                        if (id) changeCalendarCenter(id);
+                      });
+                    })
+                  }
+                  onCancel={() => void closeWorkCenterPane()}
+                  error={error}
+                  onDismissError={() => setError("")}
+                >
+                  {workCenterFormBody(
+                    "Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.",
+                  )}
+                </RecordFormPage>
+              </section>
+            ) : !selectedWorkCenter ? (
+              <DefinitionEmptyPane>
+                Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.
+              </DefinitionEmptyPane>
+            ) : (
           <aside
             className="work-center-card work-center-detail"
             aria-label="Seçili iş merkezi ayrıntısı"
@@ -4466,7 +4586,9 @@ export default function ManufacturingPage({
               </>
             )}
           </aside>
-        </div>
+            )
+          }
+        />
       )}
       {section === "manufacturing-orders" && !createOrderPage && (
         <div className="manufacturing-order-stack">

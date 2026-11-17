@@ -462,7 +462,7 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
 
 /* Work centers: list | selected work center detail (calendar, general, exceptions tabs). */
 #root .manufacturing-page .work-center-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; gap: 16px; min-width: 0; }
-#root .manufacturing-page :is(.work-center-card, .mrp-card) { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--nx-line); border-radius: 12px; background: var(--nx-surface); box-shadow: none; }
+#root .manufacturing-page :is(.work-center-card, .mrp-card) { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); box-shadow: none; }
 #root .manufacturing-page .work-center-list-card { padding: 0; overflow: hidden; }
 #root .manufacturing-page .work-center-list-card .manufacturing-table-wrap { margin: 0; border: 0; border-radius: 0; }
 #root .manufacturing-page .work-center-list-card .manufacturing-empty { margin: 16px; }
@@ -576,7 +576,7 @@ html[data-theme="dark"] #root .record-form.mfg-rf {
 }
 #root .record-form.mfg-rf > .rf-form { padding: 0 0 24px; background: transparent; }
 #root .mfg-rf .mfg-rf-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-#root .mfg-rf .mfg-rf-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 20px; border: 1px solid var(--mfg-rf-border); border-radius: 12px; background: var(--mfg-rf-card); box-shadow: none; }
+#root .mfg-rf .mfg-rf-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin: 0; padding: 20px; border: 1px solid var(--mfg-rf-border); border-radius: var(--nx-radius-card); background: var(--mfg-rf-card); box-shadow: none; }
 #root .mfg-rf .mfg-rf-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 #root .mfg-rf .mfg-rf-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 #root .mfg-rf .mfg-rf-row--wide { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
@@ -748,3 +748,9 @@ html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: var(--n
 @media (max-width: 760px) {
   #root .mfg-rf .mfg-sticky-bar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); z-index: 46; }
 }
+
+/* İş merkezleri definition screen (mockup 04 alt): list left, record right; the create form is one column in the pane. */
+@media (min-width: 1280px) {
+  #root .manufacturing-page.list-v2 .nx-def.work-center-def { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+}
+#root .manufacturing-page .mfg-wc-embedded .mfg-rf .mfg-rf-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }

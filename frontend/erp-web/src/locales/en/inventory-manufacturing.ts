@@ -435,6 +435,11 @@ export const english: Record<string, string> = {
   'Ürün reçetesi pasife alındı.': 'Product recipe deactivated.',
   'Ürün reçetesi etkinleştirildi.': 'Product recipe activated.',
   'İş merkezi oluşturuldu. Liste ekranına dönebilirsiniz.': 'Work center created. You can return to the list screen.',
+  'İş merkezi oluşturuldu.': 'Work center created.',
+  'İş merkezi kaydı': 'Work center record',
+  'Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.': 'Select a work center or press F2 to add a new one.',
+  'Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.':
+    'Core fields cannot be changed after saving; set the working calendar and setup rules on this screen.',
   'İş merkezi vardiyası ve çalışma takvimi kaydedildi.': 'Work center shift and working calendar saved.',
   'Sıralı kurulum kuralları kaydedildi. Yeni üretim emirleri bu kural anlık görüntüsünü kullanır.': 'Sequence-dependent setup rules saved. New manufacturing orders use this rule snapshot.',
   'Yıllık kapasite kuralı için geçerli bir ay ve gün girin.': 'Enter a valid month and day for the annual capacity rule.',

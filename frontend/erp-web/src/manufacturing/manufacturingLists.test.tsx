@@ -186,14 +186,63 @@ describe('Tanımlı reçeteler list', () => {
 });
 
 describe('İş merkezleri and Malzeme planlama frames', () => {
-  it('İş merkezleri: Yeni opens the definition screen, Sil explains', async () => {
+  it('İş merkezleri (definition screen): nothing open by itself; a row opens its record; Sil explains', async () => {
     const onNavigate = vi.fn();
     renderScreen(<ManufacturingWorkCentersPage token="t" onNavigate={onNavigate} />);
     const [cell] = await screen.findAllByText('Dolum hattı');
     expect(within(cell.closest('tr')!).getByText('Aktif').className).toContain('nx-status-tag');
+    expect(document.querySelector('.nx-def.work-center-def')).toBeTruthy();
+    expect(screen.getByText('Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.')).toBeTruthy();
+    await waitFor(() => expect(reason('open')).toBe('Önce bir kayıt seçin'));
+    fireEvent.click(cell);
+    const pane = await screen.findByRole('complementary', { name: 'Seçili iş merkezi ayrıntısı' });
+    expect(within(pane).getByRole('tab', { name: 'Çalışma takvimi' })).toBeTruthy();
+    expect(reason('delete')).toBe('İş merkezi silinemez; durumu Genel sekmesinden değiştirilir.');
+    // Core fields stay read-only for an existing record (no PUT): the Genel tab lists them as facts.
+    fireEvent.click(within(pane).getByRole('tab', { name: 'Genel' }));
+    expect(within(pane).queryByPlaceholderText('WC-MONTAJ')).toBeNull();
+    // Esc closes the record.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(await screen.findByText('Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.')).toBeTruthy();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('İş merkezleri: Yeni (F2) opens the form in the pane with the same POST body; a draft asks before a row opens', async () => {
+    renderScreen(<ManufacturingWorkCentersPage token="t" onNavigate={vi.fn()} />);
+    const [cell] = await screen.findAllByText('Dolum hattı');
     await waitFor(() => expect(enabled('new')).toBe(true));
     fireEvent.click(command('new'));
-    expect(onNavigate).toHaveBeenCalledWith('manufacturing-work-center-create');
+    const form = await waitFor(() => {
+      const element = document.getElementById('mfg-wc-create');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const name = within(form).getByPlaceholderText('Montaj hattı');
+    fireEvent.change(name, { target: { value: 'Paketleme' } });
+    // A typed draft: picking a row asks first; Vazgeç keeps the form.
+    fireEvent.click(cell);
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    });
+    expect(document.getElementById('mfg-wc-create')).toBeTruthy();
+    fireEvent.change(within(form).getByPlaceholderText('WC-MONTAJ'), { target: { value: 'WC-PKT' } });
+    const numbers = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="number"]'));
+    fireEvent.change(numbers[0], { target: { value: '450' } });
+    fireEvent.change(numbers[1], { target: { value: '120.5' } });
+    fireEvent.change(numbers[2], { target: { value: '30' } });
+    await act(async () => {
+      fireEvent.submit(name.closest('form')!);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      method: 'POST',
+      path: '/api/manufacturing/work-centers/',
+      body: { code: 'WC-PKT', name: 'Paketleme', capacityMinutesPerDay: 450, laborCostPerHourBase: 120.5, overheadCostPerHourBase: 30 },
+    });
+    await waitFor(() => expect(document.getElementById('mfg-wc-create')).toBeNull());
+    expect(screen.getByText('İş merkezi oluşturuldu.')).toBeTruthy();
   });
 
   it('İş merkezi tanımla (create page): the POST body', async () => {
@@ -253,6 +302,8 @@ describe('English locale', () => {
       'Henüz ürün reçetesi yok. Yeni (F2) ile ilk reçeteyi oluşturun.', '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç',
       'İş merkezi silinemez; durumu Genel sekmesinden değiştirilir.', 'İş merkezi kayıtları', 'Plan geçmişi', 'reçete', 'iş merkezi', 'depo',
       'kayıt · günlük kapasite 480 dk', 'Bu emirde bileşen satırı yok.', 'Operasyon rotası tanımlı değil.',
+      'İş merkezi kaydı', 'İş merkezi oluşturuldu.', 'Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.',
+      'Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.',
     ])
       if (localizedUiText(text) === text) missing.push(text);
     expect(missing).toEqual([]);
