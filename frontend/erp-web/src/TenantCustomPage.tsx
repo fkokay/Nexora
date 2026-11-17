@@ -223,7 +223,7 @@ export function QueryTable({ state, columns, title, description, style, selected
           {hasTotals && state.rows.length > 0 && <tfoot><tr className="tenant-page-total">
             {visible.map((column, index) => {
               const total = totals.includes(column.code) ? columnTotal(state.rows, column.code) : null;
-              const text = total === null ? "" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
+              const text = total === null ? "—" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
               if (index === 0 && total !== null) return <td key={column.code}><span className="tenant-page-total-label">{totalLabel}</span><span className="num">{text}</span></td>;
               return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? totalLabel : text}</td>;
             })}
@@ -348,8 +348,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
-      const tone = (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info";
-      const icon = typeof props.icon === "string" ? props.icon : undefined;
+      const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
+      const icon = runtime && typeof props.icon === "string" ? props.icon : undefined;
       const trendState = runtime && typeof props.trendQuery === "string" ? runtime.states[runtime.queryNames[props.trendQuery]] : undefined;
       const trend = trendState ? trendPoints(trendState.rows) : undefined;
       const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;

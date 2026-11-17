@@ -15,7 +15,7 @@ export const toneOf = (value: unknown): Tone => (TONE_NAMES.includes(String(valu
 export function MetricPreview({ title, value, description, tone, icon, trendRows, style }: {
   title: string; value: ReactNode; description: string; tone: Tone; icon?: unknown; trendRows?: Record<string, unknown>[]; style: CSSProperties;
 }) {
-  const Icon = typeof icon === "string" ? ICONS[icon] : undefined;
+  const Icon = typeof icon === "string" && Object.hasOwn(ICONS, icon) ? ICONS[icon] : undefined;
   const path = trendRows ? sparklinePath(trendPoints(trendRows), TREND_WIDTH, TREND_HEIGHT) : "";
   return <article className={`custom-page-preview-metric is-dl tone-${tone}`} style={style}>
     {Icon && <span className="pd-metric-icon" aria-hidden="true"><Icon size={16} /></span>}
@@ -63,7 +63,7 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
       {hasTotals && <tfoot><tr className="pd-total">
         {columns.map((column, index) => {
           const total = totals.includes(column.code) ? columnTotal(rows, column.code) : null;
-          const text = total === null ? "" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
+          const text = total === null ? "—" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
           if (index === 0 && total !== null) return <td key={column.code}><span className="pd-total-label">{totalLabel}</span><span className="num">{text}</span></td>;
           return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? totalLabel : text}</td>;
         })}

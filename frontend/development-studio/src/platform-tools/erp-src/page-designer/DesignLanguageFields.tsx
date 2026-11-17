@@ -30,6 +30,16 @@ export function IconSelect({ value, onChange, disabled }: { value: string | unde
   </div>;
 }
 
+/** Sunucudaki SafeValue'nun reddettiği karakter/dizileri ayıklar (=, <, >, {{, }}, javascript:, data:). */
+export function sanitizeSafeValue(text: string): string {
+  let next = text;
+  for (let previous = ""; previous !== next;) {
+    previous = next;
+    next = next.replace(/[=<>]/g, "").replace(/\{\{|\}\}/g, "").replace(/javascript:|data:/gi, "");
+  }
+  return next.trim();
+}
+
 export function ToneMapEditor({ value, onChange, disabled }: { value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
   const rows = parseToneMap(value);
   const write = (next: { key: string; tone: Tone }[]) => onChange(next.map((row) => `${row.key}=${row.tone}`));
@@ -40,7 +50,7 @@ export function ToneMapEditor({ value, onChange, disabled }: { value: string[]; 
   };
   return <div className="pd-tonemap">
     {rows.map((row, index) => <div className="pd-tonemap-row" key={index}>
-      <input key={`${index}:${row.key}`} defaultValue={row.key} disabled={disabled} maxLength={60} aria-label="Değer" onBlur={(event) => { const key = event.target.value.replace(/=/g, "").trim(); if (key && key !== row.key) write(rows.map((item, i) => i === index ? { ...item, key } : item)); else event.target.value = row.key; }}/>
+      <input key={`${index}:${row.key}`} defaultValue={row.key} disabled={disabled} maxLength={60} aria-label="Değer" onBlur={(event) => { const key = sanitizeSafeValue(event.target.value); if (key && key !== row.key) write(rows.map((item, i) => i === index ? { ...item, key } : item)); else event.target.value = row.key; }}/>
       <ToneSelect value={row.tone} label={`${row.key} tonu`} disabled={disabled} onChange={(tone) => write(rows.map((item, i) => i === index ? { ...item, tone } : item))}/>
       <button type="button" className="pd-icon-button" aria-label="Satırı sil" disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}><X size={13}/></button>
     </div>)}

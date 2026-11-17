@@ -128,12 +128,12 @@ export default function TenantReportWidget({
   if (kind === "metric") {
     const value = result ? new Intl.NumberFormat("tr-TR").format(result.totalCount) : fallbackValue || "—";
     return <MetricCard title={title} description={description} style={style ?? {}} tone={tone} icon={icon} trend={trend} active={active} onActivate={onActivate} hasError={status === "error"}
+      footer={sourceCode && status === "ready" && result ? <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small> : undefined}
       value={<>
         {status === "loading" ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong>
           : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
             : !sourceCode ? <strong className="tenant-report-unbound">{value}</strong>
               : <strong>{value}</strong>}
-        {sourceCode && status === "ready" && result && <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small>}
       </>} />;
   }
 

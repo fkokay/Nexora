@@ -21,6 +21,11 @@ describe('MetricCard', () => {
     expect(card({ icon: 'nope' }).container.querySelector('.tenant-metric-icon')).toBeNull();
   });
 
+  it("Object prototype anahtarlı ikon çökertmez", () => {
+    expect(() => card({ icon: 'constructor' })).not.toThrow();
+    expect(card({ icon: 'toString' }).container.querySelector('.tenant-metric-icon')).toBeNull();
+  });
+
   it('etiket, değer ve açıklamayı yazar', () => {
     const { container } = card();
     expect(container.textContent).toContain('Gecikmiş');

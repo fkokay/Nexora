@@ -47,13 +47,13 @@ export function parseColumnFormats(entries: unknown): Record<string, ColumnForma
   return result;
 }
 
-const isNumericType = (dataType?: string) => dataType === "number" || dataType === "decimal";
+const isNumericType = (dataType?: string) => { const type = dataType?.toLowerCase(); return type === "number" || type === "decimal"; };
 
 const numberFormat = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
 const moneyFormat = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateFormat = new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-export function formatCell(value: unknown, format: ColumnFormat | undefined, dataType?: string): string {
+export function formatCell(value: unknown, format?: ColumnFormat, dataType?: string): string {
   if (value === null || value === undefined) return EMPTY;
   if (typeof value === "string" && value.trim() === "") return EMPTY;
   const effective = format ?? (isNumericType(dataType) ? "number" : undefined);
@@ -73,6 +73,10 @@ export function formatCell(value: unknown, format: ColumnFormat | undefined, dat
     }
     const date = value instanceof Date ? value : new Date(String(value));
     return Number.isNaN(date.getTime()) ? String(value) : dateFormat.format(date);
+  }
+  if (typeof value === "boolean") return value ? "Evet" : "Hayır";
+  if (typeof value === "object") {
+    try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }
   }
   return String(value);
 }

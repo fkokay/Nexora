@@ -49,6 +49,12 @@ describe('QueryTable biçimleri', () => {
     expect(cells[1].textContent).toBe('15,5');
   });
 
+  it('toplamı olmayan totals sütununda tire gösterir', () => {
+    const { container } = table(state([{ Ad: 'a', Tutar: 1 }], [{ code: 'Tutar', label: 'Tutar' }, { code: 'Ad', label: 'Ad' }]), { totals: ['Tutar', 'Ad'] });
+    const cells = container.querySelectorAll('tfoot td');
+    expect(cells[cells.length - 1].textContent).toBe('—');
+  });
+
   it('kesilmiş sonuçta toplam etiketi ilk satırları belirtir', () => {
     const { container } = table(state([{ Tutar: 1 }, { Tutar: 2 }, { Tutar: 3 }], [{ code: 'Ad', label: 'Ad' }, { code: 'Tutar', label: 'Tutar' }], true), { totals: ['Tutar'] });
     expect(container.querySelector('tfoot td')!.textContent).toBe('Toplam · ilk 3 satır');

@@ -10,11 +10,11 @@ const TREND_WIDTH = 70;
 const TREND_HEIGHT = 26;
 
 /** Özet kartı: ikon kutusu, etiket/değer/açıklama ve sağda eğilim çizgisi; `onActivate` varsa tıkla-süz düğmesi. */
-export function MetricCard({ title, value, description, tone, icon, trend, active, onActivate, hasError, style }: {
+export function MetricCard({ title, value, description, tone, icon, trend, active, onActivate, hasError, footer, style }: {
   title: string; value: ReactNode; description: string; tone: Tone; icon?: string; trend?: number[];
-  active?: boolean; onActivate?: () => void; hasError?: boolean; style: CSSProperties;
+  active?: boolean; onActivate?: () => void; hasError?: boolean; footer?: ReactNode; style: CSSProperties;
 }) {
-  const Icon = icon ? ICONS[icon] : undefined;
+  const Icon = icon && Object.hasOwn(ICONS, icon) ? ICONS[icon] : undefined;
   const path = trend ? sparklinePath(trend, TREND_WIDTH, TREND_HEIGHT) : "";
   const interactive = onActivate && !hasError
     ? {
@@ -37,6 +37,7 @@ export function MetricCard({ title, value, description, tone, icon, trend, activ
       {title && <span className="tenant-metric-label">{title}</span>}
       {value}
       {description && <small>{description}</small>}
+      {footer}
     </div>
     {path && <svg className="tenant-metric-trend" width={TREND_WIDTH} height={TREND_HEIGHT} viewBox={`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`} aria-hidden="true">
       <polyline points={path} fill="none" />

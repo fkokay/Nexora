@@ -36,6 +36,11 @@ describe("cellFormat", () => {
     expect(formatCell(1234.567, "number")).toBe("1.234,57");
     expect(formatCell(null, "number")).toBe("—");
     expect(formatCell("", "text")).toBe("—");
+    expect(formatCell(true, undefined, "boolean")).toBe("Evet");
+    expect(formatCell(false)).toBe("Hayır");
+    expect(formatCell({ a: 1 })).toBe('{"a":1}');
+    expect(formatCell(1234.5, undefined, "Decimal")).toBe("1.234,5");
+    expect(formatCell(true, "number")).toBe("true");
     expect(formatCell("2026-11-17T09:18:24+00:00", "date")).toBe("17.11.2026");
     expect(formatCell(1250, undefined, "decimal")).toBe("1.250");
     expect(formatCell("abc", "date")).toBe("abc");
