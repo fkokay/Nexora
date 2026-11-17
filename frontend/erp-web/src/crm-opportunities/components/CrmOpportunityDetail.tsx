@@ -31,7 +31,11 @@ export function CrmOpportunityDetail({ selected, tab, onTabChange, onOpen, openD
   const closed = selected.stage === "Won" || selected.stage === "Lost";
   // The flow: İlk temas → Nitelikli → Teklif → Müzakere → Kazanıldı; Kaybedildi replaces Kazanıldı once lost.
   const flow = stages.filter((stage) => (selected.stage === "Lost" ? stage !== "Won" : stage !== "Lost"));
-  const reached = flow.indexOf(selected.stage as (typeof stages)[number]);
+  // Earlier stages count as passed only where the API makes that certain: it moves an opportunity one step at a time
+  // (CrmEndpoints.CanTransition: İlk temas → Nitelikli → Teklif → Müzakere → Kazanıldı), so an open or won
+  // opportunity has passed every earlier step. Kaybedildi can follow any open stage and no stage history is kept,
+  // so for a lost opportunity only Kaybedildi is marked.
+  const reached = selected.stage === "Lost" ? -1 : flow.indexOf(selected.stage as (typeof stages)[number]);
   return (
     <SalesListDetailPanel
       label="Fırsat özeti"
