@@ -2,13 +2,16 @@ import SearchableRecordPicker from "./SearchableRecordPicker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import type { Asset, AssetField } from "./fixed-assets/types";
-import {
-  FixedAssetRegister,
-  type FixedAssetRowAction,
-} from "./fixed-assets/components/FixedAssetRegister";
-import { Plus } from "lucide-react";
+import { FixedAssetRegister } from "./fixed-assets/components/FixedAssetRegister";
+import { CalendarClock, CircleDollarSign, Landmark, TrendingDown } from "lucide-react";
 import { localDateString } from "./dateUtils";
 import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import "./fixed-assets.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
@@ -241,6 +244,8 @@ export default function FixedAssetsPage({
     [assetListViewLoaded, setAssetListViewLoaded] = useState(false);
   const showAcquisition = panelMode === "acquire";
   const stayAfterCreate = useRef(false);
+  const registerExportRef = useRef<GridExportActions | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -273,7 +278,7 @@ export default function FixedAssetsPage({
       setSelected((current) =>
         current
           ? page.items.find((x) => x.id === current.id) || null
-          : page.items[0] || null,
+          : null,
       );
       return page.items;
     } catch (e) {
@@ -812,7 +817,6 @@ export default function FixedAssetsPage({
         ?.code ||
       (en ? "Linked" : "Bağlı")
     : "—";
-  const canAct = !!selected && !busy && !detailLoading && !detailError;
   const selectedActive = selected?.status === "Active";
   function openPanel(mode: PanelMode) {
     setError("");
@@ -820,18 +824,65 @@ export default function FixedAssetsPage({
     if (mode === "assign" && !assignedDate) setAssignedDate(localDateString());
     setPanelMode(mode);
   }
-  function handleRowAction(asset: Asset, action: FixedAssetRowAction) {
+  /** Single click / ↑↓: the asset becomes current and the panel shows its summary (as a row click did). */
+  function selectAsset(asset: Asset) {
     setSelected(asset);
-    openPanel(
-      action === "depreciate"
-        ? "depreciate"
-        : action === "assign"
-          ? "assign"
-          : action === "dispose"
-            ? "dispose"
-            : "summary",
-    );
+    openPanel("summary");
   }
+  /** Double click / Enter / Aç: the asset card (the panel's summary) takes the focus. */
+  function openAsset(asset: Asset) {
+    selectAsset(asset);
+    window.setTimeout(() => panelRef.current?.focus(), 0);
+  }
+  const actReason = !selected
+    ? en
+      ? "Select a record first"
+      : "Önce bir kayıt seçin"
+    : busy
+      ? en
+        ? "An operation is in progress…"
+        : "İşlem sürüyor…"
+      : detailLoading
+        ? en
+          ? "Loading details…"
+          : "Ayrıntılar yükleniyor…"
+        : detailError
+          ? en
+            ? "Could not load the selected asset details. Use Refresh to try again."
+            : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."
+          : undefined;
+  const assetMore: MenuCommand[] = [];
+  // The summary panel's buttons, with their conditions (active asset without a disposal).
+  if (selected && selectedActive && !disposal)
+    assetMore.push(
+      { id: "asset-depreciate", label: en ? "Post depreciation" : "Amortismanı kaydet", disabledReason: actReason, run: () => openPanel("depreciate") },
+      { id: "asset-assign", label: en ? "Assign custody" : "Zimmetle", disabledReason: actReason, run: () => openPanel("assign") },
+      { id: "asset-dispose", label: en ? "Dispose" : "Elden çıkar", disabledReason: actReason, run: () => openPanel("dispose") },
+    );
+  assetMore.push(csvExportCommand(registerExportRef));
+  const assetCommands: PageCommands = {
+    new: {
+      primary: panelMode !== "acquire",
+      disabledReason: panelMode === "acquire" ? (en ? "The acquisition form is open" : "Edinim formu açık") : undefined,
+      run: () => openPanel("acquire"),
+    },
+    open: {
+      disabledReason: selected ? undefined : en ? "Select a record first" : "Önce bir kayıt seçin",
+      run: () => {
+        if (selected) openAsset(selected);
+      },
+    },
+    delete: {
+      disabledReason: selected
+        ? en
+          ? "Assets cannot be deleted; use Dispose in Actions."
+          : "Kıymet silinemez; İşlemler'den elden çıkarın."
+        : en
+          ? "Select a record first"
+          : "Önce bir kayıt seçin",
+    },
+    more: assetMore,
+  };
   const assetFieldLabel = (key: string, label: string) => {
     // The redesigned register uses shorter headings for the catalog defaults; tenant renames stay.
     const short: Record<string, [string, string, string]> = {
@@ -845,8 +896,9 @@ export default function FixedAssetsPage({
   const panelTitleId = "fixed-asset-panel-title";
   return (
     <div className="fixed-assets-page list-v2">
+      <PageCommandsSlot commands={assetCommands} />
       <ListPageHeader
-        title={en ? "Fixed assets" : "Sabit kıymetler"}
+        title={en ? "Fixed assets" : "Duran Varlıklar"}
         description={
           en
             ? "Track acquisitions, depreciation, custody, and disposals in one register."
@@ -854,17 +906,7 @@ export default function FixedAssetsPage({
         }
         count={loading && !assets.length ? null : assets.length}
         countLabel={en ? "assets" : "kıymet"}
-      >
-        <button
-          type="button"
-          className="primary"
-          disabled={panelMode === "acquire"}
-          onClick={() => openPanel("acquire")}
-        >
-          <Plus size={16} aria-hidden="true" />
-          {en ? "New acquisition" : "Yeni edinim"}
-        </button>
-      </ListPageHeader>
+      />
       {error && (
         <div className="alert" role="alert">
           {error}
@@ -875,27 +917,39 @@ export default function FixedAssetsPage({
           {notice}
         </div>
       )}
-      <section
-        className="fixed-asset-metrics"
-        aria-label={en ? "Asset summary" : "Kıymet özeti"}
-      >
-        <article>
-          <span>{en ? "Acquisition cost" : "Edinim maliyeti"}</span>
-          <strong>{money(totalCost)}</strong>
-        </article>
-        <article>
-          <span>{en ? "Accumulated depreciation" : "Birikmiş amortisman"}</span>
-          <strong>{money(accumulatedDepreciation)}</strong>
-        </article>
-        <article>
-          <span>{en ? "Net book value" : "Net defter değeri"}</span>
-          <strong>{money(totalCost - accumulatedDepreciation)}</strong>
-        </article>
-        <article>
-          <span>{en ? "Depreciation this month" : "Bu ay amortisman"}</span>
-          <strong>{money(thisMonthDepreciation)}</strong>
-        </article>
-      </section>
+      {/* Figures of the loaded register (the page loads the first 200 assets), in the tenant base currency. */}
+      <ListSummaryCards
+        cards={[
+          {
+            id: "cost",
+            label: en ? "Acquisition cost" : "Edinim maliyeti",
+            value: loading && !assets.length ? "—" : money(totalCost),
+            icon: CircleDollarSign,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "accumulated",
+            label: en ? "Accumulated depreciation" : "Birikmiş amortisman",
+            value: loading && !assets.length ? "—" : money(accumulatedDepreciation),
+            icon: TrendingDown,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "net",
+            label: en ? "Net book value" : "Net defter değeri",
+            value: loading && !assets.length ? "—" : money(totalCost - accumulatedDepreciation),
+            icon: Landmark,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "month",
+            label: en ? "Depreciation this month" : "Bu ay amortisman",
+            value: loading && !assets.length ? "—" : money(thisMonthDepreciation),
+            icon: CalendarClock,
+            hint: en ? "straight-line estimate · active assets" : "doğrusal tahmin · etkin kıymetler",
+          },
+        ]}
+      />
       <div
         className={`fixed-asset-workspace${panelMode === "acquire" ? " is-wide-panel" : ""}`}
       >
@@ -920,13 +974,22 @@ export default function FixedAssetsPage({
             locale={locale}
             onSearchChange={setAssetSearch}
             onStatusChange={setAssetStatus}
-            onSelect={(asset) => handleRowAction(asset, "details")}
-            onAction={handleRowAction}
+            onSelect={selectAsset}
+            onOpen={openAsset}
+            exportActionsRef={registerExportRef}
+            footer={
+              <ListFooter hints={en ? "↑↓ move · Space mark · Enter open · Double-click open" : "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"}>
+                {/* The grid paginates the loaded assets itself; the endpoint returns the first 200. */}
+                {assets.length >= 200 && <span>{en ? "first 200 records" : "ilk 200 kayıt"}</span>}
+              </ListFooter>
+            }
             fieldLabel={assetFieldLabel}
             formatField={(asset, key) => formatAssetField(asset, key, en)}
           />
         </div>
         <aside
+          ref={panelRef}
+          tabIndex={-1}
           className="fixed-asset-panel"
           aria-labelledby={panelMode === "summary" ? panelTitleId : undefined}
           aria-label={
@@ -1501,34 +1564,6 @@ export default function FixedAssetsPage({
                   <dd>{linkedInvoice}</dd>
                 </div>
               </dl>
-              {selectedActive && !disposal && (
-                <div className="fixed-asset-panel-actions">
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={!canAct}
-                    onClick={() => openPanel("depreciate")}
-                  >
-                    {en ? "Post depreciation" : "Amortismanı kaydet"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={!canAct}
-                    onClick={() => openPanel("assign")}
-                  >
-                    {en ? "Assign custody" : "Zimmetle"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary fixed-asset-danger"
-                    disabled={!canAct}
-                    onClick={() => openPanel("dispose")}
-                  >
-                    {en ? "Dispose" : "Elden çıkar"}
-                  </button>
-                </div>
-              )}
               {disposal && (
                 <details className="fixed-asset-section" open>
                   <summary>{en ? "Disposal" : "Elden çıkarma"}</summary>

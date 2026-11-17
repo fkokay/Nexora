@@ -109,7 +109,7 @@ describe('Üretim emirleri list', () => {
     expect(within(row('UE-o4')).getByText('İptal edildi').className).toContain('is-off');
     // Route summary in the recipe cell: unscheduled warns.
     expect(within(row('UE-o1')).getByText('op · çizelgelenmedi')).toBeTruthy();
-    const cards = document.querySelector('.nx-summary-row')!;
+    const cards = document.querySelector<HTMLElement>(".nx-summary-row")!;
     expect(within(cards).getByText('23')).toBeTruthy();
     expect(within(cards).getByText('firma geneli · Planlandı + Serbest bırakıldı')).toBeTruthy();
     // Unscheduled: only the planned order with an unscheduled route (the cancelled one is not planned).

@@ -725,3 +725,22 @@ html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:
 @container fixed-assets (max-width: 620px) {
   #root .fixed-assets-page .fixed-asset-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---- ERP design language (mockup 10, Duran Varlık): register as list type, single-layer cards ---- */
+#root .fixed-assets-page.list-v2 .fixed-asset-workspace { gap: 12px; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+#root .fixed-assets-page.list-v2 .fixed-asset-register-wrap { min-width: 0; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table { min-width: 0; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table :is(th, td) { white-space: nowrap; }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel { border-radius: var(--nx-radius-card); }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel:focus { outline: none; }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table th.nx-num { text-align: right; }

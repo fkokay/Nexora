@@ -1,12 +1,10 @@
-import { useRef, useState, type ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
-import SalesRowActionsMenu from "../../sales/components/SalesRowActionsMenu";
+import { StatusTag } from "../../list-page/StatusTag";
 import type { Asset, AssetField } from "../types";
-
-export type FixedAssetRowAction = "details" | "depreciate" | "assign" | "dispose";
 
 /** Grid settings key (`nexora.grid.<id>`): keep it stable so the viewer's column choices survive. */
 export const FIXED_ASSET_REGISTER_GRID_ID = "fixed-assets-register";
@@ -74,12 +72,17 @@ type Props = {
   busy?: boolean;
   search: string;
   status: string;
+  /** Current row (click, ↑/↓); the panel and the action bar's Aç / İşlemler follow it. */
   selectedId: string | null;
   locale: "tr" | "en";
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSelect: (asset: Asset) => void;
-  onAction: (asset: Asset, action: FixedAssetRowAction) => void;
+  /** Double click / Enter: opens the asset card (the panel's summary). */
+  onOpen: (asset: Asset) => void;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
+  /** Line under the list (hints, counts). */
+  footer?: ReactNode;
   fieldLabel: (key: string, label: string) => string;
   formatField: (asset: Asset, key: string) => ReactNode;
 };
@@ -93,7 +96,6 @@ export function FixedAssetRegister({
   layoutReady,
   defaultLayout,
   loading,
-  busy = false,
   search,
   status,
   selectedId,
@@ -101,7 +103,9 @@ export function FixedAssetRegister({
   onSearchChange,
   onStatusChange,
   onSelect,
-  onAction,
+  onOpen,
+  exportActionsRef,
+  footer,
   fieldLabel,
   formatField,
 }: Props) {
@@ -111,14 +115,16 @@ export function FixedAssetRegister({
   // The code is shown under the name, so it gets no column of its own while the
   // name column is visible.
   const hasName = allFields.some((field) => field.key === "name");
-  const fields = hasName
-    ? allFields.filter((field) => field.key !== "assetCode")
-    : allFields;
+  // Row actions are on the action bar (İşlemler), so there is no actions column.
+  const fields = allFields.filter(
+    (field) => field.key !== "actions" && !(hasName && field.key === "assetCode"),
+  );
   if (layoutReady && !seeded.current) {
     seeded.current = true;
     if (defaultLayout) seedDefaultHiddenColumns(fields);
   }
-  const numeric = (key: string) => (NUMERIC_KEYS.has(key) ? "fixed-asset-col-number" : undefined);
+  const numeric = (key: string) => (NUMERIC_KEYS.has(key) ? "nx-num" : key === "assetCode" ? "nx-code" : undefined);
+  const [, setTicked] = useState<string[]>([]);
   return (
     <>
     <ListToolbar
@@ -146,15 +152,10 @@ export function FixedAssetRegister({
       />
     </ListToolbar>
     <section
-      className="panel fixed-asset-register-panel list-v2-list"
+      className="fixed-asset-register list-v2-list"
       aria-label={en ? "Asset register" : "Kıymet listesi"}
     >
-      <div
-        className="ledger-list"
-        role="region"
-        aria-label={en ? "Asset register table" : "Kıymet listesi tablosu"}
-        tabIndex={0}
-      >
+      <div className="fixed-asset-register-wrap">
         {!layoutReady ? (
           <p className="table-empty fixed-asset-register-loading" role="status">
             {en ? "Loading assets…" : "Kıymetler yükleniyor…"}
@@ -164,16 +165,26 @@ export function FixedAssetRegister({
           gridId={FIXED_ASSET_REGISTER_GRID_ID}
           enableRowSelection={false}
           hideSearch
+          hideExport
+          exportActionsRef={exportActionsRef}
           toolbarContainer={toolsSlot}
-          {...screenViewGridDefaults(
-            // Keep the ⋯ menu visible when extra columns make the grid scroll sideways.
-            fields.map((field) =>
-              field.key === "actions" && !field.pinned
-                ? { ...field, pinned: "right" as const, width: field.width || 64 }
-                : field,
-            ),
-          )}
+          {...screenViewGridDefaults(fields)}
           className="customer-table fixed-asset-register-table"
+          aria-label={en ? "Asset register table" : "Kıymet listesi tablosu"}
+          selectable
+          currentRowKey={selectedId}
+          onCurrentRowChange={(id) => {
+            const asset = assets.find((candidate) => candidate.id === id);
+            if (asset) onSelect(asset);
+          }}
+          onSelectionChange={setTicked}
+          bulkActions={[
+            {
+              id: "export-selected",
+              label: en ? "Excel (selected)" : "Excel (seçilenler)",
+              run: () => void exportActionsRef.current?.exportExcel(),
+            },
+          ]}
         >
           <thead>
             <ScreenViewGroupHeader
@@ -185,7 +196,7 @@ export function FixedAssetRegister({
                 <th
                   key={field.key}
                   scope="col"
-                  className={field.key === "actions" ? "fixed-asset-col-actions" : numeric(field.key)}
+                  className={numeric(field.key)}
                 >
                   {fieldLabel(field.key, field.label)}
                 </th>
@@ -196,84 +207,37 @@ export function FixedAssetRegister({
             {assets.map((asset) => (
               <tr
                 key={asset.id}
-                className={
-                  selectedId === asset.id ? "fixed-asset-selected" : ""
-                }
-                // The whole row selects the asset for the panel; buttons inside keep their own action.
-                onClick={(event) => {
-                  if ((event.target as HTMLElement).closest("button, a, input, select")) return;
-                  onSelect(asset);
+                data-record-id={asset.id}
+                tabIndex={0}
+                // The grid owns click / ↑↓ / Space; double click and Enter open the asset card.
+                onDoubleClick={(event) => {
+                  if ((event.target as HTMLElement).closest("button,input,select,a,.advanced-grid-select-cell")) return;
+                  event.preventDefault();
+                  onOpen(asset);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget || event.defaultPrevented || event.key !== "Enter") return;
+                  event.preventDefault();
+                  onOpen(asset);
                 }}
               >
                 {fields.map((field) => (
                   <td
                     key={field.key}
-                    className={field.key === "actions" ? "fixed-asset-col-actions" : numeric(field.key)}
+                    className={numeric(field.key)}
                     data-label={fieldLabel(field.key, field.label)}
                   >
-                    {field.key === "actions" ? (
-                      <SalesRowActionsMenu label={asset.assetCode}>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="sales-row-menu-item"
-                          onClick={() => onAction(asset, "details")}
-                        >
-                          {en ? "Details" : "Detay"}
-                        </button>
-                        {asset.status === "Active" && (
-                          <>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="sales-row-menu-item"
-                              disabled={busy}
-                              onClick={() => onAction(asset, "depreciate")}
-                            >
-                              {en ? "Post depreciation" : "Amortismanı kaydet"}
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="sales-row-menu-item"
-                              disabled={busy}
-                              onClick={() => onAction(asset, "assign")}
-                            >
-                              {en ? "Assign custody" : "Zimmetle"}
-                            </button>
-                            <div role="separator" className="sales-row-menu-separator" />
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="sales-row-menu-item danger-action"
-                              disabled={busy}
-                              onClick={() => onAction(asset, "dispose")}
-                            >
-                              {en ? "Dispose" : "Elden çıkar"}
-                            </button>
-                          </>
-                        )}
-                      </SalesRowActionsMenu>
-                    ) : field.key === "name" ? (
+                    {field.key === "name" ? (
                       <>
-                        <button
-                          type="button"
-                          className="row-action fixed-asset-name"
-                          aria-pressed={selectedId === asset.id}
-                          onClick={() => onSelect(asset)}
-                        >
-                          {asset.name}
-                        </button>
+                        <span>{asset.name}</span>
                         <small className="cell-subtitle list-v2-name-code">
                           {[asset.assetCode, asset.category].filter(Boolean).join(" · ")}
                         </small>
                       </>
                     ) : field.key === "status" ? (
-                      <span
-                        className={`fixed-asset-status${asset.status === "Active" ? " is-active" : ""}`}
-                      >
+                      <StatusTag tone={asset.status === "Active" ? "ok" : "off"}>
                         {formatField(asset, field.key)}
-                      </span>
+                      </StatusTag>
                     ) : (
                       formatField(asset, field.key)
                     )}
@@ -312,6 +276,7 @@ export function FixedAssetRegister({
         </AdvancedDataGrid>
         )}
       </div>
+      {footer}
     </section>
     </>
   );
