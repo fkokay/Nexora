@@ -168,7 +168,7 @@ export function previewValue(screenKey: string, key: string, index: number, en: 
     code: ['SAT-2026-001', 'SAT-2026-002'], supplierName: ['Örnek Tedarik Ltd.', 'Örnek Makine A.Ş.'],
     orderDate: ['20.10.2026', '21.10.2026'], expectedReceiptDate: ['05.11.2026', '—'], targetWarehouseCode: ['MERKEZ', '—'],
     lineCount: ['4', '2'], grandTotal: ['₺24.800,00', '$3,250.00'], currencyCode: ['TRY', 'USD'],
-    status: [en ? 'Open' : 'Açık', en ? 'Partially received' : 'Kısmi mal kabul'], actions: [en ? 'Details · Receive' : 'Detay · Mal kabul', en ? 'Details · Receive' : 'Detay · Mal kabul']
+    status: [en ? 'Open' : 'Açık', en ? 'Partially received' : 'Kısmen alındı'], actions: [en ? 'Details · Receive' : 'Detay · Mal kabul', en ? 'Details · Receive' : 'Detay · Mal kabul']
   }
   const purchaseReceiptValues: Record<string, [string, string]> = {
     code: ['MKB-2026-001', 'MKB-2026-002'], purchaseOrderCode: ['SAT-2026-001', 'SAT-2026-002'],

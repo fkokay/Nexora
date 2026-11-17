@@ -87,7 +87,7 @@ export function supplierQuoteStatus(status: string): DocumentStatus {
 export function purchaseOrderStatus(status: string): DocumentStatus {
   switch (status) {
     case "Open": return { label: "Açık", tone: "warning" };
-    case "PartiallyReceived": return { label: "Kısmi mal kabul", tone: "info" };
+    case "PartiallyReceived": return { label: "Kısmen alındı", tone: "info" };
     case "Received": return { label: "Tam alındı", tone: "success" };
     case "PendingApproval": return { label: "Onay bekliyor", tone: "warning" };
     case "Rejected": return { label: "Reddedildi", tone: "danger" };

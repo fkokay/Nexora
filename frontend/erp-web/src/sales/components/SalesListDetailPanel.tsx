@@ -179,6 +179,8 @@ export type SalesChainItem = {
   label: string;
   current?: boolean;
   status?: { tone: StatusTagTone; label: string };
+  /** Given: the document number opens that document. */
+  onOpen?: () => void;
 };
 
 /** Belge zinciri: the documents before and after this one (from the row's own data). */
@@ -189,7 +191,15 @@ export function SalesPanelChain({ items }: { items: SalesChainItem[] }) {
         {items.map((item) => (
           <li key={item.key} className={item.current ? "is-current" : undefined} aria-current={item.current ? "true" : undefined}>
             <span className="sales-ld-chain-text">
-              {item.code && <span className="nx-code">{item.code}</span>} <span>{item.label}</span>
+              {item.code &&
+                (item.onOpen && !item.current ? (
+                  <button type="button" className="sales-ld-link nx-code" onClick={item.onOpen}>
+                    {item.code}
+                  </button>
+                ) : (
+                  <span className="nx-code">{item.code}</span>
+                ))}{" "}
+              <span>{item.label}</span>
             </span>
             {item.status && (
               <>
