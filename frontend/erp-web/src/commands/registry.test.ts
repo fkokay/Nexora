@@ -79,6 +79,35 @@ describe('command registry', () => {
     expect(RESERVED_BROWSER_CHORDS).toContain('F5');
   });
 
+  it('leaves reserved browser chords alone while no workspace view is active (outside the shell)', () => {
+    const r = createCommandRegistry();
+    for (const init of [{ key: 'F5' }, { key: 'p', ctrlKey: true }, { key: 's', ctrlKey: true }]) {
+      const e = key(init);
+      expect(r.handleKeyDown(e, idle)).toBe(false);
+      expect(e.defaultPrevented).toBe(false);
+    }
+    // Leaving the shell clears the active view again.
+    r.setActiveView('v');
+    expect(r.handleKeyDown(key({ key: 'F5' }), idle)).toBe(true);
+    r.setActiveView(undefined);
+    const e = key({ key: 'F5' });
+    expect(r.handleKeyDown(e, idle)).toBe(false);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('announces a mounted action bar until it detaches', () => {
+    const r = createCommandRegistry();
+    const listener = vi.fn();
+    r.subscribe(listener);
+    expect(r.hasActionBar()).toBe(false);
+    const detach = r.attachActionBar();
+    expect(r.hasActionBar()).toBe(true);
+    detach();
+    detach();
+    expect(r.hasActionBar()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
   it('does not touch non-reserved chords without a command', () => {
     const r = createCommandRegistry();
     r.setActiveView('v');

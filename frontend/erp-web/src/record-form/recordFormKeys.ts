@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
+import { MODAL_SELECTOR } from "../commands/modals";
 
 /** Elements that make a record form "in a dialog" (it keeps its own buttons there). */
-export const DIALOG_SELECTOR = '.modal-backdrop, .modal, [role="dialog"], [aria-modal="true"]';
+export const DIALOG_SELECTOR = '.modal-backdrop, .modal, [role="dialog"], [aria-modal="true"], dialog';
 const FIELD_SELECTOR = 'input:not([type="hidden"]), select, textarea, [aria-invalid="true"]';
 export const FOCUSABLE_FIELD_SELECTOR = 'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])';
 /** Input types that take typed text (PgUp / PgDn and Esc belong to them while focused). */
@@ -9,15 +10,27 @@ const NON_TEXT_INPUT_TYPES = new Set(["checkbox", "radio", "button", "submit", "
 /** Open pickers, list boxes and menus own arrow keys and Escape. */
 const POPUP_SELECTOR = '[role="listbox"], [aria-expanded="true"]';
 
+/** Open dialogs (modal backdrops, `aria-modal` elements, modal native dialogs) outside hidden keep-alive views. */
+export function openDialogs(): Element[] {
+  return Array.from(document.querySelectorAll(`.modal-backdrop, ${MODAL_SELECTOR}`)).filter((el) => !el.closest("[hidden]"));
+}
+
 /**
  * Whether this form may act on a save shortcut or command: it is not in a hidden keep-alive view, and when dialogs
  * are open (modal backdrops or `aria-modal` elements) it lives inside the topmost one.
  */
 export function ownsKeyboard(form: HTMLFormElement | null): boolean {
   if (!form || form.closest("[hidden]")) return false;
-  const dialogs = Array.from(document.querySelectorAll('.modal-backdrop, [aria-modal="true"]')).filter((el) => !el.closest("[hidden]"));
+  const dialogs = openDialogs();
   const topmost = dialogs[dialogs.length - 1];
   return !topmost || topmost.contains(form);
+}
+
+/** Another visible record form on screen would also take a save shortcut (it owns the keyboard as well). */
+export function otherFormOwnsKeyboard(root: HTMLElement | null): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>(".record-form")).some(
+    (other) => other !== root && !root?.contains(other) && !other.contains(root) && ownsKeyboard(other.querySelector<HTMLFormElement>("form.rf-form")),
+  );
 }
 
 /** Focus sits in another record form on the same screen: that form gets the section and record shortcuts. */

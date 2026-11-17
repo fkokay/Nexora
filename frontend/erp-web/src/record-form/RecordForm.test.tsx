@@ -8,6 +8,7 @@ import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider, useViewDialogOwner } from '../commands/CommandProvider';
 import { ConfirmDialogHost, promptDialog } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
+import SearchableRecordPicker from '../SearchableRecordPicker';
 import { RecordFieldChange, RecordFormGroup, RecordFormPage, RecordFormTabs } from './RecordForm';
 import type { RecordFormPageProps, RecordFormTab } from './RecordForm';
 
@@ -90,6 +91,61 @@ describe('RecordFormPage in a dialog', () => {
     inView(<Form title="Konum" onSubmit={() => {}} onSaveIntent={() => {}} onReset={() => {}} />);
     expect(Array.from(document.querySelectorAll('.rf-toolbar button')).map((b) => b.textContent)).toEqual(['Vazgeç']);
   });
+
+  it('outside the shell (no action bar, no modal) keeps its own Kaydet, which saves by click and Ctrl+S', () => {
+    const onSubmit = vi.fn();
+    const onSaveIntent = vi.fn();
+    // Platform admin: a plain page under CommandProvider, no workspace view and no action bar.
+    render(
+      <CommandProvider>
+        <Form title="Lisans" onSubmit={onSubmit} onSaveIntent={onSaveIntent} onReset={() => {}} />
+      </CommandProvider>,
+    );
+    const header = document.querySelector<HTMLElement>('.rf-toolbar')!;
+    expect(Array.from(header.querySelectorAll('button')).map((b) => b.textContent)).toEqual([
+      'KaydetCtrl+S', 'Kaydet ve YeniCtrl+F2', 'Temizle', 'Vazgeç',
+    ]);
+    fireEvent.click(within(header).getByRole('button', { name: /^Kaydet\s*Ctrl\+S/ }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSaveIntent).toHaveBeenLastCalledWith(false);
+    const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => screen.getByLabelText('Lisans kodu').dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
+
+  it('outside the shell Ctrl+S goes only to the focused form when two are on the page', () => {
+    const provisioning = vi.fn();
+    const license = vi.fn();
+    render(
+      <CommandProvider>
+        <Form title="Kiracı" onSubmit={provisioning} />
+        <Form title="Lisans" onSubmit={license} />
+      </CommandProvider>,
+    );
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(provisioning).not.toHaveBeenCalled();
+    expect(license).not.toHaveBeenCalled();
+    act(() => screen.getByLabelText('Lisans kodu').focus());
+    fireEvent.keyDown(screen.getByLabelText('Lisans kodu'), { key: 's', ctrlKey: true });
+    expect(license).toHaveBeenCalledTimes(1);
+    expect(provisioning).not.toHaveBeenCalled();
+  });
+
+  it('the shell action bar takes the buttons over once it mounts', () => {
+    const view = (withBar: boolean) => (
+      <CommandProvider>
+        {withBar && <ActionBar locale="tr" />}
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <Form title="Konum" onSubmit={() => {}} />
+        </KeepAliveViews>
+      </CommandProvider>
+    );
+    const { rerender } = render(view(false));
+    expect(Array.from(document.querySelectorAll('.rf-toolbar button')).map((b) => b.textContent)).toEqual(['KaydetCtrl+S', 'Vazgeç']);
+    rerender(view(true));
+    expect(Array.from(document.querySelectorAll('.rf-toolbar button')).map((b) => b.textContent)).toEqual(['Vazgeç']);
+  });
 });
 
 describe('RecordFormPage saving', () => {
@@ -160,6 +216,55 @@ describe('RecordFormPage saving', () => {
     );
     ctrlS(screen.getByLabelText('Not'));
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('an open native dialog (dialog[open]) without a form does not let Ctrl+S save the form behind it', () => {
+    const onSubmit = vi.fn();
+    inView(
+      <>
+        <Form title="Konum" onSubmit={onSubmit} />
+        <dialog open><input aria-label="Not" /></dialog>
+      </>,
+    );
+    ctrlS(screen.getByLabelText('Not'));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a form inside a native dialog keeps its own Kaydet and saves with Ctrl+S', () => {
+    const behind = vi.fn();
+    const inside = vi.fn();
+    inView(
+      <>
+        <Form title="Konum" onSubmit={behind} />
+        <dialog open><Form title="Ekstre" onSubmit={inside} /></dialog>
+      </>,
+    );
+    const header = document.querySelector('dialog .rf-toolbar')!;
+    expect(Array.from(header.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['KaydetCtrl+S', 'Vazgeç']);
+    act(() => screen.getByLabelText('Ekstre kodu').focus());
+    ctrlS(screen.getByLabelText('Ekstre kodu'));
+    expect(inside).toHaveBeenCalledTimes(1);
+    expect(behind).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+F2 with two forms on screen saves only the focused one; F2 alone saves neither', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    inView(
+      <>
+        <Form title="İl" onSubmit={first} onSaveIntent={() => {}} />
+        <Form title="İlçe" onSubmit={second} onSaveIntent={() => {}} />
+      </>,
+    );
+    fireEvent.keyDown(document.body, { key: 'F2', ctrlKey: true });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+    act(() => screen.getByLabelText('İlçe kodu').focus());
+    fireEvent.keyDown(screen.getByLabelText('İlçe kodu'), { key: 'F2', ctrlKey: true });
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByLabelText('İlçe kodu'), { key: 'F2' });
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it('a portalled view dialog saves with Ctrl+S, but not while a prompt is open over it', async () => {
@@ -367,6 +472,33 @@ describe('RecordFormPage after a failed save', () => {
 });
 
 describe('RecordFormPage Esc', () => {
+  it('Esc with a record picker open closes only the picker, not the form behind it', async () => {
+    const onCancel = vi.fn();
+    inView(
+      <RecordFormPage title="Sipariş" mode="create" busy={false} saveLabel="x" onSubmit={(event) => event.preventDefault()} onCancel={onCancel}>
+        <SearchableRecordPicker
+          options={[{ id: 'c1', label: 'Acme' }]}
+          selectedId=""
+          onSelect={() => {}}
+          title="Müşteri seç"
+          placeholder="Müşteri"
+          searchPlaceholder="Ara"
+          emptyMessage="Yok"
+        />
+      </RecordFormPage>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Müşteri' }));
+    expect(screen.getByRole('dialog', { name: /Müşteri seç/ })).toBeTruthy();
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    act(() => {
+      document.body.dispatchEvent(event);
+    });
+    // The picker marks Esc as handled, so the form's Esc (Vazgeç) leaves it alone even once the picker is gone.
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.queryByRole('dialog', { name: /Müşteri seç/ })).toBeNull();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   it('closes an untouched form', () => {
     const onCancel = vi.fn();
     inView(<Sectioned onCancel={onCancel} />);

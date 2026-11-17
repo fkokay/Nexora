@@ -133,6 +133,49 @@ describe('CommandProvider', () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  it('an open native dialog (dialog[open]) blocks page shortcuts like an aria-modal one', () => {
+    const save = vi.fn();
+    const refresh = vi.fn();
+    function Shortcuts() {
+      usePageCommands({ save: { run: save }, refresh: { run: refresh } });
+      return null;
+    }
+    const tree = (open: boolean) => (
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><Shortcuts /></KeepAliveViews>
+        <dialog open={open} />
+      </CommandProvider>
+    );
+    const { rerender } = render(tree(true));
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'F5' });
+    expect(save).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    rerender(tree(false));
+    fireEvent.keyDown(document.body, { key: 'F5' });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('outside the shell (no workspace view mounted) F5 and Ctrl+P keep their browser meaning', () => {
+    const tree = (shell: boolean) => (
+      <CommandProvider>
+        {shell && <KeepAliveViews activeKey="v" openKeys={['v']}><span /></KeepAliveViews>}
+      </CommandProvider>
+    );
+    const press = (init: KeyboardEventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const { rerender } = render(tree(true));
+    expect(press({ key: 'F5' })).toBe(true);
+    expect(press({ key: 'p', ctrlKey: true })).toBe(true);
+    // Leaving the shell (launcher, platform admin) unmounts the views.
+    rerender(tree(false));
+    expect(press({ key: 'F5' })).toBe(false);
+    expect(press({ key: 'p', ctrlKey: true })).toBe(false);
+  });
+
   it('ignores modals inside hidden views', () => {
     const save = vi.fn();
     render(

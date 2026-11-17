@@ -142,6 +142,8 @@ export function KeepAliveViews({
 }) {
   const registry = useCommandRegistry();
   useEffect(() => registry.setActiveView(activeKey), [registry, activeKey]);
+  // Leaving the shell (launcher, platform admin, logout) leaves no active view.
+  useEffect(() => () => registry.setActiveView(undefined), [registry]);
   const cache = useRef(new Map<string, ReactNode>());
   const allowed = new Set([...openKeys, activeKey]);
   for (const key of cache.current.keys())

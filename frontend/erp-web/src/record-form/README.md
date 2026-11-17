@@ -20,6 +20,13 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     (gezgin yerine yatay sekmeler, kısayol satırı yok). Form açıkken İşlem Çubuğu'nun Kaydet komutunu (`Ctrl+S`,
     birincil) kaydeder; "Kaydet ve Yeni" (`Ctrl+F2`) ve "Temizle" İşlemler menüsündedir. `F2` çubuğun Yeni komutudur;
     sayfa kaydeder (kaydedilmemiş değişiklik varsa onay sorarak).
+  - **Formun kendi düğmeleri**: Kaydet, Kaydet ve Yeni, Temizle formun başlığında yalnızca İşlem Çubuğu'nun
+    erişilemediği yerde çizilir: bir pencerenin içinde (`.modal-backdrop`, `.modal`, `[role=dialog]`, `aria-modal`,
+    `<dialog>`) ya da hiç çubuk takılı değilken (platform yönetimi, başlatıcı, panel, bağımsız Studio). Çubuksuz
+    sayfada `Ctrl+S` formun kendi Kaydet'idir. `saveDisabledReason` bu düğmeleri de kapatır ve nedeni `title` olur.
+  - Ekranda birden çok form varsa `Ctrl+S` ve `Ctrl+F2` odaktaki forma gider; odak hiçbirinde değilse `Ctrl+F2`
+    yalnızca tek başına olan forma gider. RecordFormPage olmayan bir form (yan panel, fiş girişi) Kaydet'i
+    `FormSaveCommand` ile kaydeder; `F2` hiçbir formda kaydetmez.
   - **Kaydetme hatası**: yalnızca alan düzeyindeki sorunlarda hareket edilir. Tarayıcı doğrulaması geçmezse ya da
     kapsayıcı kayıttan sonra `error` verirse ilk geçersiz alana (`:invalid` / `aria-invalid="true"`) odaklanılır.
     Alan, kapsayıcının gizli tuttuğu bir bölümdeyse (bölüm sarmalayıcısı `data-rf-section="anahtar"` ve `hidden`)
@@ -28,7 +35,8 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
   - **Esc** (sayfa formu): Vazgeç ile aynıdır. Formda bir alana yazıldıysa / değiştirildiyse (son başarılı kayıttan
     beri) ya da `dirty` doluysa önce "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?" sorulur. Açık bir
     pencere, açık seçici / liste kutusu (`[role=listbox]`, `[aria-expanded=true]`) ya da Esc'i işlemiş bir alan
-    (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir.
+    (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir. Seçici, menü ve açılır
+    listeler Esc'i kapatırken `preventDefault()` çağırır; böylece arkadaki form Esc ile kapanmaz.
   - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. Kayıt formunun kendi genişliği (görünüm alanı değil; açık
     widget rayı ve menü düşülür) 1100px olunca açılır, 1060px altına inince kapanır (arada titremesin); `ResizeObserver` ile izlenir. `Ctrl+.` açar /
     kapatır.

@@ -228,8 +228,10 @@ export function WorkspaceTopbar({
       if (!(event.target as Element).closest(".notification-menu-wrap"))
         setNotificationsOpen(false);
     };
+    // Runs only while a menu is open; preventDefault keeps Esc from also cancelling a record form on the page.
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setProfileOpen(false);
         setTenantOpen(false);
         setNotificationsOpen(false);

@@ -3,6 +3,7 @@ import type { Dispatch, FormEvent, KeyboardEvent, SetStateAction } from "react";
 import { CheckCircle2, History, Plus, Save, X } from "lucide-react";
 import type { LedgerAccount } from "../../erp-types";
 import { RequiredMark } from "../../record-form/RecordForm";
+import { FormSaveCommand } from "../../record-form/FormSaveCommand";
 import { LedgerAccountCombobox } from "./LedgerAccountCombobox";
 import {
   emptyManualJournalLine,
@@ -66,21 +67,6 @@ export function ManualJournalForm({
   const isTenantAdmin = role === "TenantAdmin";
   const totals = manualJournalTotals(manualLines);
   const balanced = totals.debit > 0 && totals.difference === 0;
-
-  // F2 saves, like the other record forms; a dialog opened on top owns the keyboard.
-  useEffect(() => {
-    if (!isTenantAdmin) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "F2" || event.altKey || event.shiftKey || event.ctrlKey) return;
-      const backdrops = document.querySelectorAll(".modal-backdrop");
-      const topmost = backdrops[backdrops.length - 1];
-      if (topmost && !topmost.contains(formRef.current)) return;
-      event.preventDefault();
-      if (!busy) formRef.current?.requestSubmit();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, isTenantAdmin]);
 
   // After "Satır ekle" (or Enter on the last amount) move to the new line's account.
   useEffect(() => {
@@ -153,6 +139,17 @@ export function ManualJournalForm({
       {!isTenantAdmin ? (
         <p className="gl-voucher-readonly">Yevmiye fişi kaydetmek için firma yöneticisi yetkisi gerekir.</p>
       ) : (
+        <>
+        <FormSaveCommand
+          formRef={formRef}
+          disabledReason={
+            busy
+              ? "Kaydediliyor…"
+              : activeAccounts.length === 0
+                ? "Aktif hesap yok; fiş kaydedilemez. Önce hesap planına hesap ekleyin."
+                : undefined
+          }
+        />
         <form
           ref={formRef}
           className="gl-voucher-form"
@@ -325,11 +322,12 @@ export function ManualJournalForm({
               <button type="submit" className="primary gl-voucher-save" disabled={busy || activeAccounts.length === 0}>
                 <Save size={16} aria-hidden="true" />
                 <span>{busy ? "Kaydediliyor…" : "Fişi kaydet"}</span>
-                <kbd>F2</kbd>
+                <kbd>Ctrl+S</kbd>
               </button>
             </div>
           </div>
         </form>
+        </>
       )}
     </section>
   );

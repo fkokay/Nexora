@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, us
 import { createCommandRegistry, type CommandRegistry, type CommandSlot } from './registry';
 import type { CommandSource, MenuCommand, PageCommands, StandardCommandId } from './types';
 import { STANDARD_SHORTCUTS } from './shortcuts';
+import { openModals } from './modals';
 
 export const ViewKeyContext = createContext<string>('root');
 const RegistryContext = createContext<CommandRegistry | null>(null);
@@ -11,10 +12,7 @@ const GRID_SELECT_CELL = '.advanced-grid-select-cell';
 const INTERACTIVE_SELECTOR = 'button, a[href], [role=button], [role=menuitem], [role=tab], summary';
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 
-// A modal left mounted inside a hidden keep-alive view must not block shortcuts of the active view.
-export function openModals(): Element[] {
-  return Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((el) => !el.closest('[hidden]'));
-}
+export { openModals };
 
 /**
  * Open modals belong to the active view when every one of them is rendered inside the view's KeepAliveViews
@@ -132,6 +130,12 @@ export function usePageCommands(
   }, [registry, viewKey, source, signature]);
   // Marks this registration as the most recently used one (see the `form` source).
   return useCallback(() => slotRef.current?.touch(), []);
+}
+
+/** Whether the shell's action bar is mounted (it is not outside the workspace shell, on the launcher or dashboard). */
+export function useActionBarMounted(): boolean {
+  const registry = useCommandRegistry();
+  return useSyncExternalStore(registry.subscribe, registry.hasActionBar, registry.hasActionBar);
 }
 
 export function useActivePageCommands(): PageCommands | undefined {

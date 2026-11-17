@@ -8592,7 +8592,7 @@ function PurchasingPanel({
             if (e.target === e.currentTarget && !busy) setRequestEditor(false);
           }}
         >
-          <div className="modal quote-modal sales-rf-host">
+          <div className="modal quote-modal sales-rf-host" role="dialog" aria-modal="true" aria-label="Satın alma talebi">
             <RecordFormPage
               variant="dialog"
               className="sales-rf"
@@ -9800,7 +9800,7 @@ function PurchasingPanel({
             if (e.target === e.currentTarget) setInvoiceReceiptId(null);
           }}
         >
-          <div className="modal sales-rf-host sales-rf-host--narrow">
+          <div className="modal sales-rf-host sales-rf-host--narrow" role="dialog" aria-modal="true" aria-label="Mal kabulini faturala">
             <RecordFormPage
               variant="dialog"
               className="sales-rf"

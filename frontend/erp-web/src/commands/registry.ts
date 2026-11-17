@@ -37,8 +37,12 @@ export type CommandRegistry = {
   register(viewKey: string, source: CommandSource, commands: PageCommands): () => void;
   /** Like `register`, but `set` replaces the commands while keeping the slot's position in the order. */
   openSlot(viewKey: string, source: CommandSource): CommandSlot;
-  setActiveView(viewKey: string): void;
+  /** `undefined` when no workspace view is mounted (login, launcher, platform admin). */
+  setActiveView(viewKey: string | undefined): void;
   getActiveView(): string | undefined;
+  /** The action bar announces itself while mounted; forms without one keep their own save buttons. */
+  attachActionBar(): () => void;
+  hasActionBar(): boolean;
   getActive(): PageCommands | undefined;
   registerGlobal(command: GlobalCommand): () => void;
   subscribe(listener: () => void): () => void;
@@ -70,6 +74,7 @@ export function createCommandRegistry(): CommandRegistry {
   const globals: GlobalCommand[] = [];
   const listeners = new Set<() => void>();
   let activeView: string | undefined;
+  let actionBars = 0;
   let cache: PageCommands | undefined;
   let cacheValid = false;
 
@@ -171,6 +176,20 @@ export function createCommandRegistry(): CommandRegistry {
 
     getActiveView: () => activeView,
 
+    attachActionBar() {
+      actionBars += 1;
+      changed();
+      let attached = true;
+      return () => {
+        if (!attached) return;
+        attached = false;
+        actionBars -= 1;
+        changed();
+      };
+    },
+
+    hasActionBar: () => actionBars > 0,
+
     getActive,
 
     registerGlobal(command) {
@@ -235,7 +254,9 @@ export function createCommandRegistry(): CommandRegistry {
         }
       }
 
-      if (RESERVED.some((chord) => matchesShortcut(event, chord))) {
+      // Browser chords are reserved only inside the workspace shell (spec §5.5); on the login, launcher and
+      // platform admin screens Ctrl+P / F5 keep their browser meaning.
+      if (activeView !== undefined && RESERVED.some((chord) => matchesShortcut(event, chord))) {
         event.preventDefault();
         return true;
       }

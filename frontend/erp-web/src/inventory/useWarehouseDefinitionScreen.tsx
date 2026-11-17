@@ -13,7 +13,7 @@ import type {
 } from "../erp-types";
 import { DefinitionEmptyPane, DefinitionLayout } from "../list-page/DefinitionLayout";
 import type { BulkAction } from "../list-page/BulkActionBar";
-import { isInPopup, useWindowKeyDown } from "../record-form/recordFormKeys";
+import { isInPopup, openDialogs, useWindowKeyDown } from "../record-form/recordFormKeys";
 import { requestLocations } from "../warehouse-locations/locationRequest";
 import { WarehouseDefinitionForm, type WarehouseDraft, type WarehouseFormField } from "./components/WarehouseDefinitionForm";
 import { WarehouseDefinitionList } from "./components/WarehouseDefinitionList";
@@ -332,7 +332,8 @@ export function useWarehouseDefinitionScreen(o: Options) {
   useWindowKeyDown(o.active && mode !== "none", (event) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
     if (isInPopup(event.target) || !rootRef.current || rootRef.current.closest("[hidden]")) return;
-    if (document.querySelector('.modal-backdrop, [aria-modal="true"]')) return;
+    // A dialog left open in another (hidden) keep-alive view does not count.
+    if (openDialogs().length) return;
     event.preventDefault();
     void close();
   });

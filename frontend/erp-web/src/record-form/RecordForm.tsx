@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { CopyPlus, Eraser, Save, X } from "lucide-react";
-import { useActivePageCommands, usePageCommands } from "../commands/CommandProvider";
+import { useActionBarMounted, useActivePageCommands, usePageCommands } from "../commands/CommandProvider";
 import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import type { MenuCommand } from "../commands/types";
 import { confirmDialog } from "../confirmDialog";
@@ -12,6 +12,7 @@ import {
   focusIsInOtherForm,
   isInPopup,
   isInScrollableRegion,
+  otherFormOwnsKeyboard,
   isTextEntry,
   ownsKeyboard,
   useWindowKeyDown,
@@ -86,8 +87,9 @@ export type RecordFormPageProps = {
  * record navigation; the action bar; an optional section navigator (from RecordFormTabs) left of the cards; an
  * optional context panel on the right; and a footer with the form's shortcuts and status.
  * While mounted it registers the action bar's Kaydet (Ctrl+S, primary) and, on a page, puts "Kaydet ve Yeni"
- * (Ctrl+F2) and "Temizle" into the İşlemler menu. Inside a modal (whose backdrop covers the bar) it keeps
- * Kaydet, Kaydet ve Yeni and Temizle as its own buttons. F2 is the bar's Yeni and is handled by the page.
+ * (Ctrl+F2) and "Temizle" into the İşlemler menu. Inside a modal (whose backdrop covers the bar), and wherever no
+ * action bar is mounted (platform admin, launcher), it keeps Kaydet, Kaydet ve Yeni and Temizle as its own buttons.
+ * F2 is the bar's Yeni and is handled by the page.
  */
 export function RecordFormPage({
   title,
@@ -126,6 +128,9 @@ export function RecordFormPage({
   const { slotRef, breadcrumb } = useSlotBreadcrumb();
   const isPage = variant === "page";
   const showSlot = isPage && !inDialog;
+  // Without an action bar (platform admin, launcher, outside the shell) the form keeps its own buttons as well.
+  const barMounted = useActionBarMounted();
+  const ownButtons = inDialog || !barMounted;
 
   const submit = (stayForNext: boolean) => {
     // Only the form of the topmost dialog (or, without a dialog, the visible page) may save.
@@ -135,9 +140,9 @@ export function RecordFormPage({
   };
   const busyReason = busy ? "Kaydediliyor…" : undefined;
   const more: MenuCommand[] = [];
-  if (!inDialog && canSaveAndNew)
+  if (!ownButtons && canSaveAndNew)
     more.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
-  if (!inDialog && canReset)
+  if (!ownButtons && canReset)
     more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
   // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
   const markActive = usePageCommands(
@@ -147,19 +152,33 @@ export function RecordFormPage({
   );
   const undo = useActivePageCommands()?.undo;
 
-  useEffect(() => {
-    if (!canSaveAndNew) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey) return;
-      if (!ownsKeyboard(formRef.current)) return;
-      event.preventDefault();
-      if (busy) return;
-      onSaveIntent?.(true);
-      formRef.current?.requestSubmit();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, canSaveAndNew, onSaveIntent]);
+  // Form-local save keys (Ctrl+F2, and Ctrl+S without a bar). With several forms on screen only the one holding the
+  // focus answers; with the focus in none of them, only a form that is alone in the keyboard scope does.
+  const isSaveKeyTarget = () => {
+    if (!ownsKeyboard(formRef.current) || focusIsInOtherForm(rootRef.current)) return false;
+    return !!rootRef.current?.contains(document.activeElement) || !otherFormOwnsKeyboard(rootRef.current);
+  };
+  // Ctrl+F2 = Kaydet ve Yeni.
+  useWindowKeyDown(canSaveAndNew, (event) => {
+    if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey) return;
+    if (!isSaveKeyTarget()) return;
+    event.preventDefault();
+    if (busy || saveDisabledReason) return;
+    onSaveIntent?.(true);
+    formRef.current?.requestSubmit();
+  });
+
+  // Without an action bar nothing else dispatches Ctrl+S: the form's own Kaydet answers it. In the shell the command
+  // registry runs first (capture phase) and marks the event handled.
+  useWindowKeyDown(!barMounted, (event) => {
+    if (event.defaultPrevented || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey)) return;
+    if (event.key !== "s" && event.key !== "S") return;
+    if (!isSaveKeyTarget()) return;
+    event.preventDefault();
+    if (busy || saveDisabledReason) return;
+    onSaveIntent?.(false);
+    formRef.current?.requestSubmit();
+  });
 
   const ownsKeys = useCallback(() => ownsKeyboard(formRef.current) && !focusIsInOtherForm(rootRef.current), []);
 
@@ -338,13 +357,14 @@ export function RecordFormPage({
                 </button>
               </div>
             )}
-            {inDialog && (
+            {ownButtons && (
               <>
                 <button
                   type="submit"
                   form={id}
                   className="rf-btn rf-btn--primary"
-                  disabled={busy}
+                  disabled={busy || !!saveDisabledReason}
+                  title={saveDisabledReason}
                   onClick={() => onSaveIntent?.(false)}
                 >
                   <Save size={16} aria-hidden="true" />
@@ -356,7 +376,8 @@ export function RecordFormPage({
                     type="submit"
                     form={id}
                     className="rf-btn"
-                    disabled={busy}
+                    disabled={busy || !!saveDisabledReason}
+                    title={saveDisabledReason}
                     onClick={() => onSaveIntent?.(true)}
                   >
                     <CopyPlus size={16} aria-hidden="true" />

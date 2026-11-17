@@ -18,6 +18,7 @@ import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
+import { FormSaveCommand } from "./record-form/FormSaveCommand";
 type Leave = {
   id: string;
   employeeId: string;
@@ -916,18 +917,6 @@ export default function HumanResourcesPage({
   const employeeDialog = useRef<HTMLDialogElement>(null);
   const stayAfterEmployeeCreate = useRef(false);
   const leaveForm = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (section !== "leave") return;
-    // The leave side form is not a RecordForm, so it handles its own F2 shortcut.
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "F2" || event.altKey || event.shiftKey || event.ctrlKey) return;
-      if (document.querySelector(".record-form, .modal-backdrop, dialog[open]")) return;
-      event.preventDefault();
-      leaveForm.current?.requestSubmit();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [section]);
   useEffect(() => {
     if (!creatingEmployee) return;
     const dialog = employeeDialog.current;
@@ -3423,6 +3412,12 @@ export default function HumanResourcesPage({
                   aria-labelledby="hr-leave-create-title"
                 >
                   <h2 id="hr-leave-create-title">{tr("İzin talebi", "Leave request")}</h2>
+                  {/* Not a RecordForm: the side form saves through the bar's Kaydet (Ctrl+S); the list keeps Yeni primary. */}
+                  <FormSaveCommand
+                    formRef={leaveForm}
+                    primary={false}
+                    disabledReason={busy ? tr("Kaydediliyor…", "Saving…") : leaveSaveDisabled ? tr("Önce aktif bir personel ve geçerli bir tarih aralığı seçin", "Choose an active employee and a valid date range first") : undefined}
+                  />
                   <form
                     ref={leaveForm}
                     className="hr-side-form"
@@ -3532,7 +3527,7 @@ export default function HumanResourcesPage({
                       disabled={busy || leaveSaveDisabled}
                     >
                       {busy ? tr("Kaydediliyor…", "Saving…") : tr("Talep et", "Submit")}
-                      <kbd>F2</kbd>
+                      <kbd>Ctrl+S</kbd>
                     </button>
                   </form>
                 </aside>

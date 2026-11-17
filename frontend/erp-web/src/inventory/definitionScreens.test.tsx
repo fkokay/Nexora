@@ -278,6 +278,27 @@ describe('Depolar definition screen', () => {
     expect(within(pane()).queryByRole('textbox')).toBeNull();
   });
 
+  it('Esc still closes the form while a dialog is left open in a hidden view, but not under an open dialog', async () => {
+    renderScreen(
+      <>
+        <div hidden><div role="dialog" aria-modal="true" /><div className="modal-backdrop" /></div>
+        <InventoryWarehousesPage token="t" role="TenantAdmin" />
+      </>,
+    );
+    await settle();
+    await selectWarehouse('D2');
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('open', '');
+    document.body.appendChild(dialog);
+    fireEvent.keyDown(listRegion(), { key: 'Escape' });
+    await settle();
+    expect(rowOf('D2').getAttribute('aria-current')).toBe('true');
+    dialog.remove();
+    fireEvent.keyDown(listRegion(), { key: 'Escape' });
+    await settle();
+    expect(rowOf('D2').getAttribute('aria-current')).toBeNull();
+  });
+
   it('Sil explains that warehouses are not deleted and offers Pasife al (Enter) / Vazgeç (Esc)', async () => {
     renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
     await settle();

@@ -29,8 +29,11 @@ export function FormMoreMenu({
     const close = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
+    // Esc closes only the menu, not the record form it sits in.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", onKey);

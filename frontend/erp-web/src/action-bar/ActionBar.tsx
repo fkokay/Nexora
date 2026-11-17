@@ -193,6 +193,8 @@ export function ActionBar({ locale }: { locale: Locale }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
+  // Record forms keep their own Kaydet only while no bar is mounted.
+  useLayoutEffect(() => registry.attachActionBar(), [registry]);
 
   useEffect(() => {
     const disposers = [

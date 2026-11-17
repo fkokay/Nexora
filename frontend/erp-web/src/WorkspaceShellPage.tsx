@@ -511,7 +511,8 @@ export function WorkspaceShellPage(props: Props) {
               </button>
             </div>
           )}
-          {page !== "launcher" && page !== "dashboard" && <ActionBar locale={locale} />}
+          {/* Standalone Studio has no ERP commands; its forms keep their own buttons. */}
+          {!standaloneStudio && page !== "launcher" && page !== "dashboard" && <ActionBar locale={locale} />}
           <KeepAliveViews
             activeKey={page}
             openKeys={moduleTabs.map((tab) => tab.id)}

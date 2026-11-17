@@ -2,6 +2,7 @@ import { useEffect, useRef, type FormEvent } from "react";
 import { X } from "lucide-react";
 import type { Definition, DefinitionKind, Translate } from "../types";
 import { RequiredMark } from "../../record-form/RecordForm";
+import { FormSaveCommand } from "../../record-form/FormSaveCommand";
 
 type Props = {
   tx: Translate;
@@ -19,7 +20,7 @@ type Props = {
 
 const kinds: DefinitionKind[] = ["Workplace", "Branch", "Factory"];
 
-/** Side panel for adding or editing a workplace, branch or factory. F2 saves. */
+/** Side panel for adding or editing a workplace, branch or factory. Ctrl+S (the action bar's Kaydet) saves. */
 export function DefinitionForm({
   tx,
   kind,
@@ -49,23 +50,9 @@ export function DefinitionForm({
     codeRef.current?.focus();
   }, [editing]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "F2" || event.altKey || event.shiftKey) return;
-      // The topmost dialog owns the keyboard: skip unless this form lives inside it.
-      const backdrops = document.querySelectorAll(".modal-backdrop");
-      const topmost = backdrops[backdrops.length - 1];
-      if (topmost && !topmost.contains(formRef.current)) return;
-      event.preventDefault();
-      if (busy) return;
-      formRef.current?.requestSubmit();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy]);
-
   return (
     <aside className="op-def-form-card" aria-label={title}>
+      <FormSaveCommand formRef={formRef} disabledReason={busy ? tx("Kaydediliyor…", "Saving…") : undefined} />
       <form ref={formRef} onSubmit={onSubmit}>
         <header className="op-def-form-head">
           <h2>{title}</h2>
@@ -123,7 +110,7 @@ export function DefinitionForm({
             {tx("Vazgeç", "Cancel")}
           </button>
           <button type="submit" className="primary" disabled={busy}>
-            {tx("Kaydet", "Save")} <kbd>F2</kbd>
+            {tx("Kaydet", "Save")} <kbd>Ctrl+S</kbd>
           </button>
         </footer>
       </form>

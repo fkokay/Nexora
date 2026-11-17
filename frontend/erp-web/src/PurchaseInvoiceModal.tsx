@@ -5,7 +5,6 @@ import { Ban, Plus, Undo2, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmDialog } from "./confirmDialog";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
-import { useRecordFormShortcutScope } from "./customers/components/useRecordFormShortcutScope";
 import "./purchasing-record-forms.css";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
@@ -61,8 +60,6 @@ export function PurchaseInvoiceModal({
   initialAction?: PurchaseInvoiceInitialAction;
 }) {
   const today = localDateString();
-  // The return and payment forms can be open together; F2 goes to the focused one.
-  useRecordFormShortcutScope();
   const [invoice, setInvoice] = useState<PurchaseInvoiceDetail | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);

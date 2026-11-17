@@ -1572,13 +1572,18 @@ function FinancePage({
             if (e.target === e.currentTarget) setDetail(null);
           }}
         >
-          <div className="modal ledger-modal account-transactions-modal">
+          <div
+            className="modal ledger-modal account-transactions-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="finance-account-transactions-title"
+          >
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
                   {detail.code} · {detail.type === "Cash" ? "KASA" : "BANKA"}
                 </p>
-                <h2>{detail.name}</h2>
+                <h2 id="finance-account-transactions-title">{detail.name}</h2>
               </div>
               <button className="icon-button" onClick={() => setDetail(null)}>
                 <X size={19} />

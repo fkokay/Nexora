@@ -27,18 +27,27 @@ usePageCommands({
   CSV gibi seyrek işlemler. Açık bir kayıt formu varsa formun öğeleri önce gelir. Menü klavyeyle gezilir (↑/↓, Home,
   End, Esc kapatır ve odağı düğmeye döndürür).
 - **Kaynak önceliği** (`CommandSource`): açık kayıt formu (`form`, en son açılan) > sayfa (`page`) > liste (`list`) >
-  tablo (`grid`). Liste ekranında Aç / Sil geçerli satırı (↑/↓, tıklama) izler; işaretli satır varsa Sil onları alır.
+  tablo (`grid`). Aynı kaynaktan birden çok kayıt varsa ilk takılan geçerlidir: ekranda birkaç tablo varsa Excel ilk
+  takılan tablonun dışa aktarmasıdır (`hideExport` verilmiş tablo da yedek olarak `export` kaydeder); başka bir
+  tablo kastediliyorsa sayfa `export`'u kendisi kaydeder. Liste ekranında Aç / Sil geçerli satırı (↑/↓, tıklama) izler; işaretli satır varsa Sil onları alır.
 - Kirli (kaydedilmemiş) formda kaydı değiştiren işlemler (Sil, durum değiştirme) nedeniyle kapalıdır:
   "Önce değişiklikleri kaydedin veya vazgeçin". Böylece bir durum değişikliği formun eski satır sürümünü sessizce
   yenilemez.
 - Kısayollar metin alanında yazarken çalışmaz (Enter, Ctrl+Z, Ctrl+A, Ctrl+Del); listenin seçim kutucuğu yazma
-  sayılmaz, Enter / Ctrl+Del liste üzerinde çalışmaya devam eder. Bir pencere (modal) açıkken sayfa kısayolları
-  çalışmaz. F1 kısayol yardımını açar.
+  sayılmaz, Enter / Ctrl+Del liste üzerinde çalışmaya devam eder. Bir pencere (modal: `aria-modal="true"` ya da
+  `showModal()` ile açılmış `<dialog>`) açıkken sayfa kısayolları çalışmaz; yeni bir kaplayan pencere
+  `role="dialog" aria-modal="true"` taşır. F1 kısayol yardımını açar.
+- Tarayıcı tuşları (Ctrl+S, Ctrl+P, Ctrl+F, Ctrl+E, Ctrl+D, F5) yalnızca çalışma alanı kabuğu açıkken (etkin bir
+  görünüm varken) ayrılır; giriş, başlatıcı ve platform yönetimi ekranlarında tarayıcıya kalır.
 
 ## Yerleşim
 
 - Çubuk tek örnektir; sayfanın başlığının altındaki yuvaya (`ActionBarSlot`, `[data-nx-action-bar-slot]`) portal ile
-  taşınır. Başlık → çubuk → araç satırı sırası her ekranda aynıdır; boşluğu başlık satırı verir (yuva kendi boşluğunu
+  taşınır. Etkin görünümde DOM sırasındaki ilk görünür yuva seçilir: gizli görünümdeki ve bir CSS kuralıyla gizlenmiş
+  bloktaki (yuvanın üst öğelerinden biri `display: none`) yuva atlanır. Yalnızca CSS değiştiğinde (sınıf eklenince)
+  seçim yuvaların üst öğelerini izleyen `ResizeObserver` ile yenilenir. Açık belge (`DocumentSurface`) kendi
+  yuvasını başlık çubuğunun altında taşır; kaydırılınca başlık üstte kalır, çubuk kalmaz. Çubuk takılıyken
+  kendini kayıt defterine bildirir (`attachActionBar`); takılı değilken formlar kendi düğmelerini çizer. Başlık → çubuk → araç satırı sırası her ekranda aynıdır; boşluğu başlık satırı verir (yuva kendi boşluğunu
   eklemez).
 - Çubuk tek katman karttır (8px yarıçap, 1px çizgi). İçine başka kart konmaz.
 
