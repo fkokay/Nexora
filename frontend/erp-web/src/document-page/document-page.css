@@ -19,9 +19,10 @@
   align-content: start;
   min-width: 0;
   color: var(--doc-ink);
-  font-size: 12.5px;
 }
 .doc-surface > * { grid-column: 1 / -1; min-width: 0; }
+/* The kit's own parts use the mockup's 12.5px base; a legacy body keeps the size its old window styles expect. */
+.doc-surface > :is(.doc-surface-head, .doc-surface-aside, .doc-surface-foot) { font-size: 12.5px; }
 .doc-surface > .doc-surface-head { grid-row: 1; }
 .doc-surface > [data-nx-action-bar-slot] { grid-row: 2; }
 .doc-surface > .doc-surface-body { grid-row: 3; }
@@ -308,7 +309,8 @@
 /* Dar ekran: bağlam paneli gövdenin altına iner (Ctrl+. ile açılırsa); başlık satırları alt alta. */
 @media (max-width: 900px) {
   .doc-surface.has-aside > .doc-surface-body { grid-column: 1 / -1; }
-  .doc-surface > .doc-surface-aside { grid-row: 5; grid-column: 1 / -1; width: auto; margin: 12px 0 0; }
+  .doc-surface > .doc-surface-aside { grid-row: 4; grid-column: 1 / -1; width: auto; margin: 12px 0 0; }
+  .doc-surface > .doc-surface-foot { grid-row: 5; }
 }
 @media (max-width: 720px) {
   #root .app-shell .doc-surface .doc-surface-title h1 { font-size: 16px !important; }

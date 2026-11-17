@@ -350,7 +350,14 @@ describe('Purchasing document on the restyled kit', () => {
     expect(within(head).getByText('İşlendi').className).toContain('is-success');
     const grid = screen.getByRole('table', { name: 'Fatura satırları' });
     expect(within(grid).getByText('AMB-2040')).toBeTruthy();
-    expect(screen.getByLabelText('Fatura toplamları').classList.contains('dd-totals')).toBe(true);
+    const totals = screen.getByLabelText('Fatura toplamları');
+    expect(totals.classList.contains('dd-totals')).toBe(true);
+    const row = (label: string) => within(totals).getByText(label).closest('div')!;
+    expect(row('Ara toplam').querySelector('dd')!.textContent).toMatch(/^1\.000,00/);
+    expect(row('KDV %20').querySelector('dd')!.textContent).toMatch(/^200,00/);
+    expect(row('Genel toplam').className).toBe('is-grand');
+    expect(row('Genel toplam').querySelector('dd')!.textContent).toMatch(/^1\.200,00/);
+    expect(within(grid).getByText('1.000,00').closest('td')!.className).toBe('dd-num');
 
     fireEvent.click(within(head).getAllByRole('button', { name: /Ödeme ekle/ })[0]);
     const drawer = await screen.findByRole('dialog', { name: 'Tedarikçi ödemesi' });
