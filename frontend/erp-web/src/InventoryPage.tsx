@@ -2531,7 +2531,8 @@ export function InventoryPage({
               }
             />
           )}
-          {section !== "inventory-stock-create" && error && (
+          {/* An open Depolar form shows the error itself, next to the fields. */}
+          {section !== "inventory-stock-create" && error && !(section === "inventory-warehouses" && warehouseScreen.formOpen) && (
             <div className="alert inline-alert">
               {error}
               <button onClick={() => setError("")}>

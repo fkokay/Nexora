@@ -92,6 +92,9 @@ export function useWarehouseDefinitionScreen(o: Options) {
       : mode === "create" && !!(draft.code.trim() || draft.name.trim() || Object.values(draft.custom).some((value) => value.trim()));
   const hasChangesRef = useRef(hasChanges);
   hasChangesRef.current = hasChanges;
+  // While a save or status change runs, the open record stays: its result is written into this form.
+  const busyRef = useRef(o.busy);
+  busyRef.current = o.busy;
 
   const confirmDiscard = async (title: string) =>
     !hasChangesRef.current || (await confirmDialog({ title, message: DISCARD, confirmLabel: "Devam" }));
@@ -153,18 +156,18 @@ export function useWarehouseDefinitionScreen(o: Options) {
     setFormNotice("");
   }
   async function requestRow(key: string | null) {
-    if (key === selectedId) return;
+    if (key === selectedId || busyRef.current) return;
     if (!(await confirmDiscard("Vazgeç"))) return;
     const warehouse = key ? o.warehouses.find((row) => row.id === key) : undefined;
     if (warehouse) openRecord(warehouse);
     else closeRecord();
   }
   async function close() {
-    if (mode === "none" || !(await confirmDiscard("Vazgeç"))) return;
+    if (mode === "none" || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
     closeRecord();
   }
   async function startCreate() {
-    if (!(await confirmDiscard("Yeni kayıt"))) return;
+    if (busyRef.current || !(await confirmDiscard("Yeni kayıt"))) return;
     closeRecord();
     setMode("create");
     o.setError("");
@@ -303,7 +306,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
   });
 
   const commands: { new: CommandSpec; delete: CommandSpec } = {
-    new: { primary: mode === "none", run: () => void startCreate() },
+    new: { primary: mode === "none", disabledReason: o.busy ? BUSY : undefined, run: () => void startCreate() },
     delete: {
       disabledReason: !current
         ? NO_RECORD

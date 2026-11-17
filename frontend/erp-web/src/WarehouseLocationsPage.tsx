@@ -230,6 +230,8 @@ export default function WarehouseLocationsPage({
       );
       if (requestId === locationRequestId.current) {
         setLocations(rows);
+        // A selected location that is gone after a refresh closes its form.
+        setSelectedId((current) => (current && !rows.some((row) => row.id === current) ? null : current));
       }
     } catch (e) {
       if (requestId === locationRequestId.current)
@@ -406,6 +408,9 @@ export default function WarehouseLocationsPage({
       : mode === "create" && !!(code.trim() || name.trim() || parentLocationId);
   const hasChangesRef = useRef(hasChanges);
   hasChangesRef.current = hasChanges;
+  // While a save runs, the open record stays: its result is written into this form.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const confirmDiscard = async (title: string) =>
     !hasChangesRef.current ||
     (await confirmDialog({ title, message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }));
@@ -427,24 +432,24 @@ export default function WarehouseLocationsPage({
     setParentLocationId("");
   }
   async function requestRow(id: string | null) {
-    if (id === selectedId) return;
+    if (id === selectedId || busyRef.current) return;
     if (!(await confirmDiscard("Vazgeç"))) return;
     const location = id ? locations.find((row) => row.id === id) : undefined;
     if (location) openRecord(location);
     else closeRecord();
   }
   async function close() {
-    if ((mode === "none" && !selectedId) || !(await confirmDiscard("Vazgeç"))) return;
+    if ((mode === "none" && !selectedId) || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
     closeRecord();
   }
   async function startCreate() {
-    if (!(await confirmDiscard("Yeni kayıt"))) return;
+    if (busyRef.current || !(await confirmDiscard("Yeni kayıt"))) return;
     closeRecord();
     setMode("create");
     window.setTimeout(() => document.getElementById(createFormId)?.querySelector<HTMLInputElement>("input")?.focus(), 0);
   }
   async function changeWarehouse(nextWarehouseId: string) {
-    if (nextWarehouseId === warehouseId || !(await confirmDiscard("Vazgeç"))) return;
+    if (nextWarehouseId === warehouseId || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
     closeRecord();
     setWarehouseId(nextWarehouseId);
     setLocations([]);
@@ -453,12 +458,20 @@ export default function WarehouseLocationsPage({
     setLoading(Boolean(nextWarehouseId));
     setSearch("");
   }
+  // The open location left the list (refresh): its form closes.
+  useEffect(() => {
+    if (mode !== "edit" || selected) return;
+    setMode("none");
+    setEditValues(null);
+    setEditBaseline(null);
+  }, [mode, selected]);
   // A hand-off while this screen is already open (kept alive).
   const requestRef = useRef<(request: LocationRequest) => void>(() => {});
   requestRef.current = (request) => {
+    // The stored copy is for a fresh mount only; a declined hand-off is not replayed later.
+    clearLocationRequest();
     void (async () => {
-      if (!(await confirmDiscard("Vazgeç"))) return;
-      clearLocationRequest();
+      if (busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
       closeRecord();
       if (request.warehouseId !== warehouseId) {
         setWarehouseId(request.warehouseId);
@@ -571,7 +584,7 @@ export default function WarehouseLocationsPage({
 
   const pageCommands: PageCommands = { more: [csvExportCommand(gridExportRef)] };
   if (isAdmin) {
-    pageCommands.new = { primary: mode === "none", run: () => void startCreate() };
+    pageCommands.new = { primary: mode === "none", disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => void startCreate() };
     pageCommands.delete = {
       disabledReason: !selected
         ? "Önce bir kayıt seçin"

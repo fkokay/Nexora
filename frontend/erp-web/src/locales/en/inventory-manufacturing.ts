@@ -866,7 +866,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Aktarım başarısız \((.+?)\)\.$/, 'Import failed ($1).'],
   [/^(.+?) kaydı aktar$/, 'Import $1 records'],
   [/^(.+?) konumunu düzenle$/, 'Edit location $1'],
-  [/^(.+?) silinemez$/, '$1 cannot be deleted'],
+  [/^(.+? · .+?) silinemez$/, '$1 cannot be deleted'],
   [/^(\d+)\/(\d+) operasyon · (.+?) dk$/, '$1/$2 operations · $3 min'],
   [/^Planlanan malzeme: (.+?) baz para$/, 'Planned material: $1 base currency'],
   [/^(.+?) × (.+?) = (.+?) baz para$/, '$1 × $2 = $3 base currency'],

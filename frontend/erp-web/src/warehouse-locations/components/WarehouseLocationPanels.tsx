@@ -87,7 +87,6 @@ export function LocationListPanel({
             onSelectionChange={onSelectionChange}
             bulkActions={bulkActions}
             hideSearch
-            externalPagination
             toolbarContainer={toolbarContainer}
             hideExport={hideExport}
             exportActionsRef={exportActionsRef}

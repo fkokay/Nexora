@@ -7,7 +7,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import InventoryWarehousesPage from '../InventoryWarehousesPage';
 import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import { ConfirmDialogHost } from '../confirmDialog';
-import { LOCATION_REQUEST_KEY } from '../warehouse-locations/locationRequest';
+import { LOCATION_REQUEST_EVENT, LOCATION_REQUEST_KEY } from '../warehouse-locations/locationRequest';
 
 // Depolar and Raf ve Konumlar as definition screens (mockup 04 "2 · Tanım ekranı" / "2b · Sil onayı"):
 // list on the left, the selected record's form on the right, Sil explains why it is blocked and offers Pasife al.
@@ -19,7 +19,16 @@ const customFields = [
   { definitionId: 'f1', code: 'BOLGE', label: 'Bölge', dataType: 'Text', maxLength: 50, definitionVersion: 1, isRequired: false, value: 'Marmara' },
 ];
 
+// "METHOD /path" → a gate the response waits for (a save in flight) or a server refusal.
+let held: Record<string, Promise<void>> = {};
+let refused: Record<string, string> = {};
 function respond(url: string, init?: RequestInit): unknown {
+  const key = `${init?.method ?? 'GET'} ${url.split('?')[0]}`;
+  if (refused[key]) return Promise.reject(new Error(refused[key]));
+  const gate = held[key];
+  return gate ? gate.then(() => respondNow(url, init)) : respondNow(url, init);
+}
+function respondNow(url: string, init?: RequestInit): unknown {
   const path = url.split('?')[0];
   const method = init?.method ?? 'GET';
   const body = init?.body ? JSON.parse(String(init.body)) : null;
@@ -51,7 +60,7 @@ vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
     apiMock(url, _token, init);
-    return new Response(JSON.stringify(respond(url, init)), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(await respond(url, init)), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }),
 }));
 
@@ -60,6 +69,8 @@ beforeAll(() => {
   if (!HTMLElement.prototype.scrollTo) HTMLElement.prototype.scrollTo = () => {};
 });
 beforeEach(() => {
+  held = {};
+  refused = {};
   warehouses = [
     { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true, rowVersion: 'AA' },
     { id: 'w2', code: 'D2', name: 'Yedek depo', isActive: true, rowVersion: 'AB' },
@@ -302,6 +313,55 @@ describe('Depolar definition screen', () => {
     expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1$/)[0]).rowVersion).toBe('ST');
   });
 
+  it('keeps the open warehouse while its save runs (no row switch, Yeni or Esc)', async () => {
+    let release = () => {};
+    held['PUT /api/warehouses/w1'] = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(enabled('new')).toBe(false);
+    expect(command('new').title).toBe('İşlem sürüyor…');
+    await selectWarehouse('D2');
+    fireEvent.keyDown(document.body, { key: 'F2' });
+    fireEvent.keyDown(listRegion(), { key: 'Escape' });
+    await settle();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(rowOf('D1').getAttribute('aria-current')).toBe('true');
+    await act(async () => {
+      release();
+    });
+    await settle();
+    // The result lands in the record that was saved.
+    expect(field(/^Depo kodu/).value).toBe('D1');
+    expect(field(/^Depo adı/).value).toBe('Ana depo 2');
+    expect(within(pane()).queryByText(/alan değişti/)).toBeNull();
+    expect(rowOf('D1').textContent).toContain('Ana depo 2');
+  });
+
+  it('a refused Pasife al shows the server message once and the warehouse stays active', async () => {
+    refused['POST /api/warehouses/w1/status'] = 'STK-1 için stok bakiyesi sıfır olmadan depo devre dışı bırakılamaz.';
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    await act(async () => {
+      fireEvent.click(command('delete'));
+    });
+    await act(async () => {
+      fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /^Pasife al/ }));
+    });
+    await settle();
+    expect(screen.getAllByText('STK-1 için stok bakiyesi sıfır olmadan depo devre dışı bırakılamaz.')).toHaveLength(1);
+    expect(within(rowOf('D1')).getByText('Aktif')).toBeTruthy();
+    expect(enabled('delete')).toBe(true);
+  });
+
   it('keeps Sil away from a form with unsaved changes', async () => {
     renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
     await settle();
@@ -433,6 +493,46 @@ describe('Raf ve Konumlar definition screen', () => {
     expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
     expect(within(pane()).getByRole('heading', { name: 'Konum oluştur' })).toBeTruthy();
     expect(sessionStorage.getItem(LOCATION_REQUEST_KEY)).toBeNull();
+  });
+
+  it('keeps the open location while its save runs', async () => {
+    let release = () => {};
+    held['PUT /api/warehouses/w1/locations/l2'] = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01-03');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Raf A göz 4' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Konum adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    await selectLocation('X-9');
+    fireEvent.keyDown(document.body, { key: 'F2' });
+    fireEvent.keyDown(listRegion(), { key: 'Escape' });
+    await settle();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(rowOf('A-01-03').getAttribute('aria-current')).toBe('true');
+    await act(async () => {
+      release();
+    });
+    await settle();
+    expect(within(pane()).getByRole('heading', { name: 'A-01-03 konumunu düzenle' })).toBeTruthy();
+    expect(field(/^Konum adı/).value).toBe('Raf A göz 4');
+    expect(within(pane()).queryByText(/alan değişti/)).toBeNull();
+  });
+
+  it('takes a hand-off while already open (Depolar → Lokasyon ekle)', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/)).toHaveLength(0);
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(LOCATION_REQUEST_EVENT, { detail: { warehouseId: 'w2', create: true } }));
+    });
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
+    expect(within(pane()).getByRole('heading', { name: 'Konum oluştur' })).toBeTruthy();
   });
 
   it('TenantUser: the selected location is shown read-only, without Yeni or Sil', async () => {
