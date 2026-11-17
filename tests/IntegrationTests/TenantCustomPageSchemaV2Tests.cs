@@ -374,4 +374,64 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(Page(In("in1", "select"), Fp(new { inputs = new[] { "in1" } })), "seçenek sorgulu");
         AssertRejected(Page(In("in1", "select", "q1"), Fp(new { inputs = new[] { "in1" }, facetCounts = new[] { "in9=Adet" } })), "facetCounts");
     }
+
+    private static object Write(string id, string name, string kind, string sql) =>
+        new { id, name, kind, sql, parameters = Array.Empty<object>(), runOn = "manual" };
+
+    private static object[] ActionQueries => [
+        Query("q1", "liste", "SELECT 1 AS x"),
+        Write("w1", "ekle", "insert", "INSERT INTO Notlar (Metin) VALUES ('x')"),
+        Write("w2", "guncelle", "update", "UPDATE Notlar SET Metin = 'x' WHERE Id = 1"),
+        Write("w3", "sil", "delete", "DELETE FROM Notlar WHERE Id = 1")];
+
+    private static object Bar(object props, string id = "ab1") => new { id, type = "actionBar", props };
+    private static object Btn(string id) => new { id, type = "button", props = new { text = id } };
+
+    [Fact]
+    public void Accepts_action_bar()
+    {
+        var tbl = new { id = "t1", type = "dataTable", props = new { query = "q1" } };
+        var full = V2(ActionQueries, [
+            Bar(new { newInputs = new[] { "in1", "in2" }, saveQuery = "w1", deleteQuery = "w3", focusInput = "in1", printEnabled = true, exportTable = "t1", moreButtons = new[] { "b1", "b2" } }),
+            In("in1"), tbl, Btn("b1"),
+            new { id = "c1", type = "card", children = new object[] { In("in2"), Btn("b2") } }]);
+        Assert.True(TenantCustomPageSchema.Validate(full, out var error), error);
+        Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [Bar(new { saveQuery = "w2", printEnabled = false })]), out error), error);
+        Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [Bar(new { })]), out error), error);
+    }
+
+    [Fact]
+    public void Rejects_invalid_action_bar()
+    {
+        string P(params object[] components) => V2(ActionQueries, components);
+        var tbl = new { id = "t1", type = "dataTable", props = new { query = "q1" } };
+        var buttons11 = Enumerable.Range(0, 11).Select(i => $"b{i}").ToArray();
+        var buttonObjs = Enumerable.Range(0, 11).Select(i => Btn($"b{i}")).ToArray();
+
+        AssertRejected(JsonSerializer.Serialize(new { schemaVersion = 1, components = new object[] { new { id = "a1", type = "actionBar" } } }), "İzin verilmeyen bileşen türü");
+        AssertRejected(P(Bar(new { }), Bar(new { }, "ab2")), "en fazla bir");
+        AssertRejected(P(Bar(new { saveQuery = "w3" })), "saveQuery");
+        AssertRejected(P(Bar(new { saveQuery = "q1" })), "saveQuery");
+        AssertRejected(P(Bar(new { deleteQuery = "w1" })), "deleteQuery");
+        AssertRejected(P(Bar(new { saveQuery = "yok" })), "sayfada yok");
+        AssertRejected(P(Bar(new { deleteQuery = "yok" })), "sayfada yok");
+        AssertRejected(P(Bar(new { newInputs = new[] { "yok" } })), "sayfada yok");
+        AssertRejected(P(Btn("h1"), Bar(new { newInputs = new[] { "h1" } })), "giriş bileşeni değil");
+        AssertRejected(P(Btn("h1"), Bar(new { focusInput = "h1" })), "giriş bileşeni değil");
+        AssertRejected(P(Bar(new { focusInput = "yok" })), "sayfada yok");
+        AssertRejected(P(Bar(new { newInputs = Array.Empty<string>() })), "newInputs");
+        AssertRejected(P(Bar(new { newInputs = Enumerable.Range(0, 13).Select(i => $"i{i}").ToArray() })), "newInputs");
+        AssertRejected(P(new { id = "t1", type = "dataTable", props = new { source = "customers" } }, Bar(new { exportTable = "t1" })), "exportTable");
+        AssertRejected(P(Bar(new { exportTable = "yok" })), "exportTable");
+        AssertRejected(P(In("in1"), Bar(new { exportTable = "in1" })), "exportTable");
+        AssertRejected(P(In("in1"), Bar(new { moreButtons = new[] { "in1" } })), "düğme bileşeni değil");
+        AssertRejected(P(Bar(new { moreButtons = new[] { "yok" } })), "sayfada yok");
+        AssertRejected(P(new[] { Bar(new { moreButtons = buttons11 }) }.Concat(buttonObjs).ToArray()), "moreButtons");
+        AssertRejected(P(Bar(new { moreButtons = Array.Empty<string>() })), "moreButtons");
+        AssertRejected(P(Btn("b1"), Bar(new { moreButtons = new[] { "b1", "b1" } })), "moreButtons");
+        AssertRejected(P(Bar(new { printEnabled = "evet" })), "printEnabled");
+        AssertRejected(P(new { id = "h1", type = "heading", props = new { saveQuery = "w1" } }), "yalnızca İşlem Çubuğu");
+        AssertRejected(P(tbl, new { id = "t2", type = "dataTable", props = new { exportTable = "t1" } }), "yalnızca İşlem Çubuğu");
+        AssertRejected(P(new { id = "ab1", type = "actionBar", props = new { }, children = new object[] { Btn("b1") } }), "alt bileşen");
+    }
 }
