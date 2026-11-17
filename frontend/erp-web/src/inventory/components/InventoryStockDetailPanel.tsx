@@ -39,7 +39,17 @@ export function useStockDetailPanelOpen(enabled: boolean, rootRef: RefObject<HTM
   }, [enabled, rootRef]);
   const [override, setOverride] = useState<boolean | null>(null);
   useEffect(() => setOverride(null), [roomy]);
-  const toggle = () => setOverride((current) => !(current ?? roomy));
+  // Set by an explicit open (Ctrl+. / the toggle button); the drawer takes the focus only then, never because a
+  // current-row change (first ↑/↓, a page change) mounts the panel later. Dropped after the render that opened it.
+  const focusRequest = useRef(false);
+  useEffect(() => {
+    focusRequest.current = false;
+  });
+  const open = override ?? roomy;
+  const toggle = () => {
+    if (!open) focusRequest.current = true;
+    setOverride(!open);
+  };
   useWindowKeyDown(enabled, (event) => {
     if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
     // Not from a hidden keep-alive view, and not behind a dialog.
@@ -47,7 +57,13 @@ export function useStockDetailPanelOpen(enabled: boolean, rootRef: RefObject<HTM
     event.preventDefault();
     toggle();
   });
-  return { open: override ?? roomy, toggle, close: () => setOverride(false) };
+  /** True once, for the panel mounted by the explicit open. */
+  const takeFocus = () => {
+    const requested = focusRequest.current;
+    focusRequest.current = false;
+    return requested;
+  };
+  return { open, toggle, close: () => setOverride(false), takeFocus };
 }
 
 const quantity = (value: number) => value.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
@@ -94,6 +110,8 @@ type Props = {
   movementsDisabledReason?: string;
   /** Deactivates the card (former row menu "Devre dışı"). */
   onDeactivate?: () => void;
+  /** True when the panel was just opened explicitly (see useStockDetailPanelOpen); the drawer then takes the focus. */
+  takeFocus?: () => boolean;
 };
 
 /** Right-hand panel of the Stok Kartları list (mockup 01 ".det"): the current row's summary, warehouses, movements. */
@@ -110,14 +128,16 @@ export function InventoryStockDetailPanel({
   onMovements,
   movementsDisabledReason,
   onDeactivate,
+  takeFocus,
 }: Props) {
   const status = stockListStatus(balance, stock);
   const { shortage } = stockLevel(balance);
   const rootRef = useRef<HTMLElement>(null);
-  // As a drawer (< 1100px) the panel takes the focus when it opens and gives it back when Esc closes it.
+  // As a drawer (< 1100px) the panel takes the focus when it is opened explicitly and gives it back when Esc closes
+  // it; mounting because the current row changed leaves the focus in the list.
   const returnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!isDrawer()) return;
+    if (!takeFocus?.() || !isDrawer()) return;
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     rootRef.current?.focus();
   }, []);

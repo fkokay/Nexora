@@ -373,6 +373,43 @@ describe('Stok Kartları list (mockup 01 list part)', () => {
       vi.stubGlobal('matchMedia', undefined);
     }
   });
+
+  it('as a drawer, a panel mounted by a current-row change (first ↓ after opening it empty) leaves the focus in the list', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width: 1099px'), addEventListener() {}, removeEventListener() {} }));
+    try {
+      await renderLoaded();
+      scroller().focus();
+      // Opened with no current row: the empty panel.
+      fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+      await waitFor(() => expect(panel()?.className).toContain('is-empty'));
+      // The first ↓ makes a row current and mounts the real panel; the focus stays in the grid.
+      fireEvent.keyDown(scroller(), { key: 'ArrowDown' });
+      await waitFor(() => expect(panel()?.className).not.toContain('is-empty'));
+      await settle();
+      expect(document.activeElement).not.toBe(panel());
+      expect(scroller().contains(document.activeElement)).toBe(true);
+      fireEvent.keyDown(scroller(), { key: 'ArrowDown' });
+      await settle();
+      expect(scroller().contains(document.activeElement)).toBe(true);
+    } finally {
+      vi.stubGlobal('matchMedia', undefined);
+    }
+  });
+
+  it('an empty page keeps the "Kullanılabilir" card with "—"', async () => {
+    apiMock.mockImplementation(async (url: string, _token?: string, init?: RequestInit) =>
+      url.startsWith('/api/warehouses/balances/page') ? { items: [], page: 1, pageSize: 25, totalCount: 0, belowMinimumCount: 0 } : respond(url, init));
+    try {
+      renderStock();
+      await waitFor(() => expect(summary()).toBeTruthy());
+      await settle();
+      const cards = within(summary());
+      expect(cards.queryByText('Kullanılabilir stoklu kart')).toBeNull();
+      expect(cards.getByText('Kullanılabilir').closest('.nx-summary-item')!.querySelector('b')!.textContent).toBe('—');
+    } finally {
+      apiMock.mockImplementation(async (url: string, _token?: string, init?: RequestInit) => respond(url, init));
+    }
+  });
 });
 
 describe('stockListStatus / stockLevel / codeList', () => {

@@ -185,11 +185,12 @@ export function useStockListScreen(o: Options) {
           icon: IconPack.CircleDollarSign,
           hint: "bu sayfa",
         },
-        oneUnit
+        oneUnit || !o.balances.length
           ? {
               id: "available",
               label: "Kullanılabilir",
-              value: o.loading ? "—" : `${quantity(pageAvailable)} ${oneUnit}`,
+              // An empty page keeps the label (no unit to add up): "—".
+              value: o.loading || !oneUnit ? "—" : `${quantity(pageAvailable)} ${oneUnit}`,
               icon: IconPack.PackageCheck,
               tone: "ok",
               hint: "bu sayfa",
@@ -287,6 +288,7 @@ export function useStockListScreen(o: Options) {
           if (stock) o.onOpen(stock, orderRef.current);
         }}
         onClose={detail.close}
+        takeFocus={detail.takeFocus}
         onMovements={() => o.onMovements(current)}
         movementsDisabledReason={movementsDisabledReason}
         onDeactivate={() => {
