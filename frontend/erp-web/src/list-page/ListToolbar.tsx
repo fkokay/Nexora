@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { usePageCommands } from "../commands/CommandProvider";
+import type { PageCommands } from "../commands/types";
 import "./list-page-v2.css";
 
 export type ListChipOption = {
@@ -80,7 +82,9 @@ type ToolbarProps = {
    * to AdvancedDataGrid as `toolbarContainer` (usually together with `hideExport`).
    */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
+  /** Runs the shared "Yenile" command of the action bar; no icon button is rendered. */
   onRefresh?: () => void;
+  /** @deprecated No longer rendered (refresh lives on the action bar); kept so pages keep compiling. */
   refreshLabel?: string;
 };
 
@@ -95,8 +99,20 @@ export function ListToolbar({
   children,
   toolsSlotRef,
   onRefresh,
-  refreshLabel = "Listeyi yenile",
 }: ToolbarProps) {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const fallbackCommands: PageCommands = {};
+  if (onRefresh) fallbackCommands.refresh = { run: onRefresh };
+  if (search !== undefined) {
+    fallbackCommands.filter = {
+      run: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      },
+    };
+  }
+  usePageCommands(fallbackCommands, "list");
+
   // The latest onSearchApply is read through a ref because pages pass a new closure
   // (holding the current text) on every render.
   const applyRef = useRef(onSearchApply);
@@ -125,6 +141,7 @@ export function ListToolbar({
         >
           <Search size={16} aria-hidden="true" />
           <input
+            ref={searchInputRef}
             type="search"
             value={search}
             onChange={(event) => onSearchChange?.(event.target.value)}
@@ -134,20 +151,9 @@ export function ListToolbar({
         </form>
       )}
       {children}
-      {(toolsSlotRef || onRefresh) && (
+      {toolsSlotRef && (
         <div className="list-v2-toolbar-end">
-          {toolsSlotRef && <div className="list-v2-grid-tools" ref={toolsSlotRef} />}
-          {onRefresh && (
-            <button
-              type="button"
-              className="list-v2-icon-button"
-              onClick={onRefresh}
-              aria-label={refreshLabel}
-              title="Yenile"
-            >
-              <RefreshCw size={16} />
-            </button>
-          )}
+          <div className="list-v2-grid-tools" ref={toolsSlotRef} />
         </div>
       )}
     </div>

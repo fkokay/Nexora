@@ -14,19 +14,19 @@
   --glrp-bad: #b42318;
   --glrp-warn: #8a4b08;
   --glrp-warn-bg: #fff6e8;
-  --glrp-warn-line: #f1c27d;
+  --glrp-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --glrp-accent: #1769aa;
   --glrp-select: #eaf2fb;
 }
 html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
-  --glrp-line: var(--erp-border, #2c3648);
+  --glrp-line: var(--erp-border);
   --glrp-line-soft: #263043;
   --glrp-band: #1a2333;
-  --glrp-ink: var(--erp-text, #e6ebf2);
-  --glrp-muted: var(--erp-text-muted, #9aa8bb);
+  --glrp-ink: var(--erp-text);
+  --glrp-muted: var(--erp-text-muted);
   --glrp-ok: #6fd3a1;
   --glrp-bad: #f97066;
-  --glrp-warn: #f5c27a;
+  --glrp-warn: var(--nx-warn);
   --glrp-warn-bg: #33261a;
   --glrp-warn-line: #7a5320;
   --glrp-accent: #8ab8f5;
@@ -56,7 +56,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   box-shadow: none;
 }
 #root .app-shell .general-ledger-panel.list-v2 .gl-seg button.is-active {
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
   color: var(--glrp-ink);
   box-shadow: 0 1px 2px rgb(15 23 42 / 14%);
 }
@@ -87,7 +87,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   padding: 12px 14px;
   border: 1px solid var(--glrp-line);
   border-radius: 8px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
 }
 #root .general-ledger-panel.list-v2 .glrp-tile-label { color: var(--glrp-muted); font-size: 12px; font-weight: 600; }
 #root .general-ledger-panel.list-v2 .glrp-tile-value {
@@ -147,7 +147,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   overflow-x: auto;
   border: 1px solid var(--glrp-line);
   border-radius: 10px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
 }
 #root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) {
   width: 100%;
@@ -219,7 +219,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   padding: 16px;
   border: 1px solid var(--glrp-line);
   border-radius: 12px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
 }
 #root .app-shell .general-ledger-panel.list-v2 .glmv h2 { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px !important; }
 #root .general-ledger-panel.list-v2 .glmv-meta { display: block; margin-top: 3px; color: var(--glrp-muted); font-size: 12px; }
@@ -289,7 +289,7 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   overflow-x: auto;
   border: 1px solid var(--glrp-line);
   border-radius: 10px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
 }
 #root .general-ledger-panel.list-v2 .glbs-table thead th:first-child { color: var(--glrp-ink); font-size: 13px; font-weight: 700; }
 #root .general-ledger-panel.list-v2 .glbs-section-row :is(th, td) { background: var(--glrp-band); font-weight: 700; }

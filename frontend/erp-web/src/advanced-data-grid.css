@@ -1,25 +1,25 @@
-.advanced-grid { --grid-border: var(--erp-border, #dce3ec); --grid-ink: var(--erp-text, #233149); --grid-muted: var(--erp-text-muted, #718098); display: grid; gap: 0; width: 100%; min-width: 0; color: var(--grid-ink); font-size: 12px; }
-.advanced-grid-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; padding: 9px 10px; border: 1px solid var(--grid-border); border-bottom: 0; border-radius: 9px 9px 0 0; background: var(--erp-surface, #fff); }
-.advanced-grid-search { display: flex; align-items: center; gap: 7px; flex: 1 1 230px; min-width: 170px; max-width: 420px; height: 34px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface-soft, #f8f9fb); color: var(--grid-muted); }
+.advanced-grid { --grid-border: var(--erp-border); --grid-ink: var(--erp-text); --grid-muted: var(--erp-text-muted); display: grid; gap: 0; width: 100%; min-width: 0; color: var(--grid-ink); font-size: 12px; }
+.advanced-grid-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; padding: 9px 10px; border: 1px solid var(--grid-border); border-bottom: 0; border-radius: 9px 9px 0 0; background: var(--erp-surface); }
+.advanced-grid-search { display: flex; align-items: center; gap: 7px; flex: 1 1 230px; min-width: 170px; max-width: 420px; height: 34px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface-soft); color: var(--grid-muted); }
 .advanced-grid-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--grid-ink); font: inherit; }
 .advanced-grid-search kbd { padding: 1px 4px; border: 1px solid var(--grid-border); border-radius: 4px; font-size: 9px; }
 .advanced-grid-menu { position: relative; flex: none; }
-.advanced-grid-menu > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface, #fff); color: var(--grid-ink); cursor: pointer; list-style: none; }
+.advanced-grid-menu > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface); color: var(--grid-ink); cursor: pointer; list-style: none; }
 .advanced-grid-menu > summary::-webkit-details-marker { display: none; }
 .advanced-grid-menu > summary::after { content: ""; width: 6px; height: 6px; flex: none; margin: -3px 1px 0 2px; border-right: 1.5px solid var(--grid-muted); border-bottom: 1.5px solid var(--grid-muted); transform: rotate(45deg); transition: transform .16s ease; }
 .advanced-grid-menu[open] > summary::after { margin-top: 3px; transform: rotate(225deg); }
 .advanced-grid-menu[open] > summary { border-color: #8aa7c6; box-shadow: 0 0 0 2px #2a77bd14; }
 .advanced-grid-menu > summary b { display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 9px; background: #e6f1fc; color: #1765a6; font-size: 10px; }
-.advanced-grid-popover { position: absolute; z-index: 90; top: calc(100% + 6px); right: 0; display: grid; gap: 8px; width: min(370px, calc(100vw - 32px)); max-height: min(65vh, 520px); padding: 12px; overflow: auto; border: 1px solid var(--grid-border); border-radius: 9px; background: var(--erp-surface, #fff); box-shadow: 0 14px 34px #18294524; }
+.advanced-grid-popover { position: absolute; z-index: 90; top: calc(100% + 6px); right: 0; display: grid; gap: 8px; width: min(370px, calc(100vw - 32px)); max-height: min(65vh, 520px); padding: 12px; overflow: auto; border: 1px solid var(--grid-border); border-radius: 9px; background: var(--erp-surface); box-shadow: 0 14px 34px #18294524; }
 .advanced-grid-menu[open] > .advanced-grid-popover{position:fixed!important;z-index:1001!important;top:50dvh!important;right:auto!important;bottom:auto!important;left:50vw!important;transform:translate(-50%,-50%)!important;translate:0 0;box-sizing:border-box;width:min(560px,calc(100vw - 32px));max-height:min(82dvh,720px);padding:16px;overflow:auto;overscroll-behavior:contain;box-shadow:0 24px 80px #10233f35}
 .advanced-grid-menu[open] > .advanced-grid-columns{width:min(390px,calc(100vw - 32px))}
 body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:1000;inset:0;background:rgba(10,25,47,.24);backdrop-filter:blur(4px);pointer-events:none}
 .advanced-grid-filter { display: grid; grid-template-columns: minmax(70px, .7fr) minmax(110px, 1fr) minmax(100px, 1fr); align-items: center; gap: 6px; color: var(--grid-muted); font-size: 10px; }
 .advanced-grid-filter > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.advanced-grid-filter input,.advanced-grid-filter select,.advanced-grid-density select,.advanced-grid-column-setting select,.advanced-grid-logic select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; font-size: 11px; }
+.advanced-grid-filter input,.advanced-grid-filter select,.advanced-grid-density select,.advanced-grid-column-setting select,.advanced-grid-logic select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; font-size: 11px; }
 .advanced-grid-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding-top: 7px; border-top: 1px solid var(--grid-border); }
 .advanced-grid-filter-actions label { display: flex; align-items: center; gap: 6px; color: var(--grid-muted); font-size: 10px; }
-.advanced-grid-filter-actions button { min-height: 28px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; font-size: 10px; cursor: pointer; }
+.advanced-grid-filter-actions button { min-height: 28px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; font-size: 10px; cursor: pointer; }
 .advanced-grid-logic,.advanced-grid-density { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--grid-muted); font-size: 10px; }
 .advanced-grid-logic select,.advanced-grid-density select { width: auto; min-width: 120px; }
 .advanced-grid-columns { width: min(300px, calc(100vw - 32px)); }
@@ -27,20 +27,20 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-column-setting-head { display: grid; grid-template-columns: minmax(0,1fr) 76px 112px; gap: 8px; padding: 0 0 5px; border-bottom: 1px solid var(--grid-border); color: var(--grid-muted); font-size: 10px; }
 .advanced-grid-column-setting label { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .advanced-grid-column-setting label input { accent-color: #1475c9; }
-.advanced-grid-column-setting .advanced-grid-column-width{box-sizing:border-box;width:76px;min-width:0;height:30px;padding:0 6px;border:1px solid var(--grid-border);border-radius:6px;background:var(--erp-surface,#fff);color:var(--grid-ink);font:inherit;font-size:11px;font-variant-numeric:tabular-nums}
+.advanced-grid-column-setting .advanced-grid-column-width{box-sizing:border-box;width:76px;min-width:0;height:30px;padding:0 6px;border:1px solid var(--grid-border);border-radius:6px;background:var(--erp-surface);color:var(--grid-ink);font:inherit;font-size:11px;font-variant-numeric:tabular-nums}
 .advanced-grid-column-setting select { width: 112px; }
 .advanced-grid-count { margin-left: auto; color: var(--grid-muted); font-size: 10px; white-space: nowrap; }
 .advanced-grid-count b { margin-left: 7px; color: #1765a6; }
-.advanced-grid-action { min-height: 32px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; cursor: pointer; }
-.advanced-grid-action:hover,.advanced-grid-menu > summary:hover { background: var(--erp-surface-soft, #f6f8fb); }
-.advanced-grid-scroll { width: 100%; min-width: 0; min-height: 220px; overflow: auto; overscroll-behavior-x: contain; overscroll-behavior-y: auto; border: 1px solid var(--grid-border); background: var(--erp-surface, #fff); }
+.advanced-grid-action { min-height: 32px; padding: 0 8px; border: 1px solid var(--grid-border); border-radius: 7px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; cursor: pointer; }
+.advanced-grid-action:hover,.advanced-grid-menu > summary:hover { background: var(--erp-surface-soft); }
+.advanced-grid-scroll { width: 100%; min-width: 0; min-height: 220px; overflow: auto; overscroll-behavior-x: contain; overscroll-behavior-y: auto; border: 1px solid var(--grid-border); background: var(--erp-surface); }
 .advanced-grid-toolbar + .advanced-grid-scroll { border-radius: 0; }
 .advanced-grid-scroll > table.advanced-grid-table { width: max-content; min-width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
 .advanced-grid-table th,.advanced-grid-table td { box-sizing: border-box; position: relative; padding: 9px 11px; border-bottom: 1px solid var(--grid-border); text-align: left; vertical-align: middle; line-height: 1.4; }
-.advanced-grid-table th { overflow: visible; background: var(--erp-surface-soft, #f3f6fa); color: var(--grid-muted); font-size: 11px; font-weight: 700; }
+.advanced-grid-table th { overflow: visible; background: var(--erp-surface-soft); color: var(--grid-muted); font-size: 11px; font-weight: 700; }
 .advanced-grid-table td { overflow: hidden; color: var(--grid-ink); text-overflow: ellipsis; white-space: nowrap; }
 .advanced-grid-table tbody tr:last-child > td { border-bottom: 0; }
-.advanced-grid-table tbody tr:hover > td { background: var(--erp-surface-soft, #f8fafc); }
+.advanced-grid-table tbody tr:hover > td { background: var(--erp-surface-soft); }
 .advanced-grid-table th.advanced-grid-header-cell { overflow: hidden; padding-right: 14px; }
 .advanced-grid-table th[draggable="true"] { cursor: grab; }
 .advanced-grid-table th[draggable="true"]:active { cursor: grabbing; }
@@ -53,17 +53,16 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-master input,.advanced-grid-row-select input { margin: 0; accent-color: #1475c9; cursor: pointer; }
 .advanced-grid-row-select { display: inline-flex; align-items: center; gap: 7px; margin-right: 9px; vertical-align: middle; white-space: nowrap; color: var(--grid-muted); }
 .advanced-grid-row-select > span { display: inline-block; min-width: 2ch; color: var(--grid-muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
-.advanced-grid-row-selected { background: #eaf4ff !important; }
 .advanced-grid-empty { padding: 28px 12px !important; color: var(--grid-muted); text-align: center !important; }
-.advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface, #fff); color: var(--grid-muted); font-size: 10px; }
+.advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface); color: var(--grid-muted); font-size: 10px; }
 .advanced-grid[data-server-hide-footer="true"] .advanced-grid-footer { display: none; }
 .advanced-grid-footer > label { display: flex; align-items: center; gap: 7px; }
-.advanced-grid-footer select { height: 29px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; }
+.advanced-grid-footer select { height: 29px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; }
 .advanced-grid-pagination { display: flex; gap: 5px; }
-.advanced-grid-pagination button { min-height: 29px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; cursor: pointer; }
+.advanced-grid-pagination button { min-height: 29px; padding: 0 9px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; cursor: pointer; }
 .advanced-grid-pagination button:disabled { opacity: .45; cursor: default; }
 .advanced-grid-menu summary:focus-visible,.advanced-grid button:focus-visible,.advanced-grid input:focus-visible,.advanced-grid select:focus-visible { outline: 2px solid #277cc6; outline-offset: 2px; }
-.advanced-grid.is-fullscreen { position: fixed; z-index: 1200; inset: 18px; grid-template-rows: auto minmax(0,1fr) auto; padding: 12px; overflow: hidden; border: 1px solid var(--grid-border); border-radius: 12px; background: var(--erp-surface, #fff); box-shadow: 0 20px 80px #101d3370; }
+.advanced-grid.is-fullscreen { position: fixed; z-index: 1200; inset: 18px; grid-template-rows: auto minmax(0,1fr) auto; padding: 12px; overflow: hidden; border: 1px solid var(--grid-border); border-radius: 12px; background: var(--erp-surface); box-shadow: 0 20px 80px #101d3370; }
 .advanced-grid.is-fullscreen .advanced-grid-scroll { height: 100%; }
 .advanced-grid-fallback { min-width: 0; overflow: auto; }
 .advanced-grid-file-input { display: none !important; }
@@ -82,7 +81,7 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-view-trigger b,.advanced-grid-view-popover b { display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 9px; background: #e6f1fc; color: #1765a6; font-size: 10px; }
 .advanced-grid-popover.advanced-grid-view-popover { position: fixed; z-index: 1001; top: 0; right: 8px; gap: 1px; width: auto; min-width: 210px; max-width: calc(100vw - 16px); padding: 6px; }
 .advanced-grid-view-popover [role="menuitem"] { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--grid-ink); font: inherit; font-size: 12px; text-align: left; white-space: nowrap; cursor: pointer; }
-.advanced-grid-view-popover [role="menuitem"]:hover,.advanced-grid-view-popover [role="menuitem"]:focus-visible { background: var(--erp-surface-soft, #f3f6fa); outline: none; }
+.advanced-grid-view-popover [role="menuitem"]:hover,.advanced-grid-view-popover [role="menuitem"]:focus-visible { background: var(--erp-surface-soft); outline: none; }
 .advanced-grid-view-popover [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px #277cc6; }
 .advanced-grid-view-popover [role="menuitem"].is-active { color: #075da8; }
 .advanced-grid-view-popover [role="menuitem"] small { color: var(--grid-muted); font-size: 11px; }
@@ -93,34 +92,30 @@ html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"]:hover,
 html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"]:focus-visible { background: #243247; }
 html[data-theme="dark"] .advanced-grid-view-popover [role="menuitem"].is-active { color: #8ec5fa; }
 html[data-theme="dark"] :is(.advanced-grid-view-trigger, .advanced-grid-view-popover) b { background: #1d344a; color: #8ec5fa; }
-.advanced-grid-import,.advanced-grid-pivot { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--grid-border); background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-import,.advanced-grid-pivot { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--grid-border); background: var(--erp-surface); color: var(--grid-ink); }
 .advanced-grid-import { border-top: 0; }
 .advanced-grid-import > header,.advanced-grid-pivot > header { display: flex; align-items: center; gap: 10px; }
 .advanced-grid-import > header > span,.advanced-grid-pivot > header > small { color: var(--grid-muted); font-size: 11px; }
-.advanced-grid-import > header > button { margin-left: auto; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); padding: 5px 9px; cursor: pointer; }
+.advanced-grid-import > header > button { margin-left: auto; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); padding: 5px 9px; cursor: pointer; }
 .advanced-grid-import-preview,.advanced-grid-pivot-table { min-width: 0; max-height: 280px; overflow: auto; border: 1px solid var(--grid-border); border-radius: 7px; }
 .advanced-grid-import-preview table,.advanced-grid-pivot-table table { width: 100%; border-collapse: collapse; white-space: nowrap; }
 .advanced-grid-import-preview th,.advanced-grid-import-preview td,.advanced-grid-pivot-table th,.advanced-grid-pivot-table td { padding: 7px 9px; border-bottom: 1px solid var(--grid-border); text-align: left; }
-.advanced-grid-import-preview th,.advanced-grid-pivot-table th { position: sticky; top: 0; background: var(--erp-surface-soft, #f3f6fa); }
+.advanced-grid-import-preview th,.advanced-grid-pivot-table th { position: sticky; top: 0; background: var(--erp-surface-soft); }
 .advanced-grid-import-note,.advanced-grid-import-error { margin: 0; color: var(--grid-muted); font-size: 11px; }
 .advanced-grid-import-error { color: #b42318; }
 .advanced-grid-pivot { border-top: 0; }
 .advanced-grid-pivot-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .advanced-grid-pivot-controls label { display: grid; gap: 4px; color: var(--grid-muted); font-size: 10px; }
-.advanced-grid-pivot-controls select { min-width: 130px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-pivot-controls select { min-width: 130px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); }
 .advanced-grid-loading { padding: 7px 10px; color: var(--grid-muted); font-size: 11px; }
 .advanced-grid-editable { cursor: text; }
 .advanced-grid-editable:hover { box-shadow: inset 0 0 0 1px #2478c655; }
-.advanced-grid-cell-editor { box-sizing: border-box; width: min(100%, 240px); min-width: 0; max-width: 100%; height: 29px; padding: 3px 6px; border: 1px solid #1475c9; border-radius: 5px; background: var(--erp-surface, #fff); color: var(--grid-ink); font: inherit; }
-.advanced-grid-batch { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; padding: 11px; border: 1px solid var(--grid-border); border-top: 0; background: var(--erp-surface-soft, #f7f9fc); color: var(--grid-ink); }
+.advanced-grid-cell-editor { box-sizing: border-box; width: min(100%, 240px); min-width: 0; max-width: 100%; height: 29px; padding: 3px 6px; border: 1px solid #1475c9; border-radius: 5px; background: var(--erp-surface); color: var(--grid-ink); font: inherit; }
+.advanced-grid-batch { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; padding: 11px; border: 1px solid var(--grid-border); border-top: 0; background: var(--erp-surface-soft); color: var(--grid-ink); }
 .advanced-grid-batch > b { flex: 1 1 100%; }
 .advanced-grid-batch label { display: grid; gap: 4px; color: var(--grid-muted); font-size: 10px; }
-.advanced-grid-batch input,.advanced-grid-batch select { min-width: 140px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface, #fff); color: var(--grid-ink); }
+.advanced-grid-batch input,.advanced-grid-batch select { min-width: 140px; height: 31px; padding: 0 7px; border: 1px solid var(--grid-border); border-radius: 6px; background: var(--erp-surface); color: var(--grid-ink); }
 .advanced-grid-scroll.is-virtualized { contain: content; }
-.advanced-grid.compact .advanced-grid-table th,.advanced-grid.compact .advanced-grid-table td { padding-block: 5px; }
-.advanced-grid.normal .advanced-grid-table th,.advanced-grid.normal .advanced-grid-table td { padding-block: 9px; }
-.advanced-grid.comfortable .advanced-grid-table th,.advanced-grid.comfortable .advanced-grid-table td { padding-block: 13px; }
-html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !important; }
 @media print { .advanced-grid-toolbar,.advanced-grid-footer { display: none !important; }.advanced-grid-scroll { overflow: visible !important; border: 0 !important; }.advanced-grid-scroll table { width: 100% !important; }.advanced-grid-menu { display: none !important; } }
 @media(max-width:700px) { .advanced-grid-toolbar { gap: 5px; padding: 7px; }.advanced-grid-count { flex: 1 1 100%; margin-left: 0; }.advanced-grid-search { flex-basis: 100%; max-width: none; }.advanced-grid-footer { align-items: flex-start; }.advanced-grid-filter { grid-template-columns: minmax(60px,.7fr) minmax(95px,1fr); }.advanced-grid-filter input { grid-column: 2; }.advanced-grid-filter input + input { grid-column: 2; } }
 
@@ -137,18 +132,18 @@ html[data-theme="dark"] .advanced-grid-row-selected { background: #203a54 !impor
    single frame: the grid and its scroll area draw none. The list-v2 card (whose grid toolbar lives in the page
    toolbar, so no popover is clipped) also clips the table to its rounded corners. */
 #root .app-shell .list-v2 .list-v2-list:has(.advanced-grid) { padding: 0; overflow: hidden; }
-#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) :is(.advanced-grid, .advanced-grid-scroll) {
+#root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) :is(.advanced-grid, .advanced-grid-scroll) {
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 /* An inline grid toolbar inside such a card keeps only a divider under it. */
-#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+#root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
   border: 0 !important;
   border-bottom: 1px solid #e6ebf1 !important;
   border-radius: 0 !important;
 }
-html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
   border-bottom-color: #2f3c52 !important;
 }
 
@@ -167,7 +162,7 @@ html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel,
   border-radius: 4px;
   background: #FFFFFF;
 }
-.app-shell:not(.standalone-studio) .advanced-grid-search:focus-within { border-color: #0A192F; outline: 1px solid #0A192F; }
+.app-shell:not(.standalone-studio) .advanced-grid-search:focus-within { border-color: var(--nx-primary); outline: 1px solid var(--nx-primary); }
 .app-shell:not(.standalone-studio) .advanced-grid-menu > summary,
 .app-shell:not(.standalone-studio) .advanced-grid-action,
 .app-shell:not(.standalone-studio) .advanced-grid-filter input,
@@ -181,28 +176,12 @@ html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel,
   border-radius: 4px;
   box-shadow: none;
 }
-.app-shell:not(.standalone-studio) .advanced-grid-menu[open] > summary { border-color: #0A192F; box-shadow: none; }
+.app-shell:not(.standalone-studio) .advanced-grid-menu[open] > summary { border-color: var(--nx-primary); box-shadow: none; }
 .app-shell:not(.standalone-studio) .advanced-grid-scroll {
   border-color: #D7DEE7;
   border-radius: 0 0 4px 4px;
   background: #FFFFFF;
 }
-.app-shell:not(.standalone-studio) .advanced-grid-table th,
-.app-shell:not(.standalone-studio) .advanced-grid-table td {
-  padding: 10px 12px;
-  border-bottom-color: #E2E7ED;
-  line-height: 1.35;
-}
-.app-shell:not(.standalone-studio) .advanced-grid-table th {
-  background: #F3F4F6;
-  color: #526174;
-  font-size: 11px;
-  font-weight: 650;
-}
-.app-shell:not(.standalone-studio) .advanced-grid-table td { color: #172B45; font-size: 12px; }
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #FFF9E5; }
-.app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-.app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #FFF4CC !important; }
 .app-shell:not(.standalone-studio) .advanced-grid-footer {
   padding: 8px 12px;
   border-color: #D7DEE7;
@@ -222,8 +201,162 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-density select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table th { background: #202A39; color: #C2CBD7; border-bottom-color: var(--erp-border); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table td { color: var(--erp-text); border-bottom-color: var(--erp-border); }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr:hover > td { background: #243247; }
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-row-selected,
-html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-table tbody tr.erp-selected-row > td { background: #3A3421 !important; }
+
+/* ---- Table look (mockup 01): light header, dense rows, tabular numbers, current row with a left bar ----
+   One rule set for every grid in the app (light and dark through the --nx tokens). The global table rules in
+   global-components.css skip .advanced-grid-table; #root keeps the older shell / page table rules
+   (module-workspace.css `#root .workspace-page-main .customer-table th`, `.standard-list-screen … table th`) out.
+   Row height per density setting: real vertical padding with a single-line minimum of compact 26px,
+   normal (default) --nx-row-h-dense 30px, comfortable --nx-row-h-comfort 38px; wrapping cells grow the row.
+   AdvancedDataGrid's virtual spacers use the same minimums. */
+/* A table cell's height acts as its minimum (border-box), so single-line rows land exactly on the token
+   (padding + 18px line + 1px rule would be 1px short) and wrapping rows still grow. */
+#root .advanced-grid-table { --grid-cell-pad: 5px 9px; --grid-row-h: var(--nx-row-h-dense); }
+#root .advanced-grid.compact .advanced-grid-table { --grid-cell-pad: 3px 8px; --grid-row-h: 26px; }
+#root .advanced-grid.comfortable .advanced-grid-table { --grid-cell-pad: 9px 9px; --grid-row-h: var(--nx-row-h-comfort); }
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th {
+  height: var(--nx-row-h-dense);
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 17px;
+  white-space: nowrap;
+}
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td:not(.advanced-grid-virtual-spacer) {
+  height: var(--grid-row-h);
+  min-height: 0;
+  padding: var(--grid-cell-pad);
+  border-bottom: 1px solid var(--nx-line-soft);
+  color: var(--nx-text);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+/* In-cell controls (row "⋯" buttons, status pills) fit the dense row: about 24px high, and a negative block
+   margin lets them overhang the 5px cell padding so a single-line row with one stays 30px. Look only. */
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td :is(button, a.button, select):not(.advanced-grid-cell-editor) {
+  min-height: 0;
+  height: 24px;
+  margin-block: -3px;
+  padding-block: 0;
+  line-height: 22px;
+  vertical-align: middle;
+}
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td :is([class*='-pill'], [class*='-badge'], [class*='status']):not(button) {
+  margin-block: -2px;
+  padding-block: 1px;
+  line-height: 18px;
+  vertical-align: top;
+}
+/* Inline wrappers around such a button (menu anchors) sit at the top of the line, or their middle alignment
+   adds a pixel to the row. */
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td span:has(> button) { vertical-align: top; }
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:hover > td { background: color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface)); }
+/* Checked rows (row selection): a light tint. */
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr.advanced-grid-row-selected > td { background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); }
+/* Current row (the page's selected record, or the row that holds the keyboard focus): soft fill + 3px bar.
+   The bar is a pseudo element because `.app-shell * { box-shadow: none !important }` removes inset shadows. */
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:is(.erp-selected-row, [aria-current="true"], :focus-visible) > td,
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr[aria-selected="true"]:not(.advanced-grid-row-selected) > td { background: var(--nx-primary-soft); }
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr:is(.erp-selected-row, [aria-current="true"], :focus-visible) > td:first-child::before,
+#root .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr[aria-selected="true"]:not(.advanced-grid-row-selected) > td:first-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--nx-primary);
+  pointer-events: none;
+}
+.advanced-grid-table > tbody > tr:focus-visible { outline: none; }
+/* Opt-in cell classes for page renderers: right-aligned numbers and monospace codes. */
+.advanced-grid-table :is(th, td).nx-num { text-align: right; }
+/* The light theme's legacy table rule (module-workspace.css: html:not([data-theme="dark"]) … .customer-table th
+   { text-align: left }) outranks the class above on headers; the id keeps numeric headers right-aligned in both
+   themes; the header label fills its flex wrapper, so it inherits the alignment. */
+#root .advanced-grid-table :is(th, td).nx-num { text-align: right; }
+.advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
+/* ---- Row selection (`selectable`, approved list draft): checkbox column, 14px boxes, floating bulk bar ----
+   The checkbox column is sticky on the left; its opaque base yields to the hover / checked / current row tints above. */
+.advanced-grid-table :is(th, td).advanced-grid-select-cell { text-align: center; }
+.advanced-grid-table td.advanced-grid-select-cell { background: var(--nx-surface); }
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th.advanced-grid-select-cell,
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td.advanced-grid-select-cell { padding-inline: 0; }
+.advanced-grid-table input.nx-check {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--nx-muted) 50%, var(--nx-surface));
+  border-radius: 3px;
+  background: var(--nx-surface);
+  vertical-align: middle;
+  appearance: none;
+  cursor: pointer;
+}
+.advanced-grid-table input.nx-check:is(:checked, :indeterminate) { border-color: var(--nx-primary); background: var(--nx-primary); }
+.advanced-grid-table input.nx-check:checked::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 3.5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--nx-on-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.advanced-grid-table input.nx-check:indeterminate::after { content: ""; position: absolute; top: 4.5px; left: 2px; width: 7px; height: 2px; background: var(--nx-on-primary); }
+.advanced-grid-table input.nx-check:disabled { opacity: .45; cursor: default; }
+/* The bulk bar floats over the bottom rows from a zero-height dock after the scroll container (no layout space);
+   BulkActionBar lifts it (--nx-bulk-lift) to the window's bottom edge while the grid runs past it. */
+.nx-bulk-dock { position: relative; z-index: 7; height: 0; }
+/* While the bar is shown, BulkActionBar sets --nx-bulk-space (bar height + 12px) on the scroll area: room under
+   the last row, and the scroll padding keeps a keyboard-moved current row clear of the bar. */
+.advanced-grid-scroll { padding-bottom: var(--nx-bulk-space, 0px); scroll-padding-bottom: var(--nx-bulk-space, 0px); }
+.nx-bulk {
+  position: absolute;
+  bottom: calc(12px + var(--nx-bulk-lift, 0px));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 14px;
+  overflow-x: auto;
+  /* A faint rim keeps the bar apart from a dark-theme table (the app shell drops box-shadows). */
+  border: 1px solid color-mix(in srgb, var(--nx-on-primary) 16%, var(--nx-ink));
+  border-radius: 10px;
+  background: var(--nx-ink);
+  color: var(--nx-on-primary);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 35%, transparent);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+#root .nx-bulk .nx-bulk-count { margin-right: 8px; color: var(--nx-on-primary); font-weight: 650; }
+#root .nx-bulk .nx-bulk-action {
+  height: auto;
+  min-height: 0;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  color: color-mix(in srgb, var(--nx-on-primary) 84%, var(--nx-ink));
+  font: inherit;
+  cursor: pointer;
+}
+#root .nx-bulk .nx-bulk-action:hover:not(:disabled) { background: var(--nx-ink-2); color: var(--nx-on-primary); }
+#root .nx-bulk .nx-bulk-action:disabled { opacity: .45; cursor: not-allowed; }
+#root .nx-bulk .nx-bulk-action:focus-visible { outline: 2px solid var(--nx-on-primary); outline-offset: 1px; }
+#root .nx-bulk .nx-bulk-clear { color: color-mix(in srgb, var(--nx-on-primary) 55%, var(--nx-ink)); }
+.nx-bulk-clear kbd { font: inherit; }

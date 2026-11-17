@@ -1,24 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as IconPack from "lucide-react";
 import { X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import type * as AppTypes from "./erp-types";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands, useViewDialogOwner } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import MasterDataImportDialog from "./MasterDataImportDialog";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { InventoryStockFilters } from "./inventory/components/InventoryStockFilters";
-import { InventoryStockGrid } from "./inventory/components/InventoryStockGrid";
-import { InventoryStockActionsMenu } from "./inventory/components/InventoryStockActionsMenu";
+import { InventoryStockGrid, StockAvailableCell, stockListStatus } from "./inventory/components/InventoryStockGrid";
+import { useStockListScreen } from "./inventory/useStockListScreen";
+import { InventoryTransferGrid } from "./inventory/components/InventoryTransferGrid";
+import { useTransferListScreen } from "./inventory/useTransferListScreen";
+import { InventoryCostGrid } from "./inventory/components/InventoryCostGrid";
+import { useCostListScreen } from "./inventory/useCostListScreen";
+import { useWarehouseDefinitionScreen } from "./inventory/useWarehouseDefinitionScreen";
 import { ListPageHeader } from "./list-page/ListPageHeader";
+import { StatusTag } from "./list-page/StatusTag";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./inventory/inventory-list-v2.css";
 import "./inventory/inventory-modals.css";
-import { NegativeStockPolicyNote } from "./inventory/NegativeStockPolicyNote";
+import { NegativeStockPolicyNote, NegativeStockRuleLine } from "./inventory/NegativeStockPolicyNote";
+import { StockCardAside, StockCardImage } from "./inventory/components/StockCardAside";
+import {
+  STOCK_CARD_DEFAULTS,
+  STOCK_CARD_SECTION_FIELDS,
+  changedCustomFields,
+  changedStockCardFields,
+  formatStockCardValue,
+  stockCardCompletion,
+  stockCardFieldEntered,
+  stockCardSectionState,
+  stockCardSummary,
+  stockCardValuesOf,
+  type StockCardField,
+  type StockCardValues,
+} from "./inventory/stockCardForm";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import {
+  RecordFieldChange,
   RecordFormGroup,
   RecordFormPage,
   RecordFormTabs,
@@ -46,7 +71,6 @@ type StockItemVariant = AppTypes.StockItemVariant;
 type StockRecipe = { id: string; code: string; name: string; productStockItemId: string; outputQuantity: number; isActive: boolean; lines: Array<{ componentName: string; quantity: number; scrapPercent: number }> };
 type Warehouse = AppTypes.Warehouse;
 type WarehouseCustomFieldDefinition = AppTypes.WarehouseCustomFieldDefinition;
-type WarehouseCustomFieldValue = AppTypes.WarehouseCustomFieldValue;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
 
 type VariantDimensionDraft = { name: string; values: string };
@@ -162,22 +186,13 @@ export function InventoryPage({
     [itemCustomFieldValues, setItemCustomFieldValues] = useState<
       Record<string, string>
     >({});
-  const [warehouseFieldTarget, setWarehouseFieldTarget] =
-      useState<Warehouse | null>(null),
-    [warehouseFieldCatalogModal, setWarehouseFieldCatalogModal] =
+  const [warehouseFieldCatalogModal, setWarehouseFieldCatalogModal] =
       useState(false),
     [warehouseFieldDefinitions, setWarehouseFieldDefinitions] = useState<
       WarehouseCustomFieldDefinition[]
     >([]),
-    [warehouseFieldValues, setWarehouseFieldValues] = useState<
-      Record<string, string>
-    >({}),
-    [warehouseCreateDefinitions, setWarehouseCreateDefinitions] = useState<
-      WarehouseCustomFieldDefinition[]
-    >([]),
-    [warehouseCreateValues, setWarehouseCreateValues] = useState<
-      Record<string, string>
-    >({}),
+    // Bumped when the warehouse field catalog changes; the open warehouse form reloads its fields.
+    [warehouseCatalogVersion, setWarehouseCatalogVersion] = useState(0),
     [warehouseFieldCode, setWarehouseFieldCode] = useState(""),
     [warehouseFieldLabel, setWarehouseFieldLabel] = useState(""),
     [warehouseFieldType, setWarehouseFieldType] =
@@ -208,8 +223,6 @@ export function InventoryPage({
     [categoryModal, setCategoryModal] = useState(false),
     [categoryName, setCategoryName] = useState(""),
     [categoryBusy, setCategoryBusy] = useState(false),
-    [warehouseModal, setWarehouseModal] = useState(false),
-    [warehouseAdminModal, setWarehouseAdminModal] = useState(false),
     [movementItem, setMovementItem] = useState<InventoryBalance | null>(null);
   const [itemCreateTab, setItemCreateTab] = useState<
     "basic" | "inventory" | "pricing" | "logistics" | "accounting" | "units" | "variants" | "recipes"
@@ -220,14 +233,19 @@ export function InventoryPage({
     stayAfterItemSaveRef.current = stay;
   };
   const [itemFormNotice, setItemFormNotice] = useState("");
-  const stayAfterWarehouseSaveRef = useRef(false);
-  const setStayAfterWarehouseSave = (stay: boolean) => {
-    stayAfterWarehouseSaveRef.current = stay;
-  };
-  const [warehouseFormNotice, setWarehouseFormNotice] = useState("");
   const [variantDimensions, setVariantDimensions] = useState<VariantDimensionDraft[]>([{ name: "", values: "" }]);
   const [existingVariants, setExistingVariants] = useState<StockItemVariant[]>([]);
   const [itemRecipes, setItemRecipes] = useState<StockRecipe[]>([]);
+  // Loaded values of the open card ("N alan değişti", previous values); custom values arrive after their request.
+  const [itemBaseline, setItemBaseline] = useState<{ values: StockCardValues; custom: Record<string, string> | null } | null>(null);
+  // Variants and recipes of the open card are loaded (their navigator counts are real).
+  const [itemRelationsLoaded, setItemRelationsLoaded] = useState(false);
+  // New card: fields entered so far (custom fields as "custom:CODE") and whether a save was attempted.
+  const [itemTouched, setItemTouched] = useState<ReadonlySet<string>>(() => new Set());
+  const [itemSaveAttempted, setItemSaveAttempted] = useState(false);
+  // Displayed order of the list the card was opened from (PgUp / PgDn); null when not opened from the list.
+  const [recordNavIds, setRecordNavIds] = useState<string[] | null>(null);
+  const editRequestRef = useRef(0);
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [barcode, setBarcode] = useState(""),
@@ -276,12 +294,8 @@ export function InventoryPage({
       ),
     [categories, editingItem],
   );
-  const [warehouseCode, setWarehouseCode] = useState(""),
-    [warehouseName, setWarehouseName] = useState("");
-  const [warehouseSearch, setWarehouseSearch] = useState("");
   // List-page toolbar state: status chips filter the loaded rows; the slot hosts the stock grid's tools.
-  const [warehouseStatusFilter, setWarehouseStatusFilter] = useState(""),
-    [transferStatusFilter, setTransferStatusFilter] = useState(""),
+  const [transferStatusFilter, setTransferStatusFilter] = useState(""),
     [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null),
     [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const [transferModal, setTransferModal] = useState(false),
@@ -1028,8 +1042,25 @@ export function InventoryPage({
       cancelled = true;
     };
   }, [token, section]);
+  /** Puts the stock card fields to the given values (defaults for a new card, the loaded values when editing). */
+  function applyStockCardValues(values: StockCardValues) {
+    setCode(values.code); setName(values.name); setBarcode(values.barcode); setUnitCode(values.unitCode); setCategory(values.category);
+    setMinimumStock(values.minimumStock); setMaximumStock(values.maximumStock); setReorderPoint(values.reorderPoint); setSafetyStock(values.safetyStock);
+    setProcurementLeadTimeDays(values.procurementLeadTimeDays); setManufacturingLeadTimeDays(values.manufacturingLeadTimeDays);
+    setTrackingMode(values.trackingMode);
+    setPurchaseListPrice(values.purchaseListPrice); setSalesListPrice(values.salesListPrice); setPriceCurrencyCode(values.priceCurrencyCode);
+    setPurchaseVatPercent(values.purchaseVatPercent); setSalesVatPercent(values.salesVatPercent);
+    setExciseTaxPercent(values.exciseTaxPercent); setCommunicationTaxPercent(values.communicationTaxPercent);
+    setWithholdingTaxPercent(values.withholdingTaxPercent); setStampTaxPercent(values.stampTaxPercent);
+    setPurchaseDiscountPercent(values.purchaseDiscountPercent); setSalesDiscountPercent(values.salesDiscountPercent);
+    setNetWeight(values.netWeight); setGrossWeight(values.grossWeight); setLength(values.length); setWidth(values.width); setHeight(values.height);
+    setPurchaseAccountCode(values.purchaseAccountCode); setSalesAccountCode(values.salesAccountCode); setCostAccountCode(values.costAccountCode);
+    setProductImageUrl(values.productImageUrl); setMarketplaceProductId(values.marketplaceProductId);
+  }
   /** Puts every field of a new stock card back to its default ("Temizle" and "Kaydet ve Yeni"). */
   function resetItemFormFields() {
+    setItemTouched(new Set());
+    setItemSaveAttempted(false);
     setItemFormNotice("");
     setItemCreateTab("basic");
     setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
@@ -1038,27 +1069,14 @@ export function InventoryPage({
     setItemUnitCode("");
     setItemUnitFactor("1");
     setItemCustomFieldValues({});
-    setCode("");
-    setName("");
-    setBarcode("");
-    setUnitCode("EA");
-    setCategory("");
-    setMinimumStock("0");
-    setPurchaseListPrice("");
-    setSalesListPrice("");
-    setPriceCurrencyCode("TRY");
-    setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
-    setWithholdingTaxPercent("0"); setStampTaxPercent("0");
-    setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
-    setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
-    setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
-    setProcurementLeadTimeDays("0");
-    setManufacturingLeadTimeDays("0");
-    setTrackingMode("None");
+    applyStockCardValues(STOCK_CARD_DEFAULTS);
     setError("");
   }
   async function openItemModal() {
+    editRequestRef.current += 1;
     setEditingItem(null);
+    setItemBaseline(null);
+    setRecordNavIds(null);
     resetItemFormFields();
     try {
       setItemCustomFieldDefinitions(
@@ -1077,40 +1095,28 @@ export function InventoryPage({
       void openItemModal();
   }, [section, itemModal, editingItem]);
   function closeItemForm() {
+    editRequestRef.current += 1;
     setItemModal(false);
     setEditingItem(null);
+    setItemBaseline(null);
+    setRecordNavIds(null);
     if (section === "inventory-stock-create") onNavigate?.("inventory-stock");
   }
   async function editItem(item: StockItem) {
+    // A later open (PgUp / PgDn) wins: answers for an earlier card are dropped.
+    const request = ++editRequestRef.current;
     setError("");
     setItemCreateTab("basic");
     setEditingItem(item);
     setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
+    setItemRelationsLoaded(false);
     setItemUnitConversions([]);
     setItemUnitRemovals([]);
     setItemUnitCode("");
     setItemUnitFactor("1");
-    setCode(item.code);
-    setName(item.name);
-    setBarcode(item.barcode || "");
-    setUnitCode(item.unitCode);
-    setCategory(item.category || "");
-    setMinimumStock(String(item.minimumStock));
-    setPurchaseListPrice(item.purchaseListPrice == null ? "" : String(item.purchaseListPrice));
-    setSalesListPrice(item.salesListPrice == null ? "" : String(item.salesListPrice));
-    setPriceCurrencyCode(item.priceCurrencyCode || "TRY");
-    setPurchaseVatPercent(String(item.purchaseVatPercent ?? 20)); setSalesVatPercent(String(item.salesVatPercent ?? 20));
-    setExciseTaxPercent(String(item.exciseTaxPercent ?? 0)); setCommunicationTaxPercent(String(item.communicationTaxPercent ?? 0));
-    setWithholdingTaxPercent(String(item.withholdingTaxPercent ?? 0)); setStampTaxPercent(String(item.stampTaxPercent ?? 0));
-    setPurchaseDiscountPercent(String(item.purchaseDiscountPercent ?? 0)); setSalesDiscountPercent(String(item.salesDiscountPercent ?? 0));
-    setMaximumStock(item.maximumStock == null ? "" : String(item.maximumStock)); setReorderPoint(item.reorderPoint == null ? "" : String(item.reorderPoint)); setSafetyStock(String(item.safetyStock ?? 0));
-    setNetWeight(item.netWeight == null ? "" : String(item.netWeight)); setGrossWeight(item.grossWeight == null ? "" : String(item.grossWeight));
-    setLength(item.length == null ? "" : String(item.length)); setWidth(item.width == null ? "" : String(item.width)); setHeight(item.height == null ? "" : String(item.height));
-    setProductImageUrl(item.productImageUrl || ""); setPurchaseAccountCode(item.purchaseAccountCode || ""); setSalesAccountCode(item.salesAccountCode || "");
-    setCostAccountCode(item.costAccountCode || ""); setMarketplaceProductId(item.marketplaceProductId || "");
-    setProcurementLeadTimeDays(String(item.procurementLeadTimeDays || 0));
-    setManufacturingLeadTimeDays(String(item.manufacturingLeadTimeDays || 0));
-    setTrackingMode(item.trackingMode || "None");
+    const loaded = stockCardValuesOf(item);
+    applyStockCardValues(loaded);
+    setItemBaseline({ values: loaded, custom: null });
     setItemCustomFieldDefinitions([]);
     setItemCustomFieldValues({});
     setItemModal(true);
@@ -1131,16 +1137,23 @@ export function InventoryPage({
         api<StockItemVariant[]>(`/api/stock/items/${item.id}/variants`, token),
         api<StockRecipe[]>("/api/manufacturing/boms/", token).catch(() => []),
       ]);
-      setItemUnitConversions(units.conversions);
+      if (request !== editRequestRef.current) return;
+      const customValues = Object.fromEntries((Array.isArray(values) ? values : []).map((field) => [field.code, field.value]));
+      setItemUnitConversions(units?.conversions ?? []);
       setItemCustomFieldDefinitions(definitions);
-      setItemCustomFieldValues(
-        Object.fromEntries(values.map((field) => [field.code, field.value])),
-      );
-      setExistingVariants(variants);
-      setItemRecipes(recipes.filter((recipe) => recipe.productStockItemId === item.id));
+      setItemCustomFieldValues(customValues);
+      setItemBaseline({ values: loaded, custom: customValues });
+      setExistingVariants(Array.isArray(variants) ? variants : []);
+      setItemRecipes(Array.isArray(recipes) ? recipes.filter((recipe) => recipe.productStockItemId === item.id) : []);
+      setItemRelationsLoaded(true);
     } catch (e) {
-      setError((e as Error).message);
+      if (request === editRequestRef.current) setError((e as Error).message);
     }
+  }
+  /** Opens a card from the list; `order` is the list's displayed order for PgUp / PgDn. */
+  function openItemFromList(item: StockItem, order: string[]) {
+    setRecordNavIds(order.includes(item.id) ? order : null);
+    void editItem(item);
   }
   function addItemUnitConversion() {
     const code = itemUnitCode.trim().toUpperCase();
@@ -1254,6 +1267,7 @@ export function InventoryPage({
   }
   async function createItem(e: React.FormEvent) {
     e.preventDefault();
+    setItemSaveAttempted(true);
     setError("");
     setNotice("");
     const missingRequiredField = itemCustomFieldDefinitions.find(
@@ -1357,21 +1371,7 @@ export function InventoryPage({
           return;
         }
       }
-      setCode("");
-      setName("");
-      setBarcode("");
-      setUnitCode("EA");
-      setCategory("");
-      setMinimumStock("0");
-      setPurchaseListPrice(""); setSalesListPrice(""); setPriceCurrencyCode("TRY");
-      setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
-      setWithholdingTaxPercent("0"); setStampTaxPercent("0");
-      setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
-      setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
-      setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
-      setProcurementLeadTimeDays("0");
-      setManufacturingLeadTimeDays("0");
-      setTrackingMode("None");
+      applyStockCardValues(STOCK_CARD_DEFAULTS);
       setItemCustomFieldValues({});
       if (section === "inventory-stock-create")
         window.dispatchEvent(new Event("inventory-stock-refresh"));
@@ -1393,85 +1393,6 @@ export function InventoryPage({
       setBusy(false);
     }
   }
-  function resetWarehouseForm() {
-    setWarehouseCode("");
-    setWarehouseName("");
-    setWarehouseCreateValues({});
-    setWarehouseFormNotice("");
-  }
-  async function openWarehouseModal() {
-    setWarehouseCreateValues({});
-    setWarehouseFormNotice("");
-    setError("");
-    try {
-      setWarehouseCreateDefinitions(
-        await api<WarehouseCustomFieldDefinition[]>(
-          "/api/warehouses/custom-fields",
-          token,
-        ),
-      );
-      setWarehouseModal(true);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function createWarehouse(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const created = await api<Warehouse>("/api/warehouses/", token, {
-        method: "POST",
-        body: JSON.stringify({
-          code: warehouseCode,
-          name: warehouseName,
-          customFields: warehouseCreateValues,
-        }),
-      });
-      setWarehouses((current) => [...current, created]);
-      setWarehouseId(created.id);
-      setWarehouseCode("");
-      setWarehouseName("");
-      setWarehouseCreateValues({});
-      // "Kaydet ve Yeni" keeps the dialog open, cleared for the next warehouse.
-      if (stayAfterWarehouseSaveRef.current)
-        setWarehouseFormNotice("Depo oluşturuldu. Yeni depo girebilirsiniz.");
-      else setWarehouseModal(false);
-      setNotice("Depo oluşturuldu.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function openWarehouseFields(warehouse: Warehouse) {
-    setWarehouseFieldTarget(warehouse);
-    setWarehouseFieldValues({});
-    setWarehouseFieldDefinitions([]);
-    setWarehouseFieldBusy(true);
-    setError("");
-    try {
-      const [definitions, values] = await Promise.all([
-        api<WarehouseCustomFieldDefinition[]>(
-          "/api/warehouses/custom-fields",
-          token,
-        ),
-        api<WarehouseCustomFieldValue[]>(
-          `/api/warehouses/${warehouse.id}/custom-fields`,
-          token,
-        ),
-      ]);
-      setWarehouseFieldDefinitions(definitions);
-      setWarehouseFieldValues(
-        Object.fromEntries(values.map((value) => [value.code, value.value])),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setWarehouseFieldBusy(false);
-    }
-  }
   async function openWarehouseFieldCatalog() {
     setWarehouseFieldBusy(true);
     setError("");
@@ -1481,32 +1402,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
       setWarehouseFieldCatalogModal(true);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setWarehouseFieldBusy(false);
-    }
-  }
-  async function saveWarehouseFields(e: React.FormEvent) {
-    e.preventDefault();
-    if (!warehouseFieldTarget) return;
-    setWarehouseFieldBusy(true);
-    setError("");
-    try {
-      const values = await api<WarehouseCustomFieldValue[]>(
-        `/api/warehouses/${warehouseFieldTarget.id}/custom-fields`,
-        token,
-        {
-          method: "PUT",
-          body: JSON.stringify({ values: warehouseFieldValues }),
-        },
-      );
-      setWarehouseFieldValues(
-        Object.fromEntries(values.map((value) => [value.code, value.value])),
-      );
-      setNotice("Depo özel alanları kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1541,8 +1437,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
-      if (warehouseFieldTarget) await openWarehouseFields(warehouseFieldTarget);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo özel alanı tanımlandı.");
     } catch (e) {
       setError((e as Error).message);
@@ -1609,7 +1504,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo alan tanımı yeni sürüm olarak kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
@@ -1640,107 +1535,12 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo alanı devre dışı bırakıldı; mevcut değerler korundu.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setWarehouseFieldBusy(false);
-    }
-  }
-  async function toggleWarehouse(warehouse: Warehouse) {
-    const isActive = !warehouse.isActive;
-    if (
-      !(await confirmDialog({
-        title: `Depo ${isActive ? "yeniden etkinleştirilsin" : "devre dışı bırakılsın"} mı?`,
-        message: `${warehouse.code} · ${warehouse.name}${isActive ? "" : " · Depoda sıfırdan farklı stok varsa işlem reddedilir."}`,
-        tone: "warning",
-        confirmLabel: isActive ? "Etkinleştir" : "Devre dışı bırak",
-      }))
-    )
-      return;
-    setBusy(true);
-    setError("");
-    try {
-      const updated = await api<Warehouse>(
-        `/api/warehouses/${warehouse.id}/status`,
-        token,
-        {
-          method: "POST",
-          body: JSON.stringify({ isActive, confirmation: true }),
-        },
-      );
-      setWarehouses((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setNotice(
-        isActive
-          ? "Depo yeniden etkinleştirildi."
-          : "Depo devre dışı bırakıldı.",
-      );
-      if (!isActive && warehouseId === updated.id)
-        setWarehouseId(
-          warehouses.find((item) => item.isActive && item.id !== updated.id)
-            ?.id || "",
-        );
-      await loadBalances();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function editWarehouse(warehouse: Warehouse) {
-    const code = (
-      await promptDialog({
-        title: "Depo düzenlensin mi?",
-        label: "Depo kodu",
-        defaultValue: warehouse.code,
-        tone: "default",
-        confirmLabel: "Devam",
-      })
-    )?.trim();
-    if (code === undefined || code === null) return;
-    const name = (
-      await promptDialog({
-        title: "Depo düzenlensin mi?",
-        label: "Depo adı",
-        defaultValue: warehouse.name,
-        tone: "default",
-        confirmLabel: "Kaydet",
-      })
-    )?.trim();
-    if (name === undefined || name === null) return;
-    if (!code || !name) {
-      setError("Depo kodu ve adı boş bırakılamaz.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const updated = await api<Warehouse>(
-        `/api/warehouses/${warehouse.id}`,
-        token,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            code,
-            name,
-            rowVersion: warehouse.rowVersion,
-          }),
-        },
-      );
-      setWarehouses((current) =>
-        current
-          .map((item) => (item.id === updated.id ? updated : item))
-          .sort((a, b) => a.name.localeCompare(b.name, "tr")),
-      );
-      setNotice("Depo güncellendi.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
     }
   }
   async function loadTransferLocations(fromId: string, toId: string) {
@@ -2281,21 +2081,14 @@ export function InventoryPage({
     }
   }
   const activeWarehouse = warehouses.find((x) => x.id === warehouseId);
+  // The row actions ("⋯") column is not drawn: its actions live in the action bar and the detail panel.
   const sortedStockFields = screenFields
-    .filter((field) => field.visible)
+    .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
-  // The code is shown under the name; its own column stays only if the name is hidden.
-  const visibleStockFields = sortedStockFields.some((field) => field.key === "name")
-    ? sortedStockFields.filter((field) => field.key !== "code")
-    : sortedStockFields;
-  const visibleWarehouses = warehouses.filter(
-    (row) =>
-      `${row.code} ${row.name}`
-        .toLocaleLowerCase("tr-TR")
-        .includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR")) &&
-      (!warehouseStatusFilter ||
-        row.isActive === (warehouseStatusFilter === "Active")),
-  );
+  // Mockup 01: the code has its own mono column, so rows stay single-line (30px). A layout that hides the code
+  // column gets the code under the name instead.
+  const visibleStockFields = sortedStockFields;
+  const stockCodeColumnVisible = sortedStockFields.some((field) => field.key === "code");
   const visibleTransfers = transfers.filter(
     (row) =>
       `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`
@@ -2310,187 +2103,395 @@ export function InventoryPage({
   );
   const filteredBalances = balances;
   const pagedBalances = balances;
+  const toggleBelowMinimum = () => {
+    setBelowMinimumOnly((value) => !value);
+    setInventoryPage(1);
+  };
+  // Stock card form: current values against the loaded card (edit) or the defaults (create).
+  const stockCardValues: StockCardValues = {
+    code, name, barcode, unitCode, category, minimumStock, maximumStock, reorderPoint, safetyStock,
+    procurementLeadTimeDays, manufacturingLeadTimeDays, trackingMode,
+    purchaseListPrice, salesListPrice, priceCurrencyCode, purchaseVatPercent, salesVatPercent, exciseTaxPercent,
+    communicationTaxPercent, withholdingTaxPercent, stampTaxPercent, purchaseDiscountPercent, salesDiscountPercent,
+    netWeight, grossWeight, length, width, height, purchaseAccountCode, salesAccountCode, costAccountCode,
+    productImageUrl, marketplaceProductId,
+  };
+  const itemComparedTo = editingItem && itemBaseline ? itemBaseline.values : STOCK_CARD_DEFAULTS;
+  const itemChangedFields = new Set(changedStockCardFields(stockCardValues, itemComparedTo));
+  const itemUnitsChanged = itemUnitRemovals.length > 0 || itemUnitConversions.some((x) => x.id.startsWith("draft-"));
+  const itemCustomChanged = changedCustomFields(itemCustomFieldValues, editingItem ? (itemBaseline?.custom ?? itemCustomFieldValues) : {});
+  const itemChangeCount = itemChangedFields.size + itemCustomChanged.length + (itemUnitsChanged ? 1 : 0);
+  const itemDirty: number | boolean | undefined = editingItem
+    ? itemChangeCount
+    : itemChangeCount > 0 || makeVariantDrafts(code, name, variantDimensions).length > 0 || undefined;
+  /** Edit mode: wraps a field so a change shows the yellow line and the loaded value ("Önceki: …"). */
+  const trackField = (key: StockCardField, field: React.ReactNode, className?: string) => {
+    const previous = itemBaseline?.values[key] ?? "";
+    return (
+      <RecordFieldChange
+        changed={!!editingItem && itemChangedFields.has(key)}
+        previous={formatStockCardValue(key, previous)}
+        className={className}
+      >
+        {field}
+      </RecordFieldChange>
+    );
+  };
+  const requiredCustomMissing = itemCustomFieldDefinitions.some(
+    (field) => field.isRequired && !String(itemCustomFieldValues[field.code] || "").trim(),
+  );
+  const filledCustomValues = itemCustomFieldDefinitions.map((field) => String(itemCustomFieldValues[field.code] || ""));
+  const variantDraftCount = makeVariantDrafts(code, name, variantDimensions).length;
+  // A new card: a field remembers being entered (even when cleared again); until a save attempt only those may show
+  // "error", and only entered values (not the defaults) make a section "done". Editing keeps the plain rules.
+  const itemFieldsEntered = changedStockCardFields(stockCardValues, STOCK_CARD_DEFAULTS);
+  const itemCustomEntered = Object.keys(itemCustomFieldValues).filter((key) => itemCustomFieldValues[key]);
+  useEffect(() => {
+    if (editingItem) return;
+    const entered = [...itemFieldsEntered, ...itemCustomEntered.map((key) => `custom:${key}`)];
+    if (entered.some((key) => !itemTouched.has(key))) setItemTouched((current) => new Set([...current, ...entered]));
+  });
+  const newCardRules = editingItem
+    ? {}
+    : {
+        reportable: (key: StockCardField) => itemSaveAttempted || itemTouched.has(key),
+        hasValue: (key: StockCardField) => stockCardFieldEntered(key, stockCardValues[key]),
+      };
+  const customProblemShown =
+    !!editingItem ||
+    itemSaveAttempted ||
+    itemCustomFieldDefinitions.some((field) => field.isRequired && itemTouched.has(`custom:${field.code}`) && !String(itemCustomFieldValues[field.code] || "").trim());
   const itemFormTabs: RecordFormTab[] = [
-    { key: "basic", label: "Genel ve Stok Yönetimi" },
-    { key: "pricing", label: "Fiyat ve Vergi" },
-    { key: "logistics", label: "Lojistik ve Muhasebe" },
+    { key: "basic", label: "Genel ve Stok Yönetimi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.basic, newCardRules) },
+    { key: "pricing", label: "Fiyat ve Vergi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.pricing, newCardRules) },
+    { key: "logistics", label: "Lojistik ve Muhasebe", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.logistics, newCardRules) },
     {
       key: "units",
       label: "Birim ve Özel Alanlar",
-      warning: itemCustomFieldDefinitions.some(
-        (field) =>
-          field.isRequired &&
-          !String(itemCustomFieldValues[field.code] || "").trim(),
-      ),
+      warning: requiredCustomMissing && customProblemShown,
+      state: stockCardSectionState(stockCardValues, [], {
+        invalid: requiredCustomMissing && customProblemShown,
+        extraFilled: filledCustomValues.filter((value) => value.trim()).length,
+      }),
     },
-    { key: "variants", label: "Varyantlar" },
-    { key: "recipes", label: "Üretim Reçeteleri" },
+    {
+      key: "variants",
+      label: "Varyantlar",
+      state: (editingItem ? existingVariants.length : variantDraftCount) > 0 ? "done" : "empty",
+      count: editingItem && itemRelationsLoaded ? existingVariants.length : undefined,
+    },
+    {
+      key: "recipes",
+      label: "Üretim Reçeteleri",
+      state: editingItem && itemRecipes.length > 0 ? "done" : "empty",
+      count: editingItem && itemRelationsLoaded ? itemRecipes.length : undefined,
+    },
   ];
+  const itemCompletion = stockCardCompletion(stockCardValues, filledCustomValues);
+  // The list row of the open card: stock status in the header and the context panel.
+  const editingBalance = editingItem ? balances.find((row) => row.stockItemId === editingItem.id) : undefined;
+  const editingNavIndex = editingItem && recordNavIds ? recordNavIds.indexOf(editingItem.id) : -1;
+  const stepRecord = async (delta: number) => {
+    const target = recordNavIds ? itemsById.get(recordNavIds[editingNavIndex + delta]) : undefined;
+    if (!target || busy) return;
+    if (
+      itemChangeCount > 0 &&
+      !(await confirmDialog({ title: "Kayıtlar arası gezinme", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }))
+    )
+      return;
+    void editItem(target);
+  };
+  const itemRecordNav =
+    recordNavIds && editingNavIndex >= 0
+      ? {
+          index: editingNavIndex + 1,
+          total: recordNavIds.length,
+          onPrev: editingNavIndex > 0 ? () => void stepRecord(-1) : undefined,
+          onNext: editingNavIndex < recordNavIds.length - 1 ? () => void stepRecord(1) : undefined,
+          prevDisabledReason: "Listenin bu sayfasının başı",
+          nextDisabledReason: "Listenin bu sayfasının sonu",
+        }
+      : undefined;
+  /** "Birim dönüşümleri" card of the stock card: the base unit, then the alternative units (admins add / remove). */
+  function renderItemUnitConversions() {
+    const baseUnit = unitCode || "temel birim";
+    return (
+      <RecordFormGroup title="Birim dönüşümleri" hint={`Ana birim: ${baseUnit}`}>
+        <table className="inv-card-units" aria-label="Birim dönüşümleri">
+          <thead>
+            <tr>
+              <th>Birim</th>
+              <th className="nx-num">Katsayı</th>
+              <th>Açıklama</th>
+              {role === "TenantAdmin" && <th aria-label="İşlem" />}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="nx-code">{unitCode || "—"}</td>
+              <td className="nx-num">1</td>
+              <td>Ana birim</td>
+              {role === "TenantAdmin" && <td />}
+            </tr>
+            {itemUnitConversions.map((conversion) => (
+              <tr key={conversion.id}>
+                <td className="nx-code">{conversion.unitCode}</td>
+                <td className="nx-num">{conversion.factorToBase.toLocaleString("tr-TR", { maximumFractionDigits: 8 })}</td>
+                <td>{`1 ${conversion.unitCode} = ${conversion.factorToBase.toLocaleString("tr-TR", { maximumFractionDigits: 8 })} ${baseUnit}`}</td>
+                {role === "TenantAdmin" && (
+                  <td className="inv-card-units-action">
+                    <button
+                      type="button"
+                      className="row-action danger-action"
+                      disabled={busy}
+                      onClick={() => removeItemUnitConversion(conversion)}
+                    >
+                      Kaldır
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {itemUnitConversions.length === 0 && (
+              <tr>
+                <td colSpan={role === "TenantAdmin" ? 4 : 3} className="inv-card-units-empty">
+                  Henüz alternatif birim tanımlanmadı.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {role === "TenantAdmin" && (
+          // Enter in these fields adds the unit; it must not save the whole card. The factor has no browser
+          // constraints (addItemUnitConversion rejects ≤ 0), so an unfinished entry never blocks Kaydet.
+          <div
+            className="inv-rf-inline-add"
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              if (!(event.target instanceof HTMLInputElement)) return;
+              event.preventDefault();
+              if (!busy) addItemUnitConversion();
+            }}
+          >
+            <label>
+              Alternatif birim kodu
+              <input
+                className="rf-mono"
+                value={itemUnitCode}
+                onChange={(e) => setItemUnitCode(e.target.value.toUpperCase())}
+                maxLength={8}
+                placeholder="KOLI"
+              />
+            </label>
+            <label>
+              Temel birim katsayısı
+              <input
+                className="rf-num"
+                type="number"
+                step="any"
+                value={itemUnitFactor}
+                onChange={(e) => setItemUnitFactor(e.target.value)}
+              />
+            </label>
+            <button type="button" className="secondary" disabled={busy} onClick={addItemUnitConversion}>
+              Birim dönüşümü ekle
+            </button>
+            <small>Örnek: 1 koli = 12 {baseUnit}</small>
+          </div>
+        )}
+        <small>1 alternatif birim = katsayı × {baseUnit}</small>
+      </RecordFormGroup>
+    );
+  }
   const activeItemTab = itemFormTabs.some((tab) => tab.key === itemCreateTab)
     ? itemCreateTab
     : "basic";
   const transferReady =
     !!transferTo &&
     Object.values(transferQuantities).some((x) => Number(x) > 0);
-  function renderInventoryPagination() {
-    return inventoryTotal > inventoryPageSize ? (
-      <div className="table-pagination" aria-label="Stok sayfaları">
-        <span>
-          {inventoryTotal.toLocaleString("tr-TR")} stok · Sayfa {inventoryPage}/
-          {inventoryPageCount}
-        </span>
-        <div>
-          <button
-            type="button"
-            className="secondary small-button"
-            disabled={inventoryPage <= 1 || balancesLoading}
-            onClick={() => setInventoryPage((page) => Math.max(1, page - 1))}
-          >
-            Önceki
-          </button>
-          <button
-            type="button"
-            className="secondary small-button"
-            disabled={inventoryPage >= inventoryPageCount || balancesLoading}
-            onClick={() =>
-              setInventoryPage((page) => Math.min(inventoryPageCount, page + 1))
-            }
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
-    ) : null;
-  }
   function renderStockScreenCell(
     field: BuiltInScreenLayoutField,
     item: InventoryBalance,
   ) {
     const stock = itemsById.get(item.stockItemId);
+    const quantity = (value: number) =>
+      value.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
     switch (field.key) {
       case "code":
         return (
-          <span className="customer-code" title={item.code} aria-label={item.code}>
+          <span className="nx-code" title={item.code}>
             {item.code}
           </span>
         );
       case "name":
         return (
           <>
-            <b className="customer-name">{item.name}</b>
-            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
+            {/* Normal weight like mockup 01; bold only as the title over the code. */}
+            <span className={stockCodeColumnVisible ? undefined : "customer-name"}>{item.name}</span>
+            {!stockCodeColumnVisible && (
+              <small className="cell-subtitle list-v2-name-code">{item.code}</small>
+            )}
           </>
         );
       case "category":
         return stock?.category || "—";
       case "quantityOnHand":
-        return (
-          <b>
-            {item.quantityOnHand.toLocaleString("tr-TR", {
-              maximumFractionDigits: 4,
-            })}{" "}
-            {item.unitCode}
-          </b>
-        );
+        return `${quantity(item.quantityOnHand)} ${item.unitCode}`;
       case "reservedQuantity":
-        return (
-          <>
-            {item.reservedQuantity.toLocaleString("tr-TR", {
-              maximumFractionDigits: 4,
-            })}{" "}
-            {item.unitCode}
-          </>
-        );
+        return `${quantity(item.reservedQuantity)} ${item.unitCode}`;
       case "availableQuantity":
-        return (
-          <b>
-            {item.availableQuantity.toLocaleString("tr-TR", {
-              maximumFractionDigits: 4,
-            })}{" "}
-            {item.unitCode}
-          </b>
-        );
+        return <StockAvailableCell balance={item} />;
       case "minimumStock":
-        return item.minimumStock.toLocaleString("tr-TR", {
-          maximumFractionDigits: 4,
-        });
+        return quantity(item.minimumStock);
       case "valuationAmountBase":
-        return (
-          <>
-            {item.valuationAmountBase.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}{" "}
-            {item.baseCurrencyCode}
-          </>
-        );
+        return `${item.valuationAmountBase.toLocaleString("tr-TR", {
+          minimumFractionDigits: 2,
+        })} ${item.baseCurrencyCode}`;
       case "unvaluedQuantity":
-        return (
-          <>
-            {item.unvaluedQuantity.toLocaleString("tr-TR", {
-              maximumFractionDigits: 4,
-            })}{" "}
-            {item.unitCode}
-          </>
-        );
-      case "status":
-        return (
-          <span className={`active-pill ${item.belowMinimum ? "no" : "yes"}`}>
-            <i />
-            {item.belowMinimum ? "Minimum altı" : "Yeterli"}
-          </span>
-        );
-      case "actions":
-        return (
-          <InventoryStockActionsMenu>
-            {stock && (
-              <>
-                <button
-                  type="button"
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => editItem(stock)}
-                >
-                  Düzenle
-                </button>
-                <button
-                  type="button"
-                  className="row-action"
-                  disabled={busy}
-                  onClick={() => void changeItemState(stock, false)}
-                >
-                  Devre dışı
-                </button>
-                {role === "TenantAdmin" && (
-                  <button
-                    type="button"
-                    className="row-action"
-                    disabled={busy}
-                    onClick={() => void deleteItem(stock)}
-                  >
-                    Sil
-                  </button>
-                )}
-              </>
-            )}
-            <button
-              type="button"
-              className="row-action"
-              disabled={busy || !warehouseId}
-              title={
-                !warehouseId
-                  ? "Hareket eklemek için önce bir depo seçin"
-                  : undefined
-              }
-              onClick={() => void openMovements(item)}
-            >
-              Hareketler / ekle
-            </button>
-          </InventoryStockActionsMenu>
-        );
+        return `${quantity(item.unvaluedQuantity)} ${item.unitCode}`;
+      case "status": {
+        const status = stockListStatus(item, stock);
+        return <StatusTag tone={status.tone}>{status.label}</StatusTag>;
+      }
       default:
         return null;
     }
   }
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  // Ids that name the page dialogs (role="dialog" aria-modal so the command layer sees them).
+  const dialogId = useId();
+  // The movement dialog is portalled to <body>; this keeps Ctrl+S working inside it.
+  const viewDialogOwner = useViewDialogOwner();
+  // Dialogs that are not this page's record form: Yeni (F2) must not open a form behind them.
+  const pageDialogOpen =
+    categoryModal || customFieldPickerOpen || importOpen || !!selectedTransfer || !!costTarget ||
+    warehouseFieldCatalogModal || !!movementItem || !!customFieldItem;
+  // Yeni over an open form with unsaved input asks first, then starts a fresh record.
+  const startNew = async (dirty: boolean, open: () => void | Promise<void>) => {
+    if (dirty && !(await confirmDialog({ title: "Yeni kayıt", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })))
+      return;
+    await open();
+  };
+  const stockList = useStockListScreen({
+    active: section === "inventory-stock" && !editingItem,
+    token,
+    role,
+    busy,
+    balances: pagedBalances,
+    itemsById,
+    warehouses,
+    warehouseId,
+    search: stockSearch,
+    total: inventoryTotal,
+    page: inventoryPage,
+    pageSize: inventoryPageSize,
+    loading: balancesLoading,
+    belowMinimumCount,
+    belowMinimumOnly,
+    exportRef: gridExportRef,
+    onToggleBelowMinimum: toggleBelowMinimum,
+    onPageChange: setInventoryPage,
+    onOpen: openItemFromList,
+    onDeleteOne: deleteItem,
+    onDeactivate: (stock) => void changeItemState(stock, false),
+    onMovements: (balance) => void openMovements(balance),
+    onBusy: setBusy,
+    onError: setError,
+    onNotice: setNotice,
+    reload: () => loadBalances(),
+  });
+  const transferList = useTransferListScreen({
+    transfers: visibleTransfers,
+    total: transferTotal,
+    page: transferPage,
+    busy,
+    loading,
+    exportRef: gridExportRef,
+    onOpen: (transfer) => void openTransfer(transfer),
+    onVoid: (transfer) => void voidTransfer(transfer),
+    onPageChange: (page) => void loadTransfers(page),
+  });
+  const costList = useCostListScreen({
+    balances: pagedBalances,
+    total: inventoryTotal,
+    page: inventoryPage,
+    pageSize: inventoryPageSize,
+    loading: balancesLoading,
+    busy,
+    exportRef: gridExportRef,
+    onManage: (balance) => void openCostManager(balance),
+    onPageChange: setInventoryPage,
+  });
+  const warehouseScreen = useWarehouseDefinitionScreen({
+    active: section === "inventory-warehouses" && !pageDialogOpen,
+    token,
+    role,
+    warehouses,
+    setWarehouses,
+    loading,
+    busy,
+    setBusy,
+    error,
+    setError,
+    setNotice,
+    fields: visibleWarehouseFields,
+    catalogVersion: warehouseCatalogVersion,
+    exportRef: gridExportRef,
+    toolsSlot: listToolsSlot,
+    toolsSlotRef: setListToolsSlot,
+    onRefresh: () => void loadBase(),
+    onNavigate,
+  });
+  // Saving is registered by the open RecordFormPage itself (Kaydet / Ctrl+S, primary).
+  const pageCommands: PageCommands = {};
+  if (pageDialogOpen) {
+    // no `new` while another dialog of the page is open
+  } else if (section === "inventory-stock") {
+    // An edited card stays in this tab; the new card opens in its own tab.
+    pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
+    if (!editingItem) Object.assign(pageCommands, stockList.commands);
+  } else if (section === "inventory-stock-create") {
+    pageCommands.new = { run: () => startNew(!!(code.trim() || name.trim()), openItemModal) };
+  } else if (section === "inventory-warehouses") {
+    // Yeni, Sil (explained, with Pasife al); the open form registers Kaydet.
+    Object.assign(pageCommands, warehouseScreen.commands);
+  } else if (section === "inventory-transfers") {
+    pageCommands.new = {
+      primary: true,
+      disabledReason:
+        warehouses.filter((x) => x.isActive).length < 2
+          ? "Transfer için en az iki aktif depo gerekir"
+          : undefined,
+      run: () => startNew(transferModal && transferSelectedItems.length > 0, openTransferModal),
+    };
+    Object.assign(pageCommands, transferList.commands);
+  } else if (section === "inventory-cost" && role === "TenantAdmin") {
+    // The cost manager of the current row (the former card's Yönet).
+    Object.assign(pageCommands, costList.commands);
+  }
+  // Former page-header actions; the list and its header are not shown while a stock card is edited.
+  if (!editingItem && section !== "inventory-stock-create") {
+    const more: MenuCommand[] = [];
+    if (section === "inventory-stock") {
+      more.push(...stockList.moreItems);
+      if (role === "TenantAdmin") {
+        more.push({ id: "stock-categories", label: "Kategorileri yönet", run: () => void openCategoryManager() });
+        more.push({ id: "stock-import-csv", label: "CSV içe aktar", run: () => setImportOpen(true) });
+      }
+      more.push({ id: "stock-custom-fields", label: "Özel alanlar", run: () => setCustomFieldPickerOpen(true) });
+    }
+    if (section === "inventory-warehouses") {
+      // The former "Depoları yönet" dialog's edit, custom values and status change are the form and this item.
+      more.push(...warehouseScreen.moreItems);
+      if (role === "TenantAdmin" || role === "TenantDeveloper")
+        more.push({ id: "warehouse-field-catalog", label: "Depo alan tanımları", run: () => void openWarehouseFieldCatalog() });
+    }
+    if (section === "inventory-transfers") more.push(...transferList.moreItems);
+    // Stok Değerleme has a grid (and so an export) for TenantAdmin only.
+    if (section !== "inventory-cost" || role === "TenantAdmin") more.push(csvExportCommand(gridExportRef));
+    pageCommands.more = more;
+  }
+  usePageCommands(pageCommands);
   return (
     <>
       {!editingItem && (
@@ -2528,72 +2529,10 @@ export function InventoryPage({
                       ? warehouses.length
                       : null
               }
-            >
-              {section === "inventory-transfers" && (
-                <button
-                  className="primary"
-                  disabled={warehouses.filter((x) => x.isActive).length < 2}
-                  onClick={openTransferModal}
-                >
-                  <IconPack.Plus size={16} /> Yeni transfer
-                </button>
-              )}
-              {section === "inventory-warehouses" && (
-                <>
-                  {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-                    <button
-                      className="secondary"
-                      onClick={() => void openWarehouseFieldCatalog()}
-                    >
-                      Depo alan tanımları
-                    </button>
-                  )}
-                  <button
-                    className="secondary"
-                    onClick={() => setWarehouseAdminModal(true)}
-                  >
-                    Depoları yönet
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => void openWarehouseModal()}
-                  >
-                    <IconPack.Plus size={16} /> Depo ekle
-                  </button>
-                </>
-              )}
-              {section === "inventory-stock" && role === "TenantAdmin" && (
-                <button
-                  className="secondary"
-                  onClick={() => void openCategoryManager()}
-                >
-                  <IconPack.Settings size={16} /> Kategorileri yönet
-                </button>
-              )}
-              {section === "inventory-stock" && role === "TenantAdmin" && (
-                <button
-                  className="secondary"
-                  onClick={() => setImportOpen(true)}
-                >
-                  <IconPack.Upload size={15} /> CSV içe aktar
-                </button>
-              )}
-              {section === "inventory-stock" && (
-                <button className="secondary" onClick={() => setCustomFieldPickerOpen(true)}>
-                  Özel alanlar
-                </button>
-              )}
-              {section === "inventory-stock" && (
-                <button
-                  className="primary"
-                  onClick={() => onNavigate?.("inventory-stock-create")}
-                >
-                  <IconPack.Plus size={17} /> Yeni stok kartı
-                </button>
-              )}
-            </ListPageHeader>
+            />
           )}
-          {section !== "inventory-stock-create" && error && (
+          {/* An open Depolar form shows the error itself, next to the fields. */}
+          {section !== "inventory-stock-create" && error && !(section === "inventory-warehouses" && warehouseScreen.formOpen) && (
             <div className="alert inline-alert">
               {error}
               <button onClick={() => setError("")}>
@@ -2618,6 +2557,8 @@ export function InventoryPage({
               </span>
             </div>
           )}
+          {section === "inventory-stock" && stockList.summary}
+          {section === "inventory-cost" && role === "TenantAdmin" && costList.summary}
           {(section === "inventory-stock" ||
             (section === "inventory-cost" && role === "TenantAdmin")) && (
             <InventoryStockFilters
@@ -2637,145 +2578,50 @@ export function InventoryPage({
                 setStockSearch(value);
                 setInventoryPage(1);
               }}
-              onToggleBelowMinimum={() => {
-                setBelowMinimumOnly((value) => !value);
-                setInventoryPage(1);
-              }}
+              onToggleBelowMinimum={toggleBelowMinimum}
               onApplyFilters={() => void loadBalances()}
-              toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : undefined}
+              toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : setListToolsSlot}
+              extra={section === "inventory-stock" ? stockList.panelToggle : undefined}
             />
           )}
           {section === "inventory-cost" && role === "TenantAdmin" && (
-            <section className="panel inventory-cost-panel">
-              {balancesLoading ? (
-                <div className="inventory-cost-empty">
-                  <span>
-                    <IconPack.Boxes size={17} />
-                  </span>
-                  <div>
-                    <b>Stok bakiyeleri yükleniyor…</b>
-                    <p>Seçili deponun miktar ve maliyet bilgileri alınıyor.</p>
-                  </div>
-                </div>
-              ) : balances.length > 0 ? (
-                <>
-                  <div className="inventory-cost-grid">
-                    {pagedBalances.map((item) => (
-                      <article
-                        className="inventory-cost-card"
-                        key={item.stockItemId}
-                      >
-                        <div className="inventory-cost-card-head">
-                          <div>
-                            <span className="inventory-cost-code">
-                              {item.code}
-                            </span>
-                            <h3>{item.name}</h3>
-                          </div>
-                          <button
-                            className="inventory-cost-manage"
-                            disabled={busy}
-                            onClick={() => void openCostManager(item)}
-                          >
-                            Yönet <IconPack.ArrowRight size={14} />
-                          </button>
-                        </div>
-                        <div className="inventory-cost-metrics">
-                          <div>
-                            <span>Depo miktarı</span>
-                            <b>
-                              {item.quantityOnHand.toLocaleString("tr-TR", {
-                                maximumFractionDigits: 4,
-                              })}{" "}
-                              <small>{item.unitCode}</small>
-                            </b>
-                          </div>
-                          <div>
-                            <span>Stok değeri</span>
-                            <b>
-                              {item.valuationAmountBase.toLocaleString(
-                                "tr-TR",
-                                { minimumFractionDigits: 2 },
-                              )}{" "}
-                              <small>{item.baseCurrencyCode}</small>
-                            </b>
-                          </div>
-                        </div>
-                        <div className="inventory-cost-card-foot">
-                          <span>
-                            <IconPack.Package size={13} /> Maliyet kayıtları ve
-                            birim dönüşümleri
-                          </span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  {renderInventoryPagination()}
-                </>
-              ) : (
-                <div className="inventory-cost-empty">
-                  <span>
-                    <IconPack.Boxes size={17} />
-                  </span>
-                  <div>
-                    <b>Yönetilecek stok bakiyesi yok</b>
-                    <p>
-                      Seçili depoda hareketi olan stok kartları burada görünür.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-          {section === "inventory-stock" && (
-            <InventoryStockGrid
-              fields={visibleStockFields}
-              balances={filteredBalances}
-              pageBalances={pagedBalances}
-              loading={loading}
-              balancesLoading={balancesLoading}
-              warehouseSelected={
-                Boolean(warehouseId) ||
-                warehouses.some((warehouse) => warehouse.isActive)
-              }
-              belowMinimumOnly={belowMinimumOnly}
-              renderCell={renderStockScreenCell}
-              pagination={renderInventoryPagination()}
-              toolbarContainer={stockToolsSlot}
+            <InventoryCostGrid
+              balances={pagedBalances}
+              hasBalances={balances.length > 0}
+              loading={balancesLoading}
+              busy={busy}
+              onManage={(balance) => void openCostManager(balance)}
+              toolbarContainer={listToolsSlot}
+              exportActionsRef={gridExportRef}
+              {...costList.grid}
             />
           )}
-          {section === "inventory-warehouses" && (
-            <div className="warehouse-management">
-              <ListToolbar
-                search={warehouseSearch}
-                onSearchChange={setWarehouseSearch}
-                searchLabel="Depo ara"
-                searchPlaceholder="Depo kodu veya adıyla ara"
-                onRefresh={() => void loadBase()}
-                toolsSlotRef={setListToolsSlot}
-              >
-                <ListChipGroup
-                  label="Durum"
-                  value={warehouseStatusFilter}
-                  onChange={setWarehouseStatusFilter}
-                  allowClear
-                  options={[
-                    { value: "Active", label: "Aktif", count: warehouses.filter((row) => row.isActive).length },
-                    { value: "Inactive", label: "Pasif", count: warehouses.filter((row) => !row.isActive).length },
-                  ]}
-                />
-              </ListToolbar>
-              <section className="panel inventory-stock-grid-panel warehouse-directory-grid list-v2-list">
-                {loading ? (
-                  <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
-                ) : visibleWarehouses.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
-                ) : (
-                  <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
-                )}
-              </section>
+          {section === "inventory-stock" && (
+            <div
+              ref={stockList.rootRef}
+              className={`inventory-stock-body${stockList.detailOpen ? " has-detail" : ""}`}
+            >
+              <InventoryStockGrid
+                fields={visibleStockFields}
+                balances={filteredBalances}
+                pageBalances={pagedBalances}
+                loading={loading}
+                balancesLoading={balancesLoading}
+                warehouseSelected={
+                  Boolean(warehouseId) ||
+                  warehouses.some((warehouse) => warehouse.isActive)
+                }
+                belowMinimumOnly={belowMinimumOnly}
+                renderCell={renderStockScreenCell}
+                toolbarContainer={stockToolsSlot}
+                hideExport
+                exportActionsRef={gridExportRef}
+                {...stockList.grid}
+              />
+              {stockList.panel}
             </div>
           )}
+          {section === "inventory-warehouses" && warehouseScreen.view}
           {section === "inventory-transfers" && (
             <div className="warehouse-management">
               <ListToolbar
@@ -2797,36 +2643,17 @@ export function InventoryPage({
                   ]}
                 />
               </ListToolbar>
-              <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
-                {visibleTransfers.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
-                ) : (
-                  <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
-                )}
-              {transferTotal > 50 && (
-                <div className="table-pagination">
-                  <span>
-                    Sayfa {transferPage}/{Math.ceil(transferTotal / 50)}
-                  </span>
-                  <div>
-                    <button
-                      className="secondary small-button"
-                      disabled={transferPage <= 1}
-                      onClick={() => void loadTransfers(transferPage - 1)}
-                    >
-                      Önceki
-                    </button>
-                    <button
-                      className="secondary small-button"
-                      disabled={transferPage >= Math.ceil(transferTotal / 50)}
-                      onClick={() => void loadTransfers(transferPage + 1)}
-                    >
-                      Sonraki
-                    </button>
-                  </div>
-                </div>
-              )}
-              </section>
+              <InventoryTransferGrid
+                fields={visibleTransferFields}
+                transfers={visibleTransfers}
+                busy={busy}
+                onOpen={(transfer) => void openTransfer(transfer)}
+                onVoid={(transfer) => void voidTransfer(transfer)}
+                toolbarContainer={listToolsSlot}
+                exportActionsRef={gridExportRef}
+                empty={<div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>}
+                {...transferList.grid}
+              />
             </div>
           )}
           {section === "inventory-stock" &&
@@ -2856,7 +2683,10 @@ export function InventoryPage({
                         <button
                           className="row-action"
                           disabled={busy}
-                          onClick={() => editItem(item)}
+                          onClick={() => {
+                            setRecordNavIds(null);
+                            void editItem(item);
+                          }}
                         >
                           Düzenle
                         </button>
@@ -2883,11 +2713,11 @@ export function InventoryPage({
                   setCategoryModal(false);
               }}
             >
-              <div className="modal stock-category-modal">
+              <div className="modal stock-category-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-category`}>
                 <div className="modal-head">
                   <div>
                     <p className="eyebrow">STOK & DEPO · TANIMLAR</p>
-                    <h2>Stok kategorileri</h2>
+                    <h2 id={`${dialogId}-category`}>Stok kategorileri</h2>
                   </div>
                   <button
                     type="button"
@@ -2974,9 +2804,9 @@ export function InventoryPage({
           )}
           {customFieldPickerOpen && (
             <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomFieldPickerOpen(false); }}>
-              <div className="modal stock-custom-field-picker">
+              <div className="modal stock-custom-field-picker" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-custom-field-picker`}>
                 <div className="modal-head">
-                  <div><p className="eyebrow">STOK KARTI · ÖZEL ALANLAR</p><h2>Stok kartı seçin</h2></div>
+                  <div><p className="eyebrow">STOK KARTI · ÖZEL ALANLAR</p><h2 id={`${dialogId}-custom-field-picker`}>Stok kartı seçin</h2></div>
                   <button className="icon-button" onClick={() => setCustomFieldPickerOpen(false)}><X size={18} /></button>
                 </div>
                 <p className="muted">Özel alan değerlerini görüntülemek veya düzenlemek için stok kartı seçin.</p>
@@ -3010,7 +2840,8 @@ export function InventoryPage({
                   setCustomFieldItem(null);
               }}
             >
-              <div className="modal inv-rf-modal">
+              <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-custom-field-values`}>
+            <span id={`${dialogId}-custom-field-values`} hidden>{customFieldItem.code} · {customFieldItem.name}</span>
                 <RecordFormPage
                   variant="dialog"
                   title={`${customFieldItem.code} · ${customFieldItem.name}`}
@@ -3371,9 +3202,36 @@ export function InventoryPage({
       )}
       {itemModal && (section === "inventory-stock-create" || !!editingItem) && (
         <RecordFormPage
+          // A new record per card: PgUp / PgDn start untouched (Esc closes without asking).
+          key={editingItem?.id ?? "new"}
           className="inventory-item-record-form"
-          title={editingItem ? "Stok Kartını Düzenle" : "Stok Kartı Tanımlama"}
+          title={editingItem ? editingItem.name : "Stok Kartı Tanımlama"}
           mode={editingItem ? "edit" : "create"}
+          media={<StockCardImage url={editingItem?.productImageUrl} />}
+          subtitle={
+            editingItem && (
+              <>
+                <span className="rf-code">{editingItem.code}</span>
+                <StatusTag tone={editingItem.isActive ? "ok" : "off"}>{editingItem.isActive ? "Aktif" : "Pasif"}</StatusTag>
+                {editingBalance?.belowMinimum && <StatusTag tone="bad">Minimum altı</StatusTag>}
+                {stockCardSummary(editingItem) && <span>{stockCardSummary(editingItem)}</span>}
+              </>
+            )
+          }
+          dirty={itemDirty}
+          recordNav={itemRecordNav}
+          aside={
+            editingItem ? (
+              <StockCardAside
+                token={token}
+                role={role}
+                code={editingItem.code}
+                createdAt={editingItem.createdAt}
+                balance={editingBalance}
+                scope={warehouseId ? (warehouses.find((row) => row.id === warehouseId)?.name ?? "seçili depo") : "tüm depolar"}
+              />
+            ) : undefined
+          }
           busy={busy}
           saveLabel={editingItem ? "Değişiklikleri Kaydet" : "Stok Kartını Kaydet"}
           formId="inventory-item-create-form"
@@ -3399,60 +3257,105 @@ export function InventoryPage({
               {itemFormNotice && (
                 <span className="rf-status-notice">{itemFormNotice}</span>
               )}
-              {!editingItem && !!(code.trim() || name.trim()) && (
-                <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>
-              )}
             </>
           }
         >
-          <RecordFormGroup title="Stok Kimliği" bodyClassName="rf-identity">
-            <label>
-              <span>Stok kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                maxLength={64}
-                placeholder="STK-1001"
-              />
-            </label>
-            <label>
-              <span>Stok adı <RequiredMark /></span>
-              <input
-                className="rf-must"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                maxLength={200}
-                placeholder="Stok adı"
-              />
-            </label>
-            <label>
-              <span>Birim kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={unitCode}
-                onChange={(e) => setUnitCode(e.target.value.toUpperCase())}
-                required
-                maxLength={8}
-                placeholder="EA"
-              />
-            </label>
-            <label>
-              Kategori
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Kategori seçin</option>
-                {stockCategoryOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* A blocked save (browser validation) counts as a save attempt: section errors show from then on. */}
+          <div className="inv-card-form-body" onInvalidCapture={() => setItemSaveAttempted(true)}>
+          {/* Kimlik stays above the sections (always mounted, so its required fields are checked on every save). */}
+          <RecordFormGroup title="Kimlik" hint="* zorunlu alan" bodyClassName="rf-identity">
+            {trackField(
+              "code",
+              <label>
+                <span>Stok kodu <RequiredMark /></span>
+                <input
+                  className="rf-must rf-mono"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  maxLength={64}
+                  placeholder="STK-1001"
+                />
+              </label>,
+            )}
+            {trackField(
+              "name",
+              <label>
+                <span>Stok adı <RequiredMark /></span>
+                <input
+                  className="rf-must"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  maxLength={200}
+                  placeholder="Stok adı"
+                />
+              </label>,
+              "rf-span-2",
+            )}
+            {trackField(
+              "barcode",
+              <label>
+                Barkod
+                <input
+                  className="rf-mono"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  maxLength={64}
+                  placeholder="Barkod"
+                />
+              </label>,
+            )}
+            {trackField(
+              "category",
+              <label>
+                Kategori
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">Kategori seçin</option>
+                  {stockCategoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>,
+            )}
+            {trackField(
+              "trackingMode",
+              <label>
+                Takip yöntemi
+                <select
+                  value={trackingMode}
+                  onChange={(e) =>
+                    setTrackingMode(
+                      e.target.value as StockItem["trackingMode"],
+                    )
+                  }
+                >
+                  <option value="None">Kapalı</option>
+                  <option value="Lot">Lot</option>
+                  <option value="Serial">Seri numarası</option>
+                </select>
+                <small>Hareket geçmişi oluşunca takip yöntemi değiştirilemez.</small>
+              </label>,
+            )}
+            {trackField(
+              "unitCode",
+              <label>
+                <span>Ana birim <RequiredMark /></span>
+                <input
+                  className="rf-must rf-mono"
+                  value={unitCode}
+                  onChange={(e) => setUnitCode(e.target.value.toUpperCase())}
+                  required
+                  maxLength={8}
+                  placeholder="EA"
+                />
+              </label>,
+            )}
           </RecordFormGroup>
 
           <RecordFormTabs
@@ -3460,41 +3363,16 @@ export function InventoryPage({
             active={activeItemTab}
             onChange={(key) => setItemCreateTab(key as typeof itemCreateTab)}
             label="Stok kartı form bölümleri"
+            completion={itemCompletion}
           >
             {activeItemTab === "basic" && (
               <div className="rf-columns">
-                <RecordFormGroup title="Tanımlama ve Takip">
-                  <label>
-                    Barkod
-                    <input
-                      className="rf-mono"
-                      value={barcode}
-                      onChange={(e) => setBarcode(e.target.value)}
-                      maxLength={64}
-                      placeholder="Barkod"
-                    />
-                  </label>
-                  <label>
-                    Lot / seri takibi
-                    <select
-                      value={trackingMode}
-                      onChange={(e) =>
-                        setTrackingMode(
-                          e.target.value as StockItem["trackingMode"],
-                        )
-                      }
-                    >
-                      <option value="None">Kapalı</option>
-                      <option value="Lot">Lot</option>
-                      <option value="Serial">Seri numarası</option>
-                    </select>
-                    <small>
-                      Hareket geçmişi oluşunca takip türü değiştirilemez.
-                    </small>
-                  </label>
-                </RecordFormGroup>
-                <RecordFormGroup title="Stok Seviyeleri">
-                  <div className="rf-pair">
+                <RecordFormGroup
+                  title="Stok yönetimi"
+                  hint={editingItem ? "Değişen alanlar sarı çizgiyle işaretlenir" : undefined}
+                >
+                  {trackField(
+                    "minimumStock",
                     <label>
                       Minimum stok
                       <input
@@ -3505,16 +3383,22 @@ export function InventoryPage({
                         value={minimumStock}
                         onChange={(e) => setMinimumStock(e.target.value)}
                       />
-                    </label>
-                    <label>Azami stok<input className="rf-num" type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>
-                  </div>
-                  <div className="rf-pair">
-                    <label>Yeniden sipariş noktası<input className="rf-num" type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>
-                    <label>Güvenli stok<input className="rf-num" type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>
-                  </div>
-                </RecordFormGroup>
-                <RecordFormGroup title="Temin Süreleri">
-                  <div className="rf-pair">
+                    </label>,
+                  )}
+                  {trackField(
+                    "maximumStock",
+                    <label>Maksimum stok<input className="rf-num" type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>,
+                  )}
+                  {trackField(
+                    "reorderPoint",
+                    <label>Yeniden sipariş noktası<input className="rf-num" type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>,
+                  )}
+                  {trackField(
+                    "safetyStock",
+                    <label>Güvenli stok<input className="rf-num" type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>,
+                  )}
+                  {trackField(
+                    "procurementLeadTimeDays",
                     <label>
                       Tedarik süresi (gün)
                       <input
@@ -3528,7 +3412,10 @@ export function InventoryPage({
                           setProcurementLeadTimeDays(e.target.value)
                         }
                       />
-                    </label>
+                    </label>,
+                  )}
+                  {trackField(
+                    "manufacturingLeadTimeDays",
                     <label>
                       Üretim süresi (gün)
                       <input
@@ -3542,41 +3429,48 @@ export function InventoryPage({
                           setManufacturingLeadTimeDays(e.target.value)
                         }
                       />
-                    </label>
+                    </label>,
+                  )}
+                  <div className="inv-card-rule-cell">
+                    <NegativeStockRuleLine token={token} />
                   </div>
                 </RecordFormGroup>
+                {renderItemUnitConversions()}
               </div>
             )}
             {activeItemTab === "pricing" && (
               <div className="rf-columns">
                 <RecordFormGroup title="Liste Fiyatları">
                   <div className="rf-pair">
-                    <label>Alış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
-                    <label>Satış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                    {trackField("purchaseListPrice", <label>Alış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>)}
+                    {trackField("salesListPrice", <label>Satış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>)}
                   </div>
-                  <label className="rf-short">
-                    <span>Fiyat dövizi <RequiredMark /></span>
-                    <input className="rf-must rf-mono" value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" />
-                  </label>
+                  {trackField(
+                    "priceCurrencyCode",
+                    <label className="rf-short">
+                      <span>Fiyat dövizi <RequiredMark /></span>
+                      <input className="rf-must rf-mono" value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" />
+                    </label>,
+                  )}
                   <small>Bu fiyatlar stok kartının varsayılan alış ve satış fiyatlarıdır.</small>
                 </RecordFormGroup>
                 <RecordFormGroup title="Vergi Oranları">
                   <div className="rf-pair">
-                    <label>Alış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>
-                    <label>Satış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>
+                    {trackField("purchaseVatPercent", <label>Alış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>)}
+                    {trackField("salesVatPercent", <label>Satış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>ÖTV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>
-                    <label>ÖİV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>
+                    {trackField("exciseTaxPercent", <label>ÖTV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>)}
+                    {trackField("communicationTaxPercent", <label>ÖİV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Tevkifat %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>
-                    <label>Damga vergisi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>
+                    {trackField("withholdingTaxPercent", <label>Tevkifat %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>)}
+                    {trackField("stampTaxPercent", <label>Damga vergisi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>)}
                   </div>
                 </RecordFormGroup>
                 <RecordFormGroup title="Varsayılan İndirimler">
-                  <label>Varsayılan alış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>
-                  <label>Varsayılan satış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>
+                  {trackField("purchaseDiscountPercent", <label>Varsayılan alış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>)}
+                  {trackField("salesDiscountPercent", <label>Varsayılan satış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>)}
                 </RecordFormGroup>
               </div>
             )}
@@ -3584,100 +3478,37 @@ export function InventoryPage({
               <div className="rf-columns">
                 <RecordFormGroup title="Ağırlık ve Boyut">
                   <div className="rf-pair">
-                    <label>Net ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>
-                    <label>Brüt ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>
+                    {trackField("netWeight", <label>Net ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>)}
+                    {trackField("grossWeight", <label>Brüt ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Uzunluk (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>
-                    <label>Genişlik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>
+                    {trackField("length", <label>Uzunluk (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>)}
+                    {trackField("width", <label>Genişlik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Yükseklik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>
+                    {trackField("height", <label>Yükseklik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>)}
                   </div>
                 </RecordFormGroup>
                 <RecordFormGroup title="Muhasebe Hesapları">
-                  <label>Alış muhasebe hesap kodu<input className="rf-mono" value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>
-                  <label>Satış muhasebe hesap kodu<input className="rf-mono" value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>
-                  <label>Maliyet hesap kodu<input className="rf-mono" value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>
+                  {trackField("purchaseAccountCode", <label>Alış muhasebe hesap kodu<input className="rf-mono" value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>)}
+                  {trackField("salesAccountCode", <label>Satış muhasebe hesap kodu<input className="rf-mono" value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>)}
+                  {trackField("costAccountCode", <label>Maliyet hesap kodu<input className="rf-mono" value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>)}
                 </RecordFormGroup>
                 <RecordFormGroup title="Görsel ve Pazaryeri">
-                  <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>
-                  <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>
+                  {trackField("productImageUrl", <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>)}
+                  {trackField("marketplaceProductId", <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>)}
                 </RecordFormGroup>
               </div>
             )}
             {activeItemTab === "units" && (
               <div className="inv-rf-stack">
-                <RecordFormGroup title="Birim Dönüşümleri">
-                  <small>
-                    1 alternatif birim = katsayı × {unitCode || "temel birim"}
-                  </small>
-                  {role === "TenantAdmin" && (
-                    <div className="inv-rf-inline-add">
-                      <label>
-                        Alternatif birim kodu
-                        <input
-                          className="rf-mono"
-                          value={itemUnitCode}
-                          onChange={(e) =>
-                            setItemUnitCode(e.target.value.toUpperCase())
-                          }
-                          maxLength={8}
-                          placeholder="KOLI"
-                        />
-                      </label>
-                      <label>
-                        Temel birim katsayısı
-                        <input
-                          className="rf-num"
-                          type="number"
-                          min="0.00000001"
-                          step="0.00000001"
-                          value={itemUnitFactor}
-                          onChange={(e) => setItemUnitFactor(e.target.value)}
-                          required
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={addItemUnitConversion}
-                      >
-                        Birim dönüşümü ekle
-                      </button>
-                      <small>Örnek: 1 koli = 12 {unitCode || "temel birim"}</small>
+                {itemCustomFieldDefinitions.length === 0 && (
+                  <RecordFormGroup title="Özel Alanlar">
+                    <div className="empty-small">
+                      Stok kartları için tanımlı özel alan yok. Birim dönüşümleri “Genel ve Stok Yönetimi” bölümündedir.
                     </div>
-                  )}
-                  <div className="requests-list">
-                    {itemUnitConversions.map((conversion) => (
-                      <article className="request-row" key={conversion.id}>
-                        <div className="request-info">
-                          <b>{conversion.unitCode}</b>
-                          <small>
-                            1 {conversion.unitCode} ={" "}
-                            {conversion.factorToBase} {unitCode}
-                          </small>
-                        </div>
-                        {role === "TenantAdmin" && (
-                          <button
-                            type="button"
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => removeItemUnitConversion(conversion)}
-                          >
-                            Kaldır
-                          </button>
-                        )}
-                      </article>
-                    ))}
-                    {itemUnitConversions.length === 0 && (
-                      <div className="empty-small">
-                        Henüz alternatif birim tanımlanmadı.
-                      </div>
-                    )}
-                  </div>
-                </RecordFormGroup>
+                  </RecordFormGroup>
+                )}
                 {itemCustomFieldDefinitions.length > 0 && (
                   <RecordFormGroup title="Özel Alanlar">
                     <small>Zorunlu alanlar kaydetmeden önce doldurulmalıdır.</small>
@@ -3778,6 +3609,7 @@ export function InventoryPage({
               </RecordFormGroup>
             )}
           </RecordFormTabs>
+          </div>
         </RecordFormPage>
       )}
       {selectedTransfer && (
@@ -3787,13 +3619,13 @@ export function InventoryPage({
             if (e.target === e.currentTarget) setSelectedTransfer(null);
           }}
         >
-          <div className="modal ledger-modal">
+          <div className="modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-transfer-detail`}>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
                   {selectedTransfer.transfer.code} · DEPO TRANSFERİ
                 </p>
-                <h2>
+                <h2 id={`${dialogId}-transfer-detail`}>
                   {selectedTransfer.transfer.fromWarehouseName} →{" "}
                   {selectedTransfer.transfer.toWarehouseName}
                 </h2>
@@ -3895,13 +3727,17 @@ export function InventoryPage({
             if (e.target === e.currentTarget && !busy) setTransferModal(false);
           }}
         >
-          <div className="modal inv-rf-modal inv-rf-modal--wide">
+          <div className="modal inv-rf-modal inv-rf-modal--wide" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-transfer`}>
+            <span id={`${dialogId}-transfer`} hidden>Depolar arası transfer</span>
             <RecordFormPage
               variant="dialog"
               title="Depolar arası transfer"
               mode="create"
               busy={busy}
               saveLabel="Transferi kaydet"
+              saveDisabledReason={
+                transferReady ? undefined : "Kaydetmek için hedef depo seçin ve en az bir kaleme miktar girin."
+              }
               onSubmit={(event) => {
                 // Same gate the old save button had through its disabled state.
                 if (!transferReady) {
@@ -4187,121 +4023,6 @@ export function InventoryPage({
           </div>
         </div>
       )}
-      {warehouseModal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setWarehouseModal(false);
-          }}
-        >
-          <div className="modal inv-rf-modal">
-            <RecordFormPage
-              variant="dialog"
-              title="Yeni depo"
-              mode="create"
-              busy={busy}
-              saveLabel="Depo oluştur"
-              onSubmit={createWarehouse}
-              onCancel={() => setWarehouseModal(false)}
-              onSaveIntent={setStayAfterWarehouseSave}
-              onReset={resetWarehouseForm}
-              error={error}
-              onDismissError={() => setError("")}
-              status={
-                <>
-                  <span>Firmaya özel depo</span>
-                  {warehouseFormNotice && (
-                    <span className="rf-status-notice">{warehouseFormNotice}</span>
-                  )}
-                </>
-              }
-            >
-              <RecordFormGroup title="Depo Kimliği" bodyClassName="rf-pair">
-                <label>
-                  <span>Depo kodu <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-mono"
-                    value={warehouseCode}
-                    onChange={(e) => setWarehouseCode(e.target.value)}
-                    required
-                    maxLength={40}
-                  />
-                </label>
-                <label>
-                  <span>Depo adı <RequiredMark /></span>
-                  <input
-                    className="rf-must"
-                    value={warehouseName}
-                    onChange={(e) => setWarehouseName(e.target.value)}
-                    required
-                    maxLength={120}
-                  />
-                </label>
-              </RecordFormGroup>
-              {warehouseCreateDefinitions.length > 0 && (
-                <RecordFormGroup title="Depo Özel Alanları">
-                  <small>Zorunlu alanlar yeni depo ile birlikte kaydedilir.</small>
-                  <div className="rf-custom-grid">
-                    {warehouseCreateDefinitions.map((field) => (
-                      <label key={field.id}>
-                        <span>
-                          {field.label}
-                          {field.isRequired && <RequiredMark />}
-                        </span>
-                        {field.dataType === "Boolean" ? (
-                          <select
-                            required={field.isRequired}
-                            value={warehouseCreateValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseCreateValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Seçin</option>
-                            <option value="true">Evet</option>
-                            <option value="false">Hayır</option>
-                          </select>
-                        ) : (
-                          <input
-                            type={
-                              field.dataType === "Decimal"
-                                ? "number"
-                                : field.dataType === "Date"
-                                  ? "date"
-                                  : "text"
-                            }
-                            step={
-                              field.dataType === "Decimal" ? "any" : undefined
-                            }
-                            maxLength={
-                              field.dataType === "Text"
-                                ? field.maxLength
-                                : undefined
-                            }
-                            required={field.isRequired}
-                            value={warehouseCreateValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseCreateValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
-                        <small>
-                          {field.code} · {field.dataType}
-                        </small>
-                      </label>
-                    ))}
-                  </div>
-                </RecordFormGroup>
-              )}
-            </RecordFormPage>
-          </div>
-        </div>
-      )}
       {warehouseFieldCatalogModal && (
         <div
           className="modal-backdrop"
@@ -4510,348 +4231,10 @@ export function InventoryPage({
           </div>
         </div>
       )}
-      {warehouseAdminModal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy)
-              setWarehouseAdminModal(false);
-          }}
-        >
-          <div
-            className="modal inv-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="warehouse-admin-title"
-          >
-            <div className="inv-modal-head">
-              <div>
-                <p className="inv-modal-eyebrow">Stok ve depo</p>
-                <h2 id="warehouse-admin-title">Depo yönetimi</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button inv-modal-close"
-                aria-label="Kapat"
-                disabled={busy}
-                onClick={() => setWarehouseAdminModal(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="inv-modal-body">
-              <p className="inv-modal-info">
-                <IconPack.Info size={16} aria-hidden="true" />
-                <span>
-                  Devre dışı depolar yeni stok hareketi ve transferde
-                  kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.
-                </span>
-              </p>
-              {warehouses.length > 0 ? (
-                <ul className="inv-modal-list">
-                  {warehouses.map((warehouse) => (
-                    <li className="inv-modal-row" key={warehouse.id}>
-                      <span className="inv-modal-row-icon" aria-hidden="true">
-                        <IconPack.Warehouse size={16} />
-                      </span>
-                      <span className="inv-modal-row-text">
-                        <b>{warehouse.name}</b>
-                        <small>
-                          <code>{warehouse.code}</code>
-                          {warehouse.id === warehouseId ? " · seçili depo" : ""}
-                        </small>
-                      </span>
-                      <span
-                        className={`inv-modal-pill ${warehouse.isActive ? "is-success" : "is-muted"}`}
-                      >
-                        {warehouse.isActive ? "Etkin" : "Devre dışı"}
-                      </span>
-                      <span className="inv-modal-row-actions">
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() => void editWarehouse(warehouse)}
-                        >
-                          Düzenle
-                        </button>
-                        <details className="inv-modal-more">
-                          <summary aria-label="Diğer işlemler" title="Diğer işlemler">
-                            <IconPack.Ellipsis size={16} aria-hidden="true" />
-                          </summary>
-                          <div className="inv-modal-menu" role="menu">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              disabled={warehouseFieldBusy}
-                              onClick={(e) => {
-                                e.currentTarget
-                                  .closest("details")
-                                  ?.removeAttribute("open");
-                                void openWarehouseFields(warehouse);
-                              }}
-                            >
-                              <IconPack.ListChecks size={15} aria-hidden="true" />
-                              <span>Özel alanlar</span>
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={warehouse.isActive ? "is-danger" : ""}
-                              disabled={busy}
-                              onClick={(e) => {
-                                e.currentTarget
-                                  .closest("details")
-                                  ?.removeAttribute("open");
-                                void toggleWarehouse(warehouse);
-                              }}
-                            >
-                              {warehouse.isActive ? (
-                                <IconPack.Ban size={15} aria-hidden="true" />
-                              ) : (
-                                <IconPack.RotateCcw size={15} aria-hidden="true" />
-                              )}
-                              <span>
-                                {warehouse.isActive
-                                  ? "Devre dışı bırak"
-                                  : "Yeniden etkinleştir"}
-                              </span>
-                            </button>
-                          </div>
-                        </details>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="inv-modal-empty">
-                  <span className="inv-modal-row-icon" aria-hidden="true">
-                    <IconPack.Warehouse size={16} />
-                  </span>
-                  <span>
-                    <b>Henüz depo oluşturulmadı.</b>
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="inv-modal-foot">
-              <span>
-                <IconPack.History size={14} aria-hidden="true" />
-                <span>Depo hareket geçmişi korunur.</span>
-              </span>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setWarehouseAdminModal(false)}
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {warehouseFieldTarget && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !warehouseFieldBusy)
-              setWarehouseFieldTarget(null);
-          }}
-        >
-          <div className="modal inv-rf-modal">
-            <RecordFormPage
-              variant="dialog"
-              title={`${warehouseFieldTarget.code} · ${warehouseFieldTarget.name}`}
-              mode="edit"
-              busy={warehouseFieldBusy}
-              saveLabel="Değerleri kaydet"
-              onSubmit={(event) => {
-                // Same gate the old save button had through its disabled state.
-                if (!warehouseFieldTarget.isActive) {
-                  event.preventDefault();
-                  return;
-                }
-                void saveWarehouseFields(event);
-              }}
-              onCancel={() => setWarehouseFieldTarget(null)}
-              error={error}
-              onDismissError={() => setError("")}
-              status={
-                <>
-                  <span>Geçmiş API üzerinden korunur.</span>
-                  {!warehouseFieldTarget.isActive && (
-                    <span className="rf-status-warning">
-                      Devre dışı depoda değerler kaydedilemez.
-                    </span>
-                  )}
-                </>
-              }
-            >
-              <RecordFormGroup title="Depo Özel Alan Değerleri">
-                <small>
-                  Depo özel alanı değerleri tenant kapsamında doğrulanır ve her
-                  değişiklik için geçmiş kaydı tutulur.
-                </small>
-                <div className="rf-custom-grid">
-                  {warehouseFieldDefinitions.map((field) => (
-                    <label key={field.id}>
-                      <span>
-                        {field.label}
-                        {field.isRequired && <RequiredMark />}
-                      </span>
-                      {field.dataType === "Boolean" ? (
-                        <select
-                          required={field.isRequired}
-                          value={warehouseFieldValues[field.code] || ""}
-                          onChange={(e) =>
-                            setWarehouseFieldValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Seçin</option>
-                          <option value="true">Evet</option>
-                          <option value="false">Hayır</option>
-                        </select>
-                      ) : (
-                        <input
-                          type={
-                            field.dataType === "Decimal"
-                              ? "number"
-                              : field.dataType === "Date"
-                                ? "date"
-                                : "text"
-                          }
-                          step={
-                            field.dataType === "Decimal" ? "any" : undefined
-                          }
-                          maxLength={
-                            field.dataType === "Text"
-                              ? field.maxLength
-                              : undefined
-                          }
-                          required={field.isRequired}
-                          value={warehouseFieldValues[field.code] || ""}
-                          onChange={(e) =>
-                            setWarehouseFieldValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        />
-                      )}
-                      <small>
-                        ({field.code} · {field.dataType} · v{field.version}
-                        {field.isRequired ? " · zorunlu" : ""})
-                      </small>
-                    </label>
-                  ))}
-                </div>
-                {warehouseFieldDefinitions.length === 0 && (
-                  <div className="empty-small">
-                    Henüz depo özel alanı tanımlanmadı.
-                  </div>
-                )}
-              </RecordFormGroup>
-            </RecordFormPage>
-            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-              <form
-                onSubmit={createWarehouseField}
-                className="panel warehouse-field-create-form"
-                style={{ marginTop: 14 }}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <b>Yeni depo alanı</b>
-                    <small>Alan kodu tenant içinde yeniden kullanılamaz.</small>
-                  </div>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Alan kodu
-                    <input
-                      value={warehouseFieldCode}
-                      onChange={(e) =>
-                        setWarehouseFieldCode(e.target.value.toUpperCase())
-                      }
-                      required
-                      maxLength={40}
-                      placeholder="DEPO_BOLGE"
-                    />
-                  </label>
-                  <label>
-                    Ekran etiketi
-                    <input
-                      value={warehouseFieldLabel}
-                      onChange={(e) => setWarehouseFieldLabel(e.target.value)}
-                      required
-                      maxLength={120}
-                    />
-                  </label>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Veri türü
-                    <select
-                      value={warehouseFieldType}
-                      onChange={(e) =>
-                        setWarehouseFieldType(
-                          e.target
-                            .value as WarehouseCustomFieldDefinition["dataType"],
-                        )
-                      }
-                    >
-                      <option value="Text">Metin</option>
-                      <option value="Decimal">Ondalık sayı</option>
-                      <option value="Date">Tarih</option>
-                      <option value="Boolean">Evet/Hayır</option>
-                    </select>
-                  </label>
-                  {warehouseFieldType === "Text" && (
-                    <label>
-                      En fazla karakter
-                      <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={warehouseFieldMaxLength}
-                        onChange={(e) =>
-                          setWarehouseFieldMaxLength(e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  )}
-                </div>
-                {role === "TenantAdmin" ? (
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={warehouseFieldRequired}
-                      onChange={(e) =>
-                        setWarehouseFieldRequired(e.target.checked)
-                      }
-                    />{" "}
-                    Bu alanı zorunlu yap
-                  </label>
-                ) : (
-                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-                )}
-                <div className="modal-foot">
-                  <span>Mevcut depo değerlerini önce tamamlayın.</span>
-                  <button className="secondary" disabled={warehouseFieldBusy}>
-                    Alan tanımı ekle
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
       {movementItem &&
         createPortal(
           <div
+            {...viewDialogOwner}
             className="modal-backdrop stock-movement-backdrop"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) setMovementItem(null);
@@ -5204,11 +4587,11 @@ export function InventoryPage({
             if (e.target === e.currentTarget && !busy) setCostTarget(null);
           }}
         >
-          <div className="modal ledger-modal">
+          <div className="modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-cost`}>
             <div className="modal-head">
               <div>
                 <p className="eyebrow">STOK MALİYETİ · {costTarget.code}</p>
-                <h2>{costTarget.name}</h2>
+                <h2 id={`${dialogId}-cost`}>{costTarget.name}</h2>
               </div>
               <button
                 className="icon-button"

@@ -3,11 +3,17 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { api } from "./erpApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import type { InventoryMovement, ScreenColumnPin, StockItem, Warehouse } from "./erp-types";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { Locale } from "./WorkspaceComponents";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
+import { ListFooter } from "./list-page/ListFooter";
+import { ListPagination } from "./list-page/ListPagination";
+import { StatusTag } from "./list-page/StatusTag";
+import type { BulkAction } from "./list-page/BulkActionBar";
 import "./inventory-movements.css";
 import "./inventory/inventory-list-v2.css";
 
@@ -23,6 +29,10 @@ const defaultMovementFields: (ScreenField & { enLabel: string })[] = [
   { key: "description", label: "Açıklama", enLabel: "Description", visible: true, position: 6 },
   { key: "unitCostBase", label: "Birim maliyet", enLabel: "Unit cost", visible: false, position: 7 },
 ];
+
+/** Right-aligned number columns. */
+const NUMBER_FIELDS = new Set(["quantity", "unitCostBase"]);
+const PAGE_SIZE = 50;
 
 type MovementPage = {
   items: InventoryMovement[];
@@ -51,6 +61,13 @@ export default function InventoryMovementsPage({
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  usePageCommands({ more: [csvExportCommand(gridExportRef)] });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // The ledger is append-only (no delete); the selection only feeds the export.
+  const bulkActions: BulkAction[] = [
+    { id: "export-selected", label: en ? "Excel (selected)" : "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+  ];
   const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultMovementFields);
   const visibleFields = useMemo(
     () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
@@ -125,8 +142,8 @@ export default function InventoryMovementsPage({
     setLoading(true);
     setError("");
     const endpoint = warehouseId === "all"
-      ? `/api/stock/items/${selectedStock.id}/transactions?page=${page}&pageSize=50`
-      : `/api/warehouses/${warehouseId}/stock/${selectedStock.id}/transactions?page=${page}&pageSize=50`;
+      ? `/api/stock/items/${selectedStock.id}/transactions?page=${page}&pageSize=${PAGE_SIZE}`
+      : `/api/warehouses/${warehouseId}/stock/${selectedStock.id}/transactions?page=${page}&pageSize=${PAGE_SIZE}`;
     void api<MovementPage>(
       endpoint,
       token,
@@ -159,12 +176,13 @@ export default function InventoryMovementsPage({
 
   const rows = movements?.items ?? [];
   const selectedWarehouse = warehouses.find((row) => row.id === warehouseId);
-  const totalPages = Math.max(1, Math.ceil((movements?.totalCount ?? 0) / 50));
+  const total = selectedStock && movements ? movements.totalCount : 0;
+  const numberClass = (field: ScreenField) => (NUMBER_FIELDS.has(field.key) ? "nx-num" : undefined);
   const date = (value: string) => new Date(value).toLocaleDateString(en ? "en-GB" : "tr-TR");
   const number = (value: number) => new Intl.NumberFormat(en ? "en-GB" : "tr-TR", { maximumFractionDigits: 3 }).format(value);
 
   return (
-    <main className="inventory-movements-page list-v2">
+    <main className="inventory-movements-page inventory-list-v2 list-v2">
       <ListPageHeader
         title={en ? "Stock movements" : "Stok Hareketleri"}
         description={en ? "Choose a stock item to review its warehouse transaction history." : "Bir stok seçerek depo hareket geçmişini görüntüleyin."}
@@ -208,18 +226,24 @@ export default function InventoryMovementsPage({
       </ListToolbar>
 
       {error && <div className="alert inline-alert" role="alert">{error}</div>}
-      <section className="inventory-movements-table-card list-v2-list">
+      <section className="panel inventory-stock-grid-panel list-v2-list">
         <div className="customer-table-wrap">
           <AdvancedDataGrid
-            className="customer-table quote-table inventory-movements-table"
+            className="customer-table inventory-movements-table"
             gridId="inventory-movement-history"
             {...screenViewGridDefaults(visibleFields)}
             externalPagination
             hideSearch
             enableRowSelection={false}
             toolbarContainer={toolsSlot}
+            hideExport
+            exportActionsRef={gridExportRef}
+            selectable
+            bulkActions={bulkActions}
+            onSelectionChange={setSelectedIds}
+            aria-label={en ? "Stock movements" : "Stok hareketleri"}
           >
-            <thead><tr>{visibleFields.map((field) => <th key={field.key}>{fieldLabel(field)}</th>)}</tr></thead>
+            <thead><tr>{visibleFields.map((field) => <th key={field.key} className={numberClass(field)}>{fieldLabel(field)}</th>)}</tr></thead>
             <tbody>
               {loading && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Loading movements…" : "Stok hareketleri yükleniyor…"}</td></tr>}
               {!loading && !selectedStock && <tr><td colSpan={columnSpan} className="inventory-movements-empty">{en ? "Select a stock item to view its movements." : "Hareketleri görmek için bir stok kartı seçin."}</td></tr>}
@@ -232,9 +256,10 @@ export default function InventoryMovementsPage({
                       case "entryDate":
                         return <td key={field.key}>{date(row.entryDate)}</td>;
                       case "direction":
-                        return <td key={field.key}><span className={`inventory-movement-direction ${row.direction === "Receipt" ? "is-receipt" : "is-issue"}`}>{row.direction === "Receipt" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}{row.direction === "Receipt" ? (en ? "Receipt" : "Giriş") : (en ? "Issue" : "Çıkış")}{row.isReversal ? ` · ${en ? "Reversal" : "İade"}` : ""}</span></td>;
+                        // Receipt ok, issue info; a reversal entry (linked correction) is off whatever its direction.
+                        return <td key={field.key}><StatusTag tone={row.isReversal ? "off" : row.direction === "Receipt" ? "ok" : "info"}><span className="inventory-movement-direction">{row.direction === "Receipt" ? <ArrowDownLeft size={12} aria-hidden="true" /> : <ArrowUpRight size={12} aria-hidden="true" />}{row.direction === "Receipt" ? (en ? "Receipt" : "Giriş") : (en ? "Issue" : "Çıkış")}{row.isReversal ? ` · ${en ? "Reversal" : "İade"}` : ""}</span></StatusTag></td>;
                       case "quantity":
-                        return <td key={field.key} className="inventory-movement-quantity">{number(row.enteredQuantity ?? row.quantity)} {row.enteredUnitCode || selectedStock.unitCode}</td>;
+                        return <td key={field.key} className="nx-num">{number(row.enteredQuantity ?? row.quantity)} {row.enteredUnitCode || selectedStock.unitCode}</td>;
                       case "warehouse":
                         return <td key={field.key}>{row.warehouseCode ? `${row.warehouseCode} · ${row.warehouseName}` : selectedWarehouse ? `${selectedWarehouse.code} · ${selectedWarehouse.name}` : "—"}</td>;
                       case "storageLocation":
@@ -244,7 +269,7 @@ export default function InventoryMovementsPage({
                       case "description":
                         return <td key={field.key}>{row.description || "—"}</td>;
                       case "unitCostBase":
-                        return <td key={field.key} className="inventory-movement-quantity">{row.unitCostBase == null ? "—" : number(row.unitCostBase)}</td>;
+                        return <td key={field.key} className="nx-num">{row.unitCostBase == null ? "—" : number(row.unitCostBase)}</td>;
                       default:
                         return <td key={field.key} />;
                     }
@@ -254,7 +279,20 @@ export default function InventoryMovementsPage({
             </tbody>
           </AdvancedDataGrid>
         </div>
-        {movements && movements.totalCount > 50 && <div className="table-pagination"><span>{en ? `Page ${page} of ${totalPages}` : `${page} / ${totalPages}. sayfa`}</span><div><button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>{en ? "Previous" : "Önceki"}</button><button className="secondary-button" type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)}>{en ? "Next" : "Sonraki"}</button></div></div>}
+        <ListFooter hints={en ? "↑↓ move · Space mark" : "↑↓ gez · Boşluk işaretle"}>
+          {selectedIds.length > 0 && (
+            <span>
+              <span>{selectedIds.length}</span> <span>{en ? "selected" : "seçili"}</span>
+            </span>
+          )}
+          <span>
+            <span>{en ? "Shown" : "Gösterilen"}</span>{" "}
+            <span>
+              {(selectedStock ? rows.length : 0).toLocaleString(en ? "en-GB" : "tr-TR")} / {total.toLocaleString(en ? "en-GB" : "tr-TR")}
+            </span>
+          </span>
+          <ListPagination page={page} total={total} pageSize={PAGE_SIZE} loading={loading} onPageChange={setPage} />
+        </ListFooter>
       </section>
     </main>
   );

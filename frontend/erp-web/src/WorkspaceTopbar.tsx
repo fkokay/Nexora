@@ -5,17 +5,16 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import {
   Bell,
-  Building2,
   ChevronDown,
   Code2,
   ExternalLink,
   Grid2X2,
   KeyRound,
-  Link2,
   LogOut,
   Moon,
   PanelRightOpen,
@@ -49,6 +48,8 @@ type SecurityAlertSummary = {
 };
 
 type Props = {
+  /** Open-screen tabs, shown between the search box and the company/user area. */
+  tabs?: ReactNode;
   locale: Locale;
   token: string;
   tenant: Tenant;
@@ -69,6 +70,7 @@ type Props = {
 };
 
 export function WorkspaceTopbar({
+  tabs,
   locale,
   token,
   tenant,
@@ -226,8 +228,10 @@ export function WorkspaceTopbar({
       if (!(event.target as Element).closest(".notification-menu-wrap"))
         setNotificationsOpen(false);
     };
+    // Runs only while a menu is open; preventDefault keeps Esc from also cancelling a record form on the page.
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setProfileOpen(false);
         setTenantOpen(false);
         setNotificationsOpen(false);
@@ -268,16 +272,20 @@ export function WorkspaceTopbar({
 
   return (
     <header className="topbar">
-      <div className="crumb">
-        <span className="topbar-brand">
-          <span className="brand-mark small">
-            <Link2 size={16} />
-          </span>
-          <span>
-            nexora<strong>ERP</strong>
-          </span>
-        </span>
-        <span className="topbar-divider" />
+      <button
+        type="button"
+        className="global-search"
+        aria-label={
+          english ? "Search pages and customers" : "Ekran ve cari ara"
+        }
+        onClick={onOpenSearch}
+      >
+        <Search size={16} />
+        <span>{english ? "Search" : "Hızlı ara"}</span>
+        <kbd>Ctrl + K</kbd>
+      </button>
+      {tabs && <div className="topbar-tabs">{tabs}</div>}
+      <div className="top-actions">
         <div className="tenant-context-wrap" ref={tenantRef}>
           <button
             ref={tenantTriggerRef}
@@ -288,7 +296,6 @@ export function WorkspaceTopbar({
             aria-controls={tenantOpen ? "tenant-context-menu" : undefined}
             onClick={() => setTenantOpen((value) => !value)}
           >
-            <Building2 size={17} />
             <span>{tenant.name}</span>
             <ChevronDown size={14} />
           </button>
@@ -340,20 +347,6 @@ export function WorkspaceTopbar({
               document.body,
             )}
         </div>
-      </div>
-      <div className="top-actions">
-        <button
-          type="button"
-          className="global-search"
-          aria-label={
-            english ? "Search pages and customers" : "Ekran ve cari ara"
-          }
-          onClick={onOpenSearch}
-        >
-          <Search size={16} />
-          <span>{english ? "Search" : "Hızlı ara"}</span>
-          <kbd>Ctrl + K</kbd>
-        </button>
         <button
           type="button"
           className="assistant-trigger"

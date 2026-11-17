@@ -1,18 +1,39 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
+import { confirmDialog } from "./confirmDialog";
+import type { PageCommands } from "./commands/types";
+import { DefinitionEmptyPane, DefinitionLayout } from "./list-page/DefinitionLayout";
+import type { BulkAction } from "./list-page/BulkActionBar";
+import { ListFooter } from "./list-page/ListFooter";
+import { isInPopup, useWindowKeyDown } from "./record-form/recordFormKeys";
 import "./warehouse-locations.css";
 import {
   CreateLocationForm,
-  EditLocationModal,
+  EditLocationForm,
+  changedLocationFields,
+  type LocationEditValues,
 } from "./warehouse-locations/components/WarehouseLocationForms";
-import { WarehouseLocationOverview } from "./warehouse-locations/components/WarehouseLocationOverview";
+import {
+  WarehouseLocationOverview,
+  WarehouseLocationToolbar,
+} from "./warehouse-locations/components/WarehouseLocationOverview";
+import {
+  LOCATION_REQUEST_EVENT,
+  clearLocationRequest,
+  peekLocationRequest,
+  type LocationRequest,
+} from "./warehouse-locations/locationRequest";
 import {
   LocationBalancePanel,
   LocationListPanel,
@@ -59,15 +80,27 @@ export default function WarehouseLocationsPage({
   token: string;
   role: string;
 }) {
+  const isAdmin = role === "TenantAdmin";
+  // A hand-off from Depolar ("Lokasyon ekle" / "Tümünü yönet") picks the warehouse and may open the create form.
+  const [initialRequest] = useState(() => peekLocationRequest());
+  useEffect(() => clearLocationRequest(), []);
   const [warehouses, setWarehouses] = useState<WarehouseRow[]>([]);
-  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouseId, setWarehouseId] = useState(initialRequest?.warehouseId ?? "");
   const [locations, setLocations] = useState<Location[]>([]);
-  const [selectedId, setSelectedId] = useState("");
+  // Definition screen: the location open in the form (none until a row is chosen), or a new one.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"none" | "create" | "edit">(
+    initialRequest?.create && isAdmin ? "create" : "none",
+  );
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [reconciliation, setReconciliation] = useState<Reconciliation[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const createFormId = `warehouse-location-create${useId()}`;
   const [balanceFields, setBalanceFields] = useState<ScreenField[]>([
     { key: "stockItemCode", label: "Stok kodu", visible: true, position: 0 },
     { key: "stockItemName", label: "Stok adı", visible: true, position: 1 },
@@ -109,11 +142,12 @@ export default function WarehouseLocationsPage({
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [parentLocationId, setParentLocationId] = useState("");
-  const [editing, setEditing] = useState<Location | null>(null);
-  const [editCode, setEditCode] = useState("");
-  const [editName, setEditName] = useState("");
-  const [editParentLocationId, setEditParentLocationId] = useState("");
-  const [editIsActive, setEditIsActive] = useState(true);
+  const [editValues, setEditValues] = useState<LocationEditValues | null>(null);
+  const [editBaseline, setEditBaseline] = useState<LocationEditValues | null>(null);
+  // Row version the edit form was loaded with (or last saved to). Saves send this one, so a change made elsewhere
+  // since then is refused by the server (409) instead of being overwritten.
+  const [editVersion, setEditVersion] = useState<string | null>(null);
+  const editFormId = `warehouse-location-edit${useId()}`;
   const [warehousesLoading, setWarehousesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -187,7 +221,6 @@ export default function WarehouseLocationsPage({
     const requestId = ++locationRequestId.current;
     if (!warehouseId) {
       setLocations([]);
-      setSelectedId("");
       setBalances([]);
       setLoading(false);
       return;
@@ -201,11 +234,8 @@ export default function WarehouseLocationsPage({
       );
       if (requestId === locationRequestId.current) {
         setLocations(rows);
-        setSelectedId((current) =>
-          rows.some((row) => row.id === current)
-            ? current
-            : (rows.find((row) => row.isActive)?.id ?? ""),
-        );
+        // A selected location that is gone after a refresh closes its form.
+        setSelectedId((current) => (current && !rows.some((row) => row.id === current) ? null : current));
       }
     } catch (e) {
       if (requestId === locationRequestId.current)
@@ -277,7 +307,7 @@ export default function WarehouseLocationsPage({
     void loadLocations();
   }, [loadLocations]);
   useEffect(() => {
-    void loadBalances(selectedId);
+    void loadBalances(selectedId ?? "");
   }, [loadBalances, selectedId]);
   useEffect(() => {
     void loadReconciliation();
@@ -325,15 +355,6 @@ export default function WarehouseLocationsPage({
       cancelled = true;
     };
   }, [token]);
-  useEffect(() => {
-    if (!editing) return;
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) setEditing(null);
-    }
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [editing, busy]);
-
   async function refresh() {
     await loadWarehouses();
     await loadLocations();
@@ -365,11 +386,12 @@ export default function WarehouseLocationsPage({
           a.code.localeCompare(b.code, "tr"),
         ),
       );
-      setSelectedId(created.id);
       setCode("");
       setName("");
       setParentLocationId("");
       setSearch("");
+      // The new location stays open in the form.
+      openRecord(created);
       setNotice("Depo konumu oluşturuldu.");
     } catch (e) {
       setError((e as Error).message);
@@ -378,32 +400,145 @@ export default function WarehouseLocationsPage({
     }
   }
 
-  function beginEdit(location: Location) {
-    setEditing(location);
-    setEditCode(location.code);
-    setEditName(location.name);
-    setEditParentLocationId(location.parentLocationId ?? "");
-    setEditIsActive(location.isActive);
+  const valuesOf = (location: Location): LocationEditValues => ({
+    code: location.code,
+    name: location.name,
+    parentLocationId: location.parentLocationId ?? "",
+    isActive: location.isActive,
+  });
+  const hasChanges =
+    mode === "edit"
+      ? !!editValues && !!editBaseline && changedLocationFields(editValues, editBaseline) > 0
+      : mode === "create" && !!(code.trim() || name.trim() || parentLocationId);
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+  // While a save runs, the open record stays: its result is written into this form.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const focusList = () =>
+    window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-list .advanced-grid-scroll")?.focus(), 0);
+  const confirmDiscard = async (title: string) =>
+    !hasChangesRef.current ||
+    (await confirmDialog({ title, message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }));
+
+  function openRecord(location: Location) {
+    setSelectedId(location.id);
+    // Only TenantAdmin may change locations; others see the selected location read-only.
+    setMode(isAdmin ? "edit" : "none");
+    setEditValues(valuesOf(location));
+    setEditBaseline(valuesOf(location));
+    setEditVersion(location.rowVersion);
   }
+  function closeRecord() {
+    setSelectedId(null);
+    setMode("none");
+    setEditValues(null);
+    setEditBaseline(null);
+    setEditVersion(null);
+    setCode("");
+    setName("");
+    setParentLocationId("");
+  }
+  async function requestRow(id: string | null) {
+    if (id === selectedId || busyRef.current) return;
+    if (!(await confirmDiscard("Vazgeç"))) return;
+    const location = id ? locations.find((row) => row.id === id) : undefined;
+    if (location) openRecord(location);
+    else closeRecord();
+  }
+  async function close() {
+    if ((mode === "none" && !selectedId) || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
+    closeRecord();
+    focusList();
+  }
+  async function startCreate() {
+    if (busyRef.current || !(await confirmDiscard("Yeni kayıt"))) return;
+    closeRecord();
+    setMode("create");
+    // Only if the create form is still the open one by then.
+    window.setTimeout(() => {
+      if (modeRef.current === "create") document.getElementById(createFormId)?.querySelector<HTMLInputElement>("input")?.focus();
+    }, 0);
+  }
+  // Aç (Enter): the current row into the form, and focus on its first field.
+  function openCurrent() {
+    if (!selected) return;
+    if (mode !== "edit") openRecord(selected);
+    window.setTimeout(() => document.getElementById(editFormId)?.querySelector<HTMLInputElement>("input")?.focus(), 0);
+  }
+  async function changeWarehouse(nextWarehouseId: string) {
+    if (nextWarehouseId === warehouseId || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
+    closeRecord();
+    setWarehouseId(nextWarehouseId);
+    setLocations([]);
+    setBalances([]);
+    setBalanceError("");
+    setLoading(Boolean(nextWarehouseId));
+    setSearch("");
+  }
+  // The open location left the list (refresh): its form closes.
+  useEffect(() => {
+    if (mode !== "edit" || selected) return;
+    setMode("none");
+    setEditValues(null);
+    setEditBaseline(null);
+  }, [mode, selected]);
+  // The list was refreshed and the open location changed elsewhere: an unchanged form shows the new values; a
+  // changed one keeps its baseline version, so saving it gets the server's conflict message. A changed form that
+  // becomes unchanged again (the edits undone) is rebuilt from the live row then.
+  useEffect(() => {
+    if (mode !== "edit" || !selected || !editVersion || selected.rowVersion === editVersion) return;
+    if (busyRef.current || hasChanges) return;
+    openRecord(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.rowVersion, hasChanges]);
+  // A hand-off while this screen is already open (kept alive).
+  const requestRef = useRef<(request: LocationRequest) => void>(() => {});
+  requestRef.current = (request) => {
+    // The stored copy is for a fresh mount only; a declined hand-off is not replayed later.
+    clearLocationRequest();
+    void (async () => {
+      if (busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
+      closeRecord();
+      if (request.warehouseId !== warehouseId) {
+        setWarehouseId(request.warehouseId);
+        setLocations([]);
+        setBalances([]);
+        setLoading(true);
+        setSearch("");
+      }
+      if (request.create && isAdmin) setMode("create");
+    })();
+  };
+  useEffect(() => {
+    const onRequest = (event: Event) => {
+      const detail = (event as CustomEvent<LocationRequest>).detail;
+      if (detail?.warehouseId) requestRef.current(detail);
+    };
+    window.addEventListener(LOCATION_REQUEST_EVENT, onRequest);
+    return () => window.removeEventListener(LOCATION_REQUEST_EVENT, onRequest);
+  }, []);
 
   async function saveLocation(event: FormEvent) {
     event.preventDefault();
-    if (!editing) return;
+    if (!selected || !editValues) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const updated = await request<Location>(
-        `/api/warehouses/${warehouseId}/locations/${editing.id}`,
+        `/api/warehouses/${warehouseId}/locations/${selected.id}`,
         token,
         {
           method: "PUT",
           body: JSON.stringify({
-            code: editCode,
-            name: editName,
-            parentLocationId: editParentLocationId || null,
-            isActive: editIsActive,
-            rowVersion: editing.rowVersion,
+            code: editValues.code,
+            name: editValues.name,
+            parentLocationId: editValues.parentLocationId || null,
+            isActive: editValues.isActive,
+            rowVersion: editVersion ?? selected.rowVersion,
           }),
         },
       );
@@ -412,7 +547,55 @@ export default function WarehouseLocationsPage({
           .map((row) => (row.id === updated.id ? updated : row))
           .sort((a, b) => a.code.localeCompare(b.code, "tr")),
       );
-      setEditing(null);
+      // The form stays on the saved location.
+      setEditValues(valuesOf(updated));
+      setEditBaseline(valuesOf(updated));
+      setEditVersion(updated.rowVersion);
+      setNotice("Depo konumu güncellendi.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // No delete exists for locations: Sil says so and offers saving the location as passive (the existing update).
+  async function deleteBlocked(location: Location) {
+    if (
+      !(await confirmDialog({
+        title: `${location.code} · ${location.name} silinemez`,
+        message:
+          "Konumlar silinmez; geçmiş hareketler korunur. Pasife alabilirsiniz. Etkin alt konumu ya da stok bakiyesi olan konum pasife alınamaz.",
+        tone: "warning",
+        confirmLabel: "Pasife al",
+        cancelLabel: "Vazgeç",
+        keyHints: true,
+      }))
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const updated = await request<Location>(
+        `/api/warehouses/${warehouseId}/locations/${location.id}`,
+        token,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            code: location.code,
+            name: location.name,
+            parentLocationId: location.parentLocationId,
+            isActive: false,
+            rowVersion: (selectedId === location.id ? editVersion : null) ?? location.rowVersion,
+          }),
+        },
+      );
+      setLocations((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      if (selectedId === updated.id) {
+        setEditValues(valuesOf(updated));
+        setEditBaseline(valuesOf(updated));
+        setEditVersion(updated.rowVersion);
+      }
       setNotice("Depo konumu güncellendi.");
     } catch (e) {
       setError((e as Error).message);
@@ -421,95 +604,169 @@ export default function WarehouseLocationsPage({
     }
   }
 
+  // Esc = Vazgeç: closes the open form or the selected location (or the drawer below 1280px).
+  useWindowKeyDown(mode !== "none" || !!selectedId, (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (isInPopup(event.target) || !rootRef.current || rootRef.current.closest("[hidden]")) return;
+    if (document.querySelector('.modal-backdrop, [aria-modal="true"]')) return;
+    event.preventDefault();
+    void close();
+  });
+
+  const pageCommands: PageCommands = { more: [csvExportCommand(gridExportRef)] };
+  if (isAdmin) {
+    pageCommands.new = { primary: mode === "none", disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => void startCreate() };
+    // Same permission and busy gate as before: the current row into the right-hand form.
+    pageCommands.open = {
+      disabledReason: !selected ? "Önce bir kayıt seçin" : busy ? "Kaydediliyor…" : undefined,
+      run: openCurrent,
+    };
+    pageCommands.delete = {
+      disabledReason: !selected
+        ? "Önce bir kayıt seçin"
+        : hasChanges
+          ? "Önce değişiklikleri kaydedin veya vazgeçin"
+          : !selected.isActive
+            ? "Konumlar silinemez; bu konum zaten pasif."
+            : busy
+              ? "İşlem sürüyor…"
+              : undefined,
+      run: () => {
+        if (selected) void deleteBlocked(selected);
+      },
+    };
+  }
+  usePageCommands(pageCommands);
+  const bulkActions: BulkAction[] = [
+    { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+  ];
+  const activeCount = locations.filter((row) => row.isActive).length;
+
+  const balancePanel = (
+    <LocationBalancePanel
+      selected={selected}
+      locations={locations}
+      balances={balances}
+      visibleFields={visibleBalanceFields}
+      loading={balancesLoading}
+      error={balanceError}
+      compact={mode === "edit"}
+    />
+  );
+  const pane =
+    mode === "create" ? (
+      <CreateLocationForm
+        locations={locations}
+        warehouseId={warehouseId}
+        code={code}
+        name={name}
+        parentLocationId={parentLocationId}
+        busy={busy}
+        formId={createFormId}
+        onCodeChange={setCode}
+        onNameChange={setName}
+        onParentChange={setParentLocationId}
+        onSubmit={(event) => void createLocation(event)}
+        onCancel={() => void close()}
+      />
+    ) : mode === "edit" && selected && editValues && editBaseline ? (
+      <>
+        <EditLocationForm
+          editing={selected}
+          formId={editFormId}
+          locations={locations}
+          values={editValues}
+          baseline={editBaseline}
+          busy={busy}
+          onChange={setEditValues}
+          onCancel={() => void close()}
+          onSubmit={(event) => void saveLocation(event)}
+        />
+        {balancePanel}
+      </>
+    ) : selected ? (
+      balancePanel
+    ) : (
+      <DefinitionEmptyPane>
+        {isAdmin ? "Bir konum seçin ya da F2 ile yeni konum ekleyin." : "Bir konum seçin."}
+      </DefinitionEmptyPane>
+    );
+
   return (
     <div className="warehouse-locations-page list-v2">
       <WarehouseLocationOverview
-        warehouses={warehouses}
         warehouseId={warehouseId}
         locations={locations}
-        warehousesLoading={warehousesLoading}
         loading={loading}
-        search={search}
-        statusFilter={statusFilter}
-        onSearchChange={setSearch}
-        onStatusChange={setStatusFilter}
-        toolsSlotRef={setToolsSlot}
         error={error}
         notice={notice}
-        onRefresh={() => void refresh()}
         onDismissError={() => setError("")}
         onDismissNotice={() => setNotice("")}
-        onWarehouseSelect={(nextWarehouseId) => {
-          setWarehouseId(nextWarehouseId);
-          setSelectedId("");
-          setLocations([]);
-          setBalances([]);
-          setBalanceError("");
-          setLoading(Boolean(nextWarehouseId));
-          setSearch("");
-        }}
       />
-      <div className="warehouse-location-layout">
-        <LocationListPanel
-          locations={locations}
-          filteredLocations={filteredLocations}
-          visibleFields={visibleLocationFields}
-          selectedId={selectedId}
-          search={search}
-          loading={loading}
-          warehouseId={warehouseId}
-          toolbarContainer={toolsSlot}
-          onSelect={setSelectedId}
-        />
-        <LocationBalancePanel
-          selected={selected}
-          locations={locations}
-          balances={balances}
-          visibleFields={visibleBalanceFields}
-          loading={balancesLoading}
-          error={balanceError}
-          role={role}
-          busy={busy}
-          onEdit={beginEdit}
-        />
-      </div>
+      <DefinitionLayout
+        rootRef={rootRef}
+        className="warehouse-location-layout"
+        paneOpen={mode !== "none" || !!selected}
+        paneLabel="Konum kaydı"
+        list={
+          <>
+            <WarehouseLocationToolbar
+              warehouses={warehouses}
+              warehouseId={warehouseId}
+              locations={locations}
+              warehousesLoading={warehousesLoading}
+              search={search}
+              statusFilter={statusFilter}
+              onSearchChange={setSearch}
+              onStatusChange={setStatusFilter}
+              toolsSlotRef={setToolsSlot}
+              onRefresh={() => void refresh()}
+              onWarehouseSelect={(nextWarehouseId) => void changeWarehouse(nextWarehouseId)}
+            />
+            <LocationListPanel
+              locations={locations}
+              filteredLocations={filteredLocations}
+              visibleFields={visibleLocationFields}
+              selectedId={selectedId}
+              search={search}
+              loading={loading}
+              warehouseId={warehouseId}
+              toolbarContainer={toolsSlot}
+              hideExport
+              exportActionsRef={gridExportRef}
+              onSelect={(id) => void requestRow(id)}
+              onSelectionChange={setSelectedKeys}
+              bulkActions={bulkActions}
+              footer={
+                <ListFooter
+                  hints={
+                    isAdmin
+                      ? "↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön · F2 yeni konum"
+                      : "↑↓ listede gez · Esc listeye dön"
+                  }
+                >
+                  {selectedKeys.length > 0 && (
+                    <span>
+                      <span>{selectedKeys.length}</span> <span>seçili</span>
+                    </span>
+                  )}
+                  <span>
+                    <span>{locations.length}</span> <span>konum</span> · <span>{activeCount}</span> <span>aktif</span> ·{" "}
+                    <span>{locations.length - activeCount}</span> <span>pasif</span>
+                  </span>
+                </ListFooter>
+              }
+            />
+          </>
+        }
+        pane={pane}
+      />
       <ReconciliationPanel
         rows={reconciliation}
         visibleFields={visibleReconciliationFields}
         loading={reconciliationLoading}
         error={reconciliationError}
       />
-      {role === "TenantAdmin" && (
-        <CreateLocationForm
-          locations={locations}
-          warehouseId={warehouseId}
-          code={code}
-          name={name}
-          parentLocationId={parentLocationId}
-          busy={busy}
-          onCodeChange={setCode}
-          onNameChange={setName}
-          onParentChange={setParentLocationId}
-          onSubmit={(event) => void createLocation(event)}
-        />
-      )}
-      {editing && (
-        <EditLocationModal
-          editing={editing}
-          locations={locations}
-          editCode={editCode}
-          editName={editName}
-          editParentLocationId={editParentLocationId}
-          editIsActive={editIsActive}
-          busy={busy}
-          onEditCodeChange={setEditCode}
-          onEditNameChange={setEditName}
-          onEditParentChange={setEditParentLocationId}
-          onEditIsActiveChange={setEditIsActive}
-          onClose={() => setEditing(null)}
-          onSubmit={(event) => void saveLocation(event)}
-        />
-      )}
     </div>
   );
 }

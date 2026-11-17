@@ -24,14 +24,14 @@
   line-height: 1.4;
 }
 #root .manufacturing-page.list-v2 .manufacturing-order-list .manufacturing-order-cell-main {
-  color: var(--lv2-text, #25324a);
+  color: var(--nx-text);
 }
 #root .manufacturing-page.list-v2 .manufacturing-order-list .manufacturing-order-cell-sub {
   display: block;
   max-width: 240px;
   margin-top: 2px;
   overflow: hidden;
-  color: var(--lv2-muted, #6b7689);
+  color: var(--nx-muted);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -62,7 +62,7 @@
 }
 #root .manufacturing-page.list-v2 .manufacturing-order-progress small {
   margin: 0;
-  color: var(--lv2-muted, #6b7689);
+  color: var(--nx-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -115,17 +115,17 @@ html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-p
   gap: 3px;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid var(--lv2-border, #e3e7ee);
+  border: 1px solid var(--nx-line);
   border-radius: 8px;
-  background: var(--lv2-surface, #fff);
+  background: var(--nx-surface);
 }
 #root .manufacturing-page.list-v2 .manufacturing-inspector-stats span {
-  color: var(--lv2-muted, #6b7689);
+  color: var(--nx-muted);
   font-size: 10px;
 }
 #root .manufacturing-page.list-v2 .manufacturing-inspector-stats b {
   overflow-wrap: anywhere;
-  color: var(--lv2-text, #25324a);
+  color: var(--nx-text);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
@@ -159,7 +159,7 @@ html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-p
 #root .manufacturing-page.list-v2 .manufacturing-op-card-head > span {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--lv2-text, #25324a);
+  color: var(--nx-text);
   font-size: 12px;
   font-weight: 650;
 }
@@ -169,7 +169,7 @@ html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-p
 }
 #root .manufacturing-page.list-v2 .manufacturing-op-card-meta {
   display: block;
-  color: var(--lv2-muted, #6b7689);
+  color: var(--nx-muted);
   font-size: 10.5px;
   line-height: 1.45;
 }
@@ -215,11 +215,11 @@ html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-order-p
 #root .manufacturing-page.list-v2 .manufacturing-component-row > span small {
   display: block;
   margin-top: 2px;
-  color: var(--lv2-muted, #6b7689);
+  color: var(--nx-muted);
   font-size: 10px;
 }
 #root .manufacturing-page.list-v2 .manufacturing-inspector-section > small.manufacturing-component-total {
-  color: var(--lv2-text, #34435d);
+  color: var(--nx-text);
   font-weight: 650;
 }
 html[data-theme="dark"] #root .manufacturing-page.list-v2 .manufacturing-op-card.is-completed {

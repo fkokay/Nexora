@@ -1,3 +1,5 @@
+import "./list-page-v2.css";
+
 export type ListPaginationProps = {
   /** 1'den başlayan geçerli sayfa. */
   page: number;
@@ -16,7 +18,7 @@ export type ListPaginationProps = {
 export function ListPagination({ page, total, pageSize = 25, loading = false, onPageChange }: ListPaginationProps) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
-    <div className="table-pagination">
+    <div className="table-pagination nx-list-pagination">
       <span>
         Sayfa {page} / {pages} · {total} kayıt
       </span>

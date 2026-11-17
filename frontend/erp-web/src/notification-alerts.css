@@ -13,7 +13,7 @@
 .notification-dismiss:hover{border-color:#d9e1ec;background:#fff;color:#c84350}
 .notification-indicator{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:#fff4e5;color:#c17a19}.notification-indicator.expired{background:#fff0f1;color:#c84350}
 .notification-copy{min-width:0;flex:1;display:grid;gap:4px}.notification-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.notification-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7e899a;font-size:10px}
-.notification-item>strong{flex:none;color:#a66a15;font-size:10px;font-weight:650}.notification-item>strong.expired{color:#c84350}
+.notification-item>strong{flex:none;color:var(--nx-warn);font-size:10px;font-weight:650}.notification-item>strong.expired{color:#c84350}
 .notification-message{margin:0;padding:24px 18px;color:#758094;font-size:12px;line-height:1.55}.notification-message.error{color:#bd4652}
 .notification-popover>footer{padding:10px 14px;border-top:1px solid #edf0f5}.notification-popover>footer>button{width:100%;display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border:1px solid #e3e9f2;border-radius:8px;background:#f8fafc;color:#1768bd;font-size:11px;font-weight:650;cursor:pointer}.notification-popover>footer>button:hover{background:#edf5ff}
 [data-theme="dark"] .notification-count{border-color:#172339}

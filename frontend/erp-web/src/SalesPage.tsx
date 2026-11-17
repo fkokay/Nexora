@@ -9,7 +9,6 @@ import {
   Eye,
   PackageCheck,
   Plus,
-  Printer,
   Search,
   Settings,
   ShoppingCart,
@@ -26,7 +25,10 @@ import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { CommandSpec, MenuCommand, PageCommands } from "./commands/types";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import PurchaseInvoiceEntryPage from "./PurchaseInvoiceEntryPage";
 import PurchaseSupplierQuotesPage from "./PurchaseSupplierQuotesPage";
@@ -328,6 +330,8 @@ export function SalesPage({
   const [quoteDateTo, setQuoteDateTo] = useState("");
   const [salesGridToolsSlot, setSalesGridToolsSlot] =
     useState<HTMLDivElement | null>(null);
+  // Export of the quote / order list grid: XLSX is the bar's Excel command, CSV an İşlemler item.
+  const salesGridExportRef = useRef<GridExportActions | null>(null);
   const defaultOrderLayout: BuiltInScreenLayoutField[] = [
     { key: "code", label: "Sipariş no", visible: true, position: 0 },
     { key: "quoteCode", label: "Kaynak teklif", visible: true, position: 1 },
@@ -1994,8 +1998,106 @@ export function SalesPage({
         return null;
     }
   }
+  // Action bar. SalesPage owns it on the quote and order screens and their create pages; the invoice list and
+  // create page register in SalesInvoiceTable, deliveries in SalesDeliveriesScreen, and the purchase sections
+  // (Task 12) not at all. An open order or invoice detail registers its own commands.
+  const busyReason = busy ? "Kaydediliyor…" : undefined;
+  const quoteListScreen = activeTab === "quotes" && !createQuotePage && !createOrderPage;
+  const orderListScreen = activeTab === "orders" && !createQuotePage && !createOrderPage;
+  const salesPageDialogOpen = quoteFieldCatalogOpen || orderFieldCatalogOpen;
+  const ownsActionBar =
+    !orderDetail && !invoiceId && (createQuotePage || createOrderPage || quoteListScreen || orderListScreen);
+  const salesNewCommand: CommandSpec | undefined = salesPageDialogOpen
+    ? undefined
+    : createQuotePage
+      ? {
+          run: async () => {
+            const dirty = Boolean(
+              editingQuoteId || revisesQuoteId || customerId || prospectCustomerName.trim() ||
+                lines.some((line) => line.stockItemId),
+            );
+            if (await confirmStartNew(dirty)) await openQuoteCreatePage(false);
+          },
+        }
+      : createOrderPage
+        ? {
+            run: async () => {
+              const dirty = Boolean(directOrderEditId || customerId || directOrderLines.some((line) => line.stockItemId));
+              if (!(await confirmStartNew(dirty))) return;
+              sessionStorage.removeItem("nexora.sales-order.edit-id");
+              await openDirectOrderModal();
+            },
+          }
+        : quoteListScreen
+          ? { primary: !detail, run: () => openQuoteCreatePage() }
+          : orderListScreen
+            ? { primary: true, run: () => onNavigate("sales-order-create") }
+            : undefined;
+  const salesCommands: PageCommands = {};
+  if (salesNewCommand) salesCommands.new = salesNewCommand;
+  if (quoteListScreen && detail) {
+    const canDelete = detail.status === "Draft" && role === "TenantAdmin";
+    const isLatestRevision = quoteRevisions[quoteRevisions.length - 1]?.id === detail.id;
+    const canRevise = !detail.hasSalesOrder && isLatestRevision;
+    if (role === "TenantAdmin")
+      salesCommands.delete = {
+        disabledReason: canDelete ? busyReason : "Yalnızca taslak teklifler silinebilir.",
+        run: () => deleteQuote(detail),
+      };
+    salesCommands.print = { run: () => setQuotePrintOpen(true) };
+    Object.assign(salesCommands, documentOpenCommands(() => openQuote(detail.id)));
+    const more: MenuCommand[] = [];
+    if (detail.status === "Draft" && !detail.hasSalesOrder)
+      more.push({ id: "quote-edit", label: "Düzenle", disabledReason: busyReason, run: () => beginQuoteEdit(detail.id) });
+    if (detail.status === "Draft")
+      more.push({ id: "quote-send", label: "İletildi yap", disabledReason: busyReason, run: () => sendQuote(detail) });
+    if (detail.status === "Sent") {
+      more.push({ id: "quote-reject", label: "Reddet", disabledReason: busyReason, run: () => decideQuote(detail, "reject") });
+      more.push({ id: "quote-accept", label: "Kabul et", disabledReason: busyReason, run: () => decideQuote(detail, "accept") });
+    }
+    if (detail.status === "Rejected")
+      more.push({ id: "quote-accept-rejected", label: "Reddedilen teklifi kabul et", disabledReason: busyReason, run: () => decideQuote(detail, "accept") });
+    if (detail.status === "Accepted" && !detail.hasSalesOrder)
+      more.push({ id: "quote-convert", label: "Siparişe dönüştür", disabledReason: busyReason, run: () => convertQuote(detail) });
+    if (canRevise)
+      more.push({ id: "quote-revise", label: "Revizyon oluştur", disabledReason: busyReason, run: () => beginQuoteRevision() });
+    salesCommands.more = more;
+  } else if (quoteListScreen || orderListScreen) {
+    const selectedQuote = quoteListScreen ? filtered.find((item) => item.id === selectedSalesId) : undefined;
+    const selectedOrder = orderListScreen ? filteredOrders.find((item) => item.id === selectedSalesId) : undefined;
+    const selectedRecord = selectedQuote ?? selectedOrder;
+    salesCommands.open = {
+      disabledReason: selectedRecord ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? selectedRecord?.id;
+        if (!id) return;
+        return quoteListScreen ? openQuote(id) : openOrder(id);
+      },
+    };
+    if (role === "TenantAdmin")
+      salesCommands.delete = {
+        disabledReason: !selectedRecord
+          ? "Önce bir kayıt seçin"
+          : selectedQuote && selectedQuote.status !== "Draft"
+            ? "Yalnızca taslak teklifler silinebilir."
+            : busyReason,
+        run: () => (selectedQuote ? deleteQuote(selectedQuote) : selectedOrder ? deleteOrder(selectedOrder) : undefined),
+      };
+    const more: MenuCommand[] = [];
+    if (role === "TenantAdmin" || role === "TenantDeveloper")
+      more.push(
+        quoteListScreen
+          ? { id: "quote-fields", label: "Teklif alanları", run: () => openQuoteFieldCatalog() }
+          : { id: "order-fields", label: "Sipariş alanları", run: () => openOrderFieldCatalog() },
+      );
+    more.push(csvExportCommand(salesGridExportRef));
+    salesCommands.more = more;
+  }
+  // Passed to an open order / invoice detail, which owns the bar while it is open.
+  const detailNewCommand = salesNewCommand ? { run: salesNewCommand.run } : undefined;
   return (
     <div className="list-v2 sales-lv2-root">
+      {ownsActionBar && <PageCommandsSlot commands={salesCommands} />}
       {!createOrderPage && !createQuotePage &&
         activeTab !== "purchases" &&
         activeTab !== "requests" &&
@@ -2023,48 +2125,7 @@ export function SalesPage({
                     : "Kesilen satış faturalarını ve cari borç kayıtlarını izleyin."
               }
               count={salesListTotal}
-            >
-              {activeTab === "quotes" && (role === "TenantAdmin" || role === "TenantDeveloper") && (
-                <button
-                  className="secondary"
-                  onClick={() => void openQuoteFieldCatalog()}
-                >
-                  Teklif alanları
-                </button>
-              )}
-              {activeTab === "orders" && (role === "TenantAdmin" || role === "TenantDeveloper") && (
-                <button
-                  className="secondary"
-                  onClick={() => void openOrderFieldCatalog()}
-                >
-                  Sipariş alanları
-                </button>
-              )}
-              {activeTab === "orders" && (
-                <button
-                  className="primary"
-                  onClick={() => onNavigate("sales-order-create")}
-                >
-                  <Plus size={17} /> Yeni sipariş
-                </button>
-              )}
-              {activeTab === "quotes" && (
-                <button
-                  className="primary"
-                  onClick={() => void openQuoteCreatePage()}
-                >
-                  <Plus size={17} /> Yeni teklif
-                </button>
-              )}
-              {activeTab === "invoices" && (
-                <button
-                  className="primary"
-                  onClick={() => onNavigate("sales-invoice-create")}
-                >
-                  <Plus size={17} /> Fatura oluştur
-                </button>
-              )}
-            </ListPageHeader>
+            />
             <SalesListToolbar
               activeTab={activeTab as "quotes" | "orders" | "invoices"}
               search={search}
@@ -2187,6 +2248,8 @@ export function SalesPage({
               }
             }}
             onChanged={() => load()}
+            onNew={() => onNavigate("sales-invoice-create")}
+            commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
           <section
@@ -2195,6 +2258,8 @@ export function SalesPage({
           >
             <SalesDocumentGrid
               gridId="sales-quotes"
+              hideExport
+              exportActionsRef={salesGridExportRef}
               fields={visibleQuoteFields}
               items={filtered}
               selectedId={selectedSalesId}
@@ -2215,6 +2280,8 @@ export function SalesPage({
           >
             <SalesDocumentGrid
               gridId="sales-orders"
+              hideExport
+              exportActionsRef={salesGridExportRef}
               fields={visibleOrderFields}
               items={filteredOrders}
               selectedId={selectedSalesId}
@@ -2248,11 +2315,11 @@ export function SalesPage({
               setQuoteFieldCatalogOpen(false);
           }}
         >
-          <div className="modal quote-field-catalog-modal">
+          <div className="modal quote-field-catalog-modal" role="dialog" aria-modal="true" aria-labelledby="sales-quote-fields-title">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">SATIŞ YÖNETİMİ · TENANT ALANLARI</p>
-                <h2>Teklif özel alanları</h2>
+                <h2 id="sales-quote-fields-title">Teklif özel alanları</h2>
               </div>
               <button
                 className="icon-button"
@@ -2412,11 +2479,11 @@ export function SalesPage({
               setOrderFieldCatalogOpen(false);
           }}
         >
-          <div className="modal">
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="sales-order-fields-title">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">SATIŞ · SİPARİŞ ALANLARI</p>
-                <h2>Sipariş alan tanımları</h2>
+                <h2 id="sales-order-fields-title">Sipariş alan tanımları</h2>
               </div>
               <button
                 className="icon-button"
@@ -2552,6 +2619,13 @@ export function SalesPage({
             busy={busy}
             saveLabel={directOrderEditId ? "Siparişi kaydet" : "Sipariş oluştur"}
             formId="sales-direct-order-form"
+            saveDisabledReason={
+              quoteExchangeRatesLoading
+                ? "Döviz kurları yükleniyor…"
+                : directOrderSaveBlocked
+                  ? "Kuru bulunmayan satır var; sipariş kaydedilemez."
+                  : undefined
+            }
             onSubmit={(event) => {
               // The old save button was disabled while rates load or a line has no rate.
               if (directOrderSaveBlocked) {
@@ -2758,6 +2832,13 @@ export function SalesPage({
             busy={busy}
             saveLabel={editingQuoteId ? "Değişiklikleri kaydet" : revisesQuoteId ? "Revizyon taslağını oluştur" : "Teklif taslağı oluştur"}
             formId="sales-quote-create-form"
+            saveDisabledReason={
+              quoteExchangeRatesLoading
+                ? "Döviz kurları yükleniyor…"
+                : hasMissingQuoteFx
+                  ? "Kuru bulunmayan satır var; teklif kaydedilemez."
+                  : undefined
+            }
             onSubmit={(event) => {
               // The old save button was disabled while rates load or a line has no rate.
               if (quoteExchangeRatesLoading || hasMissingQuoteFx) {
@@ -3082,7 +3163,6 @@ export function SalesPage({
         );
         const isLatestRevision = quoteRevisions[quoteRevisions.length - 1]?.id === detail.id;
         const canRevise = !detail.hasSalesOrder && isLatestRevision;
-        const canDelete = detail.status === "Draft" && role === "TenantAdmin";
         return (
           <DocumentSurface
             variant="detail"
@@ -3102,9 +3182,6 @@ export function SalesPage({
             className="sales-quote-detail"
             actions={
               <>
-                <button type="button" className="secondary" onClick={() => setQuotePrintOpen(true)}>
-                  <Printer size={15} aria-hidden="true" /> Yazdır
-                </button>
                 {detail.status === "Draft" && !detail.hasSalesOrder && (
                   <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteEdit(detail.id)}>
                     Düzenle
@@ -3135,19 +3212,12 @@ export function SalesPage({
                     Siparişe dönüştür
                   </button>
                 )}
-                {(canRevise || canDelete) && (
+                {/* Yazdır and Sil are the action bar's print / delete commands. */}
+                {canRevise && (
                   <SalesRowActionsMenu label={detail.code}>
-                    {canRevise && (
-                      <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
-                        Revizyon oluştur
-                      </button>
-                    )}
-                    {canRevise && canDelete && <div role="separator" className="sales-row-menu-separator" />}
-                    {canDelete && (
-                      <button type="button" role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(detail)}>
-                        Sil
-                      </button>
-                    )}
+                    <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
+                      Revizyon oluştur
+                    </button>
                   </SalesRowActionsMenu>
                 )}
               </>
@@ -3490,6 +3560,9 @@ export function SalesPage({
             await openOrder(orderDetail.id);
           }}
           onInvoiceCreated={openInvoice}
+          newCommand={detailNewCommand}
+          ownsActionBar={!invoiceId}
+          onReload={() => openOrder(orderDetail.id)}
         />
       )}
       {invoiceId && (
@@ -3500,6 +3573,7 @@ export function SalesPage({
           warehouses={warehouses}
           onClose={() => setInvoiceId(null)}
           onSaved={load}
+          newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-create") } : detailNewCommand}
         />
       )}
     </div>
@@ -4072,7 +4146,7 @@ function PurchaseOrderCreatePage({
   }
   async function createOrder(e: React.FormEvent) {
     e.preventDefault();
-    // RecordFormPage listens to F2 on the window; a hidden keep-alive tab must not submit.
+    // RecordFormPage save keys (Ctrl+S, Ctrl+F2) reach every mounted form; a hidden keep-alive tab must not submit.
     if (hostRef.current?.closest("[hidden]")) return;
     if (!supplier) {
       setError("Tedarikçi seçin.");
@@ -8518,7 +8592,7 @@ function PurchasingPanel({
             if (e.target === e.currentTarget && !busy) setRequestEditor(false);
           }}
         >
-          <div className="modal quote-modal sales-rf-host">
+          <div className="modal quote-modal sales-rf-host" role="dialog" aria-modal="true" aria-label="Satın alma talebi">
             <RecordFormPage
               variant="dialog"
               className="sales-rf"
@@ -9726,7 +9800,7 @@ function PurchasingPanel({
             if (e.target === e.currentTarget) setInvoiceReceiptId(null);
           }}
         >
-          <div className="modal sales-rf-host sales-rf-host--narrow">
+          <div className="modal sales-rf-host sales-rf-host--narrow" role="dialog" aria-modal="true" aria-label="Mal kabulini faturala">
             <RecordFormPage
               variant="dialog"
               className="sales-rf"
@@ -9797,6 +9871,9 @@ function SalesOrderModal({
   onClose,
   onSaved,
   onInvoiceCreated,
+  newCommand,
+  ownsActionBar = true,
+  onReload,
 }: {
   order: SalesOrderDetail;
   token: string;
@@ -9805,6 +9882,12 @@ function SalesOrderModal({
   onClose: () => void;
   onSaved: () => Promise<void>;
   onInvoiceCreated: (id: string) => void;
+  /** The owning screen's Yeni while this detail holds the action bar. */
+  newCommand?: CommandSpec;
+  /** Reloads this order (the bar's Yenile while it is open). */
+  onReload?: () => void | Promise<void>;
+  /** False while an invoice opened from this order holds the action bar. */
+  ownsActionBar?: boolean;
 }) {
   const defaultOrderLineFields: BuiltInScreenLayoutField[] = [
     { key: "stockCode", label: "Stok kodu", visible: true, position: 0 },
@@ -10168,6 +10251,40 @@ function SalesOrderModal({
     }
   }
   const activeReservation = order.lines.some((x) => x.reservationId !== null);
+  // The order's one-click actions in İşlemler (labels and conditions of the buttons in the detail).
+  const orderCommands: PageCommands = documentOpenCommands(onReload);
+  if (newCommand) orderCommands.new = newCommand;
+  const orderMore: MenuCommand[] = [];
+  if (order.status === "Open" && !activeReservation)
+    orderMore.push({
+      id: "order-reserve",
+      label: "Stok ayır",
+      run: () => {
+        setDetailTab("information");
+        setReservationWarehouseId(warehouses.find((warehouse) => warehouse.isActive)?.id || "");
+        setReservationRequestId(crypto.randomUUID());
+        setReservationEditor(true);
+      },
+    });
+  if (order.status === "Open" && activeReservation && role === "TenantAdmin")
+    orderMore.push({ id: "order-release", label: "Rezervasyonu bırak", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => releaseOrderReservation() });
+  if (order.status === "Open")
+    orderMore.push({
+      id: "order-delivery",
+      label: "İrsaliye oluştur",
+      disabledReason: busy
+        ? "Kaydediliyor…"
+        : !warehouses.some((warehouse) => warehouse.isActive)
+          ? "Aktif depo yok."
+          : order.lines.every((x) => x.remainingQuantity === 0)
+            ? "Sevk edilecek kalan miktar yok."
+            : undefined,
+      run: () => {
+        setDetailTab("deliveries");
+        void startDelivery();
+      },
+    });
+  if (orderMore.length) orderCommands.more = orderMore;
   return (
     <DocumentSurface
       title="Satış siparişi"
@@ -10178,6 +10295,7 @@ function SalesOrderModal({
       className="sales-order-detail-backdrop"
       bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
     >
+        {ownsActionBar && <PageCommandsSlot commands={orderCommands} />}
         {error && (
           <div className="alert inline-alert">
             {error}
@@ -10458,6 +10576,7 @@ function SalesOrderModal({
             mode="create"
             busy={busy}
             saveLabel="İrsaliye oluştur"
+            saveDisabledReason={warehouseId ? undefined : "Kaydetmek için depo seçin."}
             onSubmit={(event) => {
               // The old save button was disabled until a warehouse was chosen.
               if (!warehouseId) {
@@ -10651,6 +10770,8 @@ function SalesInvoiceTable({
   setCreateOpen,
   onInvoiceCreated,
   onChanged,
+  onNew,
+  commandsSuspended = false,
 }: {
   invoices: SalesInvoiceSummary[];
   orders: SalesOrderSummary[];
@@ -10672,6 +10793,10 @@ function SalesInvoiceTable({
   setCreateOpen: (open: boolean) => void;
   onInvoiceCreated: (id: string) => Promise<void>;
   onChanged: () => Promise<void>;
+  /** Yeni on the invoice list: opens the invoice create page. */
+  onNew: () => void;
+  /** An invoice / order detail or a page dialog owns the action bar. */
+  commandsSuspended?: boolean;
 }) {
   const [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState(""),
@@ -10850,7 +10975,8 @@ function SalesInvoiceTable({
                 type="button"
                 role="menuitem"
                 className="sales-row-menu-item danger-action"
-                disabled={busy}
+                disabled={busy || item.status === "Posted"}
+                title={item.status === "Posted" ? "Kesilmiş belge silinemez — İşlemler › İptal et" : undefined}
                 onClick={() => void deleteInvoice(item)}
               >
                 Sil
@@ -10863,8 +10989,51 @@ function SalesInvoiceTable({
         return null;
     }
   };
+  // Action bar of the invoice list and of the invoice create page.
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const [createDirty, setCreateDirty] = useState(false);
+  const [createFormKey, setCreateFormKey] = useState(0);
+  const commands: PageCommands = {};
+  if (entryPage) {
+    commands.new = {
+      run: async () => {
+        if (!(await confirmStartNew(createDirty))) return;
+        setCreateDirty(false);
+        setCreateFormKey((key) => key + 1);
+      },
+    };
+  } else if (!createOpen) {
+    const selected = visible.find((item) => item.id === selectedId);
+    commands.new = { primary: true, run: onNew };
+    commands.open = {
+      disabledReason: selected ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? selected?.id;
+        if (id) onOpen(id);
+      },
+    };
+    const more: MenuCommand[] = [];
+    if (role === "TenantAdmin") {
+      // A posted (kesilmiş) invoice is cancelled, not deleted; only a voided invoice can be deleted.
+      commands.delete = {
+        disabledReason: !selected
+          ? "Önce bir kayıt seçin"
+          : selected.status === "Posted"
+            ? "Kesilmiş belge silinemez — İşlemler › İptal et"
+            : busy
+              ? "Kaydediliyor…"
+              : undefined,
+        run: () => (selected ? deleteInvoice(selected) : undefined),
+      };
+      if (selected?.status === "Posted")
+        more.push({ id: "invoice-void", label: "İptal et", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => voidInvoice(selected) });
+    }
+    more.push(csvExportCommand(gridExportRef));
+    commands.more = more;
+  }
   return (
     <>
+      {!commandsSuspended && (entryPage || !createOpen) && <PageCommandsSlot commands={commands} />}
       {actionError && (
         <div className="alert inline-alert">
           {actionError}
@@ -10887,6 +11056,8 @@ function SalesInvoiceTable({
       >
         <SalesDocumentGrid
           gridId="sales-invoices"
+          hideExport
+          exportActionsRef={gridExportRef}
           fields={ordered}
           items={visible}
           selectedId={selectedId}
@@ -10905,6 +11076,8 @@ function SalesInvoiceTable({
       </section>}
       {createOpen && (
         <SalesInvoiceFromDeliveryDialog
+          key={createFormKey}
+          onDirtyChange={setCreateDirty}
           deliveries={deliveries}
           orders={orders}
           customers={customers}

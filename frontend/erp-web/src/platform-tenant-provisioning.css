@@ -32,23 +32,23 @@
 .platform-provisioning-note{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
 .platform-provisioning-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:2px}
 .platform-provisioning-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px}
-.platform-provisioning-error{display:flex;align-items:flex-start;gap:8px;margin:0;color:var(--danger,#b42318);font-size:13px;line-height:1.5}
+.platform-provisioning-error{display:flex;align-items:flex-start;gap:8px;margin:0;color:var(--nx-bad);font-size:13px;line-height:1.5}
 .platform-provisioning-error svg{flex:none;margin-top:1px}
 .platform-provisioning-status{display:grid;gap:16px}
 .platform-provisioning-status .panel-heading{padding-bottom:12px;border-bottom:1px solid #e5ebf2}
 .platform-provisioning-badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
-.platform-provisioning-badge.is-queued,.platform-provisioning-badge.is-running{color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
-.platform-provisioning-badge.is-completed{color:var(--success,#15803d);background:color-mix(in srgb,var(--success,#15803d) 8%,var(--surface))}
-.platform-provisioning-badge.is-failed{color:var(--danger,#b42318);background:color-mix(in srgb,var(--danger,#b42318) 8%,var(--surface))}
+.platform-provisioning-badge.is-queued,.platform-provisioning-badge.is-running{color:var(--nx-primary-strong);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.platform-provisioning-badge.is-completed{color:var(--nx-ok);background:color-mix(in srgb,var(--nx-ok) 8%,var(--surface))}
+.platform-provisioning-badge.is-failed{color:var(--nx-bad);background:color-mix(in srgb,var(--nx-bad) 8%,var(--surface))}
 .platform-provisioning-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .platform-provisioning-details>div{display:grid;gap:6px;min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px}
 .platform-provisioning-details span{color:var(--muted);font-size:11px}
 .platform-provisioning-details code,.platform-provisioning-details b{overflow-wrap:anywhere;font-size:12px}
-.platform-provisioning-success{margin:0;color:var(--success,#15803d);font-size:13px}
+.platform-provisioning-success{margin:0;color:var(--nx-ok);font-size:13px}
 .platform-provisioning-spin{animation:platform-provisioning-spin .9s linear infinite}
 @keyframes platform-provisioning-spin{to{transform:rotate(360deg)}}
-.platform-admin-shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh;background:var(--background,#f5f6fa);color:var(--text,#1f2937)}
-.platform-admin-sidebar{position:sticky;top:0;display:flex;flex-direction:column;height:100vh;padding:22px 16px;border-right:1px solid var(--line);background:var(--surface,#fff)}
+.platform-admin-shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh;background:var(--nx-surface);color:var(--nx-text)}
+.platform-admin-sidebar{position:sticky;top:0;display:flex;flex-direction:column;height:100vh;padding:22px 16px;border-right:1px solid var(--line);background:var(--nx-surface)}
 .platform-admin-sidebar-label{margin:35px 12px 12px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.1em}
 .platform-admin-sidebar .nav-item{width:100%;text-align:left}
 .platform-admin-sidebar-bottom{margin-top:auto}
@@ -57,9 +57,9 @@
 .platform-admin-sidebar-bottom .profile b,.platform-admin-sidebar-bottom .profile small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .platform-admin-sidebar-bottom .profile small{color:var(--muted);font-size:11px}
 .platform-admin-main{min-width:0}
-.platform-admin-topbar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px;padding:12px 28px;border-bottom:1px solid var(--line);background:var(--surface,#fff)}
+.platform-admin-topbar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px;padding:12px 28px;border-bottom:1px solid var(--line);background:var(--nx-surface)}
 .platform-admin-topbar>div:first-child{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
-.platform-admin-topbar b{color:var(--text,#1f2937)}
+.platform-admin-topbar b{color:var(--nx-text)}
 .platform-admin-topbar .locale-switch{display:flex;align-items:center;gap:6px}
 .platform-admin-content{padding:28px}
 .platform-admin-content .platform-provisioning-page{padding-bottom:0}
@@ -70,10 +70,10 @@
 /* Keep the provisioning flow in a deliberate two-column layout inside the platform shell. */
 .platform-admin-content .platform-provisioning-page{display:grid;grid-template-columns:minmax(0,1fr) minmax(440px,500px);grid-template-areas:"intro form" "steps form" "companies form" "status status";align-items:start;gap:20px 24px;max-width:1500px;margin:0 auto;padding:0 0 24px}
 .platform-admin-content .platform-provisioning-heading{grid-area:intro;display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:190px;margin:0;padding:30px 32px;border:1px solid #d7e2f0;border-radius:14px;background:radial-gradient(circle at 88% 18%,#e5efff 0,transparent 32%),linear-gradient(125deg,#fff 0%,#f3f7ff 100%)}
-.platform-admin-content .platform-provisioning-heading .eyebrow{margin-bottom:12px;color:#6557c8}
+.platform-admin-content .platform-provisioning-heading .eyebrow{margin-bottom:12px;color:var(--nx-primary-strong)}
 .platform-admin-content .platform-provisioning-heading h1{margin:0 0 9px;color:#1d2940;font-size:30px;letter-spacing:-1px}
 .platform-admin-content .platform-provisioning-heading .muted{max-width:520px;color:#68758a;font-size:14px;line-height:1.65}
-.platform-admin-content .platform-provisioning-mark{width:56px;height:56px;border-radius:16px;background:#fff;box-shadow:0 8px 24px #6255c21a}
+.platform-admin-content .platform-provisioning-mark{width:56px;height:56px;border-radius:16px;background:#fff;box-shadow:0 8px 24px color-mix(in srgb, var(--nx-primary) 10%, transparent)}
 .platform-admin-content .platform-provisioning-security{border-color:#dfe7f1;background:#ffffffbd;color:#52637b;font-size:12px}
 .platform-admin-content .platform-provisioning-overview{grid-area:steps;grid-template-columns:repeat(3,minmax(0,1fr));align-self:start;border-color:#dce4ef;border-radius:12px;box-shadow:0 5px 18px #263b5b08}
 .platform-admin-content .platform-provisioning-overview>div{gap:12px;min-height:94px;padding:16px 18px}
@@ -88,17 +88,17 @@
 .platform-admin-content .platform-provisioning-company-list{display:grid}
 .platform-admin-content .platform-provisioning-company{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:70px;padding:12px 2px;border-bottom:1px solid #edf0f5}
 .platform-admin-content .platform-provisioning-company:last-child{border-bottom:0}
-.platform-admin-content .platform-provisioning-company-icon{display:grid;place-items:center;width:36px;height:36px;border:1px solid #e3e5fa;border-radius:10px;background:#f4f2ff;color:#7163d8}
+.platform-admin-content .platform-provisioning-company-icon{display:grid;place-items:center;width:36px;height:36px;border:1px solid #e3e5fa;border-radius:10px;background:color-mix(in srgb, var(--nx-primary) 5%, var(--nx-surface));color:var(--nx-primary-strong)}
 .platform-admin-content .platform-provisioning-company-info,.platform-admin-content .platform-provisioning-company-state{display:grid;gap:4px;min-width:0}
 .platform-admin-content .platform-provisioning-company-info b{overflow:hidden;color:#26344c;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
 .platform-admin-content .platform-provisioning-company-info small,.platform-admin-content .platform-provisioning-company-state small{overflow:hidden;color:#8190a4;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
 .platform-admin-content .platform-provisioning-company-state{justify-items:end;gap:5px}
 .platform-admin-content .platform-provisioning-company-badge{display:inline-flex;align-items:center;min-height:22px;padding:3px 8px;border:1px solid #e5e9f0;border-radius:999px;background:#f8f9fc;color:#65748a;font-size:9px;font-weight:700;white-space:nowrap}
 .platform-admin-content .platform-provisioning-company-badge.is-active{border-color:#cdebd9;background:#effaf3;color:#24804d}
-.platform-admin-content .platform-provisioning-company-badge.is-pending{border-color:#f0dfb6;background:#fff9eb;color:#906719}
+.platform-admin-content .platform-provisioning-company-badge.is-pending{border-color:color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));background:var(--nx-warn-bg);color:var(--nx-warn)}
 .platform-admin-content .platform-provisioning-company-badge.is-failed{border-color:#f2d3d2;background:#fff3f2;color:#b42318}
 .platform-admin-content .platform-provisioning-company-badge.is-license-active{border-color:#cdebd9;background:#effaf3;color:#24804d}.platform-admin-content .platform-provisioning-company-badge.is-license-expired,.platform-admin-content .platform-provisioning-company-badge.is-license-invalid{border-color:#f2d3d2;background:#fff3f2;color:#b42318}.platform-admin-content .platform-provisioning-company-badge.is-license-unlicensed{border-color:#e5e9f0;background:#f8f9fc;color:#65748a}
-.platform-admin-content .platform-provisioning-company-search{display:flex;align-items:center;gap:9px;max-width:420px;min-height:38px;margin:0 0 9px;padding:0 11px;border:1px solid #dfe3eb;border-radius:8px;background:#fff;color:#8992a3}.platform-admin-content .platform-provisioning-company-search:focus-within{border-color:#826ef0;box-shadow:0 0 0 3px #826ef01f}.platform-admin-content .platform-provisioning-company-search input{width:100%;min-width:0;min-height:36px;padding:0;border:0;outline:0;background:transparent;color:#303849;font:400 11px 'DM Sans',Inter,system-ui,sans-serif}.platform-admin-content .platform-provisioning-company-search input::-webkit-search-cancel-button{cursor:pointer}
+.platform-admin-content .platform-provisioning-company-search{display:flex;align-items:center;gap:9px;max-width:420px;min-height:38px;margin:0 0 9px;padding:0 11px;border:1px solid #dfe3eb;border-radius:8px;background:#fff;color:#8992a3}.platform-admin-content .platform-provisioning-company-search:focus-within{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 12%, transparent)}.platform-admin-content .platform-provisioning-company-search input{width:100%;min-width:0;min-height:36px;padding:0;border:0;outline:0;background:transparent;color:#303849;font:400 11px var(--nx-font)}.platform-admin-content .platform-provisioning-company-search input::-webkit-search-cancel-button{cursor:pointer}
 .platform-admin-content .platform-provisioning-companies-empty{display:flex;align-items:center;justify-content:center;gap:10px;min-height:96px;color:#758198;font-size:12px;text-align:center}
 .platform-admin-content .platform-provisioning-companies-empty.is-error{color:#b42318}
 .platform-admin-content .platform-provisioning-card{grid-area:form;justify-self:stretch;align-self:start;width:100%;max-width:none;margin:0;padding:24px;border-color:#dce4ef;border-radius:14px;box-shadow:0 12px 34px #263b5b0d}
@@ -109,7 +109,7 @@
 .platform-admin-content .platform-provisioning-form .form-two{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .platform-admin-content .platform-provisioning-form>label,.platform-admin-content .platform-provisioning-form .form-two>label{gap:8px;color:#46546a;font-size:12px;line-height:1.4}
 .platform-admin-content .platform-provisioning-form input{min-height:43px;padding:9px 11px;border:1px solid #d9e1ed;border-radius:9px;background:#fff;color:#243148;font-size:13px;outline:none;transition:border-color .15s ease,box-shadow .15s ease}
-.platform-admin-content .platform-provisioning-form input:focus{border-color:#7565df;box-shadow:0 0 0 3px #7565df1c}
+.platform-admin-content .platform-provisioning-form input:focus{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 11%, transparent)}
 .platform-admin-content .platform-provisioning-form input::placeholder{color:#a2adbd}
 .platform-admin-content .platform-provisioning-card .platform-provisioning-admin-name{max-width:none}
 .platform-admin-content .platform-provisioning-note{padding:12px 13px;border:1px solid #e5eaf2;border-radius:9px;background:#f8faff;color:#66748a;font-size:11px;line-height:1.55}

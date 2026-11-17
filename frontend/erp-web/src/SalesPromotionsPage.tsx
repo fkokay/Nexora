@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { authenticatedFetch } from "./authApi";
 import { addLocalCalendarDays, localDateString } from "./dateUtils";
 import type { FormEvent } from "react";
 import { ListPageHeader } from "./list-page/ListPageHeader";
-import { BarChart3, Download, Plus } from "lucide-react";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
 import "./finance-hub.css";
@@ -111,6 +114,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const reportExportRef = useRef<GridExportActions | null>(null);
   const [campaignTab, setCampaignTab] = useState<CampaignTab>("summary");
   const [stateFilter, setStateFilter] = useState<CampaignState | "">("");
   const [overview, setOverview] = useState<PerformancePage | null>(null);
@@ -374,8 +378,32 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setError("XLSX dosyası oluşturulamadı.");
     }
   }
+  // Action bar. In the campaign list the page exports its own XLSX; in the performance report the report grid's
+  // Excel export (grid fallback) and its ListToolbar's refresh/filter apply.
+  const commands: PageCommands = {};
+  if (role === "TenantAdmin" && !createOpen) commands.new = { primary: true, run: openCreate };
+  const more: MenuCommand[] = [
+    {
+      id: "campaign-report",
+      label: reportOpen ? "Kampanya listesi" : "Performans raporu",
+      run: () => setReportOpen((open) => !open),
+    },
+  ];
+  if (reportOpen) {
+    more.push(csvExportCommand(reportExportRef));
+  } else {
+    if (role === "TenantAdmin" && selectedCampaign && !createOpen)
+      commands.open = { disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => openEdit(selectedCampaign) };
+    commands.refresh = { run: () => void refreshAll() };
+    commands.export = {
+      disabledReason: visibleCampaigns.length === 0 ? "Dışa aktarılacak kampanya yok." : undefined,
+      run: () => exportCampaigns(),
+    };
+  }
+  commands.more = more;
   return (
     <main className="sales-promotions-page list-v2 fh-page cf-page">
+      <PageCommandsSlot commands={commands} />
       <ListPageHeader
         title="Kampanyalar ve promosyonlar"
         description="Tarih aralığına bağlı yüzde indirimleri taslak satış tekliflerine uygulayın."
@@ -385,31 +413,6 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
         {onBack && (
           <button type="button" className="secondary" onClick={onBack}>
             Satışa dön
-          </button>
-        )}
-        <button
-          type="button"
-          className="secondary"
-          aria-pressed={reportOpen}
-          onClick={() => setReportOpen((open) => !open)}
-        >
-          <BarChart3 size={15} aria-hidden="true" />
-          {reportOpen ? "Kampanya listesi" : "Performans raporu"}
-        </button>
-        {!reportOpen && (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => void exportCampaigns()}
-            disabled={visibleCampaigns.length === 0}
-            title="Listelenen kampanyaları XLSX olarak indir"
-          >
-            <Download size={15} aria-hidden="true" /> XLSX
-          </button>
-        )}
-        {role === "TenantAdmin" && (
-          <button type="button" className="primary" onClick={openCreate}>
-            <Plus size={16} aria-hidden="true" /> Yeni kampanya
           </button>
         )}
       </ListPageHeader>
@@ -454,6 +457,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
           onRefresh={() =>
             void loadPerformance().catch((e) => setError((e as Error).message))
           }
+          exportActionsRef={reportExportRef}
         />
       ) : (
         <>

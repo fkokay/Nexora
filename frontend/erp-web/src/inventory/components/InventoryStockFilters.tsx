@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Warehouse } from "../../erp-types";
@@ -19,6 +20,8 @@ type Props = {
   showMinimumFilter?: boolean;
   /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
+  /** Extra controls after the filters (e.g. the detail panel toggle). */
+  extra?: ReactNode;
 };
 
 export function InventoryStockFilters({
@@ -35,6 +38,7 @@ export function InventoryStockFilters({
   onApplyFilters,
   showMinimumFilter = true,
   toolsSlotRef,
+  extra,
 }: Props) {
   // The page reloads on every filter change by itself, so the search needs no apply step.
   return (
@@ -91,6 +95,7 @@ export function InventoryStockFilters({
           ]}
         />
       )}
+      {extra}
     </ListToolbar>
   );
 }

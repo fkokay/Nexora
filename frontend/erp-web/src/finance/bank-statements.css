@@ -17,8 +17,8 @@
   background: var(--fh-warn-bg);
   color: var(--fh-warn);
 }
-#root .cf-page .bst-item .cf-bar.is-warning > i { background: #d69e2e; }
-html[data-theme="dark"] #root .cf-page .bst-item .cf-bar.is-warning > i { background: #f5c27a; }
+#root .cf-page .bst-item .cf-bar.is-warning > i { background: var(--nx-warn); }
+html[data-theme="dark"] #root .cf-page .bst-item .cf-bar.is-warning > i { background: var(--nx-warn); }
 
 /* Selected statement header */
 #root .cf-page .bst-balance { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }

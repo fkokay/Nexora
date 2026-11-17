@@ -4,44 +4,26 @@ import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import type { Location, WarehouseRow } from "../types";
 import "../../inventory/inventory-list-v2.css";
 
-type Props = {
-  warehouses: WarehouseRow[];
+type OverviewProps = {
   warehouseId: string;
   locations: Location[];
-  warehousesLoading: boolean;
   loading: boolean;
-  search: string;
-  statusFilter: string;
   error: string;
   notice: string;
-  onRefresh: () => void;
   onDismissError: () => void;
   onDismissNotice: () => void;
-  onWarehouseSelect: (warehouseId: string) => void;
-  onSearchChange: (value: string) => void;
-  onStatusChange: (value: string) => void;
-  /** Receives the element where the location list's own tools are rendered. */
-  toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
+/** Title row (with the bar slot) and the page messages. */
 export function WarehouseLocationOverview({
-  warehouses,
   warehouseId,
   locations,
-  warehousesLoading,
   loading,
-  search,
-  statusFilter,
   error,
   notice,
-  onRefresh,
   onDismissError,
   onDismissNotice,
-  onWarehouseSelect,
-  onSearchChange,
-  onStatusChange,
-  toolsSlotRef,
-}: Props) {
+}: OverviewProps) {
   return (
     <>
       <ListPageHeader
@@ -70,56 +52,80 @@ export function WarehouseLocationOverview({
           </button>
         </div>
       )}
-      <ListToolbar
-        search={search}
-        onSearchChange={onSearchChange}
-        searchLabel="Kod, ad veya üst konum ara"
-        searchPlaceholder="Kod, ad veya üst konum ara"
-        toolsSlotRef={toolsSlotRef}
-        onRefresh={onRefresh}
-        refreshLabel="Depo, konum ve bakiyeleri yenile"
-      >
-        <label className="list-v2-filter">
-          Depo
-          <SearchableRecordPicker
-            options={warehouses.map((row) => ({
-              id: row.id,
-              label: `${row.code} · ${row.name}`,
-              description: row.isActive ? "Aktif" : "Pasif",
-            }))}
-            selectedId={warehouseId}
-            onSelect={onWarehouseSelect}
-            title="Depo seçin"
-            placeholder={
-              warehousesLoading ? "Depolar yükleniyor…" : "Depo seçin"
-            }
-            searchPlaceholder="Depo kodu veya adıyla ara"
-            emptyMessage="Aramanızla eşleşen depo bulunamadı."
-            disabled={warehousesLoading}
-            clearable
-            clearLabel="Depo seçimini kaldır"
-          />
-        </label>
-        <ListChipGroup
-          label="Durum"
-          value={statusFilter}
-          onChange={onStatusChange}
-          allowClear
-          hideEmpty
-          options={[
-            {
-              value: "Active",
-              label: "Aktif",
-              count: locations.filter((row) => row.isActive).length,
-            },
-            {
-              value: "Inactive",
-              label: "Pasif",
-              count: locations.filter((row) => !row.isActive).length,
-            },
-          ]}
-        />
-      </ListToolbar>
     </>
+  );
+}
+
+type ToolbarProps = {
+  warehouses: WarehouseRow[];
+  warehouseId: string;
+  locations: Location[];
+  warehousesLoading: boolean;
+  search: string;
+  statusFilter: string;
+  onRefresh: () => void;
+  onWarehouseSelect: (warehouseId: string) => void;
+  onSearchChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
+  /** Receives the element where the location list's own tools are rendered. */
+  toolsSlotRef?: (element: HTMLDivElement | null) => void;
+};
+
+/** The location list's toolbar (left half of the definition screen): search, Depo, Tümü / Aktif / Pasif. */
+export function WarehouseLocationToolbar({
+  warehouses,
+  warehouseId,
+  locations,
+  warehousesLoading,
+  search,
+  statusFilter,
+  onRefresh,
+  onWarehouseSelect,
+  onSearchChange,
+  onStatusChange,
+  toolsSlotRef,
+}: ToolbarProps) {
+  const active = locations.filter((row) => row.isActive).length;
+  return (
+    <ListToolbar
+      search={search}
+      onSearchChange={onSearchChange}
+      searchLabel="Kod, ad veya üst konum ara"
+      searchPlaceholder="Kod, ad veya üst konum ara"
+      toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
+      refreshLabel="Depo, konum ve bakiyeleri yenile"
+    >
+      <label className="list-v2-filter">
+        Depo
+        <SearchableRecordPicker
+          options={warehouses.map((row) => ({
+            id: row.id,
+            label: `${row.code} · ${row.name}`,
+            description: row.isActive ? "Aktif" : "Pasif",
+          }))}
+          selectedId={warehouseId}
+          onSelect={onWarehouseSelect}
+          title="Depo seçin"
+          placeholder={warehousesLoading ? "Depolar yükleniyor…" : "Depo seçin"}
+          searchPlaceholder="Depo kodu veya adıyla ara"
+          emptyMessage="Aramanızla eşleşen depo bulunamadı."
+          disabled={warehousesLoading}
+          clearable
+          clearLabel="Depo seçimini kaldır"
+        />
+      </label>
+      <ListChipGroup
+        label="Durum"
+        value={statusFilter}
+        onChange={onStatusChange}
+        hideEmpty
+        options={[
+          { value: "", label: "Tümü", count: locations.length },
+          { value: "Active", label: "Aktif", count: active },
+          { value: "Inactive", label: "Pasif", count: locations.length - active },
+        ]}
+      />
+    </ListToolbar>
   );
 }

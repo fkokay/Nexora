@@ -30,6 +30,12 @@
 #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide .searchable-record-trigger {
   width: 320px;
 }
+/* Phone width: the stock picker takes the row instead of pushing the page sideways. */
+@media (max-width: 600px) {
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide { flex: 1 1 100%; min-width: 0; }
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide > :not(span) { flex: 1 1 auto; min-width: 0; }
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide .searchable-record-trigger { width: 100%; min-width: 0; }
+}
 
 /* Detail panels: section title above a table that follows the facts. */
 #root :is(.inventory-tracking-page, .warehouse-locations-page).list-v2 .list-v2-detail-meta + .list-v2-facts {
@@ -62,7 +68,7 @@
   min-width: 0;
   padding: 10px 14px;
   border: 1px solid #dfe5ee;
-  border-radius: 10px;
+  border-radius: var(--nx-radius-card);
   background: #fff;
   color: #17263a;
 }
@@ -89,12 +95,236 @@
   font-weight: 650;
 }
 #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-icon,
-#root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: #fff4dc; color: #8a5a05; }
+#root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface)); color: var(--nx-primary-strong); }
 #root .inventory-list-v2 .stock-policy-note.is-unknown .stock-policy-note-icon { background: #eef2f7; color: #45566d; }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note { border-color: #35435b; background: #1a263a; color: #e7edf5; }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-text small { color: #a7b4c6; }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-icon,
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note-badge { background: #173a2a; color: #8ee0b2; }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-icon,
-html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: #3a2e12; color: #f3c867; }
+html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-allowed .stock-policy-note-badge { background: var(--nx-warn-bg); color: var(--nx-primary-strong); }
 html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .stock-policy-note-icon { background: #253247; color: #c2cfe0; }
+
+/* ---- Stok Kartları list (mockup 01, list part): list + detail panel, level bar, panel toggle ---- */
+#root .inventory-list-v2 .inventory-stock-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+#root .inventory-list-v2 .inventory-stock-body.has-detail {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+#root .inventory-list-v2 .inventory-stock-body > .panel { margin: 0; }
+
+/* Available quantity below the minimum: colour only; the level bar after it (available / minimum). */
+#root .inventory-list-v2 .inventory-stock-low { color: var(--nx-bad); }
+#root .inventory-list-v2 .inventory-stock-level {
+  display: inline-block;
+  width: 44px;
+  height: 5px;
+  margin-left: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--nx-line-soft);
+  vertical-align: middle;
+}
+#root .inventory-list-v2 .inventory-stock-level > i { display: block; height: 100%; background: var(--nx-ok); }
+#root .inventory-list-v2 .inventory-stock-level.is-bad > i { background: var(--nx-bad); }
+#root .inventory-list-v2 .inventory-stock-level.is-warn > i { background: var(--nx-warn); }
+#root .inventory-list-v2 .inventory-stock-level.is-off > i { background: var(--nx-muted); }
+
+/* Toolbar toggle of the detail panel (same flat look as the grid tools beside it). */
+#root .app-shell .inventory-list-v2 .inventory-stock-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-text);
+  font: 500 12.5px/1.2 var(--nx-font);
+  cursor: pointer;
+}
+#root .app-shell .inventory-list-v2 .inventory-stock-panel-toggle:hover { background: var(--nx-canvas); }
+#root .app-shell .inventory-list-v2 .inventory-stock-panel-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--nx-primary) 35%, var(--nx-surface));
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+}
+
+/* Detail panel (mockup ".det"). */
+#root .inventory-list-v2 .inventory-stock-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 12.5px;
+}
+#root .inventory-list-v2 .inventory-stock-detail.is-empty { padding: 16px 14px; color: var(--nx-muted); }
+#root .inventory-list-v2 .inventory-stock-detail.is-empty p { margin: 0; }
+#root .inventory-list-v2 .inventory-stock-detail-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--nx-line-soft); }
+#root .inventory-list-v2 .inventory-stock-detail-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--nx-muted);
+}
+#root .inventory-list-v2 .inventory-stock-detail-top .nx-code { color: var(--nx-muted); font-size: 12px; }
+#root .inventory-list-v2 .inventory-stock-detail-actions { display: inline-flex; align-items: center; gap: 2px; }
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-muted);
+  font: 500 12px/1 var(--nx-font);
+  cursor: pointer;
+}
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-actions button:hover:not(:disabled) { background: var(--nx-canvas); color: var(--nx-text); }
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-actions button.inventory-stock-detail-close { justify-content: center; width: 26px; padding: 0; }
+#root .inventory-list-v2 .inventory-stock-detail-actions kbd {
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font: 10px/1.4 var(--nx-font-mono);
+}
+#root .inventory-list-v2 .inventory-stock-detail h3 {
+  margin: 4px 0 6px;
+  color: var(--nx-text);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#root .inventory-list-v2 .inventory-stock-detail-labels { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .inventory-list-v2 .inventory-stock-detail-tabs {
+  display: flex;
+  gap: 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--nx-line);
+}
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button {
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-muted);
+  font: 400 12.5px/1.3 var(--nx-font);
+  cursor: pointer;
+}
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button:is(:hover, :focus) { background: transparent; color: var(--nx-text); }
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button.is-active {
+  /* Underline only: the global [aria-selected=true] tint (global-components.css, !important) is not a tab style. */
+  background: transparent !important;
+  box-shadow: inset 0 -2px 0 var(--nx-primary);
+  color: var(--nx-primary-strong);
+  font-weight: 600;
+}
+#root .inventory-list-v2 .inventory-stock-detail-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; }
+#root .inventory-list-v2 .inventory-stock-detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#root .inventory-list-v2 .inventory-stock-detail-stats > div { padding: 7px 9px; border-radius: var(--nx-radius-card); background: var(--nx-table-head); }
+#root .inventory-list-v2 .inventory-stock-detail-stats small { display: block; color: var(--nx-muted); font-size: 11px; }
+#root .inventory-list-v2 .inventory-stock-detail-stats b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+#root .inventory-list-v2 .inventory-stock-detail-stats b.is-low { color: var(--nx-bad); }
+#root .inventory-list-v2 .inventory-stock-detail-facts { margin: 0; }
+#root .inventory-list-v2 .inventory-stock-detail-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--nx-line-soft);
+}
+#root .inventory-list-v2 .inventory-stock-detail-facts dt { color: var(--nx-muted); }
+#root .inventory-list-v2 .inventory-stock-detail-facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Control height (the legacy secondary button is 40px). */
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-action { align-self: flex-start; height: var(--nx-control-h); min-height: var(--nx-control-h); padding: 0 12px; border-radius: var(--nx-radius-control); font-size: 12.5px; }
+#root .inventory-list-v2 .inventory-stock-detail-section {
+  margin-bottom: 6px;
+  color: var(--nx-muted);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+#root .inventory-list-v2 .inventory-stock-detail-muted,
+#root .inventory-list-v2 .inventory-stock-detail-error { margin: 0; color: var(--nx-muted); }
+#root .inventory-list-v2 .inventory-stock-detail-error { color: var(--nx-bad); }
+#root .inventory-list-v2 .inventory-stock-detail-warehouse {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 56px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+#root .inventory-list-v2 .inventory-stock-detail-warehouse > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .inventory-list-v2 .inventory-stock-detail-warehouse > b { font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+#root .inventory-list-v2 .inventory-stock-detail-bar { height: 7px; overflow: hidden; border-radius: 4px; background: var(--nx-line-soft); }
+#root .inventory-list-v2 .inventory-stock-detail-bar > i { display: block; height: 100%; background: var(--nx-primary); }
+#root .inventory-list-v2 .inventory-stock-detail-movements { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+#root .inventory-list-v2 .inventory-stock-detail-movements li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--nx-line-soft);
+}
+#root .inventory-list-v2 .inventory-stock-detail-movement-main { display: flex; flex-direction: column; min-width: 0; }
+#root .inventory-list-v2 .inventory-stock-detail-movement-main > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .inventory-list-v2 .inventory-stock-detail-movement-main small { color: var(--nx-muted); font-size: 11px; }
+#root .inventory-list-v2 .inventory-stock-detail-movements b { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .inventory-list-v2 .inventory-stock-detail-movements b.is-in { color: var(--nx-ok); }
+#root .inventory-list-v2 .inventory-stock-detail-movements b.is-out { color: var(--nx-bad); }
+#root .inventory-list-v2 .inventory-stock-detail-foot { margin-top: auto; padding: 8px 14px 10px; border-top: 1px solid var(--nx-line-soft); }
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-foot button {
+  min-height: 30px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-bad);
+  font: 600 12.5px/1 var(--nx-font);
+  cursor: pointer;
+}
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-foot button:hover:not(:disabled) { background: var(--nx-bad-bg); }
+
+/* Below 1100px the panel (opened with Ctrl+. or the toggle) slides over the list from the right. */
+@media (max-width: 1099px) {
+  #root .inventory-list-v2 .inventory-stock-body.has-detail { grid-template-columns: minmax(0, 1fr); }
+  #root .inventory-list-v2 .inventory-stock-body.has-detail > .inventory-stock-detail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(340px, 100vw);
+    overflow-y: auto;
+    border-radius: 0;
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 30%, transparent);
+  }
+}

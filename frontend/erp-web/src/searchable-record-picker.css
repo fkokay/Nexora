@@ -61,13 +61,13 @@ html[data-theme="dark"] .searchable-record-modal .customer-picker-selected { bac
   padding: 20px;
   border-color: #d4dfeb;
   border-radius: 14px;
-  background: var(--erp-surface, #fff);
+  background: var(--erp-surface);
   box-shadow: 0 28px 80px rgb(15 32 56 / 28%);
 }
 .customer-picker-backdrop .searchable-record-modal .modal-head {
   align-items: center;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--erp-border, #e5ebf2);
+  border-bottom: 1px solid var(--erp-border);
 }
 .customer-picker-backdrop .searchable-record-modal .modal-head .eyebrow { margin-bottom: 4px; color: #2878b7; }
 .customer-picker-backdrop .searchable-record-modal .modal-head h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }

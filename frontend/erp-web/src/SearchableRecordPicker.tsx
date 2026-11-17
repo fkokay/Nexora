@@ -75,8 +75,11 @@ export default function SearchableRecordPicker({
 
   useEffect(() => {
     if (!open) return;
+    // Esc closes only the picker: preventDefault tells the record form behind it not to cancel.
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);

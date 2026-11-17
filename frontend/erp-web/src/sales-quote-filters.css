@@ -5,15 +5,15 @@
   gap: 12px;
   margin: -10px 0 16px;
   padding: 15px 16px;
-  border: 1px solid var(--erp-line, #dce3ed);
+  border: 1px solid var(--erp-line);
   border-radius: 10px;
-  background: var(--erp-paper, #fff);
+  background: var(--erp-paper);
 }
 .sales-quote-filter-bar > label {
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: var(--erp-muted, #66738a);
+  color: var(--erp-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -23,10 +23,10 @@
   height: 38px;
   min-width: 0;
   padding: 0 10px;
-  border: 1px solid var(--erp-line, #dce3ed);
+  border: 1px solid var(--erp-line);
   border-radius: 6px;
-  background: var(--erp-surface, #fff);
-  color: var(--erp-text, #18243a);
+  background: var(--erp-surface);
+  color: var(--erp-text);
   font: inherit;
 }
 .sales-quote-filter-bar input:focus,
@@ -36,7 +36,7 @@
 }
 .sales-quote-filter-bar > small {
   grid-column: 1 / -1;
-  color: var(--erp-muted, #758198);
+  color: var(--erp-muted);
   font-size: 11px;
 }
 @media (max-width: 1050px) {
