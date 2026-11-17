@@ -88,6 +88,7 @@ type Props = {
   /** Keys are stock item ids. Pass a stable function (the grid reports through an effect). */
   onSelectionChange?: (keys: string[]) => void;
   onCurrentRowChange?: (key: string | null) => void;
+  onVisibleRowsChange?: (keys: string[]) => void;
 };
 
 export function InventoryStockGrid({
@@ -106,6 +107,7 @@ export function InventoryStockGrid({
   bulkActions,
   onSelectionChange,
   onCurrentRowChange,
+  onVisibleRowsChange,
 }: Props) {
   // Sized so the default columns fit beside the menu at 1440 and beside the detail panel at 1720 (no
   // horizontal scroll); saved layouts keep their own widths.
@@ -160,6 +162,7 @@ export function InventoryStockGrid({
           bulkActions={bulkActions}
           onSelectionChange={onSelectionChange}
           onCurrentRowChange={onCurrentRowChange}
+          onVisibleRowsChange={onVisibleRowsChange}
           aria-label="Depo stok bakiyeleri"
         >
           <thead>

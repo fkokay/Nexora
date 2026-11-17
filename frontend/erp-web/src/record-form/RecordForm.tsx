@@ -430,12 +430,26 @@ export function RecordFormGroup({
   );
 }
 
-/** Marks a changed field (yellow line on the control) and shows its previous value under it. */
-export function RecordFieldChange({ previous, children }: { previous: ReactNode; children: ReactNode }) {
+/**
+ * Marks a changed field (yellow line on the control) and shows its previous value under it. Pass `changed` to wrap
+ * a field that is not always changed: the same wrapper stays in place (an `rf-field` cell while unchanged), so the
+ * control is not remounted and keeps focus while typing. `className` is for layout classes such as `rf-span-2`.
+ */
+export function RecordFieldChange({
+  previous,
+  changed = true,
+  className,
+  children,
+}: {
+  previous: ReactNode;
+  changed?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="rf-changed">
+    <div className={`${changed ? "rf-changed" : "rf-field"}${className ? ` ${className}` : ""}`}>
       {children}
-      <small className="rf-previous">Önceki: {previous}</small>
+      {changed && <small className="rf-previous">Önceki: {previous}</small>}
     </div>
   );
 }

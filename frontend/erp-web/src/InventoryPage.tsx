@@ -19,10 +19,25 @@ import { StatusTag } from "./list-page/StatusTag";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./inventory/inventory-list-v2.css";
 import "./inventory/inventory-modals.css";
-import { NegativeStockPolicyNote } from "./inventory/NegativeStockPolicyNote";
+import { NegativeStockPolicyNote, NegativeStockRuleLine } from "./inventory/NegativeStockPolicyNote";
+import { StockCardAside, StockCardImage } from "./inventory/components/StockCardAside";
+import {
+  STOCK_CARD_DEFAULTS,
+  STOCK_CARD_SECTION_FIELDS,
+  TRACKING_LABELS,
+  changedCustomFields,
+  changedStockCardFields,
+  stockCardCompletion,
+  stockCardSectionState,
+  stockCardSummary,
+  stockCardValuesOf,
+  type StockCardField,
+  type StockCardValues,
+} from "./inventory/stockCardForm";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import {
+  RecordFieldChange,
   RecordFormGroup,
   RecordFormPage,
   RecordFormTabs,
@@ -232,6 +247,13 @@ export function InventoryPage({
   const [variantDimensions, setVariantDimensions] = useState<VariantDimensionDraft[]>([{ name: "", values: "" }]);
   const [existingVariants, setExistingVariants] = useState<StockItemVariant[]>([]);
   const [itemRecipes, setItemRecipes] = useState<StockRecipe[]>([]);
+  // Loaded values of the open card ("N alan değişti", previous values); custom values arrive after their request.
+  const [itemBaseline, setItemBaseline] = useState<{ values: StockCardValues; custom: Record<string, string> | null } | null>(null);
+  // Variants and recipes of the open card are loaded (their navigator counts are real).
+  const [itemRelationsLoaded, setItemRelationsLoaded] = useState(false);
+  // Displayed order of the list the card was opened from (PgUp / PgDn); null when not opened from the list.
+  const [recordNavIds, setRecordNavIds] = useState<string[] | null>(null);
+  const editRequestRef = useRef(0);
   const [code, setCode] = useState(""),
     [name, setName] = useState(""),
     [barcode, setBarcode] = useState(""),
@@ -1032,6 +1054,21 @@ export function InventoryPage({
       cancelled = true;
     };
   }, [token, section]);
+  /** Puts the stock card fields to the given values (defaults for a new card, the loaded values when editing). */
+  function applyStockCardValues(values: StockCardValues) {
+    setCode(values.code); setName(values.name); setBarcode(values.barcode); setUnitCode(values.unitCode); setCategory(values.category);
+    setMinimumStock(values.minimumStock); setMaximumStock(values.maximumStock); setReorderPoint(values.reorderPoint); setSafetyStock(values.safetyStock);
+    setProcurementLeadTimeDays(values.procurementLeadTimeDays); setManufacturingLeadTimeDays(values.manufacturingLeadTimeDays);
+    setTrackingMode(values.trackingMode);
+    setPurchaseListPrice(values.purchaseListPrice); setSalesListPrice(values.salesListPrice); setPriceCurrencyCode(values.priceCurrencyCode);
+    setPurchaseVatPercent(values.purchaseVatPercent); setSalesVatPercent(values.salesVatPercent);
+    setExciseTaxPercent(values.exciseTaxPercent); setCommunicationTaxPercent(values.communicationTaxPercent);
+    setWithholdingTaxPercent(values.withholdingTaxPercent); setStampTaxPercent(values.stampTaxPercent);
+    setPurchaseDiscountPercent(values.purchaseDiscountPercent); setSalesDiscountPercent(values.salesDiscountPercent);
+    setNetWeight(values.netWeight); setGrossWeight(values.grossWeight); setLength(values.length); setWidth(values.width); setHeight(values.height);
+    setPurchaseAccountCode(values.purchaseAccountCode); setSalesAccountCode(values.salesAccountCode); setCostAccountCode(values.costAccountCode);
+    setProductImageUrl(values.productImageUrl); setMarketplaceProductId(values.marketplaceProductId);
+  }
   /** Puts every field of a new stock card back to its default ("Temizle" and "Kaydet ve Yeni"). */
   function resetItemFormFields() {
     setItemFormNotice("");
@@ -1042,27 +1079,14 @@ export function InventoryPage({
     setItemUnitCode("");
     setItemUnitFactor("1");
     setItemCustomFieldValues({});
-    setCode("");
-    setName("");
-    setBarcode("");
-    setUnitCode("EA");
-    setCategory("");
-    setMinimumStock("0");
-    setPurchaseListPrice("");
-    setSalesListPrice("");
-    setPriceCurrencyCode("TRY");
-    setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
-    setWithholdingTaxPercent("0"); setStampTaxPercent("0");
-    setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
-    setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
-    setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
-    setProcurementLeadTimeDays("0");
-    setManufacturingLeadTimeDays("0");
-    setTrackingMode("None");
+    applyStockCardValues(STOCK_CARD_DEFAULTS);
     setError("");
   }
   async function openItemModal() {
+    editRequestRef.current += 1;
     setEditingItem(null);
+    setItemBaseline(null);
+    setRecordNavIds(null);
     resetItemFormFields();
     try {
       setItemCustomFieldDefinitions(
@@ -1081,40 +1105,28 @@ export function InventoryPage({
       void openItemModal();
   }, [section, itemModal, editingItem]);
   function closeItemForm() {
+    editRequestRef.current += 1;
     setItemModal(false);
     setEditingItem(null);
+    setItemBaseline(null);
+    setRecordNavIds(null);
     if (section === "inventory-stock-create") onNavigate?.("inventory-stock");
   }
   async function editItem(item: StockItem) {
+    // A later open (PgUp / PgDn) wins: answers for an earlier card are dropped.
+    const request = ++editRequestRef.current;
     setError("");
     setItemCreateTab("basic");
     setEditingItem(item);
     setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
+    setItemRelationsLoaded(false);
     setItemUnitConversions([]);
     setItemUnitRemovals([]);
     setItemUnitCode("");
     setItemUnitFactor("1");
-    setCode(item.code);
-    setName(item.name);
-    setBarcode(item.barcode || "");
-    setUnitCode(item.unitCode);
-    setCategory(item.category || "");
-    setMinimumStock(String(item.minimumStock));
-    setPurchaseListPrice(item.purchaseListPrice == null ? "" : String(item.purchaseListPrice));
-    setSalesListPrice(item.salesListPrice == null ? "" : String(item.salesListPrice));
-    setPriceCurrencyCode(item.priceCurrencyCode || "TRY");
-    setPurchaseVatPercent(String(item.purchaseVatPercent ?? 20)); setSalesVatPercent(String(item.salesVatPercent ?? 20));
-    setExciseTaxPercent(String(item.exciseTaxPercent ?? 0)); setCommunicationTaxPercent(String(item.communicationTaxPercent ?? 0));
-    setWithholdingTaxPercent(String(item.withholdingTaxPercent ?? 0)); setStampTaxPercent(String(item.stampTaxPercent ?? 0));
-    setPurchaseDiscountPercent(String(item.purchaseDiscountPercent ?? 0)); setSalesDiscountPercent(String(item.salesDiscountPercent ?? 0));
-    setMaximumStock(item.maximumStock == null ? "" : String(item.maximumStock)); setReorderPoint(item.reorderPoint == null ? "" : String(item.reorderPoint)); setSafetyStock(String(item.safetyStock ?? 0));
-    setNetWeight(item.netWeight == null ? "" : String(item.netWeight)); setGrossWeight(item.grossWeight == null ? "" : String(item.grossWeight));
-    setLength(item.length == null ? "" : String(item.length)); setWidth(item.width == null ? "" : String(item.width)); setHeight(item.height == null ? "" : String(item.height));
-    setProductImageUrl(item.productImageUrl || ""); setPurchaseAccountCode(item.purchaseAccountCode || ""); setSalesAccountCode(item.salesAccountCode || "");
-    setCostAccountCode(item.costAccountCode || ""); setMarketplaceProductId(item.marketplaceProductId || "");
-    setProcurementLeadTimeDays(String(item.procurementLeadTimeDays || 0));
-    setManufacturingLeadTimeDays(String(item.manufacturingLeadTimeDays || 0));
-    setTrackingMode(item.trackingMode || "None");
+    const loaded = stockCardValuesOf(item);
+    applyStockCardValues(loaded);
+    setItemBaseline({ values: loaded, custom: null });
     setItemCustomFieldDefinitions([]);
     setItemCustomFieldValues({});
     setItemModal(true);
@@ -1135,16 +1147,23 @@ export function InventoryPage({
         api<StockItemVariant[]>(`/api/stock/items/${item.id}/variants`, token),
         api<StockRecipe[]>("/api/manufacturing/boms/", token).catch(() => []),
       ]);
-      setItemUnitConversions(units.conversions);
+      if (request !== editRequestRef.current) return;
+      const customValues = Object.fromEntries((Array.isArray(values) ? values : []).map((field) => [field.code, field.value]));
+      setItemUnitConversions(units?.conversions ?? []);
       setItemCustomFieldDefinitions(definitions);
-      setItemCustomFieldValues(
-        Object.fromEntries(values.map((field) => [field.code, field.value])),
-      );
-      setExistingVariants(variants);
-      setItemRecipes(recipes.filter((recipe) => recipe.productStockItemId === item.id));
+      setItemCustomFieldValues(customValues);
+      setItemBaseline({ values: loaded, custom: customValues });
+      setExistingVariants(Array.isArray(variants) ? variants : []);
+      setItemRecipes(Array.isArray(recipes) ? recipes.filter((recipe) => recipe.productStockItemId === item.id) : []);
+      setItemRelationsLoaded(true);
     } catch (e) {
-      setError((e as Error).message);
+      if (request === editRequestRef.current) setError((e as Error).message);
     }
+  }
+  /** Opens a card from the list; `order` is the list's displayed order for PgUp / PgDn. */
+  function openItemFromList(item: StockItem, order: string[]) {
+    setRecordNavIds(order.includes(item.id) ? order : null);
+    void editItem(item);
   }
   function addItemUnitConversion() {
     const code = itemUnitCode.trim().toUpperCase();
@@ -1361,21 +1380,7 @@ export function InventoryPage({
           return;
         }
       }
-      setCode("");
-      setName("");
-      setBarcode("");
-      setUnitCode("EA");
-      setCategory("");
-      setMinimumStock("0");
-      setPurchaseListPrice(""); setSalesListPrice(""); setPriceCurrencyCode("TRY");
-      setPurchaseVatPercent("20"); setSalesVatPercent("20"); setExciseTaxPercent("0"); setCommunicationTaxPercent("0");
-      setWithholdingTaxPercent("0"); setStampTaxPercent("0");
-      setPurchaseDiscountPercent("0"); setSalesDiscountPercent("0"); setMaximumStock(""); setReorderPoint(""); setSafetyStock("0");
-      setNetWeight(""); setGrossWeight(""); setLength(""); setWidth(""); setHeight(""); setProductImageUrl("");
-      setPurchaseAccountCode(""); setSalesAccountCode(""); setCostAccountCode(""); setMarketplaceProductId("");
-      setProcurementLeadTimeDays("0");
-      setManufacturingLeadTimeDays("0");
-      setTrackingMode("None");
+      applyStockCardValues(STOCK_CARD_DEFAULTS);
       setItemCustomFieldValues({});
       if (section === "inventory-stock-create")
         window.dispatchEvent(new Event("inventory-stock-refresh"));
@@ -2319,22 +2324,176 @@ export function InventoryPage({
     setBelowMinimumOnly((value) => !value);
     setInventoryPage(1);
   };
+  // Stock card form: current values against the loaded card (edit) or the defaults (create).
+  const stockCardValues: StockCardValues = {
+    code, name, barcode, unitCode, category, minimumStock, maximumStock, reorderPoint, safetyStock,
+    procurementLeadTimeDays, manufacturingLeadTimeDays, trackingMode,
+    purchaseListPrice, salesListPrice, priceCurrencyCode, purchaseVatPercent, salesVatPercent, exciseTaxPercent,
+    communicationTaxPercent, withholdingTaxPercent, stampTaxPercent, purchaseDiscountPercent, salesDiscountPercent,
+    netWeight, grossWeight, length, width, height, purchaseAccountCode, salesAccountCode, costAccountCode,
+    productImageUrl, marketplaceProductId,
+  };
+  const itemComparedTo = editingItem && itemBaseline ? itemBaseline.values : STOCK_CARD_DEFAULTS;
+  // The code is locked while editing, so it never counts as changed there.
+  const itemChangedFields = new Set(
+    changedStockCardFields(stockCardValues, itemComparedTo).filter((key) => !editingItem || key !== "code"),
+  );
+  const itemUnitsChanged = itemUnitRemovals.length > 0 || itemUnitConversions.some((x) => x.id.startsWith("draft-"));
+  const itemCustomChanged = changedCustomFields(itemCustomFieldValues, editingItem ? (itemBaseline?.custom ?? itemCustomFieldValues) : {});
+  const itemChangeCount = itemChangedFields.size + itemCustomChanged.length + (itemUnitsChanged ? 1 : 0);
+  const itemDirty: number | boolean | undefined = editingItem
+    ? itemChangeCount
+    : itemChangeCount > 0 || makeVariantDrafts(code, name, variantDimensions).length > 0 || undefined;
+  /** Edit mode: wraps a field so a change shows the yellow line and the loaded value ("Önceki: …"). */
+  const trackField = (key: StockCardField, field: React.ReactNode, className?: string) => {
+    const previous = itemBaseline?.values[key] ?? "";
+    return (
+      <RecordFieldChange
+        changed={!!editingItem && itemChangedFields.has(key)}
+        previous={key === "trackingMode" ? TRACKING_LABELS[previous as StockItem["trackingMode"]] ?? previous : previous || "—"}
+        className={className}
+      >
+        {field}
+      </RecordFieldChange>
+    );
+  };
+  const requiredCustomMissing = itemCustomFieldDefinitions.some(
+    (field) => field.isRequired && !String(itemCustomFieldValues[field.code] || "").trim(),
+  );
+  const filledCustomValues = itemCustomFieldDefinitions.map((field) => String(itemCustomFieldValues[field.code] || ""));
+  const variantDraftCount = makeVariantDrafts(code, name, variantDimensions).length;
   const itemFormTabs: RecordFormTab[] = [
-    { key: "basic", label: "Genel ve Stok Yönetimi" },
-    { key: "pricing", label: "Fiyat ve Vergi" },
-    { key: "logistics", label: "Lojistik ve Muhasebe" },
+    { key: "basic", label: "Genel ve Stok Yönetimi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.basic) },
+    { key: "pricing", label: "Fiyat ve Vergi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.pricing) },
+    { key: "logistics", label: "Lojistik ve Muhasebe", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.logistics) },
     {
       key: "units",
       label: "Birim ve Özel Alanlar",
-      warning: itemCustomFieldDefinitions.some(
-        (field) =>
-          field.isRequired &&
-          !String(itemCustomFieldValues[field.code] || "").trim(),
-      ),
+      warning: requiredCustomMissing,
+      state: stockCardSectionState(stockCardValues, [], {
+        invalid: requiredCustomMissing,
+        extraFilled: filledCustomValues.filter((value) => value.trim()).length,
+      }),
     },
-    { key: "variants", label: "Varyantlar" },
-    { key: "recipes", label: "Üretim Reçeteleri" },
+    {
+      key: "variants",
+      label: "Varyantlar",
+      state: (editingItem ? existingVariants.length : variantDraftCount) > 0 ? "done" : "empty",
+      count: editingItem && itemRelationsLoaded ? existingVariants.length : undefined,
+    },
+    {
+      key: "recipes",
+      label: "Üretim Reçeteleri",
+      state: editingItem && itemRecipes.length > 0 ? "done" : "empty",
+      count: editingItem && itemRelationsLoaded ? itemRecipes.length : undefined,
+    },
   ];
+  const itemCompletion = stockCardCompletion(stockCardValues, filledCustomValues);
+  // The list row of the open card: stock status in the header and the context panel.
+  const editingBalance = editingItem ? balances.find((row) => row.stockItemId === editingItem.id) : undefined;
+  const editingNavIndex = editingItem && recordNavIds ? recordNavIds.indexOf(editingItem.id) : -1;
+  const stepRecord = async (delta: number) => {
+    const target = recordNavIds ? itemsById.get(recordNavIds[editingNavIndex + delta]) : undefined;
+    if (!target || busy) return;
+    if (
+      itemChangeCount > 0 &&
+      !(await confirmDialog({ title: "Kayıtlar arası gezinme", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }))
+    )
+      return;
+    void editItem(target);
+  };
+  const itemRecordNav =
+    recordNavIds && editingNavIndex >= 0
+      ? {
+          index: editingNavIndex + 1,
+          total: recordNavIds.length,
+          onPrev: editingNavIndex > 0 ? () => void stepRecord(-1) : undefined,
+          onNext: editingNavIndex < recordNavIds.length - 1 ? () => void stepRecord(1) : undefined,
+        }
+      : undefined;
+  /** "Birim dönüşümleri" card of the stock card: the base unit, then the alternative units (admins add / remove). */
+  function renderItemUnitConversions() {
+    const baseUnit = unitCode || "temel birim";
+    return (
+      <RecordFormGroup title="Birim dönüşümleri" hint={`Ana birim: ${baseUnit}`}>
+        <table className="inv-card-units" aria-label="Birim dönüşümleri">
+          <thead>
+            <tr>
+              <th>Birim</th>
+              <th className="nx-num">Katsayı</th>
+              <th>Açıklama</th>
+              {role === "TenantAdmin" && <th aria-label="İşlem" />}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="nx-code">{unitCode || "—"}</td>
+              <td className="nx-num">1</td>
+              <td>Ana birim</td>
+              {role === "TenantAdmin" && <td />}
+            </tr>
+            {itemUnitConversions.map((conversion) => (
+              <tr key={conversion.id}>
+                <td className="nx-code">{conversion.unitCode}</td>
+                <td className="nx-num">{conversion.factorToBase.toLocaleString("tr-TR", { maximumFractionDigits: 8 })}</td>
+                <td>{`1 ${conversion.unitCode} = ${conversion.factorToBase.toLocaleString("tr-TR", { maximumFractionDigits: 8 })} ${baseUnit}`}</td>
+                {role === "TenantAdmin" && (
+                  <td className="inv-card-units-action">
+                    <button
+                      type="button"
+                      className="row-action danger-action"
+                      disabled={busy}
+                      onClick={() => removeItemUnitConversion(conversion)}
+                    >
+                      Kaldır
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {itemUnitConversions.length === 0 && (
+              <tr>
+                <td colSpan={role === "TenantAdmin" ? 4 : 3} className="inv-card-units-empty">
+                  Henüz alternatif birim tanımlanmadı.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {role === "TenantAdmin" && (
+          <div className="inv-rf-inline-add">
+            <label>
+              Alternatif birim kodu
+              <input
+                className="rf-mono"
+                value={itemUnitCode}
+                onChange={(e) => setItemUnitCode(e.target.value.toUpperCase())}
+                maxLength={8}
+                placeholder="KOLI"
+              />
+            </label>
+            <label>
+              Temel birim katsayısı
+              <input
+                className="rf-num"
+                type="number"
+                min="0.00000001"
+                step="0.00000001"
+                value={itemUnitFactor}
+                onChange={(e) => setItemUnitFactor(e.target.value)}
+                required
+              />
+            </label>
+            <button type="button" className="secondary" disabled={busy} onClick={addItemUnitConversion}>
+              Birim dönüşümü ekle
+            </button>
+            <small>Örnek: 1 koli = 12 {baseUnit}</small>
+          </div>
+        )}
+        <small>1 alternatif birim = katsayı × {baseUnit}</small>
+      </RecordFormGroup>
+    );
+  }
   const activeItemTab = itemFormTabs.some((tab) => tab.key === itemCreateTab)
     ? itemCreateTab
     : "basic";
@@ -2453,7 +2612,7 @@ export function InventoryPage({
     exportRef: gridExportRef,
     onToggleBelowMinimum: toggleBelowMinimum,
     onPageChange: setInventoryPage,
-    onOpen: (stock) => void editItem(stock),
+    onOpen: openItemFromList,
     onDeleteOne: deleteItem,
     onDeactivate: (stock) => void changeItemState(stock, false),
     onMovements: (balance) => void openMovements(balance),
@@ -2820,7 +2979,10 @@ export function InventoryPage({
                         <button
                           className="row-action"
                           disabled={busy}
-                          onClick={() => editItem(item)}
+                          onClick={() => {
+                            setRecordNavIds(null);
+                            void editItem(item);
+                          }}
                         >
                           Düzenle
                         </button>
@@ -3336,9 +3498,35 @@ export function InventoryPage({
       )}
       {itemModal && (section === "inventory-stock-create" || !!editingItem) && (
         <RecordFormPage
+          // A new record per card: PgUp / PgDn start untouched (Esc closes without asking).
+          key={editingItem?.id ?? "new"}
           className="inventory-item-record-form"
-          title={editingItem ? "Stok Kartını Düzenle" : "Stok Kartı Tanımlama"}
+          title={editingItem ? editingItem.name : "Stok Kartı Tanımlama"}
           mode={editingItem ? "edit" : "create"}
+          media={<StockCardImage url={editingItem?.productImageUrl} />}
+          subtitle={
+            editingItem && (
+              <>
+                <span className="rf-code">{editingItem.code}</span>
+                <StatusTag tone={editingItem.isActive ? "ok" : "off"}>{editingItem.isActive ? "Aktif" : "Pasif"}</StatusTag>
+                {editingBalance?.belowMinimum && <StatusTag tone="bad">Minimum altı</StatusTag>}
+                {stockCardSummary(editingItem) && <span>{stockCardSummary(editingItem)}</span>}
+              </>
+            )
+          }
+          dirty={itemDirty}
+          recordNav={itemRecordNav}
+          aside={
+            editingItem ? (
+              <StockCardAside
+                token={token}
+                role={role}
+                code={editingItem.code}
+                balance={editingBalance}
+                scope={warehouseId ? (warehouses.find((row) => row.id === warehouseId)?.name ?? "seçili depo") : "tüm depolar"}
+              />
+            ) : undefined
+          }
           busy={busy}
           saveLabel={editingItem ? "Değişiklikleri Kaydet" : "Stok Kartını Kaydet"}
           formId="inventory-item-create-form"
@@ -3364,13 +3552,11 @@ export function InventoryPage({
               {itemFormNotice && (
                 <span className="rf-status-notice">{itemFormNotice}</span>
               )}
-              {!editingItem && !!(code.trim() || name.trim()) && (
-                <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>
-              )}
             </>
           }
         >
-          <RecordFormGroup title="Stok Kimliği" bodyClassName="rf-identity">
+          {/* Kimlik stays above the sections (always mounted, so its required fields are checked on every save). */}
+          <RecordFormGroup title="Kimlik" hint="* zorunlu alan" bodyClassName="rf-identity">
             <label>
               <span>Stok kodu <RequiredMark /></span>
               <input
@@ -3378,46 +3564,71 @@ export function InventoryPage({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
+                readOnly={!!editingItem}
+                title={editingItem ? "Kayıtlı kartın kodu değiştirilemez" : undefined}
                 maxLength={64}
                 placeholder="STK-1001"
               />
             </label>
-            <label className="rf-span-2">
-              <span>Stok adı <RequiredMark /></span>
-              <input
-                className="rf-must"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                maxLength={200}
-                placeholder="Stok adı"
-              />
-            </label>
-            <label>
-              <span>Birim kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={unitCode}
-                onChange={(e) => setUnitCode(e.target.value.toUpperCase())}
-                required
-                maxLength={8}
-                placeholder="EA"
-              />
-            </label>
-            <label>
-              Kategori
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Kategori seçin</option>
-                {stockCategoryOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {trackField(
+              "name",
+              <label>
+                <span>Stok adı <RequiredMark /></span>
+                <input
+                  className="rf-must"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  maxLength={200}
+                  placeholder="Stok adı"
+                />
+              </label>,
+              "rf-span-2",
+            )}
+            {trackField(
+              "barcode",
+              <label>
+                Barkod
+                <input
+                  className="rf-mono"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  maxLength={64}
+                  placeholder="Barkod"
+                />
+              </label>,
+            )}
+            {trackField(
+              "category",
+              <label>
+                Kategori
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">Kategori seçin</option>
+                  {stockCategoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>,
+            )}
+            {trackField(
+              "unitCode",
+              <label>
+                <span>Ana birim <RequiredMark /></span>
+                <input
+                  className="rf-must rf-mono"
+                  value={unitCode}
+                  onChange={(e) => setUnitCode(e.target.value.toUpperCase())}
+                  required
+                  maxLength={8}
+                  placeholder="EA"
+                />
+              </label>,
+            )}
           </RecordFormGroup>
 
           <RecordFormTabs
@@ -3425,41 +3636,16 @@ export function InventoryPage({
             active={activeItemTab}
             onChange={(key) => setItemCreateTab(key as typeof itemCreateTab)}
             label="Stok kartı form bölümleri"
+            completion={itemCompletion}
           >
             {activeItemTab === "basic" && (
               <div className="rf-columns">
-                <RecordFormGroup title="Tanımlama ve Takip">
-                  <label>
-                    Barkod
-                    <input
-                      className="rf-mono"
-                      value={barcode}
-                      onChange={(e) => setBarcode(e.target.value)}
-                      maxLength={64}
-                      placeholder="Barkod"
-                    />
-                  </label>
-                  <label>
-                    Lot / seri takibi
-                    <select
-                      value={trackingMode}
-                      onChange={(e) =>
-                        setTrackingMode(
-                          e.target.value as StockItem["trackingMode"],
-                        )
-                      }
-                    >
-                      <option value="None">Kapalı</option>
-                      <option value="Lot">Lot</option>
-                      <option value="Serial">Seri numarası</option>
-                    </select>
-                    <small>
-                      Hareket geçmişi oluşunca takip türü değiştirilemez.
-                    </small>
-                  </label>
-                </RecordFormGroup>
-                <RecordFormGroup title="Stok Seviyeleri">
-                  <div className="rf-pair">
+                <RecordFormGroup
+                  title="Stok yönetimi"
+                  hint={editingItem ? "Değişen alanlar sarı çizgiyle işaretlenir" : undefined}
+                >
+                  {trackField(
+                    "minimumStock",
                     <label>
                       Minimum stok
                       <input
@@ -3470,16 +3656,22 @@ export function InventoryPage({
                         value={minimumStock}
                         onChange={(e) => setMinimumStock(e.target.value)}
                       />
-                    </label>
-                    <label>Azami stok<input className="rf-num" type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>
-                  </div>
-                  <div className="rf-pair">
-                    <label>Yeniden sipariş noktası<input className="rf-num" type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>
-                    <label>Güvenli stok<input className="rf-num" type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>
-                  </div>
-                </RecordFormGroup>
-                <RecordFormGroup title="Temin Süreleri">
-                  <div className="rf-pair">
+                    </label>,
+                  )}
+                  {trackField(
+                    "maximumStock",
+                    <label>Maksimum stok<input className="rf-num" type="number" min="0" step="0.0001" value={maximumStock} onChange={(event) => setMaximumStock(event.target.value)} placeholder="Sınır yok" /></label>,
+                  )}
+                  {trackField(
+                    "reorderPoint",
+                    <label>Yeniden sipariş noktası<input className="rf-num" type="number" min="0" step="0.0001" value={reorderPoint} onChange={(event) => setReorderPoint(event.target.value)} placeholder="Tanımsız" /></label>,
+                  )}
+                  {trackField(
+                    "safetyStock",
+                    <label>Güvenli stok<input className="rf-num" type="number" min="0" step="0.0001" value={safetyStock} onChange={(event) => setSafetyStock(event.target.value)} /></label>,
+                  )}
+                  {trackField(
+                    "procurementLeadTimeDays",
                     <label>
                       Tedarik süresi (gün)
                       <input
@@ -3493,7 +3685,10 @@ export function InventoryPage({
                           setProcurementLeadTimeDays(e.target.value)
                         }
                       />
-                    </label>
+                    </label>,
+                  )}
+                  {trackField(
+                    "manufacturingLeadTimeDays",
                     <label>
                       Üretim süresi (gün)
                       <input
@@ -3507,41 +3702,68 @@ export function InventoryPage({
                           setManufacturingLeadTimeDays(e.target.value)
                         }
                       />
-                    </label>
+                    </label>,
+                  )}
+                  {trackField(
+                    "trackingMode",
+                    <label>
+                      Takip yöntemi
+                      <select
+                        value={trackingMode}
+                        onChange={(e) =>
+                          setTrackingMode(
+                            e.target.value as StockItem["trackingMode"],
+                          )
+                        }
+                        title="Hareket geçmişi oluşunca takip türü değiştirilemez."
+                      >
+                        <option value="None">Kapalı</option>
+                        <option value="Lot">Lot</option>
+                        <option value="Serial">Seri numarası</option>
+                      </select>
+                    </label>,
+                  )}
+                  <div className="rf-field rf-span-2 inv-card-rule-cell">
+                    <NegativeStockRuleLine token={token} />
                   </div>
+                  <small>Hareket geçmişi oluşunca takip yöntemi değiştirilemez.</small>
                 </RecordFormGroup>
+                {renderItemUnitConversions()}
               </div>
             )}
             {activeItemTab === "pricing" && (
               <div className="rf-columns">
                 <RecordFormGroup title="Liste Fiyatları">
                   <div className="rf-pair">
-                    <label>Alış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
-                    <label>Satış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>
+                    {trackField("purchaseListPrice", <label>Alış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={purchaseListPrice} onChange={(event) => setPurchaseListPrice(event.target.value)} placeholder="Fiyat yok" /></label>)}
+                    {trackField("salesListPrice", <label>Satış list fiyatı<input className="rf-num" type="number" min="0" step="0.0001" value={salesListPrice} onChange={(event) => setSalesListPrice(event.target.value)} placeholder="Fiyat yok" /></label>)}
                   </div>
-                  <label className="rf-short">
-                    <span>Fiyat dövizi <RequiredMark /></span>
-                    <input className="rf-must rf-mono" value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" />
-                  </label>
+                  {trackField(
+                    "priceCurrencyCode",
+                    <label className="rf-short">
+                      <span>Fiyat dövizi <RequiredMark /></span>
+                      <input className="rf-must rf-mono" value={priceCurrencyCode} onChange={(event) => setPriceCurrencyCode(event.target.value.toUpperCase())} required minLength={3} maxLength={3} placeholder="TRY" />
+                    </label>,
+                  )}
                   <small>Bu fiyatlar stok kartının varsayılan alış ve satış fiyatlarıdır.</small>
                 </RecordFormGroup>
                 <RecordFormGroup title="Vergi Oranları">
                   <div className="rf-pair">
-                    <label>Alış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>
-                    <label>Satış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>
+                    {trackField("purchaseVatPercent", <label>Alış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseVatPercent} onChange={(event) => setPurchaseVatPercent(event.target.value)} /></label>)}
+                    {trackField("salesVatPercent", <label>Satış KDV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesVatPercent} onChange={(event) => setSalesVatPercent(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>ÖTV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>
-                    <label>ÖİV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>
+                    {trackField("exciseTaxPercent", <label>ÖTV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={exciseTaxPercent} onChange={(event) => setExciseTaxPercent(event.target.value)} /></label>)}
+                    {trackField("communicationTaxPercent", <label>ÖİV %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={communicationTaxPercent} onChange={(event) => setCommunicationTaxPercent(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Tevkifat %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>
-                    <label>Damga vergisi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>
+                    {trackField("withholdingTaxPercent", <label>Tevkifat %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={withholdingTaxPercent} onChange={(event) => setWithholdingTaxPercent(event.target.value)} /></label>)}
+                    {trackField("stampTaxPercent", <label>Damga vergisi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={stampTaxPercent} onChange={(event) => setStampTaxPercent(event.target.value)} /></label>)}
                   </div>
                 </RecordFormGroup>
                 <RecordFormGroup title="Varsayılan İndirimler">
-                  <label>Varsayılan alış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>
-                  <label>Varsayılan satış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>
+                  {trackField("purchaseDiscountPercent", <label>Varsayılan alış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={purchaseDiscountPercent} onChange={(event) => setPurchaseDiscountPercent(event.target.value)} /></label>)}
+                  {trackField("salesDiscountPercent", <label>Varsayılan satış indirimi %<input className="rf-num" type="number" min="0" max="100" step="0.01" value={salesDiscountPercent} onChange={(event) => setSalesDiscountPercent(event.target.value)} /></label>)}
                 </RecordFormGroup>
               </div>
             )}
@@ -3549,100 +3771,37 @@ export function InventoryPage({
               <div className="rf-columns">
                 <RecordFormGroup title="Ağırlık ve Boyut">
                   <div className="rf-pair">
-                    <label>Net ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>
-                    <label>Brüt ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>
+                    {trackField("netWeight", <label>Net ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={netWeight} onChange={(event) => setNetWeight(event.target.value)} /></label>)}
+                    {trackField("grossWeight", <label>Brüt ağırlık (kg)<input className="rf-num" type="number" min="0" step="0.0001" value={grossWeight} onChange={(event) => setGrossWeight(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Uzunluk (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>
-                    <label>Genişlik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>
+                    {trackField("length", <label>Uzunluk (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={length} onChange={(event) => setLength(event.target.value)} /></label>)}
+                    {trackField("width", <label>Genişlik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={width} onChange={(event) => setWidth(event.target.value)} /></label>)}
                   </div>
                   <div className="rf-pair">
-                    <label>Yükseklik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>
+                    {trackField("height", <label>Yükseklik (cm)<input className="rf-num" type="number" min="0" step="0.0001" value={height} onChange={(event) => setHeight(event.target.value)} /></label>)}
                   </div>
                 </RecordFormGroup>
                 <RecordFormGroup title="Muhasebe Hesapları">
-                  <label>Alış muhasebe hesap kodu<input className="rf-mono" value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>
-                  <label>Satış muhasebe hesap kodu<input className="rf-mono" value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>
-                  <label>Maliyet hesap kodu<input className="rf-mono" value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>
+                  {trackField("purchaseAccountCode", <label>Alış muhasebe hesap kodu<input className="rf-mono" value={purchaseAccountCode} onChange={(event) => setPurchaseAccountCode(event.target.value)} maxLength={40} /></label>)}
+                  {trackField("salesAccountCode", <label>Satış muhasebe hesap kodu<input className="rf-mono" value={salesAccountCode} onChange={(event) => setSalesAccountCode(event.target.value)} maxLength={40} /></label>)}
+                  {trackField("costAccountCode", <label>Maliyet hesap kodu<input className="rf-mono" value={costAccountCode} onChange={(event) => setCostAccountCode(event.target.value)} maxLength={40} /></label>)}
                 </RecordFormGroup>
                 <RecordFormGroup title="Görsel ve Pazaryeri">
-                  <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>
-                  <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>
+                  {trackField("productImageUrl", <label>Ürün görseli bağlantısı<input type="url" value={productImageUrl} onChange={(event) => setProductImageUrl(event.target.value)} maxLength={1000} placeholder="https://…" /></label>)}
+                  {trackField("marketplaceProductId", <label>Pazaryeri ürün kimliği<input value={marketplaceProductId} onChange={(event) => setMarketplaceProductId(event.target.value)} maxLength={120} /></label>)}
                 </RecordFormGroup>
               </div>
             )}
             {activeItemTab === "units" && (
               <div className="inv-rf-stack">
-                <RecordFormGroup title="Birim Dönüşümleri">
-                  <small>
-                    1 alternatif birim = katsayı × {unitCode || "temel birim"}
-                  </small>
-                  {role === "TenantAdmin" && (
-                    <div className="inv-rf-inline-add">
-                      <label>
-                        Alternatif birim kodu
-                        <input
-                          className="rf-mono"
-                          value={itemUnitCode}
-                          onChange={(e) =>
-                            setItemUnitCode(e.target.value.toUpperCase())
-                          }
-                          maxLength={8}
-                          placeholder="KOLI"
-                        />
-                      </label>
-                      <label>
-                        Temel birim katsayısı
-                        <input
-                          className="rf-num"
-                          type="number"
-                          min="0.00000001"
-                          step="0.00000001"
-                          value={itemUnitFactor}
-                          onChange={(e) => setItemUnitFactor(e.target.value)}
-                          required
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={addItemUnitConversion}
-                      >
-                        Birim dönüşümü ekle
-                      </button>
-                      <small>Örnek: 1 koli = 12 {unitCode || "temel birim"}</small>
+                {itemCustomFieldDefinitions.length === 0 && (
+                  <RecordFormGroup title="Özel Alanlar">
+                    <div className="empty-small">
+                      Stok kartları için tanımlı özel alan yok. Birim dönüşümleri “Genel ve Stok Yönetimi” bölümündedir.
                     </div>
-                  )}
-                  <div className="requests-list">
-                    {itemUnitConversions.map((conversion) => (
-                      <article className="request-row" key={conversion.id}>
-                        <div className="request-info">
-                          <b>{conversion.unitCode}</b>
-                          <small>
-                            1 {conversion.unitCode} ={" "}
-                            {conversion.factorToBase} {unitCode}
-                          </small>
-                        </div>
-                        {role === "TenantAdmin" && (
-                          <button
-                            type="button"
-                            className="row-action danger-action"
-                            disabled={busy}
-                            onClick={() => removeItemUnitConversion(conversion)}
-                          >
-                            Kaldır
-                          </button>
-                        )}
-                      </article>
-                    ))}
-                    {itemUnitConversions.length === 0 && (
-                      <div className="empty-small">
-                        Henüz alternatif birim tanımlanmadı.
-                      </div>
-                    )}
-                  </div>
-                </RecordFormGroup>
+                  </RecordFormGroup>
+                )}
                 {itemCustomFieldDefinitions.length > 0 && (
                   <RecordFormGroup title="Özel Alanlar">
                     <small>Zorunlu alanlar kaydetmeden önce doldurulmalıdır.</small>

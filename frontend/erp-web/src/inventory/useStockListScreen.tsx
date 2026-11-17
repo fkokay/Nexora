@@ -1,4 +1,4 @@
-import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { useCallback, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import * as IconPack from "lucide-react";
 import { api } from "../erpApi";
 import type { InventoryBalance, StockItem, Warehouse } from "../erp-types";
@@ -47,7 +47,8 @@ type Options = {
   exportRef: MutableRefObject<GridExportActions | null>;
   onToggleBelowMinimum: () => void;
   onPageChange: (page: number) => void;
-  onOpen: (stock: StockItem) => void;
+  /** `order`: stock item ids of the visible page in displayed order (PgUp / PgDn of the opened card). */
+  onOpen: (stock: StockItem, order: string[]) => void;
   /** Single card: the page's existing delete (its own confirmation). */
   onDeleteOne: (stock: StockItem) => Promise<void>;
   onDeactivate: (stock: StockItem) => void;
@@ -68,6 +69,11 @@ export function useStockListScreen(o: Options) {
     [currentId, setCurrentId] = useState<string | null>(null),
     [tab, setTab] = useState<StockDetailTab>("summary");
   const rootRef = useRef<HTMLDivElement>(null);
+  // The grid's displayed order (sort and filters applied), handed to an opened card.
+  const orderRef = useRef<string[]>([]);
+  const onVisibleRowsChange = useCallback((keys: string[]) => {
+    orderRef.current = keys;
+  }, []);
   const detail = useStockDetailPanelOpen(o.active, rootRef);
 
   const current = currentId ? o.balances.find((balance) => balance.stockItemId === currentId) : undefined;
@@ -131,7 +137,7 @@ export function useStockListScreen(o: Options) {
     open: {
       disabledReason: !openItem ? NO_RECORD : o.busy ? BUSY : undefined,
       run: () => {
-        if (openItem) o.onOpen(openItem);
+        if (openItem) o.onOpen(openItem, orderRef.current);
       },
     },
   };
@@ -278,7 +284,7 @@ export function useStockListScreen(o: Options) {
         busy={o.busy}
         onOpen={() => {
           const stock = o.itemsById.get(current.stockItemId);
-          if (stock) o.onOpen(stock);
+          if (stock) o.onOpen(stock, orderRef.current);
         }}
         onClose={detail.close}
         onMovements={() => o.onMovements(current)}
@@ -307,6 +313,7 @@ export function useStockListScreen(o: Options) {
       bulkActions,
       onSelectionChange: setSelectedIds,
       onCurrentRowChange: setCurrentId,
+      onVisibleRowsChange,
     },
   };
 }

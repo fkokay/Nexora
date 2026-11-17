@@ -88,6 +88,8 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   onSelectionChange?: (keys: string[]) => void;
   /** With `selectable`: the keyboard / clicked current row's key (the row element's key), or null when there is none. */
   onCurrentRowChange?: (key: string | null) => void;
+  /** Keys of the visible page's rows in displayed order (after search, filters and sort); for record navigation. */
+  onVisibleRowsChange?: (keys: string[]) => void;
   serverData?: ServerData;
   onImportRows?: (rows: ImportedRow[]) => void | Promise<void>;
   onEditRows?: (rows: EditedRow[]) => void | Promise<void>;
@@ -463,6 +465,7 @@ export default function AdvancedDataGrid({
   bulkActions,
   onSelectionChange,
   onCurrentRowChange,
+  onVisibleRowsChange,
   serverData,
   onImportRows,
   onEditRows,
@@ -815,6 +818,12 @@ export default function AdvancedDataGrid({
   useEffect(() => {
     if (selectable) currentRowChangeRef.current?.(activeKey);
   }, [activeKey, selectable]);
+  const visibleRowsChangeRef = useRef(onVisibleRowsChange);
+  visibleRowsChangeRef.current = onVisibleRowsChange;
+  const visibleRowsSignature = visiblePageKeys.join("\u0000");
+  useEffect(() => {
+    visibleRowsChangeRef.current?.(visibleRowsSignature ? visibleRowsSignature.split("\u0000") : []);
+  }, [visibleRowsSignature]);
   // `selectable` keeps the selection to the visible page: a page, page size, search, filter or sort change
   // clears it, and keys that leave the row set (refresh, external pagination) are dropped. Layout effects, so a
   // stale selection never paints for a frame.

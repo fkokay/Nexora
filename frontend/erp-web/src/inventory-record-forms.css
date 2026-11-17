@@ -77,3 +77,70 @@
   .record-form .rf-form .inv-rf-line-fields { grid-template-columns: minmax(0, 1fr); }
   .record-form .rf-form .inv-rf-lines td:last-child { width: auto; }
 }
+
+/* Stok kartı kayıt ekranı (taslak 01, kayıt bölümü): birim tablosu, negatif stok kuralı, bağlam paneli kartları. */
+.inventory-item-record-form .rf-form .inv-card-units {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.inventory-item-record-form .rf-form .inv-card-units :is(th, td) {
+  height: 30px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--nx-line);
+  text-align: left;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.inventory-item-record-form .rf-form .inv-card-units th {
+  background: var(--nx-canvas);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.inventory-item-record-form .rf-form .inv-card-units .nx-num { text-align: right; font-variant-numeric: tabular-nums; }
+.inventory-item-record-form .rf-form .inv-card-units .nx-code { font-family: var(--nx-font-mono); font-size: 12px; }
+.inventory-item-record-form .rf-form .inv-card-units td:nth-child(3) { width: 100%; color: var(--nx-muted); }
+.inventory-item-record-form .rf-form .inv-card-units .inv-card-units-action { width: 1%; text-align: right; }
+.inventory-item-record-form .rf-form .inv-card-units .inv-card-units-empty { color: var(--nx-muted); }
+.inventory-item-record-form .rf-form .inv-card-rule-cell { align-self: end; }
+.inventory-item-record-form .rf-form .inv-card-rule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  margin: 0;
+  color: var(--nx-text);
+}
+.inventory-item-record-form .rf-form .inv-card-rule small { color: var(--nx-muted); }
+.inventory-item-record-form .rf-media .inv-card-image-empty { color: var(--nx-muted); font-size: 10px; }
+
+/* Bağlam paneli: 2×2 stok durumu kutuları ve denetim kaydı satırları */
+.inventory-item-record-form .rf-aside .inv-card-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.inventory-item-record-form .rf-aside .inv-card-tiles > div {
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-canvas);
+}
+.inventory-item-record-form .rf-aside .inv-card-tiles small { display: block; color: var(--nx-muted); font-size: 11px; }
+.inventory-item-record-form .rf-aside .inv-card-tiles b {
+  display: block;
+  overflow: hidden;
+  color: var(--nx-text);
+  font-size: 14px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inventory-item-record-form .rf-aside .inv-card-tiles b.inventory-stock-low { color: var(--nx-bad); }
+.inventory-item-record-form .rf-aside .inv-card-history { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.inventory-item-record-form .rf-aside .inv-card-history li { color: var(--nx-text); font-size: 12px; }
+.inventory-item-record-form .rf-aside .inv-card-history small { color: var(--nx-muted); }
+/* global-components.css gives every .app-shell table cell 8px 12px / 44px with !important; the unit table keeps the
+   30px compact row of the mockup (one element heavier than that rule). */
+.app-shell .inventory-item-record-form .rf-form table.inv-card-units :is(th, td) { height: 30px !important; padding: 4px 8px !important; font-size: 12.5px !important; }
+.app-shell .inventory-item-record-form .rf-form table.inv-card-units th { font-size: 11.5px !important; }
+.app-shell .inventory-item-record-form .rf-form .inv-card-units button.row-action { min-height: 22px; padding: 1px 8px; font-size: 11.5px; }
+.inventory-item-record-form .rf-form .inv-rf-inline-add > button { height: 31px; }

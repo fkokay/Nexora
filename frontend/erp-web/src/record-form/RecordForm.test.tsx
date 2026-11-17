@@ -480,6 +480,26 @@ describe('RecordFieldChange', () => {
     expect(field).not.toBeNull();
     expect(field!.textContent).toContain('Önceki: 500');
   });
+
+  it('with `changed` toggling keeps the same control (no remount while typing) and carries a layout class', () => {
+    const view = (changed: boolean) => (
+      <RecordFieldChange previous="500" changed={changed} className="rf-span-2">
+        <label>Minimum stok<input defaultValue="1000" /></label>
+      </RecordFieldChange>
+    );
+    const { rerender } = render(view(false));
+    const input = screen.getByLabelText('Minimum stok');
+    expect(input.closest('.rf-changed')).toBeNull();
+    expect(screen.queryByText(/Önceki:/)).toBeNull();
+    expect(input.closest('.rf-field')!.classList.contains('rf-span-2')).toBe(true);
+    rerender(view(true));
+    expect(screen.getByLabelText('Minimum stok')).toBe(input);
+    expect(input.closest('.rf-changed')!.classList.contains('rf-span-2')).toBe(true);
+    expect(screen.getByText('Önceki: 500')).toBeTruthy();
+    rerender(view(false));
+    expect(screen.getByLabelText('Minimum stok')).toBe(input);
+    expect(screen.queryByText(/Önceki:/)).toBeNull();
+  });
 });
 
 describe('RecordFormGroup', () => {

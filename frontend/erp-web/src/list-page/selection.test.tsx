@@ -272,6 +272,19 @@ describe('AdvancedDataGrid selectable', () => {
     expect(onCurrentRowChange).toHaveBeenLastCalledWith(null);
   });
 
+  it('reports the displayed row order (after a header sort) to the page', () => {
+    const onVisibleRowsChange = vi.fn();
+    render(tree(items(3), { selectable: true, onVisibleRowsChange }));
+    expect(onVisibleRowsChange).toHaveBeenLastCalledWith(['S1', 'S2', 'S3']);
+    const header = within(region()).getAllByRole('columnheader').find((th) => th.textContent?.includes('Stok adı'))!;
+    fireEvent.click(header);
+    fireEvent.click(header);
+    expect(onVisibleRowsChange).toHaveBeenLastCalledWith(['S3', 'S2', 'S1']);
+    const calls = onVisibleRowsChange.mock.calls.length;
+    fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(calls);
+  });
+
   it('leaves arrow keys to an open menu inside a row', () => {
     render(
       <CommandProvider>

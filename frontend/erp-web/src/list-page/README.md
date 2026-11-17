@@ -47,7 +47,8 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   "✕ Esc") tablonun altında yüzer; yalnız bugün var olan işlemler konur. Seçim
   `onSelectionChange` ile alınır; Excel dışa aktarımı seçim varsa yalnız seçilenleri yazar.
   Geçerli satır (↑/↓ ya da tıklama) `onCurrentRowChange` ile sayfaya bildirilir: Aç / Enter ve detay paneli
-  onu izler (örnek: Stok Kartları, `InventoryPage.tsx`).
+  onu izler (örnek: Stok Kartları, `InventoryPage.tsx`). Görünen sayfanın satır sırası (arama, filtre ve sıralama
+  uygulanmış) `onVisibleRowsChange` ile alınır; listeden açılan kayıt PgUp / PgDn ile bu sırada gezinir.
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
   bulunur; olmayanlarda `allowClear` verilir (etkin etikete tekrar tıklamak filtreyi

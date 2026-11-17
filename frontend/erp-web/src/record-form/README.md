@@ -43,7 +43,9 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
   açıkken değil), yeni bölümün ilk alanına odaklanır. Kod `RecordFormSections.tsx`'tedir; `RecordForm.tsx` onu yeniden
   dışa aktarır. Pencere tuş dinleyicileri ve odak / görünüm yardımcıları `recordFormKeys.ts`'tedir. Diyalogda yatay sekme şerididir. Yalnızca alanlar tek ekrana rahat sığmıyorsa kullanın.
 - `RecordFieldChange({ previous })`: değişen bir alanı sarar; kontrolde 3px sarı sol çizgi, altında
-  "Önceki: …". Yalnızca görünümdür.
+  "Önceki: …". Yalnızca görünümdür. Her zaman değişmeyen bir alanı sararken `changed` verin: sarmalayıcı yerinde
+  kalır (değişmemişken `rf-field` hücresi), kontrol yeniden oluşturulmaz ve yazarken odak kaybolmaz. Yerleşim
+  sınıfı (`rf-span-2`) `className` ile sarmalayıcıya verilir. Örnek: stok kartı (`InventoryPage.tsx`).
 - `RequiredMark`: zorunlu alan yıldızı; etiket metnini `<span>` içine alın: `<span>Kod <RequiredMark /></span>`.
 
 ## Yerleşim sınıfları (`record-form.css`)
