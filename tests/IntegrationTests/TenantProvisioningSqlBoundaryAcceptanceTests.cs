@@ -91,6 +91,10 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 await master.OpenAsync();
                 foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
                     await ExecuteAsync(master, batch);
+                // Upgrades re-run the install script on an instance where the signer
+                // login/user already exist; the second run must succeed unchanged.
+                foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    await ExecuteAsync(master, batch);
             }
 
             var workerConnection = new SqlConnectionStringBuilder(rootBuilder.ConnectionString)

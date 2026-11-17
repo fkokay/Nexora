@@ -36,8 +36,11 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NexoraTenantProvisioningSignerLogin')
     CREATE LOGIN [NexoraTenantProvisioningSignerLogin]
         FROM CERTIFICATE [NexoraTenantProvisioningSigner];
+/* A certificate-mapped principal's SID is sys.certificates.sid (a fixed prefix plus
+   the thumbprint), not the raw thumbprint; comparing to thumbprint made every
+   re-run fail here. */
 ELSE IF (SELECT sid FROM sys.server_principals WHERE name=N'NexoraTenantProvisioningSignerLogin')
-     <> (SELECT thumbprint FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
+     <> (SELECT sid FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
     THROW 51003, 'The existing signer login is not bound to the expected certificate.', 1;
 GO
 
@@ -246,7 +249,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.certificates WHERE name=N'NexoraTenantProvision
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NexoraTenantProvisioningSignerUser')
     CREATE USER [NexoraTenantProvisioningSignerUser] FROM CERTIFICATE [NexoraTenantProvisioningSigner];
 ELSE IF (SELECT sid FROM sys.database_principals WHERE name=N'NexoraTenantProvisioningSignerUser')
-     <> (SELECT thumbprint FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
+     <> (SELECT sid FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
     THROW 51005, 'The existing Platform signer user is not bound to the expected certificate.', 1;
 GRANT SELECT ON dbo.Tenants TO [NexoraTenantProvisioningSignerUser];
 GRANT SELECT ON dbo.TenantProvisioningJobs TO [NexoraTenantProvisioningSignerUser];
@@ -275,7 +278,7 @@ BEGIN
     DECLARE @CreateUser nvarchar(max)=N'CREATE USER '+QUOTENAME(@WorkerDbUser)+N' FOR LOGIN '+QUOTENAME(@Worker)+N';';
     EXEC sys.sp_executesql @CreateUser;
 END
-ELSE IF USER_SID(@WorkerDbUser) <> SUSER_SID(@Worker)
+ELSE IF USER_SID(USER_ID(@WorkerDbUser)) <> SUSER_SID(@Worker)
     THROW 51006, 'The existing Worker database user does not map to the supplied server login.', 1;
 IF EXISTS (SELECT 1 FROM sys.database_permissions
            WHERE grantee_principal_id=USER_ID(@WorkerDbUser) AND state IN ('G','W')
@@ -300,7 +303,7 @@ BEGIN
     DECLARE @CreatePlatformUser nvarchar(max)=N'CREATE USER '+QUOTENAME(@Worker)+N' FOR LOGIN '+QUOTENAME(@Worker)+N';';
     EXEC sys.sp_executesql @CreatePlatformUser;
 END
-ELSE IF USER_SID(@Worker) <> SUSER_SID(@Worker)
+ELSE IF USER_SID(USER_ID(@Worker)) <> SUSER_SID(@Worker)
     THROW 51050, 'The Worker Platform user does not map to the supplied server login.', 1;
 
 IF EXISTS (SELECT 1 FROM sys.database_role_members WHERE member_principal_id=USER_ID(@Worker))

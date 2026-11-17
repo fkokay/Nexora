@@ -10,7 +10,8 @@ public sealed class AddTenantAuditRetentionProcedure : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        foreach (var batch in Sql.Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        // Normalize first: a Windows checkout stores this raw string with CRLF line endings.
+        foreach (var batch in Sql.Replace("\r\n", "\n", StringComparison.Ordinal).Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var escaped = batch.Replace("'", "''", StringComparison.Ordinal);
             migrationBuilder.Sql($"EXEC(N'{escaped}')");
