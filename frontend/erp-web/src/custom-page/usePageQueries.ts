@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
   parameters: { name: string; binding: string; type: string }[];
+  /** SQL yerine çağrılacak ERP işlemi (`modul.nesne.eylem`); yol ve yöntem yalnız sunucu kataloğundan gelir. */
+  operation?: string;
 };
 export type QueryColumn = { code: string; label: string; dataType?: string };
 export type QueryState = {
   rows: Record<string, unknown>[]; rowCount: number; columns: QueryColumn[]; truncated: boolean; loading: boolean; error: string;
   /** Sorgu en az bir kez yanıt (sonuç ya da hata) aldı mı; elle çalışan ve hiç çalışmamış sorguyu boş sonuçtan ayırır. */
   ran: boolean;
+  /** ERP yazma işleminin JSON yanıtı; `{{sorgu.sonuc.alan}}` ile bağlanabilir. */
+  sonuc?: unknown;
+  /** ERP işleminin sunucu doğrulama hataları (işlem parametre adına göre). */
+  fieldErrors?: Record<string, string>;
 };
 export type WriteResult = { affectedRows: number };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
@@ -30,7 +37,8 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
     const parameters = Array.isArray(item.parameters) ? (item.parameters as Record<string, unknown>[])
       .filter((p) => p && typeof p.name === "string" && typeof p.binding === "string" && typeof p.type === "string")
       .map((p) => ({ name: p.name as string, binding: p.binding as string, type: p.type as string })) : [];
-    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters });
+    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters,
+      ...(typeof item.operation === "string" ? { operation: item.operation } : {}) });
   }
   return result;
 }
@@ -53,6 +61,8 @@ export function resolveQueryParameters(query: PageQueryDefinition, scope: PageSc
 export function usePageQueries(options: {
   queries: PageQueryDefinition[]; token: string; pageCode: string; previewId?: string;
   buildScope: (states: Record<string, QueryState>) => PageScope;
+  /** ERP işlem kataloğu; null iken işlem sorguları katalog yüklenene kadar bekler. */
+  operations?: Map<string, ErpOperation> | null;
 }): {
   states: Record<string, QueryState>; scope: PageScope;
   /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
@@ -61,6 +71,7 @@ export function usePageQueries(options: {
   runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean) => Promise<WriteResult>;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
+  const operations = options.operations ?? null;
   const endpointFor = (query: PageQueryDefinition) => previewId
     ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview/queries/${encodeURIComponent(query.id)}/run`
     : `/api/custom-pages/${encodeURIComponent(pageCode)}/queries/${encodeURIComponent(query.id)}/run`;
@@ -82,7 +93,7 @@ export function usePageQueries(options: {
       const root = path?.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
       if (root && root !== query.name && byName.has(root)) upstream.add(root);
     }
-    const waiting = [...upstream].some((dependency) => states[dependency]?.loading);
+    const waiting = [...upstream].some((dependency) => states[dependency]?.loading) || (query.operation !== undefined && operations === null);
     return { query, values, key: JSON.stringify(values), waiting };
   });
   const signature = plans.map((plan) => `${plan.query.id}:${plan.waiting ? 1 : 0}:${plan.key}`).join("|");
@@ -95,7 +106,69 @@ export function usePageQueries(options: {
     lastKeys.current.clear();
   }, []);
 
+  // Zamanlayıcılar ve komut çubuğu eski kapanışları çağırabilir; kaynak satır ve katalog her zaman en güncelden okunur.
+  const latestStates = useRef(states);
+  latestStates.current = states;
+  const latestOperations = useRef(operations);
+  latestOperations.current = operations;
+  const operationOf = (query: PageQueryDefinition): ErpOperation => {
+    const op = latestOperations.current?.get(query.operation!);
+    if (!op) throw new Error(`ERP işlemi bulunamadı: ${query.operation}`);
+    return op;
+  };
+  /** İşlemin kaynak sorgusu: sayfada `operation === op.sourceOperation` olan okuma sorgusu. */
+  const sourceQueryOf = (op: ErpOperation) => op.sourceOperation
+    ? queries.find((candidate) => candidate.kind === "read" && candidate.operation === op.sourceOperation) : undefined;
+  const sourceRow = (op: ErpOperation): Record<string, unknown> | null => {
+    const source = sourceQueryOf(op);
+    return (source && latestStates.current[source.name]?.rows[0]) ?? null;
+  };
+  const operationInit = (request: OperationRequest): RequestInit => request.body !== undefined
+    ? { method: request.method, headers: { "Content-Type": "application/json" }, body: request.body }
+    : { method: request.method };
+
+  const executeOperation = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+    const sequence = (sequences.current.get(query.name) ?? 0) + 1;
+    sequences.current.set(query.name, sequence);
+    const currentGeneration = generation.current;
+    setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(true)), loading: true, error: "" } }));
+    try {
+      const op = operationOf(query);
+      if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
+      const request = buildOperationRequest(op, values, sourceRow(op));
+      const json = await api<unknown>(request.url, token, operationInit(request));
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      const mapped = mapOperationResult(op, json);
+      setStates((current) => ({ ...current, [query.name]: { ...mapped, truncated: false, loading: false, error: "", ran: true } }));
+    } catch (cause) {
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      const failure = cause as Error & { serverError?: string };
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
+    }
+  };
+
+  const runOperationWrite = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<WriteResult> => {
+    if (previewId) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
+    const op = operationOf(query);
+    const source = sourceQueryOf(op);
+    // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
+    if (source && latestStates.current[source.name]?.loading) throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
+    const request = buildOperationRequest(op, values, sourceRow(op));
+    setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(false)), fieldErrors: undefined } }));
+    try {
+      const json = await api<unknown>(request.url, token, operationInit(request));
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, sonuc: json } }));
+      return { affectedRows: 1 };
+    } catch (cause) {
+      const failure = cause as Error & { fieldErrors?: Record<string, string[]> };
+      const fieldErrors = fieldErrorsByParameter(op, failure.fieldErrors);
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, fieldErrors } }));
+      throw cause;
+    }
+  };
+
   const execute = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+    if (query.operation !== undefined) return executeOperation(query, values);
     const sequence = (sequences.current.get(query.name) ?? 0) + 1;
     sequences.current.set(query.name, sequence);
     const currentGeneration = generation.current;
@@ -125,6 +198,7 @@ export function usePageQueries(options: {
     }
   };
   const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false): Promise<WriteResult> => {
+    if (query.operation !== undefined) return runOperationWrite(query, values);
     const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(confirmWrite ? { parameters: values, confirmWrite: true } : { parameters: values }),

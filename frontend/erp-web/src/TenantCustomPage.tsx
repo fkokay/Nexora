@@ -11,6 +11,7 @@ import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormat
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import { runWriteAction } from "./custom-page/writeAction";
+import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
@@ -51,6 +52,8 @@ type PageRuntime = {
   selections: Record<string, Record<string, unknown> | null>;
   select: (tableName: string, row: Record<string, unknown> | null) => void;
   queryById: Record<string, PageQueryDefinition>;
+  /** ERP işlemi doğrulama hataları, giriş adına göre (parametre bağlaması `{{<giriş>.value}}`). */
+  inputErrors: Record<string, string>;
   /** formCard/facetPanel'in sahiplendiği girişler (üst düzeyde ayrıca çizilmez) ve kimliğe göre giriş bileşenleri. */
   ownedInputs: Set<string>;
   inputById: Record<string, ComponentDefinition>;
@@ -324,9 +327,9 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
 };
 
-export function PageInput({ component, props, raw, onChange, optionsState, style }: {
+export function PageInput({ component, props, raw, onChange, optionsState, style, error }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
-  optionsState?: QueryState; style: CSSProperties;
+  optionsState?: QueryState; style: CSSProperties; error?: string;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
@@ -347,12 +350,14 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   return <div className={`tenant-page-input tenant-page-input-${inputType}`} style={style}>
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
+    {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
   </div>;
 }
 
 function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
   return <PageInput key={component.id} component={component} props={props} style={style}
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
+    error={runtime && component.name ? runtime.inputErrors[component.name] : undefined}
     optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
 }
 
@@ -658,15 +663,20 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     return { scope, raw };
   };
 
+  // ERP işlem kataloğu yalnız işlem kullanan sayfalarda getirilir; SQL sorgulu sayfalar ek istek yapmaz.
+  const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
+  const erpOperations = useErpOperations(token, usesOperations);
   const { states, scope, rerun, runWrite } = usePageQueries({
     queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
+    operations: erpOperations.operations,
   });
+  const inputErrors = operationInputErrors(queryDefinitions, states);
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues: effective(states).raw,
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    queryById, inputErrors, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
     writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
     movedButtons, writeLock, actionStatus,
   } : undefined;
@@ -674,8 +684,25 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   return <div className="tenant-custom-page-content">
     {runtime && bar && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id)} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
+    {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
     {components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
+}
+
+/** Sorgu durumlarındaki ERP doğrulama hatalarını (parametre adına göre) `{{<giriş>.value}}` bağlamasıyla giriş adlarına eşler. */
+function operationInputErrors(queries: PageQueryDefinition[], states: Record<string, QueryState>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const query of queries) {
+    const errors = states[query.name]?.fieldErrors;
+    if (!errors) continue;
+    const byLower = new Map(Object.entries(errors).map(([name, message]) => [name.toLowerCase(), message]));
+    for (const parameter of query.parameters) {
+      const message = byLower.get(parameter.name.toLowerCase());
+      const input = bindingPath(parameter.binding)?.match(/^([A-Za-z_][A-Za-z0-9_]*)\.value$/)?.[1];
+      if (message && input) result[input] = message;
+    }
+  }
+  return result;
 }
 
 export default function TenantCustomPage({ code, previewId, token }: { code?: string; previewId?: string; token: string }) {
