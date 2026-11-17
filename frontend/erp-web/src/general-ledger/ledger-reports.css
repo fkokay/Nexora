@@ -2,214 +2,186 @@
  * Ledger reports on the list-v2 structure: Mizan (finance-trial-balance), Bilanço
  * (finance-balance-sheet) and the muavin side view shared with the chart of accounts.
  * Grouped tables are plain tables (AdvancedDataGrid drops colSpan rows).
+ * The report frame (LedgerReportFrame) is also used outside the ledger page: those roots carry .ledger-report-host.
  * Class names avoid "-panel/-card/-badge/-chip/-dialog": global-components.css restyles those.
  */
-#root .general-ledger-panel.list-v2 {
-  --glrp-line: #e3e9f0;
-  --glrp-line-soft: #eef2f6;
-  --glrp-band: #f6f8fb;
-  --glrp-ink: #172b45;
-  --glrp-muted: #687b92;
-  --glrp-ok: #17643f;
-  --glrp-bad: #b42318;
-  --glrp-warn: #8a4b08;
-  --glrp-warn-bg: #fff6e8;
-  --glrp-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
-  --glrp-accent: #1769aa;
-  --glrp-select: #eaf2fb;
-}
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
-  --glrp-line: var(--erp-border);
-  --glrp-line-soft: #263043;
-  --glrp-band: #1a2333;
-  --glrp-ink: var(--erp-text);
-  --glrp-muted: var(--erp-text-muted);
-  --glrp-ok: #6fd3a1;
-  --glrp-bad: #f97066;
-  --glrp-warn: var(--nx-warn);
-  --glrp-warn-bg: #33261a;
-  --glrp-warn-line: #7a5320;
-  --glrp-accent: #8ab8f5;
-  --glrp-select: #1f3350;
-}
-
 /* TDHP / IFRS segmented control */
-#root .general-ledger-panel.list-v2 .gl-seg {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .gl-seg {
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 9px;
-  background: var(--glrp-band);
+  background: var(--nx-table-head);
 }
-#root .app-shell .general-ledger-panel.list-v2 .gl-seg button {
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .gl-seg button {
   min-height: 28px;
   margin: 0;
   padding: 0 12px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--glrp-muted);
+  color: var(--nx-muted);
   font-size: 12.5px;
   font-weight: 650;
   cursor: pointer;
   box-shadow: none;
 }
-#root .app-shell .general-ledger-panel.list-v2 .gl-seg button.is-active {
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .gl-seg button.is-active {
   background: var(--nx-surface);
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   box-shadow: 0 1px 2px rgb(15 23 42 / 14%);
 }
-#root .general-ledger-panel.list-v2 .gl-seg button:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: 1px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .gl-seg button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
 
-#root .general-ledger-panel.list-v2 .glrp-toggle {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font-size: 12.5px;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .glrp-toggle input { width: 15px; height: 15px; margin: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-toggle input { width: 15px; height: 15px; margin: 0; }
 
 /* Summary tiles */
-#root .general-ledger-panel.list-v2 .glrp-tiles {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0 0 12px;
 }
-#root .general-ledger-panel.list-v2 .glrp-tile {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 8px;
   background: var(--nx-surface);
 }
-#root .general-ledger-panel.list-v2 .glrp-tile-label { color: var(--glrp-muted); font-size: 12px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-tile-value {
-  color: var(--glrp-ink);
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile-label { color: var(--nx-muted); font-size: 12px; font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile-value {
+  color: var(--nx-text);
   font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-#root .general-ledger-panel.list-v2 .glrp-tile.is-success .glrp-tile-value { color: var(--glrp-ok); }
-#root .general-ledger-panel.list-v2 .glrp-tile.is-danger .glrp-tile-value { color: var(--glrp-bad); }
-#root .general-ledger-panel.list-v2 .glrp-tile.is-warning .glrp-tile-value { color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .glrp-tile-hint {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile.is-success .glrp-tile-value { color: var(--nx-ok); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile.is-danger .glrp-tile-value { color: var(--nx-bad); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile.is-warning .glrp-tile-value { color: var(--nx-warn); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile-hint {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--glrp-muted);
+  color: var(--nx-muted);
   font-size: 12.5px;
 }
-#root .general-ledger-panel.list-v2 .glrp-tile-hint.is-warning { color: var(--glrp-warn); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tile-hint.is-warning { color: var(--nx-warn); font-weight: 600; }
 
-#root .general-ledger-panel.list-v2 .glrp-subbar {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-subbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 16px;
   margin: 0 0 10px;
 }
-#root .general-ledger-panel.list-v2 .glrp-loading { color: var(--glrp-muted); font-size: 12.5px; }
-#root .general-ledger-panel.list-v2 :is(.glrp-check, .glrp-warning) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-loading { color: var(--nx-muted); font-size: 12.5px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-check, .glrp-warning) {
   display: flex;
   align-items: flex-start;
   gap: 7px;
   margin: 0 0 12px;
   padding: 9px 12px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
 }
-#root .general-ledger-panel.list-v2 :is(.glrp-check, .glrp-warning) svg { flex: 0 0 auto; margin-top: 2px; }
-#root .general-ledger-panel.list-v2 .glrp-check.is-ok { color: var(--glrp-ok); }
-#root .general-ledger-panel.list-v2 .glrp-check.is-bad { border-color: color-mix(in srgb, var(--glrp-bad) 40%, transparent); color: var(--glrp-bad); }
-#root .general-ledger-panel.list-v2 .glrp-warning { border-color: var(--glrp-warn-line); background: var(--glrp-warn-bg); color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .glrp-layout > .glrp-table-wrap + * { margin-top: 0; }
-#root .general-ledger-panel.list-v2 .glrp-layout + .glrp-check { margin-top: 12px; }
-#root .general-ledger-panel.list-v2 .glrp-note { margin: 12px 0 0; color: var(--glrp-muted); font-size: 12px; }
-#root .general-ledger-panel.list-v2 .glrp-empty { padding: 26px 0; color: var(--glrp-muted); font-size: 13px; text-align: center; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-check, .glrp-warning) svg { flex: 0 0 auto; margin-top: 2px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-check.is-ok { color: var(--nx-ok); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-check.is-bad { border-color: color-mix(in srgb, var(--nx-bad) 40%, transparent); color: var(--nx-bad); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout > .glrp-table-wrap + * { margin-top: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout + .glrp-check { margin-top: 12px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-note { margin: 12px 0 0; color: var(--nx-muted); font-size: 12px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-empty { padding: 26px 0; color: var(--nx-muted); font-size: 13px; text-align: center; }
 
 /* Mizan table + muavin side view */
-#root .general-ledger-panel.list-v2 .glrp-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
-#root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr) 360px; }
-#root .general-ledger-panel.list-v2 .glrp-table-wrap {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr) 360px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-table-wrap {
   min-width: 0;
   overflow-x: auto;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 10px;
   background: var(--nx-surface);
 }
-#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-table, .glbs-table) {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-#root .general-ledger-panel.list-v2 .glrp-table { min-width: 760px; }
-#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) :is(th, td) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-table { min-width: 760px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-table, .glbs-table) :is(th, td) {
   padding: 7px 10px;
   border: 0;
-  border-bottom: 1px solid var(--glrp-line-soft);
+  border-bottom: 1px solid var(--nx-line-soft);
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   text-align: right;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) :is(th, td):first-child { text-align: left; }
-#root .general-ledger-panel.list-v2 :is(.glrp-table, .glbs-table) thead th {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-table, .glbs-table) :is(th, td):first-child { text-align: left; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-table, .glbs-table) thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--glrp-band);
-  color: var(--glrp-muted);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
   font-size: 12px;
   font-weight: 600;
 }
-#root .general-ledger-panel.list-v2 .glrp-group-row th {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-group-row th {
   padding-top: 10px;
-  background: var(--glrp-band);
-  color: var(--glrp-ink);
+  background: var(--nx-table-head);
+  color: var(--nx-text);
   font-size: 12.5px;
   font-weight: 700;
   text-align: left;
 }
-#root .general-ledger-panel.list-v2 .glrp-subtotal-row :is(th, td) { color: var(--glrp-muted); font-size: 12.5px; font-weight: 700; }
-#root .general-ledger-panel.list-v2 .glrp-subtotal-row th { font-weight: 600; }
-#root .general-ledger-panel.list-v2 :is(.glrp-total-row, .glbs-total-row) :is(th, td) {
-  border-top: 2px solid var(--glrp-line);
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-subtotal-row :is(th, td) { color: var(--nx-muted); font-size: 12.5px; font-weight: 700; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-subtotal-row th { font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-total-row, .glbs-total-row) :is(th, td) {
+  border-top: 2px solid var(--nx-line);
   border-bottom: 0;
-  background: var(--glrp-band);
+  background: var(--nx-table-head);
   font-weight: 700;
 }
-#root .general-ledger-panel.list-v2 .glrp-account { max-width: 360px; }
-#root .general-ledger-panel.list-v2 .glrp-account > b { margin-right: 8px; }
-#root .general-ledger-panel.list-v2 .glrp-account > span:not(.glrp-reverse) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-account { max-width: 360px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-account > b { margin-right: 8px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-account > span:not(.glrp-reverse) {
   display: inline-block;
   max-width: 260px;
   overflow: hidden;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   text-overflow: ellipsis;
   vertical-align: bottom;
 }
-#root .general-ledger-panel.list-v2 .glrp-reverse { display: inline-flex; margin-left: 6px; color: var(--glrp-warn); vertical-align: -1px; }
-#root .general-ledger-panel.list-v2 .glrp-row.is-inactive :is(th, td) { color: var(--glrp-muted); }
-#root .general-ledger-panel.list-v2 .glrp-row.is-clickable { cursor: pointer; }
-#root .general-ledger-panel.list-v2 .glrp-row.is-clickable:hover > td { background: var(--glrp-band); }
-#root .general-ledger-panel.list-v2 .glrp-row:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: -2px; }
-#root .general-ledger-panel.list-v2 .glrp-row.is-selected > td { background: var(--glrp-select); }
-#root .general-ledger-panel.list-v2 .glrp-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--glrp-accent); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-reverse { display: inline-flex; margin-left: 6px; color: var(--nx-warn); vertical-align: -1px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row.is-inactive :is(th, td) { color: var(--nx-muted); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row.is-clickable { cursor: pointer; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row.is-clickable:hover > td { background: var(--nx-table-head); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row.is-selected > td { background: var(--nx-primary-soft); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
 
-#root .general-ledger-panel.list-v2 .glmv {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv {
   position: sticky;
   top: 12px;
   box-sizing: border-box;
@@ -217,43 +189,43 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   padding: 16px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 12px;
   background: var(--nx-surface);
 }
-#root .app-shell .general-ledger-panel.list-v2 .glmv h2 { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px !important; }
-#root .general-ledger-panel.list-v2 .glmv-meta { display: block; margin-top: 3px; color: var(--glrp-muted); font-size: 12px; }
-#root .general-ledger-panel.list-v2 .glmv-summary {
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv h2 { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 15px !important; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-meta { display: block; margin-top: 3px; color: var(--nx-muted); font-size: 12px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
   margin: 12px 0 0;
 }
-#root .general-ledger-panel.list-v2 .glmv-summary dt { color: var(--glrp-muted); font-size: 11.5px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmv-summary dd { margin: 1px 0 0; color: var(--glrp-ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#root .general-ledger-panel.list-v2 .glmv-lines { width: 100%; margin: 12px 0 0; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-#root .general-ledger-panel.list-v2 .glmv-lines :is(th, td) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-summary dt { color: var(--nx-muted); font-size: 11.5px; font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-summary dd { margin: 1px 0 0; color: var(--nx-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-lines { width: 100%; margin: 12px 0 0; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-lines :is(th, td) {
   padding: 6px 3px;
   border: 0;
-  border-bottom: 1px solid var(--glrp-line-soft);
+  border-bottom: 1px solid var(--nx-line-soft);
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font-variant-numeric: tabular-nums;
   text-align: right;
   vertical-align: top;
 }
-#root .general-ledger-panel.list-v2 .glmv-lines thead th { color: var(--glrp-muted); font-size: 11.5px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmv-lines :is(th, td):first-child { width: 40%; text-align: left; }
-#root .general-ledger-panel.list-v2 .glmv-lines td:first-child small {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-lines thead th { color: var(--nx-muted); font-size: 11.5px; font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-lines :is(th, td):first-child { width: 40%; text-align: left; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-lines td:first-child small {
   display: block;
   overflow: hidden;
-  color: var(--glrp-muted);
+  color: var(--nx-muted);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .glmv-members { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
-#root .app-shell .general-ledger-panel.list-v2 .glmv-members button {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-members { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-members button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
@@ -262,38 +234,38 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   min-height: 34px;
   margin: 0;
   padding: 6px 8px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 8px;
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
 }
-#root .app-shell .general-ledger-panel.list-v2 .glmv-members button:hover { border-color: var(--glrp-accent); }
-#root .general-ledger-panel.list-v2 .glmv-members span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#root .general-ledger-panel.list-v2 .glmv-members small { color: var(--glrp-muted); font-variant-numeric: tabular-nums; }
-#root .app-shell .general-ledger-panel.list-v2 .glmv-more { width: 100%; min-height: 34px; margin: 12px 0 0; justify-content: center; }
-#root .general-ledger-panel.list-v2 .glmv-note { margin: 10px 0 0; color: var(--glrp-muted); font-size: 11.5px; }
-#root .general-ledger-panel.list-v2 .glmv-empty { margin: 0; padding: 18px 0; color: var(--glrp-muted); font-size: 12.5px; text-align: center; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-members button:hover { border-color: var(--nx-primary); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-members span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-members small { color: var(--nx-muted); font-variant-numeric: tabular-nums; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-more { width: 100%; min-height: 34px; margin: 12px 0 0; justify-content: center; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-note { margin: 10px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv-empty { margin: 0; padding: 18px 0; color: var(--nx-muted); font-size: 12.5px; text-align: center; }
 
 /* Bilanço: Aktif | Pasif */
-#root .general-ledger-panel.list-v2 .glbs-grid {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
-#root .general-ledger-panel.list-v2 .glbs-side {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-side {
   min-width: 0;
   overflow-x: auto;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 10px;
   background: var(--nx-surface);
 }
-#root .general-ledger-panel.list-v2 .glbs-table thead th:first-child { color: var(--glrp-ink); font-size: 13px; font-weight: 700; }
-#root .general-ledger-panel.list-v2 .glbs-section-row :is(th, td) { background: var(--glrp-band); font-weight: 700; }
-#root .app-shell .general-ledger-panel.list-v2 .glbs-section-row button {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-table thead th:first-child { color: var(--nx-text); font-size: 13px; font-weight: 700; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-section-row :is(th, td) { background: var(--nx-table-head); font-weight: 700; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-section-row button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -302,28 +274,28 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
   box-shadow: none;
 }
-#root .general-ledger-panel.list-v2 .glbs-section-row button:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: 2px; }
-#root .general-ledger-panel.list-v2 .glbs-group-row :is(th, td) { font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glbs-group-row th { padding-left: 26px; }
-#root .general-ledger-panel.list-v2 .glbs-line th { max-width: 0; overflow: hidden; font-weight: 400; text-overflow: ellipsis; width: 100%; }
-#root .general-ledger-panel.list-v2 .glbs-line th b { margin-right: 8px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glbs-line :is(th, td) { color: var(--glrp-ink); }
-#root .general-ledger-panel.list-v2 .glbs-line td { color: var(--glrp-ink); }
-#root .general-ledger-panel.list-v2 .glbs-line.is-result th { font-style: italic; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-section-row button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-group-row :is(th, td) { font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-group-row th { padding-left: 26px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-line th { max-width: 0; overflow: hidden; font-weight: 400; text-overflow: ellipsis; width: 100%; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-line th b { margin-right: 8px; font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-line :is(th, td) { color: var(--nx-text); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-line td { color: var(--nx-text); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-line.is-result th { font-style: italic; }
 
 @media (max-width: 1099px) {
-  #root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
-  #root .general-ledger-panel.list-v2 .glmv { position: static; max-height: none; }
-  #root .general-ledger-panel.list-v2 .glbs-grid { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glmv { position: static; max-height: none; }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  #root .general-ledger-panel.list-v2 .glrp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /*
@@ -341,10 +313,10 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   background: transparent !important;
   box-shadow: none !important;
 }
-#root .general-ledger-panel.list-v2 .glrp-frame-root { display: grid; gap: 12px; min-width: 0; }
-#root .general-ledger-panel.list-v2 .glrp-frame { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0; }
-#root .general-ledger-panel.list-v2 .glrp-frame.is-params-hidden { grid-template-columns: minmax(0, 1fr); }
-#root .general-ledger-panel.list-v2 .glrp-params {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-frame-root { display: grid; gap: 12px; min-width: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-frame { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-frame.is-params-hidden { grid-template-columns: minmax(0, 1fr); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-params {
   display: grid;
   gap: 14px;
   padding: 12px 14px;
@@ -352,15 +324,15 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   border-radius: var(--nx-radius-card);
   background: var(--nx-surface);
 }
-#root .general-ledger-panel.list-v2 .glrp-params-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--nx-text); font-size: 13px; }
-#root .general-ledger-panel.list-v2 .glrp-param { display: grid; gap: 6px; min-width: 0; }
-#root .general-ledger-panel.list-v2 .glrp-param-label { color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
-#root .general-ledger-panel.list-v2 .glrp-param .list-v2-chips { flex-wrap: wrap; }
-#root .general-ledger-panel.list-v2 .glrp-param-dates { display: grid; gap: 6px; }
-#root .general-ledger-panel.list-v2 .glrp-param-dates .list-v2-filter { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; }
-#root .general-ledger-panel.list-v2 .glrp-param-dates input { width: 100%; min-width: 0; }
-#root .general-ledger-panel.list-v2 .glrp-params-note { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }
-#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-params-toggle, .glrp-run) {
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-params-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--nx-text); font-size: 13px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param { display: grid; gap: 6px; min-width: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param-label { color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param .list-v2-chips { flex-wrap: wrap; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param-dates { display: grid; gap: 6px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param-dates .list-v2-filter { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-param-dates input { width: 100%; min-width: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-params-note { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-params-toggle, .glrp-run) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -377,13 +349,13 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   box-shadow: none;
   cursor: pointer;
 }
-#root .app-shell .general-ledger-panel.list-v2 .glrp-params-toggle { height: 26px; padding: 0 8px; border-color: transparent; color: var(--nx-muted); }
-#root .app-shell .general-ledger-panel.list-v2 .glrp-run { border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-run kbd { padding: 1px 4px; border: 1px solid currentColor; border-radius: 4px; font: 10px var(--nx-font-mono); opacity: 0.85; }
-#root .general-ledger-panel.list-v2 .glrp-result { display: grid; gap: 10px; min-width: 0; }
-#root .general-ledger-panel.list-v2 .glrp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 26px; color: var(--nx-muted); font-size: 12px; }
-#root .general-ledger-panel.list-v2 .glrp-summary-item b { color: var(--nx-text); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-card {
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-params-toggle { height: 26px; padding: 0 8px; border-color: transparent; color: var(--nx-muted); }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-run { border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-run kbd { padding: 1px 4px; border: 1px solid currentColor; border-radius: 4px; font: 10px var(--nx-font-mono); opacity: 0.85; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-result { display: grid; gap: 10px; min-width: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 26px; color: var(--nx-muted); font-size: 12px; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-summary-item b { color: var(--nx-text); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-card {
   display: grid;
   min-width: 0;
   border: 1px solid var(--nx-line);
@@ -391,29 +363,29 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
   background: var(--nx-surface);
   overflow: hidden;
 }
-#root .general-ledger-panel.list-v2 .glbs-side { border-color: var(--nx-line); border-radius: var(--nx-radius-card); }
-#root .general-ledger-panel.list-v2 .glrp-card > .glrp-table-wrap { max-height: calc(100dvh - 330px); overflow: auto; border: 0; border-radius: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glbs-side { border-color: var(--nx-line); border-radius: var(--nx-radius-card); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-card > .glrp-table-wrap { max-height: calc(100dvh - 330px); overflow: auto; border: 0; border-radius: 0; }
 /* Dense 30px rows; amounts right-aligned, tabular, normal weight (the shell gives legacy tables 44px rows). */
-#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) :is(th, td) {
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) :is(th, td) {
   height: var(--nx-row-h-dense) !important;
   padding: 4px 10px !important;
   font-size: 12.5px;
   font-weight: 400;
   line-height: 1.3;
 }
-#root .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) thead th { background: var(--nx-table-head); color: var(--nx-muted); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-card .glrp-group-row th { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
-#root .general-ledger-panel.list-v2 .glrp-card .glrp-subtotal-row :is(th, td) { color: var(--nx-muted); font-weight: 600; }
-#root .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-total-row, .glbs-total-row) :is(th, td) { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
-#root .general-ledger-panel.list-v2 .glrp-total-check { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-size: 12px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-total-check.is-ok { color: var(--nx-ok); }
-#root .general-ledger-panel.list-v2 .glrp-total-check.is-bad { color: var(--nx-bad); }
-#root .general-ledger-panel.list-v2 .glrp-foot-warn { color: var(--nx-warn); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glrp-result > .list-v2-toolbar { margin: 0; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) thead th { background: var(--nx-table-head); color: var(--nx-muted); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-card .glrp-group-row th { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-card .glrp-subtotal-row :is(th, td) { color: var(--nx-muted); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-card, .glbs-side) :is(.glrp-total-row, .glbs-total-row) :is(th, td) { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-total-check { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-size: 12px; font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-total-check.is-ok { color: var(--nx-ok); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-total-check.is-bad { color: var(--nx-bad); }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-foot-warn { color: var(--nx-warn); font-weight: 600; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-result > .list-v2-toolbar { margin: 0; }
 @media (max-width: 1099px) {
-  #root .general-ledger-panel.list-v2 .glrp-frame { grid-template-columns: minmax(0, 1fr); }
-  #root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-frame { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
 }
-#root .app-shell .general-ledger-panel.list-v2 .glrp-card .glrp-subtotal-row > th { background: transparent !important; }
-#root .general-ledger-panel.list-v2 .glrp-params .gl-seg { border-radius: var(--nx-radius-control); }
-#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(tr.glrp-row, tr.glbs-line, tr.glbs-group-row) > th { background: transparent !important; }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-card .glrp-subtotal-row > th { background: transparent !important; }
+#root :is(.general-ledger-panel.list-v2, .ledger-report-host) .glrp-params .gl-seg { border-radius: var(--nx-radius-control); }
+#root .app-shell :is(.general-ledger-panel.list-v2, .ledger-report-host) :is(.glrp-card, .glbs-side) :is(tr.glrp-row, tr.glbs-line, tr.glbs-group-row) > th { background: transparent !important; }

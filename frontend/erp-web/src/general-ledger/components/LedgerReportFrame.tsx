@@ -4,6 +4,7 @@ import { PageCommandsSlot } from "../../commands/PageCommandsSlot";
 import type { MenuCommand } from "../../commands/types";
 import { ListPageHeader } from "../../list-page/ListPageHeader";
 import { isInPopup, openDialogs, useWindowKeyDown } from "../../record-form/recordFormKeys";
+import "../ledger-reports.css";
 
 const NOT_IN_REPORT = "Raporda kullanılamaz";
 
