@@ -1,6 +1,6 @@
 import { Eye, GripVertical, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { RecordFormGroup, RecordFormPage } from "../../record-form/RecordForm";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import "../../platform-record-forms.css";
 import { fieldTypes, groupFieldsBySection, isFieldRequired, isFieldVisible, type Field, type Form } from "../types";
 
@@ -99,7 +99,7 @@ export function CustomFormBuilder(props: Props) {
       >
         <RecordFormGroup title="Form Kimliği" bodyClassName="rf-identity">
           <label>
-            Form adı
+            <span>Form adı <RequiredMark /></span>
             <input
               className="rf-must"
               value={name}

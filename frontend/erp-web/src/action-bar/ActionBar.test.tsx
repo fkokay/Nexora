@@ -122,7 +122,7 @@ describe('ActionBar', () => {
     fireEvent.keyDown(document.body, { key: 'F1' });
     const dialog = screen.getByRole('dialog');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
-    for (const text of ['F2', 'Enter', 'Ctrl+S', 'Ctrl+Del', 'F5', 'Ctrl+F', 'Ctrl+P', 'Ctrl+E', 'Ctrl+Z', 'Alt+İ', 'Ctrl+K', 'Ctrl+B', 'Ctrl+W', 'Ctrl+Tab', 'Alt+←', 'Alt+→', 'F1']) {
+    for (const text of ['F2', 'Enter', 'Ctrl+S', 'Ctrl+Del', 'F5', 'Ctrl+F', 'Ctrl+P', 'Ctrl+E', 'Ctrl+Z', 'Alt+İ', 'Ctrl+K', 'Ctrl+B', 'Ctrl+W', 'Ctrl+Tab', 'Alt+←', 'Alt+→', 'F1', 'Ctrl+↑/↓', 'PgUp/PgDn', 'Ctrl+.', 'Esc']) {
       expect(within(dialog).getAllByText(text).length).toBeGreaterThan(0);
     }
     fireEvent.keyDown(document.body, { key: 'Escape' });

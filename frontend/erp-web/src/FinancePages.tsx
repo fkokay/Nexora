@@ -1668,7 +1668,7 @@ function FinancePage({
                     />
                   </label>
                   <label>
-                    Tutar ({detail.currencyCode})
+                    <span>Tutar ({detail.currencyCode}) <RequiredMark /></span>
                     <input
                       className="rf-must rf-num"
                       type="number"
@@ -1796,7 +1796,7 @@ function FinancePage({
                     />
                   </label>
                   <label>
-                    Kaynak tutarı ({detail.currencyCode})
+                    <span>Kaynak tutarı ({detail.currencyCode}) <RequiredMark /></span>
                     <input
                       className="rf-must rf-num"
                       type="number"
@@ -1810,8 +1810,10 @@ function FinancePage({
                   {accounts.find((a) => a.id === toAccountId)?.currencyCode !==
                     detail.currencyCode && (
                     <label>
-                      Kur · 1 {detail.currencyCode} = ?{" "}
-                      {accounts.find((a) => a.id === toAccountId)?.currencyCode}
+                      <span>
+                        Kur · 1 {detail.currencyCode} = ?{" "}
+                        {accounts.find((a) => a.id === toAccountId)?.currencyCode} <RequiredMark />
+                      </span>
                       <input
                         className="rf-must rf-num"
                         type="number"

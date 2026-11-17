@@ -229,7 +229,7 @@ export default function CustomerCreatePage({
                 placeholder="Örn. C-1001"
               />
             </label>
-            <label>
+            <label className="rf-span-2">
               <span>Ünvan <RequiredMark /></span>
               <input
                 className="rf-must"

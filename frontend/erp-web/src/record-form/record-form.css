@@ -220,6 +220,8 @@
 /* Only plain bodies: a module body class (e.g. prf-terms) lays out its own columns. */
 .record-form .rf-group-body:is([class="rf-group-body"], .rf-identity) > :is(label, .rf-changed):has(textarea) { grid-column: 1 / -1; }
 .record-form .rf-group-body > .rf-pair { display: contents; }
+.record-form .rf-group-body > .rf-span-2 { grid-column: span 2; }
+.record-form .rf-group-body > input[type="hidden"] { display: none; }
 .record-form .rf-identity { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .record-form .rf-columns { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .record-form .rf-columns-wide { min-width: 0; }
@@ -453,6 +455,7 @@
   .record-form .rf-form { padding: 14px 16px; }
   .record-form .rf-error { margin-inline: 16px; }
   .record-form :is(.rf-group-body, .rf-custom-grid, .rf-pair) { grid-template-columns: minmax(0, 1fr); }
+  .record-form .rf-group-body > .rf-span-2 { grid-column: auto; }
   .record-form .rf-btn kbd { display: none; }
 }
 
@@ -493,10 +496,13 @@
 
 /* Legacy global-components.css (and form-design-system.css) style every control, label, small text,
    [class*='-badge'] / [class*='-panel'] and [aria-selected] in the app shell with !important, and remove every
-   box-shadow. Until that cleanup lands, the record form restates its own values here with enough weight. */
+   box-shadow. Until that cleanup lands, the record form restates its own values here with just enough weight:
+   the control selector is (0,6,2), one element above global-components' `.app-shell :is(input:not(…)×5, …)`
+   (0,6,1), so module rules that name their own field (e.g. crm-opportunities' `.crm-opp-currency` tint, (0,7,1))
+   still win. State rules (focus, readonly, invalid, changed) add one class. */
 .app-shell .record-form .rf-form label { color: var(--rf-label) !important; font-size: 11.5px !important; font-weight: 500 !important; }
 .app-shell .record-form .rf-form label.rf-check { color: var(--nx-text) !important; font-size: 12.5px !important; font-weight: 400 !important; }
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea) {
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea) {
   min-height: var(--nx-control-h);
   border: 1px solid var(--rf-border) !important;
   border-radius: var(--nx-radius-control) !important;
@@ -504,23 +510,22 @@
   color: var(--nx-text) !important;
   font-size: 12.5px !important;
 }
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select) { padding: 0 9px; }
-.app-shell .record-form .rf-form :is(textarea:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"])) { padding: 6px 9px; }
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select) { padding: 0 9px; }
+.app-shell .record-form form.rf-form textarea:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { padding: 6px 9px; }
 .app-shell .record-form .rf-form input.rf-mono { font-size: 12px !important; }
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea)[readonly],
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):disabled { background-color: var(--nx-canvas) !important; color: var(--nx-muted) !important; }
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):is(:user-invalid, [aria-invalid="true"]) {
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea)[readonly],
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea):disabled { background-color: var(--nx-canvas) !important; color: var(--nx-muted) !important; }
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea):is(:user-invalid, [aria-invalid="true"]) {
   border-color: var(--nx-bad) !important;
   background-color: color-mix(in srgb, var(--nx-bad-bg) 35%, var(--nx-surface)) !important;
 }
-/* The control selector repeats global-components' own :is(...) so these rules outrank its !important ones. */
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):focus {
+.app-shell .record-form form.rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea):focus {
   border-color: var(--nx-primary) !important;
   box-shadow: 0 0 0 3px var(--rf-focus-ring) !important;
 }
-.app-shell .record-form .rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea),
+.app-shell .record-form form.rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea),
 .app-shell .record-form .rf-form .rf-changed .searchable-record-trigger { box-shadow: inset 3px 0 0 var(--nx-changed) !important; }
-.app-shell .record-form .rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):focus {
+.app-shell .record-form form.rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):where(:not([type="range"], [type="color"])), select, textarea):focus {
   box-shadow: inset 3px 0 0 var(--nx-changed), 0 0 0 3px var(--rf-focus-ring) !important;
 }
 .app-shell .record-form .rf-form small { font-size: 11px !important; }

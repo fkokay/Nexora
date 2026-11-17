@@ -202,7 +202,9 @@ function Sectioned({
   recordNav,
   aside,
   dirty,
+  onCancel = () => {},
 }: {
+  onCancel?: () => void;
   completion?: number;
   identityRequired?: boolean;
   /** Simulates a container whose own validation sets `error` on submit. */
@@ -223,7 +225,7 @@ function Sectioned({
         event.preventDefault();
         if (failWith) setError(failWith);
       }}
-      onCancel={() => {}}
+      onCancel={onCancel}
       error={error}
       recordNav={recordNav}
       aside={aside}
@@ -233,7 +235,13 @@ function Sectioned({
         <label>Stok kodu<input required={identityRequired} /></label>
       </RecordFormGroup>
       <RecordFormTabs tabs={sectionTabs()} active={active} onChange={setActive} label="Stok bölümleri" completion={completion}>
-        {active === 'general' && <label>Stok adı<input /></label>}
+        {active === 'general' && (
+          <>
+            <label>Stok adı<input /></label>
+            <label>Açıklama<textarea /></label>
+            <label>Lot takipli<input type="checkbox" /></label>
+          </>
+        )}
         {active === 'price' && <label>KDV oranı<input required /></label>}
         {active === 'variants' && <p>Varyant yok</p>}
       </RecordFormTabs>
@@ -276,6 +284,18 @@ describe('RecordFormTabs as the section navigator', () => {
     expect(selectedSection()).toContain('Fiyat ve Vergi');
   });
 
+  it('Ctrl+↓ leaves a textarea and an open picker alone', () => {
+    inView(<Sectioned />);
+    press('ArrowDown', { ctrlKey: true }, screen.getByLabelText('Açıklama'));
+    expect(selectedSection()).toContain('Genel');
+    const picker = document.createElement('div');
+    picker.setAttribute('role', 'listbox');
+    document.querySelector('.rf-tab-panel')!.appendChild(picker);
+    press('ArrowDown', { ctrlKey: true }, picker);
+    expect(selectedSection()).toContain('Genel');
+    picker.remove();
+  });
+
   it('Ctrl+↓ does nothing while a modal is open or in a hidden view', () => {
     inView(
       <>
@@ -283,7 +303,7 @@ describe('RecordFormTabs as the section navigator', () => {
         <div role="dialog" aria-modal="true"><input aria-label="Not" /></div>
       </>,
     );
-    press('ArrowDown', { ctrlKey: true }, screen.getByLabelText('Not'));
+    press('ArrowDown', { ctrlKey: true }, screen.getByLabelText('Açıklama'));
     expect(selectedSection()).toContain('Genel');
     cleanup();
     inView(<div hidden><Sectioned /></div>);
@@ -318,12 +338,74 @@ describe('RecordFormPage after a failed save', () => {
     expect(selectedSection()).toContain('Genel');
   });
 
-  it('moves to the first ! section and its invalid field when the container reports an error', () => {
-    inView(<Sectioned failWith="KDV oranı eksik" />);
+  it('a server error does not move the section or the focus, even with a ! section', () => {
+    inView(<Sectioned failWith="İstek başarısız (500)." />);
+    act(() => screen.getByLabelText('Stok adı').focus());
+    ctrlS(screen.getByLabelText('Stok adı'));
+    expect(screen.getByRole('alert').textContent).toContain('İstek başarısız');
+    expect(selectedSection()).toContain('Genel');
+    expect(document.activeElement).toBe(screen.getByLabelText('Stok adı'));
+  });
+
+  it('shows a hidden section (data-rf-section) that holds the first invalid field', () => {
+    function HiddenSections() {
+      const [active, setActive] = useState('general');
+      return (
+        <RecordFormPage title="Stok" mode="create" busy={false} saveLabel="x" onSubmit={(e) => e.preventDefault()} onCancel={() => {}}>
+          <RecordFormTabs tabs={[{ key: 'general', label: 'Genel' }, { key: 'price', label: 'Fiyat' }]} active={active} onChange={setActive} label="Stok bölümleri">
+            <div data-rf-section="general" hidden={active !== 'general'}><label>Stok adı<input /></label></div>
+            <div data-rf-section="price" hidden={active !== 'price'}><label>KDV oranı<input required /></label></div>
+          </RecordFormTabs>
+        </RecordFormPage>
+      );
+    }
+    inView(<HiddenSections />);
     ctrlS();
-    expect(screen.getByRole('alert').textContent).toContain('KDV oranı eksik');
-    expect(selectedSection()).toContain('Fiyat ve Vergi');
+    expect(selectedSection()).toContain('Fiyat');
     expect(document.activeElement).toBe(screen.getByLabelText('KDV oranı'));
+  });
+});
+
+describe('RecordFormPage Esc', () => {
+  it('closes an untouched form', () => {
+    const onCancel = vi.fn();
+    inView(<Sectioned onCancel={onCancel} />);
+    press('Escape', {}, screen.getByLabelText('Stok adı'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks first when the form was touched: Vazgeç keeps it, Devam closes it', async () => {
+    closeOpenDialogs();
+    const onCancel = vi.fn();
+    inView(<Sectioned onCancel={onCancel} />);
+    fireEvent.input(screen.getByLabelText('Stok adı'), { target: { value: 'Koli' } });
+    press('Escape', {}, screen.getByLabelText('Stok adı'));
+    let dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Kaydedilmemiş değişiklikler kaybolacak');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await act(async () => {});
+    expect(onCancel).not.toHaveBeenCalled();
+    press('Escape');
+    dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Devam' }));
+    await act(async () => {});
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing while a modal is open or in a hidden view', () => {
+    const onCancel = vi.fn();
+    inView(
+      <>
+        <Sectioned onCancel={onCancel} />
+        <div role="dialog" aria-modal="true"><input aria-label="Not alanı" /></div>
+      </>,
+    );
+    press('Escape', {}, screen.getByLabelText('Not alanı'));
+    expect(onCancel).not.toHaveBeenCalled();
+    cleanup();
+    inView(<div hidden><Sectioned onCancel={onCancel} /></div>);
+    press('Escape');
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });
 
@@ -335,7 +417,7 @@ describe('RecordFormPage record header', () => {
     expect(screen.getByText('2 / 23')).toBeTruthy();
     press('PageDown', {}, screen.getByLabelText('Stok adı'));
     expect(onNext).not.toHaveBeenCalled();
-    press('PageDown');
+    press('PageDown', {}, screen.getByLabelText('Lot takipli'));
     expect(onNext).toHaveBeenCalledTimes(1);
     press('PageUp');
     expect(onPrev).toHaveBeenCalledTimes(1);
@@ -352,6 +434,7 @@ describe('RecordFormPage record header', () => {
     const footer = document.querySelector('.rf-status')!;
     expect(footer.textContent).toContain('Tab sonraki alan');
     expect(footer.textContent).toContain('Ctrl+S kaydet');
+    expect(footer.textContent).toContain('Esc kapat');
     expect(footer.textContent).not.toContain('PgUp');
     expect(footer.textContent).not.toContain('Ctrl+Z');
   });

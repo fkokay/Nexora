@@ -26,6 +26,14 @@ const GLOBAL_ROWS: readonly Row[] = [
   ['F1', 'Kısayol yardımı'],
 ];
 
+// Record forms (record-form/RecordForm): the keys their footer lists.
+const RECORD_FORM_ROWS: readonly Row[] = [
+  ['Ctrl+↑/↓', 'Önceki / sonraki bölüm'],
+  ['PgUp/PgDn', 'Önceki / sonraki kayıt'],
+  ['Ctrl+.', 'Bağlam panelini aç / kapat'],
+  ['Esc', 'Formu kapat (Vazgeç)'],
+];
+
 function Section({ title, rows, locale }: { title: string; rows: readonly Row[]; locale: 'tr' | 'en' }) {
   return (
     <section>
@@ -68,6 +76,7 @@ export function ShortcutHelpDialog({ locale, onClose }: Props) {
         </header>
         <Section title="İşlem çubuğu" rows={BAR_ROWS} locale={locale} />
         <Section title="Genel" rows={GLOBAL_ROWS} locale={locale} />
+        <Section title="Kayıt formu" rows={RECORD_FORM_ROWS} locale={locale} />
       </div>
     </div>,
     document.body,

@@ -1,74 +1,27 @@
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, MutableRefObject, ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { CopyPlus, Eraser, Save, X } from "lucide-react";
 import { useActivePageCommands, usePageCommands } from "../commands/CommandProvider";
 import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import type { MenuCommand } from "../commands/types";
+import { confirmDialog } from "../confirmDialog";
+import { RecordFormContext, type RecordFormContextValue, type SectionsApi } from "./RecordFormSections";
+import {
+  DIALOG_SELECTOR,
+  firstInvalidField,
+  focusIsInOtherForm,
+  isInPopup,
+  isInScrollableRegion,
+  isTextEntry,
+  matchesWide,
+  ownsKeyboard,
+  useWideViewport,
+  useWindowKeyDown,
+} from "./recordFormKeys";
 import "./record-form.css";
 
-const DIALOG_SELECTOR = '.modal-backdrop, .modal, [role="dialog"], [aria-modal="true"]';
-const TYPING_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
-const FIELD_SELECTOR = 'input:not([type="hidden"]), select, textarea, [aria-invalid="true"]';
-const FOCUSABLE_FIELD_SELECTOR = 'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])';
-/** The context panel (`aside`) is open by default from this width; below it Ctrl+. opens it. */
-const WIDE_QUERY = "(min-width: 1280px)";
-
-/**
- * Whether this form may act on a save shortcut or command: it is not in a hidden keep-alive view, and when dialogs
- * are open (modal backdrops or `aria-modal` elements) it lives inside the topmost one.
- */
-function ownsKeyboard(form: HTMLFormElement | null): boolean {
-  if (!form || form.closest("[hidden]")) return false;
-  const dialogs = Array.from(document.querySelectorAll('.modal-backdrop, [aria-modal="true"]')).filter((el) => !el.closest("[hidden]"));
-  const topmost = dialogs[dialogs.length - 1];
-  return !topmost || topmost.contains(form);
-}
-
-/** Focus sits in another record form on the same screen: that form gets the section and record shortcuts. */
-function focusIsInOtherForm(root: HTMLElement | null): boolean {
-  const active = document.activeElement;
-  return !!active && !!active.closest(".record-form") && !root?.contains(active);
-}
-
-function firstInvalidField(scope: Element | null): HTMLElement | null {
-  if (!scope) return null;
-  return (
-    Array.from(scope.querySelectorAll<HTMLElement>(FIELD_SELECTOR)).find(
-      (field) => field.getAttribute("aria-invalid") === "true" || field.matches(":invalid"),
-    ) ?? null
-  );
-}
-
-function matchesWide(): boolean {
-  return typeof window.matchMedia === "function" ? window.matchMedia(WIDE_QUERY).matches : window.innerWidth >= 1280;
-}
-
-function useWideViewport(): boolean {
-  const [wide, setWide] = useState(matchesWide);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(WIDE_QUERY);
-    const update = () => setWide(query.matches);
-    update();
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
-  }, []);
-  return wide;
-}
-
-type SectionsApi = { goToFirstError: () => void };
-
-type RecordFormContextValue = {
-  /** Where a page form's RecordFormTabs draws its section navigator; null while it stays inline (dialogs). */
-  navTarget: HTMLElement | null;
-  navigator: boolean;
-  /** Whether this form may act on its section / record shortcuts right now. */
-  ownsKeys: () => boolean;
-  sectionsRef: MutableRefObject<SectionsApi | null>;
-};
-
-const RecordFormContext = createContext<RecordFormContextValue | null>(null);
+export { RecordFormTabs } from "./RecordFormSections";
+export type { RecordFormSectionState, RecordFormTab } from "./RecordFormSections";
 
 export type RecordNav = {
   /** 1-based position of the open record in the list it was opened from. */
@@ -202,12 +155,15 @@ export function RecordFormPage({
 
   const ownsKeys = useCallback(() => ownsKeyboard(formRef.current) && !focusIsInOtherForm(rootRef.current), []);
 
-  // After a failed save: the first invalid field on screen, else the first section marked as incomplete.
+  // After a failed save, only for field-level problems: focus the first invalid control (`:invalid` or
+  // `aria-invalid="true"`). When it sits in a section the container keeps mounted but hidden
+  // (`data-rf-section="key"` + `hidden`), that section is shown first. Other errors (server, permission) move nothing.
   const sectionsRef = useRef<SectionsApi | null>(null);
-  const showFirstProblem = useCallback(() => {
-    const invalid = firstInvalidField(formRef.current);
-    if (invalid) invalid.focus();
-    else sectionsRef.current?.goToFirstError();
+  const showInvalidField = useCallback((field: HTMLElement) => {
+    const section = field.closest<HTMLElement>("[data-rf-section]");
+    const hiddenSection = section && field.closest("[hidden]") && formRef.current?.contains(section);
+    if (hiddenSection && sectionsRef.current) sectionsRef.current.showInvalid(section.getAttribute("data-rf-section") ?? "");
+    else field.focus();
   }, []);
   // Native validation fires `invalid` on each invalid control in tree order; the first one of an attempt gets focus.
   const invalidHandledRef = useRef(false);
@@ -217,10 +173,12 @@ export function RecordFormPage({
     queueMicrotask(() => {
       invalidHandledRef.current = false;
     });
-    if (event.target instanceof HTMLElement) event.target.focus();
+    if (event.target instanceof HTMLElement) showInvalidField(event.target);
   };
-  // A container's own validation reports through `error`: once the submit settles (not busy), show where.
+  // A container's own validation reports through `error` (and marks fields `aria-invalid`): once the submit
+  // settles (not busy), show the first invalid field. A save without an error clears the "touched" mark.
   const awaitingResultRef = useRef(false);
+  const touchedRef = useRef(false);
   const [submitCount, setSubmitCount] = useState(0);
   const onSubmitCapture = () => {
     awaitingResultRef.current = true;
@@ -229,28 +187,51 @@ export function RecordFormPage({
   useEffect(() => {
     if (!awaitingResultRef.current || busy) return;
     awaitingResultRef.current = false;
-    if (error) showFirstProblem();
-  }, [submitCount, busy, error, showFirstProblem]);
+    if (!error) {
+      touchedRef.current = false;
+      return;
+    }
+    const invalid = firstInvalidField(formRef.current);
+    if (invalid) showInvalidField(invalid);
+  }, [submitCount, busy, error, showInvalidField]);
+  const markTouched = () => {
+    touchedRef.current = true;
+  };
 
-  // PgUp / PgDn: previous / next record of the list, not while typing.
-  const recordNavRef = useRef(recordNav);
-  recordNavRef.current = recordNav;
-  const hasRecordNav = !!recordNav;
-  useEffect(() => {
-    if (!hasRecordNav) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "PageUp" && event.key !== "PageDown") return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (event.target instanceof Element && event.target.closest(TYPING_SELECTOR)) return;
-      if (!ownsKeys()) return;
-      const run = event.key === "PageUp" ? recordNavRef.current?.onPrev : recordNavRef.current?.onNext;
-      if (!run) return;
-      event.preventDefault();
-      run();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hasRecordNav, ownsKeys]);
+  // Esc on a page form = Vazgeç; with entered or changed values it asks first.
+  const escapeEnabled = isPage && !inDialog;
+  const confirmingRef = useRef(false);
+  useWindowKeyDown(escapeEnabled, (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (isInPopup(event.target) || confirmingRef.current || !ownsKeys()) return;
+    event.preventDefault();
+    if (!touchedRef.current && !dirty) {
+      onCancel();
+      return;
+    }
+    confirmingRef.current = true;
+    void confirmDialog({ title: "Vazgeç", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })
+      .then((confirmed) => {
+        if (confirmed) onCancel();
+      })
+      .finally(() => {
+        confirmingRef.current = false;
+      });
+  });
+
+  // PgUp / PgDn: previous / next record of the list; not in a text field and not in a scrollable region
+  // (a line-item table scrolls with them).
+  useWindowKeyDown(!!recordNav, (event) => {
+    if (event.key !== "PageUp" && event.key !== "PageDown") return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
+    if (isTextEntry(event.target) || isInScrollableRegion(event.target, rootRef.current)) return;
+    if (!ownsKeys()) return;
+    const run = event.key === "PageUp" ? recordNav?.onPrev : recordNav?.onNext;
+    if (!run) return;
+    event.preventDefault();
+    run();
+  });
 
   // Context panel: open from 1280px; Ctrl+. overrides until the viewport crosses the breakpoint again.
   const wide = useWideViewport();
@@ -258,17 +239,12 @@ export function RecordFormPage({
   useEffect(() => setAsideOverride(null), [wide]);
   const asideOpen = asideOverride ?? wide;
   const hasAside = aside != null && aside !== false;
-  useEffect(() => {
-    if (!hasAside) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-      if (!ownsKeys()) return;
-      event.preventDefault();
-      setAsideOverride((current) => !(current ?? matchesWide()));
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hasAside, ownsKeys]);
+  useWindowKeyDown(hasAside, (event) => {
+    if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (!ownsKeys()) return;
+    event.preventDefault();
+    setAsideOverride((current) => !(current ?? matchesWide()));
+  });
 
   const [navTarget, setNavTarget] = useState<HTMLDivElement | null>(null);
   const context = useMemo<RecordFormContextValue>(
@@ -281,9 +257,10 @@ export function RecordFormPage({
     ? [
         "Tab sonraki alan",
         "Ctrl+S kaydet",
-        undo ? "Ctrl+Z geri al" : null,
+        undo?.run && !undo.disabledReason ? "Ctrl+Z geri al" : null,
         recordNav ? "PgUp/PgDn önceki/sonraki kayıt" : null,
         hasAside ? "Ctrl+. bağlam paneli" : null,
+        escapeEnabled ? "Esc kapat" : null,
       ].filter((hint): hint is string => !!hint)
     : [];
 
@@ -385,6 +362,8 @@ export function RecordFormPage({
           onSubmit={onSubmit}
           onSubmitCapture={onSubmitCapture}
           onInvalidCapture={onInvalidCapture}
+          onInputCapture={markTouched}
+          onChangeCapture={markTouched}
         >
           {/* Default button: Enter in a single-line field saves, as the former header save button did. */}
           <button
@@ -457,215 +436,6 @@ export function RecordFieldChange({ previous, children }: { previous: ReactNode;
     <div className="rf-changed">
       {children}
       <small className="rf-previous">Önceki: {previous}</small>
-    </div>
-  );
-}
-
-export type RecordFormSectionState = "done" | "error" | "empty";
-
-export type RecordFormTab = {
-  key: string;
-  label: string;
-  /** Marks the section as incomplete or invalid (same as `state: "error"`). */
-  warning?: boolean;
-  /** ✓ complete, ! incomplete or invalid, ○ empty. */
-  state?: RecordFormSectionState;
-  /** Number shown at the right of the section (e.g. rows it holds). */
-  count?: number;
-};
-
-const SECTION_STATE_TEXT: Record<RecordFormSectionState, string> = {
-  done: "Tamamlandı",
-  error: "Eksik veya hatalı",
-  empty: "Boş",
-};
-
-/**
- * Sections of a record form. On a page it draws the section navigator left of the cards (✓ / ! / ○ states, counts,
- * "Kart doluluğu %N"; Ctrl+↑/↓ switches sections). In a dialog it is a horizontal tab strip above the content.
- */
-export function RecordFormTabs({
-  tabs,
-  active,
-  onChange,
-  label,
-  completion,
-  children,
-}: {
-  tabs: RecordFormTab[];
-  active: string;
-  onChange: (key: string) => void;
-  /** Accessible name of the section list. */
-  label: string;
-  /** Percentage of the card that is filled in; shown under the navigator. */
-  completion?: number;
-  children: ReactNode;
-}) {
-  const context = useContext(RecordFormContext);
-  const navigator = !!context?.navigator;
-  const baseId = useId();
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const navRef = useRef<HTMLDivElement | null>(null);
-  const latest = useRef({ tabs, active, onChange });
-  latest.current = { tabs, active, onChange };
-  // What gets focus once the selected section has rendered.
-  const pendingFocusRef = useRef<"field" | "invalid" | "tab" | null>(null);
-
-  const tabId = (key: string) => `${baseId}-tab-${key}`;
-  const panelId = `${baseId}-panel`;
-
-  const select = useCallback((key: string, focus: "field" | "invalid" | "tab") => {
-    pendingFocusRef.current = focus;
-    if (key === latest.current.active) focusPending();
-    else latest.current.onChange(key);
-  }, []);
-
-  function focusPending() {
-    const pending = pendingFocusRef.current;
-    if (!pending) return;
-    pendingFocusRef.current = null;
-    const panel = panelRef.current;
-    const tab = navRef.current?.querySelector<HTMLElement>(`[aria-selected="true"]`);
-    const target =
-      (pending === "invalid" ? firstInvalidField(panel) : null) ??
-      (pending !== "tab" ? panel?.querySelector<HTMLElement>(FOCUSABLE_FIELD_SELECTOR) : null) ??
-      tab;
-    target?.focus();
-  }
-
-  useLayoutEffect(() => {
-    focusPending();
-  });
-
-  useEffect(() => {
-    if (!context) return;
-    const sections = context.sectionsRef;
-    const api: SectionsApi = {
-      goToFirstError: () => {
-        const first = latest.current.tabs.find((tab) => tab.state === "error" || (!tab.state && tab.warning));
-        if (first) select(first.key, "invalid");
-      },
-    };
-    sections.current = api;
-    return () => {
-      if (sections.current === api) sections.current = null;
-    };
-  }, [context, select]);
-
-  // Ctrl+↑ / Ctrl+↓: previous / next section, also while typing (a Ctrl chord), not under a modal.
-  const ownsKeys = context?.ownsKeys;
-  useEffect(() => {
-    if (!navigator || !ownsKeys) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (!ownsKeys()) return;
-      const { tabs: current, active: activeKey } = latest.current;
-      const next = current.findIndex((tab) => tab.key === activeKey) + (event.key === "ArrowDown" ? 1 : -1);
-      if (next < 0 || next >= current.length) return;
-      event.preventDefault();
-      select(current[next].key, "field");
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigator, ownsKeys, select]);
-
-  if (!navigator) {
-    return (
-      <div className="rf-tabbed">
-        <nav className="rf-tabs" aria-label={label}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              aria-current={active === tab.key ? "page" : undefined}
-              onClick={() => onChange(tab.key)}
-            >
-              {tab.label}
-              {(tab.state === "error" || (!tab.state && tab.warning)) && (
-                <span className="rf-tab-dot" role="img" aria-label="Uyarı var" />
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="rf-tab-panel" ref={panelRef}>
-          {children}
-        </div>
-      </div>
-    );
-  }
-
-  // Arrow keys move along the list (roving focus), as in any vertical tab list.
-  const onListKeyDown = (event: ReactKeyboardEvent) => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    const index = tabs.findIndex((tab) => tab.key === active);
-    const target =
-      event.key === "ArrowDown" ? index + 1 : event.key === "ArrowUp" ? index - 1 : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -2;
-    if (target === -2) return;
-    event.preventDefault();
-    if (target >= 0 && target < tabs.length) select(tabs[target].key, "tab");
-  };
-
-  const percent = completion == null ? null : Math.max(0, Math.min(100, Math.round(completion)));
-  // State circles only when the screen reports section states; a blank column would just indent the labels.
-  const showStates = tabs.some((tab) => tab.state || tab.warning);
-  const navigatorContent = (
-    <div className="rf-snav-inner" ref={navRef}>
-      <div role="tablist" aria-orientation="vertical" aria-label={label} className="rf-snav-list" onKeyDown={onListKeyDown}>
-        {tabs.map((tab) => {
-          const state = tab.state ?? (tab.warning ? "error" : undefined);
-          const selected = tab.key === active;
-          return (
-            <button
-              key={tab.key}
-              id={tabId(tab.key)}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={panelId}
-              tabIndex={selected ? 0 : -1}
-              className="rf-snav-item"
-              onClick={() => onChange(tab.key)}
-            >
-              {showStates && (
-                <span className={`rf-snav-state is-${state ?? "none"}`} aria-hidden="true">
-                  {state === "done" ? "✓" : state === "error" ? "!" : ""}
-                </span>
-              )}
-              <span className="rf-snav-label">{tab.label}</span>
-              {state && <span className="rf-visually-hidden">{SECTION_STATE_TEXT[state]}</span>}
-              {tab.count != null && <small>{tab.count}</small>}
-            </button>
-          );
-        })}
-      </div>
-      {percent != null && (
-        <div className="rf-snav-progress">
-          <span>{`Kart doluluğu %${percent}`}</span>
-          <div
-            className="rf-snav-bar"
-            role="progressbar"
-            aria-label="Kart doluluğu"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-          >
-            <i style={{ width: `${percent}%` }} />
-          </div>
-        </div>
-      )}
-      <p className="rf-snav-hint">
-        <span>Bölümler arası:</span> <kbd>Ctrl+↑/↓</kbd>
-      </p>
-    </div>
-  );
-
-  return (
-    <div className="rf-tabbed rf-tabbed--sections">
-      {context?.navTarget && createPortal(navigatorContent, context.navTarget)}
-      <div className="rf-tab-panel" role="tabpanel" id={panelId} aria-labelledby={tabId(active)} ref={panelRef}>
-        {children}
-      </div>
     </div>
   );
 }

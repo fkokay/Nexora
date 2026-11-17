@@ -3422,7 +3422,7 @@ export function InventoryPage({
                 placeholder="STK-1001"
               />
             </label>
-            <label>
+            <label className="rf-span-2">
               <span>Stok adı <RequiredMark /></span>
               <input
                 className="rf-must"

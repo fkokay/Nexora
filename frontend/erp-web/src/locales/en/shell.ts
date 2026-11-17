@@ -26,6 +26,7 @@ export const english: Record<string, string> = {
   'Ctrl+Z geri al': 'Ctrl+Z undo',
   'PgUp/PgDn önceki/sonraki kayıt': 'PgUp/PgDn previous/next record',
   'Ctrl+. bağlam paneli': 'Ctrl+. context panel',
+  'Esc kapat': 'Esc close',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
