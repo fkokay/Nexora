@@ -7,7 +7,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import { CustomersPage } from '../CustomersPage';
-import { customerTypeLabel } from './customerLabels';
+import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel } from './customerLabels';
 import { CustomerDetailPanel } from './components/CustomerDetailPanel';
 
 const customer = (id: string, extra: Record<string, unknown> = {}) => ({
@@ -305,5 +305,40 @@ describe('Cari paneli döviz dürüstlüğü', () => {
     cleanup();
     render(<CustomerDetailPanel {...props} customer={{ ...customers[0] } as never} balance={{ currencyCode: 'TRY', balance: 1000, balanceSide: 'Debit', riskLimit: 2000 }} />);
     expect(screen.getByText('Limit kullanımı').parentElement!.textContent).toBe('Limit kullanımı%50');
+  });
+});
+
+describe('Global arama isteği', () => {
+  const renderSearched = () =>
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="Cari c2" onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+
+  it('repeating the same search picks its first match again', async () => {
+    renderSearched();
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    // The user moves on: clears the search and chooses another account.
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+    await settle(700);
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(CUSTOMER_SEARCH_REQUEST_EVENT, { detail: 'Cari c2' }));
+    });
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    expect(within(grid()).queryByText('C-c1')).toBeNull();
+  });
+
+  it('a late answer of the first, unfiltered load does not overwrite the searched list', async () => {
+    apiMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/customers/?q=&') && url.includes('pageSize=25')) await new Promise((resolve) => setTimeout(resolve, 150));
+      return respond(url);
+    });
+    renderSearched();
+    await settle(600);
+    expect(within(grid()).queryByText('C-c1')).toBeNull();
+    expect(row('C-c2').getAttribute('aria-current')).toBe('true');
   });
 });

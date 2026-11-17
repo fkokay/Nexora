@@ -27,3 +27,9 @@ export const SALES_PARTY_TYPES: ReadonlyArray<string> = ["Customer", "Both", "De
 
 export const money2 = (value: number) =>
   value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Sent by the global search when it opens an account search, with the search text as `detail`. A list that is
+ * already mounted (kept alive) applies it again even when the text is the same as the last search.
+ */
+export const CUSTOMER_SEARCH_REQUEST_EVENT = "nexora:customer-search-request";

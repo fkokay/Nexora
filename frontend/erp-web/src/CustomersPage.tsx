@@ -38,7 +38,7 @@ import "./customers/customer-modals.css";
 import { StatusTag } from "./list-page/StatusTag";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { useCustomerListScreen } from "./customers/useCustomerListScreen";
-import { customerTypeLabel, customerTypeTone } from "./customers/customerLabels";
+import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel, customerTypeTone } from "./customers/customerLabels";
 import {
   CustomerDetailPanel,
   type CustomerDetailTab,
@@ -315,12 +315,27 @@ function CustomersPage({
     [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState("");
-  useEffect(() => {
-    if (!initialSearch) return;
-    setSearch(initialSearch);
-    setFilter(initialSearch);
+  // A global-search request: the text and a counter, so repeating the same search applies it (and its first-match
+  // pick) again. The prop covers the first mount; the shell's event covers a mounted (kept-alive) list.
+  const [searchRequest, setSearchRequest] = useState<{ text: string; seq: number } | null>(null);
+  const applySearchRequest = (text: string) => {
+    if (!text) return;
+    setSearch(text);
+    setFilter(text);
     setPage(1);
+    setSearchRequest((current) => ({ text, seq: (current?.seq ?? 0) + 1 }));
+  };
+  useEffect(() => {
+    applySearchRequest(initialSearch);
   }, [initialSearch]);
+  useEffect(() => {
+    const onSearch = (event: Event) => {
+      const text = (event as CustomEvent<string>).detail;
+      if (typeof text === "string") applySearchRequest(text);
+    };
+    window.addEventListener(CUSTOMER_SEARCH_REQUEST_EVENT, onSearch);
+    return () => window.removeEventListener(CUSTOMER_SEARCH_REQUEST_EVENT, onSearch);
+  }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setPage(1);
@@ -482,7 +497,10 @@ function CustomersPage({
     else if (request?.kind === "prompt")
       request.resolve(typeof value === "string" ? value : null);
   }
+  // Only the latest list request may write the list: a slower, earlier one (e.g. the unfiltered first load) is dropped.
+  const loadSeq = useRef(0);
   async function load() {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError("");
     try {
@@ -497,13 +515,14 @@ function CustomersPage({
         `/api/customers/?${params.toString()}`,
         token,
       );
+      if (seq !== loadSeq.current) return;
       setItems(data.items);
       setItemsFilter(filter);
       setTotal(data.totalCount);
     } catch (e) {
-      setError((e as Error).message);
+      if (seq === loadSeq.current) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
   async function exportCustomers(format: "csv" | "xlsx") {
@@ -674,7 +693,7 @@ function CustomersPage({
   };
   // The current row is the one the user chose (click, ↑/↓); the list never picks a first row by itself. Arriving
   // from the global search (`initialSearch`) still shows the first match, once per search.
-  const autoSelectedSearch = useRef("");
+  const autoSelectedRequest = useRef(0);
   useEffect(() => {
     if (loading) return;
     if (selectedCustomerId && !items.some((item) => item.id === selectedCustomerId)) {
@@ -683,16 +702,16 @@ function CustomersPage({
     }
     // Only rows loaded for that search count: the list's first, unfiltered load may answer after the search was set.
     if (
-      initialSearch &&
-      autoSelectedSearch.current !== initialSearch &&
+      searchRequest &&
+      autoSelectedRequest.current !== searchRequest.seq &&
       itemsFilter !== null &&
-      itemsFilter.trim() === initialSearch.trim() &&
+      itemsFilter.trim() === searchRequest.text.trim() &&
       items.length
     ) {
-      autoSelectedSearch.current = initialSearch;
+      autoSelectedRequest.current = searchRequest.seq;
       setSelectedCustomerId(items[0].id);
     }
-  }, [items, itemsFilter, loading, selectedCustomerId, initialSearch]);
+  }, [items, itemsFilter, loading, selectedCustomerId, searchRequest]);
   useEffect(() => {
     void load();
     void loadGroups();
