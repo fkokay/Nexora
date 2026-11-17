@@ -9,8 +9,8 @@ import { displayText, interpolate, type PageScope } from "./custom-page/pageBind
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
-import { FormCard } from "./custom-page/LayoutComponents";
-import { idList, ownedInputIds } from "./custom-page/layoutRefs";
+import { chipText, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
+import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -112,13 +112,13 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" ? 12 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "filterChips" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
@@ -308,6 +308,13 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   </div>;
 }
 
+/** Seçim girişinin seçenekleri (optionsQuery sonucundan); satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur. */
+const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState) => {
+  const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
+  const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
+  return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
+};
+
 export function PageInput({ component, props, raw, onChange, optionsState, style }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties;
@@ -319,9 +326,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   if (inputType === "checkbox") {
     control = <input id={inputId} type="checkbox" checked={raw === true} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
-    const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
-    const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
-    const options = (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]) }));
+    const options = selectOptions(props, optionsState);
     control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
@@ -362,6 +367,39 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       return <FormCard key={component.id} title={title} columns={columns} style={style}>
         {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
       </FormCard>;
+    }
+    case "filterChips": {
+      if (!runtime) return null;
+      const chips = idList(props.inputs).flatMap((id) => {
+        const input = runtime.inputById[id];
+        if (!input) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        const inputType = textValue(inputProps.inputType, "text");
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const text = chipText(runtime.inputValues[id], inputType, inputType === "select" ? selectOptions(inputProps, optionsState) : undefined);
+        return text === null ? [] : [{ id, label: textValue(inputProps.label) || input.name || id, text }];
+      });
+      const clear = (id: string) => runtime.setInput(id, textValue(runtime.inputById[id]?.props?.inputType, "text") === "checkbox" ? false : "");
+      return <FilterChips key={component.id} chips={chips} style={style} onClear={clear} onClearAll={() => chips.forEach((chip) => clear(chip.id))} />;
+    }
+    case "facetPanel": {
+      if (!runtime) return null;
+      const counts = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
+      const groups = idList(props.inputs).flatMap((id): FacetGroup[] => {
+        const input = runtime.inputById[id];
+        if (!input) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        if (textValue(inputProps.inputType, "text") !== "select") return [];
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const countColumn = counts[id];
+        const options = selectOptions(inputProps, optionsState).map(({ value, label, row }) => {
+          const count = countColumn ? Number(row[countColumn]) : Number.NaN;
+          return { value, label, count: Number.isFinite(count) ? count : undefined };
+        });
+        const raw = runtime.inputValues[id];
+        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined }];
+      });
+      return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
     }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
