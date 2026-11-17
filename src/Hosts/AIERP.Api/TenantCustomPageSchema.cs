@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// Validates declarative page data. Optional CSS/JavaScript is accepted only by the isolated code component and stays
@@ -23,7 +24,16 @@ internal static class TenantCustomPageSchema
     { "title", "text", "label", "value", "description", "variant", "size", "icon", "source", "columns", "items", "format", "target", "required", "placeholder", "formCode", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "css", "javascript" };
     private static readonly HashSet<string> SafePropsV2 = new(SafeProps, StringComparer.Ordinal)
     { "query", "inputType", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn",
-      "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
+      "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage",
+      "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals" };
+    private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
+    private const int MaxToneMapItems = 20;
+    private const int MaxColumnFormats = 20;
+    private const int MaxTotals = 12;
+    private const int MaxFilterValueLength = 200;
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
+    private static readonly Regex ToneMapItem = new(@"^[^=]{1,60}=(info|success|warning|danger)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage" };
@@ -44,6 +54,10 @@ internal static class TenantCustomPageSchema
         public HashSet<string> Names { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Query id to kind (read, insert, update or delete).</summary>
         public Dictionary<string, string> QueryKinds { get; } = new(StringComparer.Ordinal);
+        /// <summary>Ids of v2 <c>input</c> components anywhere on the page (an input may be declared after the metric that filters by it).</summary>
+        public HashSet<string> InputIds { get; } = new(StringComparer.Ordinal);
+        /// <summary>filterInput values seen on metrics; resolved against <see cref="InputIds"/> once every component was visited.</summary>
+        public List<string> PendingFilterInputs { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -67,6 +81,8 @@ internal static class TenantCustomPageSchema
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
             foreach (var component in components.EnumerateArray())
                 if (!ValidateComponent(component, context, 0, out error)) return false;
+            if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x)) is { } missingInput)
+            { error = $"Göstergenin süzeceği giriş bileşeni sayfada yok: {missingInput}."; return false; }
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
             return true;
@@ -162,6 +178,7 @@ internal static class TenantCustomPageSchema
         if (idText.Length is < 1 or > 64 || !idText.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') || !context.Ids.Add(idText))
         { error = "Bileşen kimlikleri benzersiz, kısa ve yalnızca harf/rakam/-/_ içermelidir."; return false; }
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
+        if (typeText == "input") context.InputIds.Add(idText);
         if (component.TryGetProperty("name", out var nameElement)
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
         { error ??= "Bileşen adı metin olmalıdır."; return false; }
@@ -200,7 +217,7 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty("items", out var items) && (typeText != "list" || items.ValueKind != JsonValueKind.Array
                 || items.GetArrayLength() > 40 || items.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String)))
             { error = "Liste bileşeni en fazla 40 metin öğesi içerebilir."; return false; }
-            if (props.TryGetProperty("variant", out var variant) && (typeText is "alert" or "badge")
+            if (props.TryGetProperty("variant", out var variant) && (typeText is "alert" or "badge" || context.V2 && typeText == "metric")
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
             if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String
@@ -249,7 +266,75 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty(key, out var column)
                 && (typeText != "input" || column.ValueKind != JsonValueKind.String || column.GetString()!.Length is < 1 or > 128))
             { error = $"'{key}' yalnızca giriş bileşeninde 1–128 karakterlik sütun adı olabilir."; return false; }
-        return ValidateButtonQueryAction(props, typeText, context, out error);
+        return ValidateDesignLanguageProps(props, typeText, context, out error) && ValidateButtonQueryAction(props, typeText, context, out error);
+    }
+
+    /// <summary>Metric, badge and dataTable presentation props (design language step 2a).</summary>
+    private static bool ValidateDesignLanguageProps(JsonElement props, string typeText, Context context, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
+            && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
+        { error = "Gösterge 'icon' değeri box, users, receipt, wallet, chart, clock, check veya alert olmalıdır."; return false; }
+        if (props.TryGetProperty("trendQuery", out var trendQuery)
+            && (typeText != "metric" || trendQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(trendQuery.GetString())))
+        {
+            error = typeText == "metric"
+                ? $"Göstergenin 'trendQuery' değeri sayfada tanımlı bir okuma sorgusu olmalıdır: {(trendQuery.ValueKind == JsonValueKind.String ? trendQuery.GetString() : "?")}."
+                : "'trendQuery' özelliği yalnızca gösterge bileşeninde kullanılabilir.";
+            return false;
+        }
+        var hasFilterInput = false;
+        if (props.TryGetProperty("filterInput", out var filterInput))
+        {
+            if (typeText != "metric" || filterInput.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(filterInput.GetString()))
+            { error = "'filterInput' özelliği yalnızca gösterge bileşeninde ve bir giriş bileşeni kimliğiyle kullanılabilir."; return false; }
+            context.PendingFilterInputs.Add(filterInput.GetString()!);
+            hasFilterInput = true;
+        }
+        if (props.TryGetProperty("filterValue", out var filterValue))
+        {
+            if (typeText != "metric" || filterValue.ValueKind != JsonValueKind.String || filterValue.GetString()!.Length > MaxFilterValueLength)
+            { error = $"'filterValue' yalnızca gösterge bileşeninde ve en fazla {MaxFilterValueLength} karakterlik metin olabilir."; return false; }
+            if (!hasFilterInput) { error = "'filterValue' için göstergede 'filterInput' (giriş bileşeni) da tanımlı olmalıdır."; return false; }
+        }
+        if (props.TryGetProperty("toneMap", out var toneMap)
+            && !ValidateMapItems("toneMap", toneMap, typeText is "badge" or "dataTable", MaxToneMapItems, ToneMapItem,
+                "Ad=info|success|warning|danger", out error)) return false;
+        if (props.TryGetProperty("columnFormats", out var columnFormats)
+            && !ValidateMapItems("columnFormats", columnFormats, typeText == "dataTable", MaxColumnFormats, ColumnFormatItem,
+                "Sütun=text|code|number|money|date|status", out error)) return false;
+        if (props.TryGetProperty("density", out var density)
+            && (typeText != "dataTable" || density.ValueKind != JsonValueKind.String || density.GetString() is not ("dense" or "comfort")))
+        { error = "'density' yalnızca veri listesinde dense veya comfort olabilir."; return false; }
+        if (props.TryGetProperty("totals", out var totals))
+        {
+            if (typeText != "dataTable" || totals.ValueKind != JsonValueKind.Array || totals.GetArrayLength() > MaxTotals
+                || totals.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || x.GetString()!.Length is < 1 or > 128))
+            { error = $"'totals' yalnızca veri listesinde en fazla {MaxTotals} adet 1–128 karakterlik sütun adı içerebilir."; return false; }
+            if (!props.TryGetProperty("query", out var tableQuery) || tableQuery.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(tableQuery.GetString()))
+            { error = "'totals' yalnızca sorguya bağlı (query) veri listesinde kullanılabilir."; return false; }
+        }
+        return true;
+    }
+
+    private static bool ValidateMapItems(string property, JsonElement value, bool allowedOnType, int maxItems, Regex pattern, string format, out string? error)
+    {
+        error = null;
+        if (!allowedOnType) { error = $"'{property}' özelliği bu bileşen türünde kullanılamaz."; return false; }
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > maxItems)
+        { error = $"'{property}' en fazla {maxItems} öğeli bir dizi olmalıdır."; return false; }
+        foreach (var item in value.EnumerateArray())
+        {
+            try
+            {
+                if (item.ValueKind == JsonValueKind.String && pattern.IsMatch(item.GetString()!)) continue;
+            }
+            catch (RegexMatchTimeoutException) { }
+            error = $"'{property}' öğeleri {format} biçiminde olmalıdır.";
+            return false;
+        }
+        return true;
     }
 
     /// <summary>

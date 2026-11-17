@@ -19,11 +19,24 @@
 .tenant-page-label { align-self: center; font-weight: 600; }
 .tenant-page-spacer { min-height: 8px; }
 
-/* Özet kartı (gösterge): etiket, değer, açıklama — taslak 01 özet mini kartları */
-.tenant-page-metric { display: flex; flex-direction: column; gap: 2px; }
-.tenant-page-metric > span { color: var(--nx-muted); font-size: 11.5px; }
+/* Özet kartı (gösterge): ikon kutusu, etiket/değer/açıklama, sağda eğilim — taslak `.mk` kartı; `.act` = süzgeç uygulanmış */
+.tenant-page-metric { --metric-tone: var(--nx-primary-strong); --metric-soft: var(--nx-primary-soft); display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.tenant-page-metric.tone-success { --metric-tone: var(--nx-ok); --metric-soft: var(--nx-ok-bg); }
+.tenant-page-metric.tone-warning { --metric-tone: var(--nx-warn); --metric-soft: var(--nx-warn-bg); }
+.tenant-page-metric.tone-danger { --metric-tone: var(--nx-bad); --metric-soft: var(--nx-bad-bg); }
+.tenant-metric-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 8px; color: var(--metric-tone); background: var(--metric-soft); }
+.tenant-metric-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.tenant-metric-label { color: var(--nx-muted); font-size: 11.5px; }
 .tenant-page-metric strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tenant-page-metric:is(.tone-warning, .tone-danger) strong:not(.tenant-report-status) { color: var(--metric-tone); }
 .tenant-page-metric small { color: var(--nx-muted); font-size: 11px; }
+.tenant-metric-trend { flex: none; margin-left: auto; }
+.tenant-metric-trend polyline { stroke: var(--nx-primary); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tenant-page-metric.is-clickable { cursor: pointer; }
+.tenant-page-metric.is-clickable:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-metric.is-active { border-color: color-mix(in srgb, var(--metric-tone) 35%, var(--nx-surface)); background: color-mix(in srgb, var(--metric-soft) 45%, var(--nx-surface)); }
+
+.app-shell .tenant-custom-page .tenant-page-metric small { font-size: 11px !important; }
 
 /* Düğmeler */
 .tenant-page-action { display: flex; align-items: center; }
@@ -112,6 +125,17 @@
 @media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
 @media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
 
+/* Durum etiketi, yoğunluk ve toplam satırı — eski kabuk tablo kuralları (.app-shell table … !important) için önekli */
+.tenant-page-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; color: var(--nx-muted); background: var(--nx-line-soft); font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.tenant-page-tag.tone-info { color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-page-tag.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-tag.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-tag.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
+.app-shell .tenant-custom-page .tenant-page-table table.is-comfort td, .app-shell .tenant-custom-page .tenant-page-table table.is-comfort tfoot td { height: var(--nx-row-h-comfort) !important; padding: 8px 9px !important; }
+.app-shell .tenant-custom-page .tenant-page-table td.code { font-family: var(--nx-font-mono); font-size: 12px; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; border-top: 1px solid var(--nx-line) !important; border-bottom: 0 !important; background: var(--nx-table-head) !important; font-weight: 650; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot .tenant-page-total-label { float: left; color: var(--nx-muted); font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td > .num { float: right; }
 /* ERP kabuğunun eski genel kuralları (.app-shell :is(input…), .app-shell … thead th, .app-shell .content button;
    kısmen !important) özel sayfada tasarım dili ölçülerini ezmesin. Kayıt formlarındaki (.record-form .rf-form)
    yaklaşımın aynısı: daha özgül seçici, eski kuralda !important olan özelliklerde !important. */
