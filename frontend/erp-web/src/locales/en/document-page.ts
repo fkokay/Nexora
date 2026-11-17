@@ -131,6 +131,10 @@ export const english: Record<string, string> = {
   "Fatura bilgilerini gir": "Enter invoice details",
   "Teklif hazırla (İşlemler), müşteri ve satırları dolu bir teklif taslağı açar. İlk teklifle birlikte talep “Teklif verildi” durumuna geçer.":
     "Prepare quote (Actions) opens a quote draft with the customer and lines filled in. With the first quote the request moves to “Quoted”.",
+  // Belge oluşturma ekranları (RecordFormPage `document`)
+  "satır ekle": "add line",
+  "Ctrl+Shift+Enter satır ekle": "Ctrl+Shift+Enter add line",
+  "Depo gözü": "Storage location",
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
@@ -141,4 +145,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(\d+) değişiklik kaydedilmedi$/, '$1 unsaved changes'],
   [/^KDV %(\d+(?:,\d+)?) · matrah (.+)$/, 'VAT $1% · base $2'],
   [/^KDV %(\d+(?:,\d+)?) matrahı$/, 'VAT $1% base'],
+  [/^Satır (\d+) depo gözü$/, 'Line $1 storage location'],
+  [/^Satır (\d+) son kullanma tarihi$/, 'Line $1 expiry date'],
+  [/^Birim fiyat \(([A-Z]{3})\)$/, 'Unit price ($1)'],
 ]

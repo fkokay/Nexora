@@ -19,6 +19,9 @@ import {
   RequiredMark,
 } from "../../record-form/RecordForm";
 import "../sales-record-forms.css";
+import type { DocumentTotalRow } from "../../document-detail/DocumentDetailLayout";
+import { SalesInvoiceFlow } from "../salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines } from "../salesDocumentForm";
 
 type Props = {
   deliveries: SalesDeliverySummary[];
@@ -489,6 +492,133 @@ export default function SalesInvoiceFromDeliveryDialog({
     (customer) => customer.id === standaloneCustomerId,
   )?.currencyCode || "TRY";
 
+  // Line controls of the standalone invoice, shared by the full-page line grid and the dialog's line rows.
+  type StandaloneLine = (typeof standaloneLines)[number];
+  const addStandaloneLine = () =>
+    setStandaloneLines((lines) => [
+      ...lines,
+      {
+        stockItemId: "",
+        warehouseId: warehouses.find((warehouse) => warehouse.isActive)?.id || "",
+        quantity: "1",
+        unitPrice: "0",
+        discountPercent: "0",
+        vatPercent: "20",
+      },
+    ]);
+  const standaloneStockPicker = (line: StandaloneLine, index: number) => (
+    <SearchableRecordPicker
+      options={stockItems
+        .filter((item) => item.isActive)
+        .map((item) => ({
+          id: item.id,
+          label: `${item.code} · ${item.name}`,
+          description: item.unitCode,
+        }))}
+      selectedId={line.stockItemId}
+      onSelect={(id) =>
+        setStandaloneLines((lines) =>
+          lines.map((item, i) =>
+            i === index ? { ...item, stockItemId: id } : item,
+          ),
+        )
+      }
+      title="Stok seçin"
+      placeholder="Stok kartı seçin"
+      searchPlaceholder="Stok kodu veya adıyla ara"
+      emptyMessage="Eşleşen aktif stok kartı yok."
+      required
+    />
+  );
+  const standaloneWarehousePicker = (line: StandaloneLine, index: number) => (
+    <SearchableRecordPicker
+      options={warehouses
+        .filter((warehouse) => warehouse.isActive)
+        .map((warehouse) => ({
+          id: warehouse.id,
+          label: `${warehouse.code} · ${warehouse.name}`,
+          description: "Bu satırın stok çıkışı bu depodan yapılır",
+        }))}
+      selectedId={line.warehouseId}
+      onSelect={(id) =>
+        setStandaloneLines((lines) =>
+          lines.map((item, i) =>
+            i === index ? { ...item, warehouseId: id } : item,
+          ),
+        )
+      }
+      title="Depo seçin"
+      placeholder="Depo seçin"
+      searchPlaceholder="Depo kodu veya adıyla ara"
+      emptyMessage="Aktif depo bulunamadı."
+      required
+    />
+  );
+  // Same limits as before: quantity and price are required; discount and VAT are 0–100.
+  const STANDALONE_NUMBER = {
+    quantity: { min: "0.0001", step: "0.0001", required: true },
+    unitPrice: { min: "0", step: "0.0001", required: true },
+    discountPercent: { min: "0", max: "100", step: "0.01", required: false },
+    vatPercent: { min: "0", max: "100", step: "0.01", required: false },
+  } as const;
+  const standaloneNumberInput = (
+    line: StandaloneLine,
+    index: number,
+    field: keyof typeof STANDALONE_NUMBER,
+    label?: string,
+  ) => {
+    const limits: { min: string; max?: string; step: string; required: boolean } = STANDALONE_NUMBER[field];
+    return (
+      <input
+        aria-label={label}
+        type="number"
+        min={limits.min}
+        max={limits.max}
+        step={limits.step}
+        value={line[field]}
+        onChange={(event) =>
+          setStandaloneLines((lines) =>
+            lines.map((item, i) =>
+              i === index
+                ? { ...item, [field]: event.target.value }
+                : item,
+            ),
+          )
+        }
+        required={limits.required || undefined}
+      />
+    );
+  };
+  const standaloneRemoveButton = (index: number, className: string) => (
+    <button
+      type="button"
+      className={className}
+      aria-label={`Satır ${index + 1} sil`}
+      disabled={standaloneLines.length === 1}
+      onClick={() =>
+        setStandaloneLines((lines) =>
+          lines.filter((_, i) => i !== index),
+        )
+      }
+    >
+      <Trash2 size={fullPage ? 13 : 16} />
+    </button>
+  );
+  const standaloneAmount = (row: { label: string; amount: number }) => {
+    const parts = formatMoneyParts(row.amount);
+    return (
+      <output aria-label={`${row.label} ${parts.whole},${parts.fraction} ${standaloneCurrencyCode}`}>
+        {`${parts.whole},${parts.fraction} ${standaloneCurrencyCode === "TRY" ? "TL" : standaloneCurrencyCode}`}
+      </output>
+    );
+  };
+  // Totals as today (same rows and amounts); Genel toplam and Ödenecek tutar are the emphasised rows.
+  const standaloneTotalRows: DocumentTotalRow[] = standaloneTotals.map((row) => ({
+    key: row.label,
+    label: row.label,
+    value: standaloneAmount(row),
+    emphasis: row.kind ? "grand" : undefined,
+  }));
   const standaloneSaveBlocked =
     !standaloneCustomerId ||
     standaloneLines.some((line) => !line.stockItemId || !line.warehouseId);
@@ -513,7 +643,7 @@ export default function SalesInvoiceFromDeliveryDialog({
       }}
     >
       <section
-        className={`${fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}${mode === "standalone" ? " sales-rf-host" : ""}`}
+        className={`${fullPage ? "sales-invoice-entry-card" : "modal sales-document-dialog sales-quote-detail-modal"}${mode === "standalone" && !fullPage ? " sales-rf-host" : ""}`}
         role={fullPage ? "region" : "dialog"}
         aria-modal={fullPage ? undefined : "true"}
         aria-labelledby={mode === "standalone" ? undefined : "sales-invoice-create-title"}
@@ -818,6 +948,16 @@ export default function SalesInvoiceFromDeliveryDialog({
           <RecordFormPage
             variant={fullPage ? "page" : "dialog"}
             className="sales-rf"
+            document={
+              fullPage
+                ? {
+                    type: "Satış faturası",
+                    party: customers.find((customer) => customer.id === standaloneCustomerId)?.name,
+                    statusFlow: <SalesInvoiceFlow status="Posted" />,
+                    hints: SALES_FORM_HINTS,
+                  }
+                : undefined
+            }
             title="Yeni satış faturası"
             mode="create"
             busy={standaloneBusy}
@@ -865,7 +1005,11 @@ export default function SalesInvoiceFromDeliveryDialog({
               </>
             }
           >
-            <RecordFormGroup title="Fatura Kimliği" bodyClassName="rf-identity sales-rf-identity-3">
+            <RecordFormGroup
+              title={fullPage ? "Belge bilgileri" : "Fatura Kimliği"}
+              hint={fullPage ? "* zorunlu alan" : undefined}
+              bodyClassName={fullPage ? "rf-identity doc-form-fields" : "rf-identity sales-rf-identity-3"}
+            >
               <label className="invoice-date-field">
                 <span>Fatura tarihi <RequiredMark /></span>
                 <input
@@ -876,7 +1020,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                   required
                 />
               </label>
-              <label className="invoice-customer-field">
+              <label className={`invoice-customer-field${fullPage ? " rf-span-2" : ""}`}>
                 <span>Müşteri <RequiredMark /></span>
                 <SearchableRecordPicker
                   options={customers
@@ -904,6 +1048,65 @@ export default function SalesInvoiceFromDeliveryDialog({
               </label>
             </RecordFormGroup>
             {renderEDocumentFields(true)}
+            {fullPage ? (
+              <SalesFormLines
+                label="Fatura satırları"
+                lines={standaloneLines.length}
+                extra="Her satırın stok çıkışı seçilen depodan yapılır."
+                totals={standaloneTotalRows}
+                totalsLabel="Fatura toplamları"
+                notes={
+                  <label className="sales-invoice-note">
+                    <span>Fatura notu <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={invoiceNotes}
+                      onChange={(event) => setInvoiceNotes(event.target.value)}
+                      maxLength={1000}
+                      rows={5}
+                      placeholder="Faturaya ilişkin açıklama, sipariş notu veya ödeme bilgisi yazın."
+                    />
+                    <small className="sales-invoice-note-counter" aria-hidden="true">{invoiceNotes.length} / 1000</small>
+                  </label>
+                }
+              >
+                <table className="dd-lines">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">#</th>
+                      <th>Stok</th>
+                      <th>Depo</th>
+                      <th className="dd-num">Miktar</th>
+                      <th className="dd-num">Birim fiyat ({standaloneCurrencyCode})</th>
+                      <th className="dd-num">İskonto %</th>
+                      <th className="dd-num">KDV %</th>
+                      <th className="dd-menu" aria-label="Satır işlemleri" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standaloneLines.map((line, index) => (
+                      <tr key={index}>
+                        <td className="dd-ix">{index + 1}</td>
+                        <td className="dd-stock-cell">{standaloneStockPicker(line, index)}</td>
+                        <td className="dd-stock-cell">{standaloneWarehousePicker(line, index)}</td>
+                        <td className="dd-num">{standaloneNumberInput(line, index, "quantity", `Satır ${index + 1} miktar`)}</td>
+                        <td className="dd-num">{standaloneNumberInput(line, index, "unitPrice", `Satır ${index + 1} birim fiyat`)}</td>
+                        <td className="dd-num">{standaloneNumberInput(line, index, "discountPercent", `Satır ${index + 1} iskonto yüzdesi`)}</td>
+                        <td className="dd-num">{standaloneNumberInput(line, index, "vatPercent", `Satır ${index + 1} KDV yüzdesi`)}</td>
+                        <td className="dd-menu">{standaloneRemoveButton(index, "dd-line-remove")}</td>
+                      </tr>
+                    ))}
+                    <tr className="dd-new-line">
+                      <td colSpan={8}>
+                        <button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={addStandaloneLine}>
+                          <LineAddLabel />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </SalesFormLines>
+            ) : (
+            <>
             <RecordFormGroup title="Fatura Satırları">
             <div className="sales-rf-standalone-lines">
               <div className="sales-invoice-standalone-heading sales-rf-group-actions">
@@ -913,19 +1116,7 @@ export default function SalesInvoiceFromDeliveryDialog({
                   className="secondary"
                   data-line-add-shortcut
                   title="Ctrl+Shift+Enter ile satır ekle"
-                  onClick={() =>
-                    setStandaloneLines((lines) => [
-                      ...lines,
-                      {
-                        stockItemId: "",
-                        warehouseId: warehouses.find((warehouse) => warehouse.isActive)?.id || "",
-                        quantity: "1",
-                        unitPrice: "0",
-                        discountPercent: "0",
-                        vatPercent: "20",
-                      },
-                    ])
-                  }
+                  onClick={addStandaloneLine}
                 >
                   <Plus size={15} /> Satır ekle
                 </button>
@@ -934,143 +1125,29 @@ export default function SalesInvoiceFromDeliveryDialog({
                 <div className="sales-invoice-standalone-line" key={index}>
                   <label className="standalone-stock">
                     Stok
-                    <SearchableRecordPicker
-                      options={stockItems
-                        .filter((item) => item.isActive)
-                        .map((item) => ({
-                          id: item.id,
-                          label: `${item.code} · ${item.name}`,
-                          description: item.unitCode,
-                        }))}
-                      selectedId={line.stockItemId}
-                      onSelect={(id) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index ? { ...item, stockItemId: id } : item,
-                          ),
-                        )
-                      }
-                      title="Stok seçin"
-                      placeholder="Stok kartı seçin"
-                      searchPlaceholder="Stok kodu veya adıyla ara"
-                      emptyMessage="Eşleşen aktif stok kartı yok."
-                      required
-                    />
+                    {standaloneStockPicker(line, index)}
                   </label>
                   <label className="standalone-warehouse">
                     Depo
-                    <SearchableRecordPicker
-                      options={warehouses
-                        .filter((warehouse) => warehouse.isActive)
-                        .map((warehouse) => ({
-                          id: warehouse.id,
-                          label: `${warehouse.code} · ${warehouse.name}`,
-                          description: "Bu satırın stok çıkışı bu depodan yapılır",
-                        }))}
-                      selectedId={line.warehouseId}
-                      onSelect={(id) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index ? { ...item, warehouseId: id } : item,
-                          ),
-                        )
-                      }
-                      title="Depo seçin"
-                      placeholder="Depo seçin"
-                      searchPlaceholder="Depo kodu veya adıyla ara"
-                      emptyMessage="Aktif depo bulunamadı."
-                      required
-                    />
+                    {standaloneWarehousePicker(line, index)}
                   </label>
                   <label>
                     Miktar
-                    <input
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      value={line.quantity}
-                      onChange={(event) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index
-                              ? { ...item, quantity: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                      required
-                    />
+                    {standaloneNumberInput(line, index, "quantity")}
                   </label>
                   <label>
                     Birim fiyat ({standaloneCurrencyCode})
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={line.unitPrice}
-                      onChange={(event) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index
-                              ? { ...item, unitPrice: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                      required
-                    />
+                    {standaloneNumberInput(line, index, "unitPrice")}
                   </label>
                   <label>
                     İskonto %
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={line.discountPercent}
-                      onChange={(event) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index
-                              ? { ...item, discountPercent: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
+                    {standaloneNumberInput(line, index, "discountPercent")}
                   </label>
                   <label>
                     KDV %
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={line.vatPercent}
-                      onChange={(event) =>
-                        setStandaloneLines((lines) =>
-                          lines.map((item, i) =>
-                            i === index
-                              ? { ...item, vatPercent: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
+                    {standaloneNumberInput(line, index, "vatPercent")}
                   </label>
-                  <button
-                    type="button"
-                    className="icon-button standalone-remove"
-                    aria-label={`Satır ${index + 1} sil`}
-                    disabled={standaloneLines.length === 1}
-                    onClick={() =>
-                      setStandaloneLines((lines) =>
-                        lines.filter((_, i) => i !== index),
-                      )
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {standaloneRemoveButton(index, "icon-button standalone-remove")}
                 </div>
               ))}
             </div>
@@ -1089,18 +1166,17 @@ export default function SalesInvoiceFromDeliveryDialog({
                 <small className="sales-invoice-note-counter" aria-hidden="true">{invoiceNotes.length} / 1000</small>
               </label>
               <section className="sales-invoice-total-panel" aria-label="Fatura toplamları">
-                {standaloneTotals.map((row) => {
-                  const parts = formatMoneyParts(row.amount);
-                  return <div className={`total-row${row.kind ? ` ${row.kind}` : ""}`} key={row.label}>
+                {standaloneTotals.map((row) => (
+                  <div className={`total-row${row.kind ? ` ${row.kind}` : ""}`} key={row.label}>
                     <span>{row.label}</span>
-                    <output aria-label={`${row.label} ${parts.whole},${parts.fraction} ${standaloneCurrencyCode}`}>
-                      {parts.whole},{parts.fraction} {standaloneCurrencyCode === "TRY" ? "TL" : standaloneCurrencyCode}
-                    </output>
-                  </div>;
-                })}
+                    {standaloneAmount(row)}
+                  </div>
+                ))}
               </section>
             </div>
             </RecordFormGroup>
+            </>
+            )}
             {renderInvoiceCustomFields(true)}
             {renderAccountingProfileSelect(true)}
           </RecordFormPage>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentSurface, type DocumentSurfaceProps } from './DocumentSurface';
 import { DocumentStatusFlow } from './DocumentStatusFlow';
@@ -21,6 +21,9 @@ import { englishPatterns } from '../locales/en/document-page';
 import { PurchaseInvoiceModal } from '../PurchaseInvoiceModal';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { CommandProvider } from '../commands/CommandProvider';
+import { ActionBar } from '../action-bar/ActionBar';
+import { KeepAliveViews } from '../WorkspaceComponents';
+import { RecordFormPage, type RecordFormPageProps } from '../record-form/RecordForm';
 
 let scrollTo: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
@@ -423,5 +426,80 @@ describe('Purchasing document on the restyled kit', () => {
     const post = calls.find((c) => c.method === 'POST')!;
     expect(JSON.parse(post.body!)).toMatchObject({ amount: 500, paymentMethod: 'Bank transfer', financialAccountId: 'a1' });
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+});
+
+describe('Document create form (RecordFormPage with document chrome)', () => {
+  const formIn = (props: Partial<RecordFormPageProps> = {}) => (
+    <CommandProvider>
+      <ActionBar locale="tr" />
+      <KeepAliveViews activeKey="v" openKeys={['v']}>
+        <RecordFormPage
+          title="Yeni Teklif"
+          mode="create"
+          busy={false}
+          saveLabel="x"
+          onSubmit={(event) => event.preventDefault()}
+          onCancel={() => {}}
+          document={{
+            type: 'Satış teklifi',
+            party: 'Akdeniz Gıda A.Ş.',
+            statusFlow: <DocumentStatusFlow steps={[{ key: 'Draft', label: 'Taslak' }, { key: 'Sent', label: 'İletildi' }]} current="Draft" />,
+            hints: ['Ctrl+Shift+Enter satır ekle'],
+          }}
+          {...props}
+        >
+          <label>
+            Teklif no
+            <input />
+          </label>
+        </RecordFormPage>
+      </KeepAliveViews>
+      <ConfirmDialogHost />
+    </CommandProvider>
+  );
+
+  it('draws the document header: type above, the number (or the form title) large, cari, mode, status flow', () => {
+    render(formIn());
+    const root = document.querySelector('.record-form')!;
+    expect(root.classList.contains('doc-form')).toBe(true);
+    // Not a document surface: the list behind it and the document keys stay as they are.
+    expect(document.querySelector('.doc-surface')).toBeNull();
+    const head = root.querySelector('header.doc-surface-head')!;
+    expect(root.querySelector('.rf-toolbar')).toBeNull();
+    expect(head.querySelector('.doc-surface-eyebrow')!.textContent).toContain('Satış teklifi');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Yeni Teklif');
+    expect(within(head as HTMLElement).getByText('Akdeniz Gıda A.Ş.').className).toBe('doc-surface-party');
+    expect(within(head as HTMLElement).getByText('YENİ KAYIT')).toBeTruthy();
+    const flow = within(head as HTMLElement).getByRole('list', { name: 'Durum akışı' });
+    expect(within(flow).getByText('Taslak').closest('li')!.getAttribute('aria-current')).toBe('step');
+    expect(within(head as HTMLElement).getByRole('button', { name: 'Vazgeç' })).toBeTruthy();
+  });
+
+  it('with a number the heading is the number, named with the document type', () => {
+    render(formIn({ mode: 'edit', document: { type: 'Satış teklifi', code: 'T-2026-0007' } }));
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading.textContent).toBe('Satış teklifi T-2026-0007');
+    expect(heading.querySelector('b')!.textContent).toBe('T-2026-0007');
+    expect(screen.getByText('DÜZENLEME')).toBeTruthy();
+  });
+
+  it('keeps the record form keys and lists the page shortcuts in the footer', async () => {
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    const onCancel = vi.fn();
+    render(formIn({ onSubmit, onCancel }));
+    const keys = Array.from(document.querySelectorAll('.rf-keys > span')).map((node) => node.textContent);
+    expect(keys).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const input = screen.getByLabelText('Teklif no');
+    fireEvent.change(input, { target: { value: 'T-1' } });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(await screen.findByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    fireEvent.click(document.querySelector<HTMLElement>('.workspace-confirm-actions button.secondary')!);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

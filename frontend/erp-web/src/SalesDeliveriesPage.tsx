@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import {
-  ArrowLeftRight,
   FilePlus2,
   X,
 } from "lucide-react";
@@ -600,23 +599,8 @@ export function SalesDeliveriesScreen({
       className={`delivery-screen list-v2${creating ? " delivery-create-screen" : ""}`}
     >
       {!creating && !invoiceId && <PageCommandsSlot commands={commands} />}
-      {creating ? (
-        <div className="page-heading customer-heading">
-          <div>
-            <p className="eyebrow">ERP CORE · SATIŞ</p>
-            <h1>Yeni satış irsaliyesi</h1>
-            <p className="muted">
-              Siparişe bağlı olmadan sevk belgesi taslağı oluşturun.
-            </p>
-          </div>
-          <div className="heading-actions">
-            <button className="secondary" onClick={() => setCreating(false)}>
-              <ArrowLeftRight size={15} />
-              İrsaliye listesine dön
-            </button>
-          </div>
-        </div>
-      ) : (
+      {/* The create form draws its own document header (type, flow, Vazgeç = back to the list). */}
+      {!creating && (
         <div className="sales-lv2-stack">
           <ListPageHeader
             className="customer-heading"

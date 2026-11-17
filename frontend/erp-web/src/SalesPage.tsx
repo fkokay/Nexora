@@ -83,6 +83,7 @@ import {
 } from "./document-detail/DocumentDetailLayout";
 import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -2773,6 +2774,13 @@ export function SalesPage({
       {createOrderPage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış siparişi",
+              code: directOrderCode.trim() || undefined,
+              party: customers.find((x) => x.id === customerId)?.name,
+              statusFlow: <SalesOrderFlow status="Open" />,
+              hints: SALES_FORM_HINTS,
+            }}
             title={directOrderEditId ? "Sipariş Düzenleme" : "Yeni Sipariş"}
             mode={directOrderEditId ? "edit" : "create"}
             busy={busy}
@@ -2806,7 +2814,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
                 <label>
                   <span>Sipariş no <RequiredMark /></span>
                   <input
@@ -2872,11 +2880,15 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Sipariş Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table direct-order-lines-table">
-                  <thead><tr><th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th><th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th><th>KDV türü</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th></tr></thead>
+            <SalesFormLines
+              label="Sipariş satırları"
+              lines={directOrderLines.length}
+              extra={customers.find((x) => x.id === customerId)?.currencyCode || undefined}
+              totals={salesFormTotalRows(directOrderTotals, (value) => renderOrderCurrency(value, customers.find((x) => x.id === customerId)?.currencyCode || "TRY"))}
+              totalsLabel="Sipariş toplamları"
+            >
+                <table className="dd-lines">
+                  <thead><tr><th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th><th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th><th>KDV türü</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th></tr></thead>
                   <tbody>
                     {directOrderLines.map((line, index) => {
                       const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
@@ -2887,40 +2899,26 @@ export function SalesPage({
                       const discount = subtotal * Number(line.discountPercent || 0) / 100;
                       const tax = (subtotal - discount) * Number(line.vatPercent || 0) / 100;
                       return <tr key={index}>
-                        <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
-                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
-                        <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
+                        <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
+                        <td className="dd-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateDirectOrderLine(index, "unitCode", event.target.value)} required><option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>{(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => updateDirectOrderLine(index, "currencyCode", event.target.value)}>{quoteCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
-                        <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
-                        <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} KDV dahil veya hariç`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateDirectOrderLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">KDV hariç</option><option value="included">KDV dâhil</option></select></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
-                        <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
+                        <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
                       </tr>;
                     })}
-                    <tr className="quote-line-add-row"><td colSpan={14}><button type="button" className="secondary small-button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><Plus size={14} /> Satır ekle <small>Ctrl+Shift+Enter</small></button></td></tr>
+                    <tr className="dd-new-line"><td colSpan={14}><button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><LineAddLabel /></button></td></tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-total-breakdown" aria-label="Sipariş toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(directOrderTotals.subtotal, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(directOrderTotals.discount, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</span></div>
-                {Object.keys(directOrderTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(directOrderTotals.taxableByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                {Object.keys(directOrderTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(directOrderTotals.vatByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(directOrderTotals.vat, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(directOrderTotals.total, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
+            </SalesFormLines>
               {orderFieldDefinitions.length > 0 && (
                 <RecordFormGroup title="Sipariş Özel Alanları">
                   <small>Tenant alan tanımlarına göre doğrulanır.</small>
@@ -2986,6 +2984,25 @@ export function SalesPage({
       {createQuotePage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış teklifi",
+              code: code.trim() || undefined,
+              party: isProspectQuote ? prospectCustomerName.trim() : customers.find((x) => x.id === customerId)?.name,
+              statusFlow: <SalesQuoteFlow status="Draft" />,
+              hints: SALES_FORM_HINTS,
+            }}
+            aside={
+              sourceSalesRequest ? (
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      { key: "request", code: sourceSalesRequest.code, label: "Satış talebi" },
+                      { key: "self", code: code.trim() || undefined, label: "Bu teklif", kind: "Satış teklifi", current: true },
+                    ]}
+                  />
+                </DetailContext>
+              ) : undefined
+            }
             title={editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}
             mode={editingQuoteId ? "edit" : "create"}
             busy={busy}
@@ -3020,7 +3037,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Teklif Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
               <label className="rf-check rf-columns-wide quote-prospect-toggle">
                 <input type="checkbox" checked={isProspectQuote} onChange={(event) => {
                   setIsProspectQuote(event.target.checked);
@@ -3101,15 +3118,48 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Teklif Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table">
+            <SalesFormLines
+              label="Teklif satırları"
+              lines={lines.length}
+              extra={currencyCode || undefined}
+              totals={salesFormTotalRows(
+                { subtotal: quoteTotals.subtotal, discount: quoteTotals.discount, vat: quoteTotals.tax, total: quoteTotals.total, taxableByRate: quoteTotals.taxableByRate, vatByRate: quoteTotals.taxByRate },
+                (value) => renderOrderCurrency(value, currencyCode),
+              )}
+              totalsLabel="Teklif toplamları"
+              notes={
+                <>
+                  <label>
+                    <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={deliveryTerms}
+                      onChange={(e) => setDeliveryTerms(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="sales-rf-tall"
+                      placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
+                    />
+                  </label>
+                  <label>
+                    <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      maxLength={1000}
+                      rows={7}
+                      className="sales-rf-tall"
+                      placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
+                    />
+                  </label>
+                </>
+              }
+            >
+                <table className="dd-lines">
                   <thead>
                     <tr>
-                      <th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th>
-                      <th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th>
-                      <th>KDV</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th>
+                      <th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th>
+                      <th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th>
+                      <th>KDV</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3120,8 +3170,8 @@ export function SalesPage({
                       const lineFxRate = quoteLineEffectiveFxRate(line);
                       return (
                         <tr key={index}>
-                          <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
-                          <td className="quote-stock-cell">
+                          <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
+                          <td className="dd-stock-cell">
                             <SearchableRecordPicker
                               options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
                               selectedId={line.stockItemId}
@@ -3151,14 +3201,14 @@ export function SalesPage({
                               required
                             />
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
                           <td>
                             <select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateLine(index, "unitCode", event.target.value)} required>
                               <option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>
                               {(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}
                             </select>
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
                           <td>
                               <select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => {
                                 updateLine(index, "currencyCode", event.target.value);
@@ -3174,22 +3224,21 @@ export function SalesPage({
                               </small>
                             )}
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
-                          <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
-                          <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
                           <td><select aria-label={`Satır ${index + 1} KDV dahil mi`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">Hariç</option><option value="included">Dahil</option></select></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
-                          <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
+                          <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
                         </tr>
                       );
                     })}
-                    <tr className="quote-line-add-row">
+                    <tr className="dd-new-line">
                       <td colSpan={14}>
                         <button
                           type="button"
-                          className="secondary small-button"
                           data-line-add-shortcut
                           title="Ctrl+Shift+Enter ile satır ekle"
                           onClick={() => setLines((current) => [...current, {
@@ -3204,53 +3253,13 @@ export function SalesPage({
                             exchangeRateOverride: "",
                           }])}
                         >
-                          <Plus size={14} /> Satır ekle
+                          <LineAddLabel />
                         </button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <div className="sales-rf-totals-layout">
-            <RecordFormGroup title="Koşullar ve Açıklama">
-              <label>
-                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={deliveryTerms}
-                  onChange={(e) => setDeliveryTerms(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                  className="sales-rf-tall"
-                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
-                />
-              </label>
-              <label>
-                <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  rows={7}
-                  className="sales-rf-tall"
-                  placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
-                />
-              </label>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-grand-total quote-total-breakdown" aria-label="Teklif toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(quoteTotals.subtotal, currencyCode)}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(quoteTotals.discount, currencyCode)}</span></div>
-                {Object.keys(quoteTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(quoteTotals.taxableByRate[rate], currencyCode)}</div>)}
-                {Object.keys(quoteTotals.taxByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(quoteTotals.taxByRate[rate], currencyCode)}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(quoteTotals.tax, currencyCode)}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(quoteTotals.total, currencyCode)}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
-            </div>
+            </SalesFormLines>
               {quoteFieldDefinitions.length > 0 && (
               <RecordFormGroup title="Teklif Özel Alanları">
                 <small>Tenant alan tanımlarına göre doğrulanır.</small>

@@ -74,8 +74,8 @@
 }
 #root .app-shell .doc-surface .doc-surface-back:hover,
 #root .app-shell .doc-surface .doc-surface-back:focus-visible { border-color: var(--nx-primary); color: var(--nx-primary-strong); }
-.doc-surface .doc-surface-title { display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 0; }
-.doc-surface .doc-surface-eyebrow {
+:is(.doc-surface, .doc-form) .doc-surface-title { display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 0; }
+:is(.doc-surface, .doc-form) .doc-surface-eyebrow {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -85,20 +85,21 @@
   font-size: 11.5px;
   line-height: 1.35;
 }
-#root .doc-surface .doc-surface-eyebrow > .doc-surface-crumb > .workspace-breadcrumb { margin: 0; min-height: 0; }
-.doc-surface .doc-surface-crumb + span::before { content: "› "; }
-.doc-surface .doc-surface-code-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
-#root .app-shell .doc-surface .doc-surface-title h1 {
+#root :is(.doc-surface, .doc-form) .doc-surface-eyebrow > .doc-surface-crumb > .workspace-breadcrumb { margin: 0; min-height: 0; }
+:is(.doc-surface, .doc-form) .doc-surface-crumb + span::before { content: "› "; }
+:is(.doc-surface, .doc-form) .doc-surface-code-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+#root .app-shell :is(.doc-surface, .doc-form) .doc-surface-title h1 {
   margin: 0;
   color: var(--doc-ink) !important;
   font-size: 18px !important;
   font-weight: 650 !important;
   line-height: 1.3 !important;
 }
-.doc-surface .doc-surface-title h1 b { color: inherit; font-weight: inherit; overflow-wrap: anywhere; }
+:is(.doc-surface, .doc-form) .doc-surface-title h1 b { color: inherit; font-weight: inherit; overflow-wrap: anywhere; }
 /* #root keeps legacy body styles (b, span, th rules) from revealing them; the short form covers a floating surface. */
 #root .doc-surface .doc-surface-sr,
 #root .doc-surface .dd-sr,
+#root .doc-form .doc-surface-sr,
 .doc-surface .doc-surface-sr,
 .doc-surface .dd-sr {
   position: absolute;
@@ -111,9 +112,9 @@
   border: 0;
   white-space: nowrap;
 }
-.doc-surface .doc-surface-sep { color: var(--doc-border); font-size: 18px; }
-.doc-surface .doc-surface-party { min-width: 0; color: var(--doc-ink); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
-.doc-surface .doc-surface-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--doc-muted); font-size: 12px; }
+:is(.doc-surface, .doc-form) .doc-surface-sep { color: var(--doc-border); font-size: 18px; }
+:is(.doc-surface, .doc-form) .doc-surface-party { min-width: 0; color: var(--doc-ink); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+:is(.doc-surface, .doc-form) .doc-surface-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--doc-muted); font-size: 12px; }
 
 /* Durum etiketi (başlıkta): StatusTag ile aynı tonlar. */
 .doc-surface .doc-surface-status,
@@ -137,7 +138,7 @@
 :is(.doc-surface .doc-surface-status, .doc-status).is-danger { background: var(--nx-bad-bg); color: var(--nx-bad); }
 
 /* Durum akış şeridi (DocumentStatusFlow.tsx) */
-.doc-surface .doc-surface-flow { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+:is(.doc-surface, .doc-form) .doc-surface-flow { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
 .doc-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0; margin: 0; padding: 0; list-style: none; }
 .doc-flow-step { display: flex; align-items: center; gap: 7px; color: var(--nx-muted); font-size: 12px; white-space: nowrap; }
 .doc-flow-step + .doc-flow-step::before {
@@ -176,9 +177,9 @@
 .doc-flow-step.is-terminal > i { border-color: var(--nx-muted); background: var(--nx-line-soft); color: var(--nx-muted); }
 
 /* Sağ: değişiklik notu, belgeler arası gezinme, eski başlık düğmeleri, Vazgeç */
-.doc-surface .doc-surface-side { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 10px; margin-left: auto; }
-.doc-surface .doc-surface-dirty { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-warn); font-size: 12px; white-space: nowrap; }
-.doc-surface .doc-surface-dirty i { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-warn); }
+:is(.doc-surface, .doc-form) .doc-surface-side { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 10px; margin-left: auto; }
+:is(.doc-surface, .doc-form) .doc-surface-dirty { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-warn); font-size: 12px; white-space: nowrap; }
+:is(.doc-surface, .doc-form) .doc-surface-dirty i { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-warn); }
 .doc-surface .doc-surface-rnav {
   display: inline-flex;
   align-items: stretch;
@@ -318,15 +319,159 @@
   .doc-surface > .doc-surface-foot { grid-row: 5; }
 }
 @media (max-width: 720px) {
-  #root .app-shell .doc-surface .doc-surface-title h1 { font-size: 16px !important; }
-  .doc-surface .doc-surface-party { font-size: 14px; }
-  .doc-surface .doc-surface-flow { flex-basis: 100%; order: 3; overflow-x: auto; }
+  #root .app-shell :is(.doc-surface, .doc-form) .doc-surface-title h1 { font-size: 16px !important; }
+  :is(.doc-surface, .doc-form) .doc-surface-party { font-size: 14px; }
+  :is(.doc-surface, .doc-form) .doc-surface-flow { flex-basis: 100%; order: 3; overflow-x: auto; }
   .doc-flow { flex-wrap: nowrap; }
   .doc-flow-step + .doc-flow-step::before { width: 16px; }
-  .doc-surface .doc-surface-side { flex-basis: 100%; justify-content: flex-start; margin-left: 0; order: 4; }
+  :is(.doc-surface, .doc-form) .doc-surface-side { flex-basis: 100%; justify-content: flex-start; margin-left: 0; order: 4; }
   .doc-surface .doc-surface-rnav kbd { display: none; }
 }
 @media print {
-  .doc-surface .doc-surface-back, .doc-surface .doc-surface-side, .doc-surface > .doc-surface-aside, .doc-surface > .doc-surface-foot { display: none; }
+  .doc-surface .doc-surface-back, :is(.doc-surface, .doc-form) .doc-surface-side, .doc-surface > .doc-surface-aside, .doc-surface > .doc-surface-foot { display: none; }
   .doc-surface > .doc-surface-head { position: static; }
 }
+
+/*
+ * Belge oluşturma / düzenleme formu (RecordFormPage `document`, taslak 02 "düzenleniyor"): kayıt formunun davranışı
+ * (Kaydet, Esc, Enter, doğrulama), belge ekranının başlığı. Başlık sayfa zemininde; gövdede belge bilgileri kartı (dört
+ * sütun, kartın genişliğine göre), satır ızgarası (.dd-lines, document-detail.css) ve toplamlar. Izgaradaki alanlar
+ * hücrenin içinde düz durur: çerçeve yalnızca üzerine gelince / odakta görünür.
+ */
+.record-form.doc-form {
+  --doc-border: var(--nx-line);
+  --doc-paper: var(--nx-surface);
+  --doc-ink: var(--nx-text);
+  --doc-muted: var(--nx-muted);
+}
+.record-form.doc-form > .doc-surface-head {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0;
+  padding: 2px 0 12px;
+  border: 0;
+  background: transparent;
+  font-size: 12.5px;
+}
+.record-form.doc-form .doc-surface-meta .rf-badge { flex: none; }
+
+/* Belge bilgileri: dört sütun; kart daralınca (bağlam paneli açık, dar ekran) iki, sonra tek sütun. */
+.record-form.doc-form .rf-group { container: doc-card / inline-size; }
+.record-form.doc-form .rf-group-body.doc-form-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.record-form.doc-form .rf-group-body.doc-form-fields > .rf-span-2 { grid-column: span 2; }
+@container doc-card (max-width: 760px) {
+  .record-form.doc-form .rf-group-body.doc-form-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container doc-card (max-width: 420px) {
+  .record-form.doc-form .rf-group-body.doc-form-fields { grid-template-columns: minmax(0, 1fr); }
+  .record-form.doc-form .rf-group-body.doc-form-fields > .rf-span-2 { grid-column: auto; }
+}
+
+/* Satır kartı formda da tek katman kart; notlar toplamların solunda alt bantta. */
+#root .doc-form .rf-form > .dd-box { margin: 0; }
+#root .doc-form .dd-lines-aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#root .doc-form table.dd-lines td.dd-stock-cell { min-width: 220px; }
+#root .doc-form table.dd-lines td.dd-ix { white-space: nowrap; }
+#root .app-shell .doc-form table.dd-lines .dd-line-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0 0 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nx-muted);
+  font-size: 14px;
+  line-height: 1;
+  box-shadow: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+#root .app-shell .doc-form table.dd-lines .dd-line-remove:hover:not(:disabled) { background: var(--nx-bad-bg); color: var(--nx-bad); }
+#root .app-shell .doc-form table.dd-lines .dd-line-remove:disabled { opacity: .35; cursor: default; }
+#root .app-shell .doc-form table.dd-lines tr.dd-new-line td { padding-block: 3px !important; }
+#root .app-shell .doc-form table.dd-lines tr.dd-new-line button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 24px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nx-primary-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+  cursor: pointer;
+}
+#root .app-shell .doc-form table.dd-lines tr.dd-new-line button:hover:not(:disabled) { background: var(--nx-primary-soft); }
+#root .app-shell .doc-form table.dd-lines tr.dd-new-line button:disabled { color: var(--nx-muted); cursor: default; }
+#root .doc-form table.dd-lines tr.dd-new-line kbd {
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+/* Izgaradaki alanlar: hücreyi doldurur, çerçevesiz; üzerine gelince ince çizgi, odakta mavi çizgi. Hesaplanan
+   (kapalı) tutarlar düz metin gibi görünür. !important: kayıt formunun ve global-components.css'in alan kuralları. */
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(.searchable-record-validity), select),
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger {
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px !important;
+  min-height: 26px !important;
+  margin: 0;
+  padding: 0 6px !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background-color: transparent !important;
+  color: var(--nx-text) !important;
+  font-size: 12.5px !important;
+  box-shadow: none !important;
+}
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(.searchable-record-validity), select):hover:not(:disabled),
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger:hover { border-color: var(--nx-line) !important; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(.searchable-record-validity), select):focus,
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger:focus-visible {
+  border-color: var(--nx-primary) !important;
+  background-color: var(--nx-surface) !important;
+  box-shadow: 0 0 0 2px var(--rf-focus-ring) !important;
+  outline: none;
+}
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(.searchable-record-validity), select):is(:user-invalid, [aria-invalid="true"]) {
+  border-color: var(--nx-bad) !important;
+}
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select):disabled {
+  padding-inline: 0 !important;
+  background-color: transparent !important;
+  color: var(--nx-text) !important;
+  opacity: 1;
+  -webkit-text-fill-color: var(--nx-text);
+}
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td.dd-num input { text-align: right; font-variant-numeric: tabular-nums; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td.dd-total input:disabled { font-weight: 600; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  text-align: left;
+}
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td small { margin-top: 1px; font-size: 11px !important; }

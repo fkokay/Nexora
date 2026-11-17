@@ -7,6 +7,8 @@ import SearchableRecordPicker from "../../SearchableRecordPicker";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import { PageCommandsSlot, confirmStartNew } from "../../commands/PageCommandsSlot";
 import type { SalesRequestSummary } from "../types";
+import { SalesRequestFlow } from "../../sales/salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines } from "../../sales/salesDocumentForm";
 
 type Customer = { id: string; code: string; name: string; currencyCode: string };
 type Line = { stockItemId: string; quantity: string };
@@ -147,6 +149,13 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
     <RecordFormPage
       className="sales-rf"
       title="Yeni Satış Talebi"
+      document={{
+        type: "Satış talebi",
+        code: code.trim() || undefined,
+        party: customers.find((customer) => customer.id === customerId)?.name,
+        statusFlow: <SalesRequestFlow status="Open" />,
+        hints: [...SALES_FORM_HINTS, "Alt+İ işlemler"],
+      }}
       mode="create"
       busy={busy}
       saveLabel="Talebi kaydet"
@@ -164,7 +173,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
         </>
       }
     >
-      <RecordFormGroup title="Talep Kimliği" bodyClassName="rf-identity">
+      <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
         <label>
           <span>Talep no <RequiredMark /></span>
           <input className="rf-must rf-mono" value={code} onChange={(event) => setCode(event.target.value)} required maxLength={40} placeholder="ST-2026-0001" />
@@ -199,16 +208,15 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
           <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={2} placeholder="Müşterinin notu, teslim beklentisi…" />
         </label>
       </RecordFormGroup>
-      <RecordFormGroup title="Talep Satırları">
-        <div className="ledger-list sales-quote-lines">
-          <table className="customer-table sales-request-lines-table">
+      <SalesFormLines label="Talep satırları" lines={lines.length}>
+          <table className="dd-lines sales-request-lines-table">
             <thead>
               <tr>
-                <th>Sıra</th>
+                <th className="dd-ix">Sıra</th>
                 <th>Stok</th>
-                <th>Miktar</th>
+                <th className="dd-num">Miktar</th>
                 <th>Birim</th>
-                <th aria-label="Satır işlemleri" />
+                <th className="dd-menu" aria-label="Satır işlemleri" />
               </tr>
             </thead>
             <tbody>
@@ -216,8 +224,8 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
                 const card = stockItems.find((item) => item.id === line.stockItemId);
                 return (
                   <tr key={index}>
-                    <td>{index + 1}</td>
-                    <td className="quote-stock-cell">
+                    <td className="dd-ix">{index + 1}</td>
+                    <td className="dd-stock-cell">
                       <SearchableRecordPicker
                         options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
                         selectedId={line.stockItemId}
@@ -233,29 +241,28 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
                         required
                       />
                     </td>
-                    <td>
+                    <td className="dd-num">
                       <input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} required />
                     </td>
                     <td>{card?.unitCode || "—"}</td>
-                    <td>
-                      <button type="button" className="icon-button" aria-label={`Satır ${index + 1} sil`} title="Satırı sil" disabled={lines.length === 1} onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
-                        <Trash2 size={15} />
+                    <td className="dd-menu">
+                      <button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} sil`} title="Satırı sil" disabled={lines.length === 1} onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
+                        <Trash2 size={13} />
                       </button>
                     </td>
                   </tr>
                 );
               })}
-              <tr className="quote-line-add-row">
+              <tr className="dd-new-line">
                 <td colSpan={5}>
-                  <button type="button" className="secondary small-button" data-line-add-shortcut disabled={lines.length >= 100} onClick={() => setLines((current) => [...current, emptyLine()])}>
-                    Satır ekle
+                  <button type="button" data-line-add-shortcut disabled={lines.length >= 100} onClick={() => setLines((current) => [...current, emptyLine()])}>
+                    <LineAddLabel />
                   </button>
                 </td>
               </tr>
             </tbody>
           </table>
-        </div>
-      </RecordFormGroup>
+      </SalesFormLines>
     </RecordFormPage>
     </>
   );

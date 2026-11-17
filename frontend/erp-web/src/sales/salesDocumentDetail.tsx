@@ -55,12 +55,17 @@ export function SalesOrderFlow({ status }: { status: string }) {
 
 /**
  * İrsaliye: Sevk edildi → Faturalandı; İptal akış dışı son durum. "Faturalandı" ayrı bir irsaliye durumu değildir:
- * bağlı faturası kesilmiş (iptal edilmemiş) irsaliyede geçerli adımdır.
+ * bağlı faturası kesilmiş (iptal edilmemiş) irsaliyede geçerli adımdır. `draft`: siparişsiz irsaliye önce taslak
+ * kaydedilir, listeden stoğa işlenir; akış Taslak ile başlar.
  */
-export function SalesDeliveryFlow({ status, invoiced }: { status: string; invoiced: boolean }) {
+export function SalesDeliveryFlow({ status, invoiced, draft = false }: { status: string; invoiced: boolean; draft?: boolean }) {
   return (
     <DocumentStatusFlow
-      steps={[step("Posted", salesDeliveryStatus("Posted").label), step("Invoiced", "Faturalandı")]}
+      steps={[
+        ...(draft ? [step("Draft", salesDeliveryStatus("Draft").label)] : []),
+        step("Posted", salesDeliveryStatus("Posted").label),
+        step("Invoiced", "Faturalandı"),
+      ]}
       current={status === "Posted" && invoiced ? "Invoiced" : status}
       terminal={VOIDED}
     />
