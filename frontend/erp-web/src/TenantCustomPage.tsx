@@ -354,8 +354,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const trend = trendState ? trendPoints(trendState.rows) : undefined;
       const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;
       const filterValue = typeof props.filterValue === "string" ? props.filterValue : "";
-      const active = !!runtime && !!filterInput && String(runtime.inputValues[filterInput] ?? "") === filterValue;
-      const onActivate = runtime && filterInput ? () => runtime.setInput(filterInput, active ? "" : filterValue) : undefined;
+      const active = !!runtime && !!filterInput && filterValue !== "" && String(runtime.inputValues[filterInput] ?? "") === filterValue;
+      const onActivate = runtime && filterInput && filterValue !== "" ? () => runtime.setInput(filterInput, active ? "" : filterValue) : undefined;
       const card = { tone, icon, trend, active, onActivate };
       if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;

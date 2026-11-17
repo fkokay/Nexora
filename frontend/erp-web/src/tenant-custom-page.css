@@ -36,6 +36,8 @@
 .tenant-page-metric.is-clickable:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 .tenant-page-metric.is-active { border-color: color-mix(in srgb, var(--metric-tone) 35%, var(--nx-surface)); background: color-mix(in srgb, var(--metric-soft) 45%, var(--nx-surface)); }
 
+.app-shell .tenant-custom-page .tenant-page-metric small { font-size: 11px !important; }
+
 /* Düğmeler */
 .tenant-page-action { display: flex; align-items: center; }
 .tenant-page-query-action { display: grid; gap: 6px; justify-items: start; }

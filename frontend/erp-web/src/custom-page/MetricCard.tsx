@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Users, Wallet, type LucideIcon } from "lucide-react";
 import { sparklinePath, type Tone } from "./cellFormat";
 
@@ -16,16 +16,21 @@ export function MetricCard({ title, value, description, tone, icon, trend, activ
 }) {
   const Icon = icon ? ICONS[icon] : undefined;
   const path = trend ? sparklinePath(trend, TREND_WIDTH, TREND_HEIGHT) : "";
-  const interactive = onActivate
+  const interactive = onActivate && !hasError
     ? {
-      role: "button" as const, tabIndex: 0, "aria-pressed": !!active, onClick: onActivate,
+      role: "button" as const, tabIndex: 0, "aria-pressed": !!active,
+      onClick: (event: MouseEvent<HTMLElement>) => {
+        const nested = (event.target as HTMLElement).closest("button, a, input, select, textarea");
+        if (nested && nested !== event.currentTarget) return;
+        onActivate();
+      },
       onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onActivate(); }
       },
     }
     : {};
-  const className = ["tenant-page-metric", "tenant-page-report-widget", `tone-${tone}`, active ? "is-active" : "", onActivate ? "is-clickable" : "", hasError ? "is-error" : ""].filter(Boolean).join(" ");
+  const className = ["tenant-page-metric", "tenant-page-report-widget", `tone-${tone}`, active ? "is-active" : "", onActivate && !hasError ? "is-clickable" : "", hasError ? "is-error" : ""].filter(Boolean).join(" ");
   return <article className={className} style={style} {...interactive}>
     {Icon && <span className="tenant-metric-icon" aria-hidden="true"><Icon size={16} /></span>}
     <div className="tenant-metric-body">

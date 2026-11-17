@@ -56,4 +56,19 @@ describe('MetricCard', () => {
     card();
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('iç düğmeye tıklama onActivate çağırmaz', () => {
+    const onActivate = vi.fn();
+    card({ onActivate, value: <button type="button">Yeniden dene</button> });
+    fireEvent.click(screen.getByText('Yeniden dene'));
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it('hasError iken kart etkileşimli değildir', () => {
+    const onActivate = vi.fn();
+    const { container } = card({ onActivate, hasError: true });
+    expect(screen.queryByRole('button')).toBeNull();
+    fireEvent.click(container.firstElementChild!);
+    expect(onActivate).not.toHaveBeenCalled();
+  });
 });
