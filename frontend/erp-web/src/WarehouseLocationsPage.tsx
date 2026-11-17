@@ -144,6 +144,10 @@ export default function WarehouseLocationsPage({
   const [parentLocationId, setParentLocationId] = useState("");
   const [editValues, setEditValues] = useState<LocationEditValues | null>(null);
   const [editBaseline, setEditBaseline] = useState<LocationEditValues | null>(null);
+  // Row version the edit form was loaded with (or last saved to). Saves send this one, so a change made elsewhere
+  // since then is refused by the server (409) instead of being overwritten.
+  const [editVersion, setEditVersion] = useState<string | null>(null);
+  const editFormId = `warehouse-location-edit${useId()}`;
   const [warehousesLoading, setWarehousesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -411,6 +415,10 @@ export default function WarehouseLocationsPage({
   // While a save runs, the open record stays: its result is written into this form.
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const focusList = () =>
+    window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-list .advanced-grid-scroll")?.focus(), 0);
   const confirmDiscard = async (title: string) =>
     !hasChangesRef.current ||
     (await confirmDialog({ title, message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }));
@@ -421,12 +429,14 @@ export default function WarehouseLocationsPage({
     setMode(isAdmin ? "edit" : "none");
     setEditValues(valuesOf(location));
     setEditBaseline(valuesOf(location));
+    setEditVersion(location.rowVersion);
   }
   function closeRecord() {
     setSelectedId(null);
     setMode("none");
     setEditValues(null);
     setEditBaseline(null);
+    setEditVersion(null);
     setCode("");
     setName("");
     setParentLocationId("");
@@ -441,12 +451,22 @@ export default function WarehouseLocationsPage({
   async function close() {
     if ((mode === "none" && !selectedId) || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
     closeRecord();
+    focusList();
   }
   async function startCreate() {
     if (busyRef.current || !(await confirmDiscard("Yeni kayıt"))) return;
     closeRecord();
     setMode("create");
-    window.setTimeout(() => document.getElementById(createFormId)?.querySelector<HTMLInputElement>("input")?.focus(), 0);
+    // Only if the create form is still the open one by then.
+    window.setTimeout(() => {
+      if (modeRef.current === "create") document.getElementById(createFormId)?.querySelector<HTMLInputElement>("input")?.focus();
+    }, 0);
+  }
+  // Aç (Enter): the current row into the form, and focus on its first field.
+  function openCurrent() {
+    if (!selected) return;
+    if (mode !== "edit") openRecord(selected);
+    window.setTimeout(() => document.getElementById(editFormId)?.querySelector<HTMLInputElement>("input")?.focus(), 0);
   }
   async function changeWarehouse(nextWarehouseId: string) {
     if (nextWarehouseId === warehouseId || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
@@ -465,6 +485,14 @@ export default function WarehouseLocationsPage({
     setEditValues(null);
     setEditBaseline(null);
   }, [mode, selected]);
+  // The list was refreshed and the open location changed elsewhere: an unchanged form shows the new values; a
+  // changed one keeps its baseline version, so saving it gets the server's conflict message.
+  useEffect(() => {
+    if (mode !== "edit" || !selected || !editVersion || selected.rowVersion === editVersion) return;
+    if (busyRef.current || hasChangesRef.current) return;
+    openRecord(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.rowVersion]);
   // A hand-off while this screen is already open (kept alive).
   const requestRef = useRef<(request: LocationRequest) => void>(() => {});
   requestRef.current = (request) => {
@@ -509,7 +537,7 @@ export default function WarehouseLocationsPage({
             name: editValues.name,
             parentLocationId: editValues.parentLocationId || null,
             isActive: editValues.isActive,
-            rowVersion: selected.rowVersion,
+            rowVersion: editVersion ?? selected.rowVersion,
           }),
         },
       );
@@ -521,6 +549,7 @@ export default function WarehouseLocationsPage({
       // The form stays on the saved location.
       setEditValues(valuesOf(updated));
       setEditBaseline(valuesOf(updated));
+      setEditVersion(updated.rowVersion);
       setNotice("Depo konumu güncellendi.");
     } catch (e) {
       setError((e as Error).message);
@@ -556,7 +585,7 @@ export default function WarehouseLocationsPage({
             name: location.name,
             parentLocationId: location.parentLocationId,
             isActive: false,
-            rowVersion: location.rowVersion,
+            rowVersion: (selectedId === location.id ? editVersion : null) ?? location.rowVersion,
           }),
         },
       );
@@ -564,6 +593,7 @@ export default function WarehouseLocationsPage({
       if (selectedId === updated.id) {
         setEditValues(valuesOf(updated));
         setEditBaseline(valuesOf(updated));
+        setEditVersion(updated.rowVersion);
       }
       setNotice("Depo konumu güncellendi.");
     } catch (e) {
@@ -585,6 +615,11 @@ export default function WarehouseLocationsPage({
   const pageCommands: PageCommands = { more: [csvExportCommand(gridExportRef)] };
   if (isAdmin) {
     pageCommands.new = { primary: mode === "none", disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => void startCreate() };
+    // Same permission and busy gate as before: the current row into the right-hand form.
+    pageCommands.open = {
+      disabledReason: !selected ? "Önce bir kayıt seçin" : busy ? "Kaydediliyor…" : undefined,
+      run: openCurrent,
+    };
     pageCommands.delete = {
       disabledReason: !selected
         ? "Önce bir kayıt seçin"
@@ -637,6 +672,7 @@ export default function WarehouseLocationsPage({
       <>
         <EditLocationForm
           editing={selected}
+          formId={editFormId}
           locations={locations}
           values={editValues}
           baseline={editBaseline}

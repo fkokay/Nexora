@@ -15,9 +15,14 @@ import { LOCATION_REQUEST_EVENT, LOCATION_REQUEST_KEY } from '../warehouse-locat
 type Row = { id: string; code: string; name: string; isActive: boolean; rowVersion: string };
 let warehouses: Row[] = [];
 let locations: Record<string, Array<Row & { warehouseId: string; parentLocationId: string | null }>> = {};
-const customFields = [
-  { definitionId: 'f1', code: 'BOLGE', label: 'Bölge', dataType: 'Text', maxLength: 50, definitionVersion: 1, isRequired: false, value: 'Marmara' },
-];
+type CustomValue = { definitionId: string; code: string; label: string; dataType: string; maxLength: number; definitionVersion: number; isRequired: boolean; value: string };
+let customFields: CustomValue[] = [];
+const textField = (code: string, label: string, value: string, isRequired = false): CustomValue =>
+  ({ definitionId: code, code, label, dataType: 'Text', maxLength: 50, definitionVersion: 1, isRequired, value });
+/** Someone else changed the warehouse (a new array, as a fresh GET would give). */
+const changeWarehouseElsewhere = (id: string, patch: Partial<Row>) => {
+  warehouses = warehouses.map((row) => (row.id === id ? { ...row, ...patch } : row));
+};
 
 // "METHOD /path" → a gate the response waits for (a save in flight) or a server refusal.
 let held: Record<string, Promise<void>> = {};
@@ -71,6 +76,7 @@ beforeAll(() => {
 beforeEach(() => {
   held = {};
   refused = {};
+  customFields = [textField('BOLGE', 'Bölge', 'Marmara')];
   warehouses = [
     { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true, rowVersion: 'AA' },
     { id: 'w2', code: 'D2', name: 'Yedek depo', isActive: true, rowVersion: 'AB' },
@@ -279,7 +285,7 @@ describe('Depolar definition screen', () => {
     });
     let dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByRole('heading').textContent).toBe('D1 · Ana depo silinemez');
-    expect(dialog.textContent).toContain('Depolar silinmez; geçmiş hareketler ve raporlar korunur.');
+    expect(dialog.textContent).toContain('Depolar silinmez; geçmiş hareketler korunur.');
     expect(dialog.textContent).toContain('Sıfırdan farklı bakiyesi olan depo kapatılamaz.');
     const buttons = within(dialog).getAllByRole('button').map((button) => button.textContent);
     expect(buttons).toEqual(['VazgeçEsc', 'Pasife alEnter']);
@@ -360,6 +366,136 @@ describe('Depolar definition screen', () => {
     expect(screen.getAllByText('STK-1 için stok bakiyesi sıfır olmadan depo devre dışı bırakılamaz.')).toHaveLength(1);
     expect(within(rowOf('D1')).getByText('Aktif')).toBeTruthy();
     expect(enabled('delete')).toBe(true);
+  });
+
+  it('a refresh never overwrites a change made elsewhere: a changed form keeps its row version', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    // Someone else renamed D1 meanwhile; Yenile loads the new row version.
+    changeWarehouseElsewhere('w1', { name: 'Başka ad', rowVersion: 'ZZ' });
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(rowOf('D1').textContent).toContain('Başka ad');
+    // The changed form is kept; another field is edited and saved with the version it was loaded with, so the
+    // server answers with its conflict instead of the other change being overwritten.
+    expect(field(/^Depo adı/).value).toBe('Ana depo 2');
+    fireEvent.change(field(/^Depo kodu/), { target: { value: 'D1X' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo kodu/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1$/)[0])).toEqual({ code: 'D1X', name: 'Ana depo 2', rowVersion: 'AA' });
+  });
+
+  it('a refresh rebuilds an unchanged form from the new row, which then saves with the new version', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    changeWarehouseElsewhere('w1', { name: 'Başka ad', rowVersion: 'ZZ' });
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(field(/^Depo adı/).value).toBe('Başka ad');
+    expect(within(pane()).queryByText(/alan değişti/)).toBeNull();
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Başka ad 2' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1$/)[0]).rowVersion).toBe('ZZ');
+  });
+
+  it('an empty required custom field does not block a rename; it is checked when custom values are saved', async () => {
+    customFields = [textField('BOLGE', 'Bölge', '', true), textField('NOT', 'Not', '')];
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    expect(field(/^Bölge/).required).toBe(false);
+    expect(within(pane()).getByText('(BOLGE · Text · v1 · zorunlu)')).toBeTruthy();
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(calls('PUT', /^\/api\/warehouses\/w1$/)).toHaveLength(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    // Saving custom values with the required one still empty: the server's message, nothing sent.
+    fireEvent.change(field(/^Not/), { target: { value: 'x' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Not/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(screen.getByRole('alert').textContent).toContain('“Bölge” alanı zorunludur.');
+    expect(calls('PUT', /^\/api\/warehouses\/w1\/custom-fields$/)).toHaveLength(0);
+  });
+
+  it('a retry after a partial failure sends only the part that failed', async () => {
+    refused['PUT /api/warehouses/w1/custom-fields'] = 'Özel alan kaydedilemedi.';
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    fireEvent.change(field(/^Bölge/), { target: { value: 'Ege' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Bölge/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(screen.getByRole('alert').textContent).toContain('Özel alan kaydedilemedi.');
+    expect(within(pane()).getByText('1 alan değişti')).toBeTruthy();
+    delete refused['PUT /api/warehouses/w1/custom-fields'];
+    await act(async () => {
+      fireEvent.keyDown(field(/^Bölge/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(calls('PUT', /^\/api\/warehouses\/w1$/)).toHaveLength(1);
+    expect(calls('PUT', /^\/api\/warehouses\/w1\/custom-fields$/)).toHaveLength(2);
+    expect(within(pane()).queryByText(/alan değişti/)).toBeNull();
+  });
+
+  it('Ctrl+S with the focus on the list saves the right-hand form', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    listRegion().focus();
+    await act(async () => {
+      fireEvent.keyDown(listRegion(), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(calls('PUT', /^\/api\/warehouses\/w1$/)).toHaveLength(1);
+  });
+
+  it('a passive warehouse keeps its custom values read-only', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D9');
+    expect(field(/^Bölge/).disabled).toBe(true);
+    expect(within(pane()).getByText('Devre dışı depoda değerler kaydedilemez.')).toBeTruthy();
+    expect(within(pane()).getByText('Geçmiş API üzerinden korunur.')).toBeTruthy();
+    expect(field(/^Depo adı/).disabled).toBe(false);
+  });
+
+  it('shows the empty custom-field note when the tenant has none', async () => {
+    customFields = [];
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    expect(within(pane()).getByText('Henüz depo özel alanı tanımlanmadı.')).toBeTruthy();
+  });
+
+  it('Esc returns the focus to the list', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    field(/^Depo adı/).focus();
+    fireEvent.keyDown(field(/^Depo adı/), { key: 'Escape' });
+    await settle();
+    expect(document.activeElement).toBe(listRegion());
   });
 
   it('keeps Sil away from a form with unsaved changes', async () => {
@@ -533,6 +669,95 @@ describe('Raf ve Konumlar definition screen', () => {
     await settle();
     expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
     expect(within(pane()).getByRole('heading', { name: 'Konum oluştur' })).toBeTruthy();
+  });
+
+  it('Aç (Enter) opens the current row into the form and focuses it', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01');
+    expect(enabled('open')).toBe(true);
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
+    await settle();
+    expect(document.activeElement).toBe(field(/^Konum kodu/));
+  });
+
+  it('asks before leaving a changed location for another row', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01-03');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Değişti' } });
+    await act(async () => {
+      fireEvent.click(rowOf('X-9'));
+    });
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /^Vazgeç/ }));
+    await settle();
+    expect(field(/^Konum adı/).value).toBe('Değişti');
+    expect(rowOf('A-01-03').getAttribute('aria-current')).toBe('true');
+    await act(async () => {
+      fireEvent.click(rowOf('X-9'));
+    });
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Devam' }));
+    await settle();
+    expect(field(/^Konum kodu/).value).toBe('X-9');
+  });
+
+  it('asks before the Depo filter change drops a changed form', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Değişti' } });
+    const pick = async () => {
+      fireEvent.click(within(document.querySelector<HTMLElement>('.list-v2-filter')!).getAllByRole('button')[0]);
+      const option = await screen.findByRole('option', { name: /Yedek depo/ });
+      await act(async () => {
+        fireEvent.click(option);
+      });
+    };
+    await pick();
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /^Vazgeç/ }));
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/)).toHaveLength(0);
+    expect(field(/^Konum adı/).value).toBe('Değişti');
+    await pick();
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Devam' }));
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
+    expect(within(pane()).queryByRole('textbox')).toBeNull();
+  });
+
+  it('a refresh keeps a changed location form on its row version and rebuilds an unchanged one', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01-03');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Benim adım' } });
+    locations = { ...locations, w1: locations.w1.map((row) => (row.id === 'l2' ? { ...row, name: 'Başkası', rowVersion: 'LZ' } : row)) };
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(rowOf('A-01-03').textContent).toContain('Başkası');
+    expect(field(/^Konum adı/).value).toBe('Benim adım');
+    await act(async () => {
+      fireEvent.keyDown(field(/^Konum adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1\/locations\/l2$/)[0]).rowVersion).toBe('L3');
+    // An unchanged form shows the refreshed row and saves with its version.
+    await selectLocation('X-9');
+    locations = { ...locations, w1: locations.w1.map((row) => (row.id === 'l3' ? { ...row, name: 'Daha yeni', rowVersion: 'LX' } : row)) };
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(field(/^Konum adı/).value).toBe('Daha yeni');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Son ad' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Konum adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1\/locations\/l3$/)[0]).rowVersion).toBe('LX');
   });
 
   it('TenantUser: the selected location is shown read-only, without Yeni or Sil', async () => {

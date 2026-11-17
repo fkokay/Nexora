@@ -94,6 +94,7 @@ export function WarehouseLocationToolbar({
       searchPlaceholder="Kod, ad veya üst konum ara"
       toolsSlotRef={toolsSlotRef}
       onRefresh={onRefresh}
+      refreshLabel="Depo, konum ve bakiyeleri yenile"
     >
       <label className="list-v2-filter">
         Depo
@@ -118,6 +119,7 @@ export function WarehouseLocationToolbar({
         label="Durum"
         value={statusFilter}
         onChange={onStatusChange}
+        hideEmpty
         options={[
           { value: "", label: "Tümü", count: locations.length },
           { value: "Active", label: "Aktif", count: active },

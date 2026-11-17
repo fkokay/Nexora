@@ -294,6 +294,11 @@ describe('AdvancedDataGrid selectable', () => {
     const calls = onCurrentRowChange.mock.calls.length;
     fireEvent.click(bodyRows()[0]);
     expect(onCurrentRowChange).toHaveBeenCalledTimes(calls);
+    // Ticking a row's box does not request it (the open record stays).
+    const before = onCurrentRowChange.mock.calls.length;
+    fireEvent.click(rowBoxes()[1]);
+    expect(onCurrentRowChange).toHaveBeenCalledTimes(before);
+    expect(checkedCount()).toBe(1);
     // The page clears it (Esc = Vazgeç).
     rerender(tree(items(3), { selectable: true, currentRowKey: null, onCurrentRowChange }));
     expect(bodyRows().some((row) => row.getAttribute('aria-current') === 'true')).toBe(false);

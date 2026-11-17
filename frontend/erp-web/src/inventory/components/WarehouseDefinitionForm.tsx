@@ -75,6 +75,9 @@ export function WarehouseDefinitionForm(p: Props) {
   const edit = p.mode === "edit";
   const readOnlyCustom = edit && p.current?.isActive === false;
   const set = (patch: Partial<WarehouseDraft>) => p.onChange({ ...p.draft, ...patch });
+  // Create sends the custom values with the new warehouse (the browser checks required ones). In edit, a required
+  // custom field must not block a rename: the page checks it only when custom values are saved.
+  const required = (field: WarehouseFormField) => !edit && field.isRequired;
   const setCustom = (code: string, value: string) => set({ custom: { ...p.draft.custom, [code]: value } });
   const changed = (key: "code" | "name") =>
     !!p.baseline && (key === "code" ? p.draft.code.trim().toUpperCase() !== p.baseline.code : p.draft.name.trim() !== p.baseline.name);
@@ -114,7 +117,7 @@ export function WarehouseDefinitionForm(p: Props) {
         onDismissError={p.onDismissError}
         status={
           <>
-            <span>Firmaya özel depo</span>
+            <span>{edit ? "Geçmiş API üzerinden korunur." : "Firmaya özel depo"}</span>
             {readOnlyCustom && <span className="rf-status-warning">Devre dışı depoda değerler kaydedilemez.</span>}
             {p.notice && <span className="rf-status-notice">{p.notice}</span>}
           </>
@@ -142,7 +145,7 @@ export function WarehouseDefinitionForm(p: Props) {
             </label>,
           )}
         </RecordFormGroup>
-        {p.fields.length > 0 && (
+        {(p.fields.length > 0 || (edit && !p.fieldsLoading)) && (
           <RecordFormGroup title="Depo Özel Alanları">
             <small>
               {edit
@@ -154,7 +157,7 @@ export function WarehouseDefinitionForm(p: Props) {
                 const value = p.draft.custom[field.code] ?? "";
                 const control =
                   field.dataType === "Boolean" ? (
-                    <select required={field.isRequired} disabled={readOnlyCustom} value={value} onChange={(e) => setCustom(field.code, e.target.value)}>
+                    <select required={required(field)} disabled={readOnlyCustom} value={value} onChange={(e) => setCustom(field.code, e.target.value)}>
                       <option value="">Seçin</option>
                       <option value="true">Evet</option>
                       <option value="false">Hayır</option>
@@ -164,7 +167,7 @@ export function WarehouseDefinitionForm(p: Props) {
                       type={field.dataType === "Decimal" ? "number" : field.dataType === "Date" ? "date" : "text"}
                       step={field.dataType === "Decimal" ? "any" : undefined}
                       maxLength={field.dataType === "Text" ? field.maxLength : undefined}
-                      required={field.isRequired}
+                      required={required(field)}
                       disabled={readOnlyCustom}
                       value={value}
                       onChange={(e) => setCustom(field.code, e.target.value)}
@@ -182,8 +185,16 @@ export function WarehouseDefinitionForm(p: Props) {
                         </span>
                         {control}
                         <small>
-                          {field.code} · {field.dataType}
-                          {edit ? ` · v${field.version}` : ""}
+                          {edit ? (
+                            <>
+                              ({field.code} · {field.dataType} · v{field.version}
+                              {field.isRequired ? " · zorunlu" : ""})
+                            </>
+                          ) : (
+                            <>
+                              {field.code} · {field.dataType}
+                            </>
+                          )}
                         </small>
                       </label>,
                     )}
@@ -191,6 +202,7 @@ export function WarehouseDefinitionForm(p: Props) {
                 );
               })}
             </div>
+            {p.fields.length === 0 && <div className="empty-small">Henüz depo özel alanı tanımlanmadı.</div>}
           </RecordFormGroup>
         )}
         {edit && p.fieldsLoading && <small className="inv-def-loading">Özel alanlar yükleniyor…</small>}

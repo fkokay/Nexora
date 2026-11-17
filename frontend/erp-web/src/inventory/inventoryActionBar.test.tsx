@@ -218,8 +218,9 @@ describe('other Stok screens on the action bar', () => {
     await settle();
     expect(enabled('new')).toBe(true);
     expect(primary('new')).toBe(true);
-    // Definition screen: the form beside the list follows the selection, so there is no Aç.
+    // Aç (Enter) opens the current row into the form beside the list; nothing is selected yet.
     expect(enabled('open')).toBe(false);
+    expect(command('open').title).toBe('Önce bir kayıt seçin');
     expect(enabled('delete')).toBe(false);
     expect(command('delete').title).toBe('Önce bir kayıt seçin');
     expect(headerButtonTexts()).toEqual([]);

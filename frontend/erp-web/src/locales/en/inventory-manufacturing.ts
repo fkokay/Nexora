@@ -31,7 +31,7 @@ export const english: Record<string, string> = {
   'Önce değişiklikleri kaydedin veya vazgeçin': 'Save or discard the changes first',
   'Depolar silinemez; bu depo zaten pasif.': 'Warehouses cannot be deleted; this warehouse is already inactive.',
   'Konumlar silinemez; bu konum zaten pasif.': 'Locations cannot be deleted; this location is already inactive.',
-  'Depolar silinmez; geçmiş hareketler ve raporlar korunur. Pasife alabilirsiniz: devre dışı depolar yeni stok hareketi ve transferde kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.': 'Warehouses are not deleted; past movements and reports are kept. You can deactivate it: inactive warehouses cannot be used in new stock movements or transfers. A warehouse with a non-zero balance cannot be closed.',
+  'Depolar silinmez; geçmiş hareketler korunur. Pasife alabilirsiniz: devre dışı depolar yeni stok hareketi ve transferde kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.': 'Warehouses are not deleted; past movements are kept. You can deactivate it: inactive warehouses cannot be used in new stock movements or transfers. A warehouse with a non-zero balance cannot be closed.',
   'Konumlar silinmez; geçmiş hareketler korunur. Pasife alabilirsiniz. Etkin alt konumu ya da stok bakiyesi olan konum pasife alınamaz.': 'Locations are not deleted; past movements are kept. You can deactivate it. A location with active child locations or a stock balance cannot be deactivated.',
   'Pasife al': 'Deactivate',
   'Lokasyonlar': 'Locations',

@@ -64,6 +64,9 @@ export function useWarehouseDefinitionScreen(o: Options) {
     [selectedId, setSelectedId] = useState<string | null>(null),
     [draft, setDraft] = useState<WarehouseDraft>(EMPTY),
     [baseline, setBaseline] = useState<WarehouseDraft | null>(null),
+    // Row version the open form was loaded with (or last saved / status-changed to). Saves send this one, so a
+    // change made elsewhere since then is refused by the server (409) instead of being overwritten.
+    [baseVersion, setBaseVersion] = useState<string | null>(null),
     [fields, setFields] = useState<WarehouseFormField[]>([]),
     [fieldsLoading, setFieldsLoading] = useState(false),
     [locations, setLocations] = useState<WarehouseLocationOption[]>([]),
@@ -95,12 +98,20 @@ export function useWarehouseDefinitionScreen(o: Options) {
   // While a save or status change runs, the open record stays: its result is written into this form.
   const busyRef = useRef(o.busy);
   busyRef.current = o.busy;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const confirmDiscard = async (title: string) =>
     !hasChangesRef.current || (await confirmDialog({ title, message: DISCARD, confirmLabel: "Devam" }));
 
-  const focusForm = () =>
-    window.setTimeout(() => document.getElementById(formId)?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus(), 0);
+  // Focuses the first field only if the create form is still the open one by then.
+  const focusCreateForm = () =>
+    window.setTimeout(() => {
+      if (modeRef.current !== "create") return;
+      document.getElementById(formId)?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
+    }, 0);
+  const focusList = () =>
+    window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-list .advanced-grid-scroll")?.focus(), 0);
 
   async function loadFields(warehouse: Warehouse) {
     const requestId = ++fieldsRequest.current;
@@ -138,6 +149,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
     setSelectedId(warehouse.id);
     setMode("edit");
     setBaseline(base);
+    setBaseVersion(warehouse.rowVersion);
     setDraft(base);
     setFields([]);
     setFormNotice("");
@@ -150,6 +162,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
     setSelectedId(null);
     setMode("none");
     setBaseline(null);
+    setBaseVersion(null);
     setDraft(EMPTY);
     setFields([]);
     setFieldsLoading(false);
@@ -165,6 +178,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
   async function close() {
     if (mode === "none" || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
     closeRecord();
+    focusList();
   }
   async function startCreate() {
     if (busyRef.current || !(await confirmDiscard("Yeni kayıt"))) return;
@@ -178,8 +192,16 @@ export function useWarehouseDefinitionScreen(o: Options) {
     } catch (e) {
       if (requestId === fieldsRequest.current) o.setError((e as Error).message);
     }
-    focusForm();
+    focusCreateForm();
   }
+  // The list was refreshed (Yenile) and the open warehouse changed elsewhere: an unchanged form shows the new
+  // values; a changed one keeps its baseline version, so saving it gets the server's conflict message.
+  useEffect(() => {
+    if (mode !== "edit" || !current || !baseVersion || current.rowVersion === baseVersion) return;
+    if (busyRef.current || hasChangesRef.current) return;
+    openRecord(current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.rowVersion]);
   // The catalog changed (Depo alan tanımları): an unchanged form shows the new fields.
   useEffect(() => {
     if (!o.catalogVersion || hasChangesRef.current) return;
@@ -202,10 +224,10 @@ export function useWarehouseDefinitionScreen(o: Options) {
     if (stayAfterSaveRef.current) {
       setDraft(EMPTY);
       setFormNotice("Depo oluşturuldu. Yeni depo girebilirsiniz.");
-      focusForm();
+      focusCreateForm();
     } else openRecord(created);
   }
-  async function update(warehouse: Warehouse, base: WarehouseDraft) {
+  async function update(warehouse: Warehouse, base: WarehouseDraft, version: string) {
     const code = draft.code.trim(),
       name = draft.name.trim();
     if (!code || !name) {
@@ -215,8 +237,9 @@ export function useWarehouseDefinitionScreen(o: Options) {
     if (code.toUpperCase() !== base.code || name !== base.name) {
       const updated = await api<Warehouse>(`/api/warehouses/${warehouse.id}`, o.token, {
         method: "PUT",
-        body: JSON.stringify({ code, name, rowVersion: warehouse.rowVersion }),
+        body: JSON.stringify({ code, name, rowVersion: version }),
       });
+      setBaseVersion(updated.rowVersion);
       o.setWarehouses((rows) =>
         rows.map((row) => (row.id === updated.id ? updated : row)).sort((a, b) => a.name.localeCompare(b.name, "tr")),
       );
@@ -225,6 +248,12 @@ export function useWarehouseDefinitionScreen(o: Options) {
       setDraft((value) => ({ ...value, code: updated.code, name: updated.name }));
     }
     if (!sameCustom(draft.custom, base.custom) && warehouse.isActive) {
+      // Required custom fields are checked only when custom values are saved, so a rename is never blocked by them.
+      const missing = fields.find((field) => field.isRequired && !(draft.custom[field.code] ?? "").trim());
+      if (missing) {
+        o.setError(`“${missing.label}” alanı zorunludur.`);
+        return;
+      }
       const values = await api<WarehouseCustomFieldValue[]>(`/api/warehouses/${warehouse.id}/custom-fields`, o.token, {
         method: "PUT",
         body: JSON.stringify({ values: draft.custom }),
@@ -243,7 +272,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
     setFormNotice("");
     try {
       if (mode === "create") await create();
-      else if (mode === "edit" && current && baseline) await update(current, baseline);
+      else if (mode === "edit" && current && baseline && baseVersion) await update(current, baseline, baseVersion);
     } catch (e) {
       o.setError((e as Error).message);
     } finally {
@@ -260,6 +289,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
         body: JSON.stringify({ isActive, confirmation: true }),
       });
       o.setWarehouses((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+      if (updated.id === selectedId) setBaseVersion(updated.rowVersion);
       o.setNotice(isActive ? "Depo yeniden etkinleştirildi." : "Depo devre dışı bırakıldı.");
     } catch (e) {
       o.setError((e as Error).message);
@@ -286,7 +316,7 @@ export function useWarehouseDefinitionScreen(o: Options) {
       await confirmDialog({
         title: `${warehouse.code} · ${warehouse.name} silinemez`,
         message:
-          "Depolar silinmez; geçmiş hareketler ve raporlar korunur. Pasife alabilirsiniz: devre dışı depolar yeni stok hareketi ve transferde kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.",
+          "Depolar silinmez; geçmiş hareketler korunur. Pasife alabilirsiniz: devre dışı depolar yeni stok hareketi ve transferde kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.",
         tone: "warning",
         confirmLabel: "Pasife al",
         cancelLabel: "Vazgeç",

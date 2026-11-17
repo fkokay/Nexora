@@ -1708,9 +1708,10 @@ export default function AdvancedDataGrid({
             className="advanced-grid-select-cell"
             style={selectCellStyle(false)}
             // Ticking a box makes the row current but is not a click on the record (the page's row click may open it).
+            // With a page-owned current row (`currentRowKey`) ticking never changes the open record.
             onClick={(event) => {
               event.stopPropagation();
-              makeCurrent(row.key);
+              if (!currentControlled) makeCurrent(row.key);
             }}
           >
             <input

@@ -49,7 +49,8 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   Geçerli satır (↑/↓ ya da tıklama) `onCurrentRowChange` ile sayfaya bildirilir: Aç / Enter ve detay paneli
   onu izler (örnek: Stok Kartları, `InventoryPage.tsx`). Geçerli satırı sayfa yönetecekse (tanım ekranı) `currentRowKey`
   verilir (`null` = yok): ↑/↓ ve tıklama yalnızca `onCurrentRowChange` ile satırı ister, satır sayfa anahtarını
-  verince geçerli olur; böylece sayfa kaydedilmemiş değişiklikte geçişi reddedebilir ya da Esc ile seçimi kaldırabilir. Görünen sayfanın satır sırası (arama, filtre ve sıralama
+  verince geçerli olur; böylece sayfa kaydedilmemiş değişiklikte geçişi reddedebilir ya da Esc ile seçimi kaldırabilir. Bu kipte
+  kutucuk işaretlemek geçerli satırı (açık kaydı) değiştirmez. Görünen sayfanın satır sırası (arama, filtre ve sıralama
   uygulanmış) `onVisibleRowsChange` ile alınır; listeden açılan kayıt PgUp / PgDn ile bu sırada gezinir.
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
@@ -88,7 +89,12 @@ listeyi (araç satırı, tablo, alt bilgi), sağda seçili kaydın formunu aynı
   çubuğa kaydeder, Esc'i sayfa yönetir.
 - Kayıt seçili değilken sağda `DefinitionEmptyPane` ("Bir … seçin ya da F2 ile yeni … ekleyin.") durur.
 - 1280px ve üstünde liste ile form yan yanadır; altında form, kayıt açıkken listenin üstünde çekmece olarak açılır
-  (modal değildir; İşlem Çubuğu kullanılabilir kalır, Esc kapatır).
+  (modal değildir; İşlem Çubuğu kullanılabilir kalır, Esc kapatır). Çekmece açıkken arkadaki liste `inert` olur;
+  kapatınca odak listeye döner.
+- Form, açıldığı (ya da son kaydedildiği) satır sürümünü (`rowVersion`) saklar ve onu gönderir. Yenile'den sonra
+  değişmemiş form yeni satırdan kurulur; değişmiş form eski sürümü göndermeye devam eder, böylece başka birinin
+  değişikliği ezilmez, sunucunun çakışma iletisi gösterilir.
+- Aç (Enter) varsa geçerli satırı forma açar ve ilk alana odaklanır.
 - Silme yoksa Sil bunu açıklar ve varsa güvenli alternatifi birincil yapar: `confirmDialog({ …, confirmLabel:
   "Pasife al", keyHints: true })` düğmelerde Esc / Enter gösterir. Zaten pasif kayıtta ve kirli formda Sil nedeniyle
   kapalıdır.
