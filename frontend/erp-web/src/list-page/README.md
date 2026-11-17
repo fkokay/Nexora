@@ -54,7 +54,9 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   bilgi ayrı bir etiket ya da seviye çubuğudur. `gridId` değişirse kullanıcının yerel tablo ayarları bir kez sıfırlanır.
 - **Satır seçimi modül modül açılır.** `AdvancedDataGrid`'e `selectable` verilince ilk sütun
   seçim kutucuğudur, başlıkta "Tümünü seç" (kısmi seçimde "—", `aria-checked="mixed"`).
-  Seçim yalnız görünen sayfadadır; sayfa, arama, filtre ya da sıralama değişince sıfırlanır.
+  Seçim yalnız görünen sayfadadır; sayfa, arama, filtre ya da sıralama değişince sıfırlanır. Sayfalanmayan listelerde
+  (`externalPagination` ile bütün kayıtları yüklü tanım listeleri: Depolar, Raf ve Konumlar) "Tümünü seç" / Ctrl+A
+  listenin (arama ve filtre uygulanmış) bütün kayıtlarını seçer, bir sayfayı değil.
   Tablo odaktayken ↑/↓ geçerli satırı taşır, Boşluk işaretler, Ctrl+A sayfayı seçer, Esc
   seçimi bırakır (yazarken ve tablo dışındaki bir pencere açıkken değil). `bulkActions`
   verilirse seçim varken koyu toplu işlem çubuğu (`BulkActionBar`: "N seçili", işlemler,

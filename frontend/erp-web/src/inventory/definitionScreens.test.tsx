@@ -499,8 +499,7 @@ describe('Depolar definition screen', () => {
     await selectWarehouse('D1');
     field(/^Depo adı/).focus();
     fireEvent.keyDown(field(/^Depo adı/), { key: 'Escape' });
-    await settle();
-    expect(document.activeElement).toBe(listRegion());
+    await waitFor(() => expect(document.activeElement).toBe(listRegion()));
   });
 
   it('keeps Sil away from a form with unsaved changes', async () => {
@@ -739,8 +738,7 @@ describe('Raf ve Konumlar definition screen', () => {
     await act(async () => {
       fireEvent.click(command('open'));
     });
-    await settle();
-    expect(document.activeElement).toBe(field(/^Konum kodu/));
+    await waitFor(() => expect(document.activeElement).toBe(field(/^Konum kodu/)));
   });
 
   it('asks before leaving a changed location for another row', async () => {

@@ -23,4 +23,5 @@ Sonraki modüller için hangi düzen:
 
 Kısaca: liste solda, seçili kaydın formu sağda aynı ekranda; satır seçmek formu açar, kirli formda önce sorulur;
 F2 boş form, Ctrl+S kaydet, Esc vazgeç; 1280px altında form çekmecedir. Silme API'si yoksa Sil nedenini söyler ve
-Pasife al'ı önerir. Form satır sürümünü (`rowVersion`) saklar; Yenile değişmiş formu ezmez.
+Pasife al'ı önerir. Liste sayfalanmaz (`externalPagination`); "Tümünü seç" / Ctrl+A bu yüzden bir sayfayı değil,
+listenin bütün (süzülmüş) kayıtlarını seçer. Form satır sürümünü (`rowVersion`) saklar; Yenile değişmiş formu ezmez.

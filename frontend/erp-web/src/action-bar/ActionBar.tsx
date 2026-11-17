@@ -52,9 +52,10 @@ function useCompaction(deps: unknown[]) {
     };
     measure();
     if (typeof ResizeObserver !== 'function') return;
-    // The button area changes size with the bar (window, widget rail) and when Geri Al comes or goes.
+    // The bar's own size (window, widget rail). Not the button area: its content changes with the level, which would
+    // loop the observer. Geri Al coming or going re-runs this effect (commands in deps).
     const observer = new ResizeObserver(measure);
-    observer.observe(commands);
+    observer.observe(bar);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
