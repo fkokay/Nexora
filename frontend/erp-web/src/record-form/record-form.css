@@ -217,7 +217,8 @@
   padding: 0;
 }
 .record-form .rf-group-body > :not(label, .rf-pair, .rf-changed, .rf-field) { grid-column: 1 / -1; }
-.record-form .rf-group-body > :is(label, .rf-changed):has(textarea) { grid-column: 1 / -1; }
+/* Only plain bodies: a module body class (e.g. prf-terms) lays out its own columns. */
+.record-form .rf-group-body:is([class="rf-group-body"], .rf-identity) > :is(label, .rf-changed):has(textarea) { grid-column: 1 / -1; }
 .record-form .rf-group-body > .rf-pair { display: contents; }
 .record-form .rf-identity { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .record-form .rf-columns { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -238,7 +239,7 @@
   font-weight: 500;
   line-height: 1.35;
 }
-.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"], [type="radio"]) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -255,15 +256,15 @@
   font-weight: 400;
   box-shadow: none;
 }
-.record-form .rf-form textarea:not([type="checkbox"]):not([type="radio"]) { height: 64px; padding: 6px 9px; resize: vertical; }
+.record-form .rf-form textarea:not([type="checkbox"], [type="radio"]) { height: 64px; padding: 6px 9px; resize: vertical; }
 .record-form .rf-form :is(input, select, textarea)::placeholder { color: var(--nx-muted); opacity: 1; }
-.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):focus {
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"], [type="radio"]):focus {
   border-color: var(--nx-primary);
   outline: none;
   box-shadow: 0 0 0 3px var(--rf-focus-ring);
 }
-.record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]), textarea):read-only,
-.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):disabled { background: var(--nx-canvas); color: var(--nx-muted); }
+.record-form .rf-form :is(input, textarea)[readonly]:not([type="checkbox"], [type="radio"]),
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"], [type="radio"]):disabled { background: var(--nx-canvas); color: var(--nx-muted); }
 .record-form .rf-form :is(input, select, textarea):is(:user-invalid, [aria-invalid="true"]) {
   border-color: var(--nx-bad);
   background: color-mix(in srgb, var(--nx-bad-bg) 35%, var(--nx-surface));
@@ -434,6 +435,7 @@
 .record-form--dialog .rf-form { padding: 16px 20px; }
 .record-form--dialog .rf-error { margin: 12px 20px 0; }
 .record-form--dialog > .rf-status { padding-inline: 20px; }
+.record-form--dialog :is(.rf-group-body, .rf-custom-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 @media (max-width: 1100px) {
   .record-form :is(.rf-group-body, .rf-custom-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -496,16 +498,16 @@
 .app-shell .record-form .rf-form label.rf-check { color: var(--nx-text) !important; font-size: 12.5px !important; font-weight: 400 !important; }
 .app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea) {
   min-height: var(--nx-control-h);
-  padding: 0 9px;
   border: 1px solid var(--rf-border) !important;
   border-radius: var(--nx-radius-control) !important;
   background-color: var(--nx-surface) !important;
   color: var(--nx-text) !important;
   font-size: 12.5px !important;
 }
-.app-shell .record-form .rf-form textarea { min-height: 64px; padding: 6px 9px; }
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select) { padding: 0 9px; }
+.app-shell .record-form .rf-form :is(textarea:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"])) { padding: 6px 9px; }
 .app-shell .record-form .rf-form input.rf-mono { font-size: 12px !important; }
-.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):not(select):read-only,
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea)[readonly],
 .app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):disabled { background-color: var(--nx-canvas) !important; color: var(--nx-muted) !important; }
 .app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):is(:user-invalid, [aria-invalid="true"]) {
   border-color: var(--nx-bad) !important;
