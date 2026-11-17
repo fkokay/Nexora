@@ -985,6 +985,22 @@ export const english: Record<string, string> = {
   'tamam': 'done',
   'Alt defter kaynaklarını muhasebe hesaplarıyla eşleştirin. Eksik eşleştirme aktarımı engeller.': 'Map subledger sources to ledger accounts. A missing mapping blocks posting.',
   'Hesap eşleştirmesi': 'Account mapping',
+  'Kurlar silinmez; düzeltme aynı gün için yeni revizyon olarak kaydedilir': 'Rates are not deleted; a correction is saved as a new revision for the same day',
+  'Değerleme fişi silinmez; kaydedilen fiş değiştirilemez': 'A revaluation voucher is not deleted; a saved voucher cannot be changed',
+  '↑↓ listede gez · satır seçmek kuru düzeltme için forma alır · F2 yeni kur · Ctrl+S kaydet': '↑↓ move in the list · selecting a row loads the rate into the form for a correction · F2 new rate · Ctrl+S save',
+  '↑↓ listede gez': '↑↓ move in the list',
+  'Yeni kur için F2\'ye basın ya da düzeltmek için listeden bir kur seçin.': 'Press F2 for a new rate or select a rate in the list to correct it.',
+  'Kur düzeltmesi': 'Rate correction',
+  'Aynı gün düzeltmesi yeni revizyon oluşturur': 'A same-day correction creates a new revision',
+  'Fişi aç · F2 yeni değerleme fişi': 'Open voucher · F2 new revaluation voucher',
+  'Dönem sonu tarihini girin': 'Enter the period-end date',
+  'Değerleme': 'Revaluation',
+  'Eksik kur varsa fiş oluşturulmaz. Aynı tarihte tekrar fiş kesilemez. Fiş kaydedildikten sonra değiştirilemez.': 'No voucher is created if a rate is missing. A second voucher cannot be issued for the same date. A saved voucher cannot be changed.',
+  'Bir değerleme fişi açın ya da F2 ile yeni dönem sonu değerlemesi yapın.': 'Open a revaluation voucher or run a new period-end revaluation with F2.',
+  'Satırlarını görmek için bir değerleme fişi açın.': 'Open a revaluation voucher to see its lines.',
+  'Kur ve değerleme bölümleri': 'FX and revaluation sections',
+  'Kur girişi': 'Rate entry',
+  'Değerleme fişi': 'Revaluation voucher',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1076,4 +1092,5 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Üst hesap: (.+)$/, 'Parent account: $1'],
   [/^Tümü \((\d+)\)$/, 'All ($1)'],
   [/^(\d) (Dönen varlıklar|Duran varlıklar|KVYK|UVYK|Özkaynaklar|Gelir tablosu|Maliyet|Serbest|Nazım) \((\d+)\)$/, '$1 $2 ($3)'],
+  [/^döviz · baz para ([A-Z]{3})$/, 'currencies · base currency $1'],
 ]

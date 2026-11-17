@@ -30,6 +30,8 @@ export type FxRevaluationVoucherGridProps = {
   toolbarContainer?: HTMLElement | null
   money: FxRevaluationMoneyFormatter
   onOpen: (id: string) => void
+  /** Kur & Değerleme's list half: no own export / pager (all vouchers are loaded), the code opens the voucher. */
+  compact?: boolean
 }
 
 export type FxRevaluationVoucherDetailProps = {

@@ -202,7 +202,9 @@ export function LedgerMappingsView({
     new: { disabledReason: "Eşleştirme anahtarları sistemde tanımlıdır; yeni eşleştirme eklenmez" },
     open: {
       disabledReason: !selected ? "Önce bir kayıt seçin" : undefined,
-      run: () => window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-pane form input:not([disabled])")?.focus(), 0),
+      run: () => {
+        window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-pane form input:not([disabled])")?.focus(), 0);
+      },
     },
     delete: { disabledReason: "Eşleştirmeler silinmez; başka bir hesap seçin" },
     export: {

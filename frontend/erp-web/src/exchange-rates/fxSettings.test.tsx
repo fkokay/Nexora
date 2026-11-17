@@ -69,19 +69,33 @@ async function openPage(role = 'TenantAdmin') {
   renderScreen(<FxSettingsPage token="t" role={role} />);
   await settle();
 }
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const barCommand = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+async function runMenu(id: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(barCommand('more'));
+  fireEvent.click(document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!);
+  await settle();
+}
+async function showTab(name: string) {
+  fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
+  await settle(50);
+}
 const rateForm = () => screen.getByLabelText(/^Kaynak \/ not$/).closest('form')!;
 const rateField = (label: RegExp) => within(rateForm()).getByLabelText(label) as HTMLInputElement;
 async function enterRate(code: string, date: string, value: string, source: string) {
-  fireEvent.change(rateField(/^Döviz$/), { target: { value: code } });
-  fireEvent.change(rateField(/^Tarih$/), { target: { value: date } });
+  if (!screen.queryByLabelText(/^Kaynak \/ not$/)) {
+    fireEvent.click(barCommand('new'));
+    await settle(50);
+  }
+  fireEvent.change(rateField(/^Döviz/), { target: { value: code } });
+  fireEvent.change(rateField(/^Tarih/), { target: { value: date } });
   fireEvent.change(rateField(/^1 .+ = \? TRY$/), { target: { value } });
   fireEvent.change(rateField(/^Kaynak \/ not$/), { target: { value: source } });
   fireEvent.submit(rateField(/^Kaynak \/ not$/).closest('form')!);
   await settle();
 }
 async function importTcmb() {
-  fireEvent.click(screen.getByRole('button', { name: 'TCMB’den çek' }));
-  await settle();
+  await runMenu('fx-import-tcmb');
 }
 async function changeBase(code: string) {
   const input = screen.getByLabelText('Baz para birimi') as HTMLInputElement;
@@ -90,13 +104,17 @@ async function changeBase(code: string) {
   await settle();
 }
 async function createRevaluation(date: string) {
+  await showTab('Değerleme fişleri');
+  fireEvent.click(barCommand('new'));
+  await settle(50);
   fireEvent.change(screen.getByLabelText(/^Dönem sonu tarihi/), { target: { value: date } });
-  fireEvent.click(screen.getByRole('button', { name: 'Değerleme fişi oluştur' }));
+  fireEvent.click(barCommand('save'));
   await settle(50);
   fireEvent.click(screen.getByRole('button', { name: /^Fişi oluştur/ }));
   await settle();
 }
 async function openVoucher(code: string) {
+  if (!screen.queryByText(code)) await showTab('Değerleme fişleri');
   const row = screen.getByText(code).closest('tr')!;
   fireEvent.click(row.querySelector('button.row-action') ?? row);
   await settle();
