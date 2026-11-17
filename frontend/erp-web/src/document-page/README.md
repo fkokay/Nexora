@@ -92,6 +92,9 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
   "Satış faturası" → SF),
   `DetailKeyValues` (bakiye, rezerve…) ve `DetailMeterRows` (depolara göre stok, oran çubuğu).
 - `DetailSection` (Ödemeler, İadeler…), `DetailNotes`, işlem formları için sağdan kayan `DetailDrawer`.
+  Bölüm başlığındaki düğmeler (`actions`: "Ödeme ekle", "Mal kabul ekle", "Teklif kaydet") kontrol boyundadır
+  (31px, 6px köşe; `document-detail.css`), tablo satırındaki eski `.row-action` düğmeleri ("Fatura oluştur", "İptal et",
+  "Bu teklifle sipariş") 26px / 12px — eski genel kuralların 34 / 38px ve 9px boyları belgede geçerli değildir.
 
 ## Kurallar
 
@@ -143,6 +146,32 @@ satır kartı (`table.dd-lines` ya da kiracının `sales-order-lines` ızgarası
 açık belge vurgulu, diğerleri tıklanınca açılır), cari özeti yalnız verisi olan alanlarla (teklifte cari kodu ve
 plasiyer, faturada VKN), faturada "Ödeme durumu" (tahsil edilen / iade edilen / açık bakiye). Cari bakiye / risk ve aktif
 satırın depo stoku için uç nokta yok — çizilmez; panelde gösterecek bir şey yoksa `aside` verilmez.
+
+## Satınalma detay ekranları (Faz 4)
+
+Beş belge türü aynı kalıpla çizilir (`variant="detail"`, `title` tür adı, `code` numara, `subtitle` tedarikçi, `meta`
+belge tarihi, `hints={SALES_DETAIL_HINTS}`, `footerStatus` satır sayısı · genel toplam); iş akışı işlemleri yalnız
+İşlemler menüsündedir, belge açıkken çubuğun Yenile'si belgeyi yeniler, Excel / Filtre "Belge açıkken kullanılamaz",
+Sil soluk + nedeni (silme uç noktası yok ya da işlenmiş belge):
+
+| Belge | Dosya | Akış (`purchasing/`) | İşlemler |
+|---|---|---|---|
+| Satınalma talebi | `SalesPage.tsx` (`PurchasingPanel`) | Onay bekliyor → Onaylandı → Siparişe dönüştü (Reddedildi) — `PurchaseRequestFlow` | Onayla, Reddet, Teklif ekle, Siparişe dönüştür, Siparişi aç |
+| Satınalma siparişi | `SalesPage.tsx` (`PurchasingPanel`) | Onay bekliyor → Açık → Kısmen alındı → Tam alındı (İptal / Reddedildi) — `PurchaseOrderFlow` | Mal kabul ekle (Faturala mal kabul ızgarasının satırında) |
+| Tedarikçi irsaliyesi | `purchase-delivery-notes/components/DeliveryNoteDocument.tsx` | akış yok; etiket "Mal kabul eşleşti" / "Bağlantısı yok" | Siparişi aç |
+| Mal kabul | `purchasing/purchaseReceiptDocument.tsx` | tek adım Kabul edildi (İptal) — `PurchaseReceiptFlow` | Alış faturasını aç (faturası varsa) |
+| Alış faturası | `PurchaseInvoiceModal.tsx` | tek adım İşlendi (İptal) — `PurchaseInvoiceFlow` | Ödeme ekle, İade oluştur, Faturayı iptal et (ters kayıt; ödemesi varsa soluk + "İptal için önce ödemeleri iptal edin.") |
+
+Bağlam panelinde belge zinciri (talep → tedarikçi teklifleri → sipariş → mal kabul → alış faturası → alış iadesi; açık
+belge vurgulu, diğerleri açılır) ve varsa tedarikçi / depo özeti durur. Bir belgeden başka bir belge açıldığında (sipariş →
+alış faturası, mal kabul → alış faturası) çubuğun sahibi en üstteki belgedir: alttaki ekran o sırada kendi komutlarını
+kaydetmez.
+
+Oluşturma ekranları (`RecordFormPage` `document`, aşağıdaki kurallar): yeni satınalma siparişi (`SalesPage.tsx`
+`PurchaseOrderCreatePage`, akış geçerli adımsız `PurchaseCreateOrderFlow`), mal kabul faturası (`PurchaseInvoiceEntryPage.tsx`,
+geçerli adımsız İşlendi), bağımsız fatura taslağı (`StandaloneSupplierInvoiceDraftPage.tsx`, Taslak geçerli adım →
+Muhasebeleştirildi; "Belge toplamları" tedarikçi belgesinden elle girilir, `DocumentTotals` yoktur) ve tedarikçi irsaliyesi
+(`DeliveryNoteCreateView.tsx`, akış yok). Ortak parçalar `purchasing/purchaseCreateForms.tsx` içindedir.
 
 ## Belge oluşturma ekranı (`RecordFormPage` `document`)
 
