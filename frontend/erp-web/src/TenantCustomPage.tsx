@@ -124,6 +124,8 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
+    // ERP kabuğunun eski `[class*="-card"]`/`-panel` köşe kuralı !important; seçilen köşe bu değişkenle korunur.
+    ["--tp-radius" as string]: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
   };
 };
 

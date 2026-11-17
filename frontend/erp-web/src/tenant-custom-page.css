@@ -207,3 +207,12 @@
 /* Eski kabuk `.app-shell h3/h4 !important` başlık kurallarını yalnız yeni bileşenler için ezer */
 .app-shell .tenant-custom-page :is(.tenant-page-form-card, .tenant-page-facet, .tenant-page-context) > h3, .app-shell .tenant-custom-page .tenant-page-facet-head h3 { font-size: 13px !important; font-weight: 650 !important; letter-spacing: normal !important; color: var(--nx-text) !important; }
 .app-shell .tenant-custom-page .tenant-page-context-related h4 { font-size: 11px !important; color: var(--nx-muted) !important; letter-spacing: .04em !important; text-transform: uppercase; }
+
+/* ERP kabuğunun eski `.app-shell :is([class*="-card"], [class*="-panel"], [class*="-tag"], [class*="-chip"], …)` köşe kuralı
+   (!important) özel sayfada etiketleri/çipleri köşeli, kartları 12px yapıyordu. Etiket ve çip tam yuvarlak; bloklar
+   tasarımcıda seçilen köşeyi (--tp-radius, satır içi stilden) korur.
+   Eski kurallardan biri `#root .app-shell:not(.standalone-studio) .workspace-page-main :is([class*="-card"] …)` olduğu için
+   seçiciler #root ile başlar (canlı sayfada ölçüldü: etiket/çip 999px, kartlar seçilen köşe). */
+#root .app-shell .tenant-custom-page .tenant-custom-page-content :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge) { border-radius: 999px !important; }
+#root .app-shell .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"],
+#root .app-shell .workspace-page-main .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"] { border-radius: var(--tp-radius) !important; }
