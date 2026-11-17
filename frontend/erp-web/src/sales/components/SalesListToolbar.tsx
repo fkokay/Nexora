@@ -66,7 +66,7 @@ export default function SalesListToolbar({
               { value: "Expired", label: "Süresi doldu" },
             ]}
           />
-          <label className="list-v2-filter">
+          <label className="list-v2-filter sales-quote-date">
             <span>Başlangıç</span>
             <input
               type="date"
@@ -74,7 +74,7 @@ export default function SalesListToolbar({
               onChange={(event) => onQuoteDateFromChange(event.target.value)}
             />
           </label>
-          <label className="list-v2-filter">
+          <label className="list-v2-filter sales-quote-date">
             <span>Bitiş</span>
             <input
               type="date"

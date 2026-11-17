@@ -244,7 +244,7 @@ export function SalesDeliveriesScreen({
   const deliveryRates = Object.keys(deliveryTotals.vatByRate).map(Number).sort((a, b) => a - b);
   const deliveryTotalRows: DocumentTotalRow[] = [
     { key: "subtotal", label: "Mal / hizmet toplamı", value: deliveryMoney(deliveryTotals.subtotal) },
-    { key: "discount", label: "Toplam iskonto", value: `− ${deliveryMoney(deliveryTotals.discount)}` },
+    { key: "discount", label: "Toplam iskonto", value: `− ${deliveryMoney(deliveryTotals.discount)}`, emphasis: "muted" },
     ...deliveryRates.map((rate) => ({ key: `taxable-${rate}`, label: `KDV %${rate} matrahı`, value: deliveryMoney(deliveryTotals.taxableByRate[rate]) })),
     ...deliveryRates.map((rate) => ({ key: `vat-${rate}`, label: `KDV %${rate}`, value: deliveryMoney(deliveryTotals.vatByRate[rate]) })),
     { key: "vat", label: "KDV toplamı", value: deliveryMoney(deliveryTotals.vat) },

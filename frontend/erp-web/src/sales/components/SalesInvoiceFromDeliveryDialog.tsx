@@ -612,12 +612,15 @@ export default function SalesInvoiceFromDeliveryDialog({
       </output>
     );
   };
-  // Totals as today (same rows and amounts); Genel toplam and Ödenecek tutar are the emphasised rows.
+  // Totals as today (same rows and amounts). Genel toplam is the block's one emphasised row; Ödenecek tutar is a strong
+  // row while it equals Genel toplam (no withholding) and emphasised too only when the two differ.
+  const standalonePayableDiffers =
+    Math.round(standaloneTotals.find((row) => row.kind === "payable")!.amount * 100) !== Math.round(standaloneTotal * 100);
   const standaloneTotalRows: DocumentTotalRow[] = standaloneTotals.map((row) => ({
     key: row.label,
     label: row.label,
     value: standaloneAmount(row),
-    emphasis: row.kind ? "grand" : undefined,
+    emphasis: row.kind === "grand" || (row.kind === "payable" && standalonePayableDiffers) ? "grand" : row.kind === "payable" ? "strong" : undefined,
   }));
   const standaloneSaveBlocked =
     !standaloneCustomerId ||

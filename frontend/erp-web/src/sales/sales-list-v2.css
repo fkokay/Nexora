@@ -81,6 +81,16 @@
 }
 #root .list-v2 .sales-list-body > .list-v2-list:not([class*="-card"]) > .customer-table-wrap { border: 0; border-radius: 0; }
 
+/* Teklifler: search, six status chips, two dates, Detay paneli and Görünüm share one toolbar line at 1440 — the search
+   gives way first and the toolbar gaps are a little tighter (as Kampanyalar). Narrower screens wrap (kit rule). */
+#root .list-v2 .list-v2-toolbar:has(> .sales-quote-date) { column-gap: 8px; container: sales-quote-toolbar / inline-size; }
+#root .list-v2 .list-v2-toolbar:has(> .sales-quote-date) > .list-v2-search { flex: 1 1 120px; min-width: 120px; }
+#root .list-v2 .list-v2-toolbar:has(> .sales-quote-date) > .list-v2-chips { gap: 4px; }
+/* A wide toolbar keeps a usable search: the grid tools fold into Görünüm before the search drops below 240px. */
+@container sales-quote-toolbar (min-width: 1300px) {
+  #root .list-v2 .list-v2-toolbar:has(> .sales-quote-date) > .list-v2-search { flex-basis: 240px; min-width: 240px; }
+}
+
 /* Toolbar toggle of the detail panel (flat, like the grid tools beside it). */
 #root .app-shell .list-v2 .sales-ld-toggle {
   display: inline-flex;

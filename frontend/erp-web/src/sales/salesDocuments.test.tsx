@@ -381,7 +381,7 @@ describe('Satış irsaliyesi detayı', () => {
     // The delivery keeps its own totals wording and order (bases, then VAT per rate ascending, "− X" discount).
     expect(totals()).toEqual([
       ['Mal / hizmet toplamı', '150,00 TL', ''],
-      ['Toplam iskonto', '− 0,00 TL', ''],
+      ['Toplam iskonto', '− 0,00 TL', 'is-muted'],
       ['KDV %10 matrahı', '50,00 TL', ''],
       ['KDV %20 matrahı', '100,00 TL', ''],
       ['KDV %10', '5,00 TL', ''],

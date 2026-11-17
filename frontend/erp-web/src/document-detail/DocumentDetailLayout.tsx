@@ -122,9 +122,10 @@ export type DocumentTotalRow = {
   value: ReactNode;
   /**
    * "grand": vurgulu genel toplam; "negative": düşülen tutar (iskonto, tevkifat); "muted": soluk bilgi satırı;
-   * "sub": bir üst satırın dökümü, girintili ve küçük (KDV oranlarına göre matrah / KDV).
+   * "sub": bir üst satırın dökümü, girintili ve küçük (KDV oranlarına göre matrah / KDV); "strong": genel toplamdan
+   * sonra gelen, onunla aynı tutardaki kalın satır (ör. tevkifat yokken Ödenecek tutar) — bloğun tek "grand" satırı kalır.
    */
-  emphasis?: "grand" | "negative" | "muted" | "sub";
+  emphasis?: "grand" | "negative" | "muted" | "sub" | "strong";
   key?: string;
 };
 /** Eski ad; `DocumentTotalRow` ile aynıdır. */

@@ -290,6 +290,7 @@ html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
 #root :is(.doc-surface, .doc-form) .dd-totals > .is-negative dd { color: var(--nx-bad); }
 #root :is(.doc-surface, .doc-form) .dd-totals > :is(.is-muted, .is-sub) :is(dt, dd) { color: var(--nx-muted); font-weight: 400; }
 #root :is(.doc-surface, .doc-form) .dd-totals > .is-sub { padding-left: 12px; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-strong dt { color: var(--nx-text); font-weight: 600; }
 #root :is(.doc-surface, .doc-form) .dd-totals > .is-sub :is(dt, dd) { font-size: 11.5px; }
 #root :is(.doc-surface, .doc-form) .dd-totals > .is-grand {
   margin-top: 4px;

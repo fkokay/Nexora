@@ -140,8 +140,9 @@ export default function SalesDocumentGrid<T extends { id: string }>({
                   data-record-id={item.id}
                   tabIndex={0}
                   onDoubleClick={(event) => {
-                    // Not from the checkbox or a link / button inside the row (they act on their own).
-                    if (!selection.onOpen || (event.target as HTMLElement).closest("button,input,select,a")) return;
+                    // Not from the checkbox (or its cell's padding) or a link / button inside the row (they act on
+                    // their own): a quick double tick must not open the record.
+                    if (!selection.onOpen || (event.target as HTMLElement).closest("button,input,select,a,.advanced-grid-select-cell")) return;
                     event.preventDefault();
                     selection.onOpen(item.id);
                   }}

@@ -224,6 +224,21 @@ describe('Satış Faturaları list', () => {
     expect(fetched('/api/sales/invoices/i2')).toBe(1);
   });
 
+  it('a double-click on the checkbox cell (outside the box) does not open the invoice', async () => {
+    renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    const selectCell = row('F-i2').querySelector('td.advanced-grid-select-cell')!;
+    expect(selectCell).not.toBeNull();
+    await act(async () => {
+      fireEvent.doubleClick(selectCell);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(document.querySelector('.doc-surface')).toBeNull();
+    expect(fetched('/api/sales/invoices/i2')).toBe(0);
+  });
+
   it('the code link still opens the invoice in one click', async () => {
     renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();

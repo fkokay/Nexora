@@ -206,6 +206,65 @@ describe('Talep oluşturma', () => {
     await escapeAsksAndStays(input);
     expect(screen.getByPlaceholderText('ST-2026-0001')).toBeTruthy();
   });
+
+  // The document header replaces only the record header: Kaydet ve Yeni (Ctrl+F2), Temizle and F2 work as before.
+  it('Ctrl+F2 saves and keeps an empty request form open (Kaydet ve Yeni)', async () => {
+    renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.keyDown(window, { key: 'F2' });
+    const input = await screen.findByPlaceholderText<HTMLInputElement>('ST-2026-0001');
+    await settle();
+    fireEvent.change(input, { target: { value: 'ST-9' } });
+    await pick('Müşteri seçin', /Acme/);
+    await pick('Stok seçin', /Koli 40x30/);
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'F2', ctrlKey: true });
+    });
+    await waitFor(() => expect(sentBody('/api/sales/requests/')).toBeDefined());
+    expect(sentBody('/api/sales/requests/').code).toBe('ST-9');
+    await waitFor(() => expect(screen.getByText('NEW-1 kaydedildi.')).toBeTruthy());
+    // Still the create form (no detail opened), reset for the next request.
+    expect(document.querySelector('.doc-form')).not.toBeNull();
+    expect(document.querySelector('.doc-surface')).toBeNull();
+    expect(screen.getByPlaceholderText<HTMLInputElement>('ST-2026-0001').value).toBe('');
+    expect(screen.getByText('Müşteri seçin', { selector: 'button > span' })).toBeTruthy();
+    expect(apiMock.mock.calls.some(([url]) => url === '/api/sales/requests/new1')).toBe(false);
+  });
+
+  it('İşlemler › Temizle clears the request form', async () => {
+    renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.keyDown(window, { key: 'F2' });
+    const input = await screen.findByPlaceholderText<HTMLInputElement>('ST-2026-0001');
+    await settle();
+    fireEvent.change(input, { target: { value: 'ST-9' } });
+    await pick('Müşteri seçin', /Acme/);
+    fireEvent.click(command('more'));
+    fireEvent.click(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.trim() === 'Temizle')!);
+    await waitFor(() => expect(screen.getByPlaceholderText<HTMLInputElement>('ST-2026-0001').value).toBe(''));
+    expect(screen.getByText('Müşteri seçin', { selector: 'button > span' })).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, , init]) => init?.method === 'POST')).toBe(false);
+  });
+
+  it('F2 over a changed request form asks first; declining keeps the values, accepting starts afresh', async () => {
+    renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.keyDown(window, { key: 'F2' });
+    const input = await screen.findByPlaceholderText<HTMLInputElement>('ST-2026-0001');
+    await settle();
+    fireEvent.change(input, { target: { value: 'ST-9' } });
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(await screen.findByText(confirmText)).toBeTruthy();
+    fireEvent.click(document.querySelector<HTMLElement>('.workspace-confirm-actions button.secondary')!);
+    await waitFor(() => expect(screen.queryByText(confirmText)).toBeNull());
+    expect(screen.getByPlaceholderText<HTMLInputElement>('ST-2026-0001').value).toBe('ST-9');
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(await screen.findByText(confirmText)).toBeTruthy();
+    fireEvent.click(document.querySelector<HTMLElement>('.workspace-confirm-actions button:not(.secondary)')!);
+    await waitFor(() => expect(screen.queryByText(confirmText)).toBeNull());
+    expect(screen.getByPlaceholderText<HTMLInputElement>('ST-2026-0001').value).toBe('');
+    expect(document.querySelector('.doc-form')).not.toBeNull();
+  });
 });
 
 describe('İrsaliye oluşturma', () => {
@@ -395,6 +454,13 @@ describe('Belge ekranı görünümü', () => {
       ['KDV tevkifat tutarı', '0,00 TL'],
       ['Ödenecek tutar', '360,00 TL'],
     ]);
+    // One emphasised grand row: Genel toplam. Ödenecek tutar is the same amount (no withholding) — a strong row.
+    const rowClass = (name: string) =>
+      Array.from(screen.getByLabelText('Fatura toplamları').querySelectorAll(':scope > div'))
+        .find((row) => words(row.querySelector('dt')!) === name)!.className;
+    expect(screen.getByLabelText('Fatura toplamları').querySelectorAll(':scope > .is-grand')).toHaveLength(1);
+    expect(rowClass('Genel toplam')).toBe('is-grand');
+    expect(rowClass('Ödenecek tutar')).toBe('is-strong');
     expect(screen.getByLabelText('Fatura toplamları').closest('.dd-lines-footer')!.querySelector('textarea')).not.toBeNull();
   });
 });
