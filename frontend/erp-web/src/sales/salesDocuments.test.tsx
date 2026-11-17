@@ -197,8 +197,13 @@ const VAT_ROWS = [
   ['KDV %20 · matrah 100,00 TRY', '20,00 TRY', 'is-sub'],
   ['KDV %10 · matrah 50,00 TRY', '5,00 TRY', 'is-sub'],
 ];
-/** Every Sales detail leaves its workflow buttons to İşlemler: no legacy header slot. */
-const expectNoHeaderActions = () => expect(surface().querySelector('.doc-surface-actions')).toBeNull();
+/** Every Sales detail leaves its workflow buttons to İşlemler: the header has only Geri, the PgUp / PgDn pair and Vazgeç. */
+const expectNoHeaderActions = () =>
+  expect(
+    Array.from(surface().querySelectorAll<HTMLElement>('header.doc-surface-head button')).filter(
+      (button) => !button.matches('.doc-surface-back, .doc-surface-cancel') && !button.closest('.doc-surface-rnav'),
+    ),
+  ).toEqual([]);
 const footer = () => surface().querySelector<HTMLElement>('.doc-surface-foot')!;
 
 describe('vatByRate', () => {

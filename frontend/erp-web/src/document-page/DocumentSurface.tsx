@@ -38,11 +38,6 @@ export type DocumentSurfaceProps = {
   onClose: () => void;
   /** Geri düğmesinin erişilebilir adı; varsayılan "Listeye dön". */
   closeLabel?: string;
-  /**
-   * Eski başlık düğmeleri. İş akışı işlemleri İşlem Çubuğu'nun İşlemler menüsüne taşınana kadar bu nötr yuvada
-   * kalır; yeni ekranlar kullanmaz.
-   */
-  actions?: ReactNode;
   /** Sağ bağlam paneli (belge zinciri, cari özeti, aktif satırın stoku). Yüzey 1100px'ten genişken açık; Ctrl+. açar / kapatır. */
   aside?: ReactNode;
   /** Alt bilgi satırının solundaki sayfaya özgü kısayollar ("Ctrl+Shift+Enter satır ekle"). */
@@ -94,7 +89,6 @@ export function DocumentSurface({
   onCancel,
   onClose,
   closeLabel = "Listeye dön",
-  actions,
   aside,
   hints,
   footerStatus,
@@ -266,7 +260,6 @@ export function DocumentSurface({
               </button>
             </div>
           )}
-          {actions && <div className="doc-surface-actions">{actions}</div>}
           {onCancel && (
             <button type="button" className="doc-surface-cancel" onClick={onCancel}>
               <X size={16} aria-hidden="true" />

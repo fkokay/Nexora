@@ -102,11 +102,11 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
   siparişe döner. PgUp / PgDn ve `Ctrl+.` yalnızca en üstteki belgede çalışır; açık bir pencere
   (çekmece dahil) ya da odaktaki bir kayıt formu varken belge bu tuşları bırakır.
 - **İş akışı düğmeleri başlıkta durmaz.** Onayla, İletildi yap, Kabul et, Siparişe dönüştür, İptal
-  İşlem Çubuğu'nun İşlemler menüsündedir; ilerleme durum akış şeridinde görünür. `actions` yalnızca
-  geçiş dönemi için nötr bir "eski düğmeler" yuvasıdır; yeni ekranlar kullanmaz. **Satış artık kullanmaz** (altı belge
-  türünün detayında başlıkta yalnız geri düğmesi ve Vazgeç vardır); Alış faturası da kullanmaz
-  (İade oluştur, Ödeme ekle, Faturayı iptal et İşlemler'de, aynı koşul ve nedenlerle); yuvayı bugün yalnız kalan Satınalma
-  belgeleri kullanıyor — onlar da İşlemler'e taşınınca yuva kaldırılabilir.
+  İşlem Çubuğu'nun İşlemler menüsündedir; ilerleme durum akış şeridinde görünür. `DocumentSurface`'in başlığa
+  düğme alan bir yuvası yoktur (geçiş dönemindeki eski `actions` yuvası, Satış ve Satınalma belgelerinin tamamı
+  İşlemler'e taşınınca Faz 4'te kaldırıldı): başlıkta yalnız geri düğmesi, varsa PgUp / PgDn gezinmesi ve Vazgeç durur.
+  Belgeye özgü bir iş akışı işlemi sayfa komutlarının `more` listesine (İşlemler), belgeye bağlı bir bölüm işlemi
+  (ör. "Ödeme ekle" Ödemeler bölümünde) `DetailSection` `actions`'ına konur.
 - **Başlık metinleri tek tiptir.** `title` belge türünün tekil adıdır ("Satış teklifi",
   "Alış faturası"); numara `code`, cari `subtitle` ile verilir. "… Detay", "… DETAYI" gibi ekler ve
   büyük harfli üst başlıklar kullanılmaz.

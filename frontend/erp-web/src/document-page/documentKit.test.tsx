@@ -74,17 +74,16 @@ describe('DocumentSurface header', () => {
     expect(heading.textContent).not.toContain('…');
   });
 
-  it('keeps page-passed header buttons in the legacy actions slot and shows Vazgeç only when asked', () => {
+  it('shows Vazgeç only when asked and keeps the header free of other buttons', () => {
     const onCancel = vi.fn();
-    inView(surface({ actions: <button type="button">Kabul et</button>, onCancel }));
-    const legacy = document.querySelector('.doc-surface-actions')!;
-    expect(within(legacy as HTMLElement).getByRole('button', { name: 'Kabul et' })).toBeTruthy();
+    inView(surface({ onCancel }));
     fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
     expect(onCancel).toHaveBeenCalledOnce();
     cleanup();
     inView(surface());
     expect(screen.queryByRole('button', { name: 'Vazgeç' })).toBeNull();
-    expect(document.querySelector('.doc-surface-actions')).toBeNull();
+    const header = document.querySelector<HTMLElement>('header.doc-surface-head')!;
+    expect(within(header).getAllByRole('button').map((button) => button.getAttribute('aria-label') ?? button.textContent)).toEqual(['Listeye dön']);
   });
 
   it('shows the unsaved change count', () => {

@@ -118,7 +118,7 @@ function openMenu() {
 }
 // Header buttons the UI audit (and the document detail header) would report as duplicates of the bar.
 const headerButtonTexts = () =>
-  Array.from(document.querySelectorAll<HTMLElement>('.heading-actions button, .page-heading button, .list-v2-heading button, .list-v2-export-slot button, .rf-toolbar button, .doc-surface-actions button'))
+  Array.from(document.querySelectorAll<HTMLElement>('.heading-actions button, .page-heading button, .list-v2-heading button, .list-v2-export-slot button, .rf-toolbar button, header.doc-surface-head button'))
     .map((node) => node.textContent?.trim() ?? '');
 const COMMON = /^(yeni|kaydet|sil|yazdır|excel|xlsx|csv|dışa aktar|yenile)(?!\p{L})/iu;
 const duplicates = () => headerButtonTexts().filter((text) => COMMON.test(text));
@@ -209,7 +209,8 @@ describe('Satış Teklifleri', () => {
     expect(duplicates()).toEqual([]);
     // Faz 3: the detail header has no buttons any more — the workflow actions are only in İşlemler (above);
     // Yazdır and Sil are the bar's own commands.
-    expect(document.querySelector('.doc-surface-actions')).toBeNull();
+    const headerButtons = Array.from(document.querySelectorAll<HTMLElement>('header.doc-surface-head button'));
+    expect(headerButtons.filter((button) => !button.matches('.doc-surface-back, .doc-surface-cancel') && !button.closest('.doc-surface-rnav'))).toEqual([]);
     // The hidden list's Excel and filter do not apply to the open quote; F5 reloads the quote, not the list.
     expect(enabled('export')).toBe(false);
     expect(reason('export')).toContain('Belge açıkken kullanılamaz');
