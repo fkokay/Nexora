@@ -744,3 +744,11 @@ html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:
 #root .fixed-assets-page.list-v2 .fixed-asset-panel:focus { outline: none; }
 #root .fixed-assets-page.list-v2 .fixed-asset-panel:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 #root .fixed-assets-page.list-v2 .fixed-asset-register-table th.nx-num { text-align: right; }
+
+/* Edinim kaydı as a full-page record form (record v3): the form is not a frame around its cards (single layer). */
+#root .app-shell .fixed-asset-acquire-page .record-form.fixed-asset-acquire-rf {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

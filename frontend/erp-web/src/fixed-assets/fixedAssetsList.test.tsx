@@ -28,6 +28,7 @@ function respond(url: string): { status: number; body: unknown } {
   if (/\/(disposal|tax-depreciation-schedule)$/.test(path)) return { status: 404, body: {} };
   if (/\/acquisition-posting$/.test(path)) return ok({ assetId: 'a1', purchaseInvoiceCode: null, journalEntryId: null, entryDate: null, lines: [] });
   if (/\/assignments$/.test(path)) return ok([]);
+  if (path.startsWith('/api/fixed-assets/tax-limits/')) return ok({ taxYear: 2026, lowerLimitTry: 9900, communiqueNumber: 58 });
   return ok([]);
 }
 
@@ -111,6 +112,8 @@ describe('Duran Varlıklar register', () => {
       fireEvent.click(command('new'));
     });
     await screen.findByRole('heading', { name: 'Edinim kaydı oluştur' });
+    // A full-page record form: the register is not shown behind it.
+    expect(screen.queryByText('Dolum makinesi')).toBeNull();
     const field = (label: string) => screen.getByLabelText(label, { exact: false, selector: 'input' }) as HTMLInputElement;
     fireEvent.change(field('Kıymet kodu'), { target: { value: 'DV-0100' } });
     fireEvent.change(field('Ad'), { target: { value: 'Paketleme robotu' } });
@@ -131,5 +134,7 @@ describe('Duran Varlıklar register', () => {
       assetCode: 'DV-0100', name: 'Paketleme robotu', category: 'Makine', acquisitionDate: '2026-10-01', inServiceDate: '2026-10-15',
       acquisitionCostBase: 96000, residualValueBase: 6000, usefulLifeMonths: 60, sourceReference: null, supplierAccountId: null, purchaseInvoiceId: null,
     });
+    // Saving returns to the register.
+    expect(await screen.findByText('Dolum makinesi')).toBeTruthy();
   });
 });

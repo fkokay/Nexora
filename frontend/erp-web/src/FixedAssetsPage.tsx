@@ -894,120 +894,14 @@ export default function FixedAssetsPage({
     return en ? assetFieldEnglish[key] || label : label;
   };
   const panelTitleId = "fixed-asset-panel-title";
-  return (
-    <div className="fixed-assets-page list-v2">
-      <PageCommandsSlot commands={assetCommands} />
-      <ListPageHeader
-        title={en ? "Fixed assets" : "Duran Varlıklar"}
-        description={
-          en
-            ? "Track acquisitions, depreciation, custody, and disposals in one register."
-            : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
-        }
-        count={loading && !assets.length ? null : assets.length}
-        countLabel={en ? "assets" : "kıymet"}
-      />
-      {error && (
-        <div className="alert" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && panelMode !== "acquire" && (
-        <div className="notice" role="status" aria-live="polite">
-          {notice}
-        </div>
-      )}
-      {/* Figures of the loaded register (the page loads the first 200 assets), in the tenant base currency. */}
-      <ListSummaryCards
-        cards={[
-          {
-            id: "cost",
-            label: en ? "Acquisition cost" : "Edinim maliyeti",
-            value: loading && !assets.length ? "—" : money(totalCost),
-            icon: CircleDollarSign,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "accumulated",
-            label: en ? "Accumulated depreciation" : "Birikmiş amortisman",
-            value: loading && !assets.length ? "—" : money(accumulatedDepreciation),
-            icon: TrendingDown,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "net",
-            label: en ? "Net book value" : "Net defter değeri",
-            value: loading && !assets.length ? "—" : money(totalCost - accumulatedDepreciation),
-            icon: Landmark,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "month",
-            label: en ? "Depreciation this month" : "Bu ay amortisman",
-            value: loading && !assets.length ? "—" : money(thisMonthDepreciation),
-            icon: CalendarClock,
-            hint: en ? "straight-line estimate · active assets" : "doğrusal tahmin · etkin kıymetler",
-          },
-        ]}
-      />
-      <div
-        className={`fixed-asset-workspace${panelMode === "acquire" ? " is-wide-panel" : ""}`}
-      >
-        <div className="fixed-asset-main">
-          <FixedAssetRegister
-            assets={filteredAssets}
-            totalAssetCount={assets.length}
-            activeAssetCount={activeAssets.length}
-            onRefresh={() => {
-              if (loading || detailLoading || busy) return;
-              void load();
-              if (selected) void loadDetails(selected);
-            }}
-            fields={assetFields}
-            layoutReady={assetListViewLoaded}
-            defaultLayout={!assetListView?.id}
-            loading={loading}
-            busy={busy}
-            search={assetSearch}
-            status={assetStatus}
-            selectedId={selected?.id ?? null}
-            locale={locale}
-            onSearchChange={setAssetSearch}
-            onStatusChange={setAssetStatus}
-            onSelect={selectAsset}
-            onOpen={openAsset}
-            exportActionsRef={registerExportRef}
-            footer={
-              <ListFooter hints={en ? "↑↓ move · Space mark · Enter open · Double-click open" : "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"}>
-                {/* The grid paginates the loaded assets itself; the endpoint returns the first 200. */}
-                {assets.length >= 200 && <span>{en ? "first 200 records" : "ilk 200 kayıt"}</span>}
-              </ListFooter>
-            }
-            fieldLabel={assetFieldLabel}
-            formatField={(asset, key) => formatAssetField(asset, key, en)}
-          />
-        </div>
-        <aside
-          ref={panelRef}
-          tabIndex={-1}
-          className="fixed-asset-panel"
-          aria-labelledby={panelMode === "summary" ? panelTitleId : undefined}
-          aria-label={
-            panelMode === "summary"
-              ? undefined
-              : en
-                ? "Asset form"
-                : "Kıymet formu"
-          }
-        >
-          {panelMode === "acquire" && (
-            <section
-              className="hrp-form-section"
-              aria-label={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
-            >
+  // Edinim kaydı: a full-page record form (mockup 10 · record v3); Vazgeç / save return to the register.
+  const acquireForm = (
           <ModuleRecordForm
             title={en ? "Register an acquisition" : "Edinim kaydı oluştur"}
-            className="hrp-wide"
+            variant="page"
+            className="fixed-asset-acquire-rf"
+            error={error}
+            onDismissError={() => setError("")}
             mode="create"
             busy={busy}
             saveLabel={en ? "Save acquisition" : "Edinimi kaydet"}
@@ -1316,8 +1210,115 @@ export default function FixedAssetsPage({
               </div>
             </div>
           </ModuleRecordForm>
-            </section>
-          )}
+  );
+  if (panelMode === "acquire")
+    return <div className="fixed-assets-page fixed-asset-acquire-page">{acquireForm}</div>;
+  return (
+    <div className="fixed-assets-page list-v2">
+      <PageCommandsSlot commands={assetCommands} />
+      <ListPageHeader
+        title={en ? "Fixed assets" : "Duran Varlıklar"}
+        description={
+          en
+            ? "Track acquisitions, depreciation, custody, and disposals in one register."
+            : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
+        }
+        count={loading && !assets.length ? null : assets.length}
+        countLabel={en ? "assets" : "kıymet"}
+      />
+      {error && (
+        <div className="alert" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="notice" role="status" aria-live="polite">
+          {notice}
+        </div>
+      )}
+      {/* Figures of the loaded register (the page loads the first 200 assets), in the tenant base currency. */}
+      <ListSummaryCards
+        cards={[
+          {
+            id: "cost",
+            label: en ? "Acquisition cost" : "Edinim maliyeti",
+            value: loading && !assets.length ? "—" : money(totalCost),
+            icon: CircleDollarSign,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "accumulated",
+            label: en ? "Accumulated depreciation" : "Birikmiş amortisman",
+            value: loading && !assets.length ? "—" : money(accumulatedDepreciation),
+            icon: TrendingDown,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "net",
+            label: en ? "Net book value" : "Net defter değeri",
+            value: loading && !assets.length ? "—" : money(totalCost - accumulatedDepreciation),
+            icon: Landmark,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "month",
+            label: en ? "Depreciation this month" : "Bu ay amortisman",
+            value: loading && !assets.length ? "—" : money(thisMonthDepreciation),
+            icon: CalendarClock,
+            hint: en ? "straight-line estimate · active assets" : "doğrusal tahmin · etkin kıymetler",
+          },
+        ]}
+      />
+      <div
+        className="fixed-asset-workspace"
+      >
+        <div className="fixed-asset-main">
+          <FixedAssetRegister
+            assets={filteredAssets}
+            totalAssetCount={assets.length}
+            activeAssetCount={activeAssets.length}
+            onRefresh={() => {
+              if (loading || detailLoading || busy) return;
+              void load();
+              if (selected) void loadDetails(selected);
+            }}
+            fields={assetFields}
+            layoutReady={assetListViewLoaded}
+            defaultLayout={!assetListView?.id}
+            loading={loading}
+            busy={busy}
+            search={assetSearch}
+            status={assetStatus}
+            selectedId={selected?.id ?? null}
+            locale={locale}
+            onSearchChange={setAssetSearch}
+            onStatusChange={setAssetStatus}
+            onSelect={selectAsset}
+            onOpen={openAsset}
+            exportActionsRef={registerExportRef}
+            footer={
+              <ListFooter hints={en ? "↑↓ move · Space mark · Enter open · Double-click open" : "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"}>
+                {/* The grid paginates the loaded assets itself; the endpoint returns the first 200. */}
+                {assets.length >= 200 && <span>{en ? "first 200 records" : "ilk 200 kayıt"}</span>}
+              </ListFooter>
+            }
+            fieldLabel={assetFieldLabel}
+            formatField={(asset, key) => formatAssetField(asset, key, en)}
+          />
+        </div>
+        <aside
+          ref={panelRef}
+          tabIndex={-1}
+          className="fixed-asset-panel"
+          aria-labelledby={panelMode === "summary" ? panelTitleId : undefined}
+          aria-label={
+            panelMode === "summary"
+              ? undefined
+              : en
+                ? "Asset form"
+                : "Kıymet formu"
+          }
+        >
           {panelMode === "depreciate" && selected && (
             <ModuleRecordForm
               title={en ? "Post depreciation" : "Amortismanı kaydet"}
@@ -1481,7 +1482,7 @@ export default function FixedAssetsPage({
               )}
             </>
           )}
-          {panelMode !== "acquire" && !selected && (
+          {!selected && (
             <p className="fixed-asset-panel-empty">
               {en
                 ? "Select an asset to see its summary."
