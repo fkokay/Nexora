@@ -31,13 +31,13 @@ export function IconSelect({ value, onChange, disabled }: { value: string | unde
 }
 
 /** Sunucudaki SafeValue'nun reddettiği karakter/dizileri ayıklar (=, <, >, {{, }}, javascript:, data:). */
-export function sanitizeSafeValue(text: string): string {
+export function sanitizeSafeValue(text: string, trim = true): string {
   let next = text;
   for (let previous = ""; previous !== next;) {
     previous = next;
     next = next.replace(/[=<>]/g, "").replace(/\{\{|\}\}/g, "").replace(/javascript:|data:/gi, "");
   }
-  return next.trim();
+  return trim ? next.trim() : next;
 }
 
 export function ToneMapEditor({ value, onChange, disabled }: { value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {

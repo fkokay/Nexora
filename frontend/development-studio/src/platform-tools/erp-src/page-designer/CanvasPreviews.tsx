@@ -63,7 +63,8 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
       {hasTotals && <tfoot><tr className="pd-total">
         {columns.map((column, index) => {
           const total = totals.includes(column.code) ? columnTotal(rows, column.code) : null;
-          const text = total === null ? "—" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
+          const inTotals = totals.includes(column.code);
+          const text = total !== null ? formatCell(total, formats[column.code] === "money" ? "money" : "number") : inTotals ? "—" : "";
           if (index === 0 && total !== null) return <td key={column.code}><span className="pd-total-label">{totalLabel}</span><span className="num">{text}</span></td>;
           return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? totalLabel : text}</td>;
         })}

@@ -53,6 +53,8 @@ describe('QueryTable biçimleri', () => {
     const { container } = table(state([{ Ad: 'a', Tutar: 1 }], [{ code: 'Tutar', label: 'Tutar' }, { code: 'Ad', label: 'Ad' }]), { totals: ['Tutar', 'Ad'] });
     const cells = container.querySelectorAll('tfoot td');
     expect(cells[cells.length - 1].textContent).toBe('—');
+    const { container: plain } = table(state([{ Ad: 'a', Tutar: 1 }], [{ code: 'Ad', label: 'Ad' }, { code: 'Tutar', label: 'Tutar' }, { code: 'Not', label: 'Not' }]), { totals: ['Tutar'] });
+    expect(plain.querySelectorAll('tfoot td')[2].textContent).toBe('');
   });
 
   it('kesilmiş sonuçta toplam etiketi ilk satırları belirtir', () => {
