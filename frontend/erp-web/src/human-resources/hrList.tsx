@@ -35,13 +35,21 @@ export function hrGridSelection(
   };
 }
 
-/** Row props: double click / Enter open the record (not from the checkbox cell or a control inside the row). */
+/**
+ * Row props: double click / Enter open the record (not from the checkbox cell, a control inside the row, or a cell
+ * the grid edits in place when bulk edit is on: there a double click only edits the cell, as before).
+ */
 export function hrRowProps(id: string, onOpen: (id: string) => void) {
   return {
     "data-record-id": id,
     tabIndex: 0,
     onDoubleClick: (event: MouseEvent<HTMLTableRowElement>) => {
-      if ((event.target as HTMLElement).closest("button,input,select,a,.advanced-grid-select-cell")) return;
+      if (
+        (event.target as HTMLElement).closest(
+          "button,input,select,textarea,a,.advanced-grid-select-cell,.advanced-grid-editable",
+        )
+      )
+        return;
       event.preventDefault();
       onOpen(id);
     },

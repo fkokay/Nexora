@@ -770,6 +770,8 @@ html[data-theme="dark"] #root .hr-page .hr-status--muted { border-color: #34445c
 #root .hr-page.list-v2 .hr-list-body { min-width: 0; }
 #root .hr-page.list-v2 .hr-list-body > .hr-panel { min-width: 0; margin: 0; }
 #root .hr-page.list-v2 .hr-ld:focus { outline: none; }
+/* İzinler: the panel hides the create form; an unsaved draft is announced there. */
+#root .hr-page.list-v2 .hr-ld .hr-ld-draft { display: block; margin-bottom: 4px; color: var(--nx-warn); }
 #root .hr-page.list-v2 :is(.hr-table) td { white-space: nowrap; }
 #root .hr-page.list-v2 .hr-table th { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; }
 #root .hr-page.list-v2 .hr-table td.hr-col-number,

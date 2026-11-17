@@ -16,10 +16,12 @@ const tradeCase = (id: string, referenceCode: string, status: string) => ({
 });
 const cases = [tradeCase('c1', 'IHR-001', 'Draft'), tradeCase('c2', 'IHR-002', 'Shipped')];
 const calls: Array<{ url: string; method: string }> = [];
+/** Overrides the case page (e.g. a full first page of 100). */
+let casePage: { items: unknown[]; total: number } | null = null;
 
 function respond(url: string): unknown {
   const path = url.split('?')[0];
-  if (path === '/api/foreign-trade/cases') return { items: cases, total: cases.length };
+  if (path === '/api/foreign-trade/cases') return casePage ?? { items: cases, total: cases.length };
   if (path === '/api/foreign-trade/capabilities') return { canCreate: true, canUpdate: true, canAdvance: true };
   if (path.startsWith('/api/screen-views/')) return { id: null, fields: [] };
   if (path.endsWith('/transition')) return cases[0];
@@ -43,6 +45,7 @@ afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
   calls.length = 0;
+  casePage = null;
   localStorage.clear();
 });
 
@@ -110,6 +113,15 @@ describe('Dış Ticaret frame', () => {
     const draft = (await screen.findAllByText('IHR-001')).find((node) => node.closest('tr'))!;
     fireEvent.doubleClick(draft);
     expect(await screen.findByRole('dialog', { name: 'Dosyayı düzenle' })).toBeTruthy();
+  });
+
+  it('the footer says "ilk 100 / toplam N" with the total the endpoint returns', async () => {
+    casePage = {
+      items: Array.from({ length: 100 }, (_, index) => tradeCase(`m${index}`, `IHR-${String(index).padStart(3, '0')}`, 'Draft')),
+      total: 137,
+    };
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
+    expect(await screen.findByText('ilk 100 / toplam 137')).toBeTruthy();
   });
 
   it('status tones', () => {

@@ -114,6 +114,15 @@ describe('İnsan kaynakları lists (list type)', () => {
     expect(await screen.findByText('Personel bilgilerini düzenle')).toBeTruthy();
   });
 
+  it('Personel (bulk edit on): double-clicking an editable cell only edits it, the form does not open', async () => {
+    renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
+    const cell = (await screen.findByText('P-001')).closest('td')!;
+    expect(cell.className).toContain('advanced-grid-editable');
+    fireEvent.doubleClick(cell);
+    expect(await within(cell).findByRole('textbox')).toBeTruthy();
+    expect(screen.queryByText('Personel bilgilerini düzenle')).toBeNull();
+  });
+
   it('İzinler: the row menu actions are in İşlemler; the create form gives way to the panel', async () => {
     renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
     await screen.findByText('Ayşe Demir');
@@ -127,6 +136,22 @@ describe('İnsan kaynakları lists (list type)', () => {
     expect(reason('delete')).toBe("İzin talebi silinemez; İşlemler'den iptal edin.");
     fireEvent.click(command('new'));
     await waitFor(() => expect(document.getElementById('hr-leave-create')).toBeTruthy());
+  });
+
+  it('İzinler: selecting a row while the create form holds a draft says so in the panel', async () => {
+    renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
+    await screen.findByText('Ayşe Demir');
+    fireEvent.click(screen.getByRole('tab', { name: /İzinler/ }));
+    const row = (await screen.findAllByText('Mehmet Kaya')).find((node) => node.closest('tr'))!;
+    const form = document.getElementById('hr-leave-create')!;
+    fireEvent.change(within(form).getByRole('combobox', { name: 'İzin türü' }), { target: { value: 'Health' } });
+    fireEvent.click(row);
+    const panel = await screen.findByRole('complementary', { name: 'İzin talebi özeti' });
+    expect(within(panel).getByText('Kaydedilmemiş izin talebi var — Yeni (F2)')).toBeTruthy();
+    // The draft is kept: Yeni brings the form back with the changed value.
+    fireEvent.click(command('new'));
+    await waitFor(() => expect(document.getElementById('hr-leave-create')).toBeTruthy());
+    expect((within(document.getElementById('hr-leave-create')!).getByRole('combobox', { name: 'İzin türü' }) as HTMLSelectElement).value).toBe('Health');
   });
 });
 

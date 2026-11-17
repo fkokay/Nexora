@@ -932,6 +932,8 @@ export default function HumanResourcesPage({
     [days, setDays] = useState("1"),
     [daysTouched, setDaysTouched] = useState(false),
     [leaveNote, setLeaveNote] = useState("");
+  // True once the user changed the leave create form and until it is saved: the panel that hides the form says so.
+  const [leaveDraftDirty, setLeaveDraftDirty] = useState(false);
   const [workDate, setWorkDate] = useState(today),
     [workedMinutes, setWorkedMinutes] = useState("480"),
     [overtimeMinutes, setOvertimeMinutes] = useState("0"),
@@ -2913,9 +2915,16 @@ export default function HumanResourcesPage({
         { label: tr("Not", "Note"), value: currentLeave.note || "—" },
       ]}
       note={
-        admin && currentLeave.status === "Requested" && isOwnLeaveRequest(currentLeave)
-          ? tr("Başka bir yönetici onaylamalı", "Another administrator must review this")
-          : tr("Yeni talep için Yeni (F2).", "Use New (F2) for a new request.")
+        <>
+          {leaveDraftDirty && (
+            <span className="hr-ld-draft" role="status">
+              {tr("Kaydedilmemiş izin talebi var — Yeni (F2)", "Unsaved leave request — New (F2)")}
+            </span>
+          )}
+          {admin && currentLeave.status === "Requested" && isOwnLeaveRequest(currentLeave)
+            ? tr("Başka bir yönetici onaylamalı", "Another administrator must review this")
+            : !leaveDraftDirty && tr("Yeni talep için Yeni (F2).", "Use New (F2) for a new request.")}
+        </>
       }
       onClose={closePanel}
       closeLabel={closeLabel}
@@ -3524,6 +3533,7 @@ export default function HumanResourcesPage({
                   <form
                     ref={leaveForm}
                     className="hr-side-form"
+                    onChange={() => setLeaveDraftDirty(true)}
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (leaveSaveDisabled || busy) return;
@@ -3545,6 +3555,7 @@ export default function HumanResourcesPage({
                         if (!saved) return;
                         setLeaveNote("");
                         setDaysTouched(false);
+                        setLeaveDraftDirty(false);
                       });
                     }}
                   >
@@ -3553,7 +3564,10 @@ export default function HumanResourcesPage({
                       <SearchableRecordPicker
                         options={activeHrEmployeeOptions}
                         selectedId={employeeId}
-                        onSelect={setEmployeeId}
+                        onSelect={(id) => {
+                          setEmployeeId(id);
+                          setLeaveDraftDirty(true);
+                        }}
                         title={tr("Personel seçin", "Select employee")}
                         placeholder={tr("Personel seçin", "Select employee")}
                         searchPlaceholder={tr("Kod veya adla ara", "Search by code or name")}
@@ -4233,7 +4247,7 @@ export default function HumanResourcesPage({
                         </tbody>
                       </AdvancedDataGrid>
                     </div>
-                    <HrListFooter shown={compensationRows.length} loaded={compensations.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                    <HrListFooter shown={compensationRows.length} loaded={compensations.length} cap={500} isEn={isEn} />
                   </div>
                   {hrPanel}
                   </div>

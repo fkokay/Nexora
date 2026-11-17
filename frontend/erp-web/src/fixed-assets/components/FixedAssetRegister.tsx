@@ -124,7 +124,6 @@ export function FixedAssetRegister({
     if (defaultLayout) seedDefaultHiddenColumns(fields);
   }
   const numeric = (key: string) => (NUMERIC_KEYS.has(key) ? "nx-num" : key === "assetCode" ? "nx-code" : undefined);
-  const [, setTicked] = useState<string[]>([]);
   return (
     <>
     <ListToolbar
@@ -177,7 +176,6 @@ export function FixedAssetRegister({
             const asset = assets.find((candidate) => candidate.id === id);
             if (asset) onSelect(asset);
           }}
-          onSelectionChange={setTicked}
           bulkActions={[
             {
               id: "export-selected",

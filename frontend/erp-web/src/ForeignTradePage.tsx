@@ -128,6 +128,8 @@ export default function ForeignTradePage({
   role: string;
 }) {
   const [cases, setCases] = useState<TradeCase[]>([]);
+  // Total case count the endpoint reports (the page loads only the first 100).
+  const [caseTotal, setCaseTotal] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Set when the user deselects on purpose, so the first row is not re-selected immediately.
   const selectionCleared = useRef(false);
@@ -214,6 +216,7 @@ export default function ForeignTradePage({
       ]);
       setCapabilities(permissions);
       setCases(casePage.items);
+      setCaseTotal(casePage.total ?? casePage.items.length);
       setOrders([
         ...imports.map((x) => ({ ...x, direction: "Import" as const })),
         ...exports.map((x) => ({ ...x, direction: "Export" as const })),
@@ -299,7 +302,8 @@ export default function ForeignTradePage({
     const item = filtered.find((candidate) => candidate.id === id);
     if (!item) return;
     selectCase(id);
-    if (["Draft", "Booked"].includes(item.status) && capabilities.canUpdate) startEdit(item);
+    // While this case's transition runs the form would show stale details: focus the panel instead.
+    if (["Draft", "Booked"].includes(item.status) && capabilities.canUpdate && busyId !== id) startEdit(item);
     else window.setTimeout(() => detailRef.current?.focus(), 0);
   }
   useEffect(() => {
@@ -1025,7 +1029,14 @@ export default function ForeignTradePage({
                   </span>
                 </span>
                 {/* The page loads one page of 100 cases; there is no pager. */}
-                {cases.length >= 100 && <span>{tr("ilk 100 kayıt", "first 100 records")}</span>}
+                {cases.length >= 100 && (
+                  <span>
+                    {tr(
+                      `ilk 100 / toplam ${caseTotal.toLocaleString(locale())}`,
+                      `first 100 / total ${caseTotal.toLocaleString(locale())}`,
+                    )}
+                  </span>
+                )}
               </ListFooter>
             }
           />
