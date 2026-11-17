@@ -105,6 +105,8 @@ public sealed class TenantCustomPageSchemaV2Tests
     {
         AssertRejected(V2([Query("q1", "kullanici", "SELECT 1 AS x")]), "kullanici");
         AssertRejected(V2([Query("q1", "Bugun", "SELECT 1 AS x")]));
+        AssertRejected(V2([Query("q1", "sayilar", "SELECT 1 AS x")]), "sayilar");
+        AssertRejected(V2(components: [new { id = "c1", type = "input", name = "Sayilar", props = new { inputType = "text" } }]));
         AssertRejected(V2([Query("q1", "Liste", "SELECT 1 AS x")], [new { id = "c1", type = "dataTable", name = "liste" }]));
         AssertRejected(V2([Query("q1", "a", "SELECT 1 AS x"), Query("q1", "b", "SELECT 1 AS x")]));
         AssertRejected(V2([Query("q1", "a", "SELECT 1 AS x WHERE @p = @P", Param("p", "{{bugun}}"), Param("P", "{{bugun}}"))]));
