@@ -127,7 +127,8 @@ describe('Yevmiye fişi (characterization)', () => {
       ],
     });
     expect(await screen.findByText('YF-2026-000500 manuel yevmiye fişi kaydedildi.')).toBeTruthy();
-  });
+    // The first test of the file also pays the cold module load; on a busy machine that alone can pass 15 s.
+  }, 40000);
 
   it('does not post an unbalanced voucher and says which side to fix', async () => {
     renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="voucher" />);

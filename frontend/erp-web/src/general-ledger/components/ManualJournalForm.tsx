@@ -156,7 +156,11 @@ export function ManualJournalForm({
           event.preventDefault();
           createManualEntry(event);
         }}
-        onCancel={onOpenRecentEntries ?? onReset}
+        onCancel={() => {
+          // Vazgeç drops the entered voucher (the form state outlives this tab), then goes to the ledger.
+          onReset();
+          onOpenRecentEntries?.();
+        }}
         error={error}
         onDismissError={onDismissError}
         document={{

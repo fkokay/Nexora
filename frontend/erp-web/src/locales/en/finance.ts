@@ -897,6 +897,7 @@ export const english: Record<string, string> = {
   'Aktarılmayı bekleyen kaynak': 'Sources waiting for transfer',
   'tümü · İşlemler › Aktarılabilir kaynaklar': 'all · Actions › Transferable sources',
   'Kaynak (bu sayfa)': 'Source (this page)',
+  'Kaynak (bu sayfa):': 'Source (this page):',
   'Standart': 'Standard',
   'Kayıt zamanı': 'Recorded at',
   'Gösterilen fişler': 'Shown entries',

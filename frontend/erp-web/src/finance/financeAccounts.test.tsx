@@ -172,6 +172,62 @@ describe('Hesap ekstresi', () => {
     expect(posts('/api/finance/accounts/b1/transactions/m1/void')).toHaveLength(1);
   });
 
+  it('Transferi iptal et posts the same transfer void for the selected transfer movement', async () => {
+    renderScreen(<FinancePage token="t" role="TenantAdmin" section="finance-banks" />);
+    await settle();
+    fireEvent.doubleClick(row('BNK-01').cells[2]);
+    await settle();
+    const surface = document.querySelector<HTMLElement>('.doc-surface')!;
+    fireEvent.click(within(surface).getByText('m2 açıklaması'));
+    fireEvent.click(menuItem('transfer-void'));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ters kayıtla iptal et' }));
+    await settle();
+    expect(posts('/api/finance/transfers/t1/void')).toHaveLength(1);
+  });
+
+  it('Transfer / döviz opens in the drawer and posts the same transfer body', async () => {
+    renderScreen(<FinancePage token="t" role="TenantAdmin" section="finance-banks" />);
+    await settle();
+    fireEvent.doubleClick(row('BNK-01').cells[2]);
+    await settle();
+    fireEvent.click(menuItem('account-transfer'));
+    await settle(50);
+    const form = document.querySelector<HTMLElement>('.dd-drawer form')!;
+    fireEvent.change(form.querySelector<HTMLSelectElement>('select.rf-must')!, { target: { value: 'b3' } });
+    const numbers = form.querySelectorAll<HTMLInputElement>('input[type="number"].rf-must');
+    fireEvent.change(numbers[0], { target: { value: '100' } });
+    fireEvent.submit(form);
+    await settle();
+    const calls = posts('/api/finance/transfers');
+    expect(calls).toHaveLength(1);
+    const body = JSON.parse(String((calls[0][2] as RequestInit).body));
+    expect(body).toMatchObject({ fromAccountId: 'b1', toAccountId: 'b3', amount: 100, exchangeRate: 1, reference: null, description: 'Kasa/banka döviz transferi' });
+    expect(typeof body.requestId).toBe('string');
+  });
+
+  it('the cash-flow class posts the same change; a firm user cannot change it', async () => {
+    renderScreen(<FinancePage token="t" role="TenantAdmin" section="finance-banks" />);
+    await settle();
+    fireEvent.doubleClick(row('BNK-01').cells[2]);
+    await settle();
+    const surface = document.querySelector<HTMLElement>('.doc-surface')!;
+    const select = within(within(surface).getByText('m1 açıklaması').closest('tr')!).getByRole('combobox', { name: 'Nakit akışı sınıfı' });
+    fireEvent.change(select, { target: { value: 'Investing' } });
+    await settle();
+    const calls = posts('/api/finance/accounts/b1/transactions/m1/cash-flow-category');
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String((calls[0][2] as RequestInit).body))).toEqual({ cashFlowCategory: 'Investing' });
+    cleanup();
+    renderScreen(<FinancePage token="t" role="TenantUser" section="finance-banks" />);
+    await settle();
+    fireEvent.doubleClick(row('BNK-01').cells[2]);
+    await settle();
+    const userSurface = document.querySelector<HTMLElement>('.doc-surface')!;
+    const userSelect = within(within(userSurface).getByText('m1 açıklaması').closest('tr')!).getByRole('combobox', { name: 'Nakit akışı sınıfı' });
+    expect((userSelect as HTMLSelectElement).disabled).toBe(true);
+  });
+
   it('Manuel hareket opens the form in a drawer and posts the same body', async () => {
     renderScreen(<FinancePage token="t" role="TenantAdmin" section="finance-banks" />);
     await settle();

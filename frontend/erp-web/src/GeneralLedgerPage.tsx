@@ -146,7 +146,8 @@ export default function GeneralLedgerPage({
   const [journalSourceChip, setJournalSourceChip] = useState("");
   // Server-side accounting basis filter of the journal ledger ("" = all; the endpoint already takes it).
   const [entryBasis, setEntryBasis] = useState("");
-  const [entriesLoading, setEntriesLoading] = useState(false);
+  // The journal ledger shows "—" (not 0 / "no entries") until its first load answers.
+  const [entriesLoading, setEntriesLoading] = useState(view === "journal-ledger");
   const [manualDate, setManualDate] = useState(localDateString()),
     [manualAccountingBasis, setManualAccountingBasis] = useState<"TDHP" | "IFRS">("TDHP"),
     [manualDescription, setManualDescription] = useState(""),
