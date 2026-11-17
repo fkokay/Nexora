@@ -208,7 +208,9 @@ export const english: Record<string, string> = {
   'Bu teklif': 'This quote', 'Bu sipariş': 'This order', 'Bu fatura': 'This invoice', 'Bu irsaliye': 'This delivery note',
   'Bu talep': 'This request', 'Bu iade': 'This return', 'Belge zinciri': 'Document chain', 'Teslim tarihi': 'Delivery date',
   'Tahsil edilen': 'Collected', 'Matrah': 'Taxable amount', 'Henüz tahsilat yok.': 'No collections yet.', 'Satırlar': 'Lines',
-  'Satır yok.': 'No lines.', 'Satış iadesi': 'Sales return', 'Alış faturası': 'Purchase invoice', 'Satış talebi': 'Sales request'
+  'Satır yok.': 'No lines.', 'bu sayfa · iptaller hariç': 'this page · cancelled excluded',
+  'bu sayfa · tüm durumlar': 'this page · all statuses',
+  '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli': '↑↓ move · Space mark · Enter open · Double-click open · Ctrl+. detail panel', 'Satış iadesi': 'Sales return', 'Alış faturası': 'Purchase invoice', 'Satış talebi': 'Sales request'
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

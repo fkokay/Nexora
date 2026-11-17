@@ -29,8 +29,6 @@ type Props = {
   loading?: boolean;
   error?: string;
   children?: ReactNode;
-  /** Rare actions at the bottom (former row-menu items with no bar command). */
-  foot?: ReactNode;
 };
 
 /**
@@ -52,7 +50,6 @@ export function SalesListDetailPanel({
   loading,
   error,
   children,
-  foot,
 }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   // As a drawer (< 1100px) the panel takes the focus when it is opened explicitly and gives it back when Esc closes
@@ -111,7 +108,6 @@ export function SalesListDetailPanel({
       <div className="sales-ld-body" role="tabpanel">
         {error ? <p className="sales-ld-error">{error}</p> : loading ? <p className="sales-ld-muted">Yükleniyor…</p> : children}
       </div>
-      {foot && <div className="sales-ld-foot">{foot}</div>}
     </aside>
   );
 }

@@ -2099,12 +2099,12 @@ export function SalesPage({
   const detailNewCommand = salesNewCommand ? { run: salesNewCommand.run } : undefined;
   // Summary cards: figures of the loaded page only ("bu sayfa"); the list endpoints return no totals, due dates or
   // outstanding amounts, so there is no Tahsil edilmemiş / Vadesi geçen card.
-  const amountCard = (id: string, label: string, rows: Array<{ grandTotal: number; currencyCode: string }>, hint?: React.ReactNode) => ({
+  const amountCard = (id: string, label: string, rows: Array<{ grandTotal: number; currencyCode: string }>, hint: React.ReactNode) => ({
     id,
     label,
     value: loading ? "—" : pageAmount(rows) ?? "—",
     icon: CircleDollarSign,
-    hint: new Set(rows.map((row) => row.currencyCode)).size > 1 ? pageAmountHint(rows) : hint ?? "bu sayfa",
+    hint: pageAmountHint(rows, hint),
   });
   const countValue = (count: number) => (loading ? "—" : count.toLocaleString("tr-TR"));
   let listSummary: React.ReactNode = null;
@@ -2112,7 +2112,7 @@ export function SalesPage({
     listSummary = (
       <ListSummaryCards
         cards={[
-          amountCard("quote-total", "Teklif tutarı", filtered),
+          amountCard("quote-total", "Teklif tutarı", filtered, <span>bu sayfa · tüm durumlar</span>),
           {
             id: "quote-sent",
             label: "Yanıt bekleyen",
@@ -2135,6 +2135,7 @@ export function SalesPage({
             "order-total",
             "Sipariş tutarı",
             filteredOrders.filter((item) => item.status !== "Cancelled"),
+            <span>bu sayfa · iptaller hariç</span>,
           ),
           {
             id: "order-open",
@@ -11075,13 +11076,8 @@ function SalesInvoiceTable({
       setBusy(false);
     }
   }
-  const visible = invoices.filter(
-    (x) =>
-      !search ||
-      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
-        .toLocaleLowerCase("tr")
-        .includes(search.toLocaleLowerCase("tr")),
-  );
+  // Already filtered by the search in SalesPage (visibleInvoices).
+  const visible = invoices;
   // The bar (Aç, Sil, İşlemler › İptal et) and the detail panel cover the former row menu: no "⋯" column.
   const ordered = fields.filter((field) => field.key !== "actions" && field.visible).sort((a, b) => a.position - b.position);
   const render = (

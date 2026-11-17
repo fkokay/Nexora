@@ -14,6 +14,7 @@ import SalesCustomerRequestsPage from '../sales-customer-requests/SalesCustomerR
 import SalesReturnsPage from '../SalesReturnsPage';
 import PurchaseReturnsPage from '../PurchaseReturnsPage';
 import { salesListTag } from './salesListStatus';
+import AdvancedDataGrid from '../AdvancedDataGrid';
 
 const warehouses = [{ id: 'w1', code: 'D1', name: 'Ana depo', isActive: true }];
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 25, totalCount: items.length });
@@ -190,7 +191,7 @@ describe('Satış Faturaları list', () => {
     expect(total.querySelector('b')).toBeNull();
     expect(within(row('F-i1')).getByText('F-i1').closest('td')!.className).toContain('nx-code');
     const footer = document.querySelector<HTMLElement>('.nx-list-footer')!;
-    expect(footer.textContent).toContain('↑↓ gez · Boşluk işaretle · Enter aç');
+    expect(footer.textContent).toContain('↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç');
     expect(footer.textContent).toContain('Gösterilen');
     expect(footer.textContent).toContain('3 / 3');
   });
@@ -209,6 +210,18 @@ describe('Satış Faturaları list', () => {
       fireEvent.click(command('open'));
     });
     await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+  });
+
+  it('a double-click on a row opens the invoice (no cell editor)', async () => {
+    renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    const cell = within(row('F-i2')).getByText('Acme', { selector: 'span' }).closest('td')!;
+    await act(async () => {
+      fireEvent.doubleClick(cell);
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    expect(document.querySelector('.advanced-grid-cell-editor')).toBeNull();
+    expect(fetched('/api/sales/invoices/i2')).toBe(1);
   });
 
   it('the code link still opens the invoice in one click', async () => {
@@ -347,7 +360,7 @@ describe('Satış Teklifleri list', () => {
     expect(document.querySelector('.sales-row-actions-trigger')).toBeNull();
     expect(tagOf(row('T-q1'))?.className).toContain('is-info');
     expect(tagOf(row('T-q2'))?.className).toContain('is-warn');
-    expect(cards()).toEqual(['Teklif tutarı 300,00 TRY bu sayfa', 'Yanıt bekleyen 1 bu sayfa Filtrele']);
+    expect(cards()).toEqual(['Teklif tutarı 300,00 TRY bu sayfa · tüm durumlar', 'Yanıt bekleyen 1 bu sayfa Filtrele']);
     fireEvent.click(row('T-q1'));
     await waitFor(() => expect(openMenu()).toEqual(['Düzenle', 'İletildi yap', 'Teklif alanları', 'CSV olarak dışa aktar']));
     fireEvent.click(row('T-q2'));
@@ -379,7 +392,7 @@ describe('Satış Siparişleri list', () => {
   it('cards, tags and the panel with the order chain; the row menu stays (Düzenle has no bar command)', async () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
-    expect(cards()).toEqual(['Sipariş tutarı 500,00 TRY bu sayfa', 'Sevk bekleyen 1 bu sayfa']);
+    expect(cards()).toEqual(['Sipariş tutarı 500,00 TRY bu sayfa · iptaller hariç', 'Sevk bekleyen 1 bu sayfa']);
     expect(tagOf(row('S-o1'))?.className).toContain('is-warn');
     expect(tagOf(row('S-o2'))?.className).toContain('is-ok');
     expect(document.querySelectorAll('.sales-row-actions-trigger').length).toBe(2);
@@ -410,6 +423,38 @@ describe('Satış İrsaliyeleri list', () => {
   });
 });
 
+describe('Double-click', () => {
+  it('opens a request and a return (shared grids)', async () => {
+    renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
+    await settle();
+    await act(async () => {
+      fireEvent.doubleClick(within(row('TLP-r1')).getAllByRole('cell')[2]);
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    cleanup();
+    renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    await act(async () => {
+      fireEvent.doubleClick(within(row('IADE-r1')).getAllByRole('cell')[2]);
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+  });
+
+  // Sales grids never pass onEditRows, so they have no cell editing; a grid that does keeps it.
+  it('other grids keep double-click cell editing', () => {
+    render(
+      <CommandProvider>
+        <AdvancedDataGrid aria-label="Deneme" onEditRows={() => undefined}>
+          <thead><tr><th>Ad</th></tr></thead>
+          <tbody><tr key="a"><td>Elma</td></tr></tbody>
+        </AdvancedDataGrid>
+      </CommandProvider>,
+    );
+    fireEvent.doubleClick(screen.getByText('Elma'));
+    expect(document.querySelector('.advanced-grid-cell-editor')).not.toBeNull();
+  });
+});
+
 describe('Satış Talepleri list', () => {
   it('a row click makes it current; Aç opens it; the panel lists the quotes made from it', async () => {
     renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
@@ -433,7 +478,7 @@ describe('İadeler list (shared by sales and purchasing)', () => {
   it('Satış İadeleri: current row, cards, panel with the invoice chain', async () => {
     renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
-    expect(cards()).toEqual(['İade tutarı 120,00 TRY bu sayfa', 'İptal 1 bu sayfa']);
+    expect(cards()).toEqual(['İade tutarı 120,00 TRY bu sayfa · iptaller hariç', 'İptal 1 bu sayfa']);
     expect(tagOf(row('IADE-r1'))?.className).toContain('is-ok');
     togglePanel();
     fireEvent.click(row('IADE-r1'));
@@ -473,7 +518,8 @@ describe('English', () => {
       'Özetini görmek için listeden bir sipariş seçin.', 'Özetini görmek için listeden bir irsaliye seçin.',
       'Özetini görmek için listeden bir talep seçin.', 'Özetini görmek için listeden bir iade seçin.',
       'Henüz tahsilat yok.', 'Yükleniyor…', 'Satır yok.', 'Alış faturası', 'Satış talebi', 'Satış iadesi', 'Teslim tarihi',
-      'Satırlar', 'bu sayfa · birden çok para birimi', 'F-i1 fatura ayrıntılarını aç',
+      'Satırlar', 'birden çok para birimi', 'F-i1 fatura ayrıntılarını aç', 'bu sayfa · iptaller hariç', 'bu sayfa · tüm durumlar',
+      '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
   });

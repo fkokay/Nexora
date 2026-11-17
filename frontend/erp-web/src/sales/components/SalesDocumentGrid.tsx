@@ -139,6 +139,12 @@ export default function SalesDocumentGrid<T extends { id: string }>({
                   key={item.id}
                   data-record-id={item.id}
                   tabIndex={0}
+                  onDoubleClick={(event) => {
+                    // Not from the checkbox or a link / button inside the row (they act on their own).
+                    if (!selection.onOpen || (event.target as HTMLElement).closest("button,input,select,a")) return;
+                    event.preventDefault();
+                    selection.onOpen(item.id);
+                  }}
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget || event.defaultPrevented || event.key !== "Enter") return;
                     if (!selection.onOpen) return;

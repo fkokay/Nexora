@@ -219,7 +219,7 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
             label: "İade tutarı",
             value: loading ? "—" : pageAmount(posted) ?? "—",
             icon: CircleDollarSign,
-            hint: pageAmountHint(posted),
+            hint: pageAmountHint(posted, <span>bu sayfa · iptaller hariç</span>),
           },
           {
             id: "voided",

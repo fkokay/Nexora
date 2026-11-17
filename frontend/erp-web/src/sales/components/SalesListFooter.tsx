@@ -34,7 +34,7 @@ export function SalesListFooter({ ticked, shown, total, page, pageSize, loading,
     </span>,
   );
   return (
-    <ListFooter hints={hints ?? "↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+. detay paneli"}>
+    <ListFooter hints={hints ?? "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli"}>
       {end}
       <ListPagination page={page} total={total} pageSize={pageSize} loading={loading} onPageChange={onPageChange} />
     </ListFooter>
@@ -52,7 +52,15 @@ export function pageAmount(rows: Array<{ grandTotal: number; currencyCode: strin
   return `${sum.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${rows[0].currencyCode}`;
 }
 
-/** Hint of an amount card: "bu sayfa", or why it shows no sum. */
-export function pageAmountHint(rows: Array<{ currencyCode: string }>): string {
-  return new Set(rows.map((row) => row.currencyCode)).size > 1 ? "bu sayfa · birden çok para birimi" : "bu sayfa";
+/**
+ * Hint of an amount card: the card's own scope (`hint`, default "bu sayfa"), followed by why there is no sum when
+ * the rows are in several currencies.
+ */
+export function pageAmountHint(rows: Array<{ currencyCode: string }>, hint: ReactNode = <span>bu sayfa</span>): ReactNode {
+  if (new Set(rows.map((row) => row.currencyCode)).size <= 1) return hint;
+  return (
+    <>
+      {hint} · <span>birden çok para birimi</span>
+    </>
+  );
 }

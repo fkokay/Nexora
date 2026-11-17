@@ -142,7 +142,7 @@
 #root .list-v2 .sales-ld-actions kbd {
   padding: 0 4px;
   border: 1px solid var(--nx-line);
-  border-radius: 3px;
+  border-radius: calc(var(--nx-radius-control) / 2);
   background: var(--nx-surface);
   color: var(--nx-muted);
   font: 10px/1.4 var(--nx-font-mono);
@@ -166,7 +166,8 @@
 #root .app-shell .list-v2 .sales-ld-tabs button:is(:hover, :focus) { background: transparent; color: var(--nx-text); }
 #root .app-shell .list-v2 .sales-ld-tabs button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 #root .app-shell .list-v2 .sales-ld-tabs button.is-active {
-  /* Underline only: the global [aria-selected=true] tint (global-components.css, !important) is not a tab style. */
+  /* Underline only. !important is required: global-components.css tints every [aria-selected=true] with an
+     !important background, which no selector without !important can override. */
   background: transparent !important;
   box-shadow: inset 0 -2px 0 var(--nx-primary);
   color: var(--nx-primary-strong);
@@ -232,14 +233,6 @@
 #root .list-v2 .sales-ld-rows b { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #root .list-v2 :is(.sales-ld-muted, .sales-ld-error) { margin: 0; color: var(--nx-muted); }
 #root .list-v2 .sales-ld-error { color: var(--nx-bad); }
-#root .list-v2 .sales-ld-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding: 8px 14px 10px; border-top: 1px solid var(--nx-line-soft); }
-#root .app-shell .list-v2 .sales-ld-foot button {
-  height: var(--nx-control-h);
-  min-height: var(--nx-control-h);
-  padding: 0 12px;
-  border-radius: var(--nx-radius-control);
-  font-size: 12.5px;
-}
 
 /* Below 1100px the panel (opened with Ctrl+. or the toggle) slides over the list from the right. */
 @media (max-width: 1099px) {

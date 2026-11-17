@@ -45,11 +45,6 @@ function Tag({ kind, status }: { kind: SalesListKind; status: string }) {
   return <StatusTag tone={tag.tone}>{tag.label}</StatusTag>;
 }
 
-/** Tab state of a panel; resets to Özet when the panel is mounted for another kind of list. */
-function usePanelTab() {
-  return useState("summary");
-}
-
 type FrameProps<D> = SalesPanelControls<D> & {
   label: string;
   code: string;
@@ -57,11 +52,11 @@ type FrameProps<D> = SalesPanelControls<D> & {
   tags: ReactNode;
   tabs: Array<{ id: string; label: string }>;
   render: (tab: string, detail: D, showTab: (tab: string) => void) => ReactNode;
-  foot?: ReactNode;
 };
 
-function PanelFrame<D>({ label, code, title, tags, tabs, render, foot, detail, error, onOpen, openDisabled, onClose, takeFocus }: FrameProps<D>) {
-  const [tab, setTab] = usePanelTab();
+function PanelFrame<D>({ label, code, title, tags, tabs, render, detail, error, onOpen, openDisabled, onClose, takeFocus }: FrameProps<D>) {
+  // Kept while the current row changes (the panel stays mounted), like the Stok Kartları panel.
+  const [tab, setTab] = useState("summary");
   const active = tabs.some((item) => item.id === tab) ? tab : tabs[0].id;
   return (
     <SalesListDetailPanel
@@ -78,7 +73,6 @@ function PanelFrame<D>({ label, code, title, tags, tabs, render, foot, detail, e
       takeFocus={takeFocus}
       loading={!detail}
       error={error}
-      foot={foot}
     >
       {detail && render(active, detail, setTab)}
     </SalesListDetailPanel>
