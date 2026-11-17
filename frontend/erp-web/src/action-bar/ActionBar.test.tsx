@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider, usePageCommands } from '../commands/CommandProvider';
 import { ACTION_BAR_ORDER, type PageCommands } from '../commands/types';
 import { KeepAliveViews } from '../WorkspaceComponents';
-import { ActionBar } from './ActionBar';
+import { ActionBar, pickCompaction } from './ActionBar';
 
 afterEach(cleanup);
 
@@ -133,6 +133,76 @@ describe('ActionBar', () => {
     setup({ undo: { run: () => undefined } });
     for (const el of Array.from(bar().querySelectorAll<HTMLElement>('[data-command]'))) {
       expect((el.getAttribute('aria-label') ?? '').trim()).not.toBe('');
+    }
+  });
+});
+
+describe('ActionBar compaction (narrow bar)', () => {
+  it('pickCompaction takes the least compact level that fits, else the most compact', () => {
+    expect(pickCompaction(() => true)).toBe('full');
+    expect(pickCompaction((level) => level !== 'full')).toBe('no-keys');
+    expect(pickCompaction((level) => level === 'icons')).toBe('icons');
+    expect(pickCompaction(() => false)).toBe('icons');
+  });
+
+  /** Fakes the button area's widths: `need[level]` px of buttons in an area of `width` px. */
+  function fakeLayout(width: number, need: Record<string, number>) {
+    const scroll = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollWidth')!;
+    const client = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')!;
+    Object.defineProperty(Element.prototype, 'scrollWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (!this.classList.contains('nx-action-bar__commands')) return 0;
+        return need[this.closest<HTMLElement>('[data-nx-action-bar]')!.dataset.compact ?? 'full'];
+      },
+    });
+    Object.defineProperty(Element.prototype, 'clientWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains('nx-action-bar__commands') ? width : 0;
+      },
+    });
+    return () => {
+      Object.defineProperty(Element.prototype, 'scrollWidth', scroll);
+      Object.defineProperty(Element.prototype, 'clientWidth', client);
+    };
+  }
+
+  it('keeps İşlemler (and Geri Al) outside the scrolling button area', () => {
+    setup({ undo: { run: () => undefined } });
+    const area = bar().querySelector<HTMLElement>('.nx-action-bar__commands')!;
+    expect(area.contains(button('more'))).toBe(false);
+    expect(area.contains(button('undo'))).toBe(false);
+    expect(Array.from(area.querySelectorAll('[data-command]')).map((el) => el.getAttribute('data-command'))).toEqual([...ACTION_BAR_ORDER]);
+  });
+
+  it('stays full when the buttons fit (and without layout)', () => {
+    setup({ save: { run: () => undefined } });
+    expect(bar().getAttribute('data-compact')).toBe('full');
+    expect(button('save').title).toBe('');
+  });
+
+  it('hides the key hints first, then the labels (icon only with a title); İşlemler keeps its label', () => {
+    const restore = fakeLayout(700, { full: 900, 'no-keys': 760, icons: 420 });
+    try {
+      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
+      expect(bar().getAttribute('data-compact')).toBe('icons');
+      expect(button('save').title).toBe('Kaydet (Ctrl+S)');
+      expect(button('save').getAttribute('aria-label')).toBe('Kaydet');
+      // A disabled button keeps its reason as the title.
+      expect(button('delete').title).toBe('Önce bir kayıt seçin');
+      expect(button('more').textContent).toContain('İşlemler');
+    } finally {
+      restore();
+    }
+    cleanup();
+    const restoreWide = fakeLayout(800, { full: 900, 'no-keys': 760, icons: 420 });
+    try {
+      setup({ save: { run: () => undefined } });
+      expect(bar().getAttribute('data-compact')).toBe('no-keys');
+      expect(button('save').title).toBe('');
+    } finally {
+      restoreWide();
     }
   });
 });

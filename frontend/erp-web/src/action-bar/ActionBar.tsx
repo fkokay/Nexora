@@ -18,12 +18,55 @@ const ICONS: Record<StandardCommandId, IconType> = {
 const SEPARATOR_BEFORE: ReadonlySet<StandardCommandId> = new Set(['refresh', 'print']);
 const UNAVAILABLE = 'Bu ekranda kullanılamaz';
 
+/**
+ * How much the standard buttons give up when the bar is narrow: first the key hints, then the labels (icon only,
+ * with the label as aria-label and title). The İşlemler menu (and Geri Al) never compacts or scrolls away.
+ */
+export const COMPACTION_LEVELS = ['full', 'no-keys', 'icons'] as const;
+export type Compaction = (typeof COMPACTION_LEVELS)[number];
+
+/** The least compact level whose buttons fit; the most compact one (the buttons then scroll) when none does. */
+export function pickCompaction(fits: (level: Compaction) => boolean): Compaction {
+  return COMPACTION_LEVELS.find(fits) ?? COMPACTION_LEVELS[COMPACTION_LEVELS.length - 1];
+}
+
+/**
+ * Keeps `data-compact` of the bar at the least compact level at which the standard buttons fit their area. Each
+ * measurement starts from the full level, so the bar expands again when it widens. Without layout (no
+ * ResizeObserver, nothing measured) the bar stays full.
+ */
+function useCompaction(deps: unknown[]) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const commandsRef = useRef<HTMLDivElement>(null);
+  const [level, setLevel] = useState<Compaction>('full');
+  useLayoutEffect(() => {
+    const bar = barRef.current, commands = commandsRef.current;
+    if (!bar || !commands) return;
+    const measure = () => {
+      const picked = pickCompaction((candidate) => {
+        bar.dataset.compact = candidate;
+        return commands.scrollWidth <= commands.clientWidth + 1;
+      });
+      bar.dataset.compact = picked;
+      setLevel(picked);
+    };
+    measure();
+    if (typeof ResizeObserver !== 'function') return;
+    // The button area changes size with the bar (window, widget rail) and when Geri Al comes or goes.
+    const observer = new ResizeObserver(measure);
+    observer.observe(commands);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { barRef, commandsRef, level };
+}
+
 function stateOf(spec: CommandSpec | undefined): { enabled: boolean; reason?: string } {
   if (spec?.run && !spec.disabledReason) return { enabled: true };
   return { enabled: false, reason: spec?.disabledReason ?? UNAVAILABLE };
 }
 
-function CommandButton({ id, spec, locale }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale }) {
+function CommandButton({ id, spec, locale, iconOnly = false }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale; iconOnly?: boolean }) {
   const reasonId = useId();
   const { enabled, reason } = stateOf(spec);
   const Icon = ICONS[id];
@@ -38,7 +81,7 @@ function CommandButton({ id, spec, locale }: { id: StandardCommandId; spec: Comm
       aria-keyshortcuts={STANDARD_SHORTCUTS[id]}
       aria-disabled={enabled ? undefined : 'true'}
       aria-describedby={enabled ? undefined : reasonId}
-      title={enabled ? undefined : reason}
+      title={enabled ? (iconOnly ? `${label} (${formatShortcut(STANDARD_SHORTCUTS[id], locale)})` : undefined) : reason}
       onClick={() => { if (enabled) void spec?.run?.(); }}
     >
       <Icon size={15} aria-hidden />
@@ -158,17 +201,23 @@ export function ActionBar({ locale }: { locale: Locale }) {
     return () => disposers.forEach((dispose) => dispose());
   }, [registry]);
 
+  const { barRef, commandsRef, level } = useCompaction([slotTarget, commands, locale]);
+  const iconOnly = level === 'icons';
   const bar = (
-    <div className="nx-action-bar" data-nx-action-bar role="toolbar" aria-label="İşlemler çubuğu">
-      {ACTION_BAR_ORDER.map((id) => (
-        <Fragment key={id}>
-          {SEPARATOR_BEFORE.has(id) && <span className="nx-action-bar__sep" aria-hidden="true" />}
-          <CommandButton id={id} spec={commands?.[id]} locale={locale} />
-        </Fragment>
-      ))}
-      <span className="nx-action-bar__spacer" />
-      {commands?.undo && <CommandButton id="undo" spec={commands.undo} locale={locale} />}
-      <ActionsMenu items={commands?.more ?? []} locale={locale} open={menuOpen} onOpenChange={setMenuOpen} />
+    <div ref={barRef} className="nx-action-bar" data-nx-action-bar data-compact={level} role="toolbar" aria-label="İşlemler çubuğu">
+      {/* The standard buttons compact, then scroll; İşlemler stays pinned at the right. */}
+      <div ref={commandsRef} className="nx-action-bar__commands">
+        {ACTION_BAR_ORDER.map((id) => (
+          <Fragment key={id}>
+            {SEPARATOR_BEFORE.has(id) && <span className="nx-action-bar__sep" aria-hidden="true" />}
+            <CommandButton id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} />
+          </Fragment>
+        ))}
+      </div>
+      <div className="nx-action-bar__end">
+        {commands?.undo && <CommandButton id="undo" spec={commands.undo} locale={locale} iconOnly={iconOnly} />}
+        <ActionsMenu items={commands?.more ?? []} locale={locale} open={menuOpen} onOpenChange={setMenuOpen} />
+      </div>
       {helpOpen && <ShortcutHelpDialog locale={locale} onClose={closeHelp} />}
     </div>
   );
