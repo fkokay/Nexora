@@ -14,6 +14,10 @@ import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { InventoryStockFilters } from "./inventory/components/InventoryStockFilters";
 import { InventoryStockGrid, StockAvailableCell, stockListStatus } from "./inventory/components/InventoryStockGrid";
 import { useStockListScreen } from "./inventory/useStockListScreen";
+import { InventoryTransferGrid } from "./inventory/components/InventoryTransferGrid";
+import { useTransferListScreen } from "./inventory/useTransferListScreen";
+import { InventoryCostGrid } from "./inventory/components/InventoryCostGrid";
+import { useCostListScreen } from "./inventory/useCostListScreen";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { StatusTag } from "./list-page/StatusTag";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
@@ -2533,36 +2537,6 @@ export function InventoryPage({
   const transferReady =
     !!transferTo &&
     Object.values(transferQuantities).some((x) => Number(x) > 0);
-  function renderInventoryPagination() {
-    return inventoryTotal > inventoryPageSize ? (
-      <div className="table-pagination" aria-label="Stok sayfaları">
-        <span>
-          {inventoryTotal.toLocaleString("tr-TR")} stok · Sayfa {inventoryPage}/
-          {inventoryPageCount}
-        </span>
-        <div>
-          <button
-            type="button"
-            className="secondary small-button"
-            disabled={inventoryPage <= 1 || balancesLoading}
-            onClick={() => setInventoryPage((page) => Math.max(1, page - 1))}
-          >
-            Önceki
-          </button>
-          <button
-            type="button"
-            className="secondary small-button"
-            disabled={inventoryPage >= inventoryPageCount || balancesLoading}
-            onClick={() =>
-              setInventoryPage((page) => Math.min(inventoryPageCount, page + 1))
-            }
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
-    ) : null;
-  }
   function renderStockScreenCell(
     field: BuiltInScreenLayoutField,
     item: InventoryBalance,
@@ -2654,6 +2628,28 @@ export function InventoryPage({
     onNotice: setNotice,
     reload: () => loadBalances(),
   });
+  const transferList = useTransferListScreen({
+    transfers: visibleTransfers,
+    total: transferTotal,
+    page: transferPage,
+    busy,
+    loading,
+    exportRef: gridExportRef,
+    onOpen: (transfer) => void openTransfer(transfer),
+    onVoid: (transfer) => void voidTransfer(transfer),
+    onPageChange: (page) => void loadTransfers(page),
+  });
+  const costList = useCostListScreen({
+    balances: pagedBalances,
+    total: inventoryTotal,
+    page: inventoryPage,
+    pageSize: inventoryPageSize,
+    loading: balancesLoading,
+    busy,
+    exportRef: gridExportRef,
+    onManage: (balance) => void openCostManager(balance),
+    onPageChange: setInventoryPage,
+  });
   // Saving is registered by the open RecordFormPage itself (Kaydet / Ctrl+S, primary).
   const pageCommands: PageCommands = {};
   if (pageDialogOpen) {
@@ -2682,6 +2678,10 @@ export function InventoryPage({
           : undefined,
       run: () => startNew(transferModal && transferSelectedItems.length > 0, openTransferModal),
     };
+    Object.assign(pageCommands, transferList.commands);
+  } else if (section === "inventory-cost" && role === "TenantAdmin") {
+    // The cost manager of the current row (the former card's Yönet).
+    Object.assign(pageCommands, costList.commands);
   }
   // Former page-header actions; the list and its header are not shown while a stock card is edited.
   if (!editingItem && section !== "inventory-stock-create") {
@@ -2699,7 +2699,9 @@ export function InventoryPage({
         more.push({ id: "warehouse-field-catalog", label: "Depo alan tanımları", run: () => void openWarehouseFieldCatalog() });
       more.push({ id: "warehouse-admin", label: "Depoları yönet", run: () => setWarehouseAdminModal(true) });
     }
-    if (section !== "inventory-cost") more.push(csvExportCommand(gridExportRef));
+    if (section === "inventory-transfers") more.push(...transferList.moreItems);
+    // Stok Değerleme has a grid (and so an export) for TenantAdmin only.
+    if (section !== "inventory-cost" || role === "TenantAdmin") more.push(csvExportCommand(gridExportRef));
     pageCommands.more = more;
   }
   usePageCommands(pageCommands);
@@ -2768,6 +2770,7 @@ export function InventoryPage({
             </div>
           )}
           {section === "inventory-stock" && stockList.summary}
+          {section === "inventory-cost" && role === "TenantAdmin" && costList.summary}
           {(section === "inventory-stock" ||
             (section === "inventory-cost" && role === "TenantAdmin")) && (
             <InventoryStockFilters
@@ -2789,91 +2792,20 @@ export function InventoryPage({
               }}
               onToggleBelowMinimum={toggleBelowMinimum}
               onApplyFilters={() => void loadBalances()}
-              toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : undefined}
+              toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : setListToolsSlot}
               extra={section === "inventory-stock" ? stockList.panelToggle : undefined}
             />
           )}
           {section === "inventory-cost" && role === "TenantAdmin" && (
-            <section className="panel inventory-cost-panel">
-              {balancesLoading ? (
-                <div className="inventory-cost-empty">
-                  <span>
-                    <IconPack.Boxes size={17} />
-                  </span>
-                  <div>
-                    <b>Stok bakiyeleri yükleniyor…</b>
-                    <p>Seçili deponun miktar ve maliyet bilgileri alınıyor.</p>
-                  </div>
-                </div>
-              ) : balances.length > 0 ? (
-                <>
-                  <div className="inventory-cost-grid">
-                    {pagedBalances.map((item) => (
-                      <article
-                        className="inventory-cost-card"
-                        key={item.stockItemId}
-                      >
-                        <div className="inventory-cost-card-head">
-                          <div>
-                            <span className="inventory-cost-code">
-                              {item.code}
-                            </span>
-                            <h3>{item.name}</h3>
-                          </div>
-                          <button
-                            className="inventory-cost-manage"
-                            disabled={busy}
-                            onClick={() => void openCostManager(item)}
-                          >
-                            Yönet <IconPack.ArrowRight size={14} />
-                          </button>
-                        </div>
-                        <div className="inventory-cost-metrics">
-                          <div>
-                            <span>Depo miktarı</span>
-                            <b>
-                              {item.quantityOnHand.toLocaleString("tr-TR", {
-                                maximumFractionDigits: 4,
-                              })}{" "}
-                              <small>{item.unitCode}</small>
-                            </b>
-                          </div>
-                          <div>
-                            <span>Stok değeri</span>
-                            <b>
-                              {item.valuationAmountBase.toLocaleString(
-                                "tr-TR",
-                                { minimumFractionDigits: 2 },
-                              )}{" "}
-                              <small>{item.baseCurrencyCode}</small>
-                            </b>
-                          </div>
-                        </div>
-                        <div className="inventory-cost-card-foot">
-                          <span>
-                            <IconPack.Package size={13} /> Maliyet kayıtları ve
-                            birim dönüşümleri
-                          </span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  {renderInventoryPagination()}
-                </>
-              ) : (
-                <div className="inventory-cost-empty">
-                  <span>
-                    <IconPack.Boxes size={17} />
-                  </span>
-                  <div>
-                    <b>Yönetilecek stok bakiyesi yok</b>
-                    <p>
-                      Seçili depoda hareketi olan stok kartları burada görünür.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
+            <InventoryCostGrid
+              balances={pagedBalances}
+              loading={balancesLoading}
+              busy={busy}
+              onManage={(balance) => void openCostManager(balance)}
+              toolbarContainer={listToolsSlot}
+              exportActionsRef={gridExportRef}
+              {...costList.grid}
+            />
           )}
           {section === "inventory-stock" && (
             <div
@@ -2953,36 +2885,17 @@ export function InventoryPage({
                   ]}
                 />
               </ListToolbar>
-              <section className="panel inventory-stock-grid-panel warehouse-transfer-grid list-v2-list">
-                {visibleTransfers.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-transfers" {...screenViewGridDefaults(visibleTransferFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot} hideExport exportActionsRef={gridExportRef}><thead><tr>{visibleTransferFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleTransfers.map((transfer) => <tr key={transfer.id}>{visibleTransferFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{transfer.code}</span> : field.key === "transferDate" ? transfer.transferDate.split("-").reverse().join(".") : field.key === "fromWarehouseName" ? transfer.fromWarehouseName : field.key === "toWarehouseName" ? transfer.toWarehouseName : field.key === "lineCount" ? transfer.lineCount : field.key === "status" ? <span className={`quote-status ${transfer.status === "Posted" ? "accepted" : "rejected"}`}>{transfer.status === "Posted" ? "Kaydedildi" : "İptal edildi"}</span> : field.key === "createdAt" ? new Date(transfer.createdAt).toLocaleString("tr-TR") : field.key === "actions" ? <div className="warehouse-row-actions"><button type="button" className="row-action" onClick={() => void openTransfer(transfer)}>Kalemler</button>{transfer.status === "Posted" && <button type="button" className="row-action danger-action" disabled={busy} onClick={() => void voidTransfer(transfer)}>Transferi iptal et</button>}</div> : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
-                ) : (
-                  <div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>
-                )}
-              {transferTotal > 50 && (
-                <div className="table-pagination">
-                  <span>
-                    Sayfa {transferPage}/{Math.ceil(transferTotal / 50)}
-                  </span>
-                  <div>
-                    <button
-                      className="secondary small-button"
-                      disabled={transferPage <= 1}
-                      onClick={() => void loadTransfers(transferPage - 1)}
-                    >
-                      Önceki
-                    </button>
-                    <button
-                      className="secondary small-button"
-                      disabled={transferPage >= Math.ceil(transferTotal / 50)}
-                      onClick={() => void loadTransfers(transferPage + 1)}
-                    >
-                      Sonraki
-                    </button>
-                  </div>
-                </div>
-              )}
-              </section>
+              <InventoryTransferGrid
+                fields={visibleTransferFields}
+                transfers={visibleTransfers}
+                busy={busy}
+                onOpen={(transfer) => void openTransfer(transfer)}
+                onVoid={(transfer) => void voidTransfer(transfer)}
+                toolbarContainer={listToolsSlot}
+                exportActionsRef={gridExportRef}
+                empty={<div className="warehouse-empty compact"><span className="warehouse-empty-icon transfer"><IconPack.ArrowLeftRight size={18} /></span><div><b>{loading ? "Transferler yükleniyor…" : transfers.length ? "Aramayla eşleşen transfer yok" : "Henüz transfer kaydı yok"}</b>{!loading && <p>{transfers.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Bir depodan diğerine stok aktardığınızda geçmiş burada görünür."}</p>}</div></div>}
+                {...transferList.grid}
+              />
             </div>
           )}
           {section === "inventory-stock" &&

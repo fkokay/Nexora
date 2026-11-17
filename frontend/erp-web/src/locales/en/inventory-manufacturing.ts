@@ -738,6 +738,18 @@ export const english: Record<string, string> = {
   '2 harf, ör. DE': '2 letters, e.g. DE',
   '6–10 hane; 8443.32 yazabilirsiniz': '6–10 digits; you can type 8443.32',
   'HS kodu 6–10 rakam olmalıdır (nokta ve boşluk kabul edilir).': 'HS code must be 6–10 digits (dots and spaces are accepted).',
+  // Other Stok lists (Hareketler, Değerleme, Transferler, Lot / seri izleme): footer, cards, tags, detail.
+  '↑↓ gez · Boşluk işaretle': '↑↓ move · Space mark',
+  '↑↓ gez · Boşluk işaretle · Enter aç': '↑↓ move · Space mark · Enter open',
+  'Stok maliyetleri': 'Stock costs',
+  'Kalemler': 'Lines',
+  'Süresi geçmiş': 'Expired',
+  '30 gün içinde dolacak': 'Expiring within 30 days',
+  'Süresi geçti': 'Expired',
+  'Süresi yaklaşıyor': 'Expiring soon',
+  'Mevcut miktar': 'Quantity on hand',
+  'Son kullanma': 'Expiry',
+  'Son hareket': 'Last movement',
   // Stok Kartları list (summary cards, footer, detail panel, bulk delete).
   'bu sayfa': 'this page',
   'tüm depolarda': 'in all warehouses',

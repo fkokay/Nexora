@@ -304,28 +304,6 @@ html[data-theme="dark"] .secondary:hover,html[data-theme="dark"] .locale-switch 
 html[data-theme="dark"] .locale-switch button[aria-pressed="true"]{background:var(--nx-primary);color:#fff;box-shadow:none}
 html[data-theme="dark"] .inventory-stock-search{border-color:var(--erp-border);background:#131927;color:#a7b0c2}
 html[data-theme="dark"] .inventory-stock-search input{background:transparent;color:var(--erp-text)}
-html[data-theme="dark"] .inventory-cost-panel{border-color:var(--erp-border);background:linear-gradient(145deg,#191e2d 0%,#1b2232 62%,#202a3b 100%);box-shadow:0 7px 24px #05081224}
-html[data-theme="dark"] .inventory-cost-heading{border-color:var(--erp-border)}
-html[data-theme="dark"] .inventory-cost-title h2{color:var(--erp-text)}
-html[data-theme="dark"] .inventory-cost-title p:not(.eyebrow){color:var(--erp-muted)}
-html[data-theme="dark"] .inventory-cost-mark{border-color:#34445e;background:linear-gradient(145deg,#26354a,#242e44);color:#8ebcff}
-html[data-theme="dark"] .inventory-cost-count{border-color:var(--erp-border);background:#202638;color:var(--erp-muted)}
-html[data-theme="dark"] .inventory-cost-count b{color:#a8ceff}
-html[data-theme="dark"] .inventory-cost-card{border-color:var(--erp-border);background:#1b2231}
-html[data-theme="dark"] .inventory-cost-card:hover{border-color:#526b91;box-shadow:0 7px 18px #05081245}
-html[data-theme="dark"] .inventory-cost-code{color:#91a9ca}
-html[data-theme="dark"] .inventory-cost-card h3{color:var(--erp-text)}
-html[data-theme="dark"] .inventory-cost-manage{border-color:#3a506f;background:#222f43;color:#b6d4ff}
-html[data-theme="dark"] .inventory-cost-manage:hover:not(:disabled){border-color:#59769e;background:#2a3a53}
-html[data-theme="dark"] .inventory-cost-metrics>div{border-color:#30394d;background:#202638}
-html[data-theme="dark"] .inventory-cost-metrics span,html[data-theme="dark"] .inventory-cost-metrics b small{color:#a7b0c2}
-html[data-theme="dark"] .inventory-cost-metrics b{color:#e6eaf3}
-html[data-theme="dark"] .inventory-cost-card-foot{border-color:#30394d;color:#a7b0c2}
-html[data-theme="dark"] .inventory-cost-card-foot svg{color:#9aafcb}
-html[data-theme="dark"] .inventory-cost-empty{border-color:#3a455a;background:#202638}
-html[data-theme="dark"] .inventory-cost-empty>span{background:#29364a;color:#a9c7ef}
-html[data-theme="dark"] .inventory-cost-empty b{color:#e0e6f1}
-html[data-theme="dark"] .inventory-cost-empty p{color:#a7b0c2}
 html[data-theme="dark"] .warehouse-panel{background:var(--erp-surface);border-color:var(--erp-border);color:var(--erp-text)}
 html[data-theme="dark"] .warehouse-panel-heading{border-color:var(--erp-border)}
 html[data-theme="dark"] .warehouse-panel-heading h2,html[data-theme="dark"] .warehouse-row-info>b,html[data-theme="dark"] .warehouse-count b,html[data-theme="dark"] .warehouse-empty>div>b{color:var(--erp-text)}

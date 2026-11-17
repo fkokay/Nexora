@@ -1,74 +1,70 @@
 import { ShieldCheck } from "lucide-react";
+import { StatusTag } from "../../list-page/StatusTag";
+import { expiryState, localToday } from "../../inventory/trackingExpiry";
 import type { Balance } from "../types";
+import { TrackingExpiryTag } from "./TrackingExpiryTag";
 
 type Props = { balance: Balance | null };
 
+const date = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("tr-TR");
+
+/** Right-hand summary of the current lot / serial row (Stok Kartları detail panel look). Read-only. */
 export default function InventoryTrackingDetail({ balance }: Props) {
+  if (!balance)
+    return (
+      <aside className="inventory-stock-detail is-empty" aria-label="Seçili iz kaydı ayrıntısı">
+        <p>Bir lot veya seri seçin; ayrıntıları burada görün.</p>
+      </aside>
+    );
+  const expiry = expiryState(balance.expiryDate, localToday());
   return (
-    <aside
-      className="inventory-record-detail"
-      aria-label="Seçili iz kaydı ayrıntısı"
-    >
-      {balance ? (
-        <>
-          <header className="list-v2-detail-head">
-            <div>
-              <span className="list-v2-kind">
-                {balance.trackingMode === "Lot" ? "Lot" : "Seri"}
-              </span>
-              <h2>{balance.trackingCode}</h2>
-            </div>
-          </header>
-          <div className="list-v2-detail-meta">
-            <span>{balance.stockItemName}</span>
-            <span className="list-v2-detail-code">{balance.stockItemCode}</span>
-          </div>
-          <dl className="list-v2-facts">
-            <div>
-              <dt>Mevcut miktar</dt>
-              <dd>
-                {balance.quantityOnHand.toLocaleString("tr-TR", {
-                  maximumFractionDigits: 4,
-                })}{" "}
-                {balance.unitCode}
-              </dd>
-            </div>
-            <div>
-              <dt>Depo</dt>
-              <dd>
-                {balance.warehouseCode} · {balance.warehouseName}
-              </dd>
-            </div>
-            <div>
-              <dt>Son kullanma</dt>
-              <dd>
-                {balance.expiryDate
-                  ? new Date(
-                      balance.expiryDate + "T00:00:00",
-                    ).toLocaleDateString("tr-TR")
-                  : "Belirtilmemiş"}
-              </dd>
-            </div>
-            <div>
-              <dt>Son hareket</dt>
-              <dd>
-                {new Date(
-                  balance.lastMovementDate + "T00:00:00",
-                ).toLocaleDateString("tr-TR")}
-              </dd>
-            </div>
-          </dl>
-          <p className="inventory-detail-note">
-            <ShieldCheck size={14} aria-hidden="true" />
-            Bu ekran salt okunurdur. Stok hareketleri ilgili stok ve ambar
-            ekranından yönetilir.
-          </p>
-        </>
-      ) : (
-        <div className="inventory-detail-empty">
-          Bir lot veya seri seçin; ayrıntıları burada görün.
+    <aside className="inventory-stock-detail" aria-label="Seçili iz kaydı ayrıntısı">
+      <div className="inventory-stock-detail-head">
+        <div className="inventory-stock-detail-top">
+          <span className="nx-code">{balance.stockItemCode}</span>
         </div>
-      )}
+        <h3>{balance.trackingCode}</h3>
+        <div className="inventory-stock-detail-labels">
+          <StatusTag tone={balance.trackingMode === "Lot" ? "info" : "off"}>{balance.trackingMode === "Lot" ? "Lot" : "Seri"}</StatusTag>
+          {expiry && <TrackingExpiryTag state={expiry} />}
+        </div>
+      </div>
+      <div className="inventory-stock-detail-body">
+        <div className="inventory-stock-detail-stats">
+          <div>
+            <small>Mevcut miktar</small>
+            <b>
+              {balance.quantityOnHand.toLocaleString("tr-TR", { maximumFractionDigits: 4 })} {balance.unitCode}
+            </b>
+          </div>
+          <div>
+            <small>Son kullanma</small>
+            <b className={expiry === "expired" ? "is-low" : undefined}>
+              {balance.expiryDate ? date(balance.expiryDate) : "Belirtilmemiş"}
+            </b>
+          </div>
+        </div>
+        <dl className="inventory-stock-detail-facts">
+          <div>
+            <dt>Stok</dt>
+            <dd>{balance.stockItemName}</dd>
+          </div>
+          <div>
+            <dt>Depo</dt>
+            <dd>
+              {balance.warehouseCode} · {balance.warehouseName}
+            </dd>
+          </div>
+          <div>
+            <dt>Son hareket</dt>
+            <dd>{date(balance.lastMovementDate)}</dd>
+          </div>
+        </dl>
+        <p className="inventory-stock-detail-muted inventory-tracking-detail-note">
+          <ShieldCheck size={14} aria-hidden="true" />
+          <span>Bu ekran salt okunurdur. Stok hareketleri ilgili stok ve ambar ekranından yönetilir.</span>
+        </p>
+      </div>
     </aside>
   );
 }
