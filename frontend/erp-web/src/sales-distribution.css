@@ -42,7 +42,7 @@
 .sales-distribution-detail dl { margin: 0; }
 .sales-distribution-detail dl>div { display: flex; justify-content: space-between; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--nx-line); font-size: 11px; }
 .sales-distribution-detail dt { color: var(--nx-muted); }
-#root .sales-distribution-detail dd { margin: 0; font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; }
+#root .sales-distribution-page .sales-distribution-detail :is(dl, .list-v2-facts) dd { margin: 0; font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; }
 .sales-distribution-detail .sales-distribution-note { margin: 10px 0 0; padding: 0; color: var(--nx-muted); font-size: 12px; line-height: 1.45; }
 .sales-distribution-placeholder { display: grid; gap: 7px; color: var(--nx-muted); font-size: 11px; }
 .sales-distribution-placeholder b { color: var(--nx-text); font-size: 13px; }

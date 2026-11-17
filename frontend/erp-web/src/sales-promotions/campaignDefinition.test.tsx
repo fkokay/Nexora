@@ -216,6 +216,18 @@ describe('Kampanyalar definition screen', () => {
     expect(screen.getByRole('status').textContent).toContain('Kampanya güncellendi.');
   });
 
+  it('an unchanged form is not saved (Enter in a field sends nothing)', async () => {
+    renderPage();
+    await settle();
+    await select('KMP-KIS');
+    await act(async () => {
+      fireEvent.submit(field(/^Kampanya adı/).form!);
+    });
+    await settle();
+    expect(calls('PUT', /promotions/)).toHaveLength(0);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('a percent typed as the same number is not a change', async () => {
     renderPage();
     await settle();

@@ -152,7 +152,8 @@ export function useCampaignDefinitionScreen(o: Options) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!o.admin) return;
+    // Nothing to save (also Enter in a field of an unchanged form): no request, like Kaydet's disabled reason.
+    if (!o.admin || (mode === "edit" && !hasChanges) || busyRef.current) return;
     const editing = mode === "edit" ? (current ?? null) : null;
     if (mode === "edit" && !editing) return;
     const saved = await o.save(draft, editing);

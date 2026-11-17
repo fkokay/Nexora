@@ -48,7 +48,7 @@
 
 /* Right-hand form: read-only results and Teklife uygula sit in its cards (no box inside a card). */
 #root .sales-promotions-page .kmp-facts > div:last-child { border-bottom: 0; }
-#root .sales-promotions-page .kmp-facts dd { font-weight: 400; }
+#root .sales-promotions-page .list-v2-facts.kmp-facts dd { font-weight: 400; font-variant-numeric: tabular-nums; }
 #root .sales-promotions-page .kmp-hint {
   margin: 0;
   color: var(--nx-muted);
