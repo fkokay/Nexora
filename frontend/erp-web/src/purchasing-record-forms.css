@@ -59,11 +59,6 @@
 .record-form .rf-form .prf-line-controls { display: grid; grid-template-columns: minmax(84px, .7fr) minmax(96px, 1fr) minmax(130px, 1.4fr); gap: 8px; min-width: 330px; }
 .record-form.prf-return-form .ledger-list { max-height: min(32vh, 300px); overflow: auto; }
 
-/* Tedarikçi fatura taslağı satırları: mevcut satır kartı ızgarası korunur */
-.record-form .rf-form .sid-line .sid-wide { grid-column: 1 / -1; }
-.record-form .rf-form .sid-line-title { grid-column: 1 / -1; }
-.record-form .rf-form .sid-line-note { margin: 0; color: var(--rf-muted); font-size: 12px; }
-
 /* Cari özel alan değerleri listesi */
 .record-form .rf-form .customer-field-values-list { max-height: min(320px, 40vh); }
 

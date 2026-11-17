@@ -55,9 +55,18 @@ export const english: Record<string, string> = {
   'Belge UUID': 'Document UUID',
   'Belge senaryosu': 'Document scenario',
   'Fatura girmek için listeden bir mal kabul seçin.': 'Select a purchase receipt from the list to enter its invoice.',
+  // Satınalma create screens in the document create view (Faz 4 Task 5).
+  'Kaydedilme': 'Saved at',
+  'Faturalanabilir mal kabuller': 'Invoiceable purchase receipts',
+  'Bağımsız tedarikçi faturası özeti': 'Standalone supplier invoice summary',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) · (\d+) satır$/, '$1 · $2 lines'],
   [/^Vade (\d{2}\.\d{2}\.\d{4}) · (\d+) gün$/, 'Due $1 · $2 days'],
+  // Line fields of the purchase order and supplier invoice draft grids (Faz 4 Task 5).
+  [/^Satır (\d+) tutar$/, 'Line $1 amount'],
+  [/^Satır (\d+) açıklama$/, 'Line $1 description'],
+  [/^Satır (\d+) vergi tutarı$/, 'Line $1 tax amount'],
+  [/^Satır (\d+) gider hesabı$/, 'Line $1 expense account'],
 ]

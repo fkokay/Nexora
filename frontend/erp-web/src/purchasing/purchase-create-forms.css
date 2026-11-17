@@ -1,0 +1,59 @@
+/*
+ * Satınalma oluşturma ekranları (belge oluşturma görünümü, taslak 02). Ortak görünüm belge takımındadır
+ * (record-form `document`, document-detail / document-page CSS); burada yalnızca ekranlara özgü ayrıntılar durur.
+ * Renkler yalnızca --nx-* belirteçleri.
+ */
+
+/* Yeni satınalma siparişi: stok arama listesi (AsyncStockItemPicker) satır ızgarasının altına açılır. Izgara yatay
+   kaydığı için liste açıkken ızgaranın altında yer açılır; liste kırpılmaz. */
+#root .doc-form.purchase-order-create .dd-lines-wrap:has(.async-stock-picker-results) { padding-bottom: 270px; }
+#root .doc-form.purchase-order-create td.dd-stock-cell .async-stock-picker { position: relative; min-width: 220px; }
+#root .app-shell .doc-form.purchase-order-create td.dd-stock-cell .async-stock-picker > input {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-text);
+  font-size: 12.5px;
+}
+#root .app-shell .doc-form.purchase-order-create td.dd-stock-cell .async-stock-picker > input:hover { border-color: var(--nx-line); }
+#root .app-shell .doc-form.purchase-order-create td.dd-stock-cell .async-stock-picker > input:focus {
+  border-color: var(--nx-primary);
+  outline: none;
+}
+#root .doc-form.purchase-order-create td.dd-total output { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .doc-form.purchase-order-create .po-create-note { position: relative; }
+#root .doc-form.purchase-order-create .po-create-note .sales-invoice-note-counter {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  color: var(--nx-muted);
+  font-size: 11px;
+}
+
+/* Mal kabul faturası girişi: yalnızca okunan satırlar (mal kabul satırları). */
+#root .doc-form.pie-create table.dd-lines td { white-space: nowrap; }
+/* The due date note sits on the date fields' input line. */
+#root .app-shell .doc-form.pie-create .rf-group-body > p.pie-create-due {
+  align-self: end;
+  margin: 0;
+  padding: 0 0 7px;
+  color: var(--nx-muted);
+  font-size: 12px;
+}
+#root .doc-form.pie-create .pie-create-edoc { grid-column: 1 / -1; }
+#root .doc-form.pie-create .pie-create-edoc > summary { cursor: pointer; color: var(--nx-text); font-size: 12.5px; font-weight: 600; }
+#root .doc-form.pie-create .pie-create-edoc > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+@media (max-width: 1100px) {
+  #root .doc-form.pie-create .pie-create-edoc > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  #root .doc-form.pie-create .pie-create-edoc > div { grid-template-columns: minmax(0, 1fr); }
+}

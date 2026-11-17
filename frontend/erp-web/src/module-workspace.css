@@ -3301,7 +3301,7 @@ html[data-theme="dark"] #root .customer-directory-toolbar .customer-filter-refre
 #root .workspace-content.standard-list-screen .workspace-page-main :is(
   .erp-list-pane, .inventory-list-pane, .customer-table-wrap, .contracts-table-wrap,
   .crm-table-wrap, .credit-table-wrap, .hr-table-wrap, .manufacturing-table-wrap,
-  .payment-instrument-table-wrap, .report-table-wrap, .pie-table-wrap, .sid-table-wrap,
+  .payment-instrument-table-wrap, .report-table-wrap,
   .module-ui-table-wrap, .sales-distribution-table-wrap, .cash-forecast-table-wrap,
   .integration-queue-table-wrap, .table-wrap, .ledger-list, .customer-ledger-table-panel
 ) { min-width: 0; overflow: auto; border: 1px solid var(--erp-workbench-border); border-radius: 12px; background: var(--erp-workbench-surface); box-shadow: var(--erp-workbench-shadow); }
@@ -3311,7 +3311,7 @@ html[data-theme="dark"] #root .customer-directory-toolbar .customer-filter-refre
 #root .workspace-content.standard-list-screen .workspace-page-main table :is(th, td) { border-bottom-color: #e7ebf2; }
 #root .workspace-content.standard-list-screen .workspace-page-main table th { min-height: 40px; background: #f4f6fb; color: #52617a; font-size: 10px; font-weight: 700; }
 #root .workspace-content.standard-list-screen .workspace-page-main table tbody tr:hover > td { background: #f8f9fd; }
-html[data-theme="dark"] #root .workspace-content.standard-list-screen .workspace-page-main :is(.page-heading:has(h1), .screen-page-header, .customer-ledger-heading, .customer-directory-toolbar, .customer-ledger-filters, .inventory-movements-filters, .credit-filters, .contracts-filters, .foreign-trade-filters, .payment-instrument-filters, .op-project-filters, .manufacturing-cost-filters, .audit-log-filters, .finance-filters, .erp-list-pane, .inventory-list-pane, .customer-table-wrap, .contracts-table-wrap, .crm-table-wrap, .credit-table-wrap, .hr-table-wrap, .manufacturing-table-wrap, .payment-instrument-table-wrap, .report-table-wrap, .pie-table-wrap, .sid-table-wrap, .module-ui-table-wrap, .sales-distribution-table-wrap, .cash-forecast-table-wrap, .integration-queue-table-wrap, .table-wrap, .ledger-list, .customer-ledger-table-panel) { border-color: #35435b; background: #1a263a; }
+html[data-theme="dark"] #root .workspace-content.standard-list-screen .workspace-page-main :is(.page-heading:has(h1), .screen-page-header, .customer-ledger-heading, .customer-directory-toolbar, .customer-ledger-filters, .inventory-movements-filters, .credit-filters, .contracts-filters, .foreign-trade-filters, .payment-instrument-filters, .op-project-filters, .manufacturing-cost-filters, .audit-log-filters, .finance-filters, .erp-list-pane, .inventory-list-pane, .customer-table-wrap, .contracts-table-wrap, .crm-table-wrap, .credit-table-wrap, .hr-table-wrap, .manufacturing-table-wrap, .payment-instrument-table-wrap, .report-table-wrap, .module-ui-table-wrap, .sales-distribution-table-wrap, .cash-forecast-table-wrap, .integration-queue-table-wrap, .table-wrap, .ledger-list, .customer-ledger-table-panel) { border-color: #35435b; background: #1a263a; }
 html[data-theme="dark"] #root .workspace-content.standard-list-screen .workspace-page-main table th { background: #202b40; color: #d5deec; }
 html[data-theme="dark"] #root .workspace-content.standard-list-screen .workspace-page-main table tbody tr:hover > td { background: #202d42; }
 #root .workspace-content.standard-list-screen .workspace-page-main :is(.erp-list-pane, .inventory-list-pane) { overflow: visible; }
