@@ -1,0 +1,318 @@
+<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>Satış taslağı</title><style>
+:root{--ink:#0f1b2d;--ink2:#1a2a40;--pri:#1f5fd1;--pri-d:#1846a3;--pri-soft:#e8f0fd;--bg:#f3f5f8;--line:#dfe3e9;--line2:#eef1f4;--tx:#1b2430;--mut:#667085;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b45309;--warn-bg:#fdf1e1;--bad:#c4321f;--bad-bg:#fde9e6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto;margin-bottom:14px}
+.nx{min-width:1720px;font-size:12.5px;display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.k{font-family:Consolas,monospace;font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;white-space:nowrap}
+/* sidebar */
+.side{width:58px;background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0}
+.side .lg{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1f5fd1);margin-bottom:10px}
+.side .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8193ab;font-size:10px;flex-direction:column;gap:1px}
+.side .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.side .ic.on{background:var(--ink2);color:#fff;box-shadow:inset 3px 0 0 #3b82f6}
+.sub-nav{width:178px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.sub-nav .h{font-weight:650;font-size:13.5px;padding:2px 8px 10px}
+.sub-nav .it{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between;color:#344054}
+.sub-nav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.sub-nav .it small{color:var(--mut)}
+.sub-nav .g{font-size:10px;letter-spacing:.08em;color:var(--mut);margin:14px 8px 4px}
+.sub-nav .fav{color:#344054;padding:5px 8px;display:flex;gap:6px}
+.sub-nav .fav b{color:#e0a100}
+/* app */
+.app{flex:1;display:flex;flex-direction:column;min-width:0}
+.topb{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.srch{width:320px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+.wtabs{display:flex;gap:2px;flex:1;align-self:flex-end}
+.wtabs span{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0;background:var(--bg);color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
+.wtabs .on{background:#fff;color:var(--tx);font-weight:600;position:relative;top:1px}
+.wtabs i{font-style:normal;color:#98a2b3}
+.tr{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12px}
+.bell{position:relative}.bell b{position:absolute;top:-6px;right:-8px;background:var(--bad);color:#fff;border-radius:999px;font-size:9px;padding:0 4px}
+.av{width:26px;height:26px;border-radius:50%;background:#dbe6fb;color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.page{background:#fff;flex:1;display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.ph .bc{color:var(--mut);font-size:11.5px}
+.ph h2{margin:1px 0 0;font-size:19px;font-weight:650;display:flex;gap:10px;align-items:center}
+.ph h2 .star{color:#e0a100;font-size:15px}
+.vsel{border:1px solid var(--line);border-radius:7px;padding:5px 10px;display:flex;gap:8px;align-items:center;color:#344054}
+.vsel b{color:var(--tx)}
+.vtabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.vtabs span{padding:7px 12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.vtabs span em{font-style:normal;background:#eef0f3;border-radius:999px;padding:0 7px;font-size:11px;color:#475467}
+.vtabs .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.vtabs .on em{background:var(--pri-soft);color:var(--pri-d)}
+.vtabs .r em{background:var(--bad-bg);color:var(--bad)}
+.vtabs .add{color:var(--pri)}
+.bar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.b{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--tx);font-weight:500;white-space:nowrap}
+.b svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.b.pri{background:var(--pri);color:#fff}.b.pri .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.b.off{opacity:.38}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.b.more{border:1px solid var(--line);background:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:6px}
+.seg span{padding:4px 8px;color:var(--mut)}.seg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+/* body */
+.wrap{display:flex;flex:1;min-height:0}
+.facet{width:200px;border-right:1px solid var(--line);padding:12px 12px;background:#fcfcfd;flex-shrink:0}
+.facet .ft{display:flex;justify-content:space-between;font-weight:650;margin-bottom:8px}
+.facet .ft a{font-weight:400;color:var(--pri);font-size:11.5px}
+.facet .fg{margin-bottom:14px}
+.facet .fg .t{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-bottom:5px;text-transform:uppercase}
+.facet .o{display:flex;align-items:center;gap:7px;padding:3px 0;color:#344054}
+.facet .o small{margin-left:auto;color:var(--mut)}
+.cb{width:13px;height:13px;border:1.5px solid #b8c0cc;border-radius:3px;display:inline-block;flex-shrink:0;position:relative;background:#fff}
+.cb.on{background:var(--pri);border-color:var(--pri)}
+.cb.on::after{content:"";position:absolute;left:3px;top:0px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rng{height:4px;background:#e8ebef;border-radius:3px;position:relative;margin:10px 4px 6px}
+.rng i{position:absolute;left:0;width:35%;height:100%;background:var(--pri);border-radius:3px}
+.rng b{position:absolute;top:-5px;width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--pri)}
+.rngl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px 4px}
+.mk>div{border:1px solid var(--line);border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:10px}
+.mk .icn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mk .tx{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.mk small{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.mk b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
+.mk .tr2{font-size:11px}
+.mk svg.sp{margin-left:auto;width:70px;height:26px}
+.mk .act{border-color:#f0b4ab;background:#fff8f7}
+.chips{display:flex;gap:6px;padding:8px 14px;align-items:center;flex-wrap:wrap}
+.q{width:340px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.r{border-color:#f0b4ab;background:var(--bad-bg);color:var(--bad)}
+.chips .clr{color:var(--pri);font-size:12px}
+.chips .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px}
+.gridw{flex:1;min-height:0;position:relative;border-top:1px solid var(--line);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:#475467;background:#f7f8fa;padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+th .fi{color:#98a2b3;margin-left:3px;font-size:10px}
+th.s{color:var(--pri-d)}
+td{padding:6px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:Consolas,monospace;font-size:12px;color:#344054}
+tr.grp td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px}
+tr.grp td .c{color:var(--mut);font-weight:400}
+tr.sel td{background:var(--pri-soft)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+tr.chk td{background:#f5f9ff}
+tr.tot td{background:#f7f8fa;font-weight:650;border-top:1px solid var(--line)}
+.tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}.t-off{background:#eef0f3;color:#667085}
+.low{color:var(--bad);font-weight:600}
+.lvl{display:inline-block;width:44px;height:5px;border-radius:3px;background:#e8ebef;vertical-align:middle;margin-left:6px;overflow:hidden}
+.lvl i{display:block;height:100%}
+.edit{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important;border-radius:3px}
+.edit::after{content:"|";color:var(--pri);margin-left:1px}
+.thumb{width:22px;height:22px;border-radius:5px;background:#eef1f5;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid var(--line2)}
+.bulk{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:7px 8px 7px 14px;display:flex;gap:4px;align-items:center;box-shadow:0 8px 24px rgba(15,27,45,.35);white-space:nowrap}
+.bulk b{margin-right:8px}
+.bulk span{padding:5px 9px;border-radius:6px;color:#d6deea}
+.bulk span:hover{background:var(--ink2)}
+.bulk .x{color:#8193ab}
+/* detail */
+.det{width:330px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.det .hd{padding:12px 14px 8px;border-bottom:1px solid var(--line2)}
+.det .hd .top{display:flex;justify-content:space-between;color:var(--mut)}
+.det h3{margin:4px 0 6px;font-size:15px}
+.det .dt{display:flex;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}
+.det .dt span{padding:8px 0;color:var(--mut)}.det .dt .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.det .bd{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.st4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st4 div{background:#f7f8fa;border-radius:8px;padding:7px 9px}
+.st4 small{display:block;color:var(--mut);font-size:11px}
+.st4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.sect{font-size:11px;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;display:flex;justify-content:space-between}
+.sect a{color:var(--pri);text-transform:none;letter-spacing:0}
+.whr{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:2px 0}
+.whr .br{height:7px;background:#eef1f4;border-radius:4px;overflow:hidden}.whr .br i{display:block;height:100%;background:var(--pri)}
+.whr b{text-align:right}
+.sugg{border:1px solid #f3cf9c;background:#fffaf2;border-radius:8px;padding:9px 11px;font-size:12px}
+.sugg b{color:var(--warn)}
+.sugg .btns{display:flex;gap:6px;margin-top:7px}
+.sugg .btns span{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px}
+.sugg .btns .p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.foot{display:flex;justify-content:space-between;padding:7px 16px;border-top:1px solid var(--line);background:#fafbfc;color:var(--mut);font-size:11.5px}
+.foot b{color:var(--tx)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin:0 0 34px}
+.notes div{border-left:3px solid var(--pri);padding:2px 10px;background:#fff;border-radius:0 6px 6px 0}
+/* form */
+.fh{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line)}
+.fh .id{display:flex;gap:12px;align-items:center}
+.fh .img{width:46px;height:46px;border-radius:9px;background:#eef1f5;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:10px}
+.fh h2{margin:0;font-size:18px;font-weight:650}
+.fh .m{color:var(--mut);font-size:12px;margin-top:3px;display:flex;gap:10px;align-items:center}
+.fh .rt{display:flex;gap:10px;align-items:center;color:var(--mut)}
+.dirty{color:var(--warn);display:flex;gap:6px;align-items:center}.dirty i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rnav{display:flex;border:1px solid var(--line);border-radius:6px}.rnav span{padding:3px 8px}.rnav span+span{border-left:1px solid var(--line)}
+.fbody{display:flex;flex:1;min-height:0;background:var(--bg);overflow:hidden}
+.snav{width:210px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.snav .it{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;color:#344054}
+.snav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.snav .st{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.snav .done{background:var(--ok-bg);color:var(--ok)}.snav .err{background:var(--bad-bg);color:var(--bad)}.snav .emp{border:1.5px solid #cfd5dd}
+.snav .it small{margin-left:auto;color:var(--mut)}
+.snav .prog{margin:14px 8px 0;font-size:11.5px;color:var(--mut)}
+.snav .pb{height:5px;background:#eef1f4;border-radius:3px;margin-top:5px;overflow:hidden}.snav .pb i{display:block;width:72%;height:100%;background:var(--ok)}
+.fmain{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card .ct{font-weight:650;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card .ct small{font-weight:400;color:var(--mut)}
+.fg3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.w2{grid-column:span 2}.w3{grid-column:span 3}
+.f label{display:flex;justify-content:space-between;font-size:11.5px;color:#475467;margin-bottom:3px;font-weight:500}
+.f label b{color:var(--bad)}.f label i{font-style:normal;color:#98a2b3;font-weight:400}
+.inp{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;background:#fff;min-height:31px;display:flex;justify-content:space-between;align-items:center}
+.inp.focus{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.inp.ro{background:#f6f7f9;color:var(--mut)}
+.inp.errb{border-color:var(--bad);background:#fffafa}
+.inp .suf{color:var(--mut);font-size:11.5px}
+.hint{font-size:11px;color:var(--mut);margin-top:3px}.hint.e{color:var(--bad)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:var(--pri);position:relative;vertical-align:middle;margin-right:6px}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.ut td,.ut th{padding:5px 8px}
+.ut td{border-bottom:1px solid var(--line2)}
+.ut .add{color:var(--pri)}
+.ctx{width:300px;padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.rel{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.rel .code{font-size:11.5px}
+.tl{position:relative;padding-left:14px;font-size:12px;color:#344054}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.tl div{position:relative;padding:3px 0}
+.tl div::before{content:"";position:absolute;left:-13px;top:8px;width:7px;height:7px;border-radius:50%;background:#cfd5dd}
+.tl div:first-child::before{background:var(--pri)}
+.tl small{color:var(--mut)}
+
+.map{width:100%;max-width:1300px;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.map th{background:#f7f8fa;text-align:left;padding:8px 12px;font-size:12px;color:#475467}
+.map td{padding:7px 12px;border-top:1px solid var(--line2);color:var(--tx)}
+.note2{font-size:13px;color:#344054;margin:10px 0 0;max-width:1300px}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d)}
+</style></head><body><h1>Satış modülü — ekran eşlemesi ve liste taslağı</h1>
+<p class="sub">Satış'ın 12 ekranı mevcut ekran tiplerine oturuyor. Belge ekranları onaylı taslak 02 (Satış Faturası) ile, listeler Stok Kartları'nda uygulanan liste tipiyle yapılır. Aşağıda Satış Faturaları listesinin taslağı var.</p>
+
+<div class="lbl">1 · EKRAN EŞLEMESİ</div>
+<table class="map">
+ <tr><th>Ekran</th><th>Liste (tip A)</th><th>Belge / kayıt</th><th>Not</th></tr>
+ <tr><td>Satış Talepleri</td><td>✓</td><td>Belge (taslak 02)</td><td>Durum: Yeni · İletildi · Teklife dönüştü · Kapandı</td></tr>
+ <tr><td>Satış Teklifleri</td><td>✓</td><td>Belge (taslak 02)</td><td>PDF/Yazdır mevcut → çubukta Yazdır</td></tr>
+ <tr><td>Satış Siparişleri</td><td>✓</td><td>Belge (taslak 02)</td><td>Stok ayır / İrsaliye oluştur → İşlemler</td></tr>
+ <tr><td>Satış İrsaliyeleri</td><td>✓</td><td>Belge (taslak 02)</td><td>Faturalaştır → İşlemler</td></tr>
+ <tr><td>Satış Faturaları</td><td>✓ (aşağıda)</td><td>Belge (taslak 02)</td><td>Kesilmiş fatura silinmez → İptal İşlemler'de</td></tr>
+ <tr><td>Satış İadeleri</td><td>✓</td><td>Belge (taslak 02)</td><td>Satınalma iadeleriyle ortak bileşen</td></tr>
+ <tr><td>Kampanyalar</td><td>—</td><td>Tanım ekranı (taslak 04-alt)</td><td>Solda kampanya listesi, sağda form</td></tr>
+ <tr><td>Dağıtım planı</td><td>—</td><td>Özel (harita)</td><td>Yalnızca çerçeve + çubuk + renkler; düzen aynı kalır</td></tr>
+</table>
+<p class="note2">Detay başlıklarındaki iş akışı düğmeleri (İletildi yap, Kabul et, Faturayı iptal et…) belge düzenine geçerken başlıktan kalkar; durum akışı şeridi + İşlemler menüsü olur (şu an ikisi birden görünüyor).</p>
+
+<div class="lbl" style="margin-top:22px">2 · LİSTE EKRANI — SATIŞ FATURALARI</div>
+<div class="scroll"><div class="nx" style="height:640px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+ </div>
+ <div class="sub-nav">
+  <div class="h">Satış</div>
+  <div class="it">Satış Talepleri</div>
+  <div class="it">Satış Teklifleri</div>
+  <div class="it">Satış Siparişleri</div>
+  <div class="it">Satış İrsaliyeleri</div>
+  <div class="it on">Satış Faturaları</div>
+  <div class="it">Satış İadeleri</div>
+  <div class="it">Dağıtım planı</div>
+  <div class="it">Kampanyalar</div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Hızlı ara<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Stok Kartları <i>×</i></span><span class="on">Satış Faturaları <i>×</i></span></div>
+   <div class="tr"><span>Demo Gıda A.Ş. ▾</span><span class="bell">🔔<b>3</b></span><div class="av">D</div></div>
+  </div>
+  <div class="page">
+   <div class="ph" style="padding-bottom:8px"><div><div class="bc">Ana Sayfa › Satış ›</div><h2>Satış Faturaları <small style="font-size:12.5px;color:var(--mut);font-weight:400">128 kayıt</small></h2></div></div>
+   <div class="bar">
+    <div class="b pri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <div class="b more">İşlemler ▾<span class="k">Alt+İ</span></div>
+   </div>
+   <div class="wrap">
+    <div class="center">
+     <div class="mk">
+      <div><div class="icn" style="background:#e8f0fd;color:#1f5fd1">₺</div><div class="tx"><small>Bu ay kesilen</small><b>₺2.418.300</b><span class="tr2" style="color:var(--mut)">bu sayfa · 42 fatura</span></div></div>
+      <div><div class="icn" style="background:#fdf1e1;color:#b45309">◷</div><div class="tx"><small>Tahsil edilmemiş</small><b style="color:var(--warn)">₺612.450</b><span class="tr2" style="color:var(--mut)">bu sayfa</span></div><span style="margin-left:auto;color:var(--mut);font-size:11px">Filtrele</span></div>
+      <div class="act"><div class="icn" style="background:#fde9e6;color:#c4321f">!</div><div class="tx"><small>Vadesi geçen</small><b style="color:var(--bad)">7</b><span class="tr2" style="color:var(--bad)">₺184.250</span></div><span style="margin-left:auto;color:var(--bad);font-size:11px">süzülüyor ✕</span></div>
+      <div><div class="icn" style="background:#eef0f3;color:#667085">⊘</div><div class="tx"><small>İptal</small><b>3</b><span class="tr2" style="color:var(--mut)">bu sayfa</span></div><span style="margin-left:auto;color:var(--mut);font-size:11px">Filtrele</span></div>
+     </div>
+     <div class="chips">
+      <div class="q">Fatura no veya müşteriyle ara…</div>
+      <span class="chip">Tümü 128</span><span class="chip" style="background:#fff;border-color:var(--line);color:#344054">Kesildi 125</span><span class="chip" style="background:#fff;border-color:var(--line);color:#344054">İptal 3</span>
+      <span class="chip r">Vadesi geçen ✕</span>
+      <span class="rt"><span>Tarih: Bu ay ▾</span><span>Sütunlar ▾</span></span>
+     </div>
+     <div class="gridw">
+      <table>
+       <tr><th style="width:28px"><span class="cb"></span></th><th>Fatura no</th><th>Tarih</th><th>Müşteri</th><th>İrsaliye</th><th>Sipariş</th><th>Vade</th><th class="num">Genel toplam</th><th class="num">Kalan</th><th>Durum</th></tr>
+       <tr class="sel"><td><span class="cb"></span></td><td class="code">FTR-0981</td><td>02.11.2026</td><td>Akdeniz Gıda A.Ş.</td><td class="code">IRS-0981</td><td class="code">SIP-0411</td><td style="color:var(--bad)">12.11 · 5 gün</td><td class="num">66.857,70</td><td class="num" style="color:var(--bad)">66.857,70</td><td><span class="tag t-bad">Vadesi geçti</span></td></tr>
+       <tr><td><span class="cb"></span></td><td class="code">FTR-0977</td><td>01.11.2026</td><td>Anadolu Market A.Ş.</td><td class="code">IRS-0975</td><td class="code">SIP-0405</td><td style="color:var(--bad)">11.11 · 6 gün</td><td class="num">18.450,00</td><td class="num" style="color:var(--bad)">9.200,00</td><td><span class="tag t-bad">Vadesi geçti</span></td></tr>
+       <tr><td><span class="cb"></span></td><td class="code">FTR-0969</td><td>30.10.2026</td><td>Ege Gıda Ltd.</td><td class="code">IRS-0966</td><td class="code">—</td><td style="color:var(--bad)">09.11 · 8 gün</td><td class="num">31.200,00</td><td class="num" style="color:var(--bad)">31.200,00</td><td><span class="tag t-bad">Vadesi geçti</span></td></tr>
+       <tr><td><span class="cb"></span></td><td class="code">FTR-0960</td><td>28.10.2026</td><td>Marmara Toptan</td><td class="code">IRS-0957</td><td class="code">SIP-0398</td><td style="color:var(--bad)">07.11 · 10 gün</td><td class="num">12.300,00</td><td class="num" style="color:var(--bad)">4.100,00</td><td><span class="tag t-bad">Vadesi geçti</span></td></tr>
+      </table>
+     </div>
+    </div>
+    <div class="det">
+     <div class="hd">
+      <div class="top"><span class="code">FTR-0981</span><span>⤢ Aç <span class="k">Enter</span></span></div>
+      <h3>Akdeniz Gıda A.Ş.</h3>
+      <span class="tag t-ok">Kesildi</span> <span class="tag t-bad">Vadesi geçti · 5 gün</span>
+     </div>
+     <div class="dt"><span class="on">Özet</span><span>Satırlar</span><span>Tahsilat</span></div>
+     <div class="bd">
+      <div class="st4">
+       <div><small>Genel toplam</small><b>₺66.857,70</b></div>
+       <div><small>Kalan</small><b class="low">₺66.857,70</b></div>
+       <div><small>Matrah</small><b>₺56.830,75</b></div>
+       <div><small>KDV</small><b>₺10.026,95</b></div>
+      </div>
+      <div><div class="sect">Belge zinciri</div>
+       <div class="rel"><span><span class="code">SIP-0411</span> Satış siparişi</span><b>›</b></div>
+       <div class="rel"><span><span class="code">IRS-0981</span> Satış irsaliyesi</span><b>›</b></div>
+       <div class="rel" style="border:none"><span><span class="code">FTR-0981</span> Bu fatura</span><b></b></div>
+      </div>
+      <div><div class="sect">Satırlar <a>tümü</a></div>
+       <div class="rel"><span>Koli 40×30×30 · 500 Adet</span><b>₺17.500</b></div>
+       <div class="rel"><span>Polietilen granül 25 kg · 20</span><b>₺22.320</b></div>
+       <div class="rel" style="border:none"><span>+3 satır</span><b></b></div>
+      </div>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+E Excel</span><span>Gösterilen 4 / 128 · Sayfa 1 / 32 ‹ ›</span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="notes">
+ <div><b>Özet kartları</b> — yalnızca mevcut veriden: bu ay kesilen, tahsil edilmemiş (Kalan &gt; 0), vadesi geçen (tıklayınca süzer), iptal. Sayfa kapsamlıysa "bu sayfa" yazar.</div>
+ <div><b>Durum etiketi</b> — Kesildi (yeşil), İptal (gri), Vadesi geçti (kırmızı, vade + kalan &gt; 0). "Taslak/Onaylı" Faz 4 (bugün fatura durumu yalnızca Kesildi/İptal).</div>
+ <div><b>Satır seçimi</b> — Excel (seçilenler); kesilmiş fatura silinmez, Sil soluk + nedeni. İptal İşlemler menüsünde, bugünkü koşullarla.</div>
+ <div><b>Detay paneli</b> — Özet (tutarlar), belge zinciri (sipariş → irsaliye → fatura) ve satırlar; Tahsilat sekmesi yalnız mevcut veriyle. Faturayı açınca taslak 02 belge ekranı.</div>
+</div>
+</body></html>
