@@ -45,6 +45,8 @@ html[data-theme="dark"] .doc-surface.doc-surface-floating { background: #10141f;
   border-radius: 8px;
   background: var(--doc-paper);
 }
+/* İşlem çubuğu başlık çubuğunun altında; boşluğu başlığın alt boşluğu verir. */
+.doc-surface > .nx-action-bar-slot:not(:empty) { padding-top: 0; margin: 0 0 12px; }
 .doc-surface .doc-surface-back {
   display: inline-grid;
   place-items: center;

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefCallback } from 'react';
 import { useCommandRegistry } from '../commands/CommandProvider';
 
 type SlotContextValue = {
@@ -10,12 +10,24 @@ type SlotContextValue = {
 
 const SlotContext = createContext<SlotContextValue | null>(null);
 
+/**
+ * A page's CSS may hide the block that holds a slot (a list header while its record form or an open document is
+ * shown). The empty slot itself has no size, so its ancestors up to the view are checked for `display: none`.
+ */
+function hiddenByStyle(slot: HTMLElement, view: Element): boolean {
+  for (let node = slot.parentElement; node && node !== view; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') return true;
+  }
+  return false;
+}
+
 function visibleSlotOfView(slots: Set<HTMLElement>, activeView: string | undefined): HTMLElement | null {
   if (activeView === undefined) return null;
   let first: HTMLElement | null = null;
   for (const slot of slots) {
-    if (slot.closest('[data-nx-view]')?.getAttribute('data-nx-view') !== activeView) continue;
-    if (slot.closest('[hidden]')) continue;
+    const view = slot.closest('[data-nx-view]');
+    if (!view || view.getAttribute('data-nx-view') !== activeView) continue;
+    if (slot.closest('[hidden]') || hiddenByStyle(slot, view)) continue;
     // First in DOM order, not registration order.
     if (!first || slot.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) first = slot;
   }
@@ -38,7 +50,21 @@ export function ActionBarSlotProvider({ breadcrumb, children }: { breadcrumb: Re
       return next;
     });
   }, []);
-  const target = useMemo(() => visibleSlotOfView(slots, activeView), [slots, activeView]);
+  // A CSS rule can hide or show a slot's block without any slot mounting: the slots' parents are observed and the
+  // target is recomputed when one of them changes size (display: none reports 0 × 0).
+  const [layoutVersion, setLayoutVersion] = useState(0);
+  const target = useMemo(() => visibleSlotOfView(slots, activeView), [slots, activeView, layoutVersion]);
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  useEffect(() => {
+    if (typeof ResizeObserver !== 'function' || !slots.size) return;
+    const observer = new ResizeObserver(() => {
+      // Only a different target re-renders: the bar moving into a slot resizes its parent too.
+      if (visibleSlotOfView(slots, registry.getActiveView()) !== targetRef.current) setLayoutVersion((version) => version + 1);
+    });
+    for (const slot of slots) if (slot.parentElement) observer.observe(slot.parentElement);
+    return () => observer.disconnect();
+  }, [slots, registry]);
   const value = useMemo(() => ({ target, breadcrumb, register }), [target, breadcrumb, register]);
   return <SlotContext.Provider value={value}>{children}</SlotContext.Provider>;
 }

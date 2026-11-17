@@ -448,10 +448,14 @@ export default function CrmOpportunitiesPage({
 
   return (
     <div className={`crm-page list-v2${createOpen ? " crm-page--form" : ""}`}>
-      <CrmOpportunityHeader
-        onCreate={() => setCreateOpen(true)}
-        total={listLoading && totalCount === 0 ? null : totalCount}
-      />
+      {/* The open form is the page (the CSS hides the rest): its own slot takes the action bar, so the list header,
+          which holds the list's slot, is not mounted meanwhile. */}
+      {!createOpen && (
+        <CrmOpportunityHeader
+          onCreate={() => setCreateOpen(true)}
+          total={listLoading && totalCount === 0 ? null : totalCount}
+        />
+      )}
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}

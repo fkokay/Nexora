@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ActionBar } from './ActionBar';
@@ -157,5 +157,95 @@ describe('slot order', () => {
     // The earlier-in-DOM slot registered later, and still wins.
     expect(screen.getByTestId('first').contains(toolbars()[0])).toBe(true);
     expect(toolbars()).toHaveLength(1);
+  });
+});
+
+describe('slots hidden by page CSS', () => {
+  // Vitest does not load the screens' CSS; the rules below stand in for crm-opportunities.css and document-page.css.
+  function withStyle(css: string) {
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }
+
+  it('skips a slot whose block a CSS rule hides and takes the next visible one', () => {
+    const removeStyle = withStyle('.form-open > .list-head { display: none; }');
+    render(
+      <CommandProvider><ActionBarSlotProvider breadcrumb={null}>
+        <ActionBar locale="tr" />
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <div className="form-open">
+            <div className="list-head"><div data-testid="list"><ActionBarSlot /></div></div>
+            <div data-testid="form"><ActionBarSlot /></div>
+          </div>
+        </KeepAliveViews>
+      </ActionBarSlotProvider></CommandProvider>,
+    );
+    expect(screen.getByTestId('form').contains(toolbars()[0])).toBe(true);
+    expect(toolbars()).toHaveLength(1);
+    removeStyle();
+  });
+
+  it('follows a CSS-only change of the slot block (reported by the ResizeObserver)', () => {
+    const removeStyle = withStyle('.form-open > .list-head { display: none; }');
+    const callbacks: Array<() => void> = [];
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { callbacks.push(callback); }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    function Page({ formOpen }: { formOpen: boolean }) {
+      return (
+        <CommandProvider><ActionBarSlotProvider breadcrumb={null}>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="v" openKeys={['v']}>
+            <div className={formOpen ? 'form-open' : undefined}>
+              <div className="list-head"><div data-testid="list"><ActionBarSlot /></div></div>
+              <div data-testid="other"><ActionBarSlot /></div>
+            </div>
+          </KeepAliveViews>
+        </ActionBarSlotProvider></CommandProvider>
+      );
+    }
+    const { rerender } = render(<Page formOpen={false} />);
+    expect(screen.getByTestId('list').contains(toolbars()[0])).toBe(true);
+    // Only a class changes: no slot mounts or unmounts.
+    rerender(<Page formOpen />);
+    act(() => callbacks.forEach((callback) => callback()));
+    expect(screen.getByTestId('other').contains(toolbars()[0])).toBe(true);
+    rerender(<Page formOpen={false} />);
+    act(() => callbacks.forEach((callback) => callback()));
+    expect(screen.getByTestId('list').contains(toolbars()[0])).toBe(true);
+    vi.unstubAllGlobals();
+    removeStyle();
+  });
+
+  it('an open DocumentSurface carries the bar under its title row while the list header is hidden', async () => {
+    const removeStyle = withStyle('.workspace-view:has(> .doc-surface) > :not(.doc-surface) { display: none; }');
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const { DocumentSurface } = await import('../document-page/DocumentSurface');
+    function Screen({ open }: { open: boolean }) {
+      return (
+        <CommandProvider><ActionBarSlotProvider breadcrumb={null}>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="v" openKeys={['v']}>
+            <div data-testid="list"><Header id="list" /></div>
+            {open && <DocumentSurface title="Satış teklifi" code="T-1" onClose={() => {}}><p>Satırlar</p></DocumentSurface>}
+          </KeepAliveViews>
+        </ActionBarSlotProvider></CommandProvider>
+      );
+    }
+    const { rerender } = render(<Screen open={false} />);
+    expect(screen.getByTestId('list').contains(toolbars()[0])).toBe(true);
+    rerender(<Screen open />);
+    const surface = document.querySelector('.doc-surface')!;
+    expect(surface.querySelector('.doc-surface-head + [data-nx-action-bar-slot]')!.contains(toolbars()[0])).toBe(true);
+    expect(toolbars()).toHaveLength(1);
+    rerender(<Screen open={false} />);
+    expect(screen.getByTestId('list').contains(toolbars()[0])).toBe(true);
+    scrollTo.mockRestore();
+    removeStyle();
   });
 });
