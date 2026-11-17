@@ -190,6 +190,18 @@ describe('Satınalma Faturaları list', () => {
     expect(footer.textContent).toContain('5 / 5');
   });
 
+  it('does not add amounts in several currencies', async () => {
+    overrides.set('/api/purchasing/invoices/', () => page([rows[0], { ...rows[1], currencyCode: 'USD' }]));
+    screenFor();
+    await settle();
+    expect(cards()).toEqual([
+      'Fatura toplamı — bu sayfa · 2 fatura · birden çok para birimi',
+      'Ödenmemiş — bu sayfa · 2 fatura · birden çok para birimi',
+      'Vadesi geçen 1 1.200,00 TRY · bu sayfa',
+      'İptal 0 bu sayfa',
+    ]);
+  });
+
   it('a published tenant view keeps its columns (without the former ⋯ column)', async () => {
     overrides.set('/api/screen-views/purchase-invoices/active', () => ({
       id: 'v1',

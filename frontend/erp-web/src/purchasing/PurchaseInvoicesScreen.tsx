@@ -355,7 +355,8 @@ export function PurchaseInvoicesScreen({
       <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
         <section className="purchase-invoice-list list-v2-list" aria-label="Alış faturası listesi">
           <SalesDocumentGrid
-            gridId="purchase-invoices"
+            // New id: saved column settings are index-based and the columns changed (12 + ⋯ → taslak 07), so they reset once.
+            gridId="purchase-invoices-v2"
             ariaLabel="Alış faturası kayıtları"
             hideExport
             exportActionsRef={gridExportRef}
