@@ -1,36 +1,44 @@
-/* Tam sayfa belge yüzeyi (DocumentSurface.tsx): satış ve satınalma belgelerinin detay ekranı. */
+/*
+ * Tam sayfa belge yüzeyi (DocumentSurface.tsx, taslak 02): satış ve satınalma belgelerinin ekranı.
+ * Başlık (belge no · cari, durum, durum akışı, değişiklik / gezinme / Vazgeç) → İşlem Çubuğu → gövde + sağ bağlam
+ * paneli → alt bilgi. Renkler yalnızca --nx-* token'larıdır; açık / koyu tema aynı kuralla çalışır.
+ */
 
 /* Açık belge, çalışma alanı görünümünün tek görünen içeriğidir; üst üste açılanlardan yalnızca sonuncusu görünür. */
 .workspace-view:has(> .doc-surface) > :not(.doc-surface) { display: none !important; }
 .workspace-view > .doc-surface:has(~ .doc-surface) { display: none !important; }
 
 .doc-surface {
-  --doc-border: var(--erp-line);
-  --doc-paper: var(--erp-paper);
-  --doc-ink: var(--erp-ink);
-  --doc-muted: var(--erp-muted-ink);
-  display: flex;
-  flex-direction: column;
+  --doc-border: var(--nx-line);
+  --doc-paper: var(--nx-surface);
+  --doc-ink: var(--nx-text);
+  --doc-muted: var(--nx-muted);
+  /* Rows: header, action bar slot, body (+ context panel on the right), footer. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
   min-width: 0;
   color: var(--doc-ink);
+  font-size: 12.5px;
 }
-html[data-theme="dark"] .doc-surface {
-  --doc-border: #30394d;
-  --doc-paper: #171d2b;
-  --doc-ink: #edf3fb;
-  --doc-muted: #9aa9bd;
-}
+.doc-surface > * { grid-column: 1 / -1; min-width: 0; }
+.doc-surface > .doc-surface-head { grid-row: 1; }
+.doc-surface > [data-nx-action-bar-slot] { grid-row: 2; }
+.doc-surface > .doc-surface-body { grid-row: 3; }
+.doc-surface.has-aside > .doc-surface-body { grid-column: 1; }
+.doc-surface > .doc-surface-aside { grid-row: 3; grid-column: 2; }
+.doc-surface > .doc-surface-foot { grid-row: 4; }
 .doc-surface.doc-surface-floating {
   position: fixed;
   inset: 0;
   z-index: 40;
   overflow: auto;
   padding: 16px 24px 32px;
-  background: var(--erp-canvas);
+  background: var(--nx-canvas);
 }
-html[data-theme="dark"] .doc-surface.doc-surface-floating { background: #10141f; }
 
-/* Başlık çubuğu: geri, belge türü ve numarası, durum, işlemler. Kaydırırken üstte kalır. */
+/* Başlık: geri, belge türü, numara · cari, künye (durum + kısa bilgi); ortada durum akışı; sağda değişiklik, gezinme,
+   eski düğmeler, Vazgeç. Sayfa zemininde durur, kaydırırken üstte kalır. */
 .doc-surface > .doc-surface-head {
   position: sticky;
   top: var(--doc-sticky-top, 0px);
@@ -38,70 +46,240 @@ html[data-theme="dark"] .doc-surface.doc-surface-floating { background: #10141f;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 0 0 12px;
-  padding: 12px 16px;
-  border: 1px solid var(--doc-border);
-  border-radius: 8px;
-  background: var(--doc-paper);
+  gap: 10px 16px;
+  margin: 0;
+  padding: 2px 0 12px;
+  border: 0;
+  background: var(--nx-canvas);
 }
-/* İşlem çubuğu başlık çubuğunun altında; boşluğu başlığın alt boşluğu verir. */
+/* İşlem çubuğu başlığın altında; boşluğu başlığın alt boşluğu verir. */
 .doc-surface > .nx-action-bar-slot:not(:empty) { padding-top: 0; margin: 0 0 12px; }
-.doc-surface .doc-surface-back {
+#root .app-shell .doc-surface .doc-surface-back {
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 36px;
-  height: 36px;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin: 2px 0 0;
+  padding: 0;
   border: 1px solid var(--doc-border);
-  border-radius: 6px;
-  background: transparent;
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
   color: var(--doc-muted);
+  box-shadow: none;
   cursor: pointer;
 }
-.doc-surface .doc-surface-back:hover,
-.doc-surface .doc-surface-back:focus-visible { border-color: var(--erp-primary); color: var(--nx-primary-strong); }
-.doc-surface .doc-surface-title { flex: 1 1 240px; min-width: 0; }
-.doc-surface .doc-surface-title h1 {
+#root .app-shell .doc-surface .doc-surface-back:hover,
+#root .app-shell .doc-surface .doc-surface-back:focus-visible { border-color: var(--nx-primary); color: var(--nx-primary-strong); }
+.doc-surface .doc-surface-title { display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 0; }
+.doc-surface .doc-surface-eyebrow {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  margin: 0;
-  color: var(--doc-ink);
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.3;
+  gap: 2px 6px;
+  min-width: 0;
+  color: var(--doc-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
 }
-.doc-surface .doc-surface-title h1 b { font-weight: 700; color: var(--erp-primary-dark); overflow-wrap: anywhere; }
-html[data-theme="dark"] .doc-surface .doc-surface-title h1 b { color: #8cc4f5; }
-.doc-surface .doc-surface-title p { margin: 2px 0 0; color: var(--doc-muted); font-size: 13px; overflow-wrap: anywhere; }
-.doc-surface .doc-surface-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-
-.doc-surface .doc-surface-status {
-  flex: none;
-  padding: 4px 10px;
-  border: 1px solid #cfd8e4;
-  border-radius: 999px;
-  background: #f1f4f8;
-  color: #4a586c;
-  font-size: 12px;
-  font-weight: 700;
+#root .doc-surface .doc-surface-eyebrow > .doc-surface-crumb > .workspace-breadcrumb { margin: 0; min-height: 0; }
+.doc-surface .doc-surface-crumb + span::before { content: "› "; }
+.doc-surface .doc-surface-code-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+#root .app-shell .doc-surface .doc-surface-title h1 {
+  margin: 0;
+  color: var(--doc-ink) !important;
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  line-height: 1.3 !important;
+}
+.doc-surface .doc-surface-title h1 b { color: inherit; font-weight: inherit; overflow-wrap: anywhere; }
+.doc-surface .doc-surface-sr,
+.doc-surface .dd-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
-.doc-surface .doc-surface-status.is-info { border-color: #9cc3e6; background: #e3f0fb; color: #0b4f8a; }
-.doc-surface .doc-surface-status.is-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
-.doc-surface .doc-surface-status.is-success { border-color: #a5d8bb; background: #e6f6ed; color: #17643c; }
-.doc-surface .doc-surface-status.is-danger { border-color: #edb3ad; background: #fdecea; color: #9b2c22; }
-html[data-theme="dark"] .doc-surface .doc-surface-status { border-color: #3a4559; background: #20293a; color: #c7d1df; }
-html[data-theme="dark"] .doc-surface .doc-surface-status.is-info { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
-html[data-theme="dark"] .doc-surface .doc-surface-status.is-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
-html[data-theme="dark"] .doc-surface .doc-surface-status.is-success { border-color: #2c6a48; background: #143024; color: #9bdcb6; }
-html[data-theme="dark"] .doc-surface .doc-surface-status.is-danger { border-color: #7a3630; background: #33191a; color: #f2aaa3; }
+.doc-surface .doc-surface-sep { color: var(--doc-border); font-size: 18px; }
+.doc-surface .doc-surface-party { min-width: 0; color: var(--doc-ink); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.doc-surface .doc-surface-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--doc-muted); font-size: 12px; }
+
+/* Durum etiketi (başlıkta): StatusTag ile aynı tonlar. */
+.doc-surface .doc-surface-status,
+.doc-status {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--nx-line-soft);
+  color: var(--nx-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+:is(.doc-surface .doc-surface-status, .doc-status).is-info { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
+:is(.doc-surface .doc-surface-status, .doc-status).is-warning { background: var(--nx-warn-bg); color: var(--nx-warn); }
+:is(.doc-surface .doc-surface-status, .doc-status).is-success { background: var(--nx-ok-bg); color: var(--nx-ok); }
+:is(.doc-surface .doc-surface-status, .doc-status).is-danger { background: var(--nx-bad-bg); color: var(--nx-bad); }
+
+/* Durum akış şeridi (DocumentStatusFlow.tsx) */
+.doc-surface .doc-surface-flow { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+.doc-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0; margin: 0; padding: 0; list-style: none; }
+.doc-flow-step { display: flex; align-items: center; gap: 7px; color: var(--nx-muted); font-size: 12px; white-space: nowrap; }
+.doc-flow-step + .doc-flow-step::before {
+  content: "";
+  width: 36px;
+  height: 2px;
+  margin: 0 8px 0 1px;
+  border-radius: 1px;
+  background: var(--nx-line);
+}
+.doc-flow-step > i {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--nx-line);
+  border-radius: 50%;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+.doc-flow-step.is-done { color: var(--nx-text); }
+.doc-flow-step.is-done > i { border-color: var(--nx-ok); background: var(--nx-ok-bg); color: var(--nx-ok); }
+.doc-flow-step.is-done + .doc-flow-step::before { background: var(--nx-ok); }
+.doc-flow-step.is-current { color: var(--nx-primary-strong); font-weight: 650; }
+.doc-flow-step.is-current > i {
+  border-color: var(--nx-primary);
+  background: var(--nx-primary);
+  color: var(--nx-on-primary);
+  box-shadow: 0 0 0 3px var(--nx-primary-soft);
+}
+.doc-flow-step.is-terminal { color: var(--nx-text); font-weight: 650; }
+.doc-flow-step.is-terminal > i { border-color: var(--nx-muted); background: var(--nx-line-soft); color: var(--nx-muted); }
+
+/* Sağ: değişiklik notu, belgeler arası gezinme, eski başlık düğmeleri, Vazgeç */
+.doc-surface .doc-surface-side { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 10px; margin-left: auto; }
+.doc-surface .doc-surface-dirty { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-warn); font-size: 12px; white-space: nowrap; }
+.doc-surface .doc-surface-dirty i { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-warn); }
+.doc-surface .doc-surface-rnav {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--doc-border);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 12px;
+}
+.doc-surface .doc-surface-rnav > span { display: flex; align-items: center; padding: 3px 8px; font-variant-numeric: tabular-nums; }
+.doc-surface .doc-surface-rnav > * + * { border-left: 1px solid var(--doc-border); }
+#root .app-shell .doc-surface .doc-surface-rnav > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  cursor: pointer;
+}
+#root .app-shell .doc-surface .doc-surface-rnav > button:hover:not(:disabled) { background: var(--nx-canvas); }
+#root .app-shell .doc-surface .doc-surface-rnav > button:disabled { opacity: .45; cursor: default; }
+.doc-surface .doc-surface-rnav kbd {
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+}
+/* Eski başlık düğmeleri: iş akışı işlemleri İşlemler menüsüne taşınana kadar nötr bir yuvada kalır. */
+.doc-surface .doc-surface-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+/* !important: global-components.css sizes every .app-shell .primary / .secondary with !important. */
+#root .app-shell .doc-surface .doc-surface-actions :is(.primary, .secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--nx-control-h) !important;
+  min-height: var(--nx-control-h) !important;
+  padding: 0 12px !important;
+  border-radius: var(--nx-radius-control) !important;
+  font-size: 12.5px !important;
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface .doc-surface-actions .sales-row-actions-trigger {
+  width: var(--nx-control-h);
+  height: var(--nx-control-h);
+  border: 1px solid var(--doc-border);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+}
+#root .app-shell .doc-surface .doc-surface-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--doc-border);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font: inherit;
+  font-size: 12.5px;
+  box-shadow: none;
+  cursor: pointer;
+}
+#root .app-shell .doc-surface .doc-surface-cancel:hover { border-color: var(--nx-primary); }
+#root .app-shell .doc-surface .doc-surface-cancel svg { width: 15px; height: 15px; }
+
+/* Sağ bağlam paneli: 300px, bölümler alt alta. */
+.doc-surface > .doc-surface-aside { display: flex; flex-direction: column; gap: 12px; align-self: start; width: 300px; margin: 0 0 0 12px; }
+.doc-surface > .doc-surface-aside[hidden] { display: none; }
+
+/* Alt bilgi: solda kısayollar, sağda belge özeti */
+.doc-surface > .doc-surface-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 12px;
+  padding: 7px 2px;
+  border-top: 1px solid var(--doc-border);
+  color: var(--doc-muted);
+  font-size: 11.5px;
+}
+.doc-surface .doc-surface-keys { min-width: 0; }
+.doc-surface .doc-surface-keys > span + span::before { content: " · "; }
+.doc-surface .doc-surface-foot-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-left: auto; }
+.doc-surface .doc-surface-foot-status b { color: var(--doc-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /*
- * Gövde, taşınan pencerelerin kutu sınıflarını ("modal ledger-modal …") korur ki iç
- * stilleri bozulmasın; pencereye özgü ölçü, gölge ve iç kaydırma burada kaldırılır.
+ * Eski gövde: taşınan pencerelerin kutu sınıflarını ("modal ledger-modal …") korur ki iç stilleri bozulmasın;
+ * pencereye özgü ölçü, gölge ve iç kaydırma burada kaldırılır. Tek katman kart: 1px çizgi, 8px yarıçap.
  */
 #root .doc-surface > .doc-surface-body,
 .doc-surface.doc-surface-floating > .doc-surface-body {
@@ -116,7 +294,8 @@ html[data-theme="dark"] .doc-surface .doc-surface-status.is-danger { border-colo
   transform: none !important;
   animation: none !important;
   border: 1px solid var(--doc-border) !important;
-  border-radius: 8px !important;
+  border-radius: var(--nx-radius-card) !important;
+  background: var(--doc-paper);
   box-shadow: none !important;
 }
 /* Pencerede kendi içinde kayan bölümler sayfada doğal akışla uzar. */
@@ -126,36 +305,21 @@ html[data-theme="dark"] .doc-surface .doc-surface-status.is-danger { border-colo
   overflow: visible !important;
 }
 
+/* Dar ekran: bağlam paneli gövdenin altına iner (Ctrl+. ile açılırsa); başlık satırları alt alta. */
+@media (max-width: 900px) {
+  .doc-surface.has-aside > .doc-surface-body { grid-column: 1 / -1; }
+  .doc-surface > .doc-surface-aside { grid-row: 5; grid-column: 1 / -1; width: auto; margin: 12px 0 0; }
+}
 @media (max-width: 720px) {
-  .doc-surface > .doc-surface-head { padding: 10px 12px; }
-  .doc-surface .doc-surface-title h1 { font-size: 17px; }
-  .doc-surface .doc-surface-actions { width: 100%; }
+  #root .app-shell .doc-surface .doc-surface-title h1 { font-size: 16px !important; }
+  .doc-surface .doc-surface-party { font-size: 14px; }
+  .doc-surface .doc-surface-flow { flex-basis: 100%; order: 3; overflow-x: auto; }
+  .doc-flow { flex-wrap: nowrap; }
+  .doc-flow-step + .doc-flow-step::before { width: 16px; }
+  .doc-surface .doc-surface-side { flex-basis: 100%; justify-content: flex-start; margin-left: 0; order: 4; }
+  .doc-surface .doc-surface-rnav kbd { display: none; }
 }
 @media print {
-  .doc-surface .doc-surface-back, .doc-surface .doc-surface-actions { display: none; }
+  .doc-surface .doc-surface-back, .doc-surface .doc-surface-side, .doc-surface > .doc-surface-aside, .doc-surface > .doc-surface-foot { display: none; }
   .doc-surface > .doc-surface-head { position: static; }
 }
-
-/* Liste hücrelerinde ve belge içinde durum etiketi (DocumentStatusBadge.tsx). */
-.doc-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border: 1px solid #cfd8e4;
-  border-radius: 999px;
-  background: #f1f4f8;
-  color: #4a586c;
-  font-size: 11.5px;
-  font-weight: 700;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.doc-status.is-info { border-color: #9cc3e6; background: #e3f0fb; color: #0b4f8a; }
-.doc-status.is-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
-.doc-status.is-success { border-color: #a5d8bb; background: #e6f6ed; color: #17643c; }
-.doc-status.is-danger { border-color: #edb3ad; background: #fdecea; color: #9b2c22; }
-html[data-theme="dark"] .doc-status { border-color: #3a4559; background: #20293a; color: #c7d1df; }
-html[data-theme="dark"] .doc-status.is-info { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
-html[data-theme="dark"] .doc-status.is-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
-html[data-theme="dark"] .doc-status.is-success { border-color: #2c6a48; background: #143024; color: #9bdcb6; }
-html[data-theme="dark"] .doc-status.is-danger { border-color: #7a3630; background: #33191a; color: #f2aaa3; }

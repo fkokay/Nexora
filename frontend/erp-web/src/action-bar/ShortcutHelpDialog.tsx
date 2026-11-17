@@ -34,6 +34,12 @@ const RECORD_FORM_ROWS: readonly Row[] = [
   ['Esc', 'Formu kapat (Vazgeç)'],
 ];
 
+// Document screens (document-page/DocumentSurface): the keys their footer lists when the page enables them.
+const DOCUMENT_ROWS: readonly Row[] = [
+  ['PgUp/PgDn', 'Önceki / sonraki belge'],
+  ['Ctrl+.', 'Bağlam panelini aç / kapat'],
+];
+
 function Section({ title, rows, locale }: { title: string; rows: readonly Row[]; locale: 'tr' | 'en' }) {
   return (
     <section>
@@ -77,6 +83,7 @@ export function ShortcutHelpDialog({ locale, onClose }: Props) {
         <Section title="İşlem çubuğu" rows={BAR_ROWS} locale={locale} />
         <Section title="Genel" rows={GLOBAL_ROWS} locale={locale} />
         <Section title="Kayıt formu" rows={RECORD_FORM_ROWS} locale={locale} />
+        <Section title="Belge ekranı" rows={DOCUMENT_ROWS} locale={locale} />
       </div>
     </div>,
     document.body,

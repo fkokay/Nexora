@@ -104,6 +104,13 @@ export const english: Record<string, string> = {
   "Kesildi": "Issued",
   // Sales invoice subtitle
   "Perakende · KDV dâhil": "Retail · VAT included",
+  // Document screen kit (DocumentSurface, DocumentStatusFlow, document-detail parts)
+  "Durum akışı": "Status flow",
+  "Belgeler arası gezinme": "Document navigation",
+  "Önceki belge": "Previous document",
+  "Sonraki belge": "Next document",
+  "PgUp/PgDn önceki/sonraki belge": "PgUp/PgDn previous/next document",
+  "Belge zinciri": "Document chain",
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
@@ -111,4 +118,5 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) iade ayrıntılarını aç$/, 'Open return $1 details'],
   [/^(.+?) kaydedildi\.$/, '$1 saved.'],
   [/^Satır (\d+) sil$/, 'Delete line $1'],
+  [/^(\d+) değişiklik kaydedilmedi$/, '$1 unsaved changes'],
 ]
