@@ -407,8 +407,12 @@ describe('Purchasing document on the restyled kit', () => {
     expect(within(head).getByText('Ege Ambalaj Ltd.')).toBeTruthy();
     expect(head.querySelector('.doc-surface-status')!.textContent).toBe('İşlendi');
     expect(head.querySelector('.doc-surface-status')!.className).toContain('is-success');
+    // Like the other documents: the date beside the status, a "Satırlar · N satır · currency" head and a # column.
+    expect(head.querySelector('.doc-surface-meta')!.textContent).toMatch(/\d{2}\.\d{2}\.\d{4}/);
     const grid = screen.getByRole('table', { name: 'Fatura satırları' });
     expect(within(grid).getByText('AMB-2040')).toBeTruthy();
+    expect(within(grid).getByText('AMB-2040').closest('tr')!.querySelector('td.dd-ix')!.textContent).toBe('1');
+    expect(grid.closest('.dd-box')!.querySelector('.dd-lines-head h2')!.textContent).toBe('Satırlar');
     const totals = screen.getByLabelText('Fatura toplamları');
     expect(totals.classList.contains('dd-totals')).toBe(true);
     const row = (label: string) => within(totals).getByText(label).closest('div')!;

@@ -12,7 +12,7 @@ import { purchaseInvoiceStatus, returnStatus } from "./document-page/documentSta
 import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
 import type { CommandSpec, MenuCommand, PageCommands } from "./commands/types";
 import { PurchaseInvoiceFlow } from "./purchasing/purchaseDocumentDetail";
-import { SALES_DETAIL_HINTS, SalesFooterStatus } from "./sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta } from "./sales/salesDocumentDetail";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
   DetailChain,
@@ -21,6 +21,7 @@ import {
   DetailKeyValues,
   DetailInfoGrid,
   DetailLinesFooter,
+  DetailLinesHead,
   DetailSection,
   DetailTiles,
   daysFromToday,
@@ -486,6 +487,7 @@ export function PurchaseInvoiceModal({
       closeLabel="Geri"
       subtitle={invoice?.supplierName || (loading ? "Yükleniyor…" : undefined)}
       status={invoice ? purchaseInvoiceStatus(invoice.status) : undefined}
+      meta={invoice && <span>{formatDate(invoice.invoiceDate)}</span>}
       statusFlow={invoice && <PurchaseInvoiceFlow status={invoice.status} />}
       onClose={onClose}
       aside={
@@ -601,10 +603,12 @@ export function PurchaseInvoiceModal({
               />
             </div>
             <div className="dd-box">
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={invoice.lines.length} extra={invoice.currencyCode} />} />
               <div className="dd-lines-wrap">
                 <table className="dd-lines" aria-label="Fatura satırları">
                   <thead>
                     <tr>
+                      <th className="dd-ix">#</th>
                       <th>Stok</th>
                       <th className="dd-num">Miktar</th>
                       <th className="dd-num">Birim fiyat</th>
@@ -614,8 +618,9 @@ export function PurchaseInvoiceModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.lines.map((line) => (
+                    {invoice.lines.map((line, index) => (
                       <tr key={line.id}>
+                        <td className="dd-ix">{index + 1}</td>
                         <td className="dd-stock">
                           <b>{line.stockCode}</b>
                           <small>{line.stockName}</small>
