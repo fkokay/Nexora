@@ -278,7 +278,7 @@ describe('Satış Faturaları list', () => {
     expect(panel().textContent).toContain('F-i3');
   });
 
-  it('ticked rows get the bulk bar with only Excel (seçilenler); Sil acts on the current row only', async () => {
+  it('ticked rows get the bulk bar with only Excel (seçilenler); Aç and Sil need one record', async () => {
     renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
     fireEvent.click(within(row('F-i1')).getByRole('checkbox'));
@@ -288,6 +288,47 @@ describe('Satış Faturaları list', () => {
     expect(document.querySelector('.nx-list-footer')?.textContent).toContain('2 seçili');
     // Two ticked rows and no current row: no single record to open or delete.
     expect(enabled('open')).toBe(false);
+    expect(enabled('delete')).toBe(false);
+    expect(reason('delete')).toContain('Önce bir kayıt seçin');
+  });
+
+  it('an open document hides the list panel and the bulk bar; Ctrl+. does not bring them back', async () => {
+    renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    togglePanel();
+    await waitFor(() => expect(panel()).not.toBeNull());
+    fireEvent.click(within(row('F-i1')).getByRole('checkbox'));
+    fireEvent.click(within(row('F-i2')).getByRole('checkbox'));
+    expect(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'F-i3 fatura ayrıntılarını aç' }));
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    expect(panel()).toBeNull();
+    expect(screen.queryByRole('toolbar', { name: 'Toplu işlemler' })).toBeNull();
+    togglePanel();
+    await settle();
+    expect(panel()).toBeNull();
+    // The open invoice is fetched by the document only, not by a hidden panel.
+    expect(fetched('/api/sales/invoices/i3')).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Listeye dön' }));
+    await waitFor(() => expect(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).toBeTruthy());
+  });
+
+  it('Enter after ↑/↓ opens the new current row, not the row that had the focus', async () => {
+    renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    const first = row('F-i1');
+    first.focus();
+    fireEvent.click(first);
+    await waitFor(() => expect(first.getAttribute('aria-current')).toBe('true'));
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    await waitFor(() => expect(row('F-i2').getAttribute('aria-current')).toBe('true'));
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement ?? first, { key: 'Enter' });
+    });
+    await waitFor(() => expect(fetched('/api/sales/invoices/i2')).toBe(1));
+    expect(fetched('/api/sales/invoices/i1')).toBe(0);
   });
 
   it('column widths fit the list beside the menu at 1440 (no horizontal scroll)', async () => {

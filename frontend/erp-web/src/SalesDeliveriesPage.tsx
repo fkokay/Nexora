@@ -657,9 +657,10 @@ export function SalesDeliveriesScreen({
                 currentId: selectedId,
                 onCurrentChange: setSelectedId,
                 onTickedChange: setTicked,
-                bulkActions: [
-                  { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
-                ],
+                // Only while the list is on screen: a document or form over it must not show the floating bar.
+                bulkActions: listActive
+                  ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                  : undefined,
                 onOpen: (id) => void open(id),
               }}
               footer={

@@ -244,7 +244,8 @@ export function InvoiceListPanel({ row, ...controls }: SalesPanelControls<SalesI
             <SalesPanelStats
               items={[
                 { label: "Genel toplam", value: money(detail.grandTotal) },
-                { label: "Kalan", value: money(detail.outstandingAmount), tone: row.status === "Posted" && detail.outstandingAmount > 0 ? "bad" : undefined },
+                // Neutral: without a due date an unpaid amount is not a warning.
+                { label: "Kalan", value: money(detail.outstandingAmount) },
                 { label: "Matrah", value: money(detail.subtotal - detail.discountTotal) },
                 { label: "KDV", value: money(detail.taxTotal) },
               ]}

@@ -2131,7 +2131,11 @@ export function SalesPage({
     listSummary = (
       <ListSummaryCards
         cards={[
-          amountCard("order-total", "Sipariş tutarı", filteredOrders),
+          amountCard(
+            "order-total",
+            "Sipariş tutarı",
+            filteredOrders.filter((item) => item.status !== "Cancelled"),
+          ),
           {
             id: "order-open",
             label: "Sevk bekleyen",
@@ -2230,7 +2234,8 @@ export function SalesPage({
     currentId: selectedSalesId,
     onCurrentChange: setSelectedSalesId,
     onTickedChange: setSalesTicked,
-    bulkActions: salesBulkActions,
+    // Only while the list is on screen: a document or form over it must not show the floating bar.
+    bulkActions: salesListActive ? salesBulkActions : undefined,
     onOpen: (id: string) => void (quoteListScreen ? openQuote(id) : openOrder(id)),
   };
   const salesListBodyClass = `sales-list-body${salesListPanel ? " has-detail" : ""}`;
@@ -11205,9 +11210,10 @@ function SalesInvoiceTable({
                 currentId: selectedId,
                 onCurrentChange: onSelect,
                 onTickedChange: onTickedChange ?? noTicks,
-                bulkActions: [
-                  { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
-                ],
+                // Only while the list is on screen: a document or form over it must not show the floating bar.
+                bulkActions: !commandsSuspended && !createOpen
+                  ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                  : undefined,
                 onOpen,
               }}
               footer={listFooter}
