@@ -138,28 +138,6 @@
   #root .record-form.purchase-order-create .sales-invoice-total-panel { max-width: none; justify-self: stretch; }
 }
 
-/* Satınalma faturası listesi: bağlantı görünümlü fatura no ve menü ögelerindeki ikonlar. */
-#root .app-shell .content .purchase-invoice-code-link {
-  display: inline;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--nx-primary-strong);
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-#root .app-shell .content .purchase-invoice-code-link:hover,
-#root .app-shell .content .purchase-invoice-code-link:focus-visible {
-  text-decoration-color: currentColor;
-}
-html[data-theme="dark"] #root .app-shell .content .purchase-invoice-code-link { color: #93c5fd; }
 .sales-row-actions-menu .sales-row-menu-item { gap: 8px; }
 .sales-row-actions-menu .sales-row-menu-item > svg { flex: none; }
 .sales-row-actions-menu .sales-row-menu-separator { height: 1px; margin: 4px 6px; background: #e3e8f1; }

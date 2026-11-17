@@ -104,8 +104,9 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
 - **İş akışı düğmeleri başlıkta durmaz.** Onayla, İletildi yap, Kabul et, Siparişe dönüştür, İptal
   İşlem Çubuğu'nun İşlemler menüsündedir; ilerleme durum akış şeridinde görünür. `actions` yalnızca
   geçiş dönemi için nötr bir "eski düğmeler" yuvasıdır; yeni ekranlar kullanmaz. **Satış artık kullanmaz** (altı belge
-  türünün detayında başlıkta yalnız geri düğmesi ve Vazgeç vardır); yuvayı bugün yalnız Satınalma kullanıyor (ör. Alış
-  faturasında "İade oluştur", "Ödeme ekle") — Satınalma planında İşlemler'e taşınınca yuva kaldırılabilir.
+  türünün detayında başlıkta yalnız geri düğmesi ve Vazgeç vardır); Alış faturası da kullanmaz
+  (İade oluştur, Ödeme ekle, Faturayı iptal et İşlemler'de, aynı koşul ve nedenlerle); yuvayı bugün yalnız kalan Satınalma
+  belgeleri kullanıyor — onlar da İşlemler'e taşınınca yuva kaldırılabilir.
 - **Başlık metinleri tek tiptir.** `title` belge türünün tekil adıdır ("Satış teklifi",
   "Alış faturası"); numara `code`, cari `subtitle` ile verilir. "… Detay", "… DETAYI" gibi ekler ve
   büyük harfli üst başlıklar kullanılmaz.

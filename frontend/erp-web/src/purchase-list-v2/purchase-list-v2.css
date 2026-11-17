@@ -34,3 +34,16 @@
     padding-right: 42px;
   }
 }
+
+/* Satınalma Faturaları (taslak 07): an overdue due date ("13.11 · 4 gün geçti") and the remaining amount are red; a
+   partly paid remainder is amber. Normal weight like every number cell. */
+#root .list-v2 .purchase-inv-overdue,
+#root .list-v2 .purchase-inv-amount.is-bad {
+  color: var(--nx-bad);
+}
+#root .list-v2 .purchase-inv-amount.is-warn {
+  color: var(--nx-warn);
+}
+#root .list-v2 .purchase-inv-overdue {
+  white-space: nowrap;
+}

@@ -396,16 +396,18 @@ describe('Purchasing document on the restyled kit', () => {
     const onChanged = vi.fn(async () => {});
     render(
       <CommandProvider>
-        <div className="workspace-view">
-          <ConfirmDialogHost />
+        <ActionBar locale="tr" />
+        <ConfirmDialogHost />
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
           <PurchaseInvoiceModal invoiceId="pi1" token="t" warehouses={[{ id: 'w1', code: 'D1', name: 'Ana depo', isActive: true } as never]} onClose={() => {}} onChanged={onChanged} />
-        </div>
+        </KeepAliveViews>
       </CommandProvider>,
     );
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Alış faturası AF-0042'));
     const head = screen.getByRole('heading', { level: 1 }).closest('header')!;
     expect(within(head).getByText('Ege Ambalaj Ltd.')).toBeTruthy();
-    expect(within(head).getByText('İşlendi').className).toContain('is-success');
+    expect(head.querySelector('.doc-surface-status')!.textContent).toBe('İşlendi');
+    expect(head.querySelector('.doc-surface-status')!.className).toContain('is-success');
     const grid = screen.getByRole('table', { name: 'Fatura satırları' });
     expect(within(grid).getByText('AMB-2040')).toBeTruthy();
     const totals = screen.getByLabelText('Fatura toplamları');
@@ -417,7 +419,10 @@ describe('Purchasing document on the restyled kit', () => {
     expect(row('Genel toplam').querySelector('dd')!.textContent).toMatch(/^1\.200,00/);
     expect(within(grid).getByText('1.000,00').closest('td')!.className).toBe('dd-num');
 
-    fireEvent.click(within(head).getAllByRole('button', { name: /Ödeme ekle/ })[0]);
+    // The former header buttons are İşlemler items of the action bar (Faz 4).
+    expect(within(head).queryByRole('button', { name: /Ödeme ekle/ })).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-command="more"]')!);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Ödeme ekle' }));
     const drawer = await screen.findByRole('dialog', { name: 'Tedarikçi ödemesi' });
     fireEvent.change(within(drawer).getByLabelText(/Tutar/), { target: { value: '500' } });
     fireEvent.change(within(drawer).getByLabelText(/Banka hesabı/), { target: { value: 'a1' } });

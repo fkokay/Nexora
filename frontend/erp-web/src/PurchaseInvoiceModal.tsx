@@ -1,17 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
-import { Ban, Plus, Undo2, X } from "lucide-react";
+import { Plus, Undo2, X } from "lucide-react";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { confirmDialog } from "./confirmDialog";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchasing-record-forms.css";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
-import { purchaseInvoiceStatus } from "./document-page/documentStatus";
+import { purchaseInvoiceStatus, returnStatus } from "./document-page/documentStatus";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
+import type { CommandSpec, MenuCommand, PageCommands } from "./commands/types";
+import { PurchaseInvoiceFlow } from "./purchasing/purchaseDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesFooterStatus } from "./sales/salesDocumentDetail";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
+  DetailChain,
+  DetailContext,
   DetailDrawer,
+  DetailKeyValues,
   DetailInfoGrid,
   DetailLinesFooter,
   DetailSection,
@@ -50,6 +57,7 @@ export function PurchaseInvoiceModal({
   onClose,
   onChanged,
   initialAction,
+  newCommand,
 }: {
   invoiceId: string;
   token: string;
@@ -58,6 +66,8 @@ export function PurchaseInvoiceModal({
   onChanged: () => Promise<void>;
   /** Opened from a list row action: jump to the payment or return form, or start the void flow. */
   initialAction?: PurchaseInvoiceInitialAction;
+  /** Yeni (F2) while the invoice is open; the list passes its own (receipt invoice entry). */
+  newCommand?: CommandSpec;
 }) {
   const today = localDateString();
   const [invoice, setInvoice] = useState<PurchaseInvoiceDetail | null>(null),
@@ -444,6 +454,29 @@ export function PurchaseInvoiceModal({
   const settled = !!invoice && invoice.status === "Posted" && invoice.outstandingAmount <= 0;
   const paidShare = invoice && invoice.grandTotal > 0 ? invoice.paidAmount / invoice.grandTotal : 0;
   const drawerError = drawer ? error : "";
+  // Action bar while the invoice is open: Excel / Filtre act on the document (hidden list rule), Yenile reloads it. A
+  // posted invoice is cancelled with a reversal, never deleted; the header's former buttons are İşlemler items.
+  const commands: PageCommands = documentOpenCommands(() => load());
+  if (newCommand) commands.new = newCommand;
+  if (invoice) {
+    commands.delete = {
+      disabledReason:
+        invoice.status === "Posted" ? "İşlenmiş belge silinemez — İşlemler › Faturayı iptal et" : "İptal edilmiş belge silinemez",
+    };
+    if (invoice.status === "Posted") {
+      const busyReason = busy ? "Kaydediliyor…" : undefined;
+      const more: MenuCommand[] = [];
+      if (canPay(invoice)) more.push({ id: "purchase-invoice-payment", label: "Ödeme ekle", disabledReason: busyReason, run: openPaymentPanel });
+      if (canReturn(invoice)) more.push({ id: "purchase-invoice-return", label: "İade oluştur", disabledReason: busyReason, run: openReturnPanel });
+      more.push({
+        id: "purchase-invoice-void",
+        label: "Faturayı iptal et",
+        disabledReason: busyReason ?? (invoice.paidAmount > 0 ? "İptal için önce ödemeleri iptal edin." : undefined),
+        run: () => voidInvoice(),
+      });
+      commands.more = more;
+    }
+  }
   return (
     <DocumentSurface
       variant="detail"
@@ -453,38 +486,37 @@ export function PurchaseInvoiceModal({
       closeLabel="Geri"
       subtitle={invoice?.supplierName || (loading ? "Yükleniyor…" : undefined)}
       status={invoice ? purchaseInvoiceStatus(invoice.status) : undefined}
+      statusFlow={invoice && <PurchaseInvoiceFlow status={invoice.status} />}
       onClose={onClose}
-      actions={
-        invoice && invoice.status === "Posted" ? (
+      aside={
+        invoice && (
           <>
-            {canReturn(invoice) && (
-              <button type="button" className="secondary" disabled={busy} onClick={openReturnPanel}>
-                <Undo2 size={15} aria-hidden="true" /> İade oluştur
-              </button>
-            )}
-            {canPay(invoice) && (
-              <button type="button" className="primary" disabled={busy} onClick={openPaymentPanel}>
-                <Plus size={15} aria-hidden="true" /> Ödeme ekle
-              </button>
-            )}
-            <SalesRowActionsMenu label={invoice.code}>
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy || invoice.paidAmount > 0}
-                onClick={() => void voidInvoice()}
-              >
-                <Ban size={15} aria-hidden="true" /> Faturayı iptal et (ters kayıt)
-              </button>
-              {invoice.paidAmount > 0 && (
-                <span className="sales-row-menu-note">İptal için önce ödemeleri iptal edin.</span>
-              )}
-            </SalesRowActionsMenu>
+            <DetailContext title="Belge zinciri">
+              <DetailChain
+                items={[
+                  ...(invoice.purchaseOrderCode ? [{ key: "order", code: invoice.purchaseOrderCode, label: "Satınalma siparişi" }] : []),
+                  ...(invoice.receiptCode ? [{ key: "receipt", code: invoice.receiptCode, label: "Mal kabul" }] : []),
+                  { key: "self", code: invoice.code, label: "Bu fatura", kind: "Alış faturası", current: true, status: purchaseInvoiceStatus(invoice.status) },
+                  ...invoice.returns.map((item) => ({
+                    key: `return-${item.id}`,
+                    code: item.code,
+                    label: "Alış iadesi",
+                    meta: formatDate(item.returnDate),
+                    status: returnStatus(item.status),
+                  })),
+                ]}
+              />
+            </DetailContext>
+            <DetailContext title="Tedarikçi">
+              <DetailKeyValues items={[{ label: "Unvan", value: invoice.supplierName }]} />
+            </DetailContext>
           </>
-        ) : undefined
+        )
       }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={invoice && <SalesFooterStatus lines={invoice.lines.length} total={money(invoice.grandTotal)} />}
     >
+      <PageCommandsSlot commands={commands} />
       {error && !drawer && (
         <div className="alert inline-alert">
           {error}

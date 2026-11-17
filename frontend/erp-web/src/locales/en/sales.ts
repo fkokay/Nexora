@@ -230,7 +230,11 @@ export const english: Record<string, string> = {
   'Pasif kampanya tekliflere uygulanamaz; etkinleştirildiğinde yeniden kullanılabilir.': 'An inactive campaign cannot be applied to quotes; it can be used again once reactivated.',
   'Dönüşüm': 'Conversion', 'Verilen indirim': 'Discount given', 'Uygulanan teklif': 'Applied quotes', 'Planlanan': 'Planned', 'Geçerli': 'Valid', 'süresi doldu': 'expired',
   'Etkin kampanya': 'Active campaigns', 'Tüm kampanyalar': 'All campaigns', 'Yakında biten kampanya yok': 'No campaigns ending soon', 'bugün geçerli': 'valid today',
-  'Taslak teklif': 'Draft quote'
+  'Taslak teklif': 'Draft quote',
+  // Satınalma Faturaları list and document (Faz 4 Task 1).
+  'Vadesi geçen': 'Overdue', 'Kısmen ödendi': 'Partly paid', 'Alış faturası özeti': 'Purchase invoice summary',
+  'Özetini görmek için listeden bir alış faturası seçin.': 'Select a purchase invoice in the list to see its summary.',
+  'Alış faturası kayıtları': 'Purchase invoice records'
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -240,6 +244,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(\d+) gün geçti$/, '$1 days overdue'],
   [/^(\d+) gün$/, '$1 days'],
   [/^· (\d+) gün geçti$/, '· $1 days overdue'],
+  [/^Vadesi geçti · (\d+) gün$/, 'Overdue · $1 days'],
   [/^· (\d+) gün$/, '· $1 days'],
   [/^· bugün$/, '· today'],
   [/^(\d+) kalem$/, '$1 items'],
