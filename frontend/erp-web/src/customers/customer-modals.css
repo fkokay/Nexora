@@ -54,7 +54,7 @@
   background: transparent !important;
   box-shadow: none !important;
 }
-#root .app-shell .customer-ledger-modal .balance-banner b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+#root .app-shell .customer-ledger-modal .balance-banner b { color: var(--nx-text) !important; font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
 #root .app-shell .customer-ledger-modal .balance-banner span { color: var(--nx-muted) !important; }
 #root .app-shell .customer-ledger-modal .ledger-currency { color: var(--nx-muted) !important; background: transparent !important; }
 #root .app-shell .customer-ledger-modal > .panel {
@@ -116,5 +116,6 @@
 #root .app-shell .group-modal .group-info > span:first-child { overflow: hidden; color: var(--nx-text); text-overflow: ellipsis; white-space: nowrap; }
 #root .app-shell .group-modal .group-actions { display: inline-flex; gap: 4px; }
 #root .app-shell .group-modal .group-actions button { height: 26px !important; min-height: 0 !important; padding: 0 8px; border-radius: var(--nx-radius-control); font-size: 12px; }
-#root .app-shell .group-modal .group-actions .icon-button { width: 26px; padding: 0; }
+#root .app-shell .group-modal .group-actions .icon-button { width: 26px; padding: 0; border: 1px solid var(--nx-line) !important; background: var(--nx-surface) !important; color: var(--nx-muted) !important; }
+#root .app-shell .group-modal .group-actions .icon-button:hover:not(:disabled) { color: var(--nx-bad) !important; }
 #root .app-shell .group-modal .group-empty { padding: 16px; border: 0 !important; background: transparent !important; color: var(--nx-muted); text-align: center; }

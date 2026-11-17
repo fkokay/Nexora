@@ -39,7 +39,10 @@ function respond(url: string): unknown {
       ).length;
       return { items: [], totalCount: count };
     }
-    return { items: customers, totalCount: customers.length };
+    // The search is honoured (code or name), like the API's `q`.
+    const q = (params.get('q') ?? '').toLocaleLowerCase('tr-TR');
+    const rows = customers.filter((item) => !q || `${item.code} ${item.name}`.toLocaleLowerCase('tr-TR').includes(q));
+    return { items: rows, totalCount: rows.length };
   }
   if (path === '/api/screen-views/customers/active') return { fields: listFields, pageSettings: null };
   if (path === '/api/screen-views/customer-details/active') return { fields: detailFields };
@@ -65,6 +68,7 @@ afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
   apiMock.mockClear();
+  apiMock.mockImplementation(async (url: string) => respond(url));
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -208,6 +212,32 @@ describe('Cari Hesaplar list', () => {
     expect(order.getAttribute('title')).toContain('Satış işlemleri yalnız müşteri ve bayi kartlarında');
     expect(screen.getByRole('menuitem', { name: /Etkinleştir/ })).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: /Alış faturaları/ })).toBeTruthy();
+  });
+
+  it('arriving from the global search makes the first match current, not the first row of the unfiltered load', async () => {
+    // The searched list answers after the list's first, unfiltered load has rendered.
+    apiMock.mockImplementation(async (url: string) => {
+      if (/^\/api\/customers\/\?q=Cari/.test(url) && url.includes('pageSize=25')) await new Promise((resolve) => setTimeout(resolve, 80));
+      return respond(url);
+    });
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="Cari c2" onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    expect(document.querySelectorAll('tr[aria-current="true"]')).toHaveLength(1);
+  });
+
+  it('Excel (Ctrl+E) is still the export of every page of the search, not the grid page', async () => {
+    renderList();
+    await settle();
+    apiMock.mockClear();
+    await act(async () => {
+      fireEvent.click(command('export'));
+    });
+    await waitFor(() =>
+      expect(apiMock.mock.calls.some(([url]) => String(url).startsWith('/api/customers/?') && String(url).includes('pageSize=100'))).toBe(true),
+    );
   });
 
   it('the detail panel (Ctrl+.) shows the chosen account and its /balance; nothing loads before a choice', async () => {

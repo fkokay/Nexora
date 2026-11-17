@@ -192,6 +192,8 @@ function CustomersPage({
     role === "TenantAdmin" || role === "TenantDeveloper";
   const canManageCustomerFieldPolicy = role === "TenantAdmin";
   const [items, setItems] = useState<CustomerItem[]>([]),
+    // The search the shown `items` were loaded for (a load started before a new search may answer after it).
+    [itemsFilter, setItemsFilter] = useState<string | null>(null),
     [groups, setGroups] = useState<CustomerGroupItem[]>([]),
     [companyOptions, setCompanyOptions] = useState<CustomerCompanyOption[]>([]),
     [total, setTotal] = useState(0),
@@ -496,6 +498,7 @@ function CustomersPage({
         token,
       );
       setItems(data.items);
+      setItemsFilter(filter);
       setTotal(data.totalCount);
     } catch (e) {
       setError((e as Error).message);
@@ -678,11 +681,18 @@ function CustomersPage({
       setSelectedCustomerId(null);
       return;
     }
-    if (initialSearch && autoSelectedSearch.current !== initialSearch && filter.trim() === initialSearch.trim() && items.length) {
+    // Only rows loaded for that search count: the list's first, unfiltered load may answer after the search was set.
+    if (
+      initialSearch &&
+      autoSelectedSearch.current !== initialSearch &&
+      itemsFilter !== null &&
+      itemsFilter.trim() === initialSearch.trim() &&
+      items.length
+    ) {
       autoSelectedSearch.current = initialSearch;
       setSelectedCustomerId(items[0].id);
     }
-  }, [items, loading, selectedCustomerId, initialSearch, filter]);
+  }, [items, itemsFilter, loading, selectedCustomerId, initialSearch]);
   useEffect(() => {
     void load();
     void loadGroups();
