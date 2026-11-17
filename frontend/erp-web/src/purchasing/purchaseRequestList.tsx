@@ -251,7 +251,7 @@ export function PurchaseRequestListPanel({ row, needHint, quotes, decision, onOp
           <SalesPanelChain
             items={[
               { key: "self", code: row.code, label: "Bu talep", current: true, status: tag },
-              ...(row.purchaseOrderCode ? [{ key: "order", code: row.purchaseOrderCode, label: "Satınalma siparişi" }] : []),
+              ...(row.purchaseOrderCode ? [{ key: "order", code: row.purchaseOrderCode, label: "Satınalma siparişi", onOpen: row.purchaseOrderId ? onOpenOrder : undefined }] : []),
             ]}
           />
           {quotes && (

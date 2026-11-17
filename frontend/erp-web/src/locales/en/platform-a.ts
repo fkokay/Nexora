@@ -46,7 +46,7 @@ export const english: Record<string, string> = {
   'Örnek mamul': 'Sample finished good',
   'Minimum altı': 'Below minimum',
   'Taslak · muhasebeleştirilmedi': 'Draft · not posted',
-  'Kısmi mal kabul': 'Partial goods receipt',
+  'Kısmen alındı': 'Partially received',
   'Sipariş ve satırlar': 'Order and lines',
   'Üst düzey': 'Top level',
   'Açılış düzeltmesi': 'Opening adjustment',

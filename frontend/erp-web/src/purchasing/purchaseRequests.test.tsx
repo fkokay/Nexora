@@ -234,6 +234,8 @@ describe('Satınalma Talepleri list', () => {
     await settle();
     expect(openMenu()).toEqual(['Siparişi aç', 'Alanlar', 'CSV olarak dışa aktar']);
     expect(panel()?.textContent).toContain('SA-0001');
+    // The linked order opens from the Sipariş fact and from the document chain.
+    expect(within(panel()!).getAllByRole('button', { name: 'SA-0001' })).toHaveLength(2);
   });
 
   it('TenantUser gets no decision, quote or conversion items', async () => {

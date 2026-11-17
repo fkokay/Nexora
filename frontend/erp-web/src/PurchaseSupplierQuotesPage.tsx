@@ -116,8 +116,8 @@ export default function PurchaseSupplierQuotesPage({
   // panel shows the row.
   const panelVisible = panel.open && !!current;
   useEffect(() => {
+    // Runs again on Yenile (`reload`), so the panel's lines follow the refreshed list.
     if (!panelVisible || !current) return;
-    if (detail?.id === current.id) return;
     let cancelled = false;
     request<QuoteDetail[]>(
       `/api/purchasing/requests/${current.purchaseRequestId}/supplier-quotes`,
@@ -132,7 +132,7 @@ export default function PurchaseSupplierQuotesPage({
     return () => {
       cancelled = true;
     };
-  }, [token, panelVisible, current?.id]);
+  }, [token, panelVisible, current?.id, reload]);
 
   /** Aç: the quote is read-only here; its request opens in Satınalma talepleri. */
   function openRequest(quote: Quote) {

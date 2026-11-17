@@ -37,7 +37,7 @@ import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
 import { SalesListFooter, pageAmount, pageAmountHint } from "./sales/components/SalesListFooter";
 import { InvoiceListPanel, OrderListPanel, QuoteListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
 import { PURCHASE_REQUEST_LIST_WIDTHS, PURCHASE_REQUEST_NUMBER_FIELDS, PURCHASE_REQUEST_OPEN_EVENT, PurchaseRequestFlow, PurchaseRequestListEmpty, PurchaseRequestListPanel, PurchaseRequestTag, purchaseRequestSummaryCards, supplierQuoteDocumentStatus, takePurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
-import { PURCHASE_ORDER_LIST_WIDTHS, PURCHASE_ORDER_NUMBER_FIELDS, PurchaseOrderFlow, PurchaseOrderListEmpty, PurchaseOrderListPanel, PurchaseOrderTag, purchaseOrderSummaryCards } from "./purchasing/purchaseOrderList";
+import { PURCHASE_ORDER_LIST_WIDTHS, PURCHASE_ORDER_NUMBER_FIELDS, PurchaseOrderFlow, PurchaseOrderListEmpty, PurchaseOrderListPanel, PurchaseOrderTag, isPurchaseOrderOverdue, purchaseOrderSummaryCards } from "./purchasing/purchaseOrderList";
 import type { BulkAction } from "./list-page/BulkActionBar";
 import { CircleDollarSign, CircleSlash, Clock3, Truck } from "lucide-react";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
@@ -5190,10 +5190,6 @@ function PurchasingPanel({
     [orderScreenFields],
   );
   const orderFieldVisible = (key: string) => visibleOrderScreenFields.some((field) => field.key === key);
-  const isOrderOverdue = (item: Pick<PurchaseOrderSummary, "status" | "expectedReceiptDate">) =>
-    (item.status === "Open" || item.status === "PartiallyReceived") &&
-    !!item.expectedReceiptDate &&
-    item.expectedReceiptDate < today;
   // Client-side status index: the list API filters by text only, so chip counts and chip filtering
   // read up to 1000 order summaries for the current search. It is rebuilt after every list load
   // (search changes, refreshes and mutations all go through load()).
@@ -5221,14 +5217,14 @@ function PurchasingPanel({
     };
   }, [token, requestsOnly, orderIndexVersion]);
   const orderStatusMatches = (item: PurchaseOrderSummary, filter: typeof orderStatusFilter) =>
-    filter === "" ? true : filter === "Overdue" ? isOrderOverdue(item) : item.status === filter;
+    filter === "" ? true : filter === "Overdue" ? isPurchaseOrderOverdue(item, today) : item.status === filter;
   const orderStatusCounts = orderIndex?.complete
     ? {
         all: orderIndex.items.length,
         Open: orderIndex.items.filter((item) => item.status === "Open").length,
         PartiallyReceived: orderIndex.items.filter((item) => item.status === "PartiallyReceived").length,
         Received: orderIndex.items.filter((item) => item.status === "Received").length,
-        Overdue: orderIndex.items.filter(isOrderOverdue).length,
+        Overdue: orderIndex.items.filter((item) => isPurchaseOrderOverdue(item, today)).length,
       }
     : null;
   const filteredOrderIndex =
@@ -5591,7 +5587,7 @@ function PurchasingPanel({
       case "code": {
         // Dates sit under the code unless the layout shows them as their own columns.
         const showDates = !orderFieldVisible("orderDate") && !orderFieldVisible("expectedReceiptDate");
-        const overdue = isOrderOverdue(item);
+        const overdue = isPurchaseOrderOverdue(item, today);
         return (
           <span className="po-list-code-cell">
             <button
@@ -5672,7 +5668,7 @@ function PurchasingPanel({
       case "currencyCode":
         return item.currencyCode;
       case "status":
-        return <PurchaseOrderTag status={item.status} overdue={isOrderOverdue(item)} />;
+        return <PurchaseOrderTag status={item.status} overdue={isPurchaseOrderOverdue(item, today)} />;
       case "actions":
         return (
           <SalesRowActionsMenu label={item.code}>
@@ -7843,6 +7839,8 @@ function PurchasingPanel({
     purchaseMore.push(csvExportCommand(purchaseGridExportRef));
   }
   if (purchaseMore.length) purchaseCommands.more = purchaseMore;
+  // As in Satış (salesPageDialogOpen): no Yeni while a dialog of this page (Alanlar, talep formu, Faturala) is open.
+  if (requestFieldSettingsOpen || orderFieldsOpen || requestEditor || invoiceReceiptId) delete purchaseCommands.new;
   let purchaseListPanel: React.ReactNode = null;
   if (purchasePanel.open && purchaseListActive) {
     if (requestsOnly) {
@@ -7871,7 +7869,7 @@ function PurchasingPanel({
           row={order}
           detail={cachedOrderDetail(order.id)}
           error={orderDetailCache.current.get(order.id) === "error" ? "Satırlar yüklenemedi." : ""}
-          overdue={isOrderOverdue(order)}
+          overdue={isPurchaseOrderOverdue(order, today)}
           warehouseName={warehouses.find((x) => x.id === order.targetWarehouseId)?.name}
           onOpen={() => void openOrder(order.id)}
           openDisabled={busy}
@@ -8203,7 +8201,7 @@ function PurchasingPanel({
         const orderMoney = (value: number) => formatAmount(value, detail.currencyCode);
         const postedReceipts = detail.receipts.filter((receipt) => receipt.status === "Posted");
         const invoicedReceipts = postedReceipts.filter((receipt) => receipt.invoice).length;
-        const overdue = isOrderOverdue(detail);
+        const overdue = isPurchaseOrderOverdue(detail, today);
         const overdueDays = overdue && detail.expectedReceiptDate ? -daysFromToday(detail.expectedReceiptDate) : 0;
         const targetWarehouse = warehouses.find((x) => x.id === detail.targetWarehouseId);
         return (
