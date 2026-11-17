@@ -821,8 +821,13 @@ export function SalesInvoiceModal({
                   ...[...detailScreenFields]
                     .filter((field) => field.visible && !["grandTotal", "paidAmount", "outstandingAmount", "status"].includes(field.key))
                     .sort((a, b) => a.position - b.position)
-                    .map((field) => ({ label: field.label, value: invoiceDetailValue(field) || "—" })),
-                  ...(eDocument ? [{ label: "E-belge", value: eDocument }] : []),
+                    .map((field) => ({
+                      key: field.key,
+                      label: field.label,
+                      // Same day format as the header meta (the tenant field mapper returns the ISO date).
+                      value: field.key === "invoiceDate" ? formatDate(invoice.invoiceDate) : invoiceDetailValue(field) || "—",
+                    })),
+                  ...(eDocument ? [{ key: "eDocument", label: "E-belge", value: eDocument }] : []),
                 ]}
               />
             </div>

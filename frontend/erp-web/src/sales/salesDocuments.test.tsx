@@ -215,6 +215,10 @@ describe('vatByRate', () => {
     // Withholding / additional taxes or rounding the lines do not explain: no breakdown, the totals stay as they are.
     expect(vatByRate(rows, { taxable: 160, vat: 30 })).toBeNull();
     expect(vatByRate([], { taxable: 0, vat: 0 })).toBeNull();
+    // Tolerance is one kuruş per rate group, not per line: three lines of one rate off by 0,02 do not match.
+    const oneRate = [1, 2, 3].map(() => ({ vatPercent: 20, taxable: 10, vat: 2 }));
+    expect(vatByRate(oneRate, { taxable: 30, vat: 6.01 })).toEqual([{ rate: 20, taxable: 30, vat: 6 }]);
+    expect(vatByRate(oneRate, { taxable: 30, vat: 6.02 })).toBeNull();
   });
 });
 
@@ -334,6 +338,9 @@ describe('Satış faturası detayı', () => {
       ...VAT_ROWS,
       ['Genel toplam', '175,00 TRY', 'is-grand'],
     ]);
+    // The tenant "Fatura tarihi" field uses the same day format as the header meta.
+    expect(surface().querySelector('.dd-info')!.textContent).toContain('01.11.2026');
+    expect(surface().querySelector('.dd-info')!.textContent).not.toContain('2026-11-01');
     // Paid / outstanding stay in the body (the panel is closed on narrow screens).
     expect(surface().querySelector('.dd-tiles')!.textContent).toContain('Açık bakiye');
     expect(chain()).toEqual([
@@ -371,13 +378,16 @@ describe('Satış irsaliyesi detayı', () => {
     ]);
     expectNoHeaderActions();
     expect(within(surface()).getByRole('table', { name: 'İrsaliye satırları' }).className).toBe('dd-lines');
+    // The delivery keeps its own totals wording and order (bases, then VAT per rate ascending, "− X" discount).
     expect(totals()).toEqual([
-      ['Ara toplam', '150,00 TL', ''],
-      ['Toplam iskonto', '0,00 TL', ''],
-      ['Toplam KDV', '25,00 TL', ''],
-      ['KDV %20 · matrah 100,00 TL', '20,00 TL', 'is-sub'],
-      ['KDV %10 · matrah 50,00 TL', '5,00 TL', 'is-sub'],
-      ['Genel toplam', '175,00 TL', 'is-grand'],
+      ['Mal / hizmet toplamı', '150,00 TL', ''],
+      ['Toplam iskonto', '− 0,00 TL', ''],
+      ['KDV %10 matrahı', '50,00 TL', ''],
+      ['KDV %20 matrahı', '100,00 TL', ''],
+      ['KDV %10', '5,00 TL', ''],
+      ['KDV %20', '20,00 TL', ''],
+      ['KDV toplamı', '25,00 TL', ''],
+      ['Genel toplam · Ödenecek tutar', '175,00 TL', 'is-grand'],
     ]);
     expect(chain()).toEqual([
       { text: 'S-o1 Satış siparişi', current: false, opens: false, status: undefined },
@@ -467,7 +477,7 @@ describe('English', () => {
     for (const text of [
       'Faturalandı', 'Bu teklif', 'Bu sipariş', 'Bu fatura', 'Bu irsaliye', 'Bu talep', 'Bu iade', 'Belge zinciri', 'Cari',
       'Ödeme durumu', 'Toplam KDV', 'Teklif satırları', 'Fatura satırları', 'İrsaliye satırları', 'Talep satırları', 'İade satırları',
-      'Bu talepten hazırlanan teklifler', 'Alt+İ işlemler', '2 satır', 'KDV %20 · matrah 100,00 TRY', 'Unvan', 'Sevk deposu', 'Fatura bekliyor',
+      'Bu talepten hazırlanan teklifler', 'Alt+İ işlemler', '2 satır', 'KDV %20 · matrah 100,00 TRY', 'KDV %20 matrahı', 'Unvan', 'Sevk deposu', 'Fatura bekliyor',
       'Satış siparişi', 'Satış irsaliyesi', 'Satış faturası', 'Satış teklifi', 'Alış faturası',
     ])
       expect(localizedUiText(text), text).not.toBe(text);

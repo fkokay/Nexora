@@ -42,8 +42,9 @@ import {
   DetailTabs,
   formatDate,
   formatQuantity,
+  type DocumentTotalRow,
 } from "./document-detail/DocumentDetailLayout";
-import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, SalesLinesMeta, salesTotalRows } from "./sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, SalesLinesMeta } from "./sales/salesDocumentDetail";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -239,11 +240,17 @@ export function SalesDeliveriesScreen({
   const priced = !!detail?.lines.some((line) => line.unitPrice !== null);
   const deliveryMoney = (value: number) =>
     `${new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0)} ${deliveryCurrency === "TRY" ? "TL" : deliveryCurrency}`;
-  // KDV by rate straight from the totals above (the same sums), higher rate first.
-  const deliveryVatGroups = Object.keys(deliveryTotals.vatByRate)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .map((rate) => ({ rate, taxable: deliveryTotals.taxableByRate[rate], vat: deliveryTotals.vatByRate[rate] }));
+  // The delivery's own totals block, with the wording and order users know: per rate the base rows, then the VAT rows
+  // (rates ascending), the VAT total and the amount to pay; the discount always as "− X".
+  const deliveryRates = Object.keys(deliveryTotals.vatByRate).map(Number).sort((a, b) => a - b);
+  const deliveryTotalRows: DocumentTotalRow[] = [
+    { key: "subtotal", label: "Mal / hizmet toplamı", value: deliveryMoney(deliveryTotals.subtotal) },
+    { key: "discount", label: "Toplam iskonto", value: `− ${deliveryMoney(deliveryTotals.discount)}` },
+    ...deliveryRates.map((rate) => ({ key: `taxable-${rate}`, label: `KDV %${rate} matrahı`, value: deliveryMoney(deliveryTotals.taxableByRate[rate]) })),
+    ...deliveryRates.map((rate) => ({ key: `vat-${rate}`, label: `KDV %${rate}`, value: deliveryMoney(deliveryTotals.vatByRate[rate]) })),
+    { key: "vat", label: "KDV toplamı", value: deliveryMoney(deliveryTotals.vat) },
+    { key: "grand", label: "Genel toplam · Ödenecek tutar", value: deliveryMoney(deliveryTotals.total), emphasis: "grand" },
+  ];
   function renderField(
     item: SalesDeliverySummary,
     field: BuiltInScreenLayoutField,
@@ -792,11 +799,7 @@ export function SalesDeliveriesScreen({
               {priced && (
                 <DetailLinesFooter
                   label="İrsaliye toplamları"
-                  totals={salesTotalRows(
-                    { subtotal: deliveryTotals.subtotal, discountTotal: deliveryTotals.discount, taxTotal: deliveryTotals.vat, grandTotal: deliveryTotals.total },
-                    deliveryMoney,
-                    deliveryVatGroups,
-                  )}
+                  totals={deliveryTotalRows}
                 />
               )}
             </div>
@@ -826,9 +829,7 @@ export function SalesDeliveriesScreen({
                   )
                 )
               }
-            >
-              {null}
-            </DetailSection>
+            />
             {invoiceEditing && (
               <RecordFormPage
                 variant="dialog"

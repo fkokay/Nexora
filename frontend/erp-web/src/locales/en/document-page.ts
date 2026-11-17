@@ -140,4 +140,5 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Satır (\d+) sil$/, 'Delete line $1'],
   [/^(\d+) değişiklik kaydedilmedi$/, '$1 unsaved changes'],
   [/^KDV %(\d+(?:,\d+)?) · matrah (.+)$/, 'VAT $1% · base $2'],
+  [/^KDV %(\d+(?:,\d+)?) matrahı$/, 'VAT $1% base'],
 ]

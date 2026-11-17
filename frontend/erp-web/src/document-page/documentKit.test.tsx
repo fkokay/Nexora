@@ -9,6 +9,8 @@ import { DocumentStatusBadge } from './DocumentStatusBadge';
 import {
   DetailChain,
   DetailContext,
+  DetailInfoGrid,
+  DetailSection,
   DetailKeyValues,
   DetailLinesFooter,
   DetailLinesHead,
@@ -325,6 +327,20 @@ describe('Document body parts', () => {
     const items = screen.getAllByRole('listitem');
     expect(items[1].textContent).toContain('Satış faturası');
     expect(items[1].querySelector('.dd-chain-code')).toBeNull();
+  });
+
+  it('DetailInfoGrid keys items by `key` when given, so repeated labels do not warn', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<DetailInfoGrid items={[{ key: 'a', label: 'Tarih', value: '1' }, { key: 'b', label: 'Tarih', value: '2' }]} />);
+    expect(document.querySelectorAll('.dd-info > div')).toHaveLength(2);
+    expect(errors.mock.calls.some((call) => String(call[0]).includes('same key'))).toBe(false);
+  });
+
+  it('DetailSection can be a header-only section', () => {
+    render(<DetailSection title="Henüz fatura yok" description="Açıklama" actions={<button type="button">Faturalaştır</button>} />);
+    const section = screen.getByRole('region', { name: 'Henüz fatura yok' });
+    expect(section.children).toHaveLength(1);
+    expect(within(section).getByRole('button', { name: 'Faturalaştır' })).toBeTruthy();
   });
 
   it('DetailContext, DetailKeyValues and DetailMeterRows draw a context section', () => {

@@ -49,7 +49,13 @@ export function DetailTiles({ items, label }: { items: DetailTile[]; label?: str
   );
 }
 
-export type DetailInfoItem = { label: string; value: ReactNode; title?: string };
+export type DetailInfoItem = {
+  label: string;
+  value: ReactNode;
+  title?: string;
+  /** React anahtarı; etiketler tekrar edebiliyorsa (kiracı alan düzeni) verilir, varsayılan `label`. */
+  key?: string;
+};
 
 /** Salt okunur bilgi ızgarası: etiket / değer, giriş kutusu yok. Sütun sayısı kartın kendi genişliğine göre (container query). */
 export function DetailInfoGrid({ items, label }: { items: DetailInfoItem[]; label?: string }) {
@@ -57,7 +63,7 @@ export function DetailInfoGrid({ items, label }: { items: DetailInfoItem[]; labe
     <div className="dd-info-wrap">
       <dl className="dd-info" aria-label={label}>
         {items.map((item) => (
-          <div key={item.label}>
+          <div key={item.key ?? item.label}>
             <dt>{item.label}</dt>
             <dd title={item.title}>{item.value}</dd>
           </div>
@@ -307,7 +313,8 @@ export function DetailSection({
   count?: number;
   description?: ReactNode;
   actions?: ReactNode;
-  children: ReactNode;
+  /** Verilmezse yalnızca başlık (başlık, açıklama, işlemler) çizilir. */
+  children?: ReactNode;
 }) {
   const id = useId();
   return (

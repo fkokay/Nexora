@@ -81,7 +81,7 @@ export type VatGroup = { rate: number; taxable: number; vat: number };
 
 /**
  * KDV oranına göre matrah ve KDV: satırların sunucudan gelen tutarları (matrah, KDV) orana göre toplanır, yüksek
- * oran önce. Toplamlar belgenin sunucu toplamlarını (± kuruş yuvarlaması) tutmazsa — tevkifat, ek vergi, eski kayıt —
+ * oran önce. Toplamlar belgenin sunucu toplamlarını (oran grubu başına ± 1 kuruş) tutmazsa — tevkifat, ek vergi, eski kayıt —
  * döküm verilmez (`null`) ve belge toplamları olduğu gibi kalır.
  */
 export function vatByRate(
@@ -97,7 +97,8 @@ export function vatByRate(
     groups.set(line.vatPercent, group);
   }
   const all = [...groups.values()];
-  const tolerance = 0.01 * Math.max(1, lines.length);
+  // One kuruş of rounding per rate group (the server rounds each line; the groups are what is compared).
+  const tolerance = 0.01 * all.length;
   const sum = (key: "taxable" | "vat") => all.reduce((total, group) => total + group[key], 0);
   if (Math.abs(sum("taxable") - expected.taxable) > tolerance || Math.abs(sum("vat") - expected.vat) > tolerance) return null;
   const round = (value: number) => Math.round(value * 100) / 100;
