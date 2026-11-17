@@ -5,8 +5,9 @@ import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
-import { FinanceAccountsToolbar } from "./finance/components/FinanceAccountsToolbar";
-import { FinanceAccountsGrid } from "./finance/components/FinanceAccountsGrid";
+import { FinanceAccountsList } from "./finance/components/FinanceAccountsList";
+import { FinanceAccountStatement } from "./finance/components/FinanceAccountStatement";
+import { DetailDrawer } from "./document-detail/DocumentDetailLayout";
 import {
   BankStatementList,
   exportBankStatements,
@@ -419,17 +420,22 @@ function FinancePage({
       setBusy(false);
     }
   }
+  function startCreateAccount() {
+    setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true);
+  }
   function editAccount(account: FinancialAccount) {
     setEditingAccount(account); setCode(account.code); setName(account.name);
     setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountCreateOpen(true);
   }
-  async function deleteAccount(account: FinancialAccount) {
-    if (!(await confirmDialog({ title: "Hesap silinsin mi?", message: `“${account.name}” hesabı silinecek. Bu işlem geri alınamaz.`, tone: "danger", confirmLabel: "Sil" }))) return;
+  /** Resolves true once the account is deleted (false: not confirmed or refused by the server). */
+  async function deleteAccount(account: FinancialAccount): Promise<boolean> {
+    if (!(await confirmDialog({ title: "Hesap silinsin mi?", message: `“${account.name}” hesabı silinecek. Bu işlem geri alınamaz.`, tone: "danger", confirmLabel: "Sil" }))) return false;
     setBusy(true); setError("");
     try {
       await api(`/api/finance/accounts/${account.id}`, token, { method: "DELETE" });
       setNotice(`${account.name} hesabı silindi.`); await load();
-    } catch (e) { setError((e as Error).message); }
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
     finally { setBusy(false); }
   }
   async function showDetail(account: { id: string }, page = 1) {
@@ -809,7 +815,7 @@ function FinancePage({
   const showListHeader = isListSection && !(accountCreateOpen && isAccountsPage);
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}`}
     >
       {showListHeader && (
         <ListPageHeader
@@ -823,13 +829,6 @@ function FinancePage({
                 : maturity ? maturity.items.length : null
           }
         >
-          {isAccountsPage && (
-            <button
-              type="button"
-              className="primary"
-              onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true); }}
-            >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
-          )}
           {section === "finance-statements" && (
             <>
               <button
@@ -1333,7 +1332,15 @@ function FinancePage({
         </div>
       )}
       {isAccountsPage && !accountCreateOpen && (
-        <FinanceAccountsToolbar
+        <FinanceAccountsList
+          kind={accountKind}
+          active={!detail}
+          loading={loading}
+          busy={busy}
+          allAccounts={accounts}
+          kindAccounts={kindAccounts}
+          accounts={visibleAccounts}
+          fields={visibleAccountFields.filter((field) => field.key !== "actions")}
           query={accountQueryDraft}
           status={accountStateFilter}
           counts={{
@@ -1343,26 +1350,29 @@ function FinancePage({
           }}
           onQueryChange={setAccountQueryDraft}
           onStatusChange={setAccountStateFilter}
-          onApply={() => setAccountQuery(accountQueryDraft)}
+          onApplyQuery={() => setAccountQuery(accountQueryDraft)}
           onRefresh={() => void load()}
-          toolsSlotRef={setListToolsSlot}
+          onCreate={startCreateAccount}
+          onOpen={(account) => void showDetail(account)}
+          onEdit={editAccount}
+          onToggle={(account) => void toggle(account)}
+          onDelete={(account) => void deleteAccount(account)}
+          onNewMovement={(account) =>
+            void showDetail(account).then(() => {
+              setMovementDirection("Inflow");
+              setTransferOpen(false);
+              setMovementOpen(true);
+            })
+          }
+          onNewTransfer={(account) =>
+            void showDetail(account).then(() => {
+              setToAccountId("");
+              setTransferRate("1");
+              setMovementOpen(false);
+              setTransferOpen(true);
+            })
+          }
         />
-      )}
-      {isAccountsPage && (
-        <section className="ledger-list finance-accounts-grid-panel list-v2-list">
-          <FinanceAccountsGrid
-            token={token}
-            loading={loading}
-            busy={busy}
-            accounts={visibleAccounts}
-            fields={visibleAccountFields}
-            toolbarContainer={listToolsSlot}
-            onShowDetail={(account) => void showDetail(account)}
-            onToggle={(account) => void toggle(account)}
-            onEdit={editAccount}
-            onDelete={(account) => void deleteAccount(account)}
-          />
-        </section>
       )}
       {section === "finance-statements" && (
         <div className="cf-layout bst-layout">
@@ -1566,72 +1576,63 @@ function FinancePage({
         )}
       </dialog>
       {isAccountsPage && detail && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
+        <FinanceAccountStatement
+          token={token}
+          detail={detail}
+          accounts={accounts}
+          role={role}
+          busy={busy}
+          error={error}
+          notice={notice}
+          onDismissError={() => setError("")}
+          onDismissNotice={() => setNotice("")}
+          onClose={() => {
+            setDetail(null);
+            setMovementOpen(false);
+            setTransferOpen(false);
           }}
-        >
-          <div
-            className="modal ledger-modal account-transactions-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="finance-account-transactions-title"
-          >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">
-                  {detail.code} · {detail.type === "Cash" ? "KASA" : "BANKA"}
-                </p>
-                <h2 id="finance-account-transactions-title">{detail.name}</h2>
-              </div>
-              <button className="icon-button" onClick={() => setDetail(null)}>
-                <X size={19} />
-              </button>
-            </div>
-            <div className="balance-banner">
-              <div>
-                <small>Hesap bakiyesi · {detail.currencyCode}</small>
-                <b>
-                  {detail.balance.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {detail.currencyCode}
-                </b>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <span>Hesap işlemleri</span>
-              <div>
-                <button
-                  className="secondary"
-                  disabled={busy || !detail.isActive}
-                  onClick={() => {
-                    setMovementDirection("Inflow");
-                    setTransferOpen(false);
-                    setMovementOpen(true);
-                  }}
-                >
-                  Manuel hareket
-                </button>
-                <button
-                  className="secondary"
-                  disabled={
-                    busy ||
-                    !detail.isActive ||
-                    !accounts.some((a) => a.id !== detail.id && a.isActive)
-                  }
-                  onClick={() => {
-                    setToAccountId("");
-                    setTransferRate("1");
-                    setMovementOpen(false);
-                    setTransferOpen(true);
-                  }}
-                >
-                  Transfer / döviz
-                </button>
-              </div>
-            </div>
+          onPage={(page) => void showDetail(detail, page)}
+          onCreateAccount={() => {
+            setDetail(null);
+            startCreateAccount();
+          }}
+          onEdit={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (!account) return;
+            setDetail(null);
+            editAccount(account);
+          }}
+          onToggle={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (account) void toggle(account).then(() => showDetail(detail, detail.transactionPage));
+          }}
+          onDelete={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (account) void deleteAccount(account).then((deleted) => { if (deleted) setDetail(null); });
+          }}
+          onNewMovement={() => {
+            setMovementDirection("Inflow");
+            setTransferOpen(false);
+            setMovementOpen(true);
+          }}
+          onNewTransfer={() => {
+            setToAccountId("");
+            setTransferRate("1");
+            setMovementOpen(false);
+            setTransferOpen(true);
+          }}
+          onVoidMovement={(item) => void voidMovement(item)}
+          onVoidTransfer={(item) => void voidTransfer(item)}
+          onCategoryChange={(item, category) => void updateCashFlowCategory(item, category)}
+          drawer={
+            <DetailDrawer
+              open={movementOpen || transferOpen}
+              label={movementOpen ? "Manuel hareket" : "Transfer / döviz"}
+              onClose={() => {
+                setMovementOpen(false);
+                setTransferOpen(false);
+              }}
+            >
             {movementOpen && (
               <RecordFormPage
                 variant="dialog"
@@ -1848,179 +1849,9 @@ function FinancePage({
                 </RecordFormGroup>
               </RecordFormPage>
             )}
-            <div className="ledger-list">
-              <FinanceStudioGrid
-                token={token}
-                screenKey="finance-account-transactions"
-                defaults={financeGridDefaults["finance-account-transactions"]}
-              >
-                <table className="customer-table">
-                  <thead>
-                    <tr>
-                      <th>Tarih</th>
-                      <th>Kaynak</th>
-                      <th>Açıklama</th>
-                      <th>Nakit akışı</th>
-                      <th>Referans</th>
-                      <th>Giriş</th>
-                      <th>Çıkış</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.transactions.map((t) => (
-                      <tr key={t.id}>
-                        <td>
-                          {t.transactionDate.split("-").reverse().join(".")}
-                        </td>
-                        <td>
-                          {t.sourceType
-                            ? `${t.sourceType} ${t.sourceCode || ""}`
-                            : "Manuel / ters kayıt"}
-                        </td>
-                        <td>{t.description}</td>
-                        <td>
-                          <select
-                            aria-label="Nakit akışı sınıfı"
-                            disabled={
-                              role !== "TenantAdmin" ||
-                              busy ||
-                              t.cashFlowCategory === "InternalTransfer" ||
-                              t.cashFlowCategory === "OpeningBalance"
-                            }
-                            value={t.cashFlowCategory || "Unclassified"}
-                            onChange={(e) =>
-                              void updateCashFlowCategory(
-                                t,
-                                e.target.value as NonNullable<
-                                  FinancialMovement["cashFlowCategory"]
-                                >,
-                              )
-                            }
-                          >
-                            <option value="Unclassified">
-                              Sınıflandırılmamış
-                            </option>
-                            <option value="Operating">İşletme</option>
-                            <option value="Investing">Yatırım</option>
-                            <option value="Financing">Finansman</option>
-                            {t.cashFlowCategory === "InternalTransfer" && (
-                              <option value="InternalTransfer">
-                                İç transfer
-                              </option>
-                            )}
-                            {t.cashFlowCategory === "OpeningBalance" && (
-                              <option value="OpeningBalance">Açılış</option>
-                            )}
-                          </select>
-                        </td>
-                        <td>{t.reference || "—"}</td>
-                        <td>
-                          {t.direction === "Inflow"
-                            ? t.amount.toLocaleString("tr-TR", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "—"}
-                        </td>
-                        <td>
-                          {t.direction === "Outflow"
-                            ? t.amount.toLocaleString("tr-TR", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "—"}
-                        </td>
-                        <td>
-                          {t.sourceType === "Manuel hareket" &&
-                            !t.reversalOfId && (
-                              <button
-                                className="row-action danger-action"
-                                disabled={busy}
-                                onClick={() => void voidMovement(t)}
-                              >
-                                İptal
-                              </button>
-                            )}
-                          {t.sourceType === "Hesap transferi" &&
-                            !t.reversalOfId && (
-                              <button
-                                className="row-action danger-action"
-                                disabled={busy}
-                                onClick={() => void voidTransfer(t)}
-                              >
-                                Transferi iptal et
-                              </button>
-                            )}
-                        </td>
-                      </tr>
-                    ))}
-                    {detail.transactions.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="table-empty">
-                          Hesap hareketi yok.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </FinanceStudioGrid>
-            </div>
-            <div className="modal-foot transaction-pagination">
-              <span>
-                {detail.transactionTotalCount === 0
-                  ? 0
-                  : (detail.transactionPage - 1) * detail.transactionPageSize +
-                    1}
-                –
-                {Math.min(
-                  detail.transactionPage * detail.transactionPageSize,
-                  detail.transactionTotalCount,
-                )}{" "}
-                / {detail.transactionTotalCount} hareket
-              </span>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={detail.transactionPage <= 1}
-                  onClick={() =>
-                    void showDetail(detail, detail.transactionPage - 1)
-                  }
-                >
-                  Önceki
-                </button>
-                <span>
-                  Sayfa {detail.transactionPage} /{" "}
-                  {Math.max(
-                    1,
-                    Math.ceil(
-                      detail.transactionTotalCount / detail.transactionPageSize,
-                    ),
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={
-                    detail.transactionPage * detail.transactionPageSize >=
-                    detail.transactionTotalCount
-                  }
-                  onClick={() =>
-                    void showDetail(detail, detail.transactionPage + 1)
-                  }
-                >
-                  Sonraki
-                </button>
-              </div>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setDetail(null)}
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
+            </DetailDrawer>
+          }
+        />
       )}
     </div>
   );
