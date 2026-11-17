@@ -3,7 +3,9 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 internal sealed record PageQueryParameter(string Name, string Binding, string Type);
-internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn);
+/// <summary>A page query: either SQL text (<see cref="Sql"/>) or a named ERP operation (<see cref="Operation"/>, Sql is then empty).</summary>
+internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn,
+    string? Operation = null);
 
 /// <summary>Pure helpers for schema v2 page queries: reading, binding paths, SQL parameter names and dependency cycles.</summary>
 internal static partial class TenantCustomPageQueries
@@ -27,6 +29,7 @@ internal static partial class TenantCustomPageQueries
 
     /// <summary>
     /// Returns the definition with <c>queries[].sql</c> removed, for runtime consumers that only run queries by id.
+    /// <c>queries[].operation</c> is kept: the runtime calls named ERP operations itself.
     /// Definitions without queries are returned unchanged.
     /// </summary>
     internal static string WithoutQuerySql(string definitionJson)
@@ -53,7 +56,8 @@ internal static partial class TenantCustomPageQueries
                 if (query.TryGetProperty("parameters", out var list) && list.ValueKind == JsonValueKind.Array)
                     foreach (var parameter in list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object))
                         parameters.Add(new PageQueryParameter(Text(parameter, "name"), Text(parameter, "binding"), Text(parameter, "type")));
-                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn")));
+                var operation = query.TryGetProperty("operation", out var op) && op.ValueKind == JsonValueKind.String ? op.GetString() : null;
+                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"), operation));
             }
             return result;
         }

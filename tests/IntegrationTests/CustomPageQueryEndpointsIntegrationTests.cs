@@ -211,6 +211,36 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         Assert.Equal(0, factory.Calls);
     }
 
+    [Fact]
+    public async Task Run_endpoint_rejects_operation_query()
+    {
+        var factory = new RecordingQueryConnectionFactory(unavailable: false);
+        await using var app = await StartApplicationAsync(factory);
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var definition = new
+        {
+            schemaVersion = 2,
+            queries = new object[] { new { id = "q1", name = "kartlar", kind = "read", operation = "stok.kart.listele", runOn = "load",
+                parameters = new object[] { new { name = "q", binding = "{{arama.value}}", type = "text" } } } },
+            components = new object[] { new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } } }
+        };
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Stok", definition });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var preview = await client.PostAsJsonAsync($"/api/custom-pages/{id}/preview/queries/q1/run", new { parameters = new { q = "x" } });
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Equal("ERP işlemi sayfa üzerinden doğrudan çalıştırılır.", (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
+        var run =await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { q = "x" } });
+        Assert.Equal(HttpStatusCode.BadRequest, run.StatusCode);
+        Assert.Equal("ERP işlemi sayfa üzerinden doğrudan çalıştırılır.", (await run.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal(0, factory.Calls);
+    }
+
     /// <summary>Publishes a page with query q1 as admin; optionally grants Ayse View. Leaves the admin identity set.</summary>
     private static async Task<Guid> PublishAsync(HttpClient client, bool accessForAyse)
     {
