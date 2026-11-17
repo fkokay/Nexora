@@ -486,13 +486,14 @@ export default function WarehouseLocationsPage({
     setEditBaseline(null);
   }, [mode, selected]);
   // The list was refreshed and the open location changed elsewhere: an unchanged form shows the new values; a
-  // changed one keeps its baseline version, so saving it gets the server's conflict message.
+  // changed one keeps its baseline version, so saving it gets the server's conflict message. A changed form that
+  // becomes unchanged again (the edits undone) is rebuilt from the live row then.
   useEffect(() => {
     if (mode !== "edit" || !selected || !editVersion || selected.rowVersion === editVersion) return;
-    if (busyRef.current || hasChangesRef.current) return;
+    if (busyRef.current || hasChanges) return;
     openRecord(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.rowVersion]);
+  }, [selected?.rowVersion, hasChanges]);
   // A hand-off while this screen is already open (kept alive).
   const requestRef = useRef<(request: LocationRequest) => void>(() => {});
   requestRef.current = (request) => {

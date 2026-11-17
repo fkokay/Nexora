@@ -56,6 +56,16 @@ describe('ListSummaryCards', () => {
     expect(rule).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
   });
 
+  it('more than four cards wrap to a second row; none is dropped or hidden', () => {
+    const cards = Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, label: `Kart ${i}`, value: i, icon: Package }));
+    const { container } = render(<ListSummaryCards cards={cards} />);
+    expect(Array.from(container.querySelectorAll('.nx-summary-item small')).map((el) => el.textContent)).toEqual(cards.map((card) => card.label));
+    const css = readFileSync(resolve(__dirname, 'list-page-v2.css'), 'utf8');
+    // No silent cap: no rule hides cards beyond a count, and the row is not clipped to one line.
+    expect(css).not.toMatch(/\.nx-summary-item:nth-child[^{]*\{[^}]*display:\s*none/);
+    expect(css.match(/#root \.nx-summary-row \{[^}]*\}/)![0]).not.toMatch(/overflow|grid-auto-flow:\s*column|max-height/);
+  });
+
   it('shows the hint under the value', () => {
     render(<ListSummaryCards cards={[{ id: 'a', label: 'Maliyetsiz', value: 4, icon: Package, hint: '200 adet maliyetsiz' }]} />);
     expect(screen.getByText('200 adet maliyetsiz').className).toContain('nx-summary-hint');

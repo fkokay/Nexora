@@ -27,6 +27,8 @@ const changeWarehouseElsewhere = (id: string, patch: Partial<Row>) => {
 // "METHOD /path" → a gate the response waits for (a save in flight) or a server refusal.
 let held: Record<string, Promise<void>> = {};
 let refused: Record<string, string> = {};
+// "METHOD /path" → a 409 Response with this server message (for screens that read the Response themselves).
+let conflicts: Record<string, string> = {};
 function respond(url: string, init?: RequestInit): unknown {
   const key = `${init?.method ?? 'GET'} ${url.split('?')[0]}`;
   if (refused[key]) return Promise.reject(new Error(refused[key]));
@@ -65,6 +67,8 @@ vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
     apiMock(url, _token, init);
+    const conflict = conflicts[`${init?.method ?? 'GET'} ${url.split('?')[0]}`];
+    if (conflict) return new Response(JSON.stringify({ error: conflict }), { status: 409, headers: { 'Content-Type': 'application/json' } });
     return new Response(JSON.stringify(await respond(url, init)), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }),
 }));
@@ -76,6 +80,7 @@ beforeAll(() => {
 beforeEach(() => {
   held = {};
   refused = {};
+  conflicts = {};
   customFields = [textField('BOLGE', 'Bölge', 'Marmara')];
   warehouses = [
     { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true, rowVersion: 'AA' },
@@ -507,6 +512,61 @@ describe('Depolar definition screen', () => {
     expect(command('delete').title).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
   });
 
+  it('keeps the status change in İşlemler away from a form with unsaved changes', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'X' } });
+    openMenu();
+    const status = document.querySelector<HTMLElement>('[role="menuitem"][data-item="warehouse-status"]')!;
+    expect(status.getAttribute('aria-disabled')).toBe('true');
+    expect(status.title).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
+    fireEvent.click(status);
+    await settle();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(calls('POST', /\/status$/)).toHaveLength(0);
+  });
+
+  it('a changed form made unchanged again after Yenile is rebuilt from the live row and saves with its version', async () => {
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    changeWarehouseElsewhere('w1', { name: 'Başka ad', rowVersion: 'ZZ' });
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(field(/^Depo adı/).value).toBe('Ana depo 2');
+    // The edit undone: the form is unchanged again and shows the live row, not the stale one.
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo' } });
+    await settle();
+    expect(field(/^Depo adı/).value).toBe('Başka ad');
+    expect(within(pane()).queryByText(/alan değişti/)).toBeNull();
+    fireEvent.change(field(/^Depo kodu/), { target: { value: 'D1X' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo kodu/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1$/)[0])).toEqual({ code: 'D1X', name: 'Başka ad', rowVersion: 'ZZ' });
+  });
+
+  it('a save refused with a conflict (409) shows the server message exactly once and keeps the changes', async () => {
+    const message = 'Kayıt başka bir kullanıcı tarafından değiştirildi. Yenileyip tekrar deneyin.';
+    refused['PUT /api/warehouses/w1'] = message;
+    renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectWarehouse('D1');
+    fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Depo adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+    expect(field(/^Depo adı/).value).toBe('Ana depo 2');
+    expect(within(pane()).getByText('1 alan değişti')).toBeTruthy();
+  });
+
   it('İşlemler keeps the field catalog, the status change and CSV; Lokasyon ekle hands over to Raf ve Konumlar', async () => {
     const onNavigate = vi.fn();
     renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" onNavigate={onNavigate} />);
@@ -758,6 +818,49 @@ describe('Raf ve Konumlar definition screen', () => {
     });
     await settle();
     expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1\/locations\/l3$/)[0]).rowVersion).toBe('LX');
+  });
+
+  it('a changed location form made unchanged again after Yenile is rebuilt from the live row', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01-03');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Benim adım' } });
+    locations = { ...locations, w1: locations.w1.map((row) => (row.id === 'l2' ? { ...row, name: 'Başkası', rowVersion: 'LZ' } : row)) };
+    await act(async () => {
+      fireEvent.click(command('refresh'));
+    });
+    await settle();
+    expect(field(/^Konum adı/).value).toBe('Benim adım');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Raf A göz 3' } });
+    await settle();
+    expect(field(/^Konum adı/).value).toBe('Başkası');
+    // Sil (Pasife al) is offered again and sends the live version.
+    await act(async () => {
+      fireEvent.click(command('delete'));
+    });
+    await act(async () => {
+      fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /^Pasife al/ }));
+    });
+    await settle();
+    expect(bodyOf(calls('PUT', /^\/api\/warehouses\/w1\/locations\/l2$/)[0])).toEqual({
+      code: 'A-01-03', name: 'Başkası', parentLocationId: 'l1', isActive: false, rowVersion: 'LZ',
+    });
+  });
+
+  it('a save refused with 409 shows the server message exactly once and keeps the changes', async () => {
+    const message = 'Konum başka bir kullanıcı tarafından değiştirildi. Yenileyip tekrar deneyin.';
+    conflicts['PUT /api/warehouses/w1/locations/l2'] = message;
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    await selectLocation('A-01-03');
+    fireEvent.change(field(/^Konum adı/), { target: { value: 'Raf A göz 4' } });
+    await act(async () => {
+      fireEvent.keyDown(field(/^Konum adı/), { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+    expect(field(/^Konum adı/).value).toBe('Raf A göz 4');
+    expect(within(pane()).getByText('1 alan değişti')).toBeTruthy();
   });
 
   it('TenantUser: the selected location is shown read-only, without Yeni or Sil', async () => {

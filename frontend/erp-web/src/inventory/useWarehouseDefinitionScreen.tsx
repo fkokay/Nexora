@@ -195,13 +195,15 @@ export function useWarehouseDefinitionScreen(o: Options) {
     focusCreateForm();
   }
   // The list was refreshed (Yenile) and the open warehouse changed elsewhere: an unchanged form shows the new
-  // values; a changed one keeps its baseline version, so saving it gets the server's conflict message.
+  // values; a changed one keeps its baseline version, so saving it gets the server's conflict message. A changed
+  // form that becomes unchanged again (the edits undone) is rebuilt from the live row then, so it never goes on
+  // with stale values under an old version (a later status change would adopt the new version for them).
   useEffect(() => {
     if (mode !== "edit" || !current || !baseVersion || current.rowVersion === baseVersion) return;
-    if (busyRef.current || hasChangesRef.current) return;
+    if (busyRef.current || hasChanges) return;
     openRecord(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.rowVersion]);
+  }, [current?.rowVersion, hasChanges]);
   // The catalog changed (Depo alan tanımları): an unchanged form shows the new fields.
   useEffect(() => {
     if (!o.catalogVersion || hasChangesRef.current) return;
