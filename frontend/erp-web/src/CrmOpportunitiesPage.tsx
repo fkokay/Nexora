@@ -6,22 +6,31 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { CalendarClock, Trash2 } from "lucide-react";
+import { BadgeCheck, CircleDollarSign, Clock3, Target, Trash2 } from "lucide-react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { StatusTag } from "./list-page/StatusTag";
+import { useStockDetailPanelOpen } from "./inventory/components/InventoryStockDetailPanel";
+import { SalesListDetailEmpty, SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter, pageAmountHint } from "./sales/components/SalesListFooter";
+import "./sales/sales-list-v2.css";
+import { CLOSED_OPPORTUNITY_REASON, stageTone } from "./crm-opportunities/stageTone";
 import "./crm-opportunities.css";
 import { CrmOpportunityHeader } from "./crm-opportunities/components/CrmOpportunityHeader";
 import {
   CrmOpportunityFilters,
   type CrmStageCounts,
 } from "./crm-opportunities/components/CrmOpportunityFilters";
-import {
-  CrmOpportunityGrid,
-  CrmOpportunityPagination,
-} from "./crm-opportunities/components/CrmOpportunityGrid";
+import { CrmOpportunityGrid } from "./crm-opportunities/components/CrmOpportunityGrid";
 import { CrmOpportunityDetail } from "./crm-opportunities/components/CrmOpportunityDetail";
 import { CrmOpportunityCreateForm } from "./crm-opportunities/components/CrmOpportunityCreateForm";
 import {
   defaultScreenFields,
   formatMoney,
+  nextStage,
   stageLabels,
   stages,
   type Customer,
@@ -47,9 +56,13 @@ export default function CrmOpportunitiesPage({
     [customerQuery, setCustomerQuery] = useState(""),
     [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null),
     [customerLoading, setCustomerLoading] = useState(false);
-  const [selectedOpportunity, setSelectedOpportunity] =
-      useState<Opportunity | null>(null),
+  // The row the user chose (click, ↑/↓); the list never picks one by itself.
+  const [currentId, setCurrentId] = useState<string | null>(null),
+    [ticked, setTicked] = useState<string[]>([]),
+    [panelTab, setPanelTab] = useState("summary"),
     [createOpen, setCreateOpen] = useState(initialCreate);
+  const exportRef = useRef<GridExportActions | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [editingOpportunity, setEditingOpportunity] = useState<Opportunity | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Opportunity | null>(null);
   const [screenFields, setScreenFields] =
@@ -300,7 +313,7 @@ export default function CrmOpportunitiesPage({
           notes: notes || null,
         }),
       });
-      setSelectedOpportunity(updated);
+      setCurrentId(updated.id);
       setEditingOpportunity(null);
       setCreateOpen(false);
       setNotice("Fırsat güncellendi.");
@@ -328,7 +341,6 @@ export default function CrmOpportunitiesPage({
         method: "POST",
         body: JSON.stringify({ stage }),
       });
-      setSelectedOpportunity({ ...item, stage });
       setNotice(
         `${item.name}: ${stageLabels[stage] || stage} aşamasına taşındı.`,
       );
@@ -352,7 +364,7 @@ export default function CrmOpportunitiesPage({
     setNotice("");
     try {
       await request(`/api/crm/opportunities/${item.id}`, { method: "DELETE" });
-      if (selectedOpportunity?.id === item.id) setSelectedOpportunity(null);
+      if (currentId === item.id) setCurrentId(null);
       setNotice("Fırsat silindi.");
       await refresh();
       void loadStageCounts();
@@ -383,9 +395,9 @@ export default function CrmOpportunitiesPage({
       case "name":
         return (
           <>
-            <b className="crm-truncate" title={item.name}>
+            <span className="crm-name" title={item.name}>
               {item.name}
-            </b>
+            </span>
             <small className="cell-subtitle list-v2-name-code">{item.code}</small>
           </>
         );
@@ -398,41 +410,18 @@ export default function CrmOpportunitiesPage({
           <span className="crm-muted">Bağlanmadı</span>
         );
       case "stage":
-        return (
-          <span className={`crm-stage crm-stage-${item.stage.toLowerCase()}`}>
-            {stageLabels[item.stage] || item.stage}
-          </span>
-        );
+        return <StatusTag tone={stageTone(item.stage)}>{stageLabels[item.stage] || item.stage}</StatusTag>;
       case "estimatedValue":
         return item.estimatedValue === null
           ? "—"
           : formatMoney(item.estimatedValue, item.currencyCode, 2);
       case "probabilityPercent":
-        return (
-          <div
-            className="crm-probability"
-            aria-label={`Kazanma olasılığı yüzde ${item.probabilityPercent}`}
-          >
-            <i aria-hidden="true">
-              <span
-                style={{
-                  width: `${Math.min(100, Math.max(0, item.probabilityPercent))}%`,
-                }}
-              />
-            </i>
-            <b>%{item.probabilityPercent}</b>
-          </div>
-        );
+        return `%${item.probabilityPercent}`;
       case "expectedCloseDate":
-        return (
-          <span className="crm-date">
-            {item.expectedCloseDate && (
-              <CalendarClock size={14} aria-hidden="true" />
-            )}
-            {item.expectedCloseDate
-              ? new Date(item.expectedCloseDate).toLocaleDateString("tr-TR")
-              : "Tarih yok"}
-          </span>
+        return item.expectedCloseDate ? (
+          new Date(item.expectedCloseDate).toLocaleDateString("tr-TR")
+        ) : (
+          <span className="crm-muted">Tarih yok</span>
         );
       case "nextActivityAt":
         return item.nextActivityAt
@@ -446,16 +435,118 @@ export default function CrmOpportunitiesPage({
     }
   };
 
+  const listActive = !createOpen;
+  const panel = useStockDetailPanelOpen(listActive, rootRef);
+  const current = currentId ? items.find((item) => item.id === currentId) : undefined;
+  const target = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
+  const isClosed = (item: Opportunity) => item.stage === "Won" || item.stage === "Lost";
+  const busyReason = busy ? "İşlem sürüyor…" : undefined;
+  const openDisabledReason = !target ? "Önce bir kayıt seçin" : isClosed(target) ? CLOSED_OPPORTUNITY_REASON : busyReason;
+  const openItem = (item: Opportunity | undefined) => {
+    if (item && !isClosed(item) && !busy) edit(item);
+  };
+  const commands: PageCommands = {
+    new: { primary: true, run: () => setCreateOpen(true) },
+    open: {
+      disabledReason: openDisabledReason,
+      run: () => {
+        const id = focusedRecordId();
+        openItem((id && items.find((item) => item.id === id)) || target);
+      },
+    },
+    // Silme kalıcıdır (mevcut onay penceresi); kapanmış fırsat da silinebilir (bugünkü kural).
+    // Same target as Aç: the focused row first (Ctrl+Del on a row), else the current / single ticked row.
+    delete: {
+      disabledReason: !target ? "Önce bir kayıt seçin" : busyReason,
+      run: () => {
+        const id = focusedRecordId();
+        const item = (id && items.find((row) => row.id === id)) || target;
+        return item ? remove(item) : undefined;
+      },
+    },
+  };
+  const more: MenuCommand[] = [];
+  if (current && !isClosed(current)) {
+    const next = nextStage[current.stage];
+    if (next)
+      more.push({
+        id: "crm-advance",
+        label: `Aşamayı ilerlet: ${stageLabels[next]}`,
+        disabledReason: busyReason,
+        run: () => move(current, next),
+      });
+    more.push({ id: "crm-lost", label: "Kaybedildi olarak işaretle", disabledReason: busyReason, run: () => move(current, "Lost") });
+  }
+  more.push(csvExportCommand(exportRef));
+  commands.more = more;
+
+  // Açık / Kazanıldı: the chips' server counts (search applied, all pages). Takibi geçmiş and açık değer: this page.
+  const openStages = ["Prospecting", "Qualified", "Proposal", "Negotiation"];
+  const openCount = stageCounts ? openStages.reduce((sum, stage) => sum + (stageCounts.byStage[stage] ?? 0), 0) : null;
+  const openRows = items.filter((item) => !isClosed(item));
+  const now = Date.now();
+  const overdue = openRows.filter((item) => item.nextActivityAt && new Date(item.nextActivityAt).getTime() < now).length;
+  const valued = openRows.filter((item) => item.estimatedValue !== null);
+  const currencies = new Set(valued.map((item) => item.currencyCode));
+  const openValue =
+    currencies.size === 1
+      ? formatMoney(valued.reduce((sum, item) => sum + (item.estimatedValue ?? 0), 0), valued[0].currencyCode, 2)
+      : "—";
+  const scope = query.trim() ? "aramayla eşleşen" : "tüm kayıtlar";
+  const summary = (
+    <ListSummaryCards
+      cards={[
+        { id: "open", label: "Açık fırsat", value: openCount === null ? "—" : openCount.toLocaleString("tr-TR"), icon: Target, hint: <span>{scope}</span> },
+        {
+          id: "won",
+          label: "Kazanıldı",
+          value: stageCounts ? (stageCounts.byStage.Won ?? 0).toLocaleString("tr-TR") : "—",
+          icon: BadgeCheck,
+          tone: "ok",
+          hint: <span>{scope}</span>,
+        },
+        {
+          id: "value",
+          label: "Açık fırsat değeri",
+          value: listLoading ? "—" : openValue,
+          icon: CircleDollarSign,
+          hint: pageAmountHint(valued),
+        },
+        {
+          id: "overdue",
+          label: "Takibi geçmiş",
+          value: listLoading ? "—" : overdue.toLocaleString("tr-TR"),
+          icon: Clock3,
+          tone: "warn",
+          hint: <span>bu sayfa</span>,
+        },
+      ]}
+    />
+  );
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <CrmOpportunityDetail
+          selected={current}
+          tab={panelTab}
+          onTabChange={setPanelTab}
+          onOpen={() => openItem(current)}
+          openDisabled={isClosed(current) || busy}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <SalesListDetailEmpty label="Fırsat özeti" text="Özetini görmek için listeden bir fırsat seçin." />
+      )
+    ) : null;
+
   return (
     <div className={`crm-page list-v2${createOpen ? " crm-page--form" : ""}`}>
       {/* The open form is the page (the CSS hides the rest): its own slot takes the action bar, so the list header,
           which holds the list's slot, is not mounted meanwhile. */}
-      {!createOpen && (
-        <CrmOpportunityHeader
-          onCreate={() => setCreateOpen(true)}
-          total={listLoading && totalCount === 0 ? null : totalCount}
-        />
-      )}
+      {!createOpen && <PageCommandsSlot commands={commands} />}
+      {!createOpen && <CrmOpportunityHeader total={listLoading && totalCount === 0 ? null : totalCount} />}
+      {!createOpen && summary}
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -476,6 +567,7 @@ export default function CrmOpportunitiesPage({
       {createOpen && (
         <CrmOpportunityCreateForm
           mode={editingOpportunity ? "edit" : "create"}
+          editing={editingOpportunity}
           customerError={customerError}
           customers={customers}
           customerId={customerId}
@@ -577,15 +669,11 @@ export default function CrmOpportunitiesPage({
           void refresh();
           void loadStageCounts();
         }}
-      />
-      <section
-        className="crm-panel crm-opportunity-workbench list-v2-list"
-        aria-label="Satış hattı"
-        aria-busy={listLoading}
       >
-        <div
-          className={`crm-record-workspace${selectedOpportunity ? " is-inspecting" : ""}${items.length === 0 && !listLoading ? " is-empty" : ""}`}
-        >
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </CrmOpportunityFilters>
+      <div ref={rootRef} className={`sales-list-body crm-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="crm-opportunity-workbench list-v2-list" aria-label="Satış hattı" aria-busy={listLoading}>
           <CrmOpportunityGrid
             items={items}
             fields={visibleFields}
@@ -593,40 +681,36 @@ export default function CrmOpportunitiesPage({
             error={listError}
             query={query}
             filter={filter}
-            selectedId={selectedOpportunity?.id ?? null}
             toolbarContainer={gridToolsSlot}
+            exportActionsRef={exportRef}
+            selection={{
+              currentId,
+              onCurrentChange: setCurrentId,
+              onTickedChange: setTicked,
+              bulkActions: listActive
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void exportRef.current?.exportExcel() }]
+                : undefined,
+              onOpen: (id) => openItem(items.find((item) => item.id === id)),
+            }}
+            footer={
+              <SalesListFooter
+                ticked={ticked.length}
+                shown={items.length}
+                total={totalCount}
+                page={page}
+                pageSize={50}
+                loading={listLoading}
+                onPageChange={setPage}
+              />
+            }
             renderField={renderField}
-            onSelect={setSelectedOpportunity}
             onRefresh={() => void refresh()}
             onCreate={() => setCreateOpen(true)}
             onClearFilters={clearFilters}
           />
-          <CrmOpportunityDetail
-            selected={selectedOpportunity}
-            itemsCount={items.length}
-            loading={listLoading}
-            listError={listError}
-            query={query}
-            filter={filter}
-            busy={busy}
-            formatMoney={formatMoney}
-            onClear={clearFilters}
-            onCreate={() => setCreateOpen(true)}
-            onClose={() => setSelectedOpportunity(null)}
-            onEdit={edit}
-            onMove={(stage) => {
-              if (selectedOpportunity) void move(selectedOpportunity, stage);
-            }}
-            onDelete={(item) => void remove(item)}
-          />
-        </div>
-        <CrmOpportunityPagination
-          loading={listLoading}
-          page={page}
-          totalCount={totalCount}
-          onPageChange={setPage}
-        />
-      </section>
+        </section>
+        {listPanel}
+      </div>
     </div>
   );
 }

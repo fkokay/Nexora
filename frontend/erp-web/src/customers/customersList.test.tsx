@@ -1,0 +1,462 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ActionBar } from '../action-bar/ActionBar';
+import { CommandProvider } from '../commands/CommandProvider';
+import { KeepAliveViews } from '../WorkspaceComponents';
+import { ConfirmDialogHost } from '../confirmDialog';
+import { loadEnglishDictionaries, localizedUiText } from '../locale';
+import { CustomersPage } from '../CustomersPage';
+import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel } from './customerLabels';
+import { CustomerDetailPanel } from './components/CustomerDetailPanel';
+
+const customer = (id: string, extra: Record<string, unknown> = {}) => ({
+  id, code: `C-${id}`, name: `Cari ${id}`, type: 'Customer', taxNumber: '1234567890', isActive: true, createdAt: '2026-11-01',
+  rowVersion: 'AA==', groupId: null, groupName: null, currencyCode: 'TRY', riskLimit: null, paymentTermDays: 30,
+  isEInvoiceRegistered: false, ...extra,
+});
+const customers = [
+  customer('c1', { isEInvoiceRegistered: true, riskLimit: 400000, groupName: 'Toptan' }),
+  customer('c2', { type: 'Both' }),
+  customer('c3', { type: 'Supplier', isActive: false }),
+];
+const listFields = [
+  ['code', 'Cari kodu'], ['name', 'Ünvan'], ['groupName', 'Cari grubu'], ['type', 'Tür'], ['currencyCode', 'Döviz'],
+  ['paymentTermDays', 'Vade'], ['taxNumber', 'Vergi no'], ['status', 'Durum'], ['actions', 'İşlemler'],
+].map(([key, label], position) => ({ key, label, visible: true, position }));
+const detailFields = [
+  { key: 'groupName', label: 'Cari grubu', visible: true, position: 0, section: 'Genel Bilgiler' },
+  { key: 'riskLimit', label: 'Risk limiti', visible: true, position: 1, section: 'Finans' },
+];
+
+function respond(url: string): unknown {
+  const [path, query = ''] = url.split('?');
+  const params = new URLSearchParams(query);
+  if (path === '/api/customers/') {
+    if (params.get('pageSize') === '1') {
+      const type = params.get('type'), status = params.get('status');
+      const count = customers.filter(
+        (item) => (!type || item.type === type) && (!status || (status === 'Active') === item.isActive),
+      ).length;
+      return { items: [], totalCount: count };
+    }
+    // The search is honoured (code or name), like the API's `q`.
+    const q = (params.get('q') ?? '').toLocaleLowerCase('tr-TR');
+    const rows = customers.filter((item) => !q || `${item.code} ${item.name}`.toLocaleLowerCase('tr-TR').includes(q));
+    return { items: rows, totalCount: rows.length };
+  }
+  if (path === '/api/screen-views/customers/active') return { fields: listFields, pageSettings: null };
+  if (path === '/api/screen-views/customer-details/active') return { fields: detailFields };
+  if (path.startsWith('/api/screen-views/')) return { fields: [] };
+  if (path === '/api/customers/c1/balance') return { currencyCode: 'TRY', balance: 186242, balanceSide: 'Debit', riskLimit: 400000 };
+  if (path.endsWith('/balance')) return { currencyCode: 'TRY', balance: 0, balanceSide: 'Balanced', riskLimit: null };
+  if (path === '/api/customers/c1/addresses')
+    return [{ id: 'a1', kind: 'Billing', label: 'Merkez', addressLine: 'Lara Cad. 112', city: 'Antalya', district: 'Muratpaşa', postalCode: '07230', countryCode: 'TR', isDefault: true, isActive: true, latitude: 36.85, longitude: 30.76 }];
+  if (path.endsWith('/addresses')) return [];
+  if (path === '/api/customers/c1') return customers[0];
+  if (path === '/api/location-definitions/') return { provinces: [], districts: [] };
+  return [];
+}
+
+const apiMock = vi.hoisted(() => vi.fn());
+vi.mock('../erpApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('../erpApi')>()), api: apiMock }));
+
+beforeAll(() => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} });
+  if (!HTMLElement.prototype.scrollTo) HTMLElement.prototype.scrollTo = () => {};
+  apiMock.mockImplementation(async (url: string) => respond(url));
+});
+afterAll(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup();
+  apiMock.mockClear();
+  apiMock.mockImplementation(async (url: string) => respond(url));
+  sessionStorage.clear();
+  localStorage.clear();
+});
+
+function renderScreen(view: ReactNode) {
+  return render(
+    <CommandProvider>
+      <ActionBar locale="tr" />
+      <KeepAliveViews activeKey="v" openKeys={['v']}>{view}</KeepAliveViews>
+      <ConfirmDialogHost />
+    </CommandProvider>,
+  );
+}
+function renderList(role = 'TenantAdmin', onNavigate = vi.fn()) {
+  renderScreen(
+    <CustomersPage token="t" role={role} initialSearch="" onNavigate={onNavigate} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+  );
+  return onNavigate;
+}
+
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
+const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+function menuItems() {
+  fireEvent.click(command('more'));
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
+  fireEvent.click(command('more'));
+  return items;
+}
+const grid = () => document.querySelector<HTMLElement>('.list-v2-list table')!;
+const row = (code: string) => within(grid()).getAllByText(code)[0].closest('tr')!;
+const panel = () => document.querySelector<HTMLElement>('aside.sales-ld');
+const fetched = (path: string) => apiMock.mock.calls.filter(([url]) => url === path).length;
+const cards = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('.nx-summary-item')).map((card) =>
+    Array.from(card.querySelectorAll('.nx-summary-text > *'))
+      .map((part) => part.textContent?.replace(/\s+/g, ' ').trim())
+      .join(' '),
+  );
+
+async function settle(ms = 400) {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+
+describe('Cari türü adı', () => {
+  it('"Both" has one name everywhere: Müşteri & Tedarikçi', () => {
+    expect(customerTypeLabel('Both')).toBe('Müşteri & Tedarikçi');
+  });
+
+  it('the filter chip and the list tag say Müşteri & Tedarikçi (not Diğer)', async () => {
+    renderList();
+    await settle();
+    const chips = screen.getByRole('group', { name: 'Cari türü' });
+    expect(within(chips).getByRole('button', { name: /Müşteri & Tedarikçi/ })).toBeTruthy();
+    expect(within(chips).queryByRole('button', { name: /Diğer/ })).toBeNull();
+    expect(within(row('C-c2')).getByText('Müşteri & Tedarikçi').className).toContain('nx-status-tag');
+  });
+});
+
+describe('Cari Hesaplar list', () => {
+  it('shows the list type: summary cards, code column, tags, numbers, footer', async () => {
+    renderList();
+    await settle();
+    expect(cards()).toEqual([
+      'Cari kartı 3 tüm kayıtlar · 2 aktif',
+      'Pasif 1 tüm kayıtlar',
+      'e-Fatura mükellefi 1 / 3 bu sayfa',
+      'Risk limiti tanımlı 1 / 3 bu sayfa',
+    ]);
+    expect(screen.getByRole('checkbox', { name: 'Tümünü seç' })).toBeTruthy();
+    expect(within(row('C-c1')).getByText('C-c1').closest('td')!.className).toContain('nx-code');
+    expect(within(row('C-c1')).getByText('e-Fatura').className).toContain('is-ok');
+    expect(within(row('C-c3')).getByText('Pasif').className).toContain('is-off');
+    expect(within(row('C-c1')).getByText('Aktif').className).toContain('is-ok');
+    expect(within(row('C-c1')).getByText('gün').closest('td')!.className).toContain('nx-num');
+    const footer = document.querySelector<HTMLElement>('.nx-list-footer')!;
+    expect(footer.textContent).toContain('Enter kartı aç');
+    expect(footer.textContent).toContain('3 / 3');
+    // The former header buttons are on the bar.
+    expect(screen.queryByRole('button', { name: /Yeni cari kartı/ })).toBeNull();
+    expect(screen.queryByText('Dışa aktar')).toBeNull();
+  });
+
+  it('bar: Yeni is primary, Sil explains that cards are deactivated, Aç needs a chosen row', async () => {
+    const onNavigate = renderList();
+    await settle();
+    expect(command('new').getAttribute('data-primary')).toBe('true');
+    expect(enabled('delete')).toBe(false);
+    expect(reason('delete')).toContain('Cari silinmez, pasife alınır');
+    expect(enabled('open')).toBe(false);
+    expect(reason('open')).toContain('Önce bir kayıt seçin');
+    // Nothing is current before the user chooses a row.
+    expect(document.querySelector('tr[aria-current="true"]')).toBeNull();
+    fireEvent.click(command('new'));
+    expect(onNavigate).toHaveBeenCalledWith('customer-create');
+  });
+
+  it('a click selects the row (no card opens); a double click and Aç open the card', async () => {
+    const onNavigate = renderList();
+    await settle();
+    fireEvent.click(row('C-c2'));
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    expect(onNavigate).not.toHaveBeenCalledWith('customer-edit');
+    expect(enabled('open')).toBe(true);
+    fireEvent.click(command('open'));
+    expect(onNavigate).toHaveBeenCalledWith('customer-edit');
+    expect(sessionStorage.getItem('nexora.customer-edit-id')).toBe('c2');
+    onNavigate.mockClear();
+    fireEvent.doubleClick(within(row('C-c1')).getByText('Cari c1'));
+    expect(onNavigate).toHaveBeenCalledWith('customer-edit');
+    expect(sessionStorage.getItem('nexora.customer-edit-id')).toBe('c1');
+  });
+
+  it('İşlemler holds the former header and panel actions; import only for TenantAdmin', async () => {
+    renderList();
+    await settle();
+    expect(menuItems()).toEqual(['Gruplar', 'CSV / Excel içe aktar', 'CSV olarak dışa aktar']);
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
+    expect(menuItems()).toEqual([
+      'Yeni sipariş', 'Yeni teklif', 'Yeni irsaliye', 'Yeni fatura', 'Cari mutabakatı', 'Adresler', 'Özel alanlar', 'Özel alan tanımları ve geçmiş',
+      'Satış faturaları', 'Pasife al', 'Gruplar', 'CSV / Excel içe aktar', 'CSV olarak dışa aktar',
+    ]);
+    cleanup();
+    renderList('TenantUser');
+    await settle();
+    expect(menuItems()).not.toContain('CSV / Excel içe aktar');
+  });
+
+  it('sales actions are disabled with a reason on a supplier card', async () => {
+    renderList();
+    await settle();
+    fireEvent.click(row('C-c3'));
+    await waitFor(() => expect(row('C-c3').getAttribute('aria-current')).toBe('true'));
+    fireEvent.click(command('more'));
+    const order = screen.getByRole('menuitem', { name: /Yeni sipariş/ });
+    expect(order.getAttribute('aria-disabled')).toBe('true');
+    expect(order.getAttribute('title')).toContain('Satış işlemleri yalnız müşteri ve bayi kartlarında');
+    expect(screen.getByRole('menuitem', { name: /Etkinleştir/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Alış faturaları/ })).toBeTruthy();
+  });
+
+  it('arriving from the global search makes the first match current, not the first row of the unfiltered load', async () => {
+    // The searched list answers after the list's first, unfiltered load has rendered.
+    apiMock.mockImplementation(async (url: string) => {
+      if (/^\/api\/customers\/\?q=Cari/.test(url) && url.includes('pageSize=25')) await new Promise((resolve) => setTimeout(resolve, 80));
+      return respond(url);
+    });
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="Cari c2" onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    expect(document.querySelectorAll('tr[aria-current="true"]')).toHaveLength(1);
+  });
+
+  it('Excel (Ctrl+E) is still the export of every page of the search, not the grid page', async () => {
+    renderList();
+    await settle();
+    apiMock.mockClear();
+    await act(async () => {
+      fireEvent.click(command('export'));
+    });
+    await waitFor(() =>
+      expect(apiMock.mock.calls.some(([url]) => String(url).startsWith('/api/customers/?') && String(url).includes('pageSize=100'))).toBe(true),
+    );
+  });
+
+  it('the detail panel (Ctrl+.) shows the chosen account and its /balance; nothing loads before a choice', async () => {
+    renderList();
+    await settle();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    await waitFor(() => expect(panel()).not.toBeNull());
+    expect(panel()!.textContent).toContain('Özetini görmek için listeden bir cari seçin.');
+    expect(fetched('/api/customers/c1/balance')).toBe(0);
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(panel()!.textContent).toContain('186.242,00 TRY'));
+    const p = within(panel()!);
+    expect(p.getByText('B').getAttribute('title')).toBe('Borç bakiyesi');
+    expect(panel()!.textContent).toContain('400.000,00 TRY');
+    expect(panel()!.textContent).toContain('%46,6');
+    expect(p.getByText('e-Fatura').className).toContain('is-ok');
+    expect(p.getByRole('tab', { name: 'Genel Bilgiler' })).toBeTruthy();
+    expect(p.getByRole('tab', { name: 'İletişim' })).toBeTruthy();
+    expect(fetched('/api/customers/c1/balance')).toBe(1);
+    expect(panel()!.textContent).toContain('cari dövizi; farklı dövizli hareketler ayrıştırılmaz');
+  });
+});
+
+describe('English labels of the new Cari texts', () => {
+  it('translates the bar reasons, menu items, cards and panel texts', async () => {
+    localStorage.setItem('aierp.locale', 'en');
+    await loadEnglishDictionaries();
+    for (const text of [
+      'Cari silinmez, pasife alınır', 'Satış işlemleri yalnız müşteri ve bayi kartlarında', 'Cari mutabakatı', 'Gruplar',
+      'CSV olarak dışa aktar', 'Cari kartı', 'e-Fatura mükellefi', 'Risk limiti tanımlı', 'tüm kayıtlar', 'aramayla eşleşen',
+      'aktif', 'e-Fatura', 'Limit kullanımı', 'Özetini görmek için listeden bir cari seçin.', 'Cari özeti', 'Alış faturaları',
+      '↑↓ gez · Boşluk işaretle · Enter kartı aç · Çift tık aç · Ctrl+. detay paneli', 'Cari kayıtları',
+      '— yeni sipariş, teklif, irsaliye, fatura ve pasife alma', 'Müşteri & Tedarikçi',
+      'cari dövizi; farklı dövizli hareketler ayrıştırılmaz', 'e-Fatura alıcı etiketi', 'Harita konumu:',
+      'Yeni adres', 'adres', 'Adres kaydedildi.', 'Özel alan tanımları ve geçmiş',
+    ])
+      expect(localizedUiText(text), text).not.toBe(text);
+  });
+});
+
+describe('Cari kartı (kayıt formu v3)', () => {
+  it('an opened card shows the name as the title and code, status, type and summary under it', async () => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Cari c1' })).toBeTruthy());
+    const head = screen.getByRole('heading', { name: 'Cari c1' }).closest<HTMLElement>('.record-form')!;
+    expect(within(head).getByText('C-c1').className).toContain('rf-code');
+    expect(within(head).getAllByText('Aktif')[0].className).toContain('nx-status-tag');
+    expect(head.textContent).toContain('Toptan · Vade 30 gün · TRY · Vergi no 1234567890');
+  });
+});
+
+describe('Cari paneli döviz dürüstlüğü', () => {
+  it('Limit kullanımı only when the balance is in the card currency; alias in İletişim', () => {
+    const props = {
+      tab: 'contact', fields: [], address: null, addressLoaded: true, balanceError: '', onTabChange: vi.fn(), onOpen: vi.fn(),
+      onClose: vi.fn(), onInvoices: vi.fn(), onPurchaseInvoices: vi.fn(), onLedger: vi.fn(), onAddresses: vi.fn(), onFields: vi.fn(),
+    };
+    const card = { ...customers[0], currencyCode: 'EUR', eInvoiceRecipientAlias: 'urn:mail:pk@akdeniz' } as never;
+    render(<CustomerDetailPanel {...props} customer={card} balance={{ currencyCode: 'TRY', balance: 1000, balanceSide: 'Debit', riskLimit: 2000 }} />);
+    expect(screen.getByText('Limit kullanımı').parentElement!.textContent).toBe('Limit kullanımı—');
+    expect(screen.getByText('urn:mail:pk@akdeniz')).toBeTruthy();
+    cleanup();
+    render(<CustomerDetailPanel {...props} customer={{ ...customers[0] } as never} balance={{ currencyCode: 'TRY', balance: 1000, balanceSide: 'Debit', riskLimit: 2000 }} />);
+    expect(screen.getByText('Limit kullanımı').parentElement!.textContent).toBe('Limit kullanımı%50');
+  });
+});
+
+describe('Global arama isteği', () => {
+  const renderSearched = () =>
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="Cari c2" onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+
+  it('repeating the same search picks its first match again', async () => {
+    renderSearched();
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    // The user moves on: clears the search and chooses another account.
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+    await settle(700);
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(CUSTOMER_SEARCH_REQUEST_EVENT, { detail: 'Cari c2' }));
+    });
+    await settle();
+    await waitFor(() => expect(row('C-c2').getAttribute('aria-current')).toBe('true'));
+    expect(within(grid()).queryByText('C-c1')).toBeNull();
+  });
+
+  it('a late answer of the first, unfiltered load does not overwrite the searched list', async () => {
+    apiMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/customers/?q=&') && url.includes('pageSize=25')) await new Promise((resolve) => setTimeout(resolve, 150));
+      return respond(url);
+    });
+    renderSearched();
+    await settle(600);
+    expect(within(grid()).queryByText('C-c1')).toBeNull();
+    expect(row('C-c2').getAttribute('aria-current')).toBe('true');
+  });
+});
+
+describe('Cari kartı › Adresler bölümü', () => {
+  const renderCard = (section?: string) => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    if (section) sessionStorage.setItem('nexora.customer-edit-section', section);
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+  };
+
+  it('the list opens the card on its Adresler section (no window)', async () => {
+    const onNavigate = renderList();
+    await settle();
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
+    fireEvent.click(command('more'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Adresler' }));
+    expect(onNavigate).toHaveBeenCalledWith('customer-edit');
+    expect(sessionStorage.getItem('nexora.customer-edit-section')).toBe('addresses');
+    expect(document.querySelector('.customer-address-modal')).toBeNull();
+  });
+
+  it('lists the addresses, toggles one and adds a new one with its own save (same request body); the card is not saved', async () => {
+    renderCard('addresses');
+    await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('Merkez')).toBeTruthy();
+    expect(within(table).getByText('Varsayılan').className).toContain('nx-status-tag');
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    apiMock.mockImplementation(async (url: string, _token: string, init?: RequestInit) => {
+      if (init?.method && init.method !== 'GET') {
+        calls.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+        if (url === '/api/customers/c1/addresses/a1') return { ...(respond('/api/customers/c1/addresses') as object[])[0], isActive: false, isDefault: false };
+        return { id: 'a2', ...(JSON.parse(String(init.body)) as object) };
+      }
+      return respond(url);
+    });
+    await act(async () => {
+      fireEvent.click(within(table).getByRole('button', { name: 'Pasife al' }));
+    });
+    await waitFor(() => expect(within(screen.getByRole('table')).getByText('Pasif')).toBeTruthy());
+    expect(calls[0]).toMatchObject({ url: '/api/customers/c1/addresses/a1', method: 'PUT', body: { isActive: false, isDefault: false } });
+
+    fireEvent.change(screen.getByLabelText(/Adres etiketi/), { target: { value: 'Depo' } });
+    fireEvent.change(screen.getByLabelText(/^Adres\s*\*?$/), { target: { value: 'OSB 3. Cad.' } });
+    fireEvent.change(screen.getAllByLabelText(/^İl/)[0], { target: { value: 'Antalya' } });
+    await act(async () => {
+      fireEvent.submit(document.getElementById('customer-address-form')!);
+    });
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/customers/c1/addresses' && c.method === 'POST')).toBe(true));
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      kind: 'General', label: 'Depo', addressLine: 'OSB 3. Cad.', city: 'Antalya', district: null, postalCode: null,
+      countryCode: 'TR', isDefault: true, latitude: null, longitude: null,
+    });
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/customers/c1')).toBe(false);
+    // The address inputs belong to the address form, not to the card's form.
+    expect((screen.getByLabelText(/Adres etiketi/) as HTMLInputElement).form?.id).toBe('customer-address-form');
+  });
+});
+
+describe('Cari kartı › Adresler: harita koordinatları', () => {
+  it('a half-entered coordinate in the new address belongs to the address form: Enter and the card Kaydet do not post it, Kaydet saves the card', async () => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    sessionStorage.setItem('nexora.customer-edit-section', 'addresses');
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
+    const calls: Array<{ url: string; method: string }> = [];
+    apiMock.mockImplementation(async (url: string, _token: string, init?: RequestInit) => {
+      if (init?.method && init.method !== 'GET') {
+        calls.push({ url, method: init.method });
+        return url === '/api/customers/c1' ? customers[0] : {};
+      }
+      return respond(url);
+    });
+    const section = screen.getByText('Yeni adres').closest('section')!;
+    await act(async () => {
+      fireEvent.click(within(section).getByRole('button', { name: 'Haritayı aç' }));
+    });
+    const latitude = within(section).getByLabelText('Enlem') as HTMLInputElement;
+    const longitude = within(section).getByLabelText('Boylam') as HTMLInputElement;
+    fireEvent.change(latitude, { target: { value: '36.8' } });
+    expect(latitude.form?.id).toBe('customer-address-form');
+    expect(longitude.form?.id).toBe('customer-address-form');
+    expect(longitude.required).toBe(true);
+    // Enter in the coordinate is the address form's (implicit submission targets the input's own form).
+    fireEvent.keyDown(latitude, { key: 'Enter' });
+    expect(calls.some((c) => c.url === '/api/customers/c1')).toBe(false);
+    await act(async () => {
+      fireEvent.click(command('save'));
+    });
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/customers/c1')).toBe(true));
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('the list panel follows address changes made on the card', async () => {
+    renderList();
+    await settle();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(panel()!.textContent).toContain('Lara Cad. 112'));
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('nexora:customer-addresses-changed', {
+          detail: {
+            customerId: 'c1',
+            addresses: [{ id: 'a2', kind: 'General', label: 'Depo', addressLine: 'OSB 3. Cad.', city: 'Antalya', district: null, postalCode: null, countryCode: 'TR', isDefault: true, isActive: true, latitude: null, longitude: null }],
+          },
+        }),
+      );
+    });
+    expect(panel()!.textContent).toContain('OSB 3. Cad.');
+  });
+});

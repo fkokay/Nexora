@@ -1,0 +1,65 @@
+/* Cari Hesaplar list (mockup 08): only what the shared list / sales panel classes do not cover. */
+#root .list-v2 .customer-name-line { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+#root .list-v2 .customer-name-line .customer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .list-v2 .customer-name-line .nx-status-tag { flex: none; font-size: 10px; }
+#root .list-v2 .customer-ld-address { display: flex; flex-direction: column; gap: 2px; margin: 0; overflow-wrap: anywhere; }
+#root .list-v2 .customer-ld-related { display: flex; flex-direction: column; }
+#root .app-shell .list-v2 .customer-ld-related > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nx-line-soft);
+  border-radius: 0;
+  background: transparent;
+  color: var(--nx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#root .app-shell .list-v2 .customer-ld-related > button:last-child { border-bottom: 0; }
+#root .app-shell .list-v2 .customer-ld-related > button:hover { color: var(--nx-primary); }
+#root .app-shell .list-v2 .customer-ld-related > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .list-v2 .customer-ld-related svg { color: var(--nx-muted); }
+#root .list-v2 .customer-ld-hint { margin: 0; padding: 8px 10px; border-radius: var(--nx-radius-card); background: var(--nx-table-head); color: var(--nx-muted); font-size: 12px; }
+#root .list-v2 .customer-ld-hint b { color: var(--nx-text); font-weight: 600; }
+/* Search, six type chips, two status chips, Detay paneli and Görünüm share one toolbar line at 1440: the search gives
+   way first and the gaps are a little tighter (as Satış Teklifleri). Narrower screens wrap (kit rule). */
+#root .list-v2.customer-page-main .list-v2-toolbar { column-gap: 8px; }
+#root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-search { flex: 1 1 140px; min-width: 140px; }
+#root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-chips { gap: 4px; }
+#root .list-v2 .customer-ld-caveat { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+
+/* Cari kartı › Adresler section (record form v3): the addresses as a 30px sub-table, the new address below. */
+#root .record-form .customer-address-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#root .app-shell .record-form table.customer-address-table :is(th, td) {
+  height: var(--nx-row-h-dense) !important;
+  padding: 0 8px !important;
+  border-bottom: 1px solid var(--nx-line-soft);
+  color: var(--nx-text);
+  font-size: 12.5px !important;
+  text-align: left;
+}
+#root .app-shell .record-form table.customer-address-table th {
+  height: 28px !important;
+  background: var(--nx-table-head) !important;
+  color: var(--nx-muted);
+  font-size: 11.5px !important;
+  font-weight: 600;
+}
+#root .record-form .customer-address-table tr.is-inactive td { color: var(--nx-muted); }
+#root .record-form .customer-address-table td:last-child { width: 1%; white-space: nowrap; text-align: right; }
+#root .app-shell .record-form .customer-address-table td:last-child button { height: 26px; min-height: 0; padding: 0 8px; font-size: 12px; }
+#root .record-form .customer-rf-empty { margin: 0; color: var(--nx-muted); }
+#root .record-form .customer-address-actions { display: flex; align-items: flex-end; }
+/* The map picker sits inside an address card: no second frame (single-layer cards). */
+#root .app-shell .record-form .rf-group .customer-location-picker {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

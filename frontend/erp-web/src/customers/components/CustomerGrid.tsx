@@ -1,189 +1,68 @@
-import type { ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { MutableRefObject, ReactNode } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
 import type { BuiltInScreenLayoutField, CustomerItem } from "../../erp-types";
+import SalesDocumentGrid, { type SalesGridSelection } from "../../sales/components/SalesDocumentGrid";
 
 type Props = {
   items: CustomerItem[];
   fields: BuiltInScreenLayoutField[];
-  groups: { label: string; count: number }[];
-  total: number;
-  page: number;
   loading: boolean;
   filter: string;
-  selectedCustomerId: string | null;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
-  onPageChange: (page: number) => void;
-  onSelect: (item: CustomerItem) => void;
-  renderCell: (
-    field: BuiltInScreenLayoutField,
-    item: CustomerItem,
-  ) => ReactNode;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
+  selection: SalesGridSelection;
+  footer: ReactNode;
+  renderCell: (field: BuiltInScreenLayoutField, item: CustomerItem) => ReactNode;
 };
 
-export function CustomerGrid({
-  items,
-  fields,
-  groups,
-  total,
-  page,
-  loading,
-  filter,
-  selectedCustomerId,
-  toolbarContainer,
-  onPageChange,
-  onSelect,
-  renderCell,
-}: Props) {
+// Default widths for fields without a tenant width (the default view fits a 1440 screen without the panel).
+const COLUMN_WIDTHS: Record<string, number> = {
+  code: 86,
+  name: 220,
+  groupName: 116,
+  type: 120,
+  currencyCode: 54,
+  paymentTermDays: 66,
+  taxNumber: 104,
+  status: 70,
+  identityNumber: 116,
+  taxOffice: 120,
+  riskLimit: 96,
+  parentCompanyName: 150,
+  subsidiaryCount: 84,
+  createdAt: 96,
+};
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["paymentTermDays", "riskLimit", "subsidiaryCount"]);
+const CODE_FIELDS: ReadonlySet<string> = new Set(["code", "taxNumber", "identityNumber"]);
+
+/**
+ * Cari Hesaplar list in the approved list type: checkbox column, the page-owned current row (click, ↑/↓) that the
+ * bar's Aç and the detail panel follow, double-click / Enter opens the card, floating bulk bar.
+ */
+export function CustomerGrid({ items, fields, loading, filter, toolbarContainer, exportActionsRef, selection, footer, renderCell }: Props) {
   return (
     <section className="erp-list-pane list-v2-list" aria-label="Cariler">
-      <div className="customer-table-wrap">
-        <AdvancedDataGrid
-          className="customer-table customer-directory-grid"
-          gridId="customers-directory"
-          {...screenViewGridDefaults(fields, () => 120)}
-          minimumColumnWidths={fields.map((field) =>
-            field.key === "actions"
-              ? 82
-              : field.key === "taxNumber"
-                ? 105
-                : field.key === "name"
-                  ? 125
-                  : field.key === "groupName"
-                    ? 115
-                    : field.key === "code"
-                      ? 90
-                      : field.key === "type"
-                        ? 80
-                        : field.key === "currencyCode"
-                          ? 68
-                          : field.key === "paymentTermDays"
-                            ? 76
-                            : field.key === "status"
-                              ? 72
-                              : 80,
-          )}
-          externalPagination
-          hideSearch
-          hideExport
-          toolbarContainer={toolbarContainer}
-          enableRowSelection={false}
-        >
-          <thead>
-            {groups.length > 0 && (
-              <tr className="screen-view-group-row">
-                {groups.map((group, index) => (
-                  <th key={`${group.label}-${index}`} colSpan={group.count}>
-                    {group.label}
-                  </th>
-                ))}
-              </tr>
-            )}
-            <tr>
-              {fields.map((field) => (
-                <th
-                  key={field.key}
-                  style={
-                    field.width
-                      ? {
-                          width: `${field.width}px`,
-                          minWidth: `${field.width}px`,
-                        }
-                      : undefined
-                  }
-                >
-                  {field.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={fields.length} className="table-empty">
-                  Kayıtlar yükleniyor…
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={fields.length} className="table-empty">
-                  {filter
-                    ? "Aramanızla eşleşen cari kartı yok."
-                    : "Henüz cari kartı eklenmemiş."}
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => (
-                <tr
-                  key={item.id}
-                  className={
-                    selectedCustomerId === item.id ? "erp-selected-row" : ""
-                  }
-                  onClick={(event) => {
-                    if (
-                      (event.target as HTMLElement).closest(
-                        "button,a,input,select,textarea",
-                      )
-                    )
-                      return;
-                    onSelect(item);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(item);
-                    }
-                  }}
-                  tabIndex={0}
-                  aria-haspopup="dialog"
-                  aria-selected={selectedCustomerId === item.id}
-                >
-                  {fields.map((field) => (
-                    <td
-                      key={field.key}
-                      className={`customer-directory-cell-${field.key}`}
-                      style={
-                        field.width
-                          ? {
-                              width: `${field.width}px`,
-                              minWidth: `${field.width}px`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {renderCell(field, item)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </AdvancedDataGrid>
-      </div>
-      <div className="table-pagination">
-        <span>
-          {total
-            ? `${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} / ${total} kayıt`
-            : "0 kayıt"}
-        </span>
-        <div>
-          <button
-            className="secondary small-button"
-            disabled={page <= 1 || loading}
-            onClick={() => onPageChange(page - 1)}
-          >
-            Önceki
-          </button>
-          <button
-            className="secondary small-button"
-            disabled={page * 25 >= total || loading}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
+      <SalesDocumentGrid
+        gridId="customers-directory"
+        ariaLabel="Cari kayıtları"
+        fields={fields}
+        items={items}
+        loading={loading}
+        loadingMessage="Kayıtlar yükleniyor…"
+        emptyMessage="Henüz cari kartı eklenmemiş."
+        search={filter}
+        searchEmptyMessage="Aramanızla eşleşen cari kartı yok."
+        toolbarContainer={toolbarContainer}
+        hideExport
+        exportActionsRef={exportActionsRef}
+        selection={selection}
+        footer={footer}
+        renderCell={renderCell}
+        columnWidths={COLUMN_WIDTHS}
+        numberFields={NUMBER_FIELDS}
+        codeFields={CODE_FIELDS}
+      />
     </section>
   );
 }

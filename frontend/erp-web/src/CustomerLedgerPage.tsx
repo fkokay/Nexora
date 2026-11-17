@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownUp, BookOpenText, CalendarDays, ChevronDown, CircleDollarSign, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BookOpenText, ChevronDown, Scale, Wallet } from "lucide-react";
 import { api } from "./erpApi";
 import type { BuiltInScreenLayoutField, CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
+import { ListPageHeader } from "./list-page/ListPageHeader";
+import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import { StatusTag } from "./list-page/StatusTag";
+import "./list-page/list-page-v2.css";
 import "./customer-ledger-page.css";
 
 type CustomerPage = { items: CustomerItem[]; totalCount: number };
@@ -19,44 +27,76 @@ const defaultLedgerFields: ScreenField[] = [
   { key: "currencyCode", label: "Döviz", visible: false, position: 6 },
 ];
 const numericLedgerFields = new Set(["debit", "credit", "balance"]);
+const LEDGER_WIDTHS: Record<string, number> = { entryDate: 96, direction: 76, debit: 130, credit: 130, balance: 150, currencyCode: 70 };
 
-function currentYearStart() {
-  return `${new Date().getFullYear()}-01-01`;
-}
-
-function today() {
-  const date = new Date();
+function isoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+function today() {
+  return isoDate(new Date());
+}
+/** Period chips (mockup 03): each only sets the date range; the range inputs stay editable ("Özel"). */
+export function periodRange(period: "month" | "quarter" | "year", now = new Date()): { from: string; to: string } {
+  const to = isoDate(now);
+  if (period === "month") return { from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  if (period === "quarter") return { from: isoDate(new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())), to };
+  return { from: `${now.getFullYear()}-01-01`, to };
+}
+function displayDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("tr-TR");
+}
+function amount(value: number) {
+  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+/** Running balance as the statement shows it: absolute amount and side (B = borç, A = alacak). */
+function sided(value: number) {
+  if (value === 0) return <span>{amount(0)}</span>;
+  return (
+    <>
+      <span>{amount(Math.abs(value))}</span>{" "}
+      <span className="cl-side" title={value > 0 ? "Borç bakiyesi" : "Alacak bakiyesi"}>
+        {value > 0 ? "B" : "A"}
+      </span>
+    </>
+  );
+}
+/** A reversal line (written for an original line; the statement DTO carries `reversalOfId`). */
+const isReversalLine = (item: CustomerStatementLine) => Boolean(item.reversalOfId) || item.isReversal;
 
-function money(value: number, currency: string) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+/**
+ * A movement amount. The statement API adds amounts up whatever their currency and labels the result with the
+ * account's currency, so a movement in another currency shows its own code (as the base page's currency format did).
+ */
+function lineAmount(item: CustomerStatementLine, statementCurrency: string) {
+  return (
+    <span className="cl-amount">
+      {amount(item.amount)}
+      {item.currencyCode !== statementCurrency && <span className="cl-foreign"> {item.currencyCode}</span>}
+    </span>
+  );
 }
 
-function renderLedgerCell(item: CustomerStatementLine, key: string) {
+function renderLedgerCell(item: CustomerStatementLine, key: string, statementCurrency: string) {
   switch (key) {
     case "entryDate":
-      return new Date(`${item.entryDate}T00:00:00`).toLocaleDateString("tr-TR");
+      return displayDate(item.entryDate);
     case "description":
       return (
-        <>
-          {item.description || "—"}
-          {item.isReversal && <span className="customer-ledger-tag">Ters kayıt</span>}
-          {item.hasReversal && <span className="customer-ledger-tag">Ters çevrildi</span>}
-        </>
+        <span className="cl-desc">
+          {isReversalLine(item) && <span className="cl-link" aria-hidden="true">↳</span>}
+          <span className="cl-desc-text">{item.description || "—"}</span>
+          {isReversalLine(item) && <StatusTag tone="info">Ters kayıt</StatusTag>}
+          {item.hasReversal && <StatusTag tone="off">Ters çevrildi</StatusTag>}
+        </span>
       );
     case "direction":
       return item.direction === "Debit" ? "Borç" : "Alacak";
     case "debit":
-      return item.direction === "Debit" ? money(item.amount, item.currencyCode) : "—";
+      return item.direction === "Debit" ? lineAmount(item, statementCurrency) : "";
     case "credit":
-      return item.direction === "Credit" ? money(item.amount, item.currencyCode) : "—";
+      return item.direction === "Credit" ? lineAmount(item, statementCurrency) : "";
     case "balance":
-      return money(item.balance, item.currencyCode);
+      return sided(item.balance);
     case "currencyCode":
       return item.currencyCode;
     default:
@@ -64,19 +104,28 @@ function renderLedgerCell(item: CustomerStatementLine, key: string) {
   }
 }
 
+/**
+ * Cari Hesap Hareketleri (approved mockup 03, statement layout): the chosen account's statement for a date range —
+ * devir (opening balance), the movements with the running balance, period totals and the closing balance. Read only;
+ * corrections are reversal entries written from the account's reconciliation window. Belge türü / no, vade and
+ * aging are not drawn: the statement API does not return them.
+ */
 export default function CustomerLedgerPage({ token }: { token: string }) {
   const [search, setSearch] = useState("");
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<CustomerItem | null>(null);
-  const [from, setFrom] = useState(currentYearStart);
+  const [from, setFrom] = useState(() => periodRange("year").from);
   const [to, setTo] = useState(today);
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingStatement, setLoadingStatement] = useState(false);
   const [error, setError] = useState("");
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const customerPickerRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<GridExportActions | null>(null);
   const [screenFields, setScreenFields] = useState<ScreenField[]>(defaultLedgerFields);
   const visibleFields = useMemo(
     () => screenFields.filter((field) => field.visible).sort((a, b) => a.position - b.position),
@@ -155,44 +204,72 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
     return () => {
       active = false;
     };
-  }, [selectedId, from, to, token]);
+  }, [selectedId, from, to, token, reloadKey]);
 
   const selected = selectedAccount?.id === selectedId
     ? selectedAccount
     : customers.find((item) => item.id === selectedId);
-  const closingSide = useMemo(() => {
-    if (!statement || statement.closingBalance === 0) return "Dengede";
-    return statement.closingBalance > 0 ? "Borç bakiyesi" : "Alacak bakiyesi";
-  }, [statement]);
+  const period = (["month", "quarter", "year"] as const).find((key) => {
+    const range = periodRange(key);
+    return range.from === from && range.to === to;
+  }) ?? "";
+  const currency = statement?.currencyCode ?? "";
+  const net = statement ? statement.debitTotal - statement.creditTotal : 0;
+  const reversals = statement?.items.filter(isReversalLine).length ?? 0;
+  const openingDate = (() => {
+    const date = new Date(`${from}T00:00:00`);
+    date.setDate(date.getDate() - 1);
+    return isoDate(date);
+  })();
 
   return (
-    <main className="customer-ledger-page">
-      <header className="customer-ledger-heading">
-        <span className="customer-ledger-heading-icon"><BookOpenText size={23} /></span>
-        <div>
-          <span className="customer-ledger-eyebrow">SATIŞ &amp; CARİ</span>
-          <h1>Cari Hesap Hareketleri</h1>
-          <p>Cari hesabı seçerek tarih aralığındaki borç ve alacak hareketlerini inceleyin.</p>
-        </div>
-      </header>
-
+    <main className="customer-ledger-page list-v2">
+      {/* The grid's Excel is the bar's Excel (Ctrl+E); its CSV moves to İşlemler. */}
+      <PageCommandsSlot commands={statement ? { more: [csvExportCommand(exportRef)] } : {}} />
+      <ListPageHeader
+        title="Cari Hesap Hareketleri"
+        description="Cari hesabı seçerek tarih aralığındaki borç ve alacak hareketlerini inceleyin."
+        count={statement ? statement.items.length : null}
+        countLabel="hareket"
+      />
       {statement && (
-        <section className="customer-ledger-summary" aria-label="Cari bakiye özeti">
-          <div className="customer-ledger-account"><span><Users size={15} /> Seçili cari</span><strong>{statement.customerCode} · {statement.customerName}</strong></div>
-          <div><span><CircleDollarSign size={15} /> Açılış bakiyesi</span><strong>{money(statement.openingBalance, statement.currencyCode)}</strong></div>
-          <div><span><ArrowDownUp size={15} /> Dönem borç</span><strong>{money(statement.debitTotal, statement.currencyCode)}</strong></div>
-          <div><span><ArrowDownUp size={15} /> Dönem alacak</span><strong>{money(statement.creditTotal, statement.currencyCode)}</strong></div>
-          <div><span><CircleDollarSign size={15} /> {closingSide}</span><strong>{money(Math.abs(statement.closingBalance), statement.currencyCode)}</strong></div>
-        </section>
+        <ListSummaryCards
+          cards={[
+            {
+              id: "opening",
+              label: "Açılış bakiyesi",
+              value: <>{sided(statement.openingBalance)} <span>{currency}</span></>,
+              icon: Wallet,
+              hint: <><span>{displayDate(openingDate)}</span> <span>itibarıyla</span></>,
+            },
+            {
+              id: "debit",
+              label: "Dönem borç",
+              value: `${amount(statement.debitTotal)} ${currency}`,
+              icon: ArrowUpRight,
+              hint: <span>ters kayıt dahil</span>,
+            },
+            {
+              id: "credit",
+              label: "Dönem alacak",
+              value: `${amount(statement.creditTotal)} ${currency}`,
+              icon: ArrowDownRight,
+              hint: <span>ters kayıt dahil</span>,
+            },
+            {
+              id: "closing",
+              label: "Kapanış bakiyesi",
+              value: <>{sided(statement.closingBalance)} <span>{currency}</span></>,
+              icon: Scale,
+              hint: <><span>{displayDate(to)}</span> <span>itibarıyla</span></>,
+            },
+          ]}
+        />
       )}
 
-      <section className="customer-ledger-filters" aria-label="Ekstre filtreleri">
-        <div className="customer-ledger-filter-heading">
-          <span><CalendarDays size={17} /></span>
-          <div><strong>Ekstre filtreleri</strong><small>Cari hesabı ve incelemek istediğiniz tarih aralığını seçin.</small></div>
-        </div>
+      <ListToolbar toolsSlotRef={statement ? setToolsSlot : undefined} onRefresh={() => setReloadKey((key) => key + 1)}>
         <div className="customer-ledger-customer" ref={customerPickerRef}>
-          <span id="customer-ledger-customer-label">Cari hesap</span>
+          <span id="customer-ledger-customer-label" className="cl-filter-label">Cari hesap</span>
           <button
             type="button"
             className="customer-ledger-customer-trigger"
@@ -207,7 +284,7 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
             <span className={selected ? "" : "customer-ledger-customer-placeholder"}>
               {selected ? `${selected.code} · ${selected.name}` : "Cari seçin"}
             </span>
-            <ChevronDown className="customer-ledger-customer-chevron" size={16} strokeWidth={1.8} aria-hidden="true" />
+            <ChevronDown className="customer-ledger-customer-chevron" size={15} strokeWidth={1.8} aria-hidden="true" />
           </button>
           {customerPickerOpen && (
             <div className="customer-ledger-customer-popup">
@@ -219,7 +296,10 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                 placeholder="Cari kodu veya unvanıyla ara"
                 aria-label="Cari kodu veya unvanıyla ara"
                 onKeyDown={(event) => {
-                  if (event.key === "Escape") setCustomerPickerOpen(false);
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setCustomerPickerOpen(false);
+                  }
                 }}
               />
               <div className="customer-ledger-customer-options" role="listbox" aria-label="Cari hesaplar">
@@ -248,61 +328,132 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
             </div>
           )}
         </div>
-        <label>
+        <ListChipGroup
+          label="Dönem"
+          value={period}
+          onChange={(value) => {
+            if (!value) return;
+            const range = periodRange(value as "month" | "quarter" | "year");
+            setFrom(range.from);
+            setTo(range.to);
+          }}
+          options={[
+            { value: "month", label: "Bu ay" },
+            { value: "quarter", label: "Son 3 ay" },
+            { value: "year", label: "Yıl başından" },
+          ]}
+        />
+        <label className="list-v2-filter">
           <span>Başlangıç tarihi</span>
           <input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} />
         </label>
-        <label>
+        <label className="list-v2-filter">
           <span>Bitiş tarihi</span>
           <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} />
         </label>
-      </section>
+      </ListToolbar>
 
-      {error && <div className="customer-ledger-error" role="alert">{error}</div>}
-      {to < from && <div className="customer-ledger-error" role="alert">Bitiş tarihi başlangıç tarihinden önce olamaz.</div>}
+      {error && <div className="alert inline-alert" role="alert">{error}</div>}
+      {to < from && <div className="alert inline-alert" role="alert">Bitiş tarihi başlangıç tarihinden önce olamaz.</div>}
 
       {statement ? (
         <>
-          <section className="customer-ledger-table-panel">
-            <div className="customer-ledger-table-heading">
-              <div><h2>Hareket dökümü</h2><span>{statement.items.length} hareket</span></div>
+          <section className="cl-statement list-v2-list" aria-label="Hesap hareketleri">
+            <div className="cl-statement-head">
+              <h2>Hesap hareketleri</h2>
+              <span className="nx-code">{statement.customerCode}</span>
+              <span className="cl-statement-name">{statement.customerName}</span>
+              <span className="cl-muted">
+                <span>{displayDate(statement.from)} – {displayDate(statement.to)}</span> · <span>{currency}</span>
+              </span>
               {loadingStatement && <span role="status">Güncelleniyor…</span>}
+              {statement.items.some((item) => item.currencyCode !== statement.currencyCode) && (
+                <span className="cl-foreign-note">Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz</span>
+              )}
             </div>
-            <div className="customer-ledger-table-scroll">
-              <AdvancedDataGrid
-                className="customer-table"
-                gridId="customer-ledger-entries"
-                {...screenViewGridDefaults(visibleFields)}
-                externalPagination
-                hideSearch
-                enableRowSelection={false}
-              >
-                <thead><tr>{visibleFields.map((field) => <th key={field.key} className={numericLedgerFields.has(field.key) ? "numeric" : undefined}>{field.label}</th>)}</tr></thead>
-                <tbody>
-                  {statement.items.length ? statement.items.map((item) => (
-                    <tr key={item.id}>
-                      {visibleFields.map((field) => (
-                        <td
-                          key={field.key}
-                          className={numericLedgerFields.has(field.key) ? "numeric" : undefined}
-                          title={field.key === "description" ? item.description : undefined}
-                        >
-                          {renderLedgerCell(item, field.key)}
-                        </td>
-                      ))}
-                    </tr>
-                  )) : <tr><td colSpan={Math.max(visibleFields.length, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
-                </tbody>
-              </AdvancedDataGrid>
+            <div className="cl-line cl-opening">
+              <span>
+                <b>Devir — açılış bakiyesi</b> <span className="cl-muted">· <span>{displayDate(openingDate)}</span> <span>itibarıyla</span></span>
+              </span>
+              <span className="cl-line-amount">{sided(statement.openingBalance)}</span>
+            </div>
+            <AdvancedDataGrid
+              className="customer-table cl-grid"
+              gridId="customer-ledger-entries"
+              {...screenViewGridDefaults(visibleFields, (field) => LEDGER_WIDTHS[field.key])}
+              externalPagination
+              hideSearch
+              hideExport
+              exportActionsRef={exportRef}
+              toolbarContainer={toolsSlot}
+              enableRowSelection={false}
+              aria-label="Cari hesap hareketleri"
+            >
+              <thead>
+                <tr>
+                  {visibleFields.map((field) => (
+                    <th key={field.key} className={numericLedgerFields.has(field.key) ? "nx-num" : undefined}>{field.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {statement.items.length ? statement.items.map((item) => (
+                  <tr
+                    key={item.id}
+                    className={[isReversalLine(item) ? "cl-is-reversal" : "", item.hasReversal ? "cl-is-reversed" : ""].filter(Boolean).join(" ") || undefined}
+                  >
+                    {visibleFields.map((field) => (
+                      <td
+                        key={field.key}
+                        className={numericLedgerFields.has(field.key) ? "nx-num" : undefined}
+                        title={field.key === "description" ? item.description : undefined}
+                      >
+                        {renderLedgerCell(item, field.key, statement.currencyCode)}
+                      </td>
+                    ))}
+                  </tr>
+                )) : <tr><td colSpan={Math.max(visibleFields.length, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
+              </tbody>
+            </AdvancedDataGrid>
+            <div className="cl-line cl-subtotal">
+              <span>
+                <b>Dönem toplamı</b>{" "}
+                <span className="cl-muted">
+                  · <span>{statement.items.length}</span> <span>hareket</span>
+                  {reversals > 0 && (
+                    <>
+                      {" "}(<span>ters kayıt dahil</span>)
+                    </>
+                  )}
+                </span>
+              </span>
+              <span className="cl-line-figures">
+                <span><span className="cl-muted">Borç</span> {amount(statement.debitTotal)}</span>
+                <span><span className="cl-muted">Alacak</span> {amount(statement.creditTotal)}</span>
+                <span><span className="cl-muted">Net</span> {net > 0 ? "+" : ""}{amount(net)}</span>
+              </span>
+            </div>
+            <div className="cl-line cl-closing">
+              <span>
+                <b>Kapanış bakiyesi</b> <span className="cl-muted">· <span>{displayDate(to)}</span></span>
+              </span>
+              <span className="cl-line-amount cl-closing-amount">{sided(statement.closingBalance)} <span>{currency}</span></span>
             </div>
           </section>
+          <ListFooter hints="B borç bakiyesi · A alacak bakiyesi · Ters kayıt orijinal hareketin karşı kaydıdır, hareketler silinmez">
+            <span>
+              <span>Açılış</span> <b>{amount(statement.openingBalance)}</b> · <span>Dönem borç</span> <b>{amount(statement.debitTotal)}</b> ·{" "}
+              <span>Dönem alacak</span> <b>{amount(statement.creditTotal)}</b> · <span>Kapanış</span>{" "}
+              <b>{sided(statement.closingBalance)} {currency}</b>
+            </span>
+          </ListFooter>
         </>
       ) : (
         <section className="customer-ledger-placeholder">
-          <span className="customer-ledger-placeholder-icon"><BookOpenText size={23} /></span>
+          <span className="customer-ledger-placeholder-icon"><BookOpenText size={20} /></span>
           <strong>{loadingStatement ? "Cari hesap hareketleri yükleniyor…" : selected ? "Hareketler görüntülenemedi." : "Cari ekstre görünümüne başlayın"}</strong>
           <p>{selected ? `${selected.code} · ${selected.name}` : "Borç, alacak ve bakiye hareketlerini görmek için önce bir cari hesap seçin."}</p>
-          {!selected && !loadingStatement && <button type="button" className="customer-ledger-select-button" onClick={() => { setCustomerPickerOpen(true); setSearch(""); }}>Cari hesap seç</button>}
+          {!selected && !loadingStatement && <button type="button" className="secondary" onClick={() => { setCustomerPickerOpen(true); setSearch(""); }}>Cari hesap seç</button>}
         </section>
       )}
     </main>
