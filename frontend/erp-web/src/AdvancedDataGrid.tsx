@@ -1089,10 +1089,17 @@ export default function AdvancedDataGrid({
             : visiblePageKeys.length - 1
           : Math.max(0, Math.min(visiblePageKeys.length - 1, at + step));
     setCurrentKey(visiblePageKeys[index]);
-    const container = scrollRef.current,
-      element = container?.querySelector<HTMLElement>(
-        `tbody > tr[data-grid-row="${index}"]`,
-      );
+    const container = scrollRef.current;
+    // Focus left on a row checkbox (after a click) would make Space toggle that row instead of the current one.
+    if (
+      container &&
+      document.activeElement !== container &&
+      container.contains(document.activeElement)
+    )
+      container.focus({ preventScroll: true });
+    const element = container?.querySelector<HTMLElement>(
+      `tbody > tr[data-grid-row="${index}"]`,
+    );
     if (element) element.scrollIntoView?.({ block: "nearest" });
     else if (container) container.scrollTop = index * rowHeight;
   }
@@ -1659,7 +1666,15 @@ export default function AdvancedDataGrid({
       },
       <>
         {selectable && (
-          <td className="advanced-grid-select-cell" style={selectCellStyle(false)}>
+          <td
+            className="advanced-grid-select-cell"
+            style={selectCellStyle(false)}
+            // Ticking a box makes the row current but is not a click on the record (the page's row click may open it).
+            onClick={(event) => {
+              event.stopPropagation();
+              setCurrentKey(row.key);
+            }}
+          >
             <input
               type="checkbox"
               className="nx-check"

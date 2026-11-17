@@ -8,7 +8,7 @@ const items = (count: number, prefix = 'S'): Item[] =>
   Array.from({ length: count }, (_, i) => ({ id: `${prefix}${i + 1}`, name: `${prefix === 'S' ? 'Stok' : 'Ürün'} ${i + 1}`, qty: i + 1 }));
 
 type GridProps = Partial<Parameters<typeof AdvancedDataGrid>[0]>;
-function tree(rows: Item[], props: GridProps = {}) {
+function tree(rows: Item[], props: GridProps = {}, onRowClick?: (id: string) => void) {
   return (
     <CommandProvider>
       <AdvancedDataGrid gridId="selection-test" aria-label="Stok kartları" {...props}>
@@ -20,7 +20,7 @@ function tree(rows: Item[], props: GridProps = {}) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id}>
+            <tr key={row.id} onClick={onRowClick ? () => onRowClick(row.id) : undefined}>
               <td>{row.name}</td>
               <td>{row.qty}</td>
             </tr>
@@ -111,6 +111,29 @@ describe('AdvancedDataGrid selectable', () => {
     expect(checkedCount()).toBe(0);
   });
 
+  it('an arrow key from a focused row checkbox hands focus to the grid, so Space toggles the new current row', () => {
+    render(tree(items(3), { selectable: true }));
+    const first = rowBoxes()[0];
+    fireEvent.click(first);
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    expect(bodyRows()[1].getAttribute('aria-current')).toBe('true');
+    expect(document.activeElement).toBe(region());
+    fireEvent.keyDown(region(), { key: ' ' });
+    expect(rowBoxes().map((box) => (box as HTMLInputElement).checked)).toEqual([true, true, false]);
+  });
+
+  it('ticking a row box does not run the row click of the page (no record opens), but makes it the current row', () => {
+    const onRowClick = vi.fn();
+    render(tree(items(3), { selectable: true }, onRowClick));
+    fireEvent.click(rowBoxes()[2]);
+    expect(onRowClick).not.toHaveBeenCalled();
+    expect(bodyRows()[2].getAttribute('aria-current')).toBe('true');
+    fireEvent.click(screen.getByText('Stok 1'));
+    expect(onRowClick).toHaveBeenCalledWith('S1');
+    expect(bodyRows()[0].getAttribute('aria-current')).toBe('true');
+  });
+
   it('ignores the keys while typing in a cell editor and while a modal outside the grid is open', () => {
     // The inline cell editor exists only for grids with onEditRows.
     const { rerender } = render(tree(items(3), { selectable: true, onEditRows: () => {} }));
@@ -131,7 +154,7 @@ describe('AdvancedDataGrid selectable', () => {
     expect(checkedCount()).toBe(0);
   });
 
-  it('clears the selection when the page or the filter changes', () => {
+  it('clears the selection when the page, the filter or the sort changes', () => {
     render(tree(items(30), { selectable: true }));
     fireEvent.click(rowBoxes()[0]);
     expect(checkedCount()).toBe(1);
@@ -143,6 +166,11 @@ describe('AdvancedDataGrid selectable', () => {
     fireEvent.click(rowBoxes()[0]);
     fireEvent.change(screen.getByPlaceholderText('Tüm sütunlarda ara'), { target: { value: 'Stok' } });
     expect(checkedCount()).toBe(0);
+
+    fireEvent.click(rowBoxes()[0]);
+    expect(checkedCount()).toBe(1);
+    fireEvent.click(within(region()).getByRole('columnheader', { name: /Miktar/ }));
+    expect(checkedCount()).toBe(0);
   });
 
   it('drops selected rows whose keys disappear when the row set changes (external pagination)', () => {
@@ -151,6 +179,9 @@ describe('AdvancedDataGrid selectable', () => {
     fireEvent.click(rowBoxes()[2]);
     rerender(tree(items(3).slice(1), { selectable: true, externalPagination: true }));
     expect(checkedCount()).toBe(1);
+    // The dropped key stays dropped when its row comes back.
+    rerender(tree(items(3), { selectable: true, externalPagination: true }));
+    expect(rowBoxes().map((box) => (box as HTMLInputElement).checked)).toEqual([false, false, true]);
     rerender(tree(items(3, 'U'), { selectable: true, externalPagination: true }));
     expect(checkedCount()).toBe(0);
     expect(bulkBar()).toBeNull();
