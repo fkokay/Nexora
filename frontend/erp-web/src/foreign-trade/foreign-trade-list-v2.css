@@ -425,3 +425,24 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page .foreign-trade-invento
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---- ERP design language, pass 2 (mockup 10): list card and panel side by side, single-layer cards ---- */
+#root .list-v2.foreign-trade-page .foreign-trade-body.has-detail { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+#root .list-v2.foreign-trade-page .foreign-trade-body > .foreign-trade-detail {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+#root .list-v2.foreign-trade-page .foreign-trade-body > .foreign-trade-detail:focus { outline: none; }
+#root .list-v2.foreign-trade-page .foreign-trade-body > .foreign-trade-detail:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .list-v2.foreign-trade-page .foreign-trade-cell-muted { color: var(--nx-muted); }
+#root .list-v2.foreign-trade-page .foreign-trade-list td { white-space: nowrap; }
+@media (max-width: 1099px) {
+  #root .list-v2.foreign-trade-page .foreign-trade-body.has-detail { grid-template-columns: minmax(0, 1fr); }
+  #root .list-v2.foreign-trade-page .foreign-trade-body > .foreign-trade-detail { position: static; max-height: none; }
+}

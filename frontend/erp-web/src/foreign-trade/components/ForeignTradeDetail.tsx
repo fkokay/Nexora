@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { AlertTriangle, Globe2, PackageCheck, X } from "lucide-react";
 import { localizedText } from "../../locale";
 import {
@@ -75,7 +75,8 @@ const requirementHeading = (next: TradeStatus) => {
   }
 };
 
-export function ForeignTradeDetail({
+/** Right-hand panel of the case list; Enter / double click on a non-editable case moves the focus here. */
+export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function ForeignTradeDetail({
   item,
   orderMap,
   documents,
@@ -92,7 +93,7 @@ export function ForeignTradeDetail({
   onDocumentChange,
   onLinkDocument,
   onAdvance,
-}: Props) {
+}: Props, ref) {
   const [inputs, setInputs] = useState<AdvanceInputs>({});
   useEffect(() => {
     setInputs({});
@@ -101,6 +102,8 @@ export function ForeignTradeDetail({
   if (!item)
     return (
       <aside
+        ref={ref}
+        tabIndex={-1}
         className="foreign-trade-detail"
         aria-label={tr(
           "Seçili dış ticaret dosyası",
@@ -224,6 +227,8 @@ export function ForeignTradeDetail({
 
   return (
     <aside
+      ref={ref}
+      tabIndex={-1}
       className="foreign-trade-detail"
       aria-label={tr("Seçili dış ticaret dosyası", "Selected foreign trade case")}
     >
@@ -467,4 +472,4 @@ export function ForeignTradeDetail({
       </p>
     </aside>
   );
-}
+});

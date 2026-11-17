@@ -1,6 +1,6 @@
 import { localizedText } from "../../locale";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
-import type { Direction } from "../types";
+import { tradeStageFlow, type Direction, type TradeStatus } from "../types";
 
 type Props = {
   query: string;
@@ -9,17 +9,28 @@ type Props = {
   counts?: { all: number; imports: number; exports: number } | null;
   onQueryChange: (value: string) => void;
   onDirectionChange: (value: "All" | Direction) => void;
+  /** Stage filter (the former stage strip): one status, null = all. */
+  stage: TradeStatus | null;
+  onStageChange: (value: TradeStatus | null) => void;
+  statusLabel: (status: TradeStatus) => string;
   onRefresh?: () => void;
   /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
 };
 
+/**
+ * Toolbar of the case list: search, direction chips and stage chips. The stage chips carry no counts: the page
+ * loads one page of cases, so a count would not be the real total (mockup 10, Dış Ticaret).
+ */
 export function ForeignTradeFilters({
   query,
   direction,
   counts = null,
   onQueryChange,
   onDirectionChange,
+  stage,
+  onStageChange,
+  statusLabel,
   onRefresh,
   toolsSlotRef,
 }: Props) {
@@ -31,7 +42,6 @@ export function ForeignTradeFilters({
       searchPlaceholder={localizedText("Referans ara…", "Search references…")}
       toolsSlotRef={toolsSlotRef}
       onRefresh={onRefresh}
-      refreshLabel={localizedText("Yenile", "Refresh")}
     >
       <ListChipGroup
         label={localizedText("Yön filtresi", "Filter by direction")}
@@ -54,6 +64,16 @@ export function ForeignTradeFilters({
             count: counts?.exports,
           },
         ]}
+      />
+      <ListChipGroup
+        label={localizedText("Aşama filtresi", "Stage filter")}
+        value={stage ?? ""}
+        onChange={(value) => onStageChange((value || null) as TradeStatus | null)}
+        allowClear
+        options={[...tradeStageFlow, "Cancelled" as TradeStatus].map((status) => ({
+          value: status,
+          label: statusLabel(status),
+        }))}
       />
     </ListToolbar>
   );

@@ -73,11 +73,13 @@ describe('Dış Ticaret frame', () => {
     expect(screen.queryByRole('button', { name: 'İhracat dosyası' })).toBeNull();
     // The panel no longer carries Düzenle / İptal et.
     expect(screen.queryByRole('button', { name: /Düzenle/ })).toBeNull();
-    // The first visible case is selected by default (unchanged behaviour).
+    // Nothing is current until the user picks a row (list type).
+    await waitFor(() => expect(reason('open')).toBe('Önce bir kayıt seçin'));
+    fireEvent.click(cell);
     await waitFor(() => expect(command('open').getAttribute('aria-disabled')).not.toBe('true'));
     expect(reason('delete')).toBe("Dosya silinemez; İşlemler'den iptal edin.");
     const items = openMenu();
-    expect(items).toEqual(['İthalat dosyası', 'İhracat dosyası', 'İptal et']);
+    expect(items).toEqual(['İthalat dosyası', 'İhracat dosyası', 'İptal et', 'CSV olarak dışa aktar']);
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'İptal et' }));
     });
@@ -94,7 +96,20 @@ describe('Dış Ticaret frame', () => {
     await screen.findAllByText('IHR-001');
     fireEvent.click(screen.getAllByText('IHR-002').find((node) => node.closest('tr'))!);
     await waitFor(() => expect(reason('open')).toBe('Yalnız Taslak ve Planlandı dosyalar düzenlenebilir'));
-    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası']);
+    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası', 'CSV olarak dışa aktar']);
+  });
+
+  it('stage chips filter the list; double click on a draft opens its form', async () => {
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
+    await screen.findAllByText('IHR-001');
+    expect(document.querySelector('.foreign-trade-stages')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sevkte' }));
+    await waitFor(() => expect(screen.queryAllByText('IHR-001').filter((node) => node.closest('tr'))).toHaveLength(0));
+    expect(screen.getAllByText('IHR-002').some((node) => node.closest('tr'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Sevkte' }));
+    const draft = (await screen.findAllByText('IHR-001')).find((node) => node.closest('tr'))!;
+    fireEvent.doubleClick(draft);
+    expect(await screen.findByRole('dialog', { name: 'Dosyayı düzenle' })).toBeTruthy();
   });
 
   it('status tones', () => {
