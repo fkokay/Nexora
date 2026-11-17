@@ -571,6 +571,8 @@ public sealed class TenantSqlVaultIsolationAcceptanceTests
         await using var connection = new SqlConnection(new SqlConnectionStringBuilder(rootConnection) { InitialCatalog = "master" }.ConnectionString);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
+        command.CommandText = TenantProvisioningBoundaryCleanupSql.BeforeCertificateDrop;
+        await command.ExecuteNonQueryAsync();
         command.CommandText = "IF OBJECT_ID(N'dbo.NexoraEnsureTenantDatabase',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraEnsureTenantDatabase; IF OBJECT_ID(N'dbo.NexoraEnsureTenantSqlLogin',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraEnsureTenantSqlLogin; IF OBJECT_ID(N'dbo.NexoraTenantDatabaseExists',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraTenantDatabaseExists; IF SUSER_ID(N'NexoraTenantProvisioningSignerLogin') IS NOT NULL DROP LOGIN [NexoraTenantProvisioningSignerLogin]; IF CERT_ID(N'NexoraTenantProvisioningSigner') IS NOT NULL DROP CERTIFICATE [NexoraTenantProvisioningSigner];";
         await command.ExecuteNonQueryAsync();
         var provisioningWorkerLogin = tenantLogins.LastOrDefault(login => !string.IsNullOrWhiteSpace(login));
@@ -599,6 +601,9 @@ public sealed class TenantSqlVaultIsolationAcceptanceTests
             command.Parameters.AddWithValue("@login", login);
             await command.ExecuteNonQueryAsync();
         }
+        command.CommandText = TenantProvisioningBoundaryCleanupSql.DropServerRole;
+        command.Parameters.Clear();
+        await command.ExecuteNonQueryAsync();
         if (dropMasterKey)
         {
             command.CommandText = "IF EXISTS(SELECT 1 FROM sys.symmetric_keys WHERE name=N'##MS_DatabaseMasterKey##') DROP MASTER KEY;";
