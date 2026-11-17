@@ -13,7 +13,7 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
    (`className="primary"`) en sonda, diğerleri `secondary`. İşlem Çubuğu başlığın hemen
    altındaki yuvaya yerleşir; başlık → çubuk → araç satırı arasını sayfa yığınının
    boşluğu (12px) verir.
-2. **Özet kartları** (varsa) – `ListSummaryCards`, aşağıdaki kurala uyan en çok 5 kart.
+2. **Özet kartları** (varsa) – `ListSummaryCards`, aşağıdaki kurala uyan kartlar; satırda sabit 4 sütun (az kart da bir sütun genişliğindedir, fazlası alt satıra geçer).
 3. **Araç satırı** – `ListToolbar`: arama kutusu, filtre etiketleri (`ListChipGroup`),
    sağda tablonun kendi araçları ve yenile düğmesi. Tek satırdır; dar ekranda sarar.
 4. **Liste** – `AdvancedDataGrid`. Bölüm öğesine `list-v2-list` sınıfı verilir.

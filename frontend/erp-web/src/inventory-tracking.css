@@ -39,7 +39,9 @@
 #root .inventory-tracking-page .inventory-tracking-detail-note { display: flex; gap: 7px; align-items: flex-start; font-size: 11.5px; line-height: 1.5; }
 #root .inventory-tracking-page .inventory-tracking-detail-note svg { flex: none; margin-top: 2px; color: var(--nx-primary-strong); }
 
-.inventory-tracking-boundary { display: flex; align-items: flex-start; gap: 9px; line-height: 1.6; }
+#root .inventory-tracking-page .inventory-tracking-boundary { display: flex; align-items: flex-start; gap: 9px; font-size: 11.5px; line-height: 1.5; }
+/* The shell's `.boundary-note span { font-size: 9px }` would shrink the text below the kit's note size. */
+#root .inventory-tracking-page .inventory-tracking-boundary > span { font-size: inherit; }
 .inventory-tracking-boundary svg { flex: none; margin-top: 1px; }
 #root .inventory-tracking-table .inventory-tracking-inline-code { margin-left: 4px; color: var(--nx-muted); font-size: 11.5px; }
 #root .inventory-tracking-table .inventory-tracking-expiry { color: inherit; }

@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AlertTriangle, Package } from 'lucide-react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ListFooter } from './ListFooter';
 import { ListPagination } from './ListPagination';
@@ -37,12 +39,21 @@ describe('ListSummaryCards', () => {
     expect(screen.queryByText('Filtrele')).toBeNull();
   });
 
-  it('colours the card by tone and lays out at most five columns', () => {
+  it('colours the card by tone; the column count does not follow the number of cards', () => {
     const cards = Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, label: `Kart ${i}`, value: i, icon: Package, tone: 'warn' as const }));
     const { container } = render(<ListSummaryCards cards={cards} />);
     const root = container.firstElementChild as HTMLElement;
-    expect(root.style.getPropertyValue('--nx-summary-columns')).toBe('5');
+    expect(root.getAttribute('style')).toBeNull();
     expect(root.querySelectorAll('.nx-summary-item.is-warn')).toHaveLength(6);
+    cleanup();
+    const single = render(<ListSummaryCards cards={[cards[0]]} />).container.firstElementChild as HTMLElement;
+    expect(single.getAttribute('style')).toBeNull();
+  });
+
+  it('lays the cards out in a fixed four-column grid (a single card takes one column)', () => {
+    const css = readFileSync(resolve(__dirname, 'list-page-v2.css'), 'utf8');
+    const rule = css.match(/#root \.nx-summary-row \{[^}]*\}/)![0];
+    expect(rule).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
   });
 
   it('shows the hint under the value', () => {
@@ -86,5 +97,17 @@ describe('ListPagination', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Önceki' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
     expect(onPageChange.mock.calls).toEqual([[1], [3]]);
+  });
+});
+
+describe('grid number columns (CSS)', () => {
+  it('right-aligns numeric headers and cells with an id-level rule, above the light theme table rule', () => {
+    const grid = readFileSync(resolve(__dirname, '../advanced-data-grid.css'), 'utf8');
+    expect(grid).toContain('#root .advanced-grid-table :is(th, td).nx-num { text-align: right; }');
+    // The legacy rule it must outrank: light theme only, class-level, `text-align: left` on every table header.
+    const legacy = readFileSync(resolve(__dirname, '../module-workspace.css'), 'utf8');
+    const rule = legacy.match(/html:not\(\[data-theme="dark"\]\)[^{]*\.customer-table[^{]*\) th \{[^}]*\}/)![0];
+    expect(rule.startsWith('#root')).toBe(false);
+    expect(rule).toContain('text-align: left');
   });
 });

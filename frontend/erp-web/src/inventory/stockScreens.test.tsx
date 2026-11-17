@@ -92,11 +92,14 @@ function respond(url: string, init?: RequestInit): unknown {
 }
 
 const apiMock = vi.hoisted(() => vi.fn());
+const failing = vi.hoisted(() => ({ tracking: false }));
 vi.mock('../erpApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('../erpApi')>()), api: apiMock }));
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) =>
-    new Response(JSON.stringify(respond(url, init) ?? null), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    failing.tracking && url.startsWith('/api/inventory-tracking/balances')
+      ? new Response(JSON.stringify({ error: 'Sunucu hatası' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+      : new Response(JSON.stringify(respond(url, init) ?? null), { status: 200, headers: { 'Content-Type': 'application/json' } })),
 }));
 
 beforeAll(() => {
@@ -211,7 +214,7 @@ describe('Stok Değerleme list', () => {
     const unvalued = cards.getByText('Maliyetsiz').closest('.nx-summary-item')!;
     expect(unvalued.className).toContain('is-warn');
     expect(unvalued.tagName).not.toBe('BUTTON');
-    expect(unvalued.textContent).toContain('1');
+    expect(unvalued.querySelector('b')!.textContent).toBe('1');
     expect(document.querySelector('.nx-summary-row')!.textContent).toContain('bu sayfa');
     expect(rowOf('Karton koli').querySelector('td .nx-code')!.textContent).toBe('AMB-2040');
     const numbers = Array.from(rowOf('Karton koli').querySelectorAll('td.nx-num')).map((cell) => cell.textContent);
@@ -314,10 +317,10 @@ describe('Lot / seri izleme list', () => {
     const cards = within(document.querySelector<HTMLElement>('.nx-summary-row')!);
     const expired = cards.getByText('Süresi geçmiş').closest('.nx-summary-item')!;
     expect(expired.className).toContain('is-bad');
-    expect(expired.textContent).toContain('1');
+    expect(expired.querySelector('b')!.textContent).toBe('1');
     const soon = cards.getByText('30 gün içinde dolacak').closest('.nx-summary-item')!;
     expect(soon.className).toContain('is-warn');
-    expect(soon.textContent).toContain('1');
+    expect(soon.querySelector('b')!.textContent).toBe('1');
     expect(document.querySelector('.nx-summary-row')!.textContent).toContain('bu sayfa');
     expect(rowOf('LOT-OLD').querySelector('.nx-status-tag.is-bad')!.textContent).toBe('Süresi geçti');
     expect(rowOf('LOT-SOON').querySelector('.nx-status-tag.is-warn')).not.toBeNull();
@@ -341,6 +344,9 @@ describe('Lot / seri izleme list', () => {
 
   it('the detail panel follows the grid current row', async () => {
     await renderLoaded();
+    // Nothing is picked yet: the panel shows its empty state, not the first row.
+    expect(panel().className).toContain('is-empty');
+    expect(panel().textContent).toBe('Bir lot veya seri seçin; ayrıntıları burada görün.');
     fireEvent.click(rowOf('LOT-SOON'));
     await waitFor(() => expect(within(panel()).getByRole('heading', { name: 'LOT-SOON' })).toBeTruthy());
     expect(panel().textContent).toContain('25 ADET');
@@ -348,6 +354,18 @@ describe('Lot / seri izleme list', () => {
     fireEvent.keyDown(scroller(), { key: 'ArrowDown' });
     await waitFor(() => expect(within(panel()).getByRole('heading', { name: 'SER-001' })).toBeTruthy());
     expect(panel().textContent).toContain('Belirtilmemiş');
+  });
+
+  it('the expiry cards show "—" when the balances cannot be loaded', async () => {
+    failing.tracking = true;
+    try {
+      renderScreen(<InventoryTrackingPage token="t" />);
+      await waitFor(() => expect(screen.getByText(/Lot \/ seri bakiyeleri yüklenemedi/)).toBeTruthy());
+      const values = Array.from(document.querySelectorAll('.nx-summary-row .nx-summary-item b')).map((b) => b.textContent);
+      expect(values).toEqual(['—', '—']);
+    } finally {
+      failing.tracking = false;
+    }
   });
 
   it('classifies expiry dates against the local day', () => {

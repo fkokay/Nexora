@@ -18,7 +18,10 @@ const COLUMNS: Column[] = [
 ];
 
 type Props = {
+  /** Rows of the visible page. */
   balances: InventoryBalance[];
+  /** The warehouse has balances at all (the empty state is decided from the full data, as before). */
+  hasBalances: boolean;
   loading: boolean;
   busy: boolean;
   /** Opens the cost manager (row "Yönet"; the bar's Aç does the same for the current row). */
@@ -36,6 +39,7 @@ type Props = {
 /** Stok Değerleme list: the selected warehouse's balances with quantity, value and uncosted quantity. */
 export function InventoryCostGrid({
   balances,
+  hasBalances,
   loading,
   busy,
   onManage,
@@ -107,7 +111,7 @@ export function InventoryCostGrid({
                   <span>Stok bakiyeleri yükleniyor…</span> <span>Seçili deponun miktar ve maliyet bilgileri alınıyor.</span>
                 </td>
               </tr>
-            ) : balances.length === 0 ? (
+            ) : !hasBalances ? (
               <tr>
                 <td colSpan={COLUMNS.length} className="table-empty">
                   <span>Yönetilecek stok bakiyesi yok</span> <span>Seçili depoda hareketi olan stok kartları burada görünür.</span>

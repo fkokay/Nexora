@@ -2799,6 +2799,7 @@ export function InventoryPage({
           {section === "inventory-cost" && role === "TenantAdmin" && (
             <InventoryCostGrid
               balances={pagedBalances}
+              hasBalances={balances.length > 0}
               loading={balancesLoading}
               busy={busy}
               onManage={(balance) => void openCostManager(balance)}

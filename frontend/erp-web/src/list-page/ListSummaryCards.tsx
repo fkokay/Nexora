@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import "./list-page-v2.css";
 
@@ -17,16 +17,13 @@ export type SummaryCard = {
   onFilter?: () => void;
 };
 
-const MAX_COLUMNS = 5;
-
 /**
  * Small indicator cards above a list (mockup 01 ".mk"). Only for indicators that carry a
  * warning or act as a filter; see README.md.
  */
 export function ListSummaryCards({ cards }: { cards: SummaryCard[] }) {
-  const style = { "--nx-summary-columns": String(Math.max(1, Math.min(cards.length, MAX_COLUMNS))) } as CSSProperties;
   return (
-    <div className="nx-summary-row" style={style}>
+    <div className="nx-summary-row">
       {cards.map((card) => {
         const Icon = card.icon;
         const className = `nx-summary-item is-${card.tone ?? "primary"}${card.filterActive ? " is-active" : ""}`;

@@ -11,7 +11,7 @@ import InventoryTrackingBalanceTable, { trackingRowKey } from "./inventory-track
 import InventoryTrackingDetail from "./inventory-tracking/components/InventoryTrackingDetail";
 import InventoryTrackingBoundaryNote from "./inventory-tracking/components/InventoryTrackingBoundaryNote";
 import { TrackingExpiryCell } from "./inventory-tracking/components/TrackingExpiryTag";
-import { expiryState, localToday } from "./inventory/trackingExpiry";
+import { EXPIRY_SOON_DAYS, expiryState, localToday } from "./inventory/trackingExpiry";
 import type { BulkAction } from "./list-page/BulkActionBar";
 import { ListFooter } from "./list-page/ListFooter";
 import { ListPagination } from "./list-page/ListPagination";
@@ -38,7 +38,7 @@ async function request<T>(url: string, token: string): Promise<T> {
 export default function InventoryTrackingPage({ token }: { token: string }) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]),
     [warehouseId, setWarehouseId] = useState("");
-  // The grid's current row (↑/↓ or click); the detail shows it, else the first row of the page.
+  // The grid's current row (↑/↓ or click); the detail shows its empty state until a row is picked.
   const [currentKey, setCurrentKey] = useState<string | null>(null),
     [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [query, setQuery] = useState(""),
@@ -144,7 +144,7 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
 
   const rows = result?.items ?? [];
   const selectedBalance =
-    rows.find((row) => trackingRowKey(row) === currentKey) ?? rows[0] ?? null;
+    rows.find((row) => trackingRowKey(row) === currentKey) ?? null;
   const today = localToday();
   const expiries = rows.map((row) => expiryState(row.expiryDate, today));
   const bulkActions: BulkAction[] = [
@@ -179,13 +179,16 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
       // One line each (30px rows): name with its code after it, warehouse as "code · name" like the detail panel.
       case "stockItem":
         return (
-          <>
+          // The title shows the whole text where the one-line cell is cut off.
+          <span title={`${row.stockItemName} · ${row.stockItemCode}`}>
             {row.stockItemName}
             <small className="nx-code inventory-tracking-inline-code">{row.stockItemCode}</small>
-          </>
+          </span>
         );
-      case "warehouse":
-        return `${row.warehouseCode} · ${row.warehouseName}`;
+      case "warehouse": {
+        const warehouse = `${row.warehouseCode} · ${row.warehouseName}`;
+        return <span title={warehouse}>{warehouse}</span>;
+      }
       case "quantityOnHand":
         return `${row.quantityOnHand.toLocaleString("tr-TR", {
           maximumFractionDigits: 4,
@@ -222,15 +225,15 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
           {
             id: "expired",
             label: "Süresi geçmiş",
-            value: loading ? "—" : expiries.filter((state) => state === "expired").length.toLocaleString("tr-TR"),
+            value: loading || error ? "—" : expiries.filter((state) => state === "expired").length.toLocaleString("tr-TR"),
             icon: CalendarX,
             tone: "bad",
             hint: "bu sayfa",
           },
           {
             id: "soon",
-            label: "30 gün içinde dolacak",
-            value: loading ? "—" : expiries.filter((state) => state === "soon").length.toLocaleString("tr-TR"),
+            label: `${EXPIRY_SOON_DAYS} gün içinde dolacak`,
+            value: loading || error ? "—" : expiries.filter((state) => state === "soon").length.toLocaleString("tr-TR"),
             icon: CalendarClock,
             tone: "warn",
             hint: "bu sayfa",

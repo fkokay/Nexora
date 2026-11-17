@@ -288,7 +288,7 @@ export default function InventoryMovementsPage({
           <span>
             <span>{en ? "Shown" : "Gösterilen"}</span>{" "}
             <span>
-              {(selectedStock ? rows.length : 0).toLocaleString("tr-TR")} / {total.toLocaleString("tr-TR")}
+              {(selectedStock ? rows.length : 0).toLocaleString(en ? "en-GB" : "tr-TR")} / {total.toLocaleString(en ? "en-GB" : "tr-TR")}
             </span>
           </span>
           <ListPagination page={page} total={total} pageSize={PAGE_SIZE} loading={loading} onPageChange={setPage} />

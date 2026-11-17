@@ -564,7 +564,8 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
    Class names avoid "-card" / "-icon": the shell restyles [class*='-card'] and [class*='-icon'] with !important. */
 #root .nx-summary-row {
   display: grid;
-  grid-template-columns: repeat(var(--nx-summary-columns, 4), minmax(0, 1fr));
+  /* Fixed four columns (mockup 01): one or two cards keep the card width instead of stretching; more wrap. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   min-width: 0;
 }

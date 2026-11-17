@@ -14,8 +14,8 @@ export const trackingRowKey = (row: Balance) =>
 const WIDTHS: Partial<Record<ScreenField["key"], number>> = {
   trackingCode: 100,
   trackingMode: 60,
-  stockItem: 165,
-  warehouse: 115,
+  stockItem: 150,
+  warehouse: 130,
   quantityOnHand: 95,
   expiryDate: 185,
   lastMovementDate: 85,

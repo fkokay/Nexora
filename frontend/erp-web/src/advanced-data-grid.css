@@ -276,6 +276,10 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
 .advanced-grid-table > tbody > tr:focus-visible { outline: none; }
 /* Opt-in cell classes for page renderers: right-aligned numbers and monospace codes. */
 .advanced-grid-table :is(th, td).nx-num { text-align: right; }
+/* The light theme's legacy table rule (module-workspace.css: html:not([data-theme="dark"]) … .customer-table th
+   { text-align: left }) outranks the class above on headers; the id keeps numeric headers right-aligned in both
+   themes; the header label fills its flex wrapper, so it inherits the alignment. */
+#root .advanced-grid-table :is(th, td).nx-num { text-align: right; }
 .advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
 /* ---- Row selection (`selectable`, approved list draft): checkbox column, 14px boxes, floating bulk bar ----
    The checkbox column is sticky on the left; its opaque base yields to the hover / checked / current row tints above. */
