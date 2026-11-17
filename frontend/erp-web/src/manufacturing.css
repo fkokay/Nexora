@@ -1,14 +1,14 @@
-.manufacturing-page{display:grid;gap:18px}.manufacturing-hero{display:flex;align-items:center;gap:15px;padding:24px 28px;background:linear-gradient(120deg,#fff,color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)) 70%,#edf7ff);border:1px solid #e3e6f4;border-radius:18px}.manufacturing-icon{display:grid;place-items:center;width:46px;height:46px;flex:none;color:#fff;background:linear-gradient(145deg,var(--nx-primary),var(--nx-primary));border-radius:14px;box-shadow:0 8px 20px color-mix(in srgb, var(--nx-primary) 17%, transparent)}.manufacturing-icon.soft{width:38px;height:38px;color:var(--nx-primary-strong);background:color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface));box-shadow:none}.manufacturing-icon.blue{color:#367ddd;background:#eaf3ff}.manufacturing-hero .eyebrow{margin:0 0 5px;color:var(--nx-primary-strong);font-size:10px;font-weight:800;letter-spacing:.13em}.manufacturing-hero h1{margin:0;color:#1a2740;font-size:27px}.manufacturing-hero p:not(.eyebrow){margin:5px 0 0;color:#77839b;font-size:13px}.manufacturing-hero>button{margin-left:auto}.manufacturing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.manufacturing-panel{min-width:0;padding:20px;background:#fff;border:1px solid #e4e8f1;border-radius:15px;box-shadow:0 5px 18px #27375508}.manufacturing-heading{display:flex;align-items:center;gap:11px;margin-bottom:17px}.manufacturing-heading h2{margin:0;color:#1e2c45;font-size:16px}.manufacturing-heading p{margin:4px 0 0;color:#8290a8;font-size:12px}.manufacturing-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.manufacturing-form label{display:grid;gap:5px;color:#68758d;font-size:11px;font-weight:650}.manufacturing-form input,.manufacturing-form select{width:100%;height:38px;padding:0 10px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:8px;outline:none}.manufacturing-form input:focus,.manufacturing-form select:focus{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 12%, transparent)}.manufacturing-form>.primary{display:flex;align-items:center;justify-content:center;gap:7px;min-height:39px}.manufacturing-lines{grid-column:1/-1;padding:12px;background:#f8f9fd;border:1px solid #e7eaf3;border-radius:10px}.manufacturing-lines-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;color:#33415a;font-size:12px}.manufacturing-line{display:grid;grid-template-columns:minmax(120px,1fr) 90px 74px 28px;gap:7px;margin-bottom:7px}.manufacturing-line input,.manufacturing-line select{height:34px;font-size:11px}.manufacturing-lines small{display:block;margin-top:3px;color:#8b96aa;font-size:10px}.manufacturing-remove{color:#a46b78;background:white;border:1px solid #e9dce0;border-radius:6px}.manufacturing-order-list{min-height:160px}.manufacturing-table-wrap{overflow:auto}.manufacturing-table-wrap table{width:100%;border-collapse:collapse;font-size:12px}.manufacturing-table-wrap th{padding:10px 9px;color:#8792a8;text-align:left;font-size:10px;font-weight:700;background:#fafbfe}.manufacturing-table-wrap td{padding:11px 9px;color:#4c5a72;border-top:1px solid #edf0f5;vertical-align:top}.manufacturing-table-wrap td:first-child b{display:block;color:#24314a}.manufacturing-table-wrap td small{display:block;margin-top:4px;color:#8995aa}.manufacturing-components{display:grid;gap:4px}.manufacturing-components span{white-space:nowrap;color:#62718b;font-size:10px}.manufacturing-status{display:inline-block;padding:5px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}.manufacturing-planned{color:var(--nx-warn);background:var(--nx-warn-bg)}.manufacturing-released{color:#235f9d;background:#e6f3ff}.manufacturing-completed{color:#0a845f;background:#def8ed}.manufacturing-cancelled{color:#748096;background:#edf0f4}.manufacturing-actions{display:flex;gap:5px;align-items:center}.manufacturing-cancel{padding:6px 8px;color:#b14e56;background:#fff;border:1px solid #f0d8dc;border-radius:7px;font-size:10px}.manufacturing-empty{display:grid;justify-items:center;gap:7px;padding:28px;color:#858fa4;border:1px dashed #dce2ee;border-radius:10px}.manufacturing-empty svg{color:var(--nx-primary-strong)}.manufacturing-empty b{color:#3c4960;font-size:13px}.manufacturing-empty span{font-size:11px}@media(max-width:1000px){.manufacturing-grid{grid-template-columns:1fr}}@media(max-width:600px){.manufacturing-hero{align-items:flex-start;padding:17px}.manufacturing-hero h1{font-size:21px}.manufacturing-form{grid-template-columns:1fr}.manufacturing-lines{grid-column:auto}.manufacturing-line{grid-template-columns:minmax(100px,1fr) 64px 58px 24px;gap:5px}.manufacturing-table-wrap{margin:0 -10px}.manufacturing-table-wrap table{min-width:800px}}
+.manufacturing-page{display:grid;gap:18px}.manufacturing-hero{display:flex;align-items:center;gap:15px;padding:24px 28px;background:linear-gradient(120deg,var(--nx-surface),color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)) 70%,var(--nx-primary-soft));border:1px solid var(--nx-line);border-radius:18px}.manufacturing-icon{display:grid;place-items:center;width:46px;height:46px;flex:none;color:var(--nx-on-primary);background:linear-gradient(145deg,var(--nx-primary),var(--nx-primary));border-radius:14px;box-shadow:0 8px 20px color-mix(in srgb, var(--nx-primary) 17%, transparent)}.manufacturing-icon.soft{width:38px;height:38px;color:var(--nx-primary-strong);background:color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface));box-shadow:none}.manufacturing-icon.blue{color:var(--nx-primary);background:var(--nx-primary-soft)}.manufacturing-hero .eyebrow{margin:0 0 5px;color:var(--nx-primary-strong);font-size:10px;font-weight:800;letter-spacing:.13em}.manufacturing-hero h1{margin:0;color:var(--nx-text);font-size:27px}.manufacturing-hero p:not(.eyebrow){margin:5px 0 0;color:var(--nx-muted);font-size:13px}.manufacturing-hero>button{margin-left:auto}.manufacturing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.manufacturing-panel{min-width:0;padding:20px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:15px;box-shadow:0 5px 18px color-mix(in srgb, var(--nx-ink) 3%, transparent)}.manufacturing-heading{display:flex;align-items:center;gap:11px;margin-bottom:17px}.manufacturing-heading h2{margin:0;color:var(--nx-text);font-size:16px}.manufacturing-heading p{margin:4px 0 0;color:var(--nx-muted);font-size:12px}.manufacturing-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.manufacturing-form label{display:grid;gap:5px;color:var(--nx-muted);font-size:11px;font-weight:650}.manufacturing-form input,.manufacturing-form select{width:100%;height:38px;padding:0 10px;color:var(--nx-text);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px;outline:none}.manufacturing-form input:focus,.manufacturing-form select:focus{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 12%, transparent)}.manufacturing-form>.primary{display:flex;align-items:center;justify-content:center;gap:7px;min-height:39px}.manufacturing-lines{grid-column:1/-1;padding:12px;background:var(--nx-canvas);border:1px solid var(--nx-line);border-radius:10px}.manufacturing-lines-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;color:var(--nx-text);font-size:12px}.manufacturing-line{display:grid;grid-template-columns:minmax(120px,1fr) 90px 74px 28px;gap:7px;margin-bottom:7px}.manufacturing-line input,.manufacturing-line select{height:34px;font-size:11px}.manufacturing-lines small{display:block;margin-top:3px;color:var(--nx-muted);font-size:10px}.manufacturing-remove{color:var(--nx-muted);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:6px}.manufacturing-order-list{min-height:160px}.manufacturing-table-wrap{overflow:auto}.manufacturing-table-wrap table{width:100%;border-collapse:collapse;font-size:12px}.manufacturing-table-wrap th{padding:10px 9px;color:var(--nx-muted);text-align:left;font-size:10px;font-weight:700;background:var(--nx-table-head)}.manufacturing-table-wrap td{padding:11px 9px;color:var(--nx-muted);border-top:1px solid var(--nx-line-soft);vertical-align:top}.manufacturing-table-wrap td:first-child b{display:block;color:var(--nx-text)}.manufacturing-table-wrap td small{display:block;margin-top:4px;color:var(--nx-muted)}.manufacturing-components{display:grid;gap:4px}.manufacturing-components span{white-space:nowrap;color:var(--nx-muted);font-size:10px}.manufacturing-status{display:inline-block;padding:5px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}.manufacturing-planned{color:var(--nx-warn);background:var(--nx-warn-bg)}.manufacturing-released{color:var(--nx-primary);background:var(--nx-primary-soft)}.manufacturing-completed{color:var(--nx-ok);background:var(--nx-ok-bg)}.manufacturing-cancelled{color:var(--nx-muted);background:var(--nx-canvas)}.manufacturing-actions{display:flex;gap:5px;align-items:center}.manufacturing-cancel{padding:6px 8px;color:var(--nx-bad);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:7px;font-size:10px}.manufacturing-empty{display:grid;justify-items:center;gap:7px;padding:28px;color:var(--nx-muted);border:1px dashed var(--nx-line);border-radius:10px}.manufacturing-empty svg{color:var(--nx-primary-strong)}.manufacturing-empty b{color:var(--nx-text);font-size:13px}.manufacturing-empty span{font-size:11px}@media(max-width:1000px){.manufacturing-grid{grid-template-columns:1fr}}@media(max-width:600px){.manufacturing-hero{align-items:flex-start;padding:17px}.manufacturing-hero h1{font-size:21px}.manufacturing-form{grid-template-columns:1fr}.manufacturing-lines{grid-column:auto}.manufacturing-line{grid-template-columns:minmax(100px,1fr) 64px 58px 24px;gap:5px}.manufacturing-table-wrap{margin:0 -10px}.manufacturing-table-wrap table{min-width:800px}}
 
-.manufacturing-modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#17233c75;backdrop-filter:blur(4px)}.manufacturing-modal{position:relative;width:min(100%,520px);padding:26px;background:#fff;border:1px solid #e4e8f1;border-radius:18px;box-shadow:0 24px 80px #18233c40}.manufacturing-modal-close{position:absolute;top:16px;right:18px;width:32px;height:32px;color:#71809a;background:#f6f7fb;border:0;border-radius:9px;font-size:22px}.manufacturing-modal .eyebrow{margin:0 0 7px;color:var(--nx-primary-strong);font-size:10px;font-weight:800;letter-spacing:.13em}.manufacturing-modal h2{margin:0;color:#1e2c45;font-size:20px}.manufacturing-modal>p:not(.eyebrow){margin:8px 0 20px;color:#77839b;font-size:13px;line-height:1.55}.manufacturing-modal form{display:grid;gap:12px}.manufacturing-modal label{display:grid;gap:6px;color:#68758d;font-size:12px;font-weight:650}.manufacturing-modal input,.manufacturing-modal textarea{width:100%;padding:10px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:8px;outline:none}.manufacturing-modal input{height:40px}.manufacturing-modal textarea{min-height:140px;resize:vertical;font:inherit}.manufacturing-modal input:focus,.manufacturing-modal textarea:focus{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 12%, transparent)}.manufacturing-modal small{color:#8995aa;font-size:11px;line-height:1.5}.manufacturing-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.manufacturing-modal-actions button{min-height:38px;padding:0 14px;border-radius:8px}@media(max-width:600px){.manufacturing-modal{padding:20px}}
+.manufacturing-modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:color-mix(in srgb, var(--nx-ink) 46%, transparent);backdrop-filter:blur(4px)}.manufacturing-modal{position:relative;width:min(100%,520px);padding:26px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:18px;box-shadow:0 24px 80px color-mix(in srgb, var(--nx-ink) 25%, transparent)}.manufacturing-modal-close{position:absolute;top:16px;right:18px;width:32px;height:32px;color:var(--nx-muted);background:var(--nx-canvas);border:0;border-radius:9px;font-size:22px}.manufacturing-modal .eyebrow{margin:0 0 7px;color:var(--nx-primary-strong);font-size:10px;font-weight:800;letter-spacing:.13em}.manufacturing-modal h2{margin:0;color:var(--nx-text);font-size:20px}.manufacturing-modal>p:not(.eyebrow){margin:8px 0 20px;color:var(--nx-muted);font-size:13px;line-height:1.55}.manufacturing-modal form{display:grid;gap:12px}.manufacturing-modal label{display:grid;gap:6px;color:var(--nx-muted);font-size:12px;font-weight:650}.manufacturing-modal input,.manufacturing-modal textarea{width:100%;padding:10px;color:var(--nx-text);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px;outline:none}.manufacturing-modal input{height:40px}.manufacturing-modal textarea{min-height:140px;resize:vertical;font:inherit}.manufacturing-modal input:focus,.manufacturing-modal textarea:focus{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 12%, transparent)}.manufacturing-modal small{color:var(--nx-muted);font-size:11px;line-height:1.5}.manufacturing-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.manufacturing-modal-actions button{min-height:38px;padding:0 14px;border-radius:8px}@media(max-width:600px){.manufacturing-modal{padding:20px}}
 
-.mrp-form{display:grid;grid-template-columns:1.1fr 1.4fr .7fr auto;align-items:end;gap:10px}.mrp-form label{display:grid;gap:5px;color:#68758d;font-size:11px;font-weight:650}.mrp-form input,.mrp-form select{width:100%;height:38px;padding:0 10px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:8px}.mrp-form button{min-height:38px;justify-content:center}.mrp-caveat{margin:14px 0;padding:10px 12px;color:#68758d;background:#f8f9fd;border:1px solid #e7eaf3;border-radius:8px;font-size:11px;line-height:1.5}.mrp-item{display:grid;gap:3px}.mrp-item b{color:#24314a}.mrp-item small{color:#8995aa}.mrp-issue{display:block;margin:6px 0 0;color:#b14e56;font-size:10px;max-width:260px}.mrp-recommendation{display:inline-block;padding:5px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}.mrp-recommendation.make{color:#235f9d;background:#e6f3ff}.mrp-recommendation.buy{color:var(--nx-warn);background:var(--nx-warn-bg)}.mrp-recommendation.covered{color:#0a845f;background:#def8ed}@media(max-width:850px){.mrp-form{grid-template-columns:1fr 1fr}.mrp-form button{grid-column:1/-1}}@media(max-width:600px){.mrp-form{grid-template-columns:1fr}.mrp-form button{grid-column:auto}}
+.mrp-form{display:grid;grid-template-columns:1.1fr 1.4fr .7fr auto;align-items:end;gap:10px}.mrp-form label{display:grid;gap:5px;color:var(--nx-muted);font-size:11px;font-weight:650}.mrp-form input,.mrp-form select{width:100%;height:38px;padding:0 10px;color:var(--nx-text);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px}.mrp-form button{min-height:38px;justify-content:center}.mrp-caveat{margin:14px 0;padding:10px 12px;color:var(--nx-muted);background:var(--nx-canvas);border:1px solid var(--nx-line);border-radius:8px;font-size:11px;line-height:1.5}.mrp-item{display:grid;gap:3px}.mrp-item b{color:var(--nx-text)}.mrp-item small{color:var(--nx-muted)}.mrp-issue{display:block;margin:6px 0 0;color:var(--nx-bad);font-size:10px;max-width:260px}.mrp-recommendation{display:inline-block;padding:5px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}.mrp-recommendation.make{color:var(--nx-primary);background:var(--nx-primary-soft)}.mrp-recommendation.buy{color:var(--nx-warn);background:var(--nx-warn-bg)}.mrp-recommendation.covered{color:var(--nx-ok);background:var(--nx-ok-bg)}@media(max-width:850px){.mrp-form{grid-template-columns:1fr 1fr}.mrp-form button{grid-column:1/-1}}@media(max-width:600px){.mrp-form{grid-template-columns:1fr}.mrp-form button{grid-column:auto}}
 
-.manufacturing-operation{display:grid;grid-template-columns:24px minmax(140px,1fr) 92px 92px 88px minmax(120px,1fr) 28px;gap:7px;align-items:center;margin-bottom:7px}.manufacturing-operation>span{color:#7e8aa0;text-align:center;font-size:11px}.manufacturing-operation select[multiple]{height:auto;min-height:44px;padding:3px 6px}.manufacturing-operation select[multiple] option{padding:2px 3px}.manufacturing-operation input,.manufacturing-operation select{height:34px;padding:0 8px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:7px;font-size:11px}.work-center-form{grid-template-columns:repeat(3,minmax(0,1fr))}.work-center-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}.work-center-chips span{padding:7px 9px;color:#69758c;background:#f8f9fd;border:1px solid #e7eaf3;border-radius:8px;font-size:10px}.work-center-chips b{color:#27344c}.manufacturing-table-wrap td small{max-width:260px;white-space:normal;line-height:1.4}@media(max-width:850px){.work-center-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.manufacturing-operation{grid-template-columns:20px minmax(110px,1fr) 72px 72px 76px minmax(100px,1fr) 24px;gap:4px}.work-center-form{grid-template-columns:1fr}}
+.manufacturing-operation{display:grid;grid-template-columns:24px minmax(140px,1fr) 92px 92px 88px minmax(120px,1fr) 28px;gap:7px;align-items:center;margin-bottom:7px}.manufacturing-operation>span{color:var(--nx-muted);text-align:center;font-size:11px}.manufacturing-operation select[multiple]{height:auto;min-height:44px;padding:3px 6px}.manufacturing-operation select[multiple] option{padding:2px 3px}.manufacturing-operation input,.manufacturing-operation select{height:34px;padding:0 8px;color:var(--nx-text);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:7px;font-size:11px}.work-center-form{grid-template-columns:repeat(3,minmax(0,1fr))}.work-center-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}.work-center-chips span{padding:7px 9px;color:var(--nx-muted);background:var(--nx-canvas);border:1px solid var(--nx-line);border-radius:8px;font-size:10px}.work-center-chips b{color:var(--nx-text)}.manufacturing-table-wrap td small{max-width:260px;white-space:normal;line-height:1.4}@media(max-width:850px){.work-center-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.manufacturing-operation{grid-template-columns:20px minmax(110px,1fr) 72px 72px 76px minmax(100px,1fr) 24px;gap:4px}.work-center-form{grid-template-columns:1fr}}
 
-.manufacturing-operation-detail{display:grid;gap:5px;margin-top:7px;padding:8px;background:#f9faff;border:1px solid #edf0f7;border-radius:8px}.actual-time-entry{display:flex;align-items:end;flex-wrap:wrap;gap:6px}.actual-time-entry label{display:grid;gap:3px;color:#78839a;font-size:9px}.actual-time-entry input{width:78px;height:30px;padding:0 6px;border:1px solid #dfe4ef;border-radius:6px}.actual-time-entry button{min-height:30px}.actual-cost{color:#118260!important;font-weight:700}
-.mrp-conversion{display:grid;gap:10px;margin-top:16px;padding:16px;background:#f8f9ff;border:1px solid #e3e6f3;border-radius:12px}.mrp-conversion h3{margin:0;color:#28354e;font-size:14px}.mrp-conversion>p{margin:0;color:#77839a;font-size:11px;line-height:1.5}.mrp-conversion-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#fff;border:1px solid #e5e9f2;border-radius:9px}.mrp-conversion-row>label{display:flex;align-items:center;gap:10px;min-width:0}.mrp-conversion-row input[type=checkbox]{accent-color:var(--nx-primary)}.mrp-conversion-row span{display:grid;gap:4px}.mrp-conversion-row b{color:#28354e;font-size:12px}.mrp-conversion-row small{color:#77839a;font-size:10px}.mrp-conversion-row select,.mrp-field input{min-height:36px;padding:0 10px;background:#fff;border:1px solid #dfe4ef;border-radius:8px;color:#28354e}.mrp-field{display:grid;gap:5px;color:#68758d;font-size:11px;font-weight:650}.mrp-conversion>button{justify-self:end}
-.manufacturing-nav{display:flex;gap:8px;flex-wrap:wrap;padding:8px;background:#fff;border:1px solid #e4e8f1;border-radius:12px}.manufacturing-nav button{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;color:#63708a;background:transparent;border:1px solid transparent;border-radius:9px;font-weight:650}.manufacturing-nav button:hover{background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface));color:var(--nx-primary-strong)}.manufacturing-nav button.active{color:var(--nx-primary-strong);background:color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface));border-color:color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface))}.manufacturing-page>.manufacturing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.manufacturing-page>.manufacturing-panel{animation:manufacturing-enter .18s ease-out}@keyframes manufacturing-enter{from{opacity:.65;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}@media(max-width:700px){.manufacturing-nav{display:grid;grid-template-columns:1fr 1fr}.manufacturing-nav button{justify-content:center;padding:0 8px;font-size:12px}.manufacturing-page>.manufacturing-grid{grid-template-columns:1fr}}
+.manufacturing-operation-detail{display:grid;gap:5px;margin-top:7px;padding:8px;background:var(--nx-canvas);border:1px solid var(--nx-line-soft);border-radius:8px}.actual-time-entry{display:flex;align-items:end;flex-wrap:wrap;gap:6px}.actual-time-entry label{display:grid;gap:3px;color:var(--nx-muted);font-size:9px}.actual-time-entry input{width:78px;height:30px;padding:0 6px;border:1px solid var(--nx-line);border-radius:6px}.actual-time-entry button{min-height:30px}.actual-cost{color:var(--nx-ok)!important;font-weight:700}
+.mrp-conversion{display:grid;gap:10px;margin-top:16px;padding:16px;background:var(--nx-canvas);border:1px solid var(--nx-line);border-radius:12px}.mrp-conversion h3{margin:0;color:var(--nx-text);font-size:14px}.mrp-conversion>p{margin:0;color:var(--nx-muted);font-size:11px;line-height:1.5}.mrp-conversion-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:9px}.mrp-conversion-row>label{display:flex;align-items:center;gap:10px;min-width:0}.mrp-conversion-row input[type=checkbox]{accent-color:var(--nx-primary)}.mrp-conversion-row span{display:grid;gap:4px}.mrp-conversion-row b{color:var(--nx-text);font-size:12px}.mrp-conversion-row small{color:var(--nx-muted);font-size:10px}.mrp-conversion-row select,.mrp-field input{min-height:36px;padding:0 10px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px;color:var(--nx-text)}.mrp-field{display:grid;gap:5px;color:var(--nx-muted);font-size:11px;font-weight:650}.mrp-conversion>button{justify-self:end}
+.manufacturing-nav{display:flex;gap:8px;flex-wrap:wrap;padding:8px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:12px}.manufacturing-nav button{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;color:var(--nx-muted);background:transparent;border:1px solid transparent;border-radius:9px;font-weight:650}.manufacturing-nav button:hover{background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface));color:var(--nx-primary-strong)}.manufacturing-nav button.active{color:var(--nx-primary-strong);background:color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface));border-color:color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface))}.manufacturing-page>.manufacturing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.manufacturing-page>.manufacturing-panel{animation:manufacturing-enter .18s ease-out}@keyframes manufacturing-enter{from{opacity:.65;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}@media(max-width:700px){.manufacturing-nav{display:grid;grid-template-columns:1fr 1fr}.manufacturing-nav button{justify-content:center;padding:0 8px;font-size:12px}.manufacturing-page>.manufacturing-grid{grid-template-columns:1fr}}
 
 /* Each manufacturing route renders one primary panel; let it use the full page width. */
 .manufacturing-page{width:100%;max-width:100%;min-width:0}
@@ -17,9 +17,9 @@
 .manufacturing-form>*,.manufacturing-form label{min-width:0}
 .manufacturing-form input,.manufacturing-form select{min-width:0;max-width:100%}
 .manufacturing-line{grid-template-columns:minmax(0,1fr) minmax(64px,90px) minmax(58px,74px) 28px}
-.work-center-calendar{display:grid;gap:14px;margin-top:20px;padding:17px;background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface));border:1px solid #e6e8f2;border-radius:12px}.calendar-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.calendar-title h3{margin:0;color:#28354e;font-size:14px}.calendar-title p{max-width:650px;margin:5px 0 0;color:#78849a;font-size:11px;line-height:1.5}.calendar-title>label,.calendar-override-form>label{display:grid;gap:5px;color:#68758d;font-size:11px;font-weight:650}.calendar-title select,.calendar-override-form input{min-width:150px;height:36px;padding:0 9px;color:#28354e;background:#fff;border:1px solid #dfe4ef;border-radius:8px}.work-calendar-days{display:flex;flex-wrap:wrap;gap:7px}.work-calendar-days label{display:flex;align-items:center;gap:7px;padding:8px 10px;color:#53617a;background:#fff;border:1px solid #e3e7f0;border-radius:8px;font-size:11px}.work-calendar-days input{accent-color:var(--nx-primary)}.calendar-override-form{display:grid;grid-template-columns:minmax(140px,.8fr) minmax(140px,.8fr) minmax(180px,1.3fr) auto;align-items:end;gap:10px;padding:13px;background:#fff;border:1px solid #e7eaf2;border-radius:10px}.calendar-override-form input{width:100%;min-width:0}.calendar-override-form small,.calendar-save-row small{color:#8995aa;font-size:10px;line-height:1.4}.calendar-override-form button{min-height:36px;white-space:nowrap}.calendar-override-list{display:grid;gap:6px}.calendar-override-row{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(110px,.8fr) minmax(100px,1.5fr) 28px;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid #e8ebf3;border-radius:8px;font-size:11px}.calendar-override-row b{color:#28354e}.calendar-override-row span{color:#596781}.calendar-override-row small{color:#8995aa}.calendar-override-row button{width:28px;height:28px}.calendar-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.calendar-save-row button{min-height:38px;padding:0 15px}@media(max-width:800px){.calendar-override-form{grid-template-columns:1fr 1fr}.calendar-override-form>label:nth-child(3){grid-column:1/-1}.calendar-title{flex-direction:column}.calendar-title>label{width:100%}.calendar-title select{width:100%}}@media(max-width:560px){.calendar-override-form{grid-template-columns:1fr}.calendar-override-form>label:nth-child(3){grid-column:auto}.calendar-override-row{grid-template-columns:1fr auto;gap:4px 8px}.calendar-override-row small{grid-column:1}.calendar-override-row button{grid-column:2;grid-row:1/4}.calendar-save-row{align-items:stretch;flex-direction:column}.calendar-save-row button{width:100%}}
+.work-center-calendar{display:grid;gap:14px;margin-top:20px;padding:17px;background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface));border:1px solid var(--nx-line);border-radius:12px}.calendar-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.calendar-title h3{margin:0;color:var(--nx-text);font-size:14px}.calendar-title p{max-width:650px;margin:5px 0 0;color:var(--nx-muted);font-size:11px;line-height:1.5}.calendar-title>label,.calendar-override-form>label{display:grid;gap:5px;color:var(--nx-muted);font-size:11px;font-weight:650}.calendar-title select,.calendar-override-form input{min-width:150px;height:36px;padding:0 9px;color:var(--nx-text);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px}.work-calendar-days{display:flex;flex-wrap:wrap;gap:7px}.work-calendar-days label{display:flex;align-items:center;gap:7px;padding:8px 10px;color:var(--nx-muted);background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px;font-size:11px}.work-calendar-days input{accent-color:var(--nx-primary)}.calendar-override-form{display:grid;grid-template-columns:minmax(140px,.8fr) minmax(140px,.8fr) minmax(180px,1.3fr) auto;align-items:end;gap:10px;padding:13px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:10px}.calendar-override-form input{width:100%;min-width:0}.calendar-override-form small,.calendar-save-row small{color:var(--nx-muted);font-size:10px;line-height:1.4}.calendar-override-form button{min-height:36px;white-space:nowrap}.calendar-override-list{display:grid;gap:6px}.calendar-override-row{display:grid;grid-template-columns:minmax(90px,.7fr) minmax(110px,.8fr) minmax(100px,1.5fr) 28px;align-items:center;gap:10px;padding:8px 10px;background:var(--nx-surface);border:1px solid var(--nx-line);border-radius:8px;font-size:11px}.calendar-override-row b{color:var(--nx-text)}.calendar-override-row span{color:var(--nx-muted)}.calendar-override-row small{color:var(--nx-muted)}.calendar-override-row button{width:28px;height:28px}.calendar-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.calendar-save-row button{min-height:38px;padding:0 15px}@media(max-width:800px){.calendar-override-form{grid-template-columns:1fr 1fr}.calendar-override-form>label:nth-child(3){grid-column:1/-1}.calendar-title{flex-direction:column}.calendar-title>label{width:100%}.calendar-title select{width:100%}}@media(max-width:560px){.calendar-override-form{grid-template-columns:1fr}.calendar-override-form>label:nth-child(3){grid-column:auto}.calendar-override-row{grid-template-columns:1fr auto;gap:4px 8px}.calendar-override-row small{grid-column:1}.calendar-override-row button{grid-column:2;grid-row:1/4}.calendar-save-row{align-items:stretch;flex-direction:column}.calendar-save-row button{width:100%}}
 .manufacturing-operation{grid-template-columns:24px minmax(140px,1fr) minmax(95px,.8fr) 82px 82px 105px 112px 82px minmax(120px,1fr) 28px}
-.calendar-override-row label{display:grid;gap:3px;color:#68758d;font-size:10px}
+.calendar-override-row label{display:grid;gap:3px;color:var(--nx-muted);font-size:10px}
 @media(max-width:600px){.manufacturing-operation{grid-template-columns:20px minmax(110px,1fr) minmax(88px,.8fr) 72px 72px 92px 98px 76px minmax(100px,1fr) 24px}}
 .annual-capacity-form{grid-template-columns:minmax(70px,.45fr) minmax(70px,.45fr) minmax(140px,.8fr) minmax(180px,1.3fr) auto}@media(max-width:800px){.calendar-override-form.annual-capacity-form{grid-template-columns:1fr 1fr}.calendar-override-form.annual-capacity-form>label:nth-child(4){grid-column:1/-1}}@media(max-width:560px){.calendar-override-form.annual-capacity-form{grid-template-columns:1fr}.calendar-override-form.annual-capacity-form>label:nth-child(4){grid-column:auto}}
 .rotation-row{display:block;padding:14px}.rotation-header{display:flex;align-items:center;gap:12px}.rotation-header small{flex:1}.rotation-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}.rotation-day{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border:1px solid var(--nx-line);border-radius:12px;background:var(--nx-canvas)}.rotation-day>b{grid-column:1/-1}.rotation-day label{font-size:12px}.rotation-day input{width:100%;min-width:0}
@@ -30,7 +30,7 @@
 .manufacturing-table-wrap table{min-width:760px}
 .manufacturing-lines{min-width:0;overflow-x:auto;overscroll-behavior-inline:contain}
 .manufacturing-page .manufacturing-line{grid-template-columns:minmax(150px,1fr) 88px 76px 112px 28px;min-width:500px}
-.manufacturing-page .manufacturing-components b{display:block;margin-top:3px;color:#34435d;font-size:10px}
+.manufacturing-page .manufacturing-components b{display:block;margin-top:3px;color:var(--nx-text);font-size:10px}
 .manufacturing-operation{min-width:930px}
 .mrp-conversion-row>label{flex:1}
 .mrp-conversion-row select{max-width:100%;min-width:min(220px,40%)}
@@ -45,15 +45,15 @@
 
 /* Enterprise workbench refresh: clear page hierarchy, compact forms, readable lists. */
 .manufacturing-page{gap:14px;color:var(--erp-text)}
-.manufacturing-page .manufacturing-hero{min-width:0;padding:20px 22px;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:12px;box-shadow:0 1px 2px #17233c08}
+.manufacturing-page .manufacturing-hero{min-width:0;padding:20px 22px;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:12px;box-shadow:0 1px 2px color-mix(in srgb, var(--nx-ink) 3%, transparent)}
 .manufacturing-page .manufacturing-hero h1{font-size:24px;letter-spacing:-.025em}
 .manufacturing-page .manufacturing-hero p:not(.eyebrow){max-width:720px;font-size:13px;line-height:1.5}
 .manufacturing-page .manufacturing-icon{border-radius:10px;box-shadow:none}
 .manufacturing-page .manufacturing-nav{gap:3px;padding:4px;background:var(--erp-surface-soft);border:1px solid var(--erp-border);border-radius:10px}
 .manufacturing-page .manufacturing-nav button{min-height:36px;padding:0 13px;border-radius:7px;font-size:12px}
-.manufacturing-page .manufacturing-nav button.active{background:var(--erp-surface);border-color:var(--erp-border);box-shadow:0 1px 2px #17233c12}
+.manufacturing-page .manufacturing-nav button.active{background:var(--erp-surface);border-color:var(--erp-border);box-shadow:0 1px 2px color-mix(in srgb, var(--nx-ink) 7%, transparent)}
 .manufacturing-page .manufacturing-grid{width:100%;min-width:0;align-items:start}
-.manufacturing-page .manufacturing-panel{padding:18px;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:11px;box-shadow:0 1px 2px #17233c08}
+.manufacturing-page .manufacturing-panel{padding:18px;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:11px;box-shadow:0 1px 2px color-mix(in srgb, var(--nx-ink) 3%, transparent)}
 .manufacturing-page .manufacturing-heading{margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid var(--erp-border)}
 .manufacturing-page .manufacturing-heading h2{font-size:15px;letter-spacing:-.01em}
 .manufacturing-page .manufacturing-heading p{font-size:11px;line-height:1.45}
@@ -71,7 +71,7 @@
 .manufacturing-page .manufacturing-table-wrap tbody tr:hover{background:var(--nx-canvas)}
 .manufacturing-page .manufacturing-status,.manufacturing-page .mrp-recommendation{padding:4px 8px;border-radius:5px;font-size:10px}
 .manufacturing-page .work-center-chips span{padding:6px 8px;border-radius:6px}
-.work-center-register{display:grid;gap:10px;margin-top:18px;padding:14px;background:var(--erp-surface-soft);border:1px solid var(--erp-border);border-radius:10px}.work-center-register-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.work-center-register-heading h3{margin:0;color:var(--erp-text);font-size:14px}.work-center-register-heading p{margin:4px 0 0;color:var(--erp-muted);font-size:11px}.work-center-register .manufacturing-table-wrap{margin:0;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:8px}.work-center-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:650}.work-center-status.is-active{color:#12805c;background:#e8f7f0}.work-center-status.is-inactive{color:#68758d;background:#eef0f4}html[data-theme="dark"] .work-center-status.is-active{color:#8fe0bd;background:#173b31}html[data-theme="dark"] .work-center-status.is-inactive{color:#bbc3d0;background:#303542}
+.work-center-register{display:grid;gap:10px;margin-top:18px;padding:14px;background:var(--erp-surface-soft);border:1px solid var(--erp-border);border-radius:10px}.work-center-register-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.work-center-register-heading h3{margin:0;color:var(--erp-text);font-size:14px}.work-center-register-heading p{margin:4px 0 0;color:var(--erp-muted);font-size:11px}.work-center-register .manufacturing-table-wrap{margin:0;background:var(--erp-surface);border:1px solid var(--erp-border);border-radius:8px}.work-center-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:650}.work-center-status.is-active{color:var(--nx-ok);background:var(--nx-ok-bg)}.work-center-status.is-inactive{color:var(--nx-muted);background:var(--nx-canvas)}html[data-theme="dark"] .work-center-status.is-active{color:var(--nx-ok);background:var(--nx-ok-bg)}html[data-theme="dark"] .work-center-status.is-inactive{color:var(--nx-muted);background:var(--nx-surface)}
 .manufacturing-page .mrp-caveat{margin:12px 0;padding:10px 12px;border-radius:7px}
 .manufacturing-page .manufacturing-empty{min-height:120px;align-content:center;background:var(--erp-surface-soft);border-color:var(--erp-border);border-radius:8px}
 .manufacturing-page :is(button,input,select,textarea):focus-visible{outline:2px solid var(--nx-primary);outline-offset:2px}
@@ -85,7 +85,7 @@ html[data-theme="dark"] .manufacturing-page .manufacturing-empty{background:var(
 html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap{background:var(--erp-surface);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap th{background:var(--erp-surface-soft);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap td{border-color:var(--erp-border)}
-html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap tbody tr:hover{background:#20242e}
+html[data-theme="dark"] .manufacturing-page .manufacturing-table-wrap tbody tr:hover{background:var(--nx-line-soft)}
 @media(max-width:700px){.manufacturing-page .manufacturing-hero{padding:16px}.manufacturing-page .manufacturing-panel{padding:14px}.manufacturing-page .manufacturing-nav{display:flex;overflow-x:auto;flex-wrap:nowrap}.manufacturing-page .manufacturing-nav button{flex:0 0 auto}.manufacturing-page .manufacturing-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.manufacturing-page .manufacturing-form{grid-template-columns:minmax(0,1fr)}.manufacturing-page .manufacturing-lines{grid-column:auto}.manufacturing-page .manufacturing-line{grid-template-columns:minmax(130px,1fr) 70px 66px 26px}.manufacturing-page .manufacturing-heading{align-items:flex-start}}
 .manufacturing-workbench-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
@@ -164,7 +164,7 @@ html[data-theme="dark"] .manufacturing-recipe-search input{background:var(--erp-
   background: var(--erp-surface);
   border: 1px solid var(--erp-border);
   border-radius: 8px;
-  box-shadow: 0 1px 2px #172b4d0d;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--nx-ink) 5%, transparent);
 }
 .manufacturing-page .manufacturing-recipe-list-heading {
   min-height: 58px;
@@ -207,7 +207,7 @@ html[data-theme="dark"] .manufacturing-recipe-search input{background:var(--erp-
   font-size: 12px;
   box-shadow: none;
 }
-.manufacturing-page .manufacturing-recipe-search:focus-within { border-color: #7ba6d6; box-shadow: 0 0 0 3px rgb(49 95 159 / 10%); }
+.manufacturing-page .manufacturing-recipe-search:focus-within { border-color: var(--nx-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 10%, transparent); }
 .manufacturing-page .manufacturing-recipe-filterbar { display: flex; align-items: end; gap: 9px; min-height: 62px; padding: 10px 14px; border-bottom: 1px solid var(--erp-border); background: var(--erp-surface); }
 .manufacturing-page .manufacturing-recipe-filterbar .manufacturing-recipe-search { flex: 1 1 360px; max-width: 560px; }
 .manufacturing-page .manufacturing-recipe-filterbar > button { min-height: 36px; }
@@ -233,7 +233,7 @@ html[data-theme="dark"] .manufacturing-recipe-search input{background:var(--erp-
   vertical-align: middle;
 }
 .manufacturing-page .manufacturing-recipe-table-wrap tbody tr:last-child td { border-bottom: 0; }
-.manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: #f7faff; }
+.manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: var(--nx-canvas); }
 .manufacturing-page .manufacturing-recipe-table-wrap td:first-child b { color: var(--erp-text); font-size: 12px; }
 .manufacturing-page .manufacturing-recipe-table-wrap td:first-child small,
 .manufacturing-page .manufacturing-recipe-table-wrap td > small { font-size: 10px; }
@@ -246,12 +246,12 @@ html[data-theme="dark"] .manufacturing-recipe-search input{background:var(--erp-
   border-top: 1px solid var(--erp-border);
   font-size: 11px;
 }
-html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-list-heading { background: #1d2636; border-color: var(--erp-border); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-list-heading { background: var(--nx-surface); border-color: var(--erp-border); }
 html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-list-heading > p b { color: var(--erp-text); }
-html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap th { background: #1b2332; border-color: var(--erp-border); color: var(--erp-muted); }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap th { background: var(--nx-table-head); border-color: var(--erp-border); color: var(--erp-muted); }
 html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap td { border-color: var(--erp-border); color: var(--erp-text); }
 html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap td:first-child b { color: var(--erp-text); }
-html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: #202a3a; }
+html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-table-wrap tbody tr:hover td { background: var(--nx-line-soft); }
 html[data-theme="dark"] .manufacturing-page .manufacturing-recipe-pagination { border-color: var(--erp-border); }
 @media (max-width: 700px) {
   .manufacturing-page .manufacturing-recipe-list-heading { align-items: stretch; flex-direction: column; }
@@ -319,7 +319,7 @@ html[data-theme="dark"] .manufacturing-inspector-section li{background:var(--erp
 .manufacturing-order-filterbar{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin:0 0 14px;padding:12px;border:1px solid var(--erp-border);border-radius:9px;background:var(--erp-surface-soft)}
 .manufacturing-order-filter-card{margin-bottom:14px}
 .manufacturing-order-search{display:flex;flex:1 1 340px;align-items:center;gap:8px;min-width:220px;height:40px;padding:0 11px;border:1px solid var(--erp-border);border-radius:7px;background:var(--erp-surface);color:var(--erp-text-muted)}
-.manufacturing-order-search:focus-within{border-color:#7ba6d6;box-shadow:0 0 0 3px rgb(49 95 159 / 10%)}
+.manufacturing-order-search:focus-within{border-color:var(--nx-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--nx-primary) 10%, transparent)}
 .manufacturing-order-search input{width:100%;height:100%;min-width:0;padding:0;border:0;outline:0;background:transparent;color:var(--erp-text);font:inherit;font-size:12px}
 .manufacturing-order-status-filter{display:grid;gap:4px;color:var(--erp-text-muted);font-size:10px;font-weight:650}
 .manufacturing-order-status-filter select{min-width:160px;height:40px;padding:0 10px;border:1px solid var(--erp-border);border-radius:7px;background:var(--erp-surface);color:var(--erp-text);font:inherit;font-size:12px}
@@ -328,10 +328,10 @@ html[data-theme="dark"] .manufacturing-inspector-section li{background:var(--erp
 .manufacturing-order-list .manufacturing-operation-detail{gap:7px;margin-top:8px;padding:10px 11px;border-color:var(--erp-border);border-radius:8px;background:var(--erp-surface-soft);color:var(--erp-text-muted)}
 .manufacturing-order-list .manufacturing-operation-detail>small{font-size:10px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 .manufacturing-order-list .manufacturing-operation-detail>small:first-child{color:var(--erp-text);font-weight:600}
-.manufacturing-order-list .manufacturing-operation-detail .actual-cost{padding:6px 8px;border-radius:6px;background:#e9f8f1;font-size:10px}
+.manufacturing-order-list .manufacturing-operation-detail .actual-cost{padding:6px 8px;border-radius:6px;background:var(--nx-ok-bg);font-size:10px}
 .manufacturing-order-list .manufacturing-components{gap:6px;min-width:185px}
 .manufacturing-order-list .manufacturing-components span{padding:5px 7px;border:1px solid var(--erp-border);border-radius:6px;background:var(--erp-surface);white-space:normal;line-height:1.4;font-size:10px}
-.manufacturing-order-list .manufacturing-components b{margin-top:1px;padding:7px 8px;border-radius:6px;background:#eef4ff;color:#31588c;font-size:10px;line-height:1.4}
+.manufacturing-order-list .manufacturing-components b{margin-top:1px;padding:7px 8px;border-radius:6px;background:var(--nx-primary-soft);color:var(--nx-primary);font-size:10px;line-height:1.4}
 .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected>td{background:color-mix(in srgb, var(--nx-primary) 4%, var(--nx-surface));border-top-color:color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface))}
 .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected>td:first-child{box-shadow:inset 3px 0 var(--nx-primary)}
 html[data-theme="dark"] .manufacturing-order-filterbar{background:var(--erp-surface-soft);border-color:var(--erp-border)}
@@ -339,14 +339,14 @@ html[data-theme="dark"] .manufacturing-order-search,html[data-theme="dark"] .man
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-operation-detail{background:var(--erp-surface-soft);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-components span{background:var(--erp-surface);border-color:var(--erp-border)}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-components b{background:var(--nx-primary-soft);color:var(--nx-primary-strong)}
-html[data-theme="dark"] .manufacturing-order-list .manufacturing-operation-detail .actual-cost{background:#18372d}
+html[data-theme="dark"] .manufacturing-order-list .manufacturing-operation-detail .actual-cost{background:var(--nx-ok-bg)}
 html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbody tr.selected>td{background:var(--nx-primary-soft)}
 @media(max-width:650px){.manufacturing-order-filterbar{align-items:stretch}.manufacturing-order-search{flex-basis:100%;min-width:0}.manufacturing-order-status-filter{flex:1}.manufacturing-order-status-filter select{width:100%;min-width:0}}
 
 /* Keep the work-center screen focused; expose planning rules on demand. */
 .manufacturing-page .manufacturing-kpis.work-center-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .manufacturing-page .manufacturing-kpis.work-center-kpis article { min-height: 76px; padding: 13px 15px; border-radius: 9px; }
-.manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: #145b91; font-size: 19px; }
+.manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: var(--nx-primary); font-size: 19px; }
 .manufacturing-page .work-center-calendar { gap: 12px; margin-top: 14px; padding: 14px; }
 .manufacturing-page .calendar-settings-disclosure { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--erp-border); }
 .manufacturing-page .calendar-settings-disclosure > summary,
@@ -369,7 +369,7 @@ html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbod
 .manufacturing-page .calendar-settings-disclosure > summary::-webkit-details-marker,
 .manufacturing-page .work-center-setup-details > summary::-webkit-details-marker { display: none; }
 .manufacturing-page .calendar-settings-disclosure > summary::after,
-.manufacturing-page .work-center-setup-details > summary::after { content: "+"; color: #52627a; font-size: 18px; font-weight: 400; }
+.manufacturing-page .work-center-setup-details > summary::after { content: "+"; color: var(--nx-muted); font-size: 18px; font-weight: 400; }
 .manufacturing-page .calendar-settings-disclosure[open] > summary::after,
 .manufacturing-page .work-center-setup-details[open] > summary::after { content: "−"; }
 .manufacturing-page .work-center-setup-details > summary { margin: -3px -3px 0; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--erp-border); border-radius: 0; background: transparent; }
@@ -378,7 +378,7 @@ html[data-theme="dark"] .manufacturing-order-list .manufacturing-table-wrap tbod
 .manufacturing-page .work-center-setup-details > summary > div p { margin: 4px 0 0; color: var(--erp-text-muted); font-size: 11px; line-height: 1.45; }
 .manufacturing-page .calendar-settings-disclosure .manufacturing-empty,
 .manufacturing-page .work-center-setup-details .manufacturing-empty { min-height: 88px; padding: 18px; }
-html[data-theme="dark"] .manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: #8bc8f2; }
+html[data-theme="dark"] .manufacturing-page .manufacturing-kpis.work-center-kpis article>b { color: var(--nx-primary-strong); }
 html[data-theme="dark"] .manufacturing-page .calendar-settings-disclosure > summary { background: var(--erp-surface-soft); }
 @media(max-width:700px) {
   .manufacturing-page .manufacturing-kpis.work-center-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -389,7 +389,7 @@ html[data-theme="dark"] .manufacturing-page .calendar-settings-disclosure > summ
 .manufacturing-page .mrp-demand-row label { min-width: 0; }
 .manufacturing-page .mrp-demand-remove { min-height: 38px; }
 .manufacturing-page .mrp-demand-add { justify-self: start; }
-.manufacturing-page .mrp-demand-error { color: #b14e56; font-size: 11px; }
+.manufacturing-page .mrp-demand-error { color: var(--nx-bad); font-size: 11px; }
 @container (max-width:620px) {
   .manufacturing-page .mrp-demand-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .manufacturing-page .mrp-demand-row label:first-child { grid-column: 1 / -1; }
@@ -450,24 +450,24 @@ html[data-theme="dark"] .manufacturing-recipe-filter-heading p{color:var(--erp-m
 }
 #root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
   overflow: hidden;
-  border: 1px solid #dfe5ee !important;
+  border: 1px solid var(--nx-line) !important;
   border-radius: 12px !important;
-  background: #fff !important;
+  background: var(--nx-surface) !important;
 }
 #root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-inspector { border-radius: 12px; }
 html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .manufacturing-order-workbench > .manufacturing-table-wrap {
-  border-color: #35435b !important;
-  background: #1a263a !important;
+  border-color: var(--nx-line) !important;
+  background: var(--nx-surface) !important;
 }
 
 /* Work centers: list | selected work center detail (calendar, general, exceptions tabs). */
 #root .manufacturing-page .work-center-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; gap: 16px; min-width: 0; }
-#root .manufacturing-page :is(.work-center-card, .mrp-card) { min-width: 0; margin: 0; padding: 16px; border: 1px solid #dfe5ee; border-radius: 12px; background: #fff; box-shadow: none; }
+#root .manufacturing-page :is(.work-center-card, .mrp-card) { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--nx-line); border-radius: 12px; background: var(--nx-surface); box-shadow: none; }
 #root .manufacturing-page .work-center-list-card { padding: 0; overflow: hidden; }
 #root .manufacturing-page .work-center-list-card .manufacturing-table-wrap { margin: 0; border: 0; border-radius: 0; }
 #root .manufacturing-page .work-center-list-card .manufacturing-empty { margin: 16px; }
 #root .manufacturing-page .work-center-list-card tbody tr { cursor: pointer; }
-#root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: #f3f6fb; }
+#root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: var(--nx-primary-soft); }
 #root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 var(--nx-primary); }
 #root .manufacturing-page .work-center-detail { display: grid; gap: 14px; }
 #root .manufacturing-page .work-center-detail .list-v2-detail-head h2 { font-size: 20px; }
@@ -475,10 +475,10 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
 #root .manufacturing-page .work-center-detail .list-v2-tabs { margin-top: 0; }
 #root .manufacturing-page .work-center-tab-body { display: grid; gap: 14px; min-width: 0; }
 #root .manufacturing-page .work-center-field { display: grid; gap: 6px; color: var(--nx-muted); font-size: 12px; font-weight: 650; }
-#root .manufacturing-page .work-calendar-segments { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 8px; }
-#root .manufacturing-page .work-calendar-segments button { min-width: 40px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-right: 1px solid #dfe5ee; border-radius: 0; background: #fff; box-shadow: none; color: var(--nx-muted); font-size: 12px; font-weight: 650; cursor: pointer; }
+#root .manufacturing-page .work-calendar-segments { display: inline-flex; flex-wrap: wrap; width: max-content; max-width: 100%; overflow: hidden; border: 1px solid var(--nx-line); border-radius: 8px; }
+#root .manufacturing-page .work-calendar-segments button { min-width: 40px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-right: 1px solid var(--nx-line); border-radius: 0; background: var(--nx-surface); box-shadow: none; color: var(--nx-muted); font-size: 12px; font-weight: 650; cursor: pointer; }
 #root .manufacturing-page .work-calendar-segments button:last-child { border-right: 0; }
-#root .manufacturing-page .work-calendar-segments button.is-on { background: var(--nx-primary); color: #fff; }
+#root .manufacturing-page .work-calendar-segments button.is-on { background: var(--nx-primary); color: var(--nx-on-primary); }
 #root .manufacturing-page .work-calendar-segments button:disabled { cursor: not-allowed; opacity: .6; }
 #root .manufacturing-page .work-center-shift-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 #root .manufacturing-page .work-center-shift-row label { display: grid; gap: 6px; min-width: 0; color: var(--nx-muted); font-size: 12px; font-weight: 650; }
@@ -489,10 +489,10 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
 #root .manufacturing-page .work-center-detail .calendar-override-form { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; border: 0; background: transparent; }
 #root .manufacturing-page .work-center-detail .calendar-override-form > button { align-self: end; }
 #root .manufacturing-page .work-center-detail .calendar-override-list { display: grid; gap: 0; }
-#root .manufacturing-page .work-center-detail .calendar-override-row { border: 0; border-bottom: 1px solid #edf0f5; border-radius: 0; background: transparent; padding: 8px 0; }
+#root .manufacturing-page .work-center-detail .calendar-override-row { border: 0; border-bottom: 1px solid var(--nx-line-soft); border-radius: 0; background: transparent; padding: 8px 0; }
 #root .manufacturing-page .work-center-detail .calendar-title h3 { margin: 6px 0 0; font-size: 13px; }
 #root .manufacturing-page .work-center-detail .calendar-title p { margin: 4px 0 0; font-size: 12px; }
-#root .manufacturing-page .work-center-detail .calendar-save-row { padding-top: 12px; border-top: 1px solid #edf0f5; }
+#root .manufacturing-page .work-center-detail .calendar-save-row { padding-top: 12px; border-top: 1px solid var(--nx-line-soft); }
 @media (max-width: 1100px) {
   #root .manufacturing-page .work-center-layout { grid-template-columns: minmax(0, 1fr); }
 }
@@ -510,21 +510,21 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
 #root .manufacturing-page .mrp-input-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 #root .manufacturing-page .mrp-input-row label { display: grid; gap: 6px; min-width: 0; color: var(--nx-muted); font-size: 12px; font-weight: 650; }
 #root .manufacturing-page .mrp-input-form input { width: 100%; min-width: 0; height: 38px; }
-#root .manufacturing-page .mrp-demand-table { display: grid; min-width: 0; border-top: 1px solid #edf0f5; }
+#root .manufacturing-page .mrp-demand-table { display: grid; min-width: 0; border-top: 1px solid var(--nx-line-soft); }
 #root .manufacturing-page :is(.mrp-demand-head, .mrp-demand-line) { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(70px, .6fr) minmax(120px, .9fr) 30px; align-items: center; gap: 8px; min-width: 0; }
-#root .manufacturing-page .mrp-demand-head { padding: 8px 0; border-bottom: 1px solid #edf0f5; color: var(--nx-muted); font-size: 11px; font-weight: 700; }
-#root .manufacturing-page .mrp-demand-line { padding: 8px 0; border-bottom: 1px solid #edf0f5; }
+#root .manufacturing-page .mrp-demand-head { padding: 8px 0; border-bottom: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 11px; font-weight: 700; }
+#root .manufacturing-page .mrp-demand-line { padding: 8px 0; border-bottom: 1px solid var(--nx-line-soft); }
 #root .manufacturing-page .mrp-demand-line > * { min-width: 0; }
 #root .manufacturing-page .mrp-demand-foot { padding-top: 8px; }
-#root .manufacturing-page .mrp-link-button { min-height: 0; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: #1f5fbf; font-size: 13px; font-weight: 650; cursor: pointer; }
+#root .manufacturing-page .mrp-link-button { min-height: 0; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: var(--nx-primary); font-size: 13px; font-weight: 650; cursor: pointer; }
 #root .manufacturing-page .mrp-link-button:disabled { color: var(--nx-muted); cursor: not-allowed; }
 #root .manufacturing-page .mrp-run-button { width: 100%; min-height: 40px; }
 #root .manufacturing-page .mrp-results-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
 #root .manufacturing-page .mrp-stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-#root .manufacturing-page .mrp-stat-tiles > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: #f5f7fa; }
+#root .manufacturing-page .mrp-stat-tiles > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--nx-canvas); }
 #root .manufacturing-page .mrp-stat-tiles span { color: var(--nx-muted); font-size: 11px; font-weight: 650; }
 #root .manufacturing-page .mrp-stat-tiles b { color: var(--nx-text); font-size: 18px; font-variant-numeric: tabular-nums; }
-#root .manufacturing-page .mrp-empty-state { display: grid; place-items: center; min-height: 160px; padding: 24px; border: 1px dashed #cfd7e3; border-radius: 10px; color: var(--nx-muted); font-size: 13px; text-align: center; }
+#root .manufacturing-page .mrp-empty-state { display: grid; place-items: center; min-height: 160px; padding: 24px; border: 1px dashed var(--nx-line); border-radius: 10px; color: var(--nx-muted); font-size: 13px; text-align: center; }
 #root .manufacturing-page .mrp-results .manufacturing-table-wrap { margin: 0; }
 @media (max-width: 1100px) {
   #root .manufacturing-page .mrp-layout { grid-template-columns: minmax(0, 1fr); }
@@ -537,17 +537,17 @@ html[data-theme='dark'] #root .app-shell .list-v2 .manufacturing-order-list .man
   #root .manufacturing-page .mrp-demand-head > :first-child { grid-column: 1 / -1; }
   #root .manufacturing-page .mrp-demand-head > :last-child { display: none; }
 }
-html[data-theme='dark'] #root .manufacturing-page :is(.work-center-card, .mrp-card) { border-color: #35435b; background: #1a263a; }
-html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: #22314a; }
+html[data-theme='dark'] #root .manufacturing-page :is(.work-center-card, .mrp-card) { border-color: var(--nx-line); background: var(--nx-surface); }
+html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td { background: var(--nx-primary-soft); }
 html[data-theme='dark'] #root .manufacturing-page .work-center-list-card tbody tr.selected > td:first-child { box-shadow: inset 3px 0 var(--nx-primary); }
-html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments { border-color: #35435b; }
-html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button { border-color: #35435b; background: #1a263a; color: #a7afbf; }
-html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button.is-on { background: #e4e7ed; color: #0f1726; }
-html[data-theme='dark'] #root .manufacturing-page :is(.work-center-detail .calendar-override-row, .work-center-detail .calendar-save-row, .mrp-demand-table, .mrp-demand-head, .mrp-demand-line) { border-color: #2c3a50; }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments { border-color: var(--nx-line); }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button { border-color: var(--nx-line); background: var(--nx-surface); color: var(--nx-muted); }
+html[data-theme='dark'] #root .manufacturing-page .work-calendar-segments button.is-on { background: var(--nx-primary); color: var(--nx-on-primary); }
+html[data-theme='dark'] #root .manufacturing-page :is(.work-center-detail .calendar-override-row, .work-center-detail .calendar-save-row, .mrp-demand-table, .mrp-demand-head, .mrp-demand-line) { border-color: var(--nx-line); }
 html[data-theme='dark'] #root .manufacturing-page .work-center-detail :is(.calendar-override-form, .calendar-override-row, .work-center-calendar) { background: transparent; }
-html[data-theme='dark'] #root .manufacturing-page .mrp-link-button { color: #8ab8f5; }
-html[data-theme='dark'] #root .manufacturing-page .mrp-stat-tiles > div { background: #22314a; }
-html[data-theme='dark'] #root .manufacturing-page .mrp-empty-state { border-color: #3a4a63; }
+html[data-theme='dark'] #root .manufacturing-page .mrp-link-button { color: var(--nx-primary-strong); }
+html[data-theme='dark'] #root .manufacturing-page .mrp-stat-tiles > div { background: var(--nx-surface); }
+html[data-theme='dark'] #root .manufacturing-page .mrp-empty-state { border-color: var(--nx-line); }
 #root .manufacturing-page > .manufacturing-grid:empty { display: none; }
 #root .app-shell .manufacturing-page .work-center-detail .list-v2-tabs button { min-height: 0; background: transparent !important; box-shadow: none !important; }
 #root .app-shell .manufacturing-page .work-center-detail .list-v2-tabs button.is-active { color: var(--nx-text); }
@@ -556,23 +556,23 @@ html[data-theme='dark'] #root .manufacturing-page .mrp-empty-state { border-colo
 /* Create forms (recipe, production order, work center): one main card + summary column,
    following the CRM opportunity form. Title row sits on the page background. */
 #root .record-form.mfg-rf {
-  --mfg-rf-border: #dfe5ee;
-  --mfg-rf-card: #fff;
-  --mfg-rf-soft: #f5f7fb;
-  --mfg-rf-label: #33465d;
-  --mfg-rf-muted: #65758a;
-  --mfg-rf-text: #172b45;
-  --mfg-rf-divider: #edf0f5;
+  --mfg-rf-border: var(--nx-line);
+  --mfg-rf-card: var(--nx-surface);
+  --mfg-rf-soft: var(--nx-canvas);
+  --mfg-rf-label: var(--nx-text);
+  --mfg-rf-muted: var(--nx-muted);
+  --mfg-rf-text: var(--nx-text);
+  --mfg-rf-divider: var(--nx-line-soft);
   background: transparent;
 }
 html[data-theme="dark"] #root .record-form.mfg-rf {
-  --mfg-rf-border: #33405a;
-  --mfg-rf-card: #171d2b;
-  --mfg-rf-soft: #1f2738;
-  --mfg-rf-label: #c7d1df;
-  --mfg-rf-muted: #9aa9bd;
-  --mfg-rf-text: #edf3fb;
-  --mfg-rf-divider: #2a3448;
+  --mfg-rf-border: var(--nx-line);
+  --mfg-rf-card: var(--nx-surface);
+  --mfg-rf-soft: var(--nx-surface);
+  --mfg-rf-label: var(--nx-text);
+  --mfg-rf-muted: var(--nx-muted);
+  --mfg-rf-text: var(--nx-text);
+  --mfg-rf-divider: var(--nx-line);
 }
 #root .record-form.mfg-rf > .rf-form { padding: 0 0 24px; background: transparent; }
 #root .mfg-rf .mfg-rf-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -595,15 +595,15 @@ html[data-theme="dark"] #root .record-form.mfg-rf {
 #root .app-shell .mfg-rf .mfg-rf-segments > button { height: 36px; min-height: 36px; margin: 0 0 0 -1px; padding: 0 14px; border: 1px solid var(--mfg-rf-border); border-radius: 0; background: var(--mfg-rf-card); box-shadow: none; color: var(--mfg-rf-label); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 #root .app-shell .mfg-rf .mfg-rf-segments > button:first-child { margin-left: 0; border-radius: 8px 0 0 8px; }
 #root .app-shell .mfg-rf .mfg-rf-segments > button:last-child { border-radius: 0 8px 8px 0; }
-#root .app-shell .mfg-rf .mfg-rf-segments > button[aria-pressed="true"] { position: relative; z-index: 1; border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; }
+#root .app-shell .mfg-rf .mfg-rf-segments > button[aria-pressed="true"] { position: relative; z-index: 1; border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); }
 #root .app-shell .mfg-rf .mfg-rf-card > h2,
 #root .app-shell .mfg-rf .mfg-rf-section-head > h2 { margin: 0; color: var(--mfg-rf-text) !important; font-size: 13px !important; font-weight: 700 !important; letter-spacing: 0 !important; line-height: 1.4 !important; text-transform: none; }
 #root .mfg-rf .rf-form .mfg-rf-card small { color: var(--mfg-rf-muted); font-size: 12px; }
 #root .mfg-rf .mfg-rf-section { display: grid; gap: 8px; min-width: 0; padding-top: 16px; border-top: 1px solid var(--mfg-rf-divider); }
 #root .mfg-rf .mfg-rf-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-#root .app-shell .mfg-rf .mfg-rf-link { min-height: 0; height: auto; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: #1f5fbf; font-size: 13px; font-weight: 650; cursor: pointer; }
+#root .app-shell .mfg-rf .mfg-rf-link { min-height: 0; height: auto; margin: 0; padding: 2px 0; border: 0; background: transparent; box-shadow: none; color: var(--nx-primary); font-size: 13px; font-weight: 650; cursor: pointer; }
 #root .app-shell .mfg-rf .mfg-rf-link:disabled { color: var(--mfg-rf-muted); cursor: not-allowed; }
-html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { color: #8ab8f5; }
+html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { color: var(--nx-primary-strong); }
 #root .mfg-rf .mfg-rf-hint { display: flex; align-items: center; gap: 6px; }
 #root .mfg-rf .mfg-rf-info { display: inline-flex; color: var(--mfg-rf-muted); cursor: help; }
 #root .mfg-rf .mfg-rf-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
@@ -641,20 +641,20 @@ html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { c
 #root .mfg-rf .mfg-rf-checklist li { display: flex; align-items: center; gap: 8px; }
 #root .mfg-rf .mfg-rf-checklist li > span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--mfg-rf-border); font-size: 11px; }
 #root .mfg-rf .mfg-rf-checklist li.is-done { color: var(--mfg-rf-text); }
-#root .mfg-rf .mfg-rf-checklist li.is-done > span { border-color: #11845f; background: #11845f; color: #fff; }
+#root .mfg-rf .mfg-rf-checklist li.is-done > span { border-color: var(--nx-ok); background: var(--nx-ok); color: var(--nx-on-primary); }
 #root .mfg-rf .mfg-rf-tip { margin: 0; padding: 12px 14px; border: 1px solid var(--mfg-rf-border); border-radius: 10px; background: var(--mfg-rf-soft); color: var(--mfg-rf-muted); font-size: 12px; line-height: 1.5; }
 /* No yellow "must" backgrounds in these forms; the asterisk marks required fields. */
 #root .app-shell .mfg-rf .rf-form :is(input, select).rf-must { background-color: var(--mfg-rf-card) !important; }
 /* "⋯" menu (toolbar and sticky bar) */
 #root .mfg-more-menu { position: relative; display: inline-flex; }
 #root .mfg-more-menu .mfg-more-trigger { padding: 0 10px; }
-#root .mfg-more-list { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: grid; min-width: 170px; padding: 4px; border: 1px solid #dfe5ee; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(15, 23, 42, .12); }
+#root .mfg-more-list { position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; display: grid; min-width: 170px; padding: 4px; border: 1px solid var(--nx-line); border-radius: 8px; background: var(--nx-surface); box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 12%, transparent); }
 #root .mfg-more-menu.is-up .mfg-more-list { top: auto; bottom: calc(100% + 4px); }
-#root .app-shell .mfg-more-list > button { justify-content: flex-start; min-height: 34px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: #172b45; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; }
-#root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: #f5f7fb; }
-html[data-theme="dark"] #root .mfg-more-list { border-color: #33405a; background: #171d2b; }
-html[data-theme="dark"] #root .app-shell .mfg-more-list > button { color: #edf3fb; }
-html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: #1f2738; }
+#root .app-shell .mfg-more-list > button { justify-content: flex-start; min-height: 34px; height: 34px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: var(--nx-text); font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; }
+#root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: var(--nx-canvas); }
+html[data-theme="dark"] #root .mfg-more-list { border-color: var(--nx-line); background: var(--nx-surface); }
+html[data-theme="dark"] #root .app-shell .mfg-more-list > button { color: var(--nx-text); }
+html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disabled) { background: var(--nx-line-soft); }
 #root .mfg-rf .mfg-sticky-bar { display: none; }
 @media (max-width: 900px) {
   #root .mfg-rf .mfg-rf-layout { grid-template-columns: minmax(0, 1fr); }
@@ -682,26 +682,26 @@ html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disa
 #root .manufacturing-page .manufacturing-inspector-summary .is-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .manufacturing-page .manufacturing-inspector-section > h3 { margin: 0; color: var(--nx-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 #root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) { gap: 0; }
-#root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { display: grid; gap: 6px; padding: 8px 0; border: 0; border-bottom: 1px solid #edf0f5; border-radius: 0; background: transparent; color: var(--nx-text); font-size: 12px; }
+#root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { display: grid; gap: 6px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--nx-line-soft); border-radius: 0; background: transparent; color: var(--nx-text); font-size: 12px; }
 #root .manufacturing-page .manufacturing-inspector-section .manufacturing-component-rows > li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; cursor: default; }
 #root .manufacturing-page .manufacturing-inspector-section .manufacturing-component-rows > li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li:last-child { border-bottom: 0; }
 #root .manufacturing-page .manufacturing-op-row-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
 #root .manufacturing-page .manufacturing-op-row-name { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; }
 #root .manufacturing-page .manufacturing-op-row-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-#root .manufacturing-page .manufacturing-op-row-name > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #9aa5b5; }
+#root .manufacturing-page .manufacturing-op-row-name > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--nx-muted); }
 #root .manufacturing-page .manufacturing-op-row-name > small { flex: none; color: var(--nx-muted); font-size: 10.5px; }
-#root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: #3f7fd0; }
-#root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: #11845f; }
+#root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: var(--nx-primary); }
+#root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: var(--nx-ok); }
 #root .manufacturing-page .manufacturing-op-row-main > b { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #root .app-shell .manufacturing-page .manufacturing-op-row-main > button { flex: none; height: 26px; min-height: 26px; padding: 0 8px; font-size: 11px; }
 #root .manufacturing-page .manufacturing-op-row .actual-time-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 #root .manufacturing-page .manufacturing-op-row .actual-time-entry label { min-width: 0; font-size: 10px; }
 #root .manufacturing-page .manufacturing-op-row .actual-time-entry :is(input, select) { width: 100%; min-width: 0; height: 30px; }
 #root .manufacturing-page .manufacturing-op-row .actual-time-entry :is(.is-wide, button) { grid-column: 1 / -1; justify-content: center; }
-html[data-theme="dark"] #root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { border-color: #2c3a50; background: transparent; }
-html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: #6ea8ec; }
-html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: #4cc996; }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-inspector-section :is(.manufacturing-op-rows, .manufacturing-component-rows) > li { border-color: var(--nx-line); background: transparent; }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-inprogress .manufacturing-op-row-name > i { background: var(--nx-primary); }
+html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-completed .manufacturing-op-row-name > i { background: var(--nx-ok); }
 
 /* Orders: when the inspector sits beside the list, the list card is as tall as the inspector. */
 @media (min-width: 1361px) {
@@ -716,7 +716,7 @@ html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-compl
    the action button moves under it so the work-center code isn't truncated in the 300px panel. */
 #root .manufacturing-order-inspector h3 {
   margin: 4px 0 2px;
-  color: #5b6b80;
+  color: var(--nx-muted);
   font-size: 11px !important; /* beats the global `.app-shell h3 { font-size: 16px !important }` */
   font-weight: 650;
   letter-spacing: .05em;
@@ -731,7 +731,7 @@ html[data-theme="dark"] #root .manufacturing-page .manufacturing-op-row.is-compl
 #root .manufacturing-order-inspector .manufacturing-op-row-main > button { grid-column: 1 / -1; justify-self: start; }
 #root .manufacturing-order-inspector .manufacturing-op-row-name { min-width: 0; }
 #root .manufacturing-order-inspector .manufacturing-op-row-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: #a7b4c6; }
+html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: var(--nx-muted); }
 
 /* Work centers: list card as tall as the detail card while side by side; calendar retry row. */
 @media (min-width: 1101px) {

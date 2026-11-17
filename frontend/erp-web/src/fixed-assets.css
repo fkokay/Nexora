@@ -375,7 +375,7 @@ html[data-theme="dark"] .fixed-assets-page .heading-actions label { color: var(-
 .fixed-assets-page > section.panel {
   padding: 18px;
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgb(28 39 60 / 4%);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--nx-ink) 4%, transparent);
 }
 .fixed-assets-page .panel-heading {
   padding-bottom: 12px;
@@ -424,7 +424,7 @@ html[data-theme="dark"] .fixed-assets-page .fixed-asset-inline-note {
   background: var(--erp-surface);
 }
 html[data-theme="dark"] .fixed-assets-page .customer-table th {
-  background: #202638;
+  background: var(--nx-table-head);
 }
 
 @container fixed-assets (max-width: 560px) {
@@ -567,7 +567,7 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   font-size: 12px;
   line-height: 1.5;
 }
-#root .fixed-assets-page .fixed-asset-panel-status.is-error { color: #b42318; }
+#root .fixed-assets-page .fixed-asset-panel-status.is-error { color: var(--nx-bad); }
 #root .fixed-assets-page .fixed-asset-summary { display: grid; gap: 14px; min-width: 0; }
 #root .fixed-assets-page .fixed-asset-summary > header { display: grid; gap: 3px; min-width: 0; }
 #root .fixed-assets-page .fixed-asset-eyebrow {
@@ -628,8 +628,8 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
 #root .fixed-assets-page .fixed-asset-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 #root .fixed-assets-page .fixed-asset-panel-actions > .primary { grid-column: 1 / -1; }
 #root .fixed-assets-page .fixed-asset-panel-actions > button { justify-content: center; min-height: 36px; }
-#root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: #f1c2c4; color: #b42318; }
-#root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: #fff0f1; }
+#root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: var(--nx-bad); color: var(--nx-bad); }
+#root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: var(--nx-bad-bg); }
 #root .fixed-assets-page .fixed-asset-section {
   min-width: 0;
   padding-top: 10px;
@@ -714,14 +714,14 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   font-size: 11px;
   white-space: nowrap;
 }
-#root .fixed-assets-page .fixed-asset-status.is-active { border-color: #b7e0c8; background: #eaf7ef; color: #17643a; }
+#root .fixed-assets-page .fixed-asset-status.is-active { border-color: var(--nx-ok); background: var(--nx-ok-bg); color: var(--nx-ok); }
 
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-panel { border-color: #34445c; background: #151f2f; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-mini-table th { background: #1a263a; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status { border-color: #34445c; background: #1a2333; color: #9aa7ba; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status.is-active { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
-html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: #6a2d33; color: #f3a6ab; }
-html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: #34171b; }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-panel { border-color: var(--nx-line); background: var(--nx-surface); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-mini-table th { background: var(--nx-table-head); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status { border-color: var(--nx-line); background: var(--nx-surface); color: var(--nx-muted); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status.is-active { border-color: var(--nx-ok); background: var(--nx-ok-bg); color: var(--nx-ok); }
+html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: var(--nx-bad); color: var(--nx-bad); }
+html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: var(--nx-bad-bg); }
 @container fixed-assets (max-width: 620px) {
   #root .fixed-assets-page .fixed-asset-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
