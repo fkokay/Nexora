@@ -884,7 +884,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
         if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div><p>Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın.</p></article>;
         const shownRows = preview.rows.slice(0, 5);
-        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={shownRows} truncated={preview.truncated || shownRows.length < preview.rows.length} props={props} emptyText="Sorgu kayıt döndürmedi." style={style} />;
+        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={shownRows} truncated={preview.truncated || shownRows.length < preview.rows.length} props={props} emptyText="Sorgu kayıt döndürmedi." showTotals style={style} />;
       } else {
         const source = sources.find((item) => item.code === props.source);
         const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string") : [];

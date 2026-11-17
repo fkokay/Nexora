@@ -35,15 +35,16 @@ export function BadgePreview({ text, variant, toneMap, style }: { text: string; 
 
 type PreviewColumn = { code: string; label?: string; dataType?: string };
 
-export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, style }: {
+// Toplam satırı yalnız sorgu bağlı ızgarada (ERP QueryTable gibi) gösterilir; tuvalde toplam yalnız önizleme satırları üzerinden hesaplanır.
+export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, showTotals, style }: {
   title: string; subtitle: string; columns: PreviewColumn[]; rows: Record<string, unknown>[]; truncated: boolean;
-  props: Record<string, unknown>; emptyText: string; rowAction?: string; style: CSSProperties;
+  props: Record<string, unknown>; emptyText: string; rowAction?: string; showTotals?: boolean; style: CSSProperties;
 }) {
   const formats = parseColumnFormats(props.columnFormats);
   const toneMap = parseToneMap(props.toneMap);
   const totals = Array.isArray(props.totals) ? props.totals.filter((item): item is string => typeof item === "string") : [];
   const comfort = props.density === "comfort";
-  const hasTotals = columns.some((column) => totals.includes(column.code)) && rows.length > 0;
+  const hasTotals = showTotals === true && columns.some((column) => totals.includes(column.code)) && rows.length > 0;
   const totalLabel = truncated ? `Toplam · ilk ${rows.length} satır` : `Toplam · ${rows.length} kayıt`;
   const cellClass = (column: PreviewColumn) => [isRightAligned(formats[column.code], column.dataType) ? "num" : "", formats[column.code] === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
   const cell = (column: PreviewColumn, row: Record<string, unknown>) => {

@@ -451,3 +451,4 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .custom-page-preview-grid tfoot td{height:var(--dl-row-h-dense);padding:5px 9px;border-top:1px solid var(--dl-line);border-bottom:0;background:var(--dl-head);font-weight:650}
 .pd-frame .custom-page-preview-grid tfoot .pd-total-label{float:left;color:var(--dl-muted);font-weight:600}
 .pd-frame .custom-page-preview-grid tfoot td>.num{float:right}
+.pd-frame .custom-page-preview-grid tfoot td{max-width:none;overflow:visible;text-overflow:clip}
