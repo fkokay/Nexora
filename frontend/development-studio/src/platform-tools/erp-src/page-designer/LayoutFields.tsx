@@ -55,18 +55,18 @@ export function FieldListEditor({ columns, value, onChange, disabled }: {
   const free = usable.find((column) => !rows.some((row) => row.code === column.code));
   return <div className="pd-tonemap">
     {rows.map((row, index) => <div className="pd-tonemap-row" key={index}>
-      <select value={row.code} disabled={disabled} aria-label="Sütun" onChange={(event) => {
+      <select value={row.code} disabled={disabled} aria-label={`Alan ${index + 1} sütunu`} onChange={(event) => {
         const column = usable.find((item) => item.code === event.target.value);
         if (column) write(rows.map((item, i) => i === index ? { code: column.code, label: item.label || labelFor(column) } : item));
       }}>
         {usable.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}
         {!usable.some((column) => column.code === row.code) && <option value={row.code}>{row.code}</option>}
       </select>
-      <input key={`${index}:${row.label}`} defaultValue={row.label} disabled={disabled} maxLength={60} aria-label="Etiket" onBlur={(event) => {
+      <input key={`${index}:${row.label}`} defaultValue={row.label} disabled={disabled} maxLength={60} aria-label={`Alan ${index + 1} etiketi`} onBlur={(event) => {
         const label = sanitizeSafeValue(event.target.value);
         if (label && label !== row.label) write(rows.map((item, i) => i === index ? { ...item, label } : item)); else event.target.value = row.label;
       }}/>
-      <button type="button" className="pd-icon-button" aria-label="Alanı sil" disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}><X size={13}/></button>
+      <button type="button" className="pd-icon-button" aria-label={`Alan ${index + 1} sil`} disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}><X size={13}/></button>
     </div>)}
     <button type="button" className="pd-button small" disabled={disabled || !free || rows.length >= MAX_ITEMS} onClick={() => { if (free) write([...rows, { code: free.code, label: labelFor(free) }]); }}><Plus size={13}/>Alan ekle</button>
   </div>;

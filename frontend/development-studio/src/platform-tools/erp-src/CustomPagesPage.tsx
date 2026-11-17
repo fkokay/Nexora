@@ -7,8 +7,8 @@ import {
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
-import { parseColumnFormats } from "./page-designer/cellFormat";
-import { BadgePreview, GridPreview, MetricPreview, toneOf } from "./page-designer/CanvasPreviews";
+import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
+import { BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -17,7 +17,7 @@ import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope 
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
-import { idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
+import { chipText, idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
@@ -775,6 +775,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const definition = normalizeDefinition(definitionRef.current);
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
     if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
+    // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
+    for (const component of definition.components) {
+      const label = `“${summaryOf(component)}”`;
+      const empty = component.type === "formCard" || component.type === "filterChips" || component.type === "facetPanel" ? idList(component.props.inputs).length === 0 ? `${label} için en az bir giriş kutusu seçin.` : null
+        : component.type === "contextPanel" ? !component.props.table ? `${label} için bir tablo seçin.` : parseFieldList(component.props.fields).length === 0 ? `${label} için en az bir alan ekleyin.` : null
+          : null;
+      if (empty) { setError(empty); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+    }
     setSaving(true); setError(""); setNotice("");
     const sentSnapshot = snapshotOf(name, description, definition);
     try {
@@ -923,22 +931,35 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  const rendered = useMemo(() => definition.components.map((component) => {
+  const ownedIds = useMemo(() => ownedInputIds(definition.components), [definition]);
+  const rendered = useMemo(() => {
+  const owned = ownedInputIds(definition.components);
+  const inputById = new Map(definition.components.filter((item) => item.type === "input").map((item) => [item.id, item]));
+  const optionRows = (inputProps: Record<string, PropValue>) => {
+    const preview = typeof inputProps.optionsQuery === "string" ? queryPreviews[inputProps.optionsQuery] : undefined;
+    const valueColumn = String(inputProps.optionValueColumn || "") || preview?.columns[0]?.code || "";
+    const labelColumn = String(inputProps.optionLabelColumn || "") || valueColumn;
+    const show = (value: unknown) => value == null ? "" : String(value);
+    return { ready: !!preview, rows: (preview?.rows ?? []).map((row) => ({ value: show(row[valueColumn]), label: show(row[labelColumn]) || show(row[valueColumn]), row })) };
+  };
+  const renderInput = (component: PageComponent, style: CSSProperties) => {
+    const props = component.props;
+    const inputType = String(props.inputType || "text");
+    const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
+    // Varsayılan değer {{…}} içerebileceğinden tuvalde ham metin olarak gösterilir.
+    const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
+      : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
+        : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
+    return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
+  };
+  return definition.components.map((component) => {
     const props = component.props;
     const style = componentStyle(component.type, props);
     switch (component.type) {
       case "heading": return <h2 key={component.id} className="custom-page-preview-heading" style={style}>{String(props.text || props.title || "Başlık")}</h2>;
       case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{String(props.text || "Metin")}</p>;
       case "label": return <p key={component.id} className="custom-page-preview-text pd-binding-label" style={style}>{String(props.text || "Etiket")}</p>;
-      case "input": {
-        const inputType = String(props.inputType || "text");
-        const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
-        // Varsayılan değer {{…}} içerebileceğinden tuvalde ham metin olarak gösterilir.
-        const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
-          : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
-            : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
-        return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
-      }
+      case "input": return owned.has(component.id) ? null : renderInput(component, style);
       case "metric": if (typeof props.query === "string") {
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
@@ -977,13 +998,54 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "badge": return <BadgePreview key={component.id} text={String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
       case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
       case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
-      case "formCard": case "contextPanel": case "filterChips": case "facetPanel": {
-        const count = idList(props.inputs).length;
-        return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || titleFor(component.type))}</b><p>{titleFor(component.type)}{component.type === "contextPanel" ? "" : ` · ${count} giriş`}</p></article>;
+      case "formCard": {
+        const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+        const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
+        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} style={style}>{members.map((input) => renderInput(input, {}))}</FormCardPreview>;
+      }
+      case "filterChips": {
+        const chips = idList(props.inputs).flatMap((id) => {
+          const input = inputById.get(id);
+          if (!input) return [];
+          const inputType = String(input.props.inputType || "text");
+          const raw = inputType === "checkbox" ? /^(true|1|evet)$/i.test(String(input.props.defaultValue ?? "")) : input.props.defaultValue;
+          const text = chipText(raw, inputType, inputType === "select" ? optionRows(input.props).rows : undefined);
+          return text === null ? [] : [{ id, label: String(input.props.label || input.name || id), text }];
+        });
+        return <FilterChipsPreview key={component.id} chips={chips} style={style} />;
+      }
+      case "facetPanel": {
+        const countColumns = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
+        const groups = idList(props.inputs).flatMap((id): FacetPreviewGroup[] => {
+          const input = inputById.get(id);
+          if (!input || input.props.inputType !== "select") return [];
+          const { ready, rows } = optionRows(input.props);
+          const countColumn = countColumns[id];
+          return [{ id, label: String(input.props.label || input.name || id), ready, options: rows.map(({ label, row }) => {
+            const count = countColumn ? Number(row[countColumn]) : Number.NaN;
+            return { label, count: Number.isFinite(count) ? count : undefined };
+          }) }];
+        });
+        return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={groups} style={style} />;
+      }
+      case "contextPanel": {
+        const table = typeof props.table === "string" ? definition.components.find((item) => item.id === props.table && item.type === "dataTable") : undefined;
+        const tablePreview = table && typeof table.props.query === "string" ? queryPreviews[table.props.query] : undefined;
+        const row = tablePreview && tablePreview.rows.length > 0 ? tablePreview.rows[0] : null;
+        const formats = parseColumnFormats(table?.props.columnFormats);
+        const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+        const relatedPreview = typeof props.relatedQuery === "string" ? queryPreviews[props.relatedQuery] : undefined;
+        const relatedCodes = (relatedPreview?.columns ?? []).slice(0, 2).map((column) => column.code);
+        const related = typeof props.relatedQuery === "string" ? {
+          title: String(props.relatedTitle || "İlgili kayıtlar"),
+          rows: (relatedPreview?.rows ?? []).map((relatedRow) => relatedCodes.map((code) => relatedRow[code] == null ? "" : String(relatedRow[code])).filter(Boolean).join(" · ")),
+        } : undefined;
+        return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
-  }), [definition, forms, sources, previewData, queryPreviews, counts, token]);
+  });
+  }, [definition, forms, sources, previewData, queryPreviews, counts, token]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
@@ -1174,7 +1236,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 const drop = dropTarget?.index === index ? dropTarget.edge : null;
                 const horizontal = deviceSpan(spanOf(component), device) < 12;
                 return <div key={component.id}
-                  className={`pd-block ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
+                  className={`pd-block ${ownedIds.has(component.id) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
@@ -1359,6 +1421,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   {eligibleTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
                 </select>
                 {eligibleTables.length === 0 && <small className="pd-query-warning">Önce sayfaya adlı ve sorguya bağlı bir ızgara ekleyin.</small>}
+                {eligibleTables.length > 0 && !contextTable && <small className="pd-query-warning">Bir tablo seçin; tablosuz panel kaydedilemez.</small>}
               </label>
               {contextTable && <div className="pd-field">Alanlar<small>Her alan için sütun ve görünen etiket seçin (en fazla 12).</small>
                 <FieldListEditor columns={contextColumns} value={contextFields.map((field) => `${field.code}=${field.label}`)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { fields: next })}/>

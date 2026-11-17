@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Children, type CSSProperties, type ReactNode } from "react";
 import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 
@@ -72,4 +72,61 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
       </tr></tfoot>}
     </table></div>
   </article>;
+}
+
+// Düzen bileşenleri önizlemeleri: ERP LayoutComponents.tsx (FormCard / FilterChips / FacetPanel / ContextPanel) ile aynı yapı; etkileşimsizdir.
+
+export function FormCardPreview({ title, columns, children, style }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties }) {
+  return <section className="pd-layout-block pd-form-card" style={style}>
+    {title && <h3>{title}</h3>}
+    <div className={`pd-form-card-grid is-cols-${columns}`}>
+      {Children.map(children, (child) => child == null || child === false ? null : <div className="pd-form-card-cell">{child}</div>)}
+    </div>
+  </section>;
+}
+
+/** Çip yoksa bileşen tuvalde kaybolmasın diye soluk bir örnek çip gösterilir. */
+export function FilterChipsPreview({ chips, style }: { chips: { id: string; label: string; text: string }[]; style: CSSProperties }) {
+  if (chips.length === 0) return <div className="pd-chips" style={style}><span className="pd-chip is-sample"><span className="pd-chip-label">Örnek:</span><strong>değer</strong></span></div>;
+  return <div className="pd-chips" style={style} role="group" aria-label="Etkin süzgeçler">
+    {chips.map((chip) => <span className="pd-chip" key={chip.id}><span className="pd-chip-label">{chip.label}:</span><strong>{chip.text}</strong><span className="pd-chip-x" aria-hidden="true">✕</span></span>)}
+    <span className="pd-chips-clear">Temizle</span>
+  </div>;
+}
+
+export type FacetPreviewGroup = { id: string; label: string; options: { label: string; count?: number }[]; ready: boolean };
+const FACET_OPTION_LIMIT = 8;
+
+export function FacetPanelPreview({ title, groups, style }: { title: string; groups: FacetPreviewGroup[]; style: CSSProperties }) {
+  return <aside className="pd-layout-block pd-facet" style={style}>
+    <div className="pd-facet-head"><h3>{title}</h3><span className="pd-facet-clear">Temizle</span></div>
+    {groups.map((group) => <div className="pd-facet-group" key={group.id}>
+      <div className="pd-facet-label">{group.label}</div>
+      {!group.ready ? <p className="pd-facet-state">Seçenekler için sorguyu önizleyin</p> : <>
+        <div className="pd-facet-option is-selected"><span>Tümü</span></div>
+        {group.options.slice(0, FACET_OPTION_LIMIT).map((option, index) => <div className="pd-facet-option" key={index}>
+          <span>{option.label}</span>
+          {option.count !== undefined && <span className="pd-facet-count">{option.count.toLocaleString("tr-TR")}</span>}
+        </div>)}
+      </>}
+    </div>)}
+  </aside>;
+}
+
+export function ContextPanelPreview({ title, row, fields, related, style }: {
+  title: string; row: Record<string, unknown> | null; fields: { code: string; label: string; text: string }[];
+  related?: { title: string; rows: string[] }; style: CSSProperties;
+}) {
+  return <aside className="pd-layout-block pd-context" style={style}>
+    {title && <h3>{title}</h3>}
+    {row === null ? <p className="pd-context-empty">Bir satır seçin</p> : <>
+      <dl className="pd-context-fields">
+        {fields.map((field) => <div className="pd-context-field" key={field.code}><dt>{field.label}</dt><dd>{field.text}</dd></div>)}
+      </dl>
+      {related && <section className="pd-context-related">
+        <h4>{related.title}</h4>
+        {related.rows.length === 0 ? <p className="pd-context-note">Kayıt yok</p> : <ul>{related.rows.slice(0, 5).map((text, index) => <li key={index}>{text}</li>)}</ul>}
+      </section>}
+    </>}
+  </aside>;
 }
