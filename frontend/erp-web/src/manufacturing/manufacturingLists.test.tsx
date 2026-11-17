@@ -224,8 +224,22 @@ describe('İş merkezleri and Malzeme planlama frames', () => {
     // Core fields stay read-only for an existing record (no PUT): the Genel tab lists them as facts.
     fireEvent.click(within(pane).getByRole('tab', { name: 'Genel' }));
     expect(within(pane).queryByPlaceholderText('WC-MONTAJ')).toBeNull();
-    // Esc closes the record.
+    // Esc while typing in the record's fields keeps it open (calendar / rule edits have no discard prompt).
+    fireEvent.click(within(pane).getByRole('tab', { name: 'Çalışma takvimi' }));
+    const shiftInput = await waitFor(() => {
+      const input = pane.querySelector<HTMLInputElement>('input');
+      expect(input).toBeTruthy();
+      return input!;
+    });
+    fireEvent.keyDown(shiftInput, { key: 'Escape' });
+    expect(screen.getByRole('complementary', { name: 'Seçili iş merkezi ayrıntısı' })).toBeTruthy();
+    // Esc elsewhere closes the record.
     fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(await screen.findByText('Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.')).toBeTruthy();
+    // The close button does too (the only way out of the drawer on touch below 1280px).
+    fireEvent.click(cell);
+    const reopened = await screen.findByRole('complementary', { name: 'Seçili iş merkezi ayrıntısı' });
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Detay panelini kapat' }));
     expect(await screen.findByText('Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.')).toBeTruthy();
     expect(onNavigate).not.toHaveBeenCalled();
   });

@@ -20,6 +20,7 @@ import {
   Info,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
 import { DetailLinesHead } from "./document-detail/DocumentDetailLayout";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
@@ -1019,6 +1020,8 @@ export default function ManufacturingPage({
       if (!root || root.closest("[hidden]")) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("[role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu']") || document.querySelector("dialog[open]")) return;
+      // An open record's calendar / rule fields have no discard prompt: Esc while typing there does not close it.
+      if (!wcCreating && target?.closest("input, select, textarea")) return;
       event.preventDefault();
       void closeWorkCenterPane();
     };
@@ -3918,6 +3921,16 @@ export default function ManufacturingPage({
                       {selectedWorkCenter.code}
                     </small>
                   </div>
+                  {/* Below 1280px the record is a drawer over an inert list: this (or Esc) closes it. */}
+                  <button
+                    type="button"
+                    className="work-center-detail-close"
+                    aria-label="Detay panelini kapat"
+                    title="Detay panelini kapat"
+                    onClick={() => void closeWorkCenterPane()}
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
                 </div>
                 <div
                   className="list-v2-tabs"

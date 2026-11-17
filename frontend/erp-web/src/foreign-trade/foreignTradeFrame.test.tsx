@@ -15,7 +15,7 @@ const tradeCase = (id: string, referenceCode: string, status: string) => ({
   updatedAt: '2026-11-10T10:00:00Z', inventoryPostingRequired: false, purchaseReceiptId: null, salesDeliveryId: null, inventoryDocumentLinkedAt: null,
 });
 const cases = [tradeCase('c1', 'IHR-001', 'Draft'), tradeCase('c2', 'IHR-002', 'Shipped')];
-const calls: Array<{ url: string; method: string }> = [];
+const calls: Array<{ url: string; method: string; body?: unknown }> = [];
 /** Overrides the case page (e.g. a full first page of 100). */
 let casePage: { items: unknown[]; total: number } | null = null;
 /** While set, /transition requests wait for it (a running step). */
@@ -33,7 +33,7 @@ function respond(url: string): unknown {
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
-    calls.push({ url, method: init?.method ?? 'GET' });
+    calls.push({ url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (url.endsWith('/transition') && hold) await hold;
     return new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }),
@@ -124,6 +124,31 @@ describe('Dış Ticaret frame', () => {
       fireEvent.click(await screen.findByRole('menuitem', { name: /Gümrükte aşamasına geçir/ }));
     });
     await waitFor(() => expect(calls.some((call) => call.method === 'POST' && call.url === '/api/foreign-trade/cases/c2/transition')).toBe(true));
+    const transition = calls.find((call) => call.url === '/api/foreign-trade/cases/c2/transition')!;
+    expect(transition.body).toEqual({ status: 'CustomsClearance', customsReference: 'GB-26-1' });
+    // No detail save before this step (customs reference travels with the transition).
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+  });
+
+  it('İlerle to Sevkte saves the panel prerequisites through PUT first, then moves the case', async () => {
+    casePage = { items: [{ ...tradeCase('c3', 'IHR-003', 'Booked'), incotermsCode: null }], total: 1 };
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
+    fireEvent.click((await screen.findAllByText('IHR-003')).find((node) => node.closest('tr'))!);
+    const panel = await screen.findByRole('region', { name: 'Sonraki adım' });
+    fireEvent.change(within(panel).getByLabelText('Planlanan sevkiyat'), { target: { value: '2026-12-05' } });
+    fireEvent.change(within(panel).getByLabelText('Incoterms 2020'), { target: { value: 'FOB' } });
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('menuitem', { name: /Sevkte aşamasına geçir/ }));
+    });
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/foreign-trade/cases/c3/transition')).toBe(true));
+    const writes = calls.filter((call) => call.method !== 'GET');
+    expect(writes.map((call) => `${call.method} ${call.url}`)).toEqual([
+      'PUT /api/foreign-trade/cases/c3',
+      'POST /api/foreign-trade/cases/c3/transition',
+    ]);
+    expect(writes[0].body).toMatchObject({ plannedShipDate: '2026-12-05', incotermsCode: 'FOB', declaredValue: 1000, salesOrderId: 'so1' });
+    expect(writes[1].body).toEqual({ status: 'Shipped', customsReference: null });
   });
 
   it('while a case step runs, double click does not open its form', async () => {
