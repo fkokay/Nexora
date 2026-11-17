@@ -207,10 +207,9 @@ describe('Satış Teklifleri', () => {
     expect(enabled('delete')).toBe(true);
     expect(openMenu()).toEqual(['Düzenle', 'İletildi yap', 'Revizyon oluştur']);
     expect(duplicates()).toEqual([]);
-    // The detail header keeps its workflow buttons; Yazdır and Sil moved to the bar.
-    const detailButtons = Array.from(document.querySelectorAll('.doc-surface-actions button')).map((node) => node.textContent?.trim());
-    expect(detailButtons).toContain('Düzenle');
-    expect(detailButtons.some((text) => /Yazdır|^Sil$/.test(text ?? ''))).toBe(false);
+    // Faz 3: the detail header has no buttons any more — the workflow actions are only in İşlemler (above);
+    // Yazdır and Sil are the bar's own commands.
+    expect(document.querySelector('.doc-surface-actions')).toBeNull();
     // The hidden list's Excel and filter do not apply to the open quote; F5 reloads the quote, not the list.
     expect(enabled('export')).toBe(false);
     expect(reason('export')).toContain('Belge açıkken kullanılamaz');

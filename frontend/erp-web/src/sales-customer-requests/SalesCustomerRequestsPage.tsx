@@ -308,14 +308,11 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
       {detail && (
         <SalesRequestDetailSurface
           detail={detail}
-          busy={detailBusy}
           error={detailError}
           notice={detailNotice}
           onDismissError={() => setDetailError("")}
           onDismissNotice={() => setDetailNotice("")}
           onClose={() => setDetail(null)}
-          onCreateQuote={() => createQuote(detail.id)}
-          onCancelRequest={() => void cancelRequest()}
         />
       )}
     </div>

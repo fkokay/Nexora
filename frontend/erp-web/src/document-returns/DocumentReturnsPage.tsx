@@ -294,14 +294,12 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
         <ReturnDetailSurface
           detail={detail}
           config={config}
-          busy={detailBusy}
           error={detailError}
           notice={detailNotice}
           onDismissError={() => setDetailError("")}
           onDismissNotice={() => setDetailNotice("")}
           onClose={() => setDetail(null)}
           onOpenInvoice={() => setInvoiceId(detail.invoiceId)}
-          onVoid={() => void voidReturn()}
         />
       )}
       {invoiceId && side === "sales" && (

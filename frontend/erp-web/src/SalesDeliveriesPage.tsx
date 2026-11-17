@@ -31,7 +31,19 @@ import {
 } from "./record-form/RecordForm";
 import "./sales/sales-record-forms.css";
 import { DocumentSurface } from "./document-page/DocumentSurface";
-import { salesDeliveryStatus } from "./document-page/documentStatus";
+import { salesDeliveryStatus, salesInvoiceStatus } from "./document-page/documentStatus";
+import {
+  DetailChain,
+  DetailContext,
+  DetailInfoGrid,
+  DetailLinesFooter,
+  DetailLinesHead,
+  DetailSection,
+  DetailTabs,
+  formatDate,
+  formatQuantity,
+} from "./document-detail/DocumentDetailLayout";
+import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, salesTotalRows } from "./sales/salesDocumentDetail";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -224,12 +236,14 @@ export function SalesDeliveriesScreen({
     };
   }, { subtotal: 0, discount: 0, vat: 0, total: 0, taxableByRate: {} as Record<number, number>, vatByRate: {} as Record<number, number> });
   const deliveryCurrency = detail?.lines.find((line) => line.currencyCode)?.currencyCode ?? "TRY";
-  const renderDeliveryCurrency = (value: number) => {
-    const formatted = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0);
-    return <output className="sales-total-amount" aria-label={`${formatted} ${deliveryCurrency}`}>
-      <b>{formatted}</b><small>{deliveryCurrency === "TRY" ? "TL" : deliveryCurrency}</small>
-    </output>;
-  };
+  const priced = !!detail?.lines.some((line) => line.unitPrice !== null);
+  const deliveryMoney = (value: number) =>
+    `${new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0)} ${deliveryCurrency === "TRY" ? "TL" : deliveryCurrency}`;
+  // KDV by rate straight from the totals above (the same sums), higher rate first.
+  const deliveryVatGroups = Object.keys(deliveryTotals.vatByRate)
+    .map(Number)
+    .sort((a, b) => b - a)
+    .map((rate) => ({ rate, taxable: deliveryTotals.taxableByRate[rate], vat: deliveryTotals.vatByRate[rate] }));
   function renderField(
     item: SalesDeliverySummary,
     field: BuiltInScreenLayoutField,
@@ -684,141 +698,137 @@ export function SalesDeliveriesScreen({
       )}
       {detail && (
           <DocumentSurface
+            variant="detail"
             title="Satış irsaliyesi"
             code={detail.code}
             status={salesDeliveryStatus(detail.status)}
+            meta={<span>{formatDate(detail.deliveryDate)}</span>}
+            statusFlow={<SalesDeliveryFlow status={detail.status} invoiced={detail.hasSalesInvoice && detail.invoiceStatus === "Posted"} />}
             onClose={() => setDetail(null)}
-            bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal sales-delivery-detail-modal"
+            aside={
+              <DetailContext title="Belge zinciri">
+                <DetailChain
+                  items={[
+                    ...(detail.orderCode ? [{ key: "order", code: detail.orderCode, label: "Satış siparişi" }] : []),
+                    { key: "self", code: detail.code, label: "Bu irsaliye", current: true, status: salesDeliveryStatus(detail.status) },
+                    // The delivery gives its invoice's status and id, not its number.
+                    ...(detail.invoiceStatus
+                      ? [
+                          {
+                            key: "invoice",
+                            label: "Satış faturası",
+                            status: salesInvoiceStatus(detail.invoiceStatus),
+                            onOpen: detail.invoiceId ? () => setInvoiceId(detail.invoiceId) : undefined,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </DetailContext>
+            }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={
+              <SalesFooterStatus lines={detail.lines.length} total={priced ? deliveryMoney(deliveryTotals.total) : undefined} />
+            }
           >
-            <nav className="sales-quote-detail-tabs" role="tablist" aria-label="İrsaliye detay bölümleri">
-              <button type="button" role="tab" aria-selected={detailTab === "information"} className={detailTab === "information" ? "active" : ""} onClick={() => setDetailTab("information")}>İrsaliye Bilgileri</button>
-              <button type="button" role="tab" aria-selected={detailTab === "invoice"} className={detailTab === "invoice" ? "active" : ""} onClick={() => setDetailTab("invoice")}>Fatura İşlemleri<span>{detail.hasSalesInvoice ? 1 : 0}</span></button>
-            </nav>
-            <div className="sales-detail-content">
+            <DetailTabs<"information" | "invoice">
+              label="İrsaliye detay bölümleri"
+              value={detailTab}
+              onChange={setDetailTab}
+              tabs={[
+                { key: "information", label: "İrsaliye Bilgileri" },
+                { key: "invoice", label: "Fatura İşlemleri", count: detail.hasSalesInvoice ? 1 : 0 },
+              ]}
+            />
             {detailTab === "information" && <>
-            <section className="sales-quote-summary">
-              <div><small>İrsaliye durumu</small><b>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</b><span>{detail.lines.length} stok kalemi · {detail.warehouseName}</span></div>
-              <span className={`quote-status ${detail.status === "Posted" ? "accepted" : "rejected"}`}>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</span>
-            </section>
-            <h3 className="sales-quote-section-title">İrsaliye Üst Bilgileri</h3>
-            <section className="sales-quote-overview-grid" aria-label="İrsaliye bilgileri">
-              <article><small>İrsaliye numarası</small><b>{detail.code}</b></article>
-              <article><small>Bağlı sipariş</small><b>{detail.orderCode || "Bağımsız sevkiyat"}</b></article>
-              <article><small>Sevk deposu</small><b>{detail.warehouseName}</b></article>
-              <article><small>Sevk tarihi</small><b>{detail.deliveryDate.split("-").reverse().join(".")}</b></article>
-              <article><small>Durum</small><b>{detail.status === "Posted" ? "Sevk edildi" : "İptal edildi"}</b></article>
-              <article><small>Fatura durumu</small><b>{detail.hasSalesInvoice ? (detail.invoiceStatus === "Posted" ? "Faturası kesildi" : "Fatura iptal edildi") : "Fatura bekliyor"}</b></article>
-            </section>
-            <h3 className="sales-quote-section-title">İrsaliye Satırları</h3>
-            <section className="delivery-detail-lines-section">
-              <div className="delivery-detail-section-head">
-                <div>
-                  <p className="eyebrow">SEVK İÇERİĞİ</p>
-                  <h3>İrsaliye kalemleri</h3>
-                </div>
-                <span>{detail.lines.length} satır</span>
-              </div>
-              <div className="customer-table-wrap sales-delivery-lines-wrap">
-                <table className="customer-table sales-delivery-lines-table">
+            <div className="dd-box">
+              <DetailInfoGrid
+                label="İrsaliye bilgileri"
+                items={[
+                  { label: "Bağlı sipariş", value: detail.orderCode || "Bağımsız sevkiyat" },
+                  { label: "Sevk deposu", value: detail.warehouseName },
+                  { label: "Sevk tarihi", value: formatDate(detail.deliveryDate) },
+                  {
+                    label: "Fatura durumu",
+                    value: detail.hasSalesInvoice ? (detail.invoiceStatus === "Posted" ? "Faturası kesildi" : "Fatura iptal edildi") : "Fatura bekliyor",
+                  },
+                ]}
+              />
+            </div>
+            <div className="dd-box">
+              <DetailLinesHead title="Satırlar" meta={`${detail.lines.length} satır · ${detail.warehouseName}`} />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines" aria-label="İrsaliye satırları">
                   <thead>
                     <tr>
-                      <th>#</th>
+                      <th className="dd-ix">#</th>
                       <th>Stok kartı</th>
-                      <th>Sipariş satırı</th>
-                      <th>Sevk miktarı</th>
+                      <th className="dd-num">Sipariş satırı</th>
+                      <th className="dd-num">Sevk miktarı</th>
                     </tr>
                   </thead>
                   <tbody>
                     {detail.lines.map((line, index) => (
-                      <tr
-                        key={`${line.orderLineNumber}-${line.stockItemId}-${index}`}
-                      >
-                        <td>{index + 1}</td>
-                        <td>
+                      <tr key={`${line.orderLineNumber}-${line.stockItemId}-${index}`}>
+                        <td className="dd-ix">{index + 1}</td>
+                        <td className="dd-stock">
                           <b>{line.stockCode}</b>
-                          <small className="cell-subtitle">
-                            {line.stockName}
-                          </small>
+                          <small>{line.stockName}</small>
                         </td>
-                        <td>{line.orderLineNumber}</td>
-                        <td>
-                          <strong>
-                            {line.quantity.toLocaleString("tr-TR", {
-                              maximumFractionDigits: 4,
-                            })}
-                          </strong>
-                          <span className="delivery-line-unit">
-                            {line.unitCode}
-                          </span>
+                        <td className="dd-num">{line.orderLineNumber}</td>
+                        <td className="dd-num">
+                          {formatQuantity(line.quantity)} {line.unitCode}
                         </td>
                       </tr>
                     ))}
                     {detail.lines.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="table-empty">
-                          İrsaliye kalemi bulunamadı.
-                        </td>
+                        <td colSpan={4} className="dd-empty">İrsaliye kalemi bulunamadı.</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-            </section>
-            {detail.lines.some((line) => line.unitPrice !== null) && (
-              <section className="order-grand-total quote-total-breakdown delivery-detail-total-breakdown" aria-label="İrsaliye toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderDeliveryCurrency(deliveryTotals.subtotal)}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderDeliveryCurrency(deliveryTotals.discount)}</span></div>
-                {Object.keys(deliveryTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`delivery-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderDeliveryCurrency(deliveryTotals.taxableByRate[rate])}</div>)}
-                {Object.keys(deliveryTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`delivery-vat-${rate}`}><span>KDV %{rate}</span>{renderDeliveryCurrency(deliveryTotals.vatByRate[rate])}</div>)}
-                <div><span>KDV toplamı</span>{renderDeliveryCurrency(deliveryTotals.vat)}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderDeliveryCurrency(deliveryTotals.total)}</div>
-              </section>
-            )}
+              {priced && (
+                <DetailLinesFooter
+                  label="İrsaliye toplamları"
+                  totals={salesTotalRows(
+                    { subtotal: deliveryTotals.subtotal, discountTotal: deliveryTotals.discount, taxTotal: deliveryTotals.vat, grandTotal: deliveryTotals.total },
+                    deliveryMoney,
+                    deliveryVatGroups,
+                  )}
+                />
+              )}
+            </div>
             </>}
             {detailTab === "invoice" && <>
-            <section className="delivery-detail-invoice">
-              <div>
-                <p className="eyebrow">FATURA BAĞLANTISI</p>
-                <h3>
-                  {detail.hasSalesInvoice
-                    ? "Fatura oluşturulmuş"
-                    : "Henüz fatura yok"}
-                </h3>
-                <span>
-                  {detail.hasSalesInvoice
-                    ? `Fatura durumu: ${detail.invoiceStatus === "Posted" ? "İşlendi" : "İptal edildi"}`
-                    : detail.orderId
-                      ? "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun."
-                      : "Faturayı daha sonra bu irsaliyedeki miktarları değiştirmeden oluşturabilirsiniz."}
-                </span>
-              </div>
-              {detail.invoiceId ? (
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setInvoiceId(detail.invoiceId)}
-                >
-                  Faturayı aç
-                </button>
-              ) : (
-                detail.status === "Posted" &&
-                !invoiceEditing && (
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={busy}
-                    onClick={() => void startOrderlessInvoice(detail.id)}
-                  >
-                    <FilePlus2 size={15} />
-                    {busy
-                      ? "Fatura hazırlanıyor…"
-                      : detail.orderId
-                        ? "Faturalaştır"
-                        : "Fatura bilgilerini gir"}
+            <DetailSection
+              title={detail.hasSalesInvoice ? "Fatura oluşturulmuş" : "Henüz fatura yok"}
+              description={
+                detail.hasSalesInvoice
+                  ? `Fatura durumu: ${detail.invoiceStatus === "Posted" ? "İşlendi" : "İptal edildi"}`
+                  : detail.orderId
+                    ? "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun."
+                    : "Faturayı daha sonra bu irsaliyedeki miktarları değiştirmeden oluşturabilirsiniz."
+              }
+              actions={
+                detail.invoiceId ? (
+                  <button type="button" className="secondary" onClick={() => setInvoiceId(detail.invoiceId)}>
+                    Faturayı aç
                   </button>
+                ) : (
+                  detail.status === "Posted" &&
+                  !invoiceEditing && (
+                    <button type="button" className="primary" disabled={busy} onClick={() => void startOrderlessInvoice(detail.id)}>
+                      <FilePlus2 size={15} />
+                      {busy ? "Fatura hazırlanıyor…" : detail.orderId ? "Faturalaştır" : "Fatura bilgilerini gir"}
+                    </button>
+                  )
                 )
-              )}
-            </section>
+              }
+            >
+              {null}
+            </DetailSection>
             {invoiceEditing && (
               <RecordFormPage
                 variant="dialog"
@@ -1018,11 +1028,6 @@ export function SalesDeliveriesScreen({
               </RecordFormPage>
             )}
             </>}
-            </div>
-            <div className="modal-foot">
-              <span>{detail.orderId ? `Sipariş ${detail.orderCode} · ${detail.lines.length} kalem` : "Siparişsiz satış irsaliyesi"}</span>
-              <button type="button" className="secondary" onClick={() => setDetail(null)}>Kapat</button>
-            </div>
           </DocumentSurface>
           )}
       {invoiceId && (

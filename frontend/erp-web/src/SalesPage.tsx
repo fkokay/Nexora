@@ -66,8 +66,12 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
 import {
+  DetailChain,
+  DetailContext,
   DetailInfoGrid,
+  DetailKeyValues,
   DetailLinesFooter,
+  DetailLinesHead,
   DetailNotes,
   DetailSection,
   DetailTabs,
@@ -77,7 +81,8 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -3332,50 +3337,36 @@ export function SalesPage({
               </span>
             }
             status={salesQuoteStatus(detail.status)}
+            meta={<span>{formatDate(detail.quoteDate)}</span>}
+            statusFlow={<SalesQuoteFlow status={detail.status} />}
             onClose={() => setDetail(null)}
             className="sales-quote-detail"
-            actions={
+            aside={
               <>
-                {detail.status === "Draft" && !detail.hasSalesOrder && (
-                  <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteEdit(detail.id)}>
-                    Düzenle
-                  </button>
-                )}
-                {detail.status === "Draft" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void sendQuote(detail)}>
-                    {busy ? "Kaydediliyor…" : "İletildi yap"}
-                  </button>
-                )}
-                {detail.status === "Sent" && (
-                  <>
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void decideQuote(detail, "reject")}>
-                      Reddet
-                    </button>
-                    <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                      Kabul et
-                    </button>
-                  </>
-                )}
-                {detail.status === "Rejected" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                    Reddedilen teklifi kabul et
-                  </button>
-                )}
-                {detail.status === "Accepted" && !detail.hasSalesOrder && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void convertQuote(detail)}>
-                    Siparişe dönüştür
-                  </button>
-                )}
-                {/* Yazdır and Sil are the action bar's print / delete commands. */}
-                {canRevise && (
-                  <SalesRowActionsMenu label={detail.code}>
-                    <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
-                      Revizyon oluştur
-                    </button>
-                  </SalesRowActionsMenu>
-                )}
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi" }] : []),
+                      { key: "self", code: detail.code, label: "Bu teklif", current: true, status: salesQuoteStatus(detail.status) },
+                      ...(detail.salesOrderId && detail.salesOrderCode
+                        ? [{ key: "order", code: detail.salesOrderCode, label: "Satış siparişi", onOpen: () => void openOrder(detail.salesOrderId!) }]
+                        : []),
+                    ]}
+                  />
+                </DetailContext>
+                <DetailContext title="Cari" hint={detail.customerCode || undefined}>
+                  <DetailKeyValues
+                    items={[
+                      { label: "Unvan", value: detail.customerName },
+                      ...(!detail.customerId ? [{ label: "Kayıt", value: "Kayıtsız alıcı" }] : []),
+                      { label: "Plasiyer", value: detail.salespersonName || "—" },
+                    ]}
+                  />
+                </DetailContext>
               </>
             }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={<SalesFooterStatus lines={detail.lines.length} total={quoteMoney(detail.grandTotal)} />}
           >
             {error && (
               <div className="alert inline-alert">
@@ -3454,10 +3445,15 @@ export function SalesPage({
                   />
                 </div>
                 <div className="dd-box">
+                  <DetailLinesHead
+                    title="Satırlar"
+                    meta={`${detail.lines.length} satır${usesForeignCurrency ? "" : ` · ${detail.currencyCode}`}`}
+                  />
                   <div className="dd-lines-wrap">
                     <table className="dd-lines" aria-label="Teklif satırları">
                       <thead>
                         <tr>
+                          <th className="dd-ix">#</th>
                           <th>Stok</th>
                           <th className="dd-num">Miktar</th>
                           {usesForeignCurrency && <th className="dd-num">Döviz fiyatı</th>}
@@ -3469,10 +3465,11 @@ export function SalesPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.lines.map((line) => {
+                        {detail.lines.map((line, index) => {
                           const foreign = !!line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode;
                           return (
                             <tr key={line.lineNumber}>
+                              <td className="dd-ix">{index + 1}</td>
                               <td className="dd-stock">
                                 <b>{line.stockCode}</b>
                                 <small>{line.stockName}</small>
@@ -3531,12 +3528,14 @@ export function SalesPage({
                         ]}
                       />
                     }
-                    totals={[
-                      { label: "Ara toplam", value: quoteMoney(detail.subtotal) },
-                      { label: "Toplam iskonto", value: quoteMoney(detail.discountTotal) },
-                      { label: "Toplam KDV", value: quoteMoney(detail.taxTotal) },
-                      { label: "Genel toplam", value: quoteMoney(detail.grandTotal), emphasis: "grand" },
-                    ]}
+                    totals={salesTotalRows(
+                      detail,
+                      quoteMoney,
+                      vatByRate(
+                        detail.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+                        { taxable: detail.subtotal - detail.discountTotal, vat: detail.taxTotal },
+                      ),
+                    )}
                   />
                 </div>
                 {detail.status === "Draft" && detail.customFields.length > 0 && (
@@ -10439,15 +10438,45 @@ function SalesOrderModal({
       },
     });
   if (orderMore.length) orderCommands.more = orderMore;
+  const orderMoney = (value: number) => formatAmount(value, order.currencyCode);
   return (
     <DocumentSurface
+      variant="detail"
       title="Satış siparişi"
       code={order.code}
       subtitle={order.customerName}
       status={salesOrderStatus(order.status)}
+      meta={<span>{formatDate(order.orderDate)}</span>}
+      statusFlow={<SalesOrderFlow status={order.status} />}
       onClose={onClose}
-      className="sales-order-detail-backdrop"
-      bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
+      aside={
+        <DetailContext title="Belge zinciri">
+          <DetailChain
+            items={[
+              ...(order.quoteCode ? [{ key: "quote", code: order.quoteCode, label: "Satış teklifi" }] : []),
+              { key: "self", code: order.code, label: "Bu sipariş", current: true, status: salesOrderStatus(order.status) },
+              ...deliveries.map((item) => ({
+                key: `delivery-${item.id}`,
+                code: item.code,
+                label: "Satış irsaliyesi",
+                meta: formatDate(item.deliveryDate),
+                status: salesDeliveryStatus(item.status),
+              })),
+              // A delivery gives its invoice's status and id, not its number.
+              ...deliveries
+                .filter((item) => item.invoiceId && item.invoiceStatus)
+                .map((item) => ({
+                  key: `invoice-${item.invoiceId}`,
+                  label: "Satış faturası",
+                  status: salesInvoiceStatus(item.invoiceStatus!),
+                  onOpen: () => onInvoiceCreated(item.invoiceId!),
+                })),
+            ]}
+          />
+        </DetailContext>
+      }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={<SalesFooterStatus lines={order.lines.length} total={orderMoney(order.grandTotal)} />}
     >
         {ownsActionBar && <PageCommandsSlot commands={orderCommands} />}
         {error && (
@@ -10466,20 +10495,27 @@ function SalesOrderModal({
             </button>
           </div>
         )}
-        <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Sipariş detay bölümleri">
-          {([ ["information", "Sipariş Bilgileri"], ["deliveries", "İrsaliye Geçmişi"] ] as const).map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={detailTab === key} className={detailTab === key ? "active" : ""} onClick={() => setDetailTab(key)}>{label}{key === "deliveries" && <span>{deliveries.length}</span>}</button>
-          ))}
-        </nav>
-        <div className="sales-detail-content">
+        <DetailTabs<"information" | "deliveries">
+          label="Sipariş detay bölümleri"
+          value={detailTab}
+          onChange={setDetailTab}
+          tabs={[
+            { key: "information", label: "Sipariş Bilgileri" },
+            { key: "deliveries", label: "İrsaliye Geçmişi", count: deliveries.length },
+          ]}
+        />
         {detailTab === "information" && <>
-        <h3 className="sales-quote-section-title">Sipariş Üst Bilgileri</h3>
-        <section className="sales-quote-overview-grid">
-          <article><small>Müşteri</small><b>{order.customerName}</b></article>
-          <article><small>Durum</small><b><span className={`quote-status ${order.status === "Fulfilled" ? "accepted" : order.status === "Cancelled" ? "rejected" : "sent"}`}>{order.status === "Fulfilled" ? "Tamamlandı" : order.status === "Cancelled" ? "İptal" : "Açık"}</span></b></article>
-          <article><small>İstenen teslim tarihi</small><b>{order.requestedDeliveryDate || "—"}</b></article>
-          <article><small>Para birimi</small><b>{order.currencyCode}</b></article>
-        </section>
+        <div className="dd-box">
+          <DetailInfoGrid
+            label="Sipariş üst bilgileri"
+            items={[
+              { label: "Sipariş tarihi", value: formatDate(order.orderDate) },
+              { label: "İstenen teslim tarihi", value: formatDate(order.requestedDeliveryDate) },
+              { label: "Para birimi", value: order.currencyCode },
+              { label: "Kaynak teklif", value: order.quoteCode || "—" },
+            ]}
+          />
+        </div>
         {order.status === "Open" && (
           <form
             className="panel"
@@ -10586,18 +10622,6 @@ function SalesOrderModal({
             )}
           </form>
         )}
-        <div className="sales-order-lines-heading">
-          <h3 className="sales-quote-section-title">Sipariş Satırları</h3>
-          {order.status === "Open" && !activeReservation && (
-            <button className="secondary small-button" type="button" onClick={() => {
-              setReservationWarehouseId(warehouses.find((warehouse) => warehouse.isActive)?.id || "");
-              setReservationRequestId(crypto.randomUUID());
-              setReservationEditor(true);
-            }}>
-              Stok ayır
-            </button>
-          )}
-        </div>
         {reservationEditor && detailTab === "information" && (
           <form className="delivery-editor" onSubmit={reserveOrderStock}>
             <label>
@@ -10623,6 +10647,8 @@ function SalesOrderModal({
             </div>
           </form>
         )}
+        <div className="dd-box">
+        <DetailLinesHead title="Satırlar" meta={`${order.lines.length} satır · ${order.currencyCode}`} />
         <div className="ledger-list sales-quote-lines">
           <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
@@ -10686,13 +10712,18 @@ function SalesOrderModal({
             </tbody>
           </AdvancedDataGrid>
         </div>
-        <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
-        <section className="sales-quote-totals-panel">
-          <div><span>Ara toplam</span><b>{order.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam iskonto</span><b>{order.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam KDV</span><b>{order.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div className="grand-total"><span>Genel toplam</span><b>{order.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currencyCode}</b></div>
-        </section>
+        <DetailLinesFooter
+          label="Sipariş toplamları"
+          totals={salesTotalRows(
+            order,
+            orderMoney,
+            vatByRate(
+              order.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+              { taxable: order.subtotal - order.discountTotal, vat: order.taxTotal },
+            ),
+          )}
+        />
+        </div>
         </>}
         {detailTab === "deliveries" && <>
         <div className="delivery-history-head">
@@ -10898,7 +10929,6 @@ function SalesOrderModal({
           )}
         </div>
         </>}
-        </div>
       </DocumentSurface>
   );
 }
