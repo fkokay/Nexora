@@ -10,6 +10,9 @@ import ManufacturingOrdersPage from '../ManufacturingOrdersPage';
 import ManufacturingRecipesPage from '../ManufacturingRecipesPage';
 import ManufacturingWorkCentersPage from '../ManufacturingWorkCentersPage';
 import ManufacturingWorkCenterCreatePage from '../ManufacturingWorkCenterCreatePage';
+import ManufacturingOrderCreatePage from '../ManufacturingOrderCreatePage';
+import ManufacturingPage from '../ManufacturingPage';
+import { useState } from 'react';
 import ManufacturingMrpPage from '../ManufacturingMrpPage';
 import { orderNextStep, orderPageFigures, orderStatusTag } from './orderList';
 import type { ManufacturingOrder } from './types';
@@ -47,7 +50,19 @@ const workCenters = [
 function respond(url: string): unknown {
   const path = url.split('?')[0];
   if (path === '/api/manufacturing/orders/') return { items: orders, page: 1, pageSize: 25, totalCount: orders.length, openOrderCount: 23 };
-  if (path === '/api/manufacturing/boms/') return [bom('b1', 'RC-014', true, 2), bom('b2', 'RC-009', true, 0)];
+  if (path === '/api/manufacturing/boms/')
+    return [
+      bom('b1', 'RC-014', true, 2),
+      bom('b2', 'RC-009', true, 0),
+      {
+        ...bom('b3', 'RC-ED', true, 0),
+        lines: [{ componentStockItemId: 's1', componentName: 'Domates', quantity: 2, scrapPercent: 5, standardUnitCostBase: 4 }],
+        operations: [
+          { sequence: 1, workCenterId: 'wc1', workCenterName: 'Dolum hattı', setupMinutes: 10, runMinutesPerOutputUnit: 2, minimumWaitDaysAfterPrevious: 0,
+            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1'] },
+        ],
+      },
+    ];
   if (path === '/api/manufacturing/work-centers/') return workCenters;
   if (path.startsWith('/api/manufacturing/work-centers/') && path.endsWith('/calendar'))
     return { workCenterId: 'wc1', workingDaysMask: 31, shiftStartMinuteOfDay: 480, shiftEndMinuteOfDay: 960, capacityOverrides: [], annualCapacityRules: [], shiftRotations: [] };
@@ -56,7 +71,15 @@ function respond(url: string): unknown {
   if (path === '/api/hr/employees/') return [];
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   if (path === '/api/manufacturing/mrp/plans') return [];
-  if (path.startsWith('/api/stock/items')) return { items: [], pageSize: 100, totalCount: 0 };
+  if (path.startsWith('/api/stock/items'))
+    return {
+      items: [
+        { id: 'st1', code: 'MAM-01', name: 'Domates salçası 830 g', unitCode: 'AD', trackingMode: 'None', isActive: true },
+        { id: 's1', code: 'HMD-01', name: 'Domates', unitCode: 'KG', trackingMode: 'None', isActive: true },
+      ],
+      pageSize: 100,
+      totalCount: 2,
+    };
   return [];
 }
 
@@ -269,6 +292,72 @@ describe('İş merkezleri and Malzeme planlama frames', () => {
     renderScreen(<ManufacturingMrpPage token="t" onNavigate={vi.fn()} />);
     await screen.findByRole('heading', { name: 'Malzeme planlama' });
     await waitFor(() => expect(openMenu()).toEqual(['Plan geçmişi']));
+  });
+});
+
+describe('Create / edit forms: request bodies', () => {
+  function RecipeHarness() {
+    const [section, setSection] = useState<'manufacturing-recipes' | 'manufacturing-recipe-create'>('manufacturing-recipes');
+    return <ManufacturingPage token="t" section={section} onNavigate={(key) => setSection(key as typeof section)} />;
+  }
+
+  it('Reçete düzenle: the PUT body (lines, operations, rowVersion)', async () => {
+    renderScreen(<RecipeHarness />);
+    await screen.findByText('RC-ED reçetesi');
+    fireEvent.click(within(row('RC-ED reçetesi')).getAllByText('Domates salçası 830 g')[0]);
+    await waitFor(() => expect(enabled('open')).toBe(true));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
+    const quantity = await screen.findByLabelText('Bileşen miktarı');
+    fireEvent.change(quantity, { target: { value: '2.5' } });
+    await act(async () => {
+      fireEvent.submit(quantity.closest('form')!);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      method: 'PUT',
+      path: '/api/manufacturing/boms/b3',
+      body: {
+        code: 'RC-ED',
+        name: 'RC-ED reçetesi',
+        productStockItemId: 'st1',
+        outputQuantity: 1,
+        lines: [{ componentStockItemId: 's1', quantity: 2.5, scrapPercent: 5, standardUnitCostBase: 4 }],
+        operations: [
+          {
+            sequence: 1, workCenterId: 'wc1', setupMinutes: 10, runMinutesPerOutputUnit: 2, minimumWaitDaysAfterPrevious: 0,
+            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1'],
+          },
+        ],
+        rowVersion: 'AA==',
+      },
+    });
+  });
+
+  it('Yeni üretim emri: the POST body', async () => {
+    renderScreen(<ManufacturingOrderCreatePage token="t" onNavigate={vi.fn()} />);
+    const recipe = await screen.findByRole('combobox', { name: /Reçete/ });
+    await waitFor(() => expect(within(recipe).queryByText('RC-ED · RC-ED reçetesi')).toBeTruthy());
+    fireEvent.change(recipe, { target: { value: 'b3' } });
+    fireEvent.change(screen.getByPlaceholderText('URE-2026-001'), { target: { value: 'URE-77' } });
+    const quantity = document.querySelector<HTMLInputElement>('#manufacturing-order-create-form input[type="number"]')!;
+    fireEvent.change(quantity, { target: { value: '40' } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('#manufacturing-order-create-form input[type="date"]')!, { target: { value: '2026-12-01' } });
+    fireEvent.click(screen.getByText('Depo seçin'));
+    fireEvent.click(await screen.findByRole('option', { name: /Üretim Deposu/ }));
+    await act(async () => {
+      fireEvent.submit(document.getElementById('manufacturing-order-create-form')!);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      method: 'POST',
+      path: '/api/manufacturing/orders/',
+      body: {
+        code: 'URE-77', billOfMaterialId: 'b3', warehouseId: 'w1', plannedQuantity: 40, plannedDate: '2026-12-01',
+        sourceSalesOrderId: null, sourceSalesOrderLineNumber: null,
+      },
+    });
   });
 });
 
