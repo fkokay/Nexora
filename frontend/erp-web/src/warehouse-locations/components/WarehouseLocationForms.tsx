@@ -1,6 +1,7 @@
-import type { FormEvent, MouseEvent } from "react";
+import type { FormEvent } from "react";
 import type { Location } from "../types";
 import {
+  RecordFieldChange,
   RecordFormGroup,
   RecordFormPage,
   RequiredMark,
@@ -20,6 +21,8 @@ type CreateLocationFormProps = {
   onNameChange: (value: string) => void;
   onParentChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
+  /** Vazgeç: closes the form (the page asks first when something was entered). */
+  onCancel: () => void;
 };
 
 export function CreateLocationForm({
@@ -34,13 +37,9 @@ export function CreateLocationForm({
   onNameChange,
   onParentChange,
   onSubmit,
+  onCancel,
 }: CreateLocationFormProps) {
   const blocked = !warehouseId || !code.trim() || !name.trim();
-  function clear() {
-    onCodeChange("");
-    onNameChange("");
-    onParentChange("");
-  }
 
   return (
     <section className="inv-rf-embedded">
@@ -66,7 +65,7 @@ export function CreateLocationForm({
           }
           onSubmit(event);
         }}
-        onCancel={clear}
+        onCancel={onCancel}
         status={
           <>
             <span>TenantAdmin yetkisiyle kaydedilir ve audit izi oluşturulur.</span>
@@ -130,110 +129,112 @@ export function CreateLocationForm({
   );
 }
 
-type EditLocationModalProps = {
+export type LocationEditValues = { code: string; name: string; parentLocationId: string; isActive: boolean };
+
+type EditLocationFormProps = {
   editing: Location;
   locations: Location[];
-  editCode: string;
-  editName: string;
-  editParentLocationId: string;
-  editIsActive: boolean;
+  values: LocationEditValues;
+  /** Values the form was opened with: previous values of changed fields. */
+  baseline: LocationEditValues;
   busy: boolean;
-  onEditCodeChange: (value: string) => void;
-  onEditNameChange: (value: string) => void;
-  onEditParentChange: (value: string) => void;
-  onEditIsActiveChange: (value: boolean) => void;
-  onClose: () => void;
+  formId?: string;
+  onChange: (values: LocationEditValues) => void;
+  onCancel: () => void;
   onSubmit: (event: FormEvent) => void;
 };
 
-export function EditLocationModal({
+/** Number of fields that differ from the values the form was opened with. */
+export function changedLocationFields(values: LocationEditValues, baseline: LocationEditValues) {
+  return (
+    Number(values.code.trim() !== baseline.code) +
+    Number(values.name.trim() !== baseline.name) +
+    Number(values.parentLocationId !== baseline.parentLocationId) +
+    Number(values.isActive !== baseline.isActive)
+  );
+}
+
+const parentText = (locations: Location[], id: string) => {
+  const parent = locations.find((row) => row.id === id);
+  return parent ? `${parent.code} · ${parent.name}` : "Üst düzey konum";
+};
+
+/** Edit form of the selected location, beside the list (the former edit dialog's fields and checks). */
+export function EditLocationForm({
   editing,
   locations,
-  editCode,
-  editName,
-  editParentLocationId,
-  editIsActive,
+  values,
+  baseline,
   busy,
-  onEditCodeChange,
-  onEditNameChange,
-  onEditParentChange,
-  onEditIsActiveChange,
-  onClose,
+  formId,
+  onChange,
+  onCancel,
   onSubmit,
-}: EditLocationModalProps) {
-  function closeOnBackdrop(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget && !busy) onClose();
-  }
-
+}: EditLocationFormProps) {
+  const set = (patch: Partial<LocationEditValues>) => onChange({ ...values, ...patch });
+  const missing = !values.code.trim() || !values.name.trim();
   return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={closeOnBackdrop}
-    >
-      <div
-        className="modal inv-rf-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="warehouse-location-edit-title"
-      >
-        <span id="warehouse-location-edit-title" hidden>
-          {editing.code} konumunu düzenle
-        </span>
-        <RecordFormPage
-          variant="dialog"
-          title={`${editing.code} konumunu düzenle`}
-          mode="edit"
-          busy={busy}
-          saveLabel="Değişiklikleri kaydet"
-          saveDisabledReason={!editCode.trim() || !editName.trim() ? "Konum kodu ve adı zorunludur." : undefined}
-          onSubmit={(event) => {
-            // Same gate the old save button had through its disabled state.
-            if (!editCode.trim() || !editName.trim()) {
-              event.preventDefault();
-              return;
-            }
-            onSubmit(event);
-          }}
-          onCancel={() => {
-            if (!busy) onClose();
-          }}
-          status={
-            <span>Güncelleme sürüm denetimiyle ve audit iziyle kaydedilir.</span>
+    <section className="inv-rf-embedded">
+      <RecordFormPage
+        variant="dialog"
+        title={`${editing.code} konumunu düzenle`}
+        mode="edit"
+        busy={busy}
+        saveLabel="Değişiklikleri kaydet"
+        formId={formId}
+        dirty={changedLocationFields(values, baseline)}
+        saveDisabledReason={
+          missing
+            ? "Konum kodu ve adı zorunludur."
+            : changedLocationFields(values, baseline) === 0
+              ? "Kaydedilecek değişiklik yok"
+              : undefined
+        }
+        onSubmit={(event) => {
+          // Same gate the old save button had through its disabled state.
+          if (missing) {
+            event.preventDefault();
+            return;
           }
-        >
-          <RecordFormGroup title="Konum Kimliği" bodyClassName="rf-pair">
+          onSubmit(event);
+        }}
+        onCancel={onCancel}
+        status={<span>Güncelleme sürüm denetimiyle ve audit iziyle kaydedilir.</span>}
+      >
+        <RecordFormGroup title="Konum Kimliği" bodyClassName="rf-pair">
+          <RecordFieldChange changed={values.code.trim() !== baseline.code} previous={baseline.code}>
             <label>
               <span>Konum kodu <RequiredMark /></span>
               <input
                 className="rf-must rf-mono"
-                autoFocus
-                value={editCode}
-                onChange={(event) =>
-                  onEditCodeChange(event.target.value.toUpperCase())
-                }
+                value={values.code}
+                onChange={(event) => set({ code: event.target.value.toUpperCase() })}
                 required
                 maxLength={40}
               />
             </label>
+          </RecordFieldChange>
+          <RecordFieldChange changed={values.name.trim() !== baseline.name} previous={baseline.name}>
             <label>
               <span>Konum adı <RequiredMark /></span>
               <input
                 className="rf-must"
-                value={editName}
-                onChange={(event) => onEditNameChange(event.target.value)}
+                value={values.name}
+                onChange={(event) => set({ name: event.target.value })}
                 required
                 maxLength={120}
               />
             </label>
-          </RecordFormGroup>
-          <RecordFormGroup title="Yerleşim ve Durum" bodyClassName="rf-pair">
+          </RecordFieldChange>
+        </RecordFormGroup>
+        <RecordFormGroup title="Yerleşim ve Durum" bodyClassName="rf-pair">
+          <RecordFieldChange
+            changed={values.parentLocationId !== baseline.parentLocationId}
+            previous={parentText(locations, baseline.parentLocationId)}
+          >
             <label>
               Üst konum
-              <select
-                value={editParentLocationId}
-                onChange={(event) => onEditParentChange(event.target.value)}
-              >
+              <select value={values.parentLocationId} onChange={(event) => set({ parentLocationId: event.target.value })}>
                 <option value="">Üst düzey konum</option>
                 {locations
                   .filter((row) => row.isActive && row.id !== editing.id)
@@ -244,17 +245,15 @@ export function EditLocationModal({
                   ))}
               </select>
             </label>
+          </RecordFieldChange>
+          <RecordFieldChange changed={values.isActive !== baseline.isActive} previous={baseline.isActive ? "Aktif" : "Pasif"}>
             <label className="rf-check inv-rf-check-bottom">
-              <input
-                type="checkbox"
-                checked={editIsActive}
-                onChange={(event) => onEditIsActiveChange(event.target.checked)}
-              />
+              <input type="checkbox" checked={values.isActive} onChange={(event) => set({ isActive: event.target.checked })} />
               Konum aktif
             </label>
-          </RecordFormGroup>
-        </RecordFormPage>
-      </div>
-    </div>
+          </RecordFieldChange>
+        </RecordFormGroup>
+      </RecordFormPage>
+    </section>
   );
 }

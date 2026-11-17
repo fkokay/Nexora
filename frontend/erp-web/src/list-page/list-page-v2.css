@@ -699,3 +699,77 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
   font: 500 12px/1 var(--nx-font) !important;
 }
 #root .nx-list-footer-end .table-pagination.nx-list-pagination { margin: 0; padding: 0; border: 0; }
+
+/* Definition screen (DefinitionLayout, mockup 04 "Tanım ekranı"): compact list left, the record's form right.
+   Below 1280px the pane is a drawer over the list while a record is open (not a modal; Esc closes it). */
+#root .list-v2 .nx-def { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+#root .list-v2 .nx-def-list,
+#root .list-v2 .nx-def-pane { display: grid; gap: 12px; align-content: start; min-width: 0; }
+#root .list-v2 .nx-def-empty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 24px;
+  border: 1px dashed var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+/* Small read-only table inside a definition form card (e.g. a warehouse's locations). */
+#root .list-v2 .nx-def-subtable { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#root .list-v2 .nx-def-subtable th {
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+}
+#root .list-v2 .nx-def-subtable td { height: var(--nx-row-h-dense); padding: 0 8px; border-bottom: 1px solid var(--nx-line-soft); color: var(--nx-text); }
+/* global-components.css gives every .app-shell table cell 8px 12px / 44px with !important; the subtable keeps the
+   30px compact row (id-level, so heavier than that rule). */
+#root .list-v2 table.nx-def-subtable :is(th, td) { height: var(--nx-row-h-dense) !important; padding: 0 8px !important; font-size: 12.5px !important; }
+#root .list-v2 table.nx-def-subtable th { height: 28px !important; font-size: 11.5px !important; }
+#root .list-v2 table.nx-def-subtable td.nx-code { font-family: var(--nx-font-mono); font-size: 12px !important; }
+#root .list-v2 .nx-def-subtable-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--nx-muted); font-size: 11.5px; }
+#root .list-v2 .nx-def-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  color: var(--nx-primary-strong);
+  font: 600 12px/1 var(--nx-font);
+  cursor: pointer;
+}
+#root .list-v2 .nx-def-link:hover { background: var(--nx-primary-soft); }
+#root .list-v2 .nx-def-link:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+@media (max-width: 1279px) {
+  #root .list-v2 .nx-def { grid-template-columns: minmax(0, 1fr); }
+  #root .list-v2 .nx-def-pane { display: none; }
+  #root .list-v2 .nx-def.is-pane-open { min-height: max(560px, calc(100dvh - 220px)); }
+  /* Block, not grid: the drawer scrolls and its cards keep their own height. */
+  #root .list-v2 .nx-def.is-pane-open > .nx-def-pane {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: block;
+    box-sizing: border-box;
+    width: min(640px, 100%);
+    padding: 12px;
+    overflow: auto;
+    border-left: 1px solid var(--nx-line);
+    background: var(--nx-canvas);
+    box-shadow: -12px 0 28px color-mix(in srgb, var(--nx-ink) 18%, transparent);
+  }
+  #root .list-v2 .nx-def.is-pane-open > .nx-def-pane > * + * { margin-top: 12px; }
+}

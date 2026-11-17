@@ -47,7 +47,9 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   "✕ Esc") tablonun altında yüzer; yalnız bugün var olan işlemler konur. Seçim
   `onSelectionChange` ile alınır; Excel dışa aktarımı seçim varsa yalnız seçilenleri yazar.
   Geçerli satır (↑/↓ ya da tıklama) `onCurrentRowChange` ile sayfaya bildirilir: Aç / Enter ve detay paneli
-  onu izler (örnek: Stok Kartları, `InventoryPage.tsx`). Görünen sayfanın satır sırası (arama, filtre ve sıralama
+  onu izler (örnek: Stok Kartları, `InventoryPage.tsx`). Geçerli satırı sayfa yönetecekse (tanım ekranı) `currentRowKey`
+  verilir (`null` = yok): ↑/↓ ve tıklama yalnızca `onCurrentRowChange` ile satırı ister, satır sayfa anahtarını
+  verince geçerli olur; böylece sayfa kaydedilmemiş değişiklikte geçişi reddedebilir ya da Esc ile seçimi kaldırabilir. Görünen sayfanın satır sırası (arama, filtre ve sıralama
   uygulanmış) `onVisibleRowsChange` ile alınır; listeden açılan kayıt PgUp / PgDn ile bu sırada gezinir.
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
@@ -73,6 +75,24 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   sözlüklerde birebir anahtar olarak aranır; mevcut metinleri yeniden kullanın. Yeni
   metin gerekiyorsa ilgili sözlüğe İngilizce karşılığını ekleyin. Sayı ile sözcük ayrı
   metin düğümleri olmalıdır (`<span>{n}</span> <span>kayıt</span>`).
+
+## Tanım ekranı
+
+Basit tanımlar (Depolar, Raf ve Konumlar) için onaylı taslak 04 "Tanım ekranı": `DefinitionLayout` solda kompakt
+listeyi (araç satırı, tablo, alt bilgi), sağda seçili kaydın formunu aynı ekranda gösterir; sayfa değişmez.
+
+- Tablo `selectable` ve `currentRowKey` ile çalışır; satır seçmek (tıklama, ↑/↓) kaydı forma yükler. Form kirliyse
+  önce "Kaydedilmemiş değişiklikler kaybolacak" sorulur; reddedilirse geçerli satır yerinde kalır.
+- Yeni (F2) sağda boş form açar (kirli formda önce sorar); Kaydet / Ctrl+S sağdaki formu kaydeder; Esc = Vazgeç
+  (formu kapatır, seçimi kaldırır). Form `RecordFormPage variant="dialog"` olarak gömülür (`inv-rf-embedded`); Kaydet'i
+  çubuğa kaydeder, Esc'i sayfa yönetir.
+- Kayıt seçili değilken sağda `DefinitionEmptyPane` ("Bir … seçin ya da F2 ile yeni … ekleyin.") durur.
+- 1280px ve üstünde liste ile form yan yanadır; altında form, kayıt açıkken listenin üstünde çekmece olarak açılır
+  (modal değildir; İşlem Çubuğu kullanılabilir kalır, Esc kapatır).
+- Silme yoksa Sil bunu açıklar ve varsa güvenli alternatifi birincil yapar: `confirmDialog({ …, confirmLabel:
+  "Pasife al", keyHints: true })` düğmelerde Esc / Enter gösterir. Zaten pasif kayıtta ve kirli formda Sil nedeniyle
+  kapalıdır.
+- Formdaki küçük alt tablolar (ör. deponun lokasyonları) `nx-def-subtable` ile 30px satırlı yazılır.
 
 ## Örnek
 

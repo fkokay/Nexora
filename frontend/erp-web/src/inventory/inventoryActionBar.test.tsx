@@ -177,27 +177,31 @@ describe('other Stok screens on the action bar', () => {
     expect(headerButtonTexts().filter((text) => COMMON.test(text))).toEqual([]);
   });
 
-  it('Depo Yönetimi: new opens the warehouse form and Kaydet becomes primary', async () => {
+  it('Depo Yönetimi: new opens the warehouse form beside the list and Kaydet becomes primary', async () => {
     renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
     await settle();
     expect(primary('new')).toBe(true);
     expect(screen.queryByRole('button', { name: /Depo ekle/ })).toBeNull();
     expect(headerButtonTexts()).toEqual([]);
-    expect(openMenu()).toEqual(['Depo alan tanımları', 'Depoları yönet', 'CSV olarak dışa aktar']);
-    fireEvent.keyDown(document.body, { key: 'Escape' });
+    // "Depoları yönet" is gone: its edit, custom values and status change are the form and the selected row's menu.
+    expect(openMenu()).toEqual(['Depo alan tanımları', 'CSV olarak dışa aktar']);
+    fireEvent.mouseDown(document.body);
+    const opens = () => apiMock.mock.calls.filter(([url]) => url === '/api/warehouses/custom-fields').length;
     await act(async () => {
       fireEvent.click(command('new'));
     });
     await waitFor(() => expect(primary('save')).toBe(true));
-    expect(screen.getByRole('dialog', { name: 'Yeni depo' })).toBeTruthy();
+    // Not a dialog any more: the form is on the screen, beside the list.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.querySelector('.nx-def-pane')!.querySelector('h1')!.textContent).toBe('Yeni depo');
     expect(enabled('new')).toBe(true);
     expect(primary('new')).toBe(false);
-    // The modal is an aria-modal dialog of the page: F2 (Yeni) does not run behind it.
-    const opens = () => apiMock.mock.calls.filter(([url]) => url === '/api/warehouses/custom-fields').length;
-    const before = opens();
+    expect(opens()).toBe(1);
+    // An unchanged new form is started over without a question.
     fireEvent.keyDown(document.body, { key: 'F2' });
     await settle();
-    expect(opens()).toBe(before);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(opens()).toBe(2);
   });
 
   it('Depolar arası transferler: new needs two active warehouses', async () => {
@@ -209,18 +213,24 @@ describe('other Stok screens on the action bar', () => {
     expect(headerButtonTexts()).toEqual([]);
   });
 
-  it('Depo konumları: Kaydet targets the create form and Aç asks for a selection', async () => {
+  it('Depo konumları: Yeni opens the create form, whose Kaydet says why it cannot save yet', async () => {
     renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    expect(enabled('new')).toBe(true);
+    expect(primary('new')).toBe(true);
+    // Definition screen: the form beside the list follows the selection, so there is no Aç.
+    expect(enabled('open')).toBe(false);
+    expect(enabled('delete')).toBe(false);
+    expect(command('delete').title).toBe('Önce bir kayıt seçin');
+    expect(headerButtonTexts()).toEqual([]);
+    expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
+    fireEvent.mouseDown(document.body);
+    fireEvent.keyDown(document.body, { key: 'F2' });
     await settle();
     expect(primary('save')).toBe(true);
     // The empty create form cannot be saved yet; the bar says why.
     expect(enabled('save')).toBe(false);
     expect(command('save').title).toBe('Konum kodu ve adı zorunludur.');
-    expect(enabled('new')).toBe(true);
-    expect(enabled('open')).toBe(false);
-    expect(command('open').title).toBe('Önce bir kayıt seçin');
-    expect(headerButtonTexts()).toEqual([]);
-    expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
   });
 
   it('Lot / seri izleme: export and CSV through the bar only', async () => {

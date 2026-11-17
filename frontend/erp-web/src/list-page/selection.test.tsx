@@ -272,6 +272,33 @@ describe('AdvancedDataGrid selectable', () => {
     expect(onCurrentRowChange).toHaveBeenLastCalledWith(null);
   });
 
+  it('with currentRowKey the page owns the current row: arrows and clicks only request it', () => {
+    const onCurrentRowChange = vi.fn();
+    const { rerender } = render(tree(items(3), { selectable: true, currentRowKey: null, onCurrentRowChange }));
+    // Controlled: no report on mount, nothing current.
+    expect(onCurrentRowChange).not.toHaveBeenCalled();
+    expect(bodyRows().some((row) => row.getAttribute('aria-current') === 'true')).toBe(false);
+    fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith('S1');
+    // The page has not accepted it yet: the row is not current.
+    expect(bodyRows()[0].getAttribute('aria-current')).toBeNull();
+    rerender(tree(items(3), { selectable: true, currentRowKey: 'S1', onCurrentRowChange }));
+    expect(bodyRows()[0].getAttribute('aria-current')).toBe('true');
+    fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith('S2');
+    fireEvent.click(bodyRows()[2]);
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith('S3');
+    // Declined (e.g. unsaved changes): the page keeps S1 current.
+    expect(bodyRows()[0].getAttribute('aria-current')).toBe('true');
+    // A click on the current row asks nothing.
+    const calls = onCurrentRowChange.mock.calls.length;
+    fireEvent.click(bodyRows()[0]);
+    expect(onCurrentRowChange).toHaveBeenCalledTimes(calls);
+    // The page clears it (Esc = Vazgeç).
+    rerender(tree(items(3), { selectable: true, currentRowKey: null, onCurrentRowChange }));
+    expect(bodyRows().some((row) => row.getAttribute('aria-current') === 'true')).toBe(false);
+  });
+
   it('reports the displayed row order (after a header sort) to the page', () => {
     const onVisibleRowsChange = vi.fn();
     render(tree(items(3), { selectable: true, onVisibleRowsChange }));

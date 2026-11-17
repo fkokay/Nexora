@@ -88,6 +88,12 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   onSelectionChange?: (keys: string[]) => void;
   /** With `selectable`: the keyboard / clicked current row's key (the row element's key), or null when there is none. */
   onCurrentRowChange?: (key: string | null) => void;
+  /**
+   * With `selectable`: the page owns the current row (e.g. a definition screen whose form follows it). Arrows and
+   * clicks only request a row through `onCurrentRowChange`; the row is current once the page passes its key here
+   * (`null` = none), so the page can decline a switch (unsaved changes) or clear it (Esc). Omit to let the grid own it.
+   */
+  currentRowKey?: string | null;
   /** Keys of the visible page's rows in displayed order (after search, filters and sort); for record navigation. */
   onVisibleRowsChange?: (keys: string[]) => void;
   serverData?: ServerData;
@@ -465,6 +471,7 @@ export default function AdvancedDataGrid({
   bulkActions,
   onSelectionChange,
   onCurrentRowChange,
+  currentRowKey,
   onVisibleRowsChange,
   serverData,
   onImportRows,
@@ -812,12 +819,18 @@ export default function AdvancedDataGrid({
           ),
         )?.key ?? null
       : null,
-    activeKey = currentKey ?? pageMarkedKey;
+    currentControlled = currentRowKey !== undefined,
+    activeKey = currentControlled ? currentRowKey : (currentKey ?? pageMarkedKey);
   const currentRowChangeRef = useRef(onCurrentRowChange);
   currentRowChangeRef.current = onCurrentRowChange;
   useEffect(() => {
-    if (selectable) currentRowChangeRef.current?.(activeKey);
-  }, [activeKey, selectable]);
+    if (selectable && !currentControlled) currentRowChangeRef.current?.(activeKey);
+  }, [activeKey, selectable, currentControlled]);
+  /** Arrow / click target row: kept by the grid, or (controlled) requested from the page. */
+  function makeCurrent(key: string) {
+    if (!currentControlled) setCurrentKey(key);
+    else if (key !== currentRowKey) currentRowChangeRef.current?.(key);
+  }
   const visibleRowsChangeRef = useRef(onVisibleRowsChange);
   visibleRowsChangeRef.current = onVisibleRowsChange;
   const visibleRowsSignature = visiblePageKeys.join("\u0000");
@@ -1118,7 +1131,7 @@ export default function AdvancedDataGrid({
             ? 0
             : visiblePageKeys.length - 1
           : Math.max(0, Math.min(visiblePageKeys.length - 1, at + step));
-    setCurrentKey(visiblePageKeys[index]);
+    makeCurrent(visiblePageKeys[index]);
     const container = scrollRef.current;
     // Focus left on a row checkbox (after a click) would make Space toggle that row instead of the current one.
     if (
@@ -1674,7 +1687,7 @@ export default function AdvancedDataGrid({
           "data-grid-row": pageIndex,
           onClick: (event: ReactMouseEvent) => {
             row.element.props.onClick?.(event);
-            setCurrentKey(row.key);
+            makeCurrent(row.key);
           },
         }
       : {
@@ -1697,7 +1710,7 @@ export default function AdvancedDataGrid({
             // Ticking a box makes the row current but is not a click on the record (the page's row click may open it).
             onClick={(event) => {
               event.stopPropagation();
-              setCurrentKey(row.key);
+              makeCurrent(row.key);
             }}
           >
             <input

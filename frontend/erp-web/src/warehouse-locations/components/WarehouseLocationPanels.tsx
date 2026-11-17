@@ -1,15 +1,18 @@
-import type { MutableRefObject } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
-import { Pencil, Warehouse } from "lucide-react";
+import { Warehouse } from "lucide-react";
+import type { BulkAction } from "../../list-page/BulkActionBar";
+import { StatusTag } from "../../list-page/StatusTag";
 import type { Balance, Location, Reconciliation, ScreenField } from "../types";
 
 type LocationListProps = {
   locations: Location[];
   filteredLocations: Location[];
   visibleFields: ScreenField[];
-  selectedId: string;
+  /** The location open in the form (the grid's current row); null when none is. */
+  selectedId: string | null;
   search: string;
   loading: boolean;
   warehouseId: string;
@@ -18,8 +21,16 @@ type LocationListProps = {
   /** Hides the grid's XLSX/CSV buttons; the page offers export through the action bar instead. */
   hideExport?: boolean;
   exportActionsRef?: MutableRefObject<GridExportActions | null>;
-  onSelect: (id: string) => void;
+  /** A row was clicked or reached with ↑/↓; the page decides whether it opens (unsaved changes). */
+  onSelect: (id: string | null) => void;
+  onSelectionChange?: (keys: string[]) => void;
+  bulkActions?: BulkAction[];
+  /** Line under the list (hints, counts). */
+  footer?: ReactNode;
 };
+
+// Sized for the left half of the definition screen at 1440; saved layouts keep their own widths.
+const LIST_WIDTHS: Record<string, number> = { code: 110, name: 180, parentLocation: 110, status: 80 };
 
 export function LocationListPanel({
   locations,
@@ -33,13 +44,13 @@ export function LocationListPanel({
   hideExport,
   exportActionsRef,
   onSelect,
+  onSelectionChange,
+  bulkActions,
+  footer,
 }: LocationListProps) {
-  // The code is shown under the name, and row actions live in the detail panel, so
-  // neither gets a column of its own. The code column stays if the name is hidden.
-  const hasName = visibleFields.some((field) => field.key === "name");
-  const fields = visibleFields.filter(
-    (field) => field.key !== "actions" && !(hasName && field.key === "code"),
-  );
+  // Row actions live in the form beside the list, so they get no column. Kod has its own mono column (mockup 04),
+  // so rows stay single-line.
+  const fields = visibleFields.filter((field) => field.key !== "actions");
   return (
     <section
       className="panel warehouse-location-list-panel list-v2-list"
@@ -67,21 +78,22 @@ export function LocationListPanel({
           Konum görünümünde açık sütun bulunmuyor.
         </div>
       ) : (
-        <div
-          className="customer-table-wrap warehouse-location-table-wrap"
-          role="region"
-          aria-label="Depo raf ve bölme listesi"
-          tabIndex={0}
-        >
+        <div className="customer-table-wrap warehouse-location-table-wrap">
           <AdvancedDataGrid
             enableRowSelection={false}
+            selectable
+            currentRowKey={selectedId}
+            onCurrentRowChange={onSelect}
+            onSelectionChange={onSelectionChange}
+            bulkActions={bulkActions}
             hideSearch
+            externalPagination
             toolbarContainer={toolbarContainer}
             hideExport={hideExport}
             exportActionsRef={exportActionsRef}
             className="customer-table"
             gridId="inventory-warehouse-locations"
-            {...screenViewGridDefaults(fields)}
+            {...screenViewGridDefaults(fields, (field) => LIST_WIDTHS[field.key])}
             aria-label="Depo raf ve bölmeler"
           >
             <thead>
@@ -96,62 +108,21 @@ export function LocationListPanel({
             </thead>
             <tbody>
               {filteredLocations.map((location) => (
-                <tr
-                  key={location.id}
-                  className={
-                    selectedId === location.id
-                      ? "selected erp-selected-row"
-                      : undefined
-                  }
-                  onClick={(event) => {
-                    if (
-                      (event.target as HTMLElement).closest(
-                        "button,a,input,select,textarea",
-                      )
-                    )
-                      return;
-                    onSelect(location.id);
-                  }}
-                >
+                <tr key={location.id}>
                   {fields.map((field) => (
                     <td key={field.key}>
-                      {field.key === "name" ? (
-                        <button
-                          type="button"
-                          className="warehouse-location-select"
-                          aria-pressed={selectedId === location.id}
-                          onClick={() => onSelect(location.id)}
-                        >
-                          <span>
-                            <b>{location.name}</b>
-                            <small className="cell-subtitle list-v2-name-code">
-                              {location.code}
-                            </small>
-                          </span>
-                        </button>
-                      ) : field.key === "code" ? (
-                        <button
-                          type="button"
-                          className="warehouse-location-select"
-                          aria-pressed={selectedId === location.id}
-                          onClick={() => onSelect(location.id)}
-                        >
-                          <b>{location.code}</b>
-                        </button>
+                      {field.key === "code" ? (
+                        <span className="nx-code">{location.code}</span>
+                      ) : field.key === "name" ? (
+                        location.name
                       ) : field.key === "parentLocation" ? (
                         (locations.find(
                           (row) => row.id === location.parentLocationId,
                         )?.code ?? "Üst düzey")
                       ) : field.key === "status" ? (
-                        <span
-                          className={
-                            location.isActive
-                              ? "warehouse-location-state is-active"
-                              : "warehouse-location-state"
-                          }
-                        >
+                        <StatusTag tone={location.isActive ? "ok" : "off"}>
                           {location.isActive ? "Aktif" : "Pasif"}
-                        </span>
+                        </StatusTag>
                       ) : (
                         "—"
                       )}
@@ -163,6 +134,7 @@ export function LocationListPanel({
           </AdvancedDataGrid>
         </div>
       )}
+      {footer}
     </section>
   );
 }
@@ -174,9 +146,8 @@ type LocationBalanceProps = {
   visibleFields: ScreenField[];
   loading: boolean;
   error: string;
-  role: string;
-  busy: boolean;
-  onEdit: (location: Location) => void;
+  /** Under the edit form: only the balance part (the form already shows the location). */
+  compact?: boolean;
 };
 
 export function LocationBalancePanel({
@@ -186,9 +157,7 @@ export function LocationBalancePanel({
   visibleFields,
   loading,
   error,
-  role,
-  busy,
-  onEdit,
+  compact = false,
 }: LocationBalanceProps) {
   return (
     <section
@@ -196,25 +165,23 @@ export function LocationBalancePanel({
       aria-labelledby="warehouse-location-balance-title"
       aria-busy={loading}
     >
-      {selected ? (
+      {selected && compact ? (
+        <div className="warehouse-location-detail-balances">
+          <h3 id="warehouse-location-balance-title" title="Bu konuma açıkça atanmış stok hareketlerinin net miktarı">
+            Konum bakiyesi
+          </h3>
+          <span className="tenant-scope">
+            <Warehouse size={14} aria-hidden="true" />
+            {balances.length} stok satırı
+          </span>
+        </div>
+      ) : selected ? (
         <>
           <header className="list-v2-detail-head">
             <div>
               <span className="list-v2-kind">Depo konumu</span>
               <h2 id="warehouse-location-balance-title">{selected.name}</h2>
             </div>
-            {role === "TenantAdmin" && (
-              <div className="list-v2-detail-head-actions">
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={busy}
-                  onClick={() => onEdit(selected)}
-                >
-                  <Pencil size={14} aria-hidden="true" /> Düzenle
-                </button>
-              </div>
-            )}
           </header>
           <div className="list-v2-detail-meta">
             <span className="list-v2-detail-code">{selected.code}</span>

@@ -289,7 +289,7 @@ export function WorkspacePageRouter({
       />
     );
   if (page === "inventory-warehouses")
-    return <InventoryWarehousesPage token={token} role={tenant.role} />;
+    return <InventoryWarehousesPage token={token} role={tenant.role} onNavigate={onNavigate} />;
   if (page === "inventory-transfers")
     return <InventoryTransfersPage token={token} role={tenant.role} />;
   if (page === "commercial-contracts")

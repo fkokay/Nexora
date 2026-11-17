@@ -3692,3 +3692,5 @@ html[data-theme="dark"] .app-confirm.is-default .workspace-confirm-icon { backgr
 html[data-theme="dark"] .app-confirm-field { color: #aebbd0; }
 html[data-theme="dark"] .app-confirm-field input,
 html[data-theme="dark"] .app-confirm-field textarea { border-color: #46556e; background: #111c2e; color: #e4eaf3; }
+/* confirmDialog `keyHints`: the key on each button (Esc / Enter). */
+.workspace-confirm-actions .app-confirm-key { margin-left: 8px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-family: var(--nx-font-mono); font-size: 10px; font-weight: 400; opacity: 0.75; }

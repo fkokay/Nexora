@@ -20,6 +20,8 @@ export type ConfirmOptions = {
   tone?: DialogTone;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Shows the keys on the buttons (Esc on cancel, Enter on confirm), e.g. a blocked delete offering a safe alternative. */
+  keyHints?: boolean;
 };
 
 export type PromptOptions = ConfirmOptions & {
@@ -155,9 +157,11 @@ export function ConfirmDialogHost() {
         <div className="workspace-confirm-actions">
           <button type="button" className="secondary" onClick={() => finish(false)}>
             {t(options.cancelLabel ?? "Vazgeç")}
+            {options.keyHints && <kbd className="app-confirm-key">Esc</kbd>}
           </button>
           <button ref={confirmRef} type="submit" className={tone === "danger" ? "danger" : "app-confirm-primary"}>
             {t(options.confirmLabel ?? "Onayla")}
+            {options.keyHints && <kbd className="app-confirm-key">Enter</kbd>}
           </button>
         </div>
       </form>

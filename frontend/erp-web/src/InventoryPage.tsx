@@ -18,6 +18,7 @@ import { InventoryTransferGrid } from "./inventory/components/InventoryTransferG
 import { useTransferListScreen } from "./inventory/useTransferListScreen";
 import { InventoryCostGrid } from "./inventory/components/InventoryCostGrid";
 import { useCostListScreen } from "./inventory/useCostListScreen";
+import { useWarehouseDefinitionScreen } from "./inventory/useWarehouseDefinitionScreen";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { StatusTag } from "./list-page/StatusTag";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
@@ -70,7 +71,6 @@ type StockItemVariant = AppTypes.StockItemVariant;
 type StockRecipe = { id: string; code: string; name: string; productStockItemId: string; outputQuantity: number; isActive: boolean; lines: Array<{ componentName: string; quantity: number; scrapPercent: number }> };
 type Warehouse = AppTypes.Warehouse;
 type WarehouseCustomFieldDefinition = AppTypes.WarehouseCustomFieldDefinition;
-type WarehouseCustomFieldValue = AppTypes.WarehouseCustomFieldValue;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
 
 type VariantDimensionDraft = { name: string; values: string };
@@ -186,22 +186,13 @@ export function InventoryPage({
     [itemCustomFieldValues, setItemCustomFieldValues] = useState<
       Record<string, string>
     >({});
-  const [warehouseFieldTarget, setWarehouseFieldTarget] =
-      useState<Warehouse | null>(null),
-    [warehouseFieldCatalogModal, setWarehouseFieldCatalogModal] =
+  const [warehouseFieldCatalogModal, setWarehouseFieldCatalogModal] =
       useState(false),
     [warehouseFieldDefinitions, setWarehouseFieldDefinitions] = useState<
       WarehouseCustomFieldDefinition[]
     >([]),
-    [warehouseFieldValues, setWarehouseFieldValues] = useState<
-      Record<string, string>
-    >({}),
-    [warehouseCreateDefinitions, setWarehouseCreateDefinitions] = useState<
-      WarehouseCustomFieldDefinition[]
-    >([]),
-    [warehouseCreateValues, setWarehouseCreateValues] = useState<
-      Record<string, string>
-    >({}),
+    // Bumped when the warehouse field catalog changes; the open warehouse form reloads its fields.
+    [warehouseCatalogVersion, setWarehouseCatalogVersion] = useState(0),
     [warehouseFieldCode, setWarehouseFieldCode] = useState(""),
     [warehouseFieldLabel, setWarehouseFieldLabel] = useState(""),
     [warehouseFieldType, setWarehouseFieldType] =
@@ -232,8 +223,6 @@ export function InventoryPage({
     [categoryModal, setCategoryModal] = useState(false),
     [categoryName, setCategoryName] = useState(""),
     [categoryBusy, setCategoryBusy] = useState(false),
-    [warehouseModal, setWarehouseModal] = useState(false),
-    [warehouseAdminModal, setWarehouseAdminModal] = useState(false),
     [movementItem, setMovementItem] = useState<InventoryBalance | null>(null);
   const [itemCreateTab, setItemCreateTab] = useState<
     "basic" | "inventory" | "pricing" | "logistics" | "accounting" | "units" | "variants" | "recipes"
@@ -244,11 +233,6 @@ export function InventoryPage({
     stayAfterItemSaveRef.current = stay;
   };
   const [itemFormNotice, setItemFormNotice] = useState("");
-  const stayAfterWarehouseSaveRef = useRef(false);
-  const setStayAfterWarehouseSave = (stay: boolean) => {
-    stayAfterWarehouseSaveRef.current = stay;
-  };
-  const [warehouseFormNotice, setWarehouseFormNotice] = useState("");
   const [variantDimensions, setVariantDimensions] = useState<VariantDimensionDraft[]>([{ name: "", values: "" }]);
   const [existingVariants, setExistingVariants] = useState<StockItemVariant[]>([]);
   const [itemRecipes, setItemRecipes] = useState<StockRecipe[]>([]);
@@ -310,12 +294,8 @@ export function InventoryPage({
       ),
     [categories, editingItem],
   );
-  const [warehouseCode, setWarehouseCode] = useState(""),
-    [warehouseName, setWarehouseName] = useState("");
-  const [warehouseSearch, setWarehouseSearch] = useState("");
   // List-page toolbar state: status chips filter the loaded rows; the slot hosts the stock grid's tools.
-  const [warehouseStatusFilter, setWarehouseStatusFilter] = useState(""),
-    [transferStatusFilter, setTransferStatusFilter] = useState(""),
+  const [transferStatusFilter, setTransferStatusFilter] = useState(""),
     [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null),
     [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const [transferModal, setTransferModal] = useState(false),
@@ -1413,85 +1393,6 @@ export function InventoryPage({
       setBusy(false);
     }
   }
-  function resetWarehouseForm() {
-    setWarehouseCode("");
-    setWarehouseName("");
-    setWarehouseCreateValues({});
-    setWarehouseFormNotice("");
-  }
-  async function openWarehouseModal() {
-    setWarehouseCreateValues({});
-    setWarehouseFormNotice("");
-    setError("");
-    try {
-      setWarehouseCreateDefinitions(
-        await api<WarehouseCustomFieldDefinition[]>(
-          "/api/warehouses/custom-fields",
-          token,
-        ),
-      );
-      setWarehouseModal(true);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function createWarehouse(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const created = await api<Warehouse>("/api/warehouses/", token, {
-        method: "POST",
-        body: JSON.stringify({
-          code: warehouseCode,
-          name: warehouseName,
-          customFields: warehouseCreateValues,
-        }),
-      });
-      setWarehouses((current) => [...current, created]);
-      setWarehouseId(created.id);
-      setWarehouseCode("");
-      setWarehouseName("");
-      setWarehouseCreateValues({});
-      // "Kaydet ve Yeni" keeps the dialog open, cleared for the next warehouse.
-      if (stayAfterWarehouseSaveRef.current)
-        setWarehouseFormNotice("Depo oluşturuldu. Yeni depo girebilirsiniz.");
-      else setWarehouseModal(false);
-      setNotice("Depo oluşturuldu.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function openWarehouseFields(warehouse: Warehouse) {
-    setWarehouseFieldTarget(warehouse);
-    setWarehouseFieldValues({});
-    setWarehouseFieldDefinitions([]);
-    setWarehouseFieldBusy(true);
-    setError("");
-    try {
-      const [definitions, values] = await Promise.all([
-        api<WarehouseCustomFieldDefinition[]>(
-          "/api/warehouses/custom-fields",
-          token,
-        ),
-        api<WarehouseCustomFieldValue[]>(
-          `/api/warehouses/${warehouse.id}/custom-fields`,
-          token,
-        ),
-      ]);
-      setWarehouseFieldDefinitions(definitions);
-      setWarehouseFieldValues(
-        Object.fromEntries(values.map((value) => [value.code, value.value])),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setWarehouseFieldBusy(false);
-    }
-  }
   async function openWarehouseFieldCatalog() {
     setWarehouseFieldBusy(true);
     setError("");
@@ -1501,32 +1402,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
       setWarehouseFieldCatalogModal(true);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setWarehouseFieldBusy(false);
-    }
-  }
-  async function saveWarehouseFields(e: React.FormEvent) {
-    e.preventDefault();
-    if (!warehouseFieldTarget) return;
-    setWarehouseFieldBusy(true);
-    setError("");
-    try {
-      const values = await api<WarehouseCustomFieldValue[]>(
-        `/api/warehouses/${warehouseFieldTarget.id}/custom-fields`,
-        token,
-        {
-          method: "PUT",
-          body: JSON.stringify({ values: warehouseFieldValues }),
-        },
-      );
-      setWarehouseFieldValues(
-        Object.fromEntries(values.map((value) => [value.code, value.value])),
-      );
-      setNotice("Depo özel alanları kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1561,8 +1437,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
-      if (warehouseFieldTarget) await openWarehouseFields(warehouseFieldTarget);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo özel alanı tanımlandı.");
     } catch (e) {
       setError((e as Error).message);
@@ -1629,7 +1504,7 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo alan tanımı yeni sürüm olarak kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
@@ -1660,107 +1535,12 @@ export function InventoryPage({
         token,
       );
       setWarehouseFieldDefinitions(definitions);
-      setWarehouseCreateDefinitions(definitions);
+      setWarehouseCatalogVersion((version) => version + 1);
       setNotice("Depo alanı devre dışı bırakıldı; mevcut değerler korundu.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setWarehouseFieldBusy(false);
-    }
-  }
-  async function toggleWarehouse(warehouse: Warehouse) {
-    const isActive = !warehouse.isActive;
-    if (
-      !(await confirmDialog({
-        title: `Depo ${isActive ? "yeniden etkinleştirilsin" : "devre dışı bırakılsın"} mı?`,
-        message: `${warehouse.code} · ${warehouse.name}${isActive ? "" : " · Depoda sıfırdan farklı stok varsa işlem reddedilir."}`,
-        tone: "warning",
-        confirmLabel: isActive ? "Etkinleştir" : "Devre dışı bırak",
-      }))
-    )
-      return;
-    setBusy(true);
-    setError("");
-    try {
-      const updated = await api<Warehouse>(
-        `/api/warehouses/${warehouse.id}/status`,
-        token,
-        {
-          method: "POST",
-          body: JSON.stringify({ isActive, confirmation: true }),
-        },
-      );
-      setWarehouses((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setNotice(
-        isActive
-          ? "Depo yeniden etkinleştirildi."
-          : "Depo devre dışı bırakıldı.",
-      );
-      if (!isActive && warehouseId === updated.id)
-        setWarehouseId(
-          warehouses.find((item) => item.isActive && item.id !== updated.id)
-            ?.id || "",
-        );
-      await loadBalances();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function editWarehouse(warehouse: Warehouse) {
-    const code = (
-      await promptDialog({
-        title: "Depo düzenlensin mi?",
-        label: "Depo kodu",
-        defaultValue: warehouse.code,
-        tone: "default",
-        confirmLabel: "Devam",
-      })
-    )?.trim();
-    if (code === undefined || code === null) return;
-    const name = (
-      await promptDialog({
-        title: "Depo düzenlensin mi?",
-        label: "Depo adı",
-        defaultValue: warehouse.name,
-        tone: "default",
-        confirmLabel: "Kaydet",
-      })
-    )?.trim();
-    if (name === undefined || name === null) return;
-    if (!code || !name) {
-      setError("Depo kodu ve adı boş bırakılamaz.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const updated = await api<Warehouse>(
-        `/api/warehouses/${warehouse.id}`,
-        token,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            code,
-            name,
-            rowVersion: warehouse.rowVersion,
-          }),
-        },
-      );
-      setWarehouses((current) =>
-        current
-          .map((item) => (item.id === updated.id ? updated : item))
-          .sort((a, b) => a.name.localeCompare(b.name, "tr")),
-      );
-      setNotice("Depo güncellendi.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
     }
   }
   async function loadTransferLocations(fromId: string, toId: string) {
@@ -2309,14 +2089,6 @@ export function InventoryPage({
   // column gets the code under the name instead.
   const visibleStockFields = sortedStockFields;
   const stockCodeColumnVisible = sortedStockFields.some((field) => field.key === "code");
-  const visibleWarehouses = warehouses.filter(
-    (row) =>
-      `${row.code} ${row.name}`
-        .toLocaleLowerCase("tr-TR")
-        .includes(warehouseSearch.trim().toLocaleLowerCase("tr-TR")) &&
-      (!warehouseStatusFilter ||
-        row.isActive === (warehouseStatusFilter === "Active")),
-  );
   const visibleTransfers = transfers.filter(
     (row) =>
       `${row.code} ${row.fromWarehouseName} ${row.toWarehouseName}`
@@ -2593,7 +2365,7 @@ export function InventoryPage({
   // Dialogs that are not this page's record form: Yeni (F2) must not open a form behind them.
   const pageDialogOpen =
     categoryModal || customFieldPickerOpen || importOpen || !!selectedTransfer || !!costTarget ||
-    warehouseAdminModal || warehouseFieldCatalogModal || !!movementItem || !!customFieldItem || !!warehouseFieldTarget;
+    warehouseFieldCatalogModal || !!movementItem || !!customFieldItem;
   // Yeni over an open form with unsaved input asks first, then starts a fresh record.
   const startNew = async (dirty: boolean, open: () => void | Promise<void>) => {
     if (dirty && !(await confirmDialog({ title: "Yeni kayıt", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })))
@@ -2650,6 +2422,26 @@ export function InventoryPage({
     onManage: (balance) => void openCostManager(balance),
     onPageChange: setInventoryPage,
   });
+  const warehouseScreen = useWarehouseDefinitionScreen({
+    active: section === "inventory-warehouses" && !pageDialogOpen,
+    token,
+    role,
+    warehouses,
+    setWarehouses,
+    loading,
+    busy,
+    setBusy,
+    error,
+    setError,
+    setNotice,
+    fields: visibleWarehouseFields,
+    catalogVersion: warehouseCatalogVersion,
+    exportRef: gridExportRef,
+    toolsSlot: listToolsSlot,
+    toolsSlotRef: setListToolsSlot,
+    onRefresh: () => void loadBase(),
+    onNavigate,
+  });
   // Saving is registered by the open RecordFormPage itself (Kaydet / Ctrl+S, primary).
   const pageCommands: PageCommands = {};
   if (pageDialogOpen) {
@@ -2661,14 +2453,8 @@ export function InventoryPage({
   } else if (section === "inventory-stock-create") {
     pageCommands.new = { run: () => startNew(!!(code.trim() || name.trim()), openItemModal) };
   } else if (section === "inventory-warehouses") {
-    pageCommands.new = {
-      primary: true,
-      run: () =>
-        startNew(warehouseModal && !!(warehouseCode.trim() || warehouseName.trim()), async () => {
-          resetWarehouseForm();
-          await openWarehouseModal();
-        }),
-    };
+    // Yeni, Sil (explained, with Pasife al); the open form registers Kaydet.
+    Object.assign(pageCommands, warehouseScreen.commands);
   } else if (section === "inventory-transfers") {
     pageCommands.new = {
       primary: true,
@@ -2695,9 +2481,10 @@ export function InventoryPage({
       more.push({ id: "stock-custom-fields", label: "Özel alanlar", run: () => setCustomFieldPickerOpen(true) });
     }
     if (section === "inventory-warehouses") {
+      // The former "Depoları yönet" dialog's edit, custom values and status change are the form and this item.
+      more.push(...warehouseScreen.moreItems);
       if (role === "TenantAdmin" || role === "TenantDeveloper")
         more.push({ id: "warehouse-field-catalog", label: "Depo alan tanımları", run: () => void openWarehouseFieldCatalog() });
-      more.push({ id: "warehouse-admin", label: "Depoları yönet", run: () => setWarehouseAdminModal(true) });
     }
     if (section === "inventory-transfers") more.push(...transferList.moreItems);
     // Stok Değerleme has a grid (and so an export) for TenantAdmin only.
@@ -2833,38 +2620,7 @@ export function InventoryPage({
               {stockList.panel}
             </div>
           )}
-          {section === "inventory-warehouses" && (
-            <div className="warehouse-management">
-              <ListToolbar
-                search={warehouseSearch}
-                onSearchChange={setWarehouseSearch}
-                searchLabel="Depo ara"
-                searchPlaceholder="Depo kodu veya adıyla ara"
-                onRefresh={() => void loadBase()}
-                toolsSlotRef={setListToolsSlot}
-              >
-                <ListChipGroup
-                  label="Durum"
-                  value={warehouseStatusFilter}
-                  onChange={setWarehouseStatusFilter}
-                  allowClear
-                  options={[
-                    { value: "Active", label: "Aktif", count: warehouses.filter((row) => row.isActive).length },
-                    { value: "Inactive", label: "Pasif", count: warehouses.filter((row) => !row.isActive).length },
-                  ]}
-                />
-              </ListToolbar>
-              <section className="panel inventory-stock-grid-panel warehouse-directory-grid list-v2-list">
-                {loading ? (
-                  <div className="warehouse-empty" role="status"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>Depolar yükleniyor…</b><p>Firma depoları ve kullanım durumları alınıyor.</p></div></div>
-                ) : visibleWarehouses.length > 0 ? (
-                  <div className="inventory-stock-table-scroll"><AdvancedDataGrid className="customer-table" gridId="inventory-warehouses" {...screenViewGridDefaults(visibleWarehouseFields)} externalPagination hideSearch enableRowSelection={false} toolbarContainer={listToolsSlot} hideExport exportActionsRef={gridExportRef}><thead><tr>{visibleWarehouseFields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{visibleWarehouses.map((warehouse) => <tr key={warehouse.id}>{visibleWarehouseFields.map((field) => <td key={field.key}>{field.key === "code" ? <span className="customer-code">{warehouse.code}</span> : field.key === "name" ? warehouse.name : field.key === "status" ? <span className={`quote-status ${warehouse.isActive ? "accepted" : "rejected"}`}>{warehouse.isActive ? "Aktif" : "Pasif"}</span> : field.key === "availability" ? (warehouse.isActive ? "Yeni stok hareketlerine açık" : "Yeni stok hareketlerine kapalı") : null}</td>)}</tr>)}</tbody></AdvancedDataGrid></div>
-                ) : (
-                  <div className="warehouse-empty"><span className="warehouse-empty-icon"><IconPack.Package size={19} /></span><div><b>{warehouses.length ? "Aramayla eşleşen depo yok" : "Henüz depo tanımlanmamış"}</b><p>{warehouses.length ? "Arama ifadesini değiştirip yeniden deneyin." : "Stok hareketlerini kaydetmek için ilk deponuzu oluşturun."}</p></div>{!warehouses.length && <button className="primary small-button" onClick={() => void openWarehouseModal()}><IconPack.Plus size={15} /> Depo ekle</button>}</div>
-                )}
-              </section>
-            </div>
-          )}
+          {section === "inventory-warehouses" && warehouseScreen.view}
           {section === "inventory-transfers" && (
             <div className="warehouse-management">
               <ListToolbar
@@ -4266,122 +4022,6 @@ export function InventoryPage({
           </div>
         </div>
       )}
-      {warehouseModal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setWarehouseModal(false);
-          }}
-        >
-          <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-warehouse`}>
-            <span id={`${dialogId}-warehouse`} hidden>Yeni depo</span>
-            <RecordFormPage
-              variant="dialog"
-              title="Yeni depo"
-              mode="create"
-              busy={busy}
-              saveLabel="Depo oluştur"
-              onSubmit={createWarehouse}
-              onCancel={() => setWarehouseModal(false)}
-              onSaveIntent={setStayAfterWarehouseSave}
-              onReset={resetWarehouseForm}
-              error={error}
-              onDismissError={() => setError("")}
-              status={
-                <>
-                  <span>Firmaya özel depo</span>
-                  {warehouseFormNotice && (
-                    <span className="rf-status-notice">{warehouseFormNotice}</span>
-                  )}
-                </>
-              }
-            >
-              <RecordFormGroup title="Depo Kimliği" bodyClassName="rf-pair">
-                <label>
-                  <span>Depo kodu <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-mono"
-                    value={warehouseCode}
-                    onChange={(e) => setWarehouseCode(e.target.value)}
-                    required
-                    maxLength={40}
-                  />
-                </label>
-                <label>
-                  <span>Depo adı <RequiredMark /></span>
-                  <input
-                    className="rf-must"
-                    value={warehouseName}
-                    onChange={(e) => setWarehouseName(e.target.value)}
-                    required
-                    maxLength={120}
-                  />
-                </label>
-              </RecordFormGroup>
-              {warehouseCreateDefinitions.length > 0 && (
-                <RecordFormGroup title="Depo Özel Alanları">
-                  <small>Zorunlu alanlar yeni depo ile birlikte kaydedilir.</small>
-                  <div className="rf-custom-grid">
-                    {warehouseCreateDefinitions.map((field) => (
-                      <label key={field.id}>
-                        <span>
-                          {field.label}
-                          {field.isRequired && <RequiredMark />}
-                        </span>
-                        {field.dataType === "Boolean" ? (
-                          <select
-                            required={field.isRequired}
-                            value={warehouseCreateValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseCreateValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Seçin</option>
-                            <option value="true">Evet</option>
-                            <option value="false">Hayır</option>
-                          </select>
-                        ) : (
-                          <input
-                            type={
-                              field.dataType === "Decimal"
-                                ? "number"
-                                : field.dataType === "Date"
-                                  ? "date"
-                                  : "text"
-                            }
-                            step={
-                              field.dataType === "Decimal" ? "any" : undefined
-                            }
-                            maxLength={
-                              field.dataType === "Text"
-                                ? field.maxLength
-                                : undefined
-                            }
-                            required={field.isRequired}
-                            value={warehouseCreateValues[field.code] || ""}
-                            onChange={(e) =>
-                              setWarehouseCreateValues((current) => ({
-                                ...current,
-                                [field.code]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
-                        <small>
-                          {field.code} · {field.dataType}
-                        </small>
-                      </label>
-                    ))}
-                  </div>
-                </RecordFormGroup>
-              )}
-            </RecordFormPage>
-          </div>
-        </div>
-      )}
       {warehouseFieldCatalogModal && (
         <div
           className="modal-backdrop"
@@ -4587,346 +4227,6 @@ export function InventoryPage({
                 )}
               </span>
             </div>
-          </div>
-        </div>
-      )}
-      {warehouseAdminModal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy)
-              setWarehouseAdminModal(false);
-          }}
-        >
-          <div
-            className="modal inv-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="warehouse-admin-title"
-          >
-            <div className="inv-modal-head">
-              <div>
-                <p className="inv-modal-eyebrow">Stok ve depo</p>
-                <h2 id="warehouse-admin-title">Depo yönetimi</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button inv-modal-close"
-                aria-label="Kapat"
-                disabled={busy}
-                onClick={() => setWarehouseAdminModal(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="inv-modal-body">
-              <p className="inv-modal-info">
-                <IconPack.Info size={16} aria-hidden="true" />
-                <span>
-                  Devre dışı depolar yeni stok hareketi ve transferde
-                  kullanılamaz. Sıfırdan farklı bakiyesi olan depo kapatılamaz.
-                </span>
-              </p>
-              {warehouses.length > 0 ? (
-                <ul className="inv-modal-list">
-                  {warehouses.map((warehouse) => (
-                    <li className="inv-modal-row" key={warehouse.id}>
-                      <span className="inv-modal-row-icon" aria-hidden="true">
-                        <IconPack.Warehouse size={16} />
-                      </span>
-                      <span className="inv-modal-row-text">
-                        <b>{warehouse.name}</b>
-                        <small>
-                          <code>{warehouse.code}</code>
-                          {warehouse.id === warehouseId ? " · seçili depo" : ""}
-                        </small>
-                      </span>
-                      <span
-                        className={`inv-modal-pill ${warehouse.isActive ? "is-success" : "is-muted"}`}
-                      >
-                        {warehouse.isActive ? "Etkin" : "Devre dışı"}
-                      </span>
-                      <span className="inv-modal-row-actions">
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          disabled={busy}
-                          onClick={() => void editWarehouse(warehouse)}
-                        >
-                          Düzenle
-                        </button>
-                        <details className="inv-modal-more">
-                          <summary aria-label="Diğer işlemler" title="Diğer işlemler">
-                            <IconPack.Ellipsis size={16} aria-hidden="true" />
-                          </summary>
-                          <div className="inv-modal-menu" role="menu">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              disabled={warehouseFieldBusy}
-                              onClick={(e) => {
-                                e.currentTarget
-                                  .closest("details")
-                                  ?.removeAttribute("open");
-                                void openWarehouseFields(warehouse);
-                              }}
-                            >
-                              <IconPack.ListChecks size={15} aria-hidden="true" />
-                              <span>Özel alanlar</span>
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={warehouse.isActive ? "is-danger" : ""}
-                              disabled={busy}
-                              onClick={(e) => {
-                                e.currentTarget
-                                  .closest("details")
-                                  ?.removeAttribute("open");
-                                void toggleWarehouse(warehouse);
-                              }}
-                            >
-                              {warehouse.isActive ? (
-                                <IconPack.Ban size={15} aria-hidden="true" />
-                              ) : (
-                                <IconPack.RotateCcw size={15} aria-hidden="true" />
-                              )}
-                              <span>
-                                {warehouse.isActive
-                                  ? "Devre dışı bırak"
-                                  : "Yeniden etkinleştir"}
-                              </span>
-                            </button>
-                          </div>
-                        </details>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="inv-modal-empty">
-                  <span className="inv-modal-row-icon" aria-hidden="true">
-                    <IconPack.Warehouse size={16} />
-                  </span>
-                  <span>
-                    <b>Henüz depo oluşturulmadı.</b>
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="inv-modal-foot">
-              <span>
-                <IconPack.History size={14} aria-hidden="true" />
-                <span>Depo hareket geçmişi korunur.</span>
-              </span>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setWarehouseAdminModal(false)}
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {warehouseFieldTarget && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !warehouseFieldBusy)
-              setWarehouseFieldTarget(null);
-          }}
-        >
-          <div className="modal inv-rf-modal" role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-warehouse-fields`}>
-            <span id={`${dialogId}-warehouse-fields`} hidden>{warehouseFieldTarget.code} · {warehouseFieldTarget.name}</span>
-            <RecordFormPage
-              variant="dialog"
-              title={`${warehouseFieldTarget.code} · ${warehouseFieldTarget.name}`}
-              mode="edit"
-              busy={warehouseFieldBusy}
-              saveLabel="Değerleri kaydet"
-              onSubmit={(event) => {
-                // Same gate the old save button had through its disabled state.
-                if (!warehouseFieldTarget.isActive) {
-                  event.preventDefault();
-                  return;
-                }
-                void saveWarehouseFields(event);
-              }}
-              onCancel={() => setWarehouseFieldTarget(null)}
-              error={error}
-              onDismissError={() => setError("")}
-              status={
-                <>
-                  <span>Geçmiş API üzerinden korunur.</span>
-                  {!warehouseFieldTarget.isActive && (
-                    <span className="rf-status-warning">
-                      Devre dışı depoda değerler kaydedilemez.
-                    </span>
-                  )}
-                </>
-              }
-            >
-              <RecordFormGroup title="Depo Özel Alan Değerleri">
-                <small>
-                  Depo özel alanı değerleri tenant kapsamında doğrulanır ve her
-                  değişiklik için geçmiş kaydı tutulur.
-                </small>
-                <div className="rf-custom-grid">
-                  {warehouseFieldDefinitions.map((field) => (
-                    <label key={field.id}>
-                      <span>
-                        {field.label}
-                        {field.isRequired && <RequiredMark />}
-                      </span>
-                      {field.dataType === "Boolean" ? (
-                        <select
-                          required={field.isRequired}
-                          value={warehouseFieldValues[field.code] || ""}
-                          onChange={(e) =>
-                            setWarehouseFieldValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Seçin</option>
-                          <option value="true">Evet</option>
-                          <option value="false">Hayır</option>
-                        </select>
-                      ) : (
-                        <input
-                          type={
-                            field.dataType === "Decimal"
-                              ? "number"
-                              : field.dataType === "Date"
-                                ? "date"
-                                : "text"
-                          }
-                          step={
-                            field.dataType === "Decimal" ? "any" : undefined
-                          }
-                          maxLength={
-                            field.dataType === "Text"
-                              ? field.maxLength
-                              : undefined
-                          }
-                          required={field.isRequired}
-                          value={warehouseFieldValues[field.code] || ""}
-                          onChange={(e) =>
-                            setWarehouseFieldValues((current) => ({
-                              ...current,
-                              [field.code]: e.target.value,
-                            }))
-                          }
-                        />
-                      )}
-                      <small>
-                        ({field.code} · {field.dataType} · v{field.version}
-                        {field.isRequired ? " · zorunlu" : ""})
-                      </small>
-                    </label>
-                  ))}
-                </div>
-                {warehouseFieldDefinitions.length === 0 && (
-                  <div className="empty-small">
-                    Henüz depo özel alanı tanımlanmadı.
-                  </div>
-                )}
-              </RecordFormGroup>
-            </RecordFormPage>
-            {(role === "TenantAdmin" || role === "TenantDeveloper") && (
-              <form
-                onSubmit={createWarehouseField}
-                className="panel warehouse-field-create-form"
-                style={{ marginTop: 14 }}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <b>Yeni depo alanı</b>
-                    <small>Alan kodu tenant içinde yeniden kullanılamaz.</small>
-                  </div>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Alan kodu
-                    <input
-                      value={warehouseFieldCode}
-                      onChange={(e) =>
-                        setWarehouseFieldCode(e.target.value.toUpperCase())
-                      }
-                      required
-                      maxLength={40}
-                      placeholder="DEPO_BOLGE"
-                    />
-                  </label>
-                  <label>
-                    Ekran etiketi
-                    <input
-                      value={warehouseFieldLabel}
-                      onChange={(e) => setWarehouseFieldLabel(e.target.value)}
-                      required
-                      maxLength={120}
-                    />
-                  </label>
-                </div>
-                <div className="form-two">
-                  <label>
-                    Veri türü
-                    <select
-                      value={warehouseFieldType}
-                      onChange={(e) =>
-                        setWarehouseFieldType(
-                          e.target
-                            .value as WarehouseCustomFieldDefinition["dataType"],
-                        )
-                      }
-                    >
-                      <option value="Text">Metin</option>
-                      <option value="Decimal">Ondalık sayı</option>
-                      <option value="Date">Tarih</option>
-                      <option value="Boolean">Evet/Hayır</option>
-                    </select>
-                  </label>
-                  {warehouseFieldType === "Text" && (
-                    <label>
-                      En fazla karakter
-                      <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={warehouseFieldMaxLength}
-                        onChange={(e) =>
-                          setWarehouseFieldMaxLength(e.target.value)
-                        }
-                        required
-                      />
-                    </label>
-                  )}
-                </div>
-                {role === "TenantAdmin" ? (
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={warehouseFieldRequired}
-                      onChange={(e) =>
-                        setWarehouseFieldRequired(e.target.checked)
-                      }
-                    />{" "}
-                    Bu alanı zorunlu yap
-                  </label>
-                ) : (
-                  <p className="muted">Geliştirici alanları isteğe bağlıdır.</p>
-                )}
-                <div className="modal-foot">
-                  <span>Mevcut depo değerlerini önce tamamlayın.</span>
-                  <button className="secondary" disabled={warehouseFieldBusy}>
-                    Alan tanımı ekle
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
         </div>
       )}
