@@ -55,6 +55,9 @@ export const PURCHASE_REQUEST_LIST_WIDTHS: Record<string, number> = {
 /** Right-aligned `tabular-nums` columns of the request list. */
 export const PURCHASE_REQUEST_NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount"]);
 
+/** Monospace document number columns (`nx-code`), as in the other Satış / Satınalma lists. */
+export const PURCHASE_REQUEST_CODE_FIELDS: ReadonlySet<string> = new Set(["code", "purchaseOrderCode"]);
+
 /**
  * Status of a supplier quote in the request document (today's labels there): Seçildi, Seçilmedi, a submitted quote past
  * its validity Süresi doldu, otherwise Değerlendiriliyor.

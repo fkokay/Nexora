@@ -33,8 +33,8 @@ import { useSalesListPanel } from "./sales/useSalesListPanel";
 import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
 import { SalesListFooter, pageAmount, pageAmountHint } from "./sales/components/SalesListFooter";
 import { InvoiceListPanel, OrderListPanel, QuoteListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
-import { PURCHASE_REQUEST_LIST_WIDTHS, PURCHASE_REQUEST_NUMBER_FIELDS, PURCHASE_REQUEST_OPEN_EVENT, PurchaseRequestFlow, PurchaseRequestListEmpty, PurchaseRequestListPanel, PurchaseRequestTag, purchaseRequestSummaryCards, supplierQuoteDocumentStatus, takePurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
-import { PURCHASE_ORDER_LIST_WIDTHS, PURCHASE_ORDER_NUMBER_FIELDS, PurchaseOrderFlow, PurchaseOrderListEmpty, PurchaseOrderListPanel, PurchaseOrderTag, isPurchaseOrderOverdue, purchaseOrderSummaryCards } from "./purchasing/purchaseOrderList";
+import { PURCHASE_REQUEST_CODE_FIELDS, PURCHASE_REQUEST_LIST_WIDTHS, PURCHASE_REQUEST_NUMBER_FIELDS, PURCHASE_REQUEST_OPEN_EVENT, PurchaseRequestFlow, PurchaseRequestListEmpty, PurchaseRequestListPanel, PurchaseRequestTag, purchaseRequestSummaryCards, supplierQuoteDocumentStatus, takePurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
+import { PURCHASE_ORDER_CODE_FIELDS, PURCHASE_ORDER_LIST_WIDTHS, PURCHASE_ORDER_NUMBER_FIELDS, PurchaseOrderFlow, PurchaseOrderListEmpty, PurchaseOrderListPanel, PurchaseOrderTag, isPurchaseOrderOverdue, purchaseOrderSummaryCards } from "./purchasing/purchaseOrderList";
 import type { BulkAction } from "./list-page/BulkActionBar";
 import { CircleDollarSign, CircleSlash, Clock3, Truck } from "lucide-react";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
@@ -7610,6 +7610,7 @@ function PurchasingPanel({
               selection={purchaseGridSelection}
               columnWidths={PURCHASE_REQUEST_LIST_WIDTHS}
               numberFields={PURCHASE_REQUEST_NUMBER_FIELDS}
+              codeFields={PURCHASE_REQUEST_CODE_FIELDS}
               footer={
                 <SalesListFooter
                   ticked={purchaseTicked.length}
@@ -7646,6 +7647,7 @@ function PurchasingPanel({
               selection={purchaseGridSelection}
               columnWidths={PURCHASE_ORDER_LIST_WIDTHS}
               numberFields={PURCHASE_ORDER_NUMBER_FIELDS}
+              codeFields={PURCHASE_ORDER_CODE_FIELDS}
               footer={
                 <SalesListFooter
                   ticked={purchaseTicked.length}

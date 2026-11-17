@@ -18,8 +18,10 @@
 }
 #root .purchase-invoice-entry .pie-hint-line > svg { flex: none; }
 
-/* Receipt number: shortened, the full number in the tooltip (and in the export). */
+/* Receipt number: shortened, the full number in the tooltip (and in the export); monospace like the document numbers
+   of the other Satış / Satınalma lists (nx-code). */
 #root .purchase-invoice-entry .pie-code {
+  font-family: var(--nx-font-mono);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

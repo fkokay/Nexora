@@ -5,6 +5,8 @@
 /* Hücreler */
 #root :is(.po-lv2, .pr-lv2) .po-list-code-cell,
 #root :is(.po-lv2, .pr-lv2) .po-list-supplier-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Belge numarası diğer listelerdeki gibi eş aralıklı (td.nx-code); altındaki açıklama satırı normal yazı tipinde kalır. */
+#root :is(.po-lv2, .pr-lv2) td.nx-code .cell-subtitle { font-family: var(--nx-font); }
 #root .app-shell :is(.po-lv2, .pr-lv2) .po-list-overdue { color: var(--nx-bad) !important; }
 #root :is(.po-lv2, .pr-lv2) .po-list-muted { color: var(--nx-muted); }
 #root :is(.po-lv2, .pr-lv2) .po-list-received { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 96px; font-variant-numeric: tabular-nums; }

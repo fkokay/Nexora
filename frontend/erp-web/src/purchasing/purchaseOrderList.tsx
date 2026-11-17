@@ -121,6 +121,9 @@ export function purchaseOrderSummaryCards(
 /** Right-aligned `tabular-nums` columns of the order list. */
 export const PURCHASE_ORDER_NUMBER_FIELDS: ReadonlySet<string> = new Set(["grandTotal", "lineCount", "receivedProgress"]);
 
+/** Monospace document number columns (`nx-code`), as in the other Satış / Satınalma lists. */
+export const PURCHASE_ORDER_CODE_FIELDS: ReadonlySet<string> = new Set(["code"]);
+
 const date = (value: string | null | undefined) => (value ? value.slice(0, 10).split("-").reverse().join(".") : "—");
 const quantity = (value: number) => value.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
 const chainStatus = (status: { label: string; tone: DocumentStatusTone }): { tone: StatusTagTone; label: string } => ({
