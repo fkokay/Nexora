@@ -1,7 +1,8 @@
 import { DocumentStatusFlow, type DocumentFlowStep } from "../document-page/DocumentStatusFlow";
-import { purchaseInvoiceStatus, purchaseOrderStatus } from "../document-page/documentStatus";
+import { purchaseInvoiceStatus } from "../document-page/documentStatus";
 import type { StatusTagTone } from "../list-page/StatusTag";
 import type { SalesFormTotals } from "../sales/salesDocumentForm";
+import { PurchaseOrderFlow } from "./purchaseOrderList";
 import "./purchase-create-forms.css";
 
 /*
@@ -13,16 +14,11 @@ import "./purchase-create-forms.css";
 const step = (key: string, label: string): DocumentFlowStep => ({ key, label });
 
 /**
- * Yeni satınalma siparişi: Onay bekliyor → Açık → Kısmi mal kabul → Tam alındı (İptal akış dışı). Kayıt, onay akışına
- * göre siparişi Onay bekliyor ya da Açık durumunda oluşturur; kaydetmeden önce geçerli adım yoktur.
+ * Yeni satınalma siparişi: siparişin durum akışı (Onay bekliyor → Açık → Kısmen alındı → Tam alındı; İptal akış dışı).
+ * Kayıt, onay akışına göre siparişi Onay bekliyor ya da Açık durumunda oluşturur; kaydetmeden önce geçerli adım yoktur.
  */
 export function PurchaseCreateOrderFlow() {
-  return (
-    <DocumentStatusFlow
-      steps={["PendingApproval", "Open", "PartiallyReceived", "Received"].map((key) => step(key, purchaseOrderStatus(key).label))}
-      terminal={step("Cancelled", purchaseOrderStatus("Cancelled").label)}
-    />
-  );
+  return <PurchaseOrderFlow />;
 }
 
 /** Mal kabul faturası: kayıt faturayı İşlendi durumunda oluşturur; kaydetmeden önce geçerli adım yoktur. */

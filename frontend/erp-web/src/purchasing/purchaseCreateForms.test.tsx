@@ -292,7 +292,7 @@ describe('Yeni satınalma siparişi: belge oluşturma görünümü', () => {
     await settle();
     const grid = expectKitChrome('Satınalma siparişi');
     expect(grid.querySelector('tr.dd-new-line [data-line-add-shortcut]')).not.toBeNull();
-    expect(flowSteps()).toEqual(['Onay bekliyor', 'Açık', 'Kısmi mal kabul', 'Tam alındı']);
+    expect(flowSteps()).toEqual(['Onay bekliyor', 'Açık', 'Kısmen alındı', 'Tam alındı']);
     expect(head().querySelector('[aria-current]')).toBeNull();
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
     expect(openMenu()).toEqual([]);
