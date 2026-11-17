@@ -8,6 +8,7 @@ type Component = { id: string; type: string; props?: Record<string, unknown> };
 const UNBOUND = "Bu sayfada bağlanmadı";
 const NO_RIGHT = "Bu işlem için yetkiniz yok";
 const BUSY = "İşlem sürüyor…";
+const NEEDS_SELECTION = "Önce bir kayıt seçin";
 const TABLE_LOADING = "Liste henüz yüklenmedi";
 
 /** Düzleştirilmiş bileşen dizisindeki ilk `actionBar`. */
@@ -17,9 +18,12 @@ export function actionBarOf(components: Component[]): { id: string; props: Recor
 }
 
 /** `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğme kimlikleri (sayfada ayrıca çizilmez). */
-export function movedButtonIds(components: Component[]): Set<string> {
+export function movedButtonIds(components: Component[], hasAction: (button: Component) => boolean = () => true): Set<string> {
   const bar = actionBarOf(components);
-  return new Set(bar ? idList(bar.props.moreButtons, 10) : []);
+  if (!bar) return new Set();
+  // Kullanılabilir eylemi olmayan düğme (sorgu yok / iş akışı boş) menüye de girmez; sayfada kalır, kaybolmaz.
+  const buttons = new Map(components.filter((component) => component.type === "button").map((component) => [component.id, component]));
+  return new Set(idList(bar.props.moreButtons, 10).filter((id) => { const button = buttons.get(id); return !button || hasAction(button); }));
 }
 
 export type PageActionDeps = {
@@ -29,6 +33,8 @@ export type PageActionDeps = {
   inputIds: Set<string>;
   tableState: (tableId: string) => { loading: boolean; error?: string; rowCount: number } | undefined;
   buttonLabel: (id: string) => string | undefined;
+  /** Silme sorgusu, seçimi olmayan bir tablonun `seciliSatir` alanına bağlıysa true. */
+  deleteNeedsSelection: boolean;
   run: {
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
@@ -69,7 +75,9 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       : unbound,
     open: unbound,
     save: saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
-    delete: deleteBound ? gated("delete", () => deps.run.write(deleteId, "delete")) : unbound,
+    delete: !deleteBound ? unbound
+      : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }
+      : gated("delete", () => deps.run.write(deleteId, "delete")),
     refresh: { run: () => deps.run.refresh() },
     filter: focusId && deps.inputIds.has(focusId) ? { run: () => deps.run.focus(focusId) } : unbound,
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,

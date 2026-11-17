@@ -25,17 +25,18 @@ const bar = { id: 'bar', type: 'actionBar', props: { saveQuery: 'qi', deleteQuer
 
 let writes: string[] = [];
 let insertDelay = 0;
+let truncated = false;
 
 function mockApi(components: unknown[]) {
   api.mockImplementation(async (endpoint: string) => {
-    if (endpoint.includes('/published')) {
+    if (!endpoint.includes('/queries/') && (endpoint.includes('/published') || endpoint.includes('/preview'))) {
       return {
         id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
         definitionJson: JSON.stringify({ schemaVersion: 2, components, queries }),
       };
     }
     if (endpoint.includes('/queries/qr/run')) {
-      return { columns: [{ code: 'ad', label: 'Ad' }, { code: 'tutar', label: 'Tutar' }], rows: [{ ad: '=SUM(A1)', tutar: 12.5 }], rowCount: 1, truncated: false };
+      return { columns: [{ code: 'ad', label: 'Ad' }, { code: 'tutar', label: 'Tutar' }], rows: [{ ad: '=SUM(A1)', tutar: 12.5 }], rowCount: 1, truncated };
     }
     const id = /queries\/(\w+)\/run/.exec(endpoint)?.[1] ?? '';
     writes.push(id);
@@ -44,12 +45,12 @@ function mockApi(components: unknown[]) {
   });
 }
 
-function setup(components: unknown[]) {
+function setup(components: unknown[], previewId?: string) {
   mockApi(components);
   return render(
     <CommandProvider>
       <ActionBar locale="tr" />
-      <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage code="p" token="t" /></KeepAliveViews>
+      <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage code="p" previewId={previewId} token="t" /></KeepAliveViews>
       <ConfirmDialogHost />
     </CommandProvider>,
   );
@@ -58,7 +59,7 @@ function setup(components: unknown[]) {
 const button = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const disabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
 
-beforeEach(() => { writes = []; insertDelay = 0; api.mockReset(); downloadXlsx.mockReset(); });
+beforeEach(() => { writes = []; insertDelay = 0; truncated = false; api.mockReset(); downloadXlsx.mockReset(); });
 afterEach(() => {
   for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog')) fireEvent.click(within(open).getAllByRole('button')[0]);
   cleanup();
@@ -122,5 +123,34 @@ describe('Sayfa İşlem Çubuğu bağlama', () => {
     await waitFor(() => expect(disabled(button('export'))).toBe(false));
     fireEvent.click(button('export'));
     await waitFor(() => expect(downloadXlsx).toHaveBeenCalledWith('p.xlsx', 'Liste', [['Ad', 'Tutar'], ['=SUM(A1)', 12.5]]));
+  });
+
+  it('kesilmiş liste dışa aktarılınca durum satırında uyarı görünür', async () => {
+    truncated = true;
+    setup([...baseComponents, bar]);
+    await waitFor(() => expect(disabled(button('export'))).toBe(false));
+    fireEvent.click(button('export'));
+    await waitFor(() => expect(downloadXlsx).toHaveBeenCalled());
+    await waitFor(() => expect(document.querySelector('.tenant-page-action-status.is-warning')?.textContent).toContain('Liste ilk 1 satırla sınırlı'));
+  });
+
+  it('moreButtons içinde eylemi kullanılamayan düğme sayfada kalır', async () => {
+    const orphan = { id: 'b3', type: 'button', props: { text: 'Yetim', actionType: 'query', queryId: 'yok' } };
+    setup([...baseComponents, orphan, { ...bar, props: { ...bar.props, moreButtons: ['b1', 'b3'] } }]);
+    expect(await screen.findByRole('button', { name: 'Yetim' })).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: 'Onayla' })).toHaveLength(0);
+  });
+
+  it('önizlemede sorgu düğmesi her zaman onay sorar (tehlike tonu) ve confirmWrite gönderir', async () => {
+    setup(baseComponents, 'draft1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Kalan' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('taslak önizlemesinde');
+    expect(dialog.className).toContain('is-danger');
+    expect(writes).toEqual([]);
+    fireEvent.click(within(dialog).getAllByRole('button').find((item) => /Onayla/.test(item.textContent ?? ''))!);
+    await waitFor(() => expect(writes).toEqual(['qi']));
+    const write = api.mock.calls.find(([endpoint]) => /queries\/qi\/run/.test(endpoint as string));
+    expect(JSON.parse((write![2] as { body: string }).body).confirmWrite).toBe(true);
   });
 });

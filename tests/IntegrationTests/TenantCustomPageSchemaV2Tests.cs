@@ -413,6 +413,10 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(P(Bar(new { saveQuery = "w3" })), "saveQuery");
         AssertRejected(P(Bar(new { saveQuery = "q1" })), "saveQuery");
         AssertRejected(P(Bar(new { deleteQuery = "w1" })), "deleteQuery");
+        AssertRejected(P(Bar(new { deleteQuery = "w2" })), "deleteQuery");
+        AssertRejected(P(Bar(new { deleteQuery = "q1" })), "deleteQuery");
+        AssertRejected(P(In("in1"), Bar(new { newInputs = new[] { "in1", "in1" } })), "newInputs");
+        AssertRejected(P(Bar(new { }), new { id = "c9", type = "card", children = new object[] { Bar(new { }, "ab2") } }), "en fazla bir");
         AssertRejected(P(Bar(new { saveQuery = "yok" })), "sayfada yok");
         AssertRejected(P(Bar(new { deleteQuery = "yok" })), "sayfada yok");
         AssertRejected(P(Bar(new { newInputs = new[] { "yok" } })), "sayfada yok");

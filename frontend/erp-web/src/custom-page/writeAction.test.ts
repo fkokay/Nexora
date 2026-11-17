@@ -11,7 +11,7 @@ const query: PageQueryDefinition = { id: 'q', name: 'Q', runOn: 'manual', kind: 
 function setup(extra: Partial<Parameters<typeof runWriteAction>[0]> = {}) {
   const write = vi.fn(async () => ({ affectedRows: 2 }));
   const inFlight = { current: false };
-  const opts = { query, kind: 'delete', confirm: { enabled: true, title: 'Kayıt silinsin mi?', confirmLabel: 'Sil', tone: 'danger' as const }, isPreview: false, write, inFlight, ...extra };
+  const opts = { query, confirm: { enabled: true, title: 'Kayıt silinsin mi?', confirmLabel: 'Sil', tone: 'danger' as const }, isPreview: false, write, inFlight, ...extra };
   return { write, inFlight, opts };
 }
 

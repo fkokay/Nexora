@@ -4,7 +4,7 @@ import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import TenantWorkflowAction from "./TenantWorkflowAction";
-import { displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
+import { bindingPath, displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
@@ -13,6 +13,7 @@ import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs"
 import { runWriteAction } from "./custom-page/writeAction";
 import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
+import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import "./tenant-custom-page.css";
 
@@ -62,6 +63,8 @@ type PageRuntime = {
   writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
   /** `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğmeler: sayfada çizilmez. */
   movedButtons: Set<string>;
+  /** Sayfadaki tüm yazma yolları (sorgu düğmeleri, İşlem Çubuğu, Ctrl+S) için tek uçuş kilidi. */
+  writeLock: { current: boolean };
   /** İşlem Çubuğu eylemlerinin sonucu (sayfadaki durum satırı). */
   actionStatus: ActionStatus | null;
 };
@@ -273,7 +276,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const allowed = runtime.rights[query.kind === "read" ? "view" : query.kind] === true;
   const mounted = useRef(true);
-  // Çift tıklamada ikinci yazma isteğini engeller; busy durumu bir sonraki çizime kadar görünmez.
+  // Okuma yeniden çalıştırmada çift tıklamayı engeller; yazmalar sayfanın ortak kilidini (runtime.writeLock) kullanır.
   const inFlight = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   if (!allowed) return null;
@@ -282,15 +285,15 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
 
   const click = async () => {
-    if (inFlight.current) return;
     setFeedback(null);
     if (!write) {
+      if (inFlight.current) return;
       inFlight.current = true;
       try { runtime.rerun([query.id]); } finally { inFlight.current = false; }
       return;
     }
     const result = await runWriteAction({
-      query, kind: query.kind, isPreview: runtime.isPreview, inFlight,
+      query, isPreview: runtime.isPreview, inFlight: runtime.writeLock,
       confirm: {
         enabled: props.confirmEnabled === true, text: bound("confirmText"),
         tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
@@ -495,7 +498,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   barProps: Record<string, unknown>; runtime: PageRuntime; page: PublishedPage; token: string; flat: ComponentDefinition[];
   loadIds: string[]; onStatus: (status: ActionStatus | null) => void; onBusy: (busy: boolean) => void; busy: boolean;
 }) {
-  const inFlight = useRef(false);
+  const inFlight = runtime.writeLock;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const latest = useRef(runtime);
@@ -515,7 +518,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = []) => {
     onStatus(null);
     const result = await runWriteAction({
-      query, kind: query.kind, isPreview: latest.current.isPreview, inFlight, confirm,
+      query, isPreview: latest.current.isPreview, inFlight, confirm,
       write: async (target, confirmWrite) => {
         if (mounted.current) onBusy(true);
         try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
@@ -536,12 +539,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     const bound = (key: string) => interpolate(textValue(props[key]), latest.current.scope).trim();
     if (props.actionType === "workflow" && typeof props.workflowId === "string") {
       const title = textValue(props.text ?? props.label) || textValue(props.title) || "İş akışını başlat";
+      if (inFlight.current) return;
+      inFlight.current = true;
       onStatus(null);
-      void api(`/api/workflows/definitions/${encodeURIComponent(props.workflowId)}/instances`, token, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subjectType: "General", subjectTitle: title.slice(0, 160) || "Sayfa işlemi", context: { pageCode: page.code, componentId: id, action: "low-code-button" } }),
-      }).then(() => { if (mounted.current) onStatus({ tone: "success", text: "İş akışı başlatıldı." }); })
-        .catch((cause: unknown) => { if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "İş akışı başlatılamadı." }); });
+      void startPageWorkflow(token, props.workflowId, title, page.code, id)
+        .then(() => { if (mounted.current) onStatus({ tone: "success", text: "İş akışı başlatıldı." }); })
+        .catch((cause: unknown) => { if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "İş akışı başlatılamadı." }); })
+        .finally(() => { inFlight.current = false; });
       return;
     }
     const query = typeof props.queryId === "string" ? latest.current.queryById[props.queryId] : undefined;
@@ -580,6 +584,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
     },
     buttonLabel,
+    deleteNeedsSelection: (() => {
+      const deleteQuery = latest.current.queryById[typeof barProps.deleteQuery === "string" ? barProps.deleteQuery.trim() : ""];
+      return !!deleteQuery && deleteQuery.parameters.some((parameter) => {
+        const table = /^([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir(?:\.|$)/.exec(bindingPath(parameter.binding) ?? "")?.[1];
+        return !!table && !runtime.selections[table];
+      });
+    })(),
     run: {
       clearInputs: (ids) => ids.forEach((id) => latest.current.setInput(id, inputIsCheckbox(latest.current.inputById[id]) ? false : "")),
       write: (queryId, kind) => {
@@ -608,7 +619,14 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const [actionBusy, setActionBusy] = useState(false);
   const flat = useMemo(() => flattenComponents(components), [components]);
   const bar = useMemo(() => (isV2 ? actionBarOf(flat) : null), [isV2, flat]);
-  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat) : new Set<string>()), [bar, flat]);
+  const queryIdSet = useMemo(() => new Set(queryDefinitions.map((query) => query.id)), [queryDefinitions]);
+  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => {
+    const props = button.props ?? {};
+    if (props.actionType === "workflow") return typeof props.workflowId === "string" && props.workflowId.trim() !== "";
+    return props.actionType === "query" && typeof props.queryId === "string" && queryIdSet.has(props.queryId);
+  }) : new Set<string>()), [bar, flat, queryIdSet]);
+  // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
+  const writeLock = useRef(false);
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
   const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
@@ -650,7 +668,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
     queryById, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
     writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
-    movedButtons, actionStatus,
+    movedButtons, writeLock, actionStatus,
   } : undefined;
 
   return <div className="tenant-custom-page-content">

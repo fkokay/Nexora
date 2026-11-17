@@ -15,7 +15,7 @@ export type WriteOutcome =
  * uyarı metniyle ve `danger` tonuyla), sonra yazma. `errorText` hatayı kullanıcı metnine çevirir.
  */
 export async function runWriteAction(opts: {
-  query: PageQueryDefinition; kind: string; confirm: WriteConfirm; isPreview: boolean;
+  query: PageQueryDefinition; confirm: WriteConfirm; isPreview: boolean;
   write: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
   inFlight: { current: boolean };
   errorText?: (cause: unknown) => string;

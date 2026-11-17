@@ -12,6 +12,7 @@ function makeDeps(overrides: Partial<PageActionDeps> = {}) {
     inputIds: new Set(['i1', 'i2']),
     tableState: (id) => (id === 't1' ? { loading: false, rowCount: 3 } : undefined),
     buttonLabel: (id) => (id === 'b1' ? 'Onayla' : undefined),
+    deleteNeedsSelection: false,
     run,
     ...overrides,
   };
@@ -27,6 +28,13 @@ describe('actionBarOf / movedButtonIds', () => {
   it('ilk actionBar döner; yoksa null', () => {
     expect(actionBarOf(components)?.id).toBe('bar');
     expect(actionBarOf([{ id: 'a', type: 'text' }])).toBeNull();
+  });
+  it('kullanılabilir eylemi olmayan düğme taşınmış sayılmaz (sayfada kalır)', () => {
+    const withButtons = [
+      { id: 'bar', type: 'actionBar', props: { moreButtons: ['ok', 'bos'] } },
+      { id: 'ok', type: 'button', props: {} }, { id: 'bos', type: 'button', props: {} },
+    ];
+    expect([...movedButtonIds(withButtons, (button) => button.id === 'ok')]).toEqual(['ok']);
   });
   it('moreButtons kimlikleri tekil ve en fazla 10', () => {
     expect([...movedButtonIds(components)]).toEqual(['b1', 'b2']);
@@ -68,6 +76,13 @@ describe('buildPageCommands', () => {
     const commands = buildPageCommands({ saveQuery: 'q1', deleteQuery: 'q3' }, makeDeps({ busy: true }).deps);
     expect(commands.save?.disabledReason).toBe('İşlem sürüyor…');
     expect(commands.delete?.disabledReason).toBe('İşlem sürüyor…');
+  });
+
+  it('silme sorgusu seçimsiz tabloya bağlıysa "Önce bir kayıt seçin"; yetki yoksa yetki nedeni', () => {
+    const needs = buildPageCommands({ deleteQuery: 'q3' }, makeDeps({ deleteNeedsSelection: true }).deps);
+    expect(needs.delete?.disabledReason).toBe('Önce bir kayıt seçin');
+    expect(needs.delete?.run).toBeUndefined();
+    expect(buildPageCommands({ deleteQuery: 'q3' }, makeDeps({ deleteNeedsSelection: true, rights: { delete: false } }).deps).delete?.disabledReason).toBe('Bu işlem için yetkiniz yok');
   });
 
   it('delete run yazma(delete) çağırır; yanlış türdeki sorgu bağlanmamış sayılır', () => {
