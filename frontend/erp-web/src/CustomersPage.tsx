@@ -6,7 +6,6 @@ import {
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
-import { groupBuiltInScreenFields } from "./FinanceStudioGrid";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
@@ -33,6 +32,12 @@ import { CustomerFilters } from "./customers/components/CustomerFilters";
 import { CustomerGrid } from "./customers/components/CustomerGrid";
 import { validateCustomerIdentifiers } from "./customers/identifierValidation";
 import "./list-page/list-page-v2.css";
+import "./sales/sales-list-v2.css";
+import "./customers/customers-list.css";
+import { StatusTag } from "./list-page/StatusTag";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { useCustomerListScreen } from "./customers/useCustomerListScreen";
+import { customerTypeLabel, customerTypeTone } from "./customers/customerLabels";
 import {
   CustomerDetailPanel,
   type CustomerDetailTab,
@@ -206,10 +211,6 @@ function CustomersPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
     null,
   );
-  const [isSmallScreen, setIsSmallScreen] = useState(
-    () => window.matchMedia("(max-width: 1280px)").matches,
-  );
-  const [hasAutoSelectedCustomer, setHasAutoSelectedCustomer] = useState(false);
   const [customerDetailTab, setCustomerDetailTab] =
     useState<CustomerDetailTab>("general");
   const [exportBusy, setExportBusy] = useState(false);
@@ -529,12 +530,7 @@ function CustomersPage({
         "Cari kodu": item.code,
         Ünvan: item.name,
         "Cari grubu": item.groupName || "",
-        Tür:
-          item.type === "Customer"
-            ? "Müşteri"
-            : item.type === "Supplier"
-              ? "Tedarikçi"
-              : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel",
+        Tür: customerTypeLabel(item.type),
         Döviz: item.currencyCode,
         "Vade (gün)": item.paymentTermDays,
         "Vergi no": item.taxNumber || "",
@@ -641,25 +637,16 @@ function CustomersPage({
       setError((e as Error).message);
     }
   }
+  // Row actions live in the bar's İşlemler and the detail panel, so "actions" gets no column. Like Stok Kartları
+  // (mockup 08) the code has its own column; when the tenant hides it, the code is written under the name.
   const visibleScreenFields = useMemo(
     () =>
-    {
-      const visible = screenFields
-        .filter((field) => field.visible)
-        .sort((a, b) => a.position - b.position);
-      // The code is shown under the name, and row actions live in the detail panel,
-      // so neither gets a column of its own. The code column stays if the name is hidden.
-      const hasName = visible.some((field) => field.key === "name");
-      return visible.filter(
-        (field) => field.key !== "actions" && !(hasName && field.key === "code"),
-      );
-    },
+      screenFields
+        .filter((field) => field.visible && field.key !== "actions")
+        .sort((a, b) => a.position - b.position),
     [screenFields],
   );
-  const visibleScreenGroups = useMemo(
-    () => groupBuiltInScreenFields(visibleScreenFields),
-    [visibleScreenFields],
-  );
+  const codeColumnShown = visibleScreenFields.some((field) => field.key === "code");
   const selectedCustomer =
     items.find((item) => item.id === selectedCustomerId) ?? null;
   const openCustomerSalesAction = (page: string) => {
@@ -681,40 +668,20 @@ function CustomersPage({
       );
     }, 0);
   };
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1280px)");
-    const update = () => setIsSmallScreen(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+  // The current row is the one the user chose (click, ↑/↓); the list never picks a first row by itself. Arriving
+  // from the global search (`initialSearch`) still shows the first match, once per search.
+  const autoSelectedSearch = useRef("");
   useEffect(() => {
     if (loading) return;
-    if (items.length === 0) {
-      if (selectedCustomerId) setSelectedCustomerId(null);
+    if (selectedCustomerId && !items.some((item) => item.id === selectedCustomerId)) {
+      setSelectedCustomerId(null);
       return;
     }
-    if (!selectedCustomerId) {
-      if ((isSmallScreen || hasAutoSelectedCustomer) && !initialSearch) return;
-      setSelectedCustomerId(items[0].id);
-      setHasAutoSelectedCustomer(true);
-      return;
-    }
-    if (!items.some((item) => item.id === selectedCustomerId)) {
-      if (isSmallScreen) {
-        setSelectedCustomerId(null);
-        return;
-      }
+    if (initialSearch && autoSelectedSearch.current !== initialSearch && filter.trim() === initialSearch.trim() && items.length) {
+      autoSelectedSearch.current = initialSearch;
       setSelectedCustomerId(items[0].id);
     }
-  }, [
-    items,
-    loading,
-    selectedCustomerId,
-    isSmallScreen,
-    hasAutoSelectedCustomer,
-    initialSearch,
-  ]);
+  }, [items, loading, selectedCustomerId, initialSearch, filter]);
   useEffect(() => {
     void load();
     void loadGroups();
@@ -1886,38 +1853,37 @@ function CustomersPage({
     if (field.key.startsWith("custom:")) return item.customFields?.[field.key] || "—";
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return item.code;
       case "name":
         return (
           <>
-            <b className="customer-name">{item.name}</b>
-            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
+            <span className="customer-name-line">
+              <span className="customer-name">{item.name}</span>
+              {item.isEInvoiceRegistered && <StatusTag tone="ok">e-Fatura</StatusTag>}
+            </span>
+            {!codeColumnShown && <small className="cell-subtitle list-v2-name-code">{item.code}</small>}
           </>
         );
       case "groupName":
         return item.groupName || <span className="list-v2-unset">Grup atanmamış</span>;
       case "type":
-        return (
-          <span className={`party-pill ${item.type.toLowerCase()}`}>
-            {item.type === "Customer"
-              ? "Müşteri"
-              : item.type === "Supplier"
-                ? "Tedarikçi"
-                : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel"}
-          </span>
-        );
+        return <StatusTag tone={customerTypeTone(item.type)}>{customerTypeLabel(item.type)}</StatusTag>;
       case "currencyCode":
         return item.currencyCode;
       case "paymentTermDays":
-        return `${item.paymentTermDays} gün`;
+        return (
+          <>
+            <span>{item.paymentTermDays}</span> <span>gün</span>
+          </>
+        );
       case "taxNumber":
-        return <span className="tax-cell">{item.taxNumber || "—"}</span>;
+        return item.taxNumber || <span className="list-v2-unset">—</span>;
       case "identityNumber":
         return item.identityNumber || "—";
       case "taxOffice":
         return item.taxOffice || "—";
       case "riskLimit":
-        return item.riskLimit == null ? "—" : item.riskLimit.toLocaleString("tr-TR");
+        return item.riskLimit == null ? <span className="list-v2-unset">—</span> : item.riskLimit.toLocaleString("tr-TR");
       case "parentCompanyName":
         return item.parentCompanyName || "—";
       case "subsidiaryCount":
@@ -1925,16 +1891,40 @@ function CustomersPage({
       case "createdAt":
         return new Date(item.createdAt).toLocaleDateString("tr-TR");
       case "status":
-        return (
-          <span className={`active-pill ${item.isActive ? "yes" : "no"}`}>
-            <i />
-            {item.isActive ? "Aktif" : "Pasif"}
-          </span>
-        );
+        return <StatusTag tone={item.isActive ? "ok" : "off"}>{item.isActive ? "Aktif" : "Pasif"}</StatusTag>;
       default:
         return "—";
     }
   }
+  const list = useCustomerListScreen({
+    active: !modal && !initialCreate && !initialEdit,
+    token,
+    isAdmin: role === "TenantAdmin",
+    busy,
+    exportBusy,
+    items,
+    total,
+    page,
+    pageSize: 25,
+    loading,
+    counts: directoryMetrics,
+    search: filter,
+    currentId: selectedCustomerId,
+    onCurrentChange: setSelectedCustomerId,
+    onPageChange: setPage,
+    onCreate: () => onNavigate("customer-create"),
+    onOpen: (item) => void openEditCustomer(item),
+    onExport: (format) => void exportCustomers(format),
+    onGroups: () => openGroups(),
+    onImport: () => setImportOpen(true),
+    onToggleActive: (item) => void toggleActive(item),
+    onSalesAction: (target) => openCustomerSalesAction(target),
+    onLedger: (item) => void openLedger(item),
+    onAddresses: (item) => void openAddresses(item),
+    onFields: (item) => void openCustomerFields(item),
+    onInvoices: (item) => setSalesInvoicesCustomer(item),
+    onPurchaseInvoices: (item) => onOpenPurchaseInvoices({ id: item.id, name: item.name }),
+  });
   const customerFormProps: CustomerCreatePageProps = {
     busy,
     error,
@@ -2039,40 +2029,37 @@ function CustomersPage({
     ) : (
       <div className="loading-state">Cari kartı formu yükleniyor…</div>
     );
+  const openGroups = () => {
+    setEditingGroup(null);
+    setGroupCode("");
+    setGroupName("");
+    setGroupError("");
+    setGroupModal(true);
+  };
   return modal ? (
     customerCreatePage
   ) : (
     <>
       <div className="customer-page-main list-v2">
+      <PageCommandsSlot commands={list.commands} />
       <CustomerDirectoryHeader
-        canImport={role === "TenantAdmin"}
-        exportBusy={exportBusy}
-        onImport={() => setImportOpen(true)}
-        onExport={(format) => void exportCustomers(format)}
-        onGroups={() => {
-          setEditingGroup(null);
-          setGroupCode("");
-          setGroupName("");
-          setGroupError("");
-          setGroupModal(true);
-        }}
-        onCreate={() => onNavigate("customer-create")}
         title={pageSettings.title}
         description={pageSettings.description}
         total={directoryMetrics?.total ?? null}
       />
+      {list.summary}
       {error && (
-        <div className="alert inline-alert">
+        <div className="alert inline-alert" role="alert">
           {error}
-          <button onClick={() => setError("")}>
+          <button type="button" aria-label="Kapat" onClick={() => setError("")}>
             <X size={15} />
           </button>
         </div>
       )}
       {notice && (
-        <div className="notice">
+        <div className="notice" role="status">
           {notice}
-          <button onClick={() => setNotice("")}>
+          <button type="button" aria-label="Kapat" onClick={() => setNotice("")}>
             <X size={15} />
           </button>
         </div>
@@ -2104,60 +2091,41 @@ function CustomersPage({
         applyLabel={pageSettings.applyLabel}
         showTypeFilter={pageSettings.showTypeFilter}
         showStatusFilter={pageSettings.showStatusFilter}
-      />
-      <div className="customer-directory-layout">
-        <div className="erp-workbench customer-workbench">
-          <CustomerGrid
-            items={items}
-            fields={visibleScreenFields}
-            groups={visibleScreenGroups}
-            total={total}
-            page={page}
-            loading={loading}
-            filter={filter}
-            selectedCustomerId={selectedCustomer?.id ?? null}
-            onPageChange={setPage}
-            onSelect={(item) => setSelectedCustomerId(item.id)}
-            renderCell={renderScreenCell}
-            toolbarContainer={gridToolsSlot}
-          />
-        </div>
-        <CustomerDetailPanel
-          customer={selectedCustomer}
-          isSmallScreen={isSmallScreen}
-          tab={customerDetailTab}
-          fields={visibleCustomerDetailFields}
-          address={customerDetailAddress}
-          addressLoaded={customerDetailAddressLoaded}
-          onTabChange={setCustomerDetailTab}
-          onClose={() => setSelectedCustomerId(null)}
-          onBackdropClose={() => setSelectedCustomerId(null)}
-          onEdit={() =>
-            selectedCustomer && void openEditCustomer(selectedCustomer)
-          }
-          onInvoices={() =>
-            selectedCustomer && setSalesInvoicesCustomer(selectedCustomer)
-          }
-          onLedger={() => selectedCustomer && void openLedger(selectedCustomer)}
-          onNewOrder={() => openCustomerSalesAction("sales-order-create")}
-          onNewQuote={() => openCustomerSalesAction("sales-quote-create")}
-          onNewDelivery={() => openCustomerSalesAction("sales-delivery-create")}
-          onNewInvoice={() => openCustomerSalesAction("sales-invoice-create")}
-          onAddresses={() =>
-            selectedCustomer && void openAddresses(selectedCustomer)
-          }
-          onFields={() =>
-            selectedCustomer && void openCustomerFields(selectedCustomer)
-          }
-          onPurchaseInvoices={() =>
-            selectedCustomer &&
-            onOpenPurchaseInvoices({ id: selectedCustomer.id, name: selectedCustomer.name })
-          }
-          onToggleActive={() =>
-            selectedCustomer && void toggleActive(selectedCustomer)
-          }
-          busy={busy}
+      >
+        {list.panelToggle}
+      </CustomerFilters>
+      <div ref={list.panelRootRef} className={`sales-list-body customer-list-body${list.panelOpen ? " has-detail" : ""}`}>
+        <CustomerGrid
+          items={items}
+          fields={visibleScreenFields}
+          loading={loading}
+          filter={filter}
+          toolbarContainer={gridToolsSlot}
+          exportActionsRef={list.exportRef}
+          selection={list.selection}
+          footer={list.footer}
+          renderCell={renderScreenCell}
         />
+        {list.renderPanel((customer) => (
+          <CustomerDetailPanel
+            customer={customer}
+            tab={customerDetailTab}
+            fields={visibleCustomerDetailFields}
+            address={customerDetailAddress}
+            addressLoaded={customerDetailAddressLoaded}
+            balance={list.balance}
+            balanceError={list.balanceError}
+            onTabChange={setCustomerDetailTab}
+            onOpen={() => void openEditCustomer(customer)}
+            onClose={list.closePanel}
+            takeFocus={list.takeFocus}
+            onInvoices={() => setSalesInvoicesCustomer(customer)}
+            onPurchaseInvoices={() => onOpenPurchaseInvoices({ id: customer.id, name: customer.name })}
+            onLedger={() => void openLedger(customer)}
+            onAddresses={() => void openAddresses(customer)}
+            onFields={() => void openCustomerFields(customer)}
+          />
+        ))}
       </div>
       </div>
       {fieldCustomer && (
@@ -2167,7 +2135,7 @@ function CustomersPage({
             if (e.target === e.currentTarget && !busy) setFieldCustomer(null);
           }}
         >
-          <div className="modal customer-fields-modal">
+          <div className="modal customer-fields-modal" role="dialog" aria-modal="true" aria-label="Cari Özel Alanları">
             <RecordFormPage
               variant="dialog"
               className="prf-flush"
@@ -2643,7 +2611,7 @@ function CustomersPage({
             if (e.target === e.currentTarget) setGroupModal(false);
           }}
         >
-          <div className="modal group-modal">
+          <div className="modal group-modal" role="dialog" aria-modal="true" aria-label="Cari grupları">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">CARİ YÖNETİMİ</p>

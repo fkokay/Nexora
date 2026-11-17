@@ -1,0 +1,28 @@
+/* Cari Hesaplar list (mockup 08): only what the shared list / sales panel classes do not cover. */
+#root .list-v2 .customer-name-line { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+#root .list-v2 .customer-name-line .customer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .list-v2 .customer-name-line .nx-status-tag { flex: none; font-size: 10px; }
+#root .list-v2 .customer-ld-address { display: flex; flex-direction: column; gap: 2px; margin: 0; overflow-wrap: anywhere; }
+#root .list-v2 .customer-ld-related { display: flex; flex-direction: column; }
+#root .app-shell .list-v2 .customer-ld-related > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nx-line-soft);
+  border-radius: 0;
+  background: transparent;
+  color: var(--nx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#root .app-shell .list-v2 .customer-ld-related > button:last-child { border-bottom: 0; }
+#root .app-shell .list-v2 .customer-ld-related > button:hover { color: var(--nx-primary); }
+#root .app-shell .list-v2 .customer-ld-related > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .list-v2 .customer-ld-related svg { color: var(--nx-muted); }
+#root .list-v2 .customer-ld-hint { margin: 0; padding: 8px 10px; border-radius: var(--nx-radius-card); background: var(--nx-table-head); color: var(--nx-muted); font-size: 12px; }
+#root .list-v2 .customer-ld-hint b { color: var(--nx-text); font-weight: 600; }

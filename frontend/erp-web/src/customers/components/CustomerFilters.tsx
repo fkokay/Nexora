@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 
 export type CustomerDirectoryCounts = {
@@ -32,6 +33,8 @@ type Props = {
   applyLabel?: string;
   showTypeFilter?: boolean;
   showStatusFilter?: boolean;
+  /** Extra toolbar controls after the chips (the detail panel toggle). */
+  children?: ReactNode;
 };
 
 export function CustomerFilters({
@@ -51,6 +54,7 @@ export function CustomerFilters({
   statusFilterLabel = "Durum",
   showTypeFilter = true,
   showStatusFilter = true,
+  children,
 }: Props) {
   return (
     <ListToolbar
@@ -61,7 +65,6 @@ export function CustomerFilters({
       searchPlaceholder={searchPlaceholder}
       toolsSlotRef={toolsSlotRef}
       onRefresh={onRefresh}
-      refreshLabel="Cari listesini yenile"
     >
       {showTypeFilter && (
         <ListChipGroup
@@ -75,7 +78,7 @@ export function CustomerFilters({
             { value: "Supplier", label: "Tedarikçi", count: counts?.suppliers },
             { value: "Dealer", label: "Bayi", count: counts?.dealers },
             { value: "Employee", label: "Personel", count: counts?.employees },
-            { value: "Both", label: "Diğer", count: counts?.others },
+            { value: "Both", label: "Müşteri & Tedarikçi", count: counts?.others },
           ]}
         />
       )}
@@ -91,6 +94,7 @@ export function CustomerFilters({
           ]}
         />
       )}
+      {children}
     </ListToolbar>
   );
 }
