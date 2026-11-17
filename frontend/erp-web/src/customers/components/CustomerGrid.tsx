@@ -16,22 +16,22 @@ type Props = {
   renderCell: (field: BuiltInScreenLayoutField, item: CustomerItem) => ReactNode;
 };
 
-// Default widths for fields without a tenant width, so the default view fits next to the detail panel.
+// Default widths for fields without a tenant width (the default view fits a 1440 screen without the panel).
 const COLUMN_WIDTHS: Record<string, number> = {
-  code: 100,
-  name: 240,
-  groupName: 130,
+  code: 86,
+  name: 220,
+  groupName: 116,
   type: 120,
-  currencyCode: 64,
-  paymentTermDays: 76,
-  taxNumber: 110,
-  status: 78,
-  identityNumber: 120,
-  taxOffice: 130,
-  riskLimit: 110,
-  parentCompanyName: 160,
-  subsidiaryCount: 90,
-  createdAt: 100,
+  currencyCode: 54,
+  paymentTermDays: 66,
+  taxNumber: 104,
+  status: 70,
+  identityNumber: 116,
+  taxOffice: 120,
+  riskLimit: 96,
+  parentCompanyName: 150,
+  subsidiaryCount: 84,
+  createdAt: 96,
 };
 const NUMBER_FIELDS: ReadonlySet<string> = new Set(["paymentTermDays", "riskLimit", "subsidiaryCount"]);
 const CODE_FIELDS: ReadonlySet<string> = new Set(["code", "taxNumber", "identityNumber"]);

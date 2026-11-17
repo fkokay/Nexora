@@ -26,3 +26,8 @@
 #root .list-v2 .customer-ld-related svg { color: var(--nx-muted); }
 #root .list-v2 .customer-ld-hint { margin: 0; padding: 8px 10px; border-radius: var(--nx-radius-card); background: var(--nx-table-head); color: var(--nx-muted); font-size: 12px; }
 #root .list-v2 .customer-ld-hint b { color: var(--nx-text); font-weight: 600; }
+/* Search, six type chips, two status chips, Detay paneli and Görünüm share one toolbar line at 1440: the search gives
+   way first and the gaps are a little tighter (as Satış Teklifleri). Narrower screens wrap (kit rule). */
+#root .list-v2.customer-page-main .list-v2-toolbar { column-gap: 8px; }
+#root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-search { flex: 1 1 140px; min-width: 140px; }
+#root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-chips { gap: 4px; }

@@ -16,6 +16,16 @@ export const english: Record<string, string> = {
   '— yeni sipariş, teklif, irsaliye, fatura ve pasife alma': '— new order, quote, delivery note, invoice and deactivation',
   'Borç bakiyesi': 'Debit balance', 'Alacak bakiyesi': 'Credit balance',
   'Kurumsal e-posta': 'Company e-mail', 'Yetkili kişi': 'Contact person', 'Yetkili telefon': 'Contact phone',
+  // Cari Hesap Hareketleri (mockup 03)
+  'Açılış bakiyesi': 'Opening balance', 'Kapanış bakiyesi': 'Closing balance', itibarıyla: 'as of',
+  'ters kayıt dahil': 'reversals included', Dönem: 'Period', 'Bu ay': 'This month', 'Son 3 ay': 'Last 3 months',
+  'Yıl başından': 'Year to date', 'Hesap hareketleri': 'Account transactions', 'Devir — açılış bakiyesi': 'Brought forward — opening balance',
+  'Dönem toplamı': 'Period total', hareket: 'transactions', Açılış: 'Opening', Kapanış: 'Closing',
+  'B borç bakiyesi · A alacak bakiyesi · Ters kayıt orijinal hareketin karşı kaydıdır, hareketler silinmez':
+    'B debit balance · A credit balance · A reversal is the counter entry of the original transaction; transactions are never deleted',
+  'Cari hesap hareketleri': 'Account transactions', 'Aramayla eşleşen cari bulunamadı.': 'No account matches the search.',
+  'Cari ekstre görünümüne başlayın': 'Start the account statement view',
+  'Borç, alacak ve bakiye hareketlerini görmek için önce bir cari hesap seçin.': 'Select an account first to see its debit, credit and balance transactions.',
 };
 
 /** Anchored patterns for Turkish text rendered with dynamic values. */
