@@ -7,7 +7,7 @@ const GROUPS: { key: string; title: string; empty: string }[] = [
   { key: "Oturum", title: "Oturum", empty: "" },
   { key: "Sayılar", title: "Sayılar", empty: "Rapor kaynakları yüklenemedi." },
   { key: "Girişler", title: "Girişler", empty: "Bir giriş kutusuna Ad verin; değeri burada {{ad.value}} olarak görünür." },
-  { key: "Sorgular", title: "Sorgular", empty: "Sorgular sekmesinden bir okuma sorgusu ekleyin; sonuçları burada görünür." },
+  { key: "Sorgular", title: "Sorgular", empty: "Sorgular sekmesinden bir okuma sorgusu ya da ERP işlemi ekleyin; sonuçları burada görünür." },
   { key: "Izgarada seçili satır", title: "Izgarada seçili satır", empty: "Sorguya bağlı bir ızgaraya Ad verin; seçilen satırın sütunları burada görünür." },
 ];
 
