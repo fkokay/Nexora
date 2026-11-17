@@ -148,7 +148,7 @@ async function tms7Refresh() {
 }
 /** Refresh of the Döviz Pozisyonu report. */
 async function fxRefresh() {
-  await click('Raporu yenile');
+  await actionBarRefresh();
 }
 // ---
 

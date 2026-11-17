@@ -36,7 +36,7 @@
 
 /* Card head: title left, tools / state right. */
 #root .ledger-report-host .cf-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 6px 12px; border-bottom: 1px solid var(--nx-line); }
-#root .app-shell .ledger-report-host .cf-card-head h2 { margin: 0; color: var(--nx-text); font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+#root .app-shell .ledger-report-host .cf-card-head h2 { margin: 0; color: var(--nx-text) !important; font-size: 13.5px !important; font-weight: 600 !important; line-height: 1.3; }
 #root .ledger-report-host .cf-card-sub { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-muted); font-size: 12px; }
 #root .ledger-report-host .cf-card-tools { display: flex; align-items: center; gap: 4px; min-width: 0; }
 /* The grid's own tools (filters, columns, pivot) sit in the card head as flat text buttons. */
@@ -87,6 +87,13 @@
 #root .ledger-report-host .glrp-group-row th small { margin-left: 6px; color: var(--nx-muted); font-weight: 400; }
 #root .ledger-report-host .cf-class-table select { height: 26px; border-radius: var(--nx-radius-control); }
 
+/* A search toolbar inside a card head (Döviz pozisyonu, Vade takibi). */
+#root .ledger-report-host .cf-card-head > .list-v2-toolbar { flex: 1 1 360px; justify-content: flex-end; margin: 0; padding: 0; border: 0; background: transparent; }
+#root .ledger-report-host .cf-calm { display: grid; gap: 4px; padding: 16px; color: var(--nx-muted); }
+#root .ledger-report-host .cf-calm b { color: var(--nx-text); font-weight: 600; }
+#root .app-shell .ledger-report-host .fh-pos { color: var(--nx-ok) !important; }
+#root .app-shell .ledger-report-host .fh-neg { color: var(--nx-bad) !important; }
+
 /* Notes and warning strips (single layer, inside the result column). */
 #root .ledger-report-host .glrp-note { margin: 0; }
 #root .ledger-report-host .cf-oneline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -109,6 +116,14 @@
 
 /* Legacy panels shown under a tab (forecast, statutory statement) keep their content; frame them like cards. */
 #root .ledger-report-host :is(.cash-forecast-panel, .statutory-cashflow-panel) { margin: 0; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); box-shadow: none; }
+/* Their inner notices become plain rows (no box inside the card). */
+#root .app-shell .ledger-report-host :is(.cash-forecast-panel, .statutory-cashflow-panel) :is(.cash-forecast-result-status, .cash-forecast-currency-note, .cash-forecast-state, .boundary-note) {
+  border: 0 !important;
+  border-top: 1px solid var(--nx-line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
 
 @media (max-width: 760px) {
   #root .ledger-report-host .cf-figure + .cf-figure { border-left: 0; }

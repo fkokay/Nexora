@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import type { BuiltInScreenLayoutField, FxExposureReport } from "./erp-types";
+import { LedgerReportFrame, ReportParam } from "./general-ledger/components/LedgerReportFrame";
+import { downloadCsv, downloadXlsx, type ExportCell } from "./general-ledger/ledgerReportUtils";
 import "./list-page/list-page-v2.css";
 import "./finance-hub.css";
+import "./finance/finance-reports.css";
 
 type Invoice = FxExposureReport["invoices"][number];
 type Direction = Invoice["direction"];
@@ -214,10 +217,9 @@ export default function FxExposurePage({
           .includes(normalizedQuery)),
   );
 
-  function downloadCsv() {
-    if (!report || !foreign.length) return;
-    const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const rows = [
+  function exportRows(): ExportCell[][] {
+    if (!report) return [];
+    return [
       [
         "Yön",
         "Fatura no",
@@ -249,266 +251,240 @@ export default function FxExposurePage({
         report.baseCurrencyCode,
       ]),
     ];
-    const content = "﻿" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
-    const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `doviz-pozisyonu-${report.asOfDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
+  const fileBase = `doviz-pozisyonu-${report?.asOfDate ?? localDateString()}`;
 
   const firstLoad = !report && (loading || !error);
   const empty = !!report && foreign.length === 0;
   // A figure no invoice could be converted into shows "—" instead of a misleading 0,00.
-  const tileValue = (value: number, converted: number, colored = false) =>
+  const figure = (value: number, converted: number, colored = false) =>
     firstLoad ? (
       <small>Yükleniyor…</small>
     ) : converted === 0 ? (
       "—"
     ) : (
       <>
-        <span className={colored ? tone(value) : undefined}>{colored ? signed(value) : amount(value)}</span>{" "}
-        <small>{base}</small>
+        <span className={colored ? tone(value) : undefined}>{colored ? signed(value) : amount(value)}</span> <small>{base}</small>
       </>
     );
+  const filtered = currencyFilter !== "all" || Boolean(directionFilter) || Boolean(normalizedQuery);
 
   return (
-    <div className="finance-page finance-workbench-page fh-page list-v2 fx-exposure-page">
-      <div className="page-heading list-v2-heading fh-head">
-        <div className="list-v2-title">
-          <h1 title="Açık dövizli alacak ve borç faturalarını güncel kurla inceleyin.">
-            Döviz pozisyonu
-          </h1>
-          <span className="fh-meta">
-            <span>{displayDate(report?.asOfDate ?? localDateString())}</span>
-            {base && (
-              <>
-                {" · "}
-                <span>baz para</span> <b>{base}</b>
-              </>
-            )}
-          </span>
-        </div>
-        <div className="heading-actions">
-          <button
-            type="button"
-            className="secondary"
-            disabled={!foreign.length}
-            onClick={downloadCsv}
-          >
-            <Download size={15} aria-hidden="true" />
-            <span>CSV indir</span>
-          </button>
-          {onNavigate && (
-            <button type="button" className="secondary" onClick={() => onNavigate("finance-fx")}>
-              Kur ve değerleme
+    <div className="finance-page fh-page list-v2 fx-exposure-page ledger-report-host">
+      <LedgerReportFrame
+        className="fx-report"
+        title="Döviz pozisyonu"
+        description="Açık dövizli alacak ve borç faturalarını güncel kurla inceleyin."
+        count={report ? foreign.length : null}
+        countLabel="dövizli fatura"
+        onRun={() => void load()}
+        onExportXlsx={() => void downloadXlsx(`${fileBase}.xlsx`, "Döviz pozisyonu", exportRows())}
+        onExportCsv={() => downloadCsv(`${fileBase}.csv`, exportRows())}
+        exportDisabledReason={foreign.length ? undefined : report ? "Dövizli açık fatura yok" : "Rapor henüz hazır değil"}
+        paramsNote="Rapor bugünün tarihiyle ve en son girilen kurla hesaplanır. Filtreler yüklü raporu süzer."
+        more={onNavigate ? [{ id: "fx-open-rates", label: "Kur ve değerleme", run: () => onNavigate("finance-fx") }] : []}
+        summary={[
+          <>
+            <span>Tarih:</span> <b>{displayDate(report?.asOfDate ?? localDateString())}</b>
+          </>,
+          <>
+            <span>Baz para:</span> <b>{base || "—"}</b>
+          </>,
+          ...(filtered && report
+            ? [
+                <>
+                  <span>Gösterilen:</span> <b>{visibleRows.length}</b> <span>fatura</span>
+                </>,
+              ]
+            : []),
+          ...(loading ? [<span className="glrp-loading">Yükleniyor…</span>] : []),
+        ]}
+        params={
+          <>
+            <ReportParam label="Para birimi">
+              <ListChipGroup
+                label="Para birimi"
+                value={currencyFilter}
+                onChange={(value) => setCurrencyFilter(value || "all")}
+                options={[
+                  { value: "all", label: "Tümü", count: foreign.length },
+                  ...positions.map((position) => ({
+                    value: position.code,
+                    label: position.code,
+                    count: position.invoiceCount,
+                  })),
+                ]}
+              />
+            </ReportParam>
+            <ReportParam label="Yön">
+              <ListChipGroup
+                label="Yön"
+                value={directionFilter}
+                allowClear
+                onChange={setDirectionFilter}
+                options={[
+                  { value: "Receivable", label: "Alacak", count: totals.receivableCount },
+                  { value: "Payable", label: "Borç", count: totals.payableCount },
+                ]}
+              />
+            </ReportParam>
+          </>
+        }
+      >
+        {error && (
+          <div className="alert inline-alert">
+            {error}
+            <button type="button" onClick={() => setError("")} aria-label="Kapat">
+              <X size={15} />
             </button>
-          )}
-          <button
-            type="button"
-            className="list-v2-icon-button"
-            disabled={loading}
-            onClick={() => void load()}
-            aria-label="Raporu yenile"
-            title="Yenile"
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="alert inline-alert">
-          {error}
-          <button type="button" onClick={() => setError("")}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-
-      {firstLoad && <p className="fh-empty">Rapor yükleniyor…</p>}
-
-      {empty && (
-        <section className="fh-box fh-calm" role="status">
-          <b>Açık döviz pozisyonu yok</b>
-          {baseInvoiceCount > 0 && (
-            <span className="fh-muted">{`Tüm açık faturalar ${base} (${baseInvoiceCount} fatura)`}</span>
-          )}
-        </section>
-      )}
-
-      {report && !empty && (
-        <>
-          <div className="fh-tiles">
-            <div className="fh-tile">
-              <span className="fh-tile-label">Net pozisyon</span>
-              <span className="fh-tile-value">{tileValue(totals.net, totals.receivableConverted + totals.payableConverted, true)}</span>
-              <span className="fh-tile-hint">Alacak − borç, güncel kurla</span>
-            </div>
-            <div className="fh-tile">
-              <span className="fh-tile-label">Dövizli alacak</span>
-              <span className="fh-tile-value">{tileValue(totals.receivable, totals.receivableConverted)}</span>
-              <span className="fh-tile-hint">
-                <span>{totals.receivableCount}</span> <span>fatura</span>
-              </span>
-            </div>
-            <div className="fh-tile">
-              <span className="fh-tile-label">Dövizli borç</span>
-              <span className="fh-tile-value">{tileValue(totals.payable, totals.payableConverted)}</span>
-              <span className="fh-tile-hint">
-                <span>{totals.payableCount}</span> <span>fatura</span>
-              </span>
-            </div>
-            <div className="fh-tile">
-              <span className="fh-tile-label">Tahmini kur farkı</span>
-              <span className="fh-tile-value">{tileValue(totals.change, totals.changeConverted, true)}</span>
-              <span className="fh-tile-hint">kayıt oluşturmaz</span>
-            </div>
           </div>
-          {(totals.unconverted > 0 || totals.unconvertedChange > 0) && (
-            <p className="fh-note fh-neg">
-              <span>{Math.max(totals.unconverted, totals.unconvertedChange)}</span>{" "}
-              <span>fatura kursuz, toplamlara dahil değil</span>
-            </p>
-          )}
-
-          <div className="fh-ccys">
-            {positions.map((position) => (
-              <CurrencyBox key={position.code} position={position} base={base} />
-            ))}
-          </div>
-
-          <ListToolbar
-            search={query}
-            onSearchChange={setQuery}
-            searchLabel="Fatura veya cari ara"
-            searchPlaceholder="Fatura no veya cari"
-            toolsSlotRef={setToolsSlot}
-          >
-            <ListChipGroup
-              label="Para birimi"
-              value={currencyFilter}
-              onChange={(value) => setCurrencyFilter(value || "all")}
-              options={[
-                { value: "all", label: "Tümü", count: foreign.length },
-                ...positions.map((position) => ({
-                  value: position.code,
-                  label: position.code,
-                  count: position.invoiceCount,
-                })),
-              ]}
-            />
-            <ListChipGroup
-              label="Yön"
-              value={directionFilter}
-              allowClear
-              onChange={setDirectionFilter}
-              options={[
-                { value: "Receivable", label: "Alacak", count: totals.receivableCount },
-                { value: "Payable", label: "Borç", count: totals.payableCount },
-              ]}
-            />
-          </ListToolbar>
-
-          <div className="ledger-list">
-            <AdvancedDataGrid
-              className="customer-table"
-              gridId="finance-fx-exposure-v2"
-              {...screenViewGridDefaults(gridColumns)}
-              externalPagination
-              hideSearch
-              hideExport
-              enableRowSelection={false}
-              toolbarContainer={toolsSlot}
-            >
-              <thead>
-                <tr>
-                  {gridColumns.map((column) => (
-                    <th key={column.key}>{column.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => (
-                  <tr key={`${row.direction}-${row.invoiceId}`}>
-                    {gridColumns.map((column) => (
-                      <td
-                        key={column.key}
-                        className={
-                          column.key === "invoice" || column.key === "direction" || column.key === "invoiceDate"
-                            ? undefined
-                            : "fh-rate-num"
-                        }
-                      >
-                        {cell(row, column.key, base)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {visibleRows.length === 0 && (
-                  <tr>
-                    <td colSpan={Math.max(1, gridColumns.length)} className="table-empty">
-                      Filtreye uygun fatura bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </AdvancedDataGrid>
-          </div>
-        </>
-      )}
-
-      {report && (
-        <p className="fh-note">
-          Tahmini görünümdür; güncel kurla hesaplanır ve muhasebe kaydı oluşturmaz.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function CurrencyBox({ position, base }: { position: CurrencyPosition; base: string }) {
-  const swing = position.rate === null ? 0 : Math.abs(position.net * position.rate * 0.05);
-  const rise = position.net >= 0 ? swing : -swing;
-  return (
-    <section className="fh-box fh-ccy" aria-label={position.code}>
-      <div className="fh-ccy-head">
-        <b className="fh-ccy-code">{position.code}</b>
-        {position.rate !== null ? (
-          <span className="fh-muted">
-            <span>Güncel kur</span> <b>{rate4(position.rate)}</b> <span>{base}</span>
-          </span>
-        ) : (
-          <span className="fh-neg">Güncel kur yok — Kur ve değerleme'den kur girin</span>
         )}
-      </div>
-      <dl className="fh-ccy-rows">
-        <div>
-          <dt>Alacak</dt>
-          <dd>
-            {amount(position.receivable)} <small>{position.code}</small>
-          </dd>
-        </div>
-        <div>
-          <dt>Borç</dt>
-          <dd>
-            {amount(position.payable)} <small>{position.code}</small>
-          </dd>
-        </div>
-        <div className="is-total">
-          <dt>Net</dt>
-          <dd className={tone(position.net)}>
-            {signed(position.net)} <small>{position.code}</small>
-          </dd>
-        </div>
-      </dl>
-      {position.rate !== null && position.net !== 0 && (
-        <p className="fh-ccy-sens">
-          {`Kur %5 artarsa ${signed(rise)} ${base} · %5 düşerse ${signed(-rise)} ${base}`}
-        </p>
-      )}
-    </section>
+
+        {firstLoad && <p className="glrp-empty">Rapor yükleniyor…</p>}
+
+        {empty && (
+          <section className="glrp-card cf-calm" role="status">
+            <b>Açık döviz pozisyonu yok</b>
+            {baseInvoiceCount > 0 && <span>{`Tüm açık faturalar ${base} (${baseInvoiceCount} fatura)`}</span>}
+          </section>
+        )}
+
+        {report && !empty && (
+          <>
+            {(totals.unconverted > 0 || totals.unconvertedChange > 0) && (
+              <div className="glrp-warning" role="status">
+                <AlertTriangle size={16} aria-hidden="true" />
+                <span>
+                  <span>{Math.max(totals.unconverted, totals.unconvertedChange)}</span>{" "}
+                  <span>fatura kursuz, toplamlara dahil değil</span>
+                </span>
+              </div>
+            )}
+            <section className="glrp-card" aria-label="Döviz bazında pozisyon">
+              <dl className="cf-figures">
+                <div className="cf-figure">
+                  <dt>Net pozisyon</dt>
+                  <dd>{figure(totals.net, totals.receivableConverted + totals.payableConverted, true)}</dd>
+                  <dd className="cf-figure-hint">Alacak − borç, güncel kurla</dd>
+                </div>
+                <div className="cf-figure">
+                  <dt>Dövizli alacak</dt>
+                  <dd>{figure(totals.receivable, totals.receivableConverted)}</dd>
+                  <dd className="cf-figure-hint">
+                    <span>{totals.receivableCount}</span> <span>fatura</span>
+                  </dd>
+                </div>
+                <div className="cf-figure">
+                  <dt>Dövizli borç</dt>
+                  <dd>{figure(totals.payable, totals.payableConverted)}</dd>
+                  <dd className="cf-figure-hint">
+                    <span>{totals.payableCount}</span> <span>fatura</span>
+                  </dd>
+                </div>
+                <div className="cf-figure">
+                  <dt>Tahmini kur farkı</dt>
+                  <dd>{figure(totals.change, totals.changeConverted, true)}</dd>
+                  <dd className="cf-figure-hint">kayıt oluşturmaz</dd>
+                </div>
+              </dl>
+              <div className="glrp-table-wrap">
+                <table className="glrp-table">
+                  <thead>
+                    <tr>
+                      <th>Döviz</th>
+                      <th className="num">Güncel kur ({base})</th>
+                      <th className="num">Alacak</th>
+                      <th className="num">Borç</th>
+                      <th className="num">Net</th>
+                      <th className="num">Kur %5 artarsa ({base})</th>
+                      <th className="num">Kur %5 düşerse ({base})</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((position) => {
+                      const swing = position.rate === null ? 0 : Math.abs(position.net * position.rate * 0.05);
+                      const rise = position.net >= 0 ? swing : -swing;
+                      const sensitive = position.rate !== null && position.net !== 0;
+                      return (
+                        <tr key={position.code}>
+                          <td>
+                            <span className="cf-code">{position.code}</span>
+                          </td>
+                          <td className="num">
+                            {position.rate !== null ? rate4(position.rate) : <span className="fh-neg">Güncel kur yok — Kur ve değerleme'den kur girin</span>}
+                          </td>
+                          <td className="num">{amount(position.receivable)}</td>
+                          <td className="num">{amount(position.payable)}</td>
+                          <td className={`num ${tone(position.net) ?? ""}`}>{signed(position.net)}</td>
+                          <td className="num">{sensitive ? signed(rise) : "—"}</td>
+                          <td className="num">{sensitive ? signed(-rise) : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="glrp-card cf-grid" aria-label="Açık dövizli faturalar">
+              <div className="cf-card-head">
+                <h2>Açık dövizli faturalar</h2>
+                <ListToolbar search={query} onSearchChange={setQuery} searchLabel="Fatura veya cari ara" searchPlaceholder="Fatura no veya cari">
+                  <div className="cf-card-tools" ref={setToolsSlot} />
+                </ListToolbar>
+              </div>
+              <div className="ledger-list">
+                <AdvancedDataGrid
+                  className="customer-table"
+                  gridId="finance-fx-exposure-v2"
+                  {...screenViewGridDefaults(gridColumns)}
+                  externalPagination
+                  hideSearch
+                  hideExport
+                  enableRowSelection={false}
+                  toolbarContainer={toolsSlot}
+                >
+                  <thead>
+                    <tr>
+                      {gridColumns.map((column) => (
+                        <th key={column.key}>{column.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((row) => (
+                      <tr key={`${row.direction}-${row.invoiceId}`}>
+                        {gridColumns.map((column) => (
+                          <td
+                            key={column.key}
+                            className={
+                              column.key === "invoice" || column.key === "direction" || column.key === "invoiceDate"
+                                ? undefined
+                                : "fh-rate-num"
+                            }
+                          >
+                            {cell(row, column.key, base)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {visibleRows.length === 0 && (
+                      <tr>
+                        <td colSpan={Math.max(1, gridColumns.length)} className="table-empty">
+                          Filtreye uygun fatura bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </AdvancedDataGrid>
+              </div>
+            </section>
+          </>
+        )}
+
+        {report && <p className="glrp-note">Tahmini görünümdür; güncel kurla hesaplanır ve muhasebe kaydı oluşturmaz.</p>}
+      </LedgerReportFrame>
+    </div>
   );
 }
 
@@ -527,9 +503,9 @@ function cell(row: Invoice, key: ColumnKey, base: string) {
       return displayDate(row.invoiceDate);
     case "outstandingAmount":
       return (
-        <b>
+        <>
           {amount(row.outstandingAmount)} {row.currencyCode}
-        </b>
+        </>
       );
     case "invoiceDateRate":
       return row.invoiceDateRate === null ? "Kur yok" : rateFull(row.invoiceDateRate);

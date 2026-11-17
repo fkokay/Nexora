@@ -1029,6 +1029,21 @@ export const english: Record<string, string> = {
   'Fark var': 'Difference',
   'TMS 7 özeti': 'IAS 7 summary',
   'TMS 7 hesap sınıfları': 'IAS 7 account classes',
+  'dövizli fatura': 'foreign-currency invoices',
+  'Dövizli açık fatura yok': 'No open foreign-currency invoices',
+  'Rapor bugünün tarihiyle ve en son girilen kurla hesaplanır. Filtreler yüklü raporu süzer.': 'The report uses today\'s date and the latest entered rate. Filters narrow the loaded report.',
+  'Gösterilen:': 'Shown:',
+  'Döviz bazında pozisyon': 'Position by currency',
+  'Açık dövizli faturalar': 'Open foreign-currency invoices',
+  'açık fatura': 'open invoices',
+  'Gösterilecek fatura yok': 'No invoices to show',
+  'Rapor bugünün tarihiyle hesaplanır. Filtreler yüklü raporu süzer.': 'The report uses today\'s date. Filters narrow the loaded report.',
+  'Yön:': 'Direction:',
+  'fatura vadesi geçmiş': 'invoices overdue',
+  'Yaşlandırma': 'Aging',
+  'Satış vadesi cari ödeme gününden hesaplanır.': 'Sales due dates come from the customer\'s payment day.',
+  'Vadesi gelmedi': 'Not due',
+  'Gecikme': 'Overdue',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1121,4 +1136,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Tümü \((\d+)\)$/, 'All ($1)'],
   [/^(\d) (Dönen varlıklar|Duran varlıklar|KVYK|UVYK|Özkaynaklar|Gelir tablosu|Maliyet|Serbest|Nazım) \((\d+)\)$/, '$1 $2 ($3)'],
   [/^döviz · baz para ([A-Z]{3})$/, 'currencies · base currency $1'],
+  [/^Güncel kur \(([A-Z]{3})\)$/, 'Current rate ($1)'],
+  [/^Kur %5 artarsa \(([A-Z]{3})\)$/, 'Rate +5% ($1)'],
+  [/^Kur %5 düşerse \(([A-Z]{3})\)$/, 'Rate −5% ($1)'],
 ]

@@ -3,8 +3,8 @@ import { Download, Info, Landmark, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
-import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
+import { MaturityReportView } from "./finance/components/MaturityReportView";
 import { FinanceAccountsList } from "./finance/components/FinanceAccountsList";
 import { FinanceAccountStatement } from "./finance/components/FinanceAccountStatement";
 import { DetailDrawer } from "./document-detail/DocumentDetailLayout";
@@ -150,7 +150,6 @@ function FinancePage({
     },
   ]);
   // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
-  const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const searchedAccounts = kindAccounts.filter((account) =>
     `${account.code} ${account.name} ${account.currencyCode}`
       .toLocaleLowerCase("tr-TR")
@@ -810,12 +809,13 @@ function FinancePage({
     "finance-transfer-sources": "transfer-sources",
   };
   const accountFormOpen = accountCreateOpen && isAccountsPage;
-  const isListSection =
-    isAccountsPage || section === "finance-statements" || section === "finance-maturities";
+  const isListSection = isAccountsPage || section === "finance-statements";
+  // Vade Takibi is a report screen: LedgerReportFrame draws its own header.
+  const isReportSection = section === "finance-maturities";
   const showListHeader = isListSection && !(accountCreateOpen && isAccountsPage);
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}${isReportSection ? " list-v2 fh-page ledger-report-host maturity-report-page" : ""}`}
     >
       {showListHeader && (
         <ListPageHeader
@@ -826,7 +826,7 @@ function FinancePage({
               ? loading ? null : kindAccounts.length
               : section === "finance-statements"
                 ? loading ? null : statements.length
-                : maturity ? maturity.items.length : null
+                : null
           }
         >
           {section === "finance-statements" && (
@@ -864,7 +864,7 @@ function FinancePage({
           )}
         </ListPageHeader>
       )}
-      {!ledgerViews[section] && !showListHeader && !accountFormOpen && (
+      {!ledgerViews[section] && !showListHeader && !accountFormOpen && !isReportSection && (
         <div className="page-heading">
           <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
             {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
@@ -1159,177 +1159,23 @@ function FinancePage({
         </div>
       )}
       {section === "finance-maturities" && (
-        <div className="maturity-workbench">
-          <ListToolbar
-            search={maturityQuery}
-            onSearchChange={setMaturityQuery}
-            searchLabel="Fatura veya cari ara"
-            searchPlaceholder="Fatura no veya cari adı"
-            toolsSlotRef={setListToolsSlot}
-            onRefresh={() => void load()}
-          >
-            <ListChipGroup
-              label="Yön"
-              value={maturityDirection}
-              onChange={(value) => setMaturityDirection(value as "all" | "Receivable" | "Payable")}
-              options={[
-                { value: "all", label: "Alacak ve borç", count: maturity?.items.length },
-                { value: "Receivable", label: "Alacak", count: maturity ? receivableMaturityCount : undefined },
-                { value: "Payable", label: "Borç", count: maturity ? payableMaturityCount : undefined },
-              ]}
-            />
-          </ListToolbar>
-          <section className="maturity-overview" aria-label="Vade özeti">
-            <article className="maturity-stat maturity-stat-warning"><span>Vadesi geçmiş</span><b>{overdueMaturityCount}</b><small>Ödeme tarihi geçen</small></article>
-          </section>
-          <div className="panel">
-          <div className="panel-heading">
-            <div>
-              <h3>Vade takibi</h3>
-              <p>
-                {maturity?.asOfDate.split("-").reverse().join(".")} itibarıyla
-                açık satış ve alış faturaları. Satış vadesi cari ödeme gününden
-                hesaplanır.
-              </p>
-            </div>
-          </div>
-          <div className="ledger-list">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-maturity-aging"
-              defaults={financeGridDefaults["finance-maturity-aging"]}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Yön</th>
-                    <th>Döviz</th>
-                    <th>Fatura</th>
-                    <th>Vadesi gelmemiş</th>
-                    <th>1–30 gün</th>
-                    <th>31–60 gün</th>
-                    <th>61–90 gün</th>
-                    <th>90+ gün</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturitySummaries.map((s) => (
-                    <tr key={`${s.direction}-${s.currencyCode}`}>
-                      <td>
-                        <b>
-                          {s.direction === "Receivable" ? "Alacak" : "Borç"}
-                        </b>
-                      </td>
-                      <td>{s.currencyCode}</td>
-                      <td>
-                        {s.invoiceCount} ·{" "}
-                        {s.outstandingAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.notDue.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days1To30.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days31To60.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days61To90.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.over90Days.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))}
-                  {maturitySummaries.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="table-empty">
-                        Açık vadeli fatura bulunmuyor.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
-          </div>
-          <div className="list-toolbar">
-            <div>
-              <h3>Açık faturalar</h3>
-            </div>
-          </div>
-          <div className="ledger-list list-v2-list">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-maturities"
-              defaults={financeGridDefaults["finance-maturities"]}
-              hideSearch
-              toolbarContainer={listToolsSlot}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Fatura</th>
-                    <th>Cari</th>
-                    <th>Yön</th>
-                    <th>Fatura tarihi</th>
-                    <th>Vade tarihi</th>
-                    <th>Kalan tutar</th>
-                    <th>Gecikme</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturityItems.map((i) => (
-                    <tr key={`${i.direction}-${i.invoiceId}`}>
-                      <td>
-                        <span className="customer-code">{i.invoiceCode}</span>
-                      </td>
-                      <td>{i.counterpartyName}</td>
-                      <td>
-                        {i.direction === "Receivable" ? "Alacak" : "Borç"}
-                      </td>
-                      <td>{i.invoiceDate.split("-").reverse().join(".")}</td>
-                      <td>{i.dueDate.split("-").reverse().join(".")}</td>
-                      <td>
-                        <b>
-                          {i.outstandingAmount.toLocaleString("tr-TR", {
-                            minimumFractionDigits: 2,
-                          })}{" "}
-                          {i.currencyCode}
-                        </b>
-                      </td>
-                      <td>
-                        {i.daysOverdue
-                          ? `${i.daysOverdue} gün`
-                          : "Vadesi gelmedi"}
-                      </td>
-                    </tr>
-                  ))}
-                  {maturityItems.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="table-empty">
-                        {maturity?.items.length ? "Filtrelere uygun açık fatura bulunmuyor." : "Açık fatura bulunmuyor."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
-          </div>
-          </div>
-        </div>
+        <MaturityReportView
+          token={token}
+          title={financePageTitles[section]}
+          description={financePageDescriptions[section]}
+          maturity={maturity}
+          loading={loading}
+          onRun={() => void load()}
+          query={maturityQuery}
+          onQueryChange={setMaturityQuery}
+          direction={maturityDirection}
+          onDirectionChange={setMaturityDirection}
+          items={maturityItems}
+          summaries={maturitySummaries}
+          overdueCount={overdueMaturityCount}
+          receivableCount={receivableMaturityCount}
+          payableCount={payableMaturityCount}
+        />
       )}
       {isAccountsPage && !accountCreateOpen && (
         <FinanceAccountsList

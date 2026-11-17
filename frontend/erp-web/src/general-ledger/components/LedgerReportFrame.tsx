@@ -24,6 +24,8 @@ type Props = {
   /** Why the export is not possible (no result yet). */
   exportDisabledReason?: string;
   more?: MenuCommand[];
+  /** The note under "Raporu çalıştır"; default: the report runs again when a parameter changes. */
+  paramsNote?: string;
   className?: string;
   children: ReactNode;
 };
@@ -46,6 +48,7 @@ export function LedgerReportFrame({
   onExportCsv,
   exportDisabledReason,
   more = [],
+  paramsNote = "Parametre değişince rapor yeniden hesaplanır.",
   className,
   children,
 }: Props) {
@@ -101,7 +104,7 @@ export function LedgerReportFrame({
               <span>Raporu çalıştır</span>
               <kbd>F9</kbd>
             </button>
-            <p className="glrp-params-note">Parametre değişince rapor yeniden hesaplanır.</p>
+            <p className="glrp-params-note">{paramsNote}</p>
           </aside>
         )}
         <section className="glrp-result" aria-label={title}>
