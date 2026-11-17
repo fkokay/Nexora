@@ -1572,13 +1572,18 @@ function FinancePage({
             if (e.target === e.currentTarget) setDetail(null);
           }}
         >
-          <div className="modal ledger-modal account-transactions-modal">
+          <div
+            className="modal ledger-modal account-transactions-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="finance-account-transactions-title"
+          >
             <div className="modal-head">
               <div>
                 <p className="eyebrow">
                   {detail.code} · {detail.type === "Cash" ? "KASA" : "BANKA"}
                 </p>
-                <h2>{detail.name}</h2>
+                <h2 id="finance-account-transactions-title">{detail.name}</h2>
               </div>
               <button className="icon-button" onClick={() => setDetail(null)}>
                 <X size={19} />
@@ -1668,7 +1673,7 @@ function FinancePage({
                     />
                   </label>
                   <label>
-                    Tutar ({detail.currencyCode})
+                    <span>Tutar ({detail.currencyCode}) <RequiredMark /></span>
                     <input
                       className="rf-must rf-num"
                       type="number"
@@ -1796,7 +1801,7 @@ function FinancePage({
                     />
                   </label>
                   <label>
-                    Kaynak tutarı ({detail.currencyCode})
+                    <span>Kaynak tutarı ({detail.currencyCode}) <RequiredMark /></span>
                     <input
                       className="rf-must rf-num"
                       type="number"
@@ -1810,8 +1815,10 @@ function FinancePage({
                   {accounts.find((a) => a.id === toAccountId)?.currencyCode !==
                     detail.currencyCode && (
                     <label>
-                      Kur · 1 {detail.currencyCode} = ?{" "}
-                      {accounts.find((a) => a.id === toAccountId)?.currencyCode}
+                      <span>
+                        Kur · 1 {detail.currencyCode} = ?{" "}
+                        {accounts.find((a) => a.id === toAccountId)?.currencyCode} <RequiredMark />
+                      </span>
                       <input
                         className="rf-must rf-num"
                         type="number"

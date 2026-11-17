@@ -35,7 +35,7 @@ dotnet ef migrations has-pending-model-changes --project src/Platform/AIERP.Plat
 
 Design-time connection strings come from `ConnectionStrings__Platform` / `ConnectionStrings__Tenant` / `ConnectionStrings__AIStudio`, falling back to a local Integrated Security SQL Server.
 
-Frontends (`frontend/erp-web`, `frontend/development-studio`): `npm ci`, `npm run dev`, `npm run build` (type check + Vite build; there is no lint script). `erp-web` also has Playwright UI-design tests: `npm run test:ui-design` (`tests/ui`, base URL from `NEXORA_UI_BASE_URL`, default `http://127.0.0.1:5173`; starts the dev server itself for local URLs).
+Frontends (`frontend/erp-web`, `frontend/development-studio`): `npm ci`, `npm run dev`, `npm run build` (type check + Vite build; there is no lint script). `erp-web` has Vitest component tests: `npm test` (`vitest run`, jsdom, `src/**/*.test.{ts,tsx}`; one file: `npx vitest run src/record-form`). It also has Playwright UI-design tests: `npm run test:ui-design` (`tests/ui`, base URL from `NEXORA_UI_BASE_URL`, default `http://127.0.0.1:5173`; starts the dev server itself for local URLs).
 
 Full local stack (SQL Server, Vault, all services; ERP Web :5173, Studio :5174):
 

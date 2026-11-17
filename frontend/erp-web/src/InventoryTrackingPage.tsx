@@ -1,13 +1,22 @@
-import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { CalendarClock, CalendarX } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import InventoryTrackingHeader from "./inventory-tracking/components/InventoryTrackingHeader";
 import InventoryTrackingAlerts from "./inventory-tracking/components/InventoryTrackingAlerts";
 import InventoryTrackingFilters from "./inventory-tracking/components/InventoryTrackingFilters";
-import InventoryTrackingBalanceTable from "./inventory-tracking/components/InventoryTrackingBalanceTable";
+import InventoryTrackingBalanceTable, { trackingRowKey } from "./inventory-tracking/components/InventoryTrackingBalanceTable";
 import InventoryTrackingDetail from "./inventory-tracking/components/InventoryTrackingDetail";
-import InventoryTrackingPagination from "./inventory-tracking/components/InventoryTrackingPagination";
 import InventoryTrackingBoundaryNote from "./inventory-tracking/components/InventoryTrackingBoundaryNote";
+import { TrackingExpiryCell } from "./inventory-tracking/components/TrackingExpiryTag";
+import { EXPIRY_SOON_DAYS, expiryState, localToday } from "./inventory/trackingExpiry";
+import type { BulkAction } from "./list-page/BulkActionBar";
+import { ListFooter } from "./list-page/ListFooter";
+import { ListPagination } from "./list-page/ListPagination";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { StatusTag } from "./list-page/StatusTag";
 import type {
   Balance,
   Page,
@@ -29,7 +38,9 @@ async function request<T>(url: string, token: string): Promise<T> {
 export default function InventoryTrackingPage({ token }: { token: string }) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]),
     [warehouseId, setWarehouseId] = useState("");
-  const [selectedBalance, setSelectedBalance] = useState<Balance | null>(null);
+  // The grid's current row (↑/↓ or click); the detail shows its empty state until a row is picked.
+  const [currentKey, setCurrentKey] = useState<string | null>(null),
+    [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [query, setQuery] = useState(""),
     [search, setSearch] = useState(""),
     [trackingMode, setTrackingMode] = useState("");
@@ -59,6 +70,8 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
     },
   ]);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  usePageCommands({ more: [csvExportCommand(gridExportRef)] });
   const latestRequest = useRef(0);
   const pageSize = 50;
 
@@ -128,22 +141,15 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
     void load(1);
   }, [token, search, warehouseId, trackingMode]);
 
-  useEffect(() => {
-    if (!result?.items.length) {
-      setSelectedBalance(null);
-      return;
-    }
-    const current = result.items.find(
-      (row) =>
-        row.stockItemId === selectedBalance?.stockItemId &&
-        row.warehouseId === selectedBalance?.warehouseId &&
-        row.trackingCode === selectedBalance?.trackingCode,
-    );
-    const next = current ?? result.items[0];
-    if (next !== selectedBalance) setSelectedBalance(next);
-  }, [result, selectedBalance]);
 
-  const maxPage = Math.max(1, Math.ceil((result?.totalCount ?? 0) / pageSize));
+  const rows = result?.items ?? [];
+  const selectedBalance =
+    rows.find((row) => trackingRowKey(row) === currentKey) ?? null;
+  const today = localToday();
+  const expiries = rows.map((row) => expiryState(row.expiryDate, today));
+  const bulkActions: BulkAction[] = [
+    { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+  ];
   function applySearch() {
     setSearch(query);
     if (search === query) void load(1);
@@ -162,58 +168,40 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
   function renderField(row: Balance, field: ScreenField) {
     switch (field.key) {
       case "trackingCode":
-        return (
-          <button
-            type="button"
-            className="inventory-record-pick"
-            aria-pressed={
-              selectedBalance?.stockItemId === row.stockItemId &&
-              selectedBalance?.warehouseId === row.warehouseId &&
-              selectedBalance?.trackingCode === row.trackingCode
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              setSelectedBalance(row);
-            }}
-          >
-            {row.trackingCode}
-          </button>
-        );
+        return <span className="nx-code">{row.trackingCode}</span>;
       case "trackingMode":
         return (
-          <span
-            className={`inventory-tracking-mode ${row.trackingMode === "Lot" ? "is-lot" : "is-serial"}`}
-          >
+          // Tracking type, not a status: Lot info (blue), Seri off (grey), as the former type chips.
+          <StatusTag tone={row.trackingMode === "Lot" ? "info" : "off"}>
             {row.trackingMode === "Lot" ? "Lot" : "Seri"}
-          </span>
+          </StatusTag>
         );
+      // One line each (30px rows): name with its code after it, warehouse as "code · name" like the detail panel.
       case "stockItem":
         return (
-          <>
-            <b>{row.stockItemName}</b>
-            <small className="cell-subtitle list-v2-name-code">{row.stockItemCode}</small>
-          </>
+          // The title shows the whole text where the one-line cell is cut off.
+          <span title={`${row.stockItemName} · ${row.stockItemCode}`}>
+            {row.stockItemName}
+            <small className="nx-code inventory-tracking-inline-code">{row.stockItemCode}</small>
+          </span>
         );
-      case "warehouse":
-        return (
-          <>
-            {row.warehouseName}
-            <small className="cell-subtitle list-v2-name-code">{row.warehouseCode}</small>
-          </>
-        );
+      case "warehouse": {
+        const warehouse = `${row.warehouseCode} · ${row.warehouseName}`;
+        return <span title={warehouse}>{warehouse}</span>;
+      }
       case "quantityOnHand":
-        return (
-          <b>
-            {row.quantityOnHand.toLocaleString("tr-TR", {
-              maximumFractionDigits: 4,
-            })}{" "}
-            {row.unitCode}
-          </b>
-        );
+        return `${row.quantityOnHand.toLocaleString("tr-TR", {
+          maximumFractionDigits: 4,
+        })} ${row.unitCode}`;
       case "expiryDate":
-        return row.expiryDate
-          ? new Date(`${row.expiryDate}T00:00:00`).toLocaleDateString("tr-TR")
-          : "—";
+        return row.expiryDate ? (
+          <TrackingExpiryCell
+            value={new Date(`${row.expiryDate}T00:00:00`).toLocaleDateString("tr-TR")}
+            state={expiryState(row.expiryDate, today)}
+          />
+        ) : (
+          "—"
+        );
       case "lastMovementDate":
         return new Date(`${row.lastMovementDate}T00:00:00`).toLocaleDateString(
           "tr-TR",
@@ -221,16 +209,8 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
     }
   }
 
-  function selectTableRow(event: MouseEvent<HTMLDivElement>) {
-    const row = (event.target as HTMLElement).closest("tbody tr");
-    if (!row) return;
-    const index = Array.from(row.parentElement?.children ?? []).indexOf(row);
-    const item = result?.items[index];
-    if (item) setSelectedBalance(item);
-  }
-
   return (
-    <div className="inventory-tracking-page list-v2">
+    <div className="inventory-tracking-page inventory-list-v2 list-v2">
       <InventoryTrackingHeader
         total={loading || error ? null : (result?.totalCount ?? null)}
       />
@@ -239,6 +219,26 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
         error={error}
         loading={loading}
         onRetry={() => void load()}
+      />
+      <ListSummaryCards
+        cards={[
+          {
+            id: "expired",
+            label: "Süresi geçmiş",
+            value: loading || error ? "—" : expiries.filter((state) => state === "expired").length.toLocaleString("tr-TR"),
+            icon: CalendarX,
+            tone: "bad",
+            hint: "bu sayfa",
+          },
+          {
+            id: "soon",
+            label: `${EXPIRY_SOON_DAYS} gün içinde dolacak`,
+            value: loading || error ? "—" : expiries.filter((state) => state === "soon").length.toLocaleString("tr-TR"),
+            icon: CalendarClock,
+            tone: "warn",
+            hint: "bu sayfa",
+          },
+        ]}
       />
       <InventoryTrackingFilters
         query={query}
@@ -259,23 +259,42 @@ export default function InventoryTrackingPage({ token }: { token: string }) {
       <div className="inventory-workbench-body">
         <InventoryTrackingBalanceTable
           fields={visibleFields}
-          rows={result?.items ?? []}
+          rows={rows}
           loading={loading}
           error={error}
           hasFilters={hasFilters}
           toolbarContainer={toolsSlot}
-          onClick={selectTableRow}
+          hideExport
+          exportActionsRef={gridExportRef}
+          bulkActions={bulkActions}
+          onSelectionChange={setSelectedKeys}
+          onCurrentRowChange={setCurrentKey}
           renderField={renderField}
+          footer={
+            <ListFooter hints="↑↓ gez · Boşluk işaretle">
+              {selectedKeys.length > 0 && (
+                <span>
+                  <span>{selectedKeys.length}</span> <span>seçili</span>
+                </span>
+              )}
+              <span>
+                <span>Gösterilen</span>{" "}
+                <span>
+                  {rows.length.toLocaleString("tr-TR")} / {(result?.totalCount ?? 0).toLocaleString("tr-TR")}
+                </span>
+              </span>
+              <ListPagination
+                page={page}
+                total={result?.totalCount ?? 0}
+                pageSize={pageSize}
+                loading={loading}
+                onPageChange={(nextPage) => void load(nextPage)}
+              />
+            </ListFooter>
+          }
         />
         <InventoryTrackingDetail balance={selectedBalance} />
       </div>
-      <InventoryTrackingPagination
-        totalCount={result?.totalCount ?? 0}
-        page={page}
-        maxPage={maxPage}
-        loading={loading}
-        onPageChange={(nextPage) => void load(nextPage)}
-      />
       <InventoryTrackingBoundaryNote />
     </div>
   );

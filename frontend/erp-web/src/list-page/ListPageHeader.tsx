@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import "./list-page-v2.css";
 
 type Props = {
@@ -22,9 +23,12 @@ export function ListPageHeader({
   className,
   children,
 }: Props) {
+  const { slotRef, breadcrumb } = useSlotBreadcrumb();
   return (
+    <>
     <div className={`page-heading list-v2-heading${className ? ` ${className}` : ""}`}>
-      <div className="list-v2-title">
+      <div className={`list-v2-title${breadcrumb ? " list-v2-title--crumb" : ""}`}>
+        {breadcrumb}
         <h1 title={description}>{title}</h1>
         {count != null && (
           <span className="list-v2-count">
@@ -38,5 +42,7 @@ export function ListPageHeader({
         {children}
       </div>
     </div>
+    <ActionBarSlot slotRef={slotRef} />
+    </>
   );
 }

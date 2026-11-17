@@ -7,13 +7,13 @@
  * touched. Selectors start with #root because the shared rules they sit beside do.
  */
 #root .list-v2 {
-  --lv2-text: var(--erp-color-text, #0a192f);
-  --lv2-muted: var(--erp-color-muted, #526174);
-  --lv2-border: var(--erp-color-border, #d8e0e8);
-  --lv2-surface: var(--erp-color-surface, #ffffff);
-  --lv2-surface-muted: var(--erp-color-surface-muted, #f8f9fa);
-  --lv2-strong: var(--erp-color-primary, #0a192f);
-  --lv2-accent: var(--nexora-gold, #f6c23e);
+  --lv2-text: var(--erp-color-text);
+  --lv2-muted: var(--erp-color-muted);
+  --lv2-border: var(--erp-color-border);
+  --lv2-surface: var(--erp-color-surface);
+  --lv2-surface-muted: var(--erp-color-surface-muted);
+  --lv2-strong: var(--erp-color-primary);
+  --lv2-accent: var(--nexora-gold);
 }
 
 /* Header: a plain title row instead of a card, so the list starts higher. */
@@ -31,6 +31,11 @@
   background: transparent !important;
   box-shadow: none !important;
 }
+/* Title row → action bar → toolbar (mockup: about 10px each). The page stack's gap (12px) spaces them, so
+   the heading keeps no bottom margin (screen-title / module-workspace rules give .page-heading 14px with a
+   more specific selector) and the bar slot adds no padding of its own here. */
+#root .app-shell .list-v2 .list-v2-heading { margin-bottom: 0 !important; }
+#root .list-v2 .nx-action-bar-slot:not(:empty) { padding-top: 0; }
 #root .list-v2 .list-v2-title {
   display: flex;
   align-items: baseline;
@@ -40,14 +45,16 @@
 #root .list-v2 .list-v2-title h1 {
   margin: 0;
   color: var(--lv2-text);
-  font-size: 22px;
-  font-weight: 700;
+  /* !important: global-components.css sets every .app-shell h1 to 24px/600 with !important. */
+  font-size: 19px !important;
+  font-weight: 650 !important;
   line-height: 1.25;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 #root .list-v2 .list-v2-count {
   color: var(--lv2-muted);
-  font-size: 14px;
+  font-size: 12.5px;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -64,22 +71,23 @@
   flex: 1 1 240px;
   align-items: center;
   gap: 8px;
-  max-width: 360px;
-  height: 38px;
+  max-width: 340px;
+  height: var(--nx-control-h);
   margin: 0;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid var(--lv2-border);
-  border-radius: 8px;
+  border-radius: var(--nx-radius-control);
   background: var(--lv2-surface);
   color: var(--lv2-muted);
 }
 #root .list-v2 .list-v2-search:focus-within {
-  border-color: var(--lv2-strong);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv2-accent) 35%, transparent);
+  border-color: var(--nx-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nx-primary) 20%, transparent);
 }
 #root .list-v2 .list-v2-search input {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   margin: 0;
   padding: 0;
@@ -90,7 +98,8 @@
   background: transparent !important;
   box-shadow: none !important;
   color: var(--lv2-text);
-  font-size: 14px;
+  /* !important: the shell's input rule sets 14px with !important. */
+  font-size: 12.5px !important;
 }
 #root .list-v2 .list-v2-chips {
   display: flex;
@@ -101,15 +110,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
+  height: 26px;
   margin: 0;
-  padding: 0 12px;
+  padding: 0 11px;
   border: 1px solid var(--lv2-border);
-  border-radius: 16px;
+  border-radius: 999px;
   background: var(--lv2-surface);
   color: var(--lv2-text);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -118,9 +127,10 @@
   border-color: var(--lv2-strong);
 }
 #root .list-v2 .list-v2-chip.is-active {
-  border-color: var(--lv2-strong);
-  background: var(--lv2-strong);
-  color: var(--lv2-surface);
+  border-color: color-mix(in srgb, var(--nx-primary) 32%, var(--nx-surface));
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+  font-weight: 600;
 }
 #root .list-v2 .list-v2-chip-count {
   font-weight: 500;
@@ -138,20 +148,22 @@
   align-items: center;
   gap: 6px;
   margin: 0;
-  color: var(--lv2-muted);
-  font-size: 12px;
-  font-weight: 600;
+  /* !important: the shell's `.content label` rule sets 14px/500 and text colour with !important. */
+  color: var(--lv2-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
   white-space: nowrap;
 }
 #root .list-v2 .list-v2-filter :is(select, input) {
-  height: 32px;
+  height: var(--nx-control-h);
+  min-height: 0;
   margin: 0;
   padding: 0 8px;
   border: 1px solid var(--lv2-border);
-  border-radius: 8px;
+  border-radius: var(--nx-radius-control);
   background: var(--lv2-surface);
   color: var(--lv2-text);
-  font-size: 13px;
+  font-size: 12.5px !important;
   font-weight: 500;
 }
 #root .list-v2 .list-v2-icon-button {
@@ -176,12 +188,9 @@
   outline-offset: 2px;
 }
 
-/* List: readable text size, clearer type pills. */
-#root .app-shell .list-v2 .list-v2-list tbody td {
-  font-size: 13px;
-}
+/* List: type pills. Cell size and row height come from the grid (advanced-data-grid.css). */
 #root .app-shell .list-v2 .list-v2-list .customer-name {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
 }
 #root .app-shell .list-v2 .list-v2-list .customer-code {
@@ -212,8 +221,8 @@
   color: #8a4308;
 }
 #root .app-shell .list-v2 .list-v2-list .party-pill.dealer {
-  background: #e9e6fb;
-  color: #4a35a8;
+  background: color-mix(in srgb, var(--nx-primary) 11%, var(--nx-surface));
+  color: var(--nx-primary-strong);
 }
 
 /* Detail panel. */
@@ -242,10 +251,10 @@
 }
 #root .list-v2 .list-v2-kind.is-customer { color: #134e9b; }
 #root .list-v2 .list-v2-kind.is-supplier { color: #8a4308; }
-#root .list-v2 .list-v2-kind.is-dealer { color: #4a35a8; }
+#root .list-v2 .list-v2-kind.is-dealer { color: var(--nx-primary-strong); }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-customer { color: #8ab8f5; }
 html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-supplier { color: #f0b37a; }
-html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: #b5a8f2; }
+html[data-theme='dark'] #root .list-v2 .list-v2-kind.is-dealer { color: var(--nx-primary-strong); }
 #root .list-v2 .list-v2-detail-head-actions {
   display: flex;
   flex: none;
@@ -480,6 +489,8 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
+  /* module-workspace.css gives page grid toolbars a 52px minimum height and 36px buttons. */
+  min-height: 0 !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0;
@@ -489,16 +500,17 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
 #root .list-v2 .list-v2-grid-tools .advanced-grid-count {
   display: none;
 }
-#root .list-v2 .list-v2-grid-tools :is(.advanced-grid-menu > summary, .advanced-grid-action) {
-  min-height: 34px;
-  padding: 0 10px;
+#root .list-v2 .list-v2-grid-tools .advanced-grid-toolbar :is(.advanced-grid-menu > summary, .advanced-grid-action) {
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
+  padding: 0 9px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--nx-radius-control);
   background: transparent;
   box-shadow: none;
   color: var(--lv2-text);
-  font-size: 13px;
-  font-weight: 500;
+  /* !important: the shell's `.advanced-grid-action` rule sets font 500 14px with !important. */
+  font: 500 12.5px/1.2 var(--nx-font) !important;
 }
 #root .list-v2 .list-v2-grid-tools :is(.advanced-grid-menu > summary, .advanced-grid-action):hover,
 #root .list-v2 .list-v2-grid-tools .advanced-grid-action.active {
@@ -526,7 +538,7 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
   cursor: pointer;
 }
 #root .list-v2 .list-v2-detail-foot button.is-danger {
-  color: var(--erp-color-danger, #b91c1c);
+  color: var(--erp-color-danger);
 }
 #root .list-v2 .list-v2-detail-foot button:hover {
   background: var(--lv2-surface-muted);
@@ -543,3 +555,256 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
 /* Grid export buttons sit with the page actions (see ListPageHeader / AdvancedDataGrid). */
 #root .list-v2 .list-v2-export-slot { display: contents; }
 #root .list-v2 .list-v2-export-action { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---- List kit (mockup 01, list part): summary cards, status tag, footer, pagination ----
+   Not scoped under .list-v2, so the parts also work on lists that have not moved to it yet.
+   #root keeps the shell's global button / table rules from restyling them. */
+
+/* Summary cards (".mk"): icon tile, label, value, optional hint; a filter card is a toggle button.
+   Class names avoid "-card" / "-icon": the shell restyles [class*='-card'] and [class*='-icon'] with !important. */
+#root .nx-summary-row {
+  display: grid;
+  /* Fixed four columns (mockup 01): one or two cards keep the card width instead of stretching; more wrap. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  #root .nx-summary-row { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
+#root .nx-summary-row > .nx-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  box-shadow: none;
+  color: var(--nx-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+}
+#root .nx-summary-row > button.nx-summary-item { cursor: pointer; }
+#root .nx-summary-row > button.nx-summary-item:hover { border-color: color-mix(in srgb, var(--nx-primary) 40%, var(--nx-line)); }
+#root .nx-summary-row > button.nx-summary-item:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+#root .nx-summary-row .nx-summary-glyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary);
+}
+#root .nx-summary-row .nx-summary-item.is-ok .nx-summary-glyph { background: var(--nx-ok-bg); color: var(--nx-ok); }
+#root .nx-summary-row .nx-summary-item.is-warn .nx-summary-glyph { background: var(--nx-warn-bg); color: var(--nx-warn); }
+#root .nx-summary-row .nx-summary-item.is-bad .nx-summary-glyph { background: var(--nx-bad-bg); color: var(--nx-bad); }
+#root .nx-summary-row .nx-summary-text { display: flex; flex-direction: column; min-width: 0; }
+#root .nx-summary-row .nx-summary-text > small {
+  overflow: hidden;
+  /* !important: `.app-shell small` is 12px with !important. */
+  color: var(--nx-muted) !important;
+  font-size: 11.5px !important;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .nx-summary-row .nx-summary-text > b {
+  color: var(--nx-text);
+  font-size: 16px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+#root .nx-summary-row .nx-summary-item.is-warn .nx-summary-text > b { color: var(--nx-warn); }
+#root .nx-summary-row .nx-summary-item.is-bad .nx-summary-text > b { color: var(--nx-bad); }
+#root .nx-summary-row .nx-summary-hint { overflow: hidden; color: var(--nx-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+#root .nx-summary-row .nx-summary-filter { flex: none; margin-left: auto; color: var(--nx-muted); font-size: 11px; white-space: nowrap; }
+/* The card the list is filtered by: tinted frame, "süzülüyor ✕" in the card's tone. */
+#root .nx-summary-row > .nx-summary-item.is-active {
+  border-color: color-mix(in srgb, var(--nx-primary) 45%, var(--nx-surface));
+  background: color-mix(in srgb, var(--nx-primary-soft) 45%, var(--nx-surface));
+}
+#root .nx-summary-row > .nx-summary-item.is-active .nx-summary-filter { color: var(--nx-primary-strong); }
+#root .nx-summary-row > .nx-summary-item.is-warn.is-active { border-color: color-mix(in srgb, var(--nx-warn) 40%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-warn-bg) 45%, var(--nx-surface)); }
+#root .nx-summary-row > .nx-summary-item.is-warn.is-active .nx-summary-filter { color: var(--nx-warn); }
+#root .nx-summary-row > .nx-summary-item.is-bad.is-active { border-color: color-mix(in srgb, var(--nx-bad) 40%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-bad-bg) 45%, var(--nx-surface)); }
+#root .nx-summary-row > .nx-summary-item.is-bad.is-active .nx-summary-filter { color: var(--nx-bad); }
+#root .nx-summary-row > .nx-summary-item.is-ok.is-active { border-color: color-mix(in srgb, var(--nx-ok) 40%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-ok-bg) 45%, var(--nx-surface)); }
+#root .nx-summary-row > .nx-summary-item.is-ok.is-active .nx-summary-filter { color: var(--nx-ok); }
+
+/* Status tag (".tag"): full pill, 11px/600, tone colours from the tokens. */
+#root .nx-status-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--nx-line-soft);
+  color: var(--nx-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+#root .nx-status-tag.is-ok { background: var(--nx-ok-bg); color: var(--nx-ok); }
+#root .nx-status-tag.is-warn { background: var(--nx-warn-bg); color: var(--nx-warn); }
+#root .nx-status-tag.is-bad { background: var(--nx-bad-bg); color: var(--nx-bad); }
+#root .nx-status-tag.is-info { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
+
+/* Footer (".foot"): bottom line of the list area, hints left, selection / totals / pagination right. */
+#root .nx-list-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  min-width: 0;
+  padding: 7px 16px;
+  border-top: 1px solid var(--nx-line);
+  background: color-mix(in srgb, var(--nx-canvas) 45%, var(--nx-surface));
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+#root .nx-list-footer-hints { min-width: 0; }
+#root .nx-list-footer-end { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
+#root .nx-list-footer-end b { color: var(--nx-text); font-weight: 600; }
+
+/* Pagination: the footer's muted 11.5px line with compact buttons (layout and spacing stay with the page).
+   Inside ListFooter it is just the right-hand part: no rule, padding or minimum height of its own. */
+#root .table-pagination.nx-list-pagination {
+  gap: 12px;
+  min-height: 0;
+  border-top-color: var(--nx-line);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+#root .table-pagination.nx-list-pagination > div { display: flex; gap: 6px; }
+/* !important: the shell's `.secondary` rule sets font 500 14px with !important. */
+#root .table-pagination.nx-list-pagination button {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--nx-radius-control);
+  font: 500 12px/1 var(--nx-font) !important;
+}
+#root .nx-list-footer-end .table-pagination.nx-list-pagination { margin: 0; padding: 0; border: 0; }
+
+/* Definition screen (DefinitionLayout, mockup 04 "Tanım ekranı"): compact list left, the record's form right.
+   Below 1280px the pane is a drawer over the list while a record is open (not a modal; Esc closes it). */
+#root .list-v2 .nx-def { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+#root .list-v2 .nx-def-list,
+#root .list-v2 .nx-def-pane { display: grid; gap: 12px; align-content: start; min-width: 0; }
+#root .list-v2 .nx-def-empty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 24px;
+  border: 1px dashed var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+/* Small read-only table inside a definition form card (e.g. a warehouse's locations). */
+#root .list-v2 .nx-def-subtable { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#root .list-v2 .nx-def-subtable th {
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+}
+#root .list-v2 .nx-def-subtable td { height: var(--nx-row-h-dense); padding: 0 8px; border-bottom: 1px solid var(--nx-line-soft); color: var(--nx-text); }
+/* global-components.css gives every .app-shell table cell 8px 12px / 44px with !important; the subtable keeps the
+   30px compact row (id-level, so heavier than that rule). */
+#root .list-v2 table.nx-def-subtable :is(th, td) { height: var(--nx-row-h-dense) !important; padding: 0 8px !important; font-size: 12.5px !important; }
+#root .list-v2 table.nx-def-subtable th { height: 28px !important; font-size: 11.5px !important; }
+#root .list-v2 table.nx-def-subtable td.nx-code { font-family: var(--nx-font-mono); font-size: 12px !important; }
+#root .list-v2 .nx-def-subtable-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--nx-muted); font-size: 11.5px; }
+#root .list-v2 .nx-def-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  color: var(--nx-primary-strong);
+  font: 600 12px/1 var(--nx-font);
+  cursor: pointer;
+}
+#root .list-v2 .nx-def-link:hover { background: var(--nx-primary-soft); }
+#root .list-v2 .nx-def-link:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+/* The embedded record form is not a second frame around its cards (mockup 04: the title row sits on the canvas, the
+   cards below it are the only boxes). `record-form--dialog` matches the global "-dialog" rules, hence !important. */
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded,
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form {
+  margin: 0;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-toolbar { padding: 4px 0 10px; background: transparent; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-form { padding: 12px 0 0; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-error { margin: 12px 0 0; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-status { padding-inline: 0; background: transparent; border: 0; }
+/* Its inline grid toolbar uses the design control height (the shell gives grid toolbars 40px controls). */
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar { min-height: 0 !important; padding: 0 0 8px !important; gap: 6px; background: transparent !important; }
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar :is(.advanced-grid-search, .advanced-grid-menu > summary, .advanced-grid-action) {
+  height: var(--nx-control-h) !important;
+  min-height: var(--nx-control-h) !important;
+  border-radius: var(--nx-radius-control) !important;
+  font: 500 12.5px/1.2 var(--nx-font) !important;
+}
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar .advanced-grid-search input { height: 100%; font-size: 12.5px !important; }
+/* list-v2-grid-card: a secondary card that frames a grid with its own inline toolbar (e.g. Konum bakiyesi). The card
+   is the only frame (advanced-data-grid.css); it does not clip, so the toolbar popovers stay visible. */
+/* Legacy card rule (module-workspace.css "Match all workspace card surfaces": 12px !important on every
+   [class*=-card] / [class*=-panel] / .panel) would give list-v2 cards 12px and the toggles that match by name a card
+   radius: list-v2 keeps the design radii (card 8px, control 6px). */
+#root .app-shell:not(.standalone-studio) .workspace-page-main .list-v2 :is([class*="-card"], [class*="-panel"], .panel, .card):not(button) {
+  border-radius: var(--nx-radius-card) !important;
+}
+#root .app-shell:not(.standalone-studio) .workspace-page-main .list-v2 button:is([class*="-card"], [class*="-panel"]) {
+  border-radius: var(--nx-radius-control) !important;
+}
+@media (max-width: 1279px) {
+  #root .list-v2 .nx-def { grid-template-columns: minmax(0, 1fr); }
+  #root .list-v2 .nx-def-pane { display: none; }
+  #root .list-v2 .nx-def.is-pane-open { min-height: max(560px, calc(100dvh - 220px)); }
+  /* Block, not grid: the drawer scrolls and its cards keep their own height. */
+  #root .list-v2 .nx-def.is-pane-open > .nx-def-pane {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: block;
+    box-sizing: border-box;
+    width: min(640px, 100%);
+    padding: 12px;
+    overflow: auto;
+    border-left: 1px solid var(--nx-line);
+    background: var(--nx-canvas);
+    box-shadow: -12px 0 28px color-mix(in srgb, var(--nx-ink) 18%, transparent);
+  }
+  #root .list-v2 .nx-def.is-pane-open > .nx-def-pane > * + * { margin-top: 12px; }
+}

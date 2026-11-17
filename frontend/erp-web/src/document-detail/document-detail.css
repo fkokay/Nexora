@@ -7,17 +7,17 @@
 
 .doc-surface.doc-detail,
 .dd-tabs {
-  --dd-ink: var(--erp-color-text, #0a192f);
-  --dd-muted: var(--erp-color-muted, #526174);
-  --dd-line: var(--erp-color-border, #d8e0e8);
+  --dd-ink: var(--erp-color-text);
+  --dd-muted: var(--erp-color-muted);
+  --dd-line: var(--erp-color-border);
   --dd-line-soft: #e8edf3;
-  --dd-paper: var(--erp-color-surface, #fff);
-  --dd-band: var(--erp-color-surface-muted, #f8f9fa);
-  --dd-link: var(--erp-link, #315f8b);
-  --dd-warn: #9a6700;
-  --dd-warn-bg: #fff7e0;
-  --dd-warn-line: #ecd08b;
-  --dd-danger: var(--erp-color-danger, #b91c1c);
+  --dd-paper: var(--erp-color-surface);
+  --dd-band: var(--erp-color-surface-muted);
+  --dd-link: var(--nx-primary);
+  --dd-warn: var(--nx-warn);
+  --dd-warn-bg: var(--nx-warn-bg);
+  --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
+  --dd-danger: var(--erp-color-danger);
   --dd-success: #17643c;
   --dd-bar: #2f855a;
   --dd-bar-track: #e5eaf0;
@@ -26,9 +26,9 @@ html[data-theme="dark"] .doc-surface.doc-detail,
 html[data-theme="dark"] .dd-tabs {
   --dd-line-soft: #283043;
   --dd-link: #93c5fd;
-  --dd-warn: #f0d48a;
-  --dd-warn-bg: #2b2613;
-  --dd-warn-line: #6b5520;
+  --dd-warn: var(--nx-warn);
+  --dd-warn-bg: var(--nx-warn-bg);
+  --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --dd-success: #9bdcb6;
   --dd-bar: #48bb78;
   --dd-bar-track: #2a3346;

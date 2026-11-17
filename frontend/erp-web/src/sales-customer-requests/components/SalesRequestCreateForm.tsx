@@ -5,6 +5,7 @@ import type * as AppTypes from "../../erp-types";
 import { api } from "../../erpApi";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
+import { PageCommandsSlot, confirmStartNew } from "../../commands/PageCommandsSlot";
 import type { SalesRequestSummary } from "../types";
 
 type Customer = { id: string; code: string; name: string; currencyCode: string };
@@ -128,7 +129,21 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
   const updateLine = (index: number, patch: Partial<Line>) =>
     setLines((current) => current.map((line, rowIndex) => (rowIndex === index ? { ...line, ...patch } : line)));
 
+  // The form is the whole screen while it is open, so it registers the action bar's Yeni (a fresh request).
+  const dirty = Boolean(code.trim() || customerId || neededByDate || description.trim() || lines.some((line) => line.stockItemId));
   return (
+    <>
+    <PageCommandsSlot
+      commands={{
+        new: {
+          run: async () => {
+            if (!(await confirmStartNew(dirty))) return;
+            reset();
+            setNotice("");
+          },
+        },
+      }}
+    />
     <RecordFormPage
       className="sales-rf"
       title="Yeni Satış Talebi"
@@ -242,5 +257,6 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
         </div>
       </RecordFormGroup>
     </RecordFormPage>
+    </>
   );
 }

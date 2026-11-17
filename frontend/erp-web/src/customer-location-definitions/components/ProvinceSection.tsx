@@ -8,7 +8,6 @@ import type {
   TurkeyLocationOption,
 } from "../../erp-types";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
-import { useRecordFormShortcutScope } from "../../customers/components/useRecordFormShortcutScope";
 import "../../purchasing-record-forms.css";
 
 export const defaultProvinceFields: BuiltInScreenLayoutField[] = [
@@ -229,7 +228,6 @@ export function ProvinceSection(props: Props) {
     onQueryChange,
     fields,
   } = props;
-  useRecordFormShortcutScope();
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   return (
     <section className="panel list-v2-list">

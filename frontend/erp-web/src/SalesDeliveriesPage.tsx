@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
 import {
   ArrowLeftRight,
   FilePlus2,
-  Plus,
   X,
 } from "lucide-react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
@@ -147,6 +150,7 @@ export function SalesDeliveriesScreen({
   // Arama sunucuda yapılır; yalnızca açık sayfa değil tüm irsaliyeler taranır.
   const [filter, setFilter] = useState("");
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
   async function load() {
     setLoading(true);
     setError("");
@@ -543,10 +547,78 @@ export function SalesDeliveriesScreen({
       setBusy(false);
     }
   }
+  // Action bar of the delivery list and of an open delivery. A shipped (Posted) delivery is cancelled, never
+  // deleted; only a cancelled one can be deleted. The create page's Yeni comes from StandaloneFulfillmentPanel.
+  const busyReason = busy ? "İşleniyor…" : undefined;
+  // The bar acts on the open delivery, else on the row the user chose (not the grid's first-row highlight).
+  const target: SalesDeliverySummary | undefined = detail
+    ? ({ warehouseId: "", lineCount: detail.lines.length, createdAt: "", ...detail } as SalesDeliverySummary)
+    : items.find((item) => item.id === selectedId);
+  const commands: PageCommands = {
+    // The create page replaces the list; an open delivery is closed first so the form is what shows.
+    new: {
+      primary: !detail,
+      run: () => {
+        setDetail(null);
+        setCreating(true);
+      },
+    },
+    // While a delivery is open the list's refresh / filter / Excel must not act on the hidden list.
+    ...(detail ? documentOpenCommands(() => open(detail.id)) : {}),
+  };
+  if (!detail)
+    commands.open = {
+      disabledReason: target ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? target?.id;
+        if (id) return open(id);
+      },
+    };
+  if (role === "TenantAdmin")
+    commands.delete = {
+      disabledReason: !target
+        ? "Önce bir kayıt seçin"
+        : target.status !== "Voided"
+          ? "Sevk edilmiş irsaliye silinemez — İşlemler › İptal et"
+          : busyReason,
+      run: () => (target ? deleteDelivery(target) : undefined),
+    };
+  const more: MenuCommand[] = [];
+  // Same handler as the visible control: the row menu on the list, the detail's button (invoice editor) when open.
+  if (target?.status === "Posted" && !target.hasSalesInvoice && !(detail && invoiceEditing))
+    more.push({
+      id: "delivery-invoice",
+      label: "Faturalaştır",
+      disabledReason: busyReason,
+      run: () =>
+        detail
+          ? startOrderlessInvoice(detail.id)
+          : target.orderId
+            ? createInvoice(target.id)
+            : startOrderlessInvoice(target.id),
+    });
+  if (target?.invoiceId)
+    more.push({ id: "delivery-open-invoice", label: "Faturayı aç", run: () => setInvoiceId(target.invoiceId) });
+  if (target?.status === "Posted")
+    more.push({
+      id: "delivery-void",
+      label: "İptal et",
+      disabledReason:
+        busyReason ??
+        (role !== "TenantAdmin"
+          ? "İrsaliye iptali için yönetici yetkisi gerekir."
+          : target.invoiceStatus === "Posted"
+            ? "Önce bağlı satış faturasını iptal edin."
+            : undefined),
+      run: () => voidDelivery(target),
+    });
+  if (!detail) more.push(csvExportCommand(gridExportRef));
+  commands.more = more;
   return (
     <div
       className={`delivery-screen list-v2${creating ? " delivery-create-screen" : ""}`}
     >
+      {!creating && !invoiceId && <PageCommandsSlot commands={commands} />}
       {creating ? (
         <div className="page-heading customer-heading">
           <div>
@@ -570,12 +642,7 @@ export function SalesDeliveriesScreen({
             title="Satış İrsaliyeleri"
             description="Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."
             count={total}
-          >
-            <button className="primary" onClick={() => setCreating(true)}>
-              <Plus size={16} />
-              Yeni irsaliye
-            </button>
-          </ListPageHeader>
+          />
           <ListToolbar
             search={search}
             onSearchChange={setSearch}
@@ -604,12 +671,15 @@ export function SalesDeliveriesScreen({
           warehouses={warehouses}
           initialCustomerId={customerActionId}
           onCancel={() => setCreating(false)}
+          ownsActionBar={!invoiceId}
         />
       ) : (
         <>
           <section className="list-v2-list">
             <SalesDocumentGrid
               gridId="sales-deliveries"
+              hideExport
+              exportActionsRef={gridExportRef}
               fields={visibleFields}
               items={items}
               selectedId={selected?.id ?? null}
@@ -778,6 +848,7 @@ export function SalesDeliveriesScreen({
                 mode="create"
                 busy={busy}
                 saveLabel="Faturayı oluştur"
+                saveDisabledReason={detail.orderId === null && !invoiceCustomerId ? "Kaydetmek için müşteri seçin." : undefined}
                 onCancel={() => {
                   if (!busy) setInvoiceEditing(false);
                 }}

@@ -172,12 +172,12 @@
 
 /* Fatura toplamları: solda fatura notu, sağda düz metin toplam satırları. */
 .record-form.sales-rf {
-  --sales-payable-bg: #fff8de;
+  --sales-payable-bg: color-mix(in srgb, var(--nx-primary) 12%, var(--nx-surface));
   --sales-payable-text: #172b45;
 }
 html[data-theme="dark"] .record-form.sales-rf {
-  --sales-payable-bg: #2b2613;
-  --sales-payable-text: #ffe7a3;
+  --sales-payable-bg: var(--nx-warn-bg);
+  --sales-payable-text: var(--nx-primary-strong);
 }
 .record-form.sales-rf .rf-form .sales-invoice-note-counter { color: var(--rf-muted); }
 .record-form.sales-rf .rf-form .sales-invoice-total-panel span { color: var(--rf-muted); }

@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { usePageCommands } from "./commands/CommandProvider";
+import { csvExportCommand } from "./commands/gridCommands";
 import { authenticatedFetch } from "./authApi";
 import DistributionFilters from "./sales-distribution/components/DistributionFilters";
 import DistributionPlanPanel from "./sales-distribution/components/DistributionPlanPanel";
@@ -53,6 +56,9 @@ export default function SalesDistributionPage({ token }: Props) {
   const [screenFields, setScreenFields] =
     useState<ScreenField[]>(defaultScreenFields);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  // The plan has no records to create or delete; Excel is the grid's export, CSV an İşlemler item.
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  usePageCommands({ more: [csvExportCommand(gridExportRef)] });
   useEffect(() => {
     let cancelled = false;
     request<{ fields?: ScreenField[] }>(
@@ -173,6 +179,7 @@ export default function SalesDistributionPage({ token }: Props) {
         selected={selected}
         onSelectStock={setSelectedStockId}
         toolbarContainer={toolsSlot}
+        exportActionsRef={gridExportRef}
         onPreviousPage={() => setPageNumber((value) => Math.max(1, value - 1))}
         onNextPage={() => setPageNumber((value) => value + 1)}
       />

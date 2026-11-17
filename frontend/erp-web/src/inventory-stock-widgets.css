@@ -10,8 +10,8 @@
 #root .inventory-widget-row b{overflow:hidden;color:#273a55;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
 #root .inventory-widget-row small{overflow:hidden;color:#7b899d;font-size:8px;text-overflow:ellipsis;white-space:nowrap}
 #root .inventory-widget-row strong{flex:0 0 auto;color:#263b5c;font-size:9px;font-variant-numeric:tabular-nums}
-#root .inventory-widget-row:hover b{color:#5a48d6}
-#root .inventory-widget-link{justify-self:start;padding:5px 0;border:0;background:transparent;color:#6048db;font-size:9px;font-weight:700;cursor:pointer}
+#root .inventory-widget-row:hover b{color:var(--nx-primary-strong)}
+#root .inventory-widget-link{justify-self:start;padding:5px 0;border:0;background:transparent;color:var(--nx-primary-strong);font-size:9px;font-weight:700;cursor:pointer}
 #root .inventory-widget-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #root .inventory-widget-pair>div{display:grid;gap:3px;padding:8px;border:1px solid #e8edf4;border-radius:7px;background:#f8fafd}
 #root .inventory-widget-pair b{color:#15243c;font-size:16px;font-variant-numeric:tabular-nums}

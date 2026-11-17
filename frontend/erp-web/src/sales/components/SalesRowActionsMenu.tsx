@@ -42,8 +42,11 @@ export default function SalesRowActionsMenu({
           : Math.max(8, rect.top - height - 4),
       });
     };
+    // On the document, so it runs before the record form's window listener; preventDefault keeps Esc from also
+    // cancelling that form.
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      event.preventDefault();
       setOpen(false);
       triggerRef.current?.focus();
     };
@@ -56,12 +59,12 @@ export default function SalesRowActionsMenu({
     menuItems(menuRef.current)[0]?.focus({ preventScroll: true });
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", closeOnEscape);
     document.addEventListener("pointerdown", closeOutside);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", closeOnEscape);
       document.removeEventListener("pointerdown", closeOutside);
     };
   }, [open]);

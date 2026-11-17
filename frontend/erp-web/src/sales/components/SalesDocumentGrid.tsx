@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import type { MutableRefObject, ReactNode } from "react";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { BuiltInScreenLayoutField } from "../../erp-types";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
@@ -20,6 +20,10 @@ type SalesDocumentGridProps<T extends { id: string }> = {
   renderCell: (field: BuiltInScreenLayoutField, item: T) => ReactNode;
   /** Tablonun erişilebilir adı; varsayılan "Satış belgesi kayıtları". */
   ariaLabel?: string;
+  /** Hides the grid's XLSX/CSV header buttons; the action bar's Excel command still exports. */
+  hideExport?: boolean;
+  /** Receives the grid's export functions while mounted (see AdvancedDataGrid). */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
 
 export default function SalesDocumentGrid<T extends { id: string }>({
@@ -36,6 +40,8 @@ export default function SalesDocumentGrid<T extends { id: string }>({
   onSelect,
   renderCell,
   ariaLabel = "Satış belgesi kayıtları",
+  hideExport,
+  exportActionsRef,
 }: SalesDocumentGridProps<T>) {
   const noRowsMessage = search ? searchEmptyMessage : emptyMessage;
 
@@ -49,6 +55,8 @@ export default function SalesDocumentGrid<T extends { id: string }>({
         hideSearch
         toolbarContainer={toolbarContainer}
         enableRowSelection={false}
+        hideExport={hideExport}
+        exportActionsRef={exportActionsRef}
         aria-label={ariaLabel}
       >
         <thead>
@@ -76,11 +84,13 @@ export default function SalesDocumentGrid<T extends { id: string }>({
             items.map((item) => (
               <tr
                 key={item.id}
+                data-record-id={item.id}
                 className={selectedId === item.id ? "erp-selected-row" : ""}
                 tabIndex={0}
                 onClick={() => onSelect(item.id)}
                 onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) return;
+                  // The action bar may already have run Aç (Enter) for this row.
+                  if (event.target !== event.currentTarget || event.defaultPrevented) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(item.id);

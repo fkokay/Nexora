@@ -1,26 +1,19 @@
 import { lazy, Suspense, useEffect, useState, type RefObject } from "react";
 import {
-  BarChart3,
-  Boxes,
-  Building2,
   ChevronDown,
   ChevronUp,
   ChevronRight,
   Eye,
   EyeOff,
-  Factory,
-  Globe,
   Home,
-  Landmark,
-  Package,
-  ShoppingCart,
-  UserRoundPlus,
-  UsersRound,
-  Warehouse,
+  Link2,
+  SlidersHorizontal,
   AlertTriangle,
   X,
 } from "lucide-react";
 import { api } from "./erpApi";
+import { ActionBar } from "./action-bar/ActionBar";
+import { ActionBarSlotProvider, ShellBreadcrumbRow } from "./action-bar/ActionBarSlot";
 import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
@@ -34,26 +27,10 @@ import {
 } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type { Tenant, Theme } from "./erp-types";
+import { workbenchRailItems, type WorkbenchRailItem } from "./shell/railItems";
+import { moduleForPage } from "./shell/moduleMenus";
+import { WorkspaceSubNav } from "./shell/WorkspaceSubNav";
 type ApiRequest = typeof import("./erpApi").api;
-
-const workbenchRailItems = [
-  { id: "dashboard", page: "launcher", label: ["Ana Sayfa", "Home"], icon: Home },
-  { id: "customers", page: "customers", label: ["Cari", "Customers"], icon: Building2 },
-  { id: "customer-create", page: "customer-create", label: ["Cari Ekle", "New Customer"], icon: UserRoundPlus },
-  { id: "inventory", page: "inventory-stock", label: ["Stok", "Stock"], icon: Package },
-  { id: "sales", page: "sales-invoices", label: ["Satış", "Sales"], icon: ShoppingCart },
-  { id: "purchasing", page: "sales-purchase-invoices", label: ["Satın Alma", "Purchasing"], icon: Boxes },
-  { id: "finance", page: "finance-accounts", label: ["Finans", "Finance"], icon: Landmark },
-  { id: "warehouse", page: "inventory-warehouses", label: ["Depo", "Warehousing"], icon: Package },
-  { id: "manufacturing", page: "manufacturing-orders", label: ["Üretim", "Production"], icon: Factory },
-  { id: "human-resources", page: "human-resources", label: ["İK", "HR"], icon: UsersRound },
-  { id: "fixed-assets", page: "fixed-assets", label: ["Duran Varlık", "Fixed Assets"], icon: Warehouse },
-  { id: "foreign-trade", page: "foreign-trade", label: ["Dış Ticaret", "Foreign Trade"], icon: Globe },
-  { id: "reports", page: "reports", label: ["Raporlar", "Reports"], icon: BarChart3 },
-  // id stays "modules" so saved rail order/visibility preferences keep matching; the module marketplace
-  // remains reachable from the top bar. Definition pages are TenantAdmin-only, so the item is too.
-  { id: "modules", page: "location-definitions", label: ["Tanımlar", "Definitions"], icon: Boxes, adminOnly: true },
-];
 
 const standardListPages = new Set([
   "customers", "customer-ledger", "crm-opportunities", "fixed-assets", "human-resources",
@@ -110,29 +87,14 @@ function WorkspaceRail({
     });
     return () => { active = false; };
   }, [token]);
-  const activePage = (itemPage: string) => {
-    if (itemPage === "customers")
-      return (
-        (page.startsWith("customer") && page !== "customer-create") ||
-        page.startsWith("crm")
-      );
-    // Depo öğesi kendi sayfalarında yanar; Stok yalnızca kalan stok sayfalarında.
-    const warehousePage = page === "inventory-warehouses" || page === "inventory-locations" || page === "inventory-transfers";
-    if (itemPage === "inventory-warehouses") return warehousePage;
-    if (itemPage === "inventory-stock") return page.startsWith("inventory-") && !warehousePage;
-    // Satınalma sayfalarının anahtarları da "sales-" ile başlar; talep ve sipariş sayfalarında "purchase" geçmez.
-    const purchasingPage = page.includes("purchase") || page === "sales-requests" || page === "sales-purchasing" || page === "commercial-contracts";
-    if (itemPage === "sales-invoices") return page.startsWith("sales-") && !purchasingPage;
-    if (itemPage === "sales-purchase-invoices") return purchasingPage;
-    if (itemPage === "finance-accounts") return page.startsWith("finance-");
-    if (itemPage === "manufacturing-orders") return page.startsWith("manufacturing-");
-    if (itemPage === "location-definitions") return page === "location-definitions" || page === "address-definitions";
-    return page === itemPage;
-  };
-  const orderedItems = order.map((id) => workbenchRailItems.find((item) => item.id === id)).filter((item): item is typeof workbenchRailItems[number] => Boolean(item));
+  const orderedItems = order.map((id) => workbenchRailItems.find((item) => item.id === id)).filter((item): item is WorkbenchRailItem => Boolean(item));
   const visibleItems = orderedItems.filter(
     (item) => !hidden.includes(item.id) && (!("adminOnly" in item) || role === "TenantAdmin"),
   );
+  // A rail item that opens exactly this page wins ("Cari Ekle" on customer-create); otherwise the page's module lights.
+  const exactItem = visibleItems.some((item) => item.page === page);
+  const pageRailId = moduleForPage(page)?.railId;
+  const isActive = (item: WorkbenchRailItem) => (exactItem ? item.page === page : item.id === pageRailId);
   const startEditing = () => {
     setDraftOrder(order);
     setDraftHidden(hidden);
@@ -168,28 +130,37 @@ function WorkspaceRail({
   };
   return (
     <aside className="workspace-rail">
+      <span className="workspace-rail-brand" title="Nexora ERP" aria-hidden="true"><Link2 size={16} /></span>
       <nav aria-label={locale === "en" ? "Main navigation" : "Ana menü"}>
         {visibleItems.map((item) => {
           const Icon = item.icon;
           const label = item.label[locale === "en" ? 1 : 0];
+          const active = isActive(item);
+          const name = item.id === "customer-create" ? (locale === "en" ? "Create customer card" : "Cari Kart Oluştur") : label;
           return (
             <button
               type="button"
               key={item.id}
-              className={`workspace-rail-item${activePage(item.page) ? " active" : ""}`}
-              aria-current={activePage(item.page) ? "page" : undefined}
-              title={item.id === "customer-create" ? (locale === "en" ? "Create customer card" : "Cari Kart Oluştur") : label}
+              className={`workspace-rail-item${active ? " active" : ""}`}
+              aria-current={active ? "page" : undefined}
+              aria-label={name}
+              title={name}
               // Sekme, menüdeki modül adını ("Satış") değil açılan ekranın kendi başlığını ("Satış Faturaları") taşır.
               onClick={() => onNavigate(item.page)}
             >
-              <Icon size={20} strokeWidth={1.9} />
-              <span>{label}</span>
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
             </button>
           );
         })}
       </nav>
-      <button type="button" className="workspace-rail-edit" onClick={startEditing}>
-        <Boxes size={15} /><span>{locale === "en" ? "Edit menu" : "Menüyü düzenle"}</span>
+      <button
+        type="button"
+        className="workspace-rail-edit"
+        aria-label={locale === "en" ? "Edit menu" : "Menüyü düzenle"}
+        title={locale === "en" ? "Edit menu" : "Menüyü düzenle"}
+        onClick={startEditing}
+      >
+        <SlidersHorizontal size={17} aria-hidden="true" />
       </button>
       {editing && (
         <div className="workspace-rail-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false); }}>
@@ -407,24 +378,67 @@ export function WorkspaceShellPage(props: Props) {
     moduleTabs.find((tab) => tab.id === page)?.label ||
     page.replace(/[-_]/g, " ");
   const currentSubrouteTitle = subrouteTitle?.page === page ? subrouteTitle.title : null;
+  const breadcrumbNav = (
+    <nav
+      className="workspace-breadcrumb"
+      aria-label={locale === "en" ? "Breadcrumb" : "Sayfa yolu"}
+    >
+      <button type="button" onClick={() => onNavigate("launcher")}>
+        <Home size={14} aria-hidden="true" />
+        <span>{locale === "en" ? "Home" : "Ana Sayfa"}</span>
+      </button>
+      <ChevronRight size={13} aria-hidden="true" />
+      {currentSubrouteTitle ? <>
+        <span>{activeTabLabel}</span>
+        <ChevronRight size={13} aria-hidden="true" />
+        <span aria-current="page">{currentSubrouteTitle}</span>
+      </> : <span aria-current="page">{activeTabLabel}</span>}
+    </nav>
+  );
+  // Open-screen tabs sit inside the top bar; studio mode hides the top bar, so they stay a row of their own there.
+  const workspaceTabs = (
+    <WorkspaceTabs
+      tabs={moduleTabs}
+      activeId={page}
+      locale={locale}
+      dirtyTabs={dirtyTabs}
+      onSelect={onNavigate}
+      onClose={onCloseTab}
+      onMove={onMoveTab}
+    />
+  );
 
   return (
     <div className={`app-shell${standaloneStudio ? " standalone-studio" : ""}`}>
-      <div className="workspace-search-index" aria-hidden="true">
-        <Suspense fallback={null}>
-          <TenantModuleNavigation
-            token={token}
+      {standaloneStudio ? (
+        // Studio mode has no sub-menu; the module list is still mounted for the global search index.
+        <div className="workspace-search-index" aria-hidden="true">
+          <Suspense fallback={null}>
+            <TenantModuleNavigation
+              token={token}
+              page={page}
+              onSearchItems={onSearchItems}
+              onSelect={onSelectModule}
+            />
+          </Suspense>
+        </div>
+      ) : (
+        <>
+          <WorkspaceRail page={page} locale={locale} token={token} role={tenant.role} onNavigate={onNavigate} />
+          <WorkspaceSubNav
             page={page}
+            locale={locale}
+            token={token}
+            pageLabels={globalSearchPages}
+            onNavigate={onNavigate}
+            onSelectModule={onSelectModule}
             onSearchItems={onSearchItems}
-            onSelect={onSelectModule}
           />
-        </Suspense>
-      </div>
-      {!standaloneStudio && (
-        <WorkspaceRail page={page} locale={locale} token={token} role={tenant.role} onNavigate={onNavigate} />
+        </>
       )}
       <main className="main-area">
         <WorkspaceTopbar
+          tabs={standaloneStudio ? undefined : workspaceTabs}
           locale={locale}
           token={token}
           tenant={tenant}
@@ -464,15 +478,7 @@ export function WorkspaceShellPage(props: Props) {
             onSignOut={onSignOut}
           />
         )}
-        <WorkspaceTabs
-          tabs={moduleTabs}
-          activeId={page}
-          locale={locale}
-          dirtyTabs={dirtyTabs}
-          onSelect={onNavigate}
-          onClose={onCloseTab}
-          onMove={onMoveTab}
-        />
+        {standaloneStudio && workspaceTabs}
         <section
           className={`content workspace-content${standardListPages.has(page) ? " standard-list-screen" : ""}${showRightWidgets ? " with-reference-widgets" : ""}${!rightWidgetsOpen ? " widgets-collapsed" : ""}`}
           onChangeCapture={(event) => {
@@ -487,23 +493,8 @@ export function WorkspaceShellPage(props: Props) {
           }}
         >
           <div className="workspace-page-main">
-          {!standaloneStudio && (
-            <nav
-              className="workspace-breadcrumb"
-              aria-label={locale === "en" ? "Breadcrumb" : "Sayfa yolu"}
-            >
-              <button type="button" onClick={() => onNavigate("launcher")}>
-                <Home size={14} aria-hidden="true" />
-                <span>{locale === "en" ? "Home" : "Ana Sayfa"}</span>
-              </button>
-              <ChevronRight size={13} aria-hidden="true" />
-              {currentSubrouteTitle ? <>
-                <span>{activeTabLabel}</span>
-                <ChevronRight size={13} aria-hidden="true" />
-                <span aria-current="page">{currentSubrouteTitle}</span>
-              </> : <span aria-current="page">{activeTabLabel}</span>}
-            </nav>
-          )}
+          <ActionBarSlotProvider breadcrumb={standaloneStudio ? null : breadcrumbNav}>
+          {!standaloneStudio && <ShellBreadcrumbRow>{breadcrumbNav}</ShellBreadcrumbRow>}
           {error && (
             <div className="alert inline-alert">
               {error}
@@ -520,6 +511,8 @@ export function WorkspaceShellPage(props: Props) {
               </button>
             </div>
           )}
+          {/* Standalone Studio has no ERP commands; its forms keep their own buttons. */}
+          {!standaloneStudio && page !== "launcher" && page !== "dashboard" && <ActionBar locale={locale} />}
           <KeepAliveViews
             activeKey={page}
             openKeys={moduleTabs.map((tab) => tab.id)}
@@ -554,6 +547,7 @@ export function WorkspaceShellPage(props: Props) {
               />
             </Suspense>
           </KeepAliveViews>
+          </ActionBarSlotProvider>
           <WorkspaceSearchDialog
             open={globalSearchOpen}
             locale={locale}

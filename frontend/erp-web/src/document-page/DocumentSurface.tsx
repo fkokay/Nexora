@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft } from "lucide-react";
+import { ActionBarSlot } from "../action-bar/ActionBarSlot";
 import "./document-page.css";
 
 export type DocumentStatusTone = "neutral" | "info" | "warning" | "success" | "danger";
@@ -128,6 +129,9 @@ export function DocumentSurface({
         {!detail && status && <span className={`doc-surface-status is-${status.tone}`}>{status.label}</span>}
         {actions && <div className="doc-surface-actions">{actions}</div>}
       </header>
+      {/* The open document hides the list (and its header slot), so the action bar moves here, under the title row.
+          Not when floating over another window: its backdrop covers the bar. */}
+      {!floating && <ActionBarSlot />}
       <div className={`doc-surface-body${bodyClassName ? ` ${bodyClassName}` : ""}`}>{children}</div>
     </section>
   );

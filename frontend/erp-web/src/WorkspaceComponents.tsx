@@ -1,4 +1,5 @@
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useCommandRegistry, ViewKeyContext } from "./commands/CommandProvider";
 import { Home, X } from "lucide-react";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 export type Locale = "tr" | "en";
@@ -36,8 +37,20 @@ export function WorkspaceTabs({
     ...tabs.filter((tab) => tab.id !== "dashboard"),
   ];
   const homeActive = activeId === "launcher" || activeId === "dashboard";
+  // The strip scrolls sideways inside the top bar; keep the active screen's tab in view.
+  const stripRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    const tab = strip?.querySelector<HTMLElement>(".workspace-tab.active");
+    if (!strip || !tab) return;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < stripBox.left) strip.scrollLeft -= stripBox.left - tabBox.left;
+    else if (tabBox.right > stripBox.right) strip.scrollLeft += tabBox.right - stripBox.right;
+  }, [activeId, tabs.length]);
   return (
     <nav
+      ref={stripRef}
       className="workspace-tabs"
       aria-label={locale === "en" ? "Open screens" : "Açık ekranlar"}
     >
@@ -127,6 +140,10 @@ export function KeepAliveViews({
   openKeys: string[];
   children: ReactNode;
 }) {
+  const registry = useCommandRegistry();
+  useEffect(() => registry.setActiveView(activeKey), [registry, activeKey]);
+  // Leaving the shell (launcher, platform admin, logout) leaves no active view.
+  useEffect(() => () => registry.setActiveView(undefined), [registry]);
   const cache = useRef(new Map<string, ReactNode>());
   const allowed = new Set([...openKeys, activeKey]);
   for (const key of cache.current.keys())
@@ -135,8 +152,8 @@ export function KeepAliveViews({
   return (
     <div className="workspace-keepalive">
       {Array.from(cache.current.entries()).map(([key, view]) => (
-        <div className="workspace-view" key={key} hidden={key !== activeKey}>
-          {view}
+        <div className="workspace-view" key={key} data-nx-view={key} hidden={key !== activeKey}>
+          <ViewKeyContext.Provider value={key}>{view}</ViewKeyContext.Provider>
         </div>
       ))}
     </div>

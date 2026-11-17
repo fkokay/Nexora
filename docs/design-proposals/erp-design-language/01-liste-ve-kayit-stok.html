@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Stok ekranı v3</title>
+<style>
+:root{--ink:#0f1b2d;--ink2:#1a2a40;--pri:#1f5fd1;--pri-d:#1846a3;--pri-soft:#e8f0fd;--bg:#f3f5f8;--line:#dfe3e9;--line2:#eef1f4;--tx:#1b2430;--mut:#667085;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b45309;--warn-bg:#fdf1e1;--bad:#c4321f;--bad-bg:#fde9e6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto;margin-bottom:14px}
+.nx{min-width:1720px;font-size:12.5px;display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.k{font-family:Consolas,monospace;font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;white-space:nowrap}
+/* sidebar */
+.side{width:58px;background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0}
+.side .lg{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1f5fd1);margin-bottom:10px}
+.side .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8193ab;font-size:10px;flex-direction:column;gap:1px}
+.side .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.side .ic.on{background:var(--ink2);color:#fff;box-shadow:inset 3px 0 0 #3b82f6}
+.sub-nav{width:178px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.sub-nav .h{font-weight:650;font-size:13.5px;padding:2px 8px 10px}
+.sub-nav .it{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between;color:#344054}
+.sub-nav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.sub-nav .it small{color:var(--mut)}
+.sub-nav .g{font-size:10px;letter-spacing:.08em;color:var(--mut);margin:14px 8px 4px}
+.sub-nav .fav{color:#344054;padding:5px 8px;display:flex;gap:6px}
+.sub-nav .fav b{color:#e0a100}
+/* app */
+.app{flex:1;display:flex;flex-direction:column;min-width:0}
+.topb{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.srch{width:320px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+.wtabs{display:flex;gap:2px;flex:1;align-self:flex-end}
+.wtabs span{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0;background:var(--bg);color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
+.wtabs .on{background:#fff;color:var(--tx);font-weight:600;position:relative;top:1px}
+.wtabs i{font-style:normal;color:#98a2b3}
+.tr{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12px}
+.bell{position:relative}.bell b{position:absolute;top:-6px;right:-8px;background:var(--bad);color:#fff;border-radius:999px;font-size:9px;padding:0 4px}
+.av{width:26px;height:26px;border-radius:50%;background:#dbe6fb;color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.page{background:#fff;flex:1;display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.ph .bc{color:var(--mut);font-size:11.5px}
+.ph h2{margin:1px 0 0;font-size:19px;font-weight:650;display:flex;gap:10px;align-items:center}
+.ph h2 .star{color:#e0a100;font-size:15px}
+.vsel{border:1px solid var(--line);border-radius:7px;padding:5px 10px;display:flex;gap:8px;align-items:center;color:#344054}
+.vsel b{color:var(--tx)}
+.vtabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.vtabs span{padding:7px 12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.vtabs span em{font-style:normal;background:#eef0f3;border-radius:999px;padding:0 7px;font-size:11px;color:#475467}
+.vtabs .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.vtabs .on em{background:var(--pri-soft);color:var(--pri-d)}
+.vtabs .r em{background:var(--bad-bg);color:var(--bad)}
+.vtabs .add{color:var(--pri)}
+.bar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.b{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--tx);font-weight:500;white-space:nowrap}
+.b svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.b.pri{background:var(--pri);color:#fff}.b.pri .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.b.off{opacity:.38}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.b.more{border:1px solid var(--line);background:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:6px}
+.seg span{padding:4px 8px;color:var(--mut)}.seg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+/* body */
+.wrap{display:flex;flex:1;min-height:0}
+.facet{width:200px;border-right:1px solid var(--line);padding:12px 12px;background:#fcfcfd;flex-shrink:0}
+.facet .ft{display:flex;justify-content:space-between;font-weight:650;margin-bottom:8px}
+.facet .ft a{font-weight:400;color:var(--pri);font-size:11.5px}
+.facet .fg{margin-bottom:14px}
+.facet .fg .t{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-bottom:5px;text-transform:uppercase}
+.facet .o{display:flex;align-items:center;gap:7px;padding:3px 0;color:#344054}
+.facet .o small{margin-left:auto;color:var(--mut)}
+.cb{width:13px;height:13px;border:1.5px solid #b8c0cc;border-radius:3px;display:inline-block;flex-shrink:0;position:relative;background:#fff}
+.cb.on{background:var(--pri);border-color:var(--pri)}
+.cb.on::after{content:"";position:absolute;left:3px;top:0px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rng{height:4px;background:#e8ebef;border-radius:3px;position:relative;margin:10px 4px 6px}
+.rng i{position:absolute;left:0;width:35%;height:100%;background:var(--pri);border-radius:3px}
+.rng b{position:absolute;top:-5px;width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--pri)}
+.rngl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px 4px}
+.mk>div{border:1px solid var(--line);border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:10px}
+.mk .icn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mk .tx{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.mk small{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.mk b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
+.mk .tr2{font-size:11px}
+.mk svg.sp{margin-left:auto;width:70px;height:26px}
+.mk .act{border-color:#f0b4ab;background:#fff8f7}
+.chips{display:flex;gap:6px;padding:8px 14px;align-items:center;flex-wrap:wrap}
+.q{width:340px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.r{border-color:#f0b4ab;background:var(--bad-bg);color:var(--bad)}
+.chips .clr{color:var(--pri);font-size:12px}
+.chips .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px}
+.gridw{flex:1;min-height:0;position:relative;border-top:1px solid var(--line);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:#475467;background:#f7f8fa;padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+th .fi{color:#98a2b3;margin-left:3px;font-size:10px}
+th.s{color:var(--pri-d)}
+td{padding:6px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:Consolas,monospace;font-size:12px;color:#344054}
+tr.grp td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px}
+tr.grp td .c{color:var(--mut);font-weight:400}
+tr.sel td{background:var(--pri-soft)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+tr.chk td{background:#f5f9ff}
+tr.tot td{background:#f7f8fa;font-weight:650;border-top:1px solid var(--line)}
+.tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}.t-off{background:#eef0f3;color:#667085}
+.low{color:var(--bad);font-weight:600}
+.lvl{display:inline-block;width:44px;height:5px;border-radius:3px;background:#e8ebef;vertical-align:middle;margin-left:6px;overflow:hidden}
+.lvl i{display:block;height:100%}
+.edit{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important;border-radius:3px}
+.edit::after{content:"|";color:var(--pri);margin-left:1px}
+.thumb{width:22px;height:22px;border-radius:5px;background:#eef1f5;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid var(--line2)}
+.bulk{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:7px 8px 7px 14px;display:flex;gap:4px;align-items:center;box-shadow:0 8px 24px rgba(15,27,45,.35);white-space:nowrap}
+.bulk b{margin-right:8px}
+.bulk span{padding:5px 9px;border-radius:6px;color:#d6deea}
+.bulk span:hover{background:var(--ink2)}
+.bulk .x{color:#8193ab}
+/* detail */
+.det{width:330px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.det .hd{padding:12px 14px 8px;border-bottom:1px solid var(--line2)}
+.det .hd .top{display:flex;justify-content:space-between;color:var(--mut)}
+.det h3{margin:4px 0 6px;font-size:15px}
+.det .dt{display:flex;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}
+.det .dt span{padding:8px 0;color:var(--mut)}.det .dt .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.det .bd{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.st4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st4 div{background:#f7f8fa;border-radius:8px;padding:7px 9px}
+.st4 small{display:block;color:var(--mut);font-size:11px}
+.st4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.sect{font-size:11px;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;display:flex;justify-content:space-between}
+.sect a{color:var(--pri);text-transform:none;letter-spacing:0}
+.whr{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:2px 0}
+.whr .br{height:7px;background:#eef1f4;border-radius:4px;overflow:hidden}.whr .br i{display:block;height:100%;background:var(--pri)}
+.whr b{text-align:right}
+.sugg{border:1px solid #f3cf9c;background:#fffaf2;border-radius:8px;padding:9px 11px;font-size:12px}
+.sugg b{color:var(--warn)}
+.sugg .btns{display:flex;gap:6px;margin-top:7px}
+.sugg .btns span{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px}
+.sugg .btns .p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.foot{display:flex;justify-content:space-between;padding:7px 16px;border-top:1px solid var(--line);background:#fafbfc;color:var(--mut);font-size:11.5px}
+.foot b{color:var(--tx)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin:0 0 34px}
+.notes div{border-left:3px solid var(--pri);padding:2px 10px;background:#fff;border-radius:0 6px 6px 0}
+/* form */
+.fh{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line)}
+.fh .id{display:flex;gap:12px;align-items:center}
+.fh .img{width:46px;height:46px;border-radius:9px;background:#eef1f5;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:10px}
+.fh h2{margin:0;font-size:18px;font-weight:650}
+.fh .m{color:var(--mut);font-size:12px;margin-top:3px;display:flex;gap:10px;align-items:center}
+.fh .rt{display:flex;gap:10px;align-items:center;color:var(--mut)}
+.dirty{color:var(--warn);display:flex;gap:6px;align-items:center}.dirty i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rnav{display:flex;border:1px solid var(--line);border-radius:6px}.rnav span{padding:3px 8px}.rnav span+span{border-left:1px solid var(--line)}
+.fbody{display:flex;flex:1;min-height:0;background:var(--bg);overflow:hidden}
+.snav{width:210px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.snav .it{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;color:#344054}
+.snav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.snav .st{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.snav .done{background:var(--ok-bg);color:var(--ok)}.snav .err{background:var(--bad-bg);color:var(--bad)}.snav .emp{border:1.5px solid #cfd5dd}
+.snav .it small{margin-left:auto;color:var(--mut)}
+.snav .prog{margin:14px 8px 0;font-size:11.5px;color:var(--mut)}
+.snav .pb{height:5px;background:#eef1f4;border-radius:3px;margin-top:5px;overflow:hidden}.snav .pb i{display:block;width:72%;height:100%;background:var(--ok)}
+.fmain{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card .ct{font-weight:650;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card .ct small{font-weight:400;color:var(--mut)}
+.fg3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.w2{grid-column:span 2}.w3{grid-column:span 3}
+.f label{display:flex;justify-content:space-between;font-size:11.5px;color:#475467;margin-bottom:3px;font-weight:500}
+.f label b{color:var(--bad)}.f label i{font-style:normal;color:#98a2b3;font-weight:400}
+.inp{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;background:#fff;min-height:31px;display:flex;justify-content:space-between;align-items:center}
+.inp.focus{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.inp.ro{background:#f6f7f9;color:var(--mut)}
+.inp.errb{border-color:var(--bad);background:#fffafa}
+.inp .suf{color:var(--mut);font-size:11.5px}
+.hint{font-size:11px;color:var(--mut);margin-top:3px}.hint.e{color:var(--bad)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:var(--pri);position:relative;vertical-align:middle;margin-right:6px}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.ut td,.ut th{padding:5px 8px}
+.ut td{border-bottom:1px solid var(--line2)}
+.ut .add{color:var(--pri)}
+.ctx{width:300px;padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.rel{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.rel .code{font-size:11.5px}
+.tl{position:relative;padding-left:14px;font-size:12px;color:#344054}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.tl div{position:relative;padding:3px 0}
+.tl div::before{content:"";position:absolute;left:-13px;top:8px;width:7px;height:7px;border-radius:50%;background:#cfd5dd}
+.tl div:first-child::before{background:var(--pri)}
+.tl small{color:var(--mut)}
+</style></head><body>
+
+<h1>Stok ekranı — taslak v3 (gelişmiş)</h1>
+<p class="sub">Ortak işlem çubuğu ve kısayollar aynı kaldı; üzerine güç kullanıcı özellikleri eklendi: kayıtlı görünümler, yan filtre paneli, gruplama + ara toplamlar, hücrede düzenleme, toplu işlem çubuğu, sekmeli detay paneli, kayıt ekranında bölüm gezgini ve bağlam paneli.</p>
+
+<div class="lbl">1 · LİSTE EKRANI — STOK KARTLARI</div>
+<div class="scroll"><div class="nx" style="height:700px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 21V9l6-4v4l6-4v4l6-4v16z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></div>
+ </div>
+ <div class="sub-nav">
+  <div class="h">Stok ve Depo</div>
+  <div class="it on">Stok Kartları <small>1.284</small></div>
+  <div class="it">Stok Hareketleri</div>
+  <div class="it">Depo Transferleri <small>3</small></div>
+  <div class="it">Depolar <small>6</small></div>
+  <div class="it">Lokasyonlar</div>
+  <div class="it">Maliyet</div>
+  <div class="it">İzlenebilirlik</div>
+  <div class="g">SIK KULLANILANLAR</div>
+  <div class="fav"><b>★</b>Kritik stoklar</div>
+  <div class="fav"><b>★</b>Ambalaj sayımı</div>
+  <div class="fav"><b>★</b>Ay sonu değerleme</div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Ekran, kayıt veya komut ara…<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Satış Siparişleri <i>×</i></span><span class="on">Stok Kartları <i>×</i></span><span>AMB-2040 ● <i>×</i></span></div>
+   <div class="tr"><span>001 · Merkez ▾</span><span class="bell">🔔<b>3</b></span><div class="av">FT</div></div>
+  </div>
+  <div class="page">
+   <div class="ph">
+    <div><div class="bc">Stok ve Depo ›</div><h2>Stok Kartları <span class="star">☆</span></h2></div>
+    <div class="vsel">Görünüm: <b>Kritik stoklar</b> ▾ <span class="k">Ctrl+Shift+V</span></div>
+   </div>
+   <div class="vtabs"><span>Tümü <em>1.284</em></span><span class="on r">Kritik stoklar <em>23</em></span><span>Maliyetsiz <em>4</em></span><span>Pasif <em>37</em></span><span>Bu hafta değişen <em>58</em></span><span class="add">+ Görünüm kaydet</span></div>
+   <div class="bar">
+    <div class="b pri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <span style="color:var(--mut)">Grupla: <b style="color:var(--tx)">Kategori ▾</b></span>
+    <div class="seg"><span>Rahat</span><span class="on">Sık</span></div>
+    <div class="b">Sütunlar ▾</div>
+    <div class="b more">İşlemler ▾<span class="k">Alt+İ</span></div>
+   </div>
+   <div class="wrap">
+    <div class="facet">
+     <div class="ft">Filtreler <a>Temizle</a></div>
+     <div class="fg"><div class="t">Depo</div>
+      <div class="o"><span class="cb on"></span>Merkez Depo<small>842</small></div>
+      <div class="o"><span class="cb on"></span>Üretim Ara Depo<small>311</small></div>
+      <div class="o"><span class="cb"></span>İzmir Bayi<small>96</small></div>
+      <div class="o"><span class="cb"></span>Ankara Bayi<small>35</small></div>
+     </div>
+     <div class="fg"><div class="t">Kategori</div>
+      <div class="o"><span class="cb on"></span>Ambalaj<small>9</small></div>
+      <div class="o"><span class="cb on"></span>Hammadde<small>8</small></div>
+      <div class="o"><span class="cb on"></span>Yarı mamul<small>4</small></div>
+      <div class="o"><span class="cb"></span>Mamul<small>2</small></div>
+      <div class="o"><span class="cb"></span>Yedek parça<small>0</small></div>
+     </div>
+     <div class="fg"><div class="t">Takip yöntemi</div>
+      <div class="o"><span class="cb"></span>Lot<small>14</small></div>
+      <div class="o"><span class="cb"></span>Seri no<small>3</small></div>
+      <div class="o"><span class="cb"></span>Yok<small>6</small></div>
+     </div>
+     <div class="fg"><div class="t">Stok değeri (₺)</div>
+      <div class="rng"><i></i><b style="left:0"></b><b style="left:33%"></b></div>
+      <div class="rngl"><span>0</span><span>150.000</span></div>
+     </div>
+    </div>
+    <div class="center">
+     <div class="mk">
+      <div><div class="icn" style="background:#e8f0fd;color:#1f5fd1">₺</div><div class="tx"><small>Stok değeri</small><b>₺8.462.910</b><span class="tr2" style="color:var(--ok)">▲ %3,2 geçen aya göre</span></div><svg class="sp" viewBox="0 0 70 26"><polyline fill="none" stroke="#1f5fd1" stroke-width="1.6" points="0,20 10,18 20,19 30,14 40,15 50,10 60,11 70,6"/></svg></div>
+      <div><div class="icn" style="background:#e5f5ec;color:#13804b">▤</div><div class="tx"><small>Kullanılabilir</small><b>42.618</b><span class="tr2" style="color:var(--mut)">6 depoda</span></div><svg class="sp" viewBox="0 0 70 26"><polyline fill="none" stroke="#13804b" stroke-width="1.6" points="0,10 10,12 20,9 30,13 40,11 50,14 60,12 70,13"/></svg></div>
+      <div class="act"><div class="icn" style="background:#fde9e6;color:#c4321f">↓</div><div class="tx"><small>Minimum altı</small><b style="color:var(--bad)">23</b><span class="tr2" style="color:var(--bad)">▲ 5 yeni bu hafta</span></div><span style="margin-left:auto;color:var(--bad);font-size:11px">süzülüyor ✕</span></div>
+      <div><div class="icn" style="background:#fdf1e1;color:#b45309">!</div><div class="tx"><small>Maliyetsiz</small><b style="color:var(--warn)">4</b><span class="tr2" style="color:var(--mut)">200 adet maliyetsiz</span></div><span style="margin-left:auto;color:var(--mut);font-size:11px">Filtrele</span></div>
+     </div>
+     <div class="chips">
+      <div class="q">Stok kodu, adı veya barkod… <span class="k">/</span></div>
+      <span class="chip r">Minimum altı ✕</span><span class="chip">Depo: Merkez, Üretim Ara ✕</span><span class="chip">Kategori: 3 seçili ✕</span><span class="clr">Tümünü temizle</span>
+      <span class="rt"><span>23 sonuç</span><span>Sırala: Eksik miktar ↓</span></span>
+     </div>
+     <div class="gridw">
+      <table>
+       <tr><th style="width:28px"><span class="cb"></span></th><th>Stok kodu<span class="fi">▼</span></th><th>Stok adı<span class="fi">▼</span></th><th class="num">Depo bakiyesi</th><th class="num">Rezerve</th><th class="num s">Kullanılabilir ↓</th><th class="num">Minimum</th><th class="num">Eksik</th><th class="num">Birim maliyet</th><th class="num">Stok değeri</th><th>Durum</th></tr>
+       <tr class="grp"><td></td><td colspan="2">▾ Ambalaj <span class="c">· 9 kart</span></td><td class="num">2.140</td><td class="num">1.020</td><td class="num">1.120</td><td class="num">3.900</td><td class="num low">2.780</td><td></td><td class="num">₺84.310</td><td></td></tr>
+       <tr class="sel chk"><td><span class="cb on"></span></td><td class="code"><span class="thumb"></span>AMB-2040</td><td>Koli 40×30×30 çift oluklu</td><td class="num">420</td><td class="num">260</td><td class="num low">160 <span class="lvl"><i style="width:22%;background:#c4321f"></i></span></td><td class="num edit">500</td><td class="num low">340</td><td class="num">₺35,00</td><td class="num">₺14.700</td><td><span class="tag t-bad">Minimum altı</span></td></tr>
+       <tr class="chk"><td><span class="cb on"></span></td><td class="code"><span class="thumb"></span>AMB-2060</td><td>Koli 60×40×40 çift oluklu</td><td class="num">180</td><td class="num">120</td><td class="num low">60 <span class="lvl"><i style="width:15%;background:#c4321f"></i></span></td><td class="num">400</td><td class="num low">340</td><td class="num">₺52,40</td><td class="num">₺9.432</td><td><span class="tag t-bad">Minimum altı</span></td></tr>
+       <tr class="chk"><td><span class="cb on"></span></td><td class="code"><span class="thumb"></span>AMB-3100</td><td>Streç film 50 cm</td><td class="num">35</td><td class="num">0</td><td class="num low">35 <span class="lvl"><i style="width:35%;background:#c4321f"></i></span></td><td class="num">100</td><td class="num low">65</td><td class="num">₺410,00</td><td class="num">₺14.350</td><td><span class="tag t-bad">Minimum altı</span></td></tr>
+       <tr class="grp"><td></td><td colspan="2">▾ Hammadde <span class="c">· 8 kart</span></td><td class="num">3.960</td><td class="num">2.410</td><td class="num">1.550</td><td class="num">4.600</td><td class="num low">3.050</td><td></td><td class="num">₺512.880</td><td></td></tr>
+       <tr><td><span class="cb"></span></td><td class="code"><span class="thumb"></span>HM-1003</td><td>Polipropilen granül 25 kg</td><td class="num">640</td><td class="num">520</td><td class="num low">120 <span class="lvl"><i style="width:20%;background:#c4321f"></i></span></td><td class="num">600</td><td class="num low">480</td><td class="num">₺910,00</td><td class="num">₺582.400</td><td><span class="tag t-bad">Minimum altı</span></td></tr>
+       <tr><td><span class="cb"></span></td><td class="code"><span class="thumb"></span>HM-1012</td><td>Masterbatch mavi</td><td class="num">14</td><td class="num">0</td><td class="num low">14 <span class="lvl"><i style="width:35%;background:#b45309"></i></span></td><td class="num">40</td><td class="num low">26</td><td class="num">₺1.500,00</td><td class="num">₺21.000</td><td><span class="tag t-warn">Maliyetsiz 4</span></td></tr>
+       <tr class="grp"><td></td><td colspan="2">▸ Yarı mamul <span class="c">· 4 kart</span></td><td class="num">5.300</td><td class="num">3.900</td><td class="num">1.400</td><td class="num">3.000</td><td class="num low">1.600</td><td></td><td class="num">₺96.120</td><td></td></tr>
+       <tr class="tot"><td></td><td colspan="2">Genel toplam · 23 kart</td><td class="num">11.400</td><td class="num">7.330</td><td class="num">4.070</td><td class="num">11.500</td><td class="num low">7.430</td><td></td><td class="num">₺693.310</td><td></td></tr>
+      </table>
+      <div class="bulk"><b>3 seçili</b><span>Satınalma talebi oluştur</span><span>Minimum güncelle</span><span>Kategori değiştir</span><span>Etiket yazdır</span><span>Excel</span><span class="x">✕ Esc</span></div>
+     </div>
+    </div>
+    <div class="det">
+     <div class="hd">
+      <div class="top"><span class="code">AMB-2040</span><span>⤢ Aç <span class="k">Enter</span></span></div>
+      <h3>Koli 40×30×30 çift oluklu</h3>
+      <span class="tag t-bad">Minimum altı · 340 eksik</span> <span class="tag t-off">Lot takipli</span>
+     </div>
+     <div class="dt"><span class="on">Özet</span><span>Depolar</span><span>Hareketler</span><span>Fiyatlar</span><span>Belgeler</span></div>
+     <div class="bd">
+      <div class="st4">
+       <div><small>Depo bakiyesi</small><b>420</b></div>
+       <div><small>Kullanılabilir</small><b class="low">160</b></div>
+       <div><small>Açık satınalma</small><b>0</b></div>
+       <div><small>Ort. günlük çıkış</small><b>38</b></div>
+      </div>
+      <div>
+       <div class="sect">Son 30 gün stok seyri <a>Grafiği aç</a></div>
+       <svg viewBox="0 0 300 80" style="width:100%;height:80px;margin-top:6px">
+        <line x1="0" y1="52" x2="300" y2="52" stroke="#c4321f" stroke-dasharray="4 3" stroke-width="1"/>
+        <text x="296" y="48" font-size="9" fill="#c4321f" text-anchor="end">Minimum 500</text>
+        <polygon fill="#e8f0fd" points="0,20 30,24 60,18 90,30 120,26 150,38 180,34 210,46 240,40 270,58 300,64 300,80 0,80"/>
+        <polyline fill="none" stroke="#1f5fd1" stroke-width="2" points="0,20 30,24 60,18 90,30 120,26 150,38 180,34 210,46 240,40 270,58 300,64"/>
+        <circle cx="300" cy="64" r="3" fill="#1f5fd1"/>
+       </svg>
+      </div>
+      <div>
+       <div class="sect">Depo dağılımı</div>
+       <div class="whr"><span>Merkez Depo</span><div class="br"><i style="width:72%"></i></div><b>300</b></div>
+       <div class="whr"><span>Üretim Ara</span><div class="br"><i style="width:28%"></i></div><b>120</b></div>
+       <div class="whr"><span>İzmir Bayi</span><div class="br"><i style="width:0"></i></div><b>0</b></div>
+      </div>
+      <div class="sugg">
+       <b>Sipariş önerisi:</b> 4 gün içinde stok bitiyor. Son tedarikçi <b style="color:var(--tx)">Marmara Oluklu</b>, önerilen miktar <b style="color:var(--tx)">1.000 adet</b> (≈ ₺35.000).
+       <div class="btns"><span class="p">Satınalma talebi oluştur</span><span>Transfer öner</span></div>
+      </div>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>↑↓ gez · Boşluk işaretle · Ctrl+A tümünü seç · F4 hücreyi düzenle · ← → grubu kapat/aç · Ctrl+. detay panelini gizle</span><span>3 seçili · Seçili değer <b>₺38.482</b> · Gösterilen 23 / 1.284</span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="notes">
+ <div><b>Kayıtlı görünümler</b> — filtre + sütun + gruplama birlikte kaydedilir; sekme olarak üstte durur, yan menüde "Sık kullanılanlar"a sabitlenebilir.</div>
+ <div><b>Gruplama ve ara toplamlar</b> — herhangi bir sütuna göre gruplanır, her grupta ara toplam, en altta genel toplam satırı.</div>
+ <div><b>Hücrede düzenleme + toplu işlem</b> — F4 ile "Minimum" gibi alanlar listeden düzenlenir; birden çok satır seçilince altta toplu işlem çubuğu belirir.</div>
+ <div><b>Akıllı detay paneli</b> — sekmeli; stok seyri grafiği, depo dağılımı ve tükenme tahminine göre sipariş önerisi.</div>
+</div>
+
+<div class="lbl">2 · KAYIT EKRANI — STOK KARTI (AMB-2040)</div>
+<div class="scroll"><div class="nx" style="height:860px">
+ <div class="side">
+  <div class="lg"></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8L6 3H3M9 20h.01M18 20h.01"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 9h16M4 9l2-5h12l2 5M4 9v11h16V9"/></svg></div>
+  <div class="ic on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 21V9l6-4v4l6-4v4l6-4v16z"/></svg></div>
+  <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg></div>
+ </div>
+ <div class="app">
+  <div class="topb">
+   <div class="srch">Ekran, kayıt veya komut ara…<span class="k">Ctrl K</span></div>
+   <div class="wtabs"><span>Satış Siparişleri <i>×</i></span><span>Stok Kartları <i>×</i></span><span class="on">AMB-2040 ● <i>×</i></span></div>
+   <div class="tr"><span>001 · Merkez ▾</span><span class="bell">🔔<b>3</b></span><div class="av">FT</div></div>
+  </div>
+  <div class="page">
+   <div class="fh">
+    <div class="id"><div class="img">Görsel</div><div>
+     <div class="bc" style="color:var(--mut);font-size:11.5px">Stok ve Depo › Stok Kartları ›</div>
+     <h2>Koli 40×30×30 çift oluklu</h2>
+     <div class="m"><span class="code">AMB-2040</span><span class="tag t-ok">Aktif</span><span class="tag t-bad">Minimum altı</span><span>Ambalaj · Adet · Lot takipli</span></div>
+    </div></div>
+    <div class="rt"><div class="dirty"><i></i>2 alan değişti</div><div class="rnav"><span>‹ <span class="k">PgUp</span></span><span>2 / 23</span><span><span class="k">PgDn</span> ›</span></div></div>
+   </div>
+   <div class="bar">
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Yeni<span class="k">F2</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Aç<span class="k">Enter</span></div>
+    <div class="b pri"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Kaydet<span class="k">Ctrl+S</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Sil<span class="k">Ctrl+Del</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>Yenile<span class="k">F5</span></div>
+    <div class="b off"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></svg>Filtre<span class="k">Ctrl+F</span></div>
+    <div class="sep"></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/></svg>Yazdır<span class="k">Ctrl+P</span></div>
+    <div class="b"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM9 11l6 6M15 11l-6 6"/></svg>Excel<span class="k">Ctrl+E</span></div>
+    <div class="grow"></div>
+    <div class="b">↶ Değişiklikleri geri al <span class="k">Ctrl+Z</span></div>
+    <div class="b more">İşlemler ▾<span class="k">Alt+İ</span></div>
+   </div>
+   <div class="fbody">
+    <div class="snav">
+     <div class="it on"><span class="st done">✓</span>Genel ve Stok Yönetimi</div>
+     <div class="it"><span class="st err">!</span>Fiyat ve Vergi<small>1 eksik</small></div>
+     <div class="it"><span class="st done">✓</span>Lojistik ve Muhasebe</div>
+     <div class="it"><span class="st done">✓</span>Birim ve Özel Alanlar</div>
+     <div class="it"><span class="st emp"></span>Varyantlar<small>0</small></div>
+     <div class="it"><span class="st emp"></span>Üretim Reçeteleri<small>2</small></div>
+     <div class="prog">Kart doluluğu %72<div class="pb"><i></i></div></div>
+     <div class="prog" style="margin-top:16px">Bölümler arası: <span class="k">Ctrl+↑/↓</span></div>
+    </div>
+    <div class="fmain">
+     <div class="card">
+      <div class="ct">Kimlik <small>* zorunlu alan</small></div>
+      <div class="fg3">
+       <div class="f"><label>Stok kodu <b>*</b></label><div class="inp ro">AMB-2040 <span class="suf">🔒</span></div></div>
+       <div class="f w2"><label>Stok adı <b>*</b><i>28 / 120</i></label><div class="inp focus">Koli 40×30×30 çift oluklu</div></div>
+       <div class="f"><label>Barkod</label><div class="inp">8690000204012 <span class="suf">⌁ Tara</span></div></div>
+       <div class="f"><label>Kategori <b>*</b></label><div class="inp">Ambalaj <span class="suf">▾</span></div></div>
+       <div class="f"><label>Takip yöntemi</label><div class="inp">Lot <span class="suf">▾</span></div></div>
+      </div>
+     </div>
+     <div class="card">
+      <div class="ct">Stok yönetimi <small>Değişen alanlar sarı çizgiyle işaretlenir</small></div>
+      <div class="fg3">
+       <div class="f"><label>Minimum stok</label><div class="inp" style="box-shadow:inset 3px 0 0 #e0a100">1.000 <span class="suf">Adet</span></div><div class="hint">Önceki: 500</div></div>
+       <div class="f"><label>Maksimum stok</label><div class="inp" style="box-shadow:inset 3px 0 0 #e0a100">3.000 <span class="suf">Adet</span></div><div class="hint">Önceki: 2.000</div></div>
+       <div class="f"><label>Varsayılan depo</label><div class="inp">Merkez Depo <span class="suf">▾</span></div></div>
+       <div class="f"><label>Tedarik süresi</label><div class="inp">5 <span class="suf">gün</span></div></div>
+       <div class="f w2"><label>&nbsp;</label><div style="padding-top:6px"><span class="sw"></span>Negatif stoka izin verme <span style="color:var(--mut)">(sistem kuralı)</span></div></div>
+      </div>
+     </div>
+     <div class="card">
+      <div class="ct">Birim dönüşümleri <small>Ana birim: Adet</small></div>
+      <table class="ut">
+       <tr><th>Birim</th><th class="num">Katsayı</th><th>Barkod</th><th>Satışta</th><th>Alışta</th></tr>
+       <tr><td>Adet</td><td class="num">1</td><td class="code">8690000204012</td><td>✓</td><td>✓</td></tr>
+       <tr><td>Paket (25)</td><td class="num">25</td><td class="code">8690000204029</td><td>✓</td><td>✓</td></tr>
+       <tr><td>Palet</td><td class="num">500</td><td class="code">—</td><td></td><td>✓</td></tr>
+       <tr><td colspan="5" class="add">+ Birim ekle <span class="k">Ctrl+Enter</span></td></tr>
+      </table>
+     </div>
+    </div>
+    <div class="ctx">
+     <div class="card">
+      <div class="ct">Stok durumu <small>tüm depolar</small></div>
+      <div class="st4">
+       <div><small>Bakiye</small><b>420</b></div><div><small>Kullanılabilir</small><b class="low">160</b></div>
+       <div><small>Birim maliyet</small><b>₺35,00</b></div><div><small>Stok değeri</small><b>₺14.700</b></div>
+      </div>
+      <svg viewBox="0 0 270 50" style="width:100%;height:46px;margin-top:8px"><polygon fill="#e8f0fd" points="0,10 30,14 60,8 90,18 120,15 150,24 180,21 210,30 240,27 270,40 270,50 0,50"/><polyline fill="none" stroke="#1f5fd1" stroke-width="1.8" points="0,10 30,14 60,8 90,18 120,15 150,24 180,21 210,30 240,27 270,40"/></svg>
+     </div>
+     <div class="card">
+      <div class="ct">Açık belgeler <small>4</small></div>
+      <div class="rel"><span><span class="code">SS-0411</span> Satış siparişi</span><b>−260</b></div>
+      <div class="rel"><span><span class="code">SS-0415</span> Satış siparişi</span><b>−120</b></div>
+      <div class="rel"><span><span class="code">UE-0088</span> Üretim emri</span><b>−80</b></div>
+      <div class="rel" style="border:none"><span><span class="code">ST-0031</span> Satınalma talebi</span><b style="color:var(--ok)">+600</b></div>
+     </div>
+     <div class="card">
+      <div class="ct">Geçmiş <small>denetim kaydı</small></div>
+      <div class="tl">
+       <div>FATIH minimum stoku değiştiriyor <small>· şimdi</small></div>
+       <div>Ayşe K. fiyat güncelledi ₺33 → ₺35 <small>· 08.11</small></div>
+       <div>Sistem lot takibini açtı <small>· 02.06</small></div>
+       <div>Ayşe K. kartı oluşturdu <small>· 02.03.2026</small></div>
+      </div>
+     </div>
+    </div>
+   </div>
+   <div class="foot"><span>Tab sonraki alan · Ctrl+S kaydet · Ctrl+Z geri al · PgUp/PgDn önceki/sonraki kayıt · Esc kapat</span><span><b style="color:var(--bad)">Kaydetmeden önce:</b> "Fiyat ve Vergi" bölümünde KDV oranı eksik</span></div>
+  </div>
+ </div>
+</div></div>
+
+<div class="notes">
+ <div><b>Bölüm gezgini</b> — sekmeler solda dikey liste; her bölümde tamam ✓ / eksik ! durumu ve kart doluluk yüzdesi.</div>
+ <div><b>Değişiklik izi</b> — değişen alanlar sarı çizgiyle işaretlenir, eski değer altında yazar; Ctrl+Z tümünü geri alır.</div>
+ <div><b>Kayıtlar arası gezinme</b> — listeden gelinen sıra korunur; PgUp/PgDn ile listeye dönmeden sonraki karta geçilir.</div>
+ <div><b>Bağlam paneli</b> — stok seyri, kartı etkileyen açık belgeler ve kim neyi ne zaman değiştirdi (denetim kaydı).</div>
+</div>
+</body></html>

@@ -57,3 +57,6 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Type-check and build
         run: npm run build
+      - name: Unit tests
+        if: matrix.app == 'erp-web'
+        run: npm test

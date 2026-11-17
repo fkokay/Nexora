@@ -1,3 +1,4 @@
+import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, localDateString } from "./erpApi";
@@ -24,6 +25,7 @@ export function StandaloneFulfillmentPanel({
   warehouses,
   initialCustomerId = "",
   onCancel,
+  ownsActionBar = false,
 }: {
   token: string;
   sales?: boolean;
@@ -33,6 +35,8 @@ export function StandaloneFulfillmentPanel({
   initialCustomerId?: string;
   /** Leaves the create screen (Vazgeç). Without it Vazgeç only clears the form. */
   onCancel?: () => void;
+  /** The panel is the whole screen: it registers the action bar's Yeni (a fresh draft). */
+  ownsActionBar?: boolean;
 }) {
   type Row = {
     id: string;
@@ -382,8 +386,22 @@ export function StandaloneFulfillmentPanel({
       setBusy(false);
     }
   }
+  const formDirty = Boolean(
+    editingId || code.trim() || (customerId && customerId !== initialCustomerId) || lines.some((line) => line.stockItemId),
+  );
   return (
     <section className="sales-rf-fulfillment">
+      {ownsActionBar && (
+        <PageCommandsSlot
+          commands={{
+            new: {
+              run: async () => {
+                if (await confirmStartNew(formDirty)) resetForm();
+              },
+            },
+          }}
+        />
+      )}
       <RecordFormPage
         variant={sales ? "page" : "dialog"}
         className={sales ? "sales-rf" : "sales-rf sales-rf-embedded"}

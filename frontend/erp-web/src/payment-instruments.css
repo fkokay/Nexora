@@ -92,12 +92,12 @@ html[data-theme="dark"] #root .pi-page {
   white-space: nowrap;
 }
 #root .pi-page .pi-state.is-portfolio { border-color: #bfd6ec; background: #edf4fb; color: #1f4f7d; }
-#root .pi-page .pi-state.is-endorsed { border-color: #d6cdee; background: #f3effb; color: #5b3fa6; }
+#root .pi-page .pi-state.is-endorsed { border-color: color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface)); color: var(--nx-primary-strong); }
 #root .pi-page .pi-state.is-collected { border-color: #bfe3cf; background: var(--fh-success-bg); color: var(--fh-success); }
 #root .pi-page .pi-state.is-bounced { border-color: #f2c9c6; background: #fdf0ef; color: var(--fh-danger); }
 #root .pi-page .pi-state.is-cancelled { text-decoration: line-through; }
 html[data-theme="dark"] #root .pi-page .pi-state.is-portfolio { border-color: #2c4a6b; background: #1b2d44; color: #a6ccff; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-endorsed { border-color: #43386a; background: #2a2444; color: #d1baff; }
+html[data-theme="dark"] #root .pi-page .pi-state.is-endorsed { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
 html[data-theme="dark"] #root .pi-page .pi-state.is-collected { border-color: #2a5a43; }
 html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3236; background: #3a2226; color: #ffaaa7; }
 

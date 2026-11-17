@@ -41,6 +41,8 @@ type Props = {
   onPageChange: (page: number) => void;
   onCreateInvoice: (delivery: SalesDeliverySummary, eDocument?: Record<string, string | null>, accountingProfileCode?: string, invoiceType?: "Wholesale" | "Retail") => void;
   onInvoiceCreated: (id: string) => Promise<void>;
+  /** Reports whether the standalone invoice form holds input (used by Yeni's unsaved-changes question). */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type AccountingRuleProfile = {
@@ -69,6 +71,7 @@ export default function SalesInvoiceFromDeliveryDialog({
   onPageChange,
   onCreateInvoice,
   onInvoiceCreated,
+  onDirtyChange,
 }: Props) {
   const [mode, setMode] = useState<"delivery" | "order" | "standalone">(
     fullPage ? "standalone" : initialMode,
@@ -489,6 +492,13 @@ export default function SalesInvoiceFromDeliveryDialog({
   const standaloneSaveBlocked =
     !standaloneCustomerId ||
     standaloneLines.some((line) => !line.stockItemId || !line.warehouseId);
+  const standaloneDirty =
+    (standaloneCustomerId !== "" && standaloneCustomerId !== initialCustomerId) ||
+    Boolean(invoiceNotes.trim()) ||
+    standaloneLines.some((line) => line.stockItemId);
+  useEffect(() => {
+    onDirtyChange?.(standaloneDirty);
+  }, [standaloneDirty, onDirtyChange]);
   const invoiceTypeSelect = (
             <select value={invoiceType} onChange={(event) => setInvoiceType(event.target.value as "Wholesale" | "Retail")}>
               <option value="Retail">Perakende satış · KDV dâhil</option>
@@ -813,6 +823,11 @@ export default function SalesInvoiceFromDeliveryDialog({
             busy={standaloneBusy}
             saveLabel="İrsaliye ve faturayı oluştur"
             formId="sales-invoice-standalone-form"
+            saveDisabledReason={
+              standaloneSaveBlocked
+                ? "Kaydetmek için müşteri ile her satırın stok ve deposunu seçin."
+                : undefined
+            }
             onSubmit={(event) => {
               // The old save button was disabled until a customer and every line's stock/warehouse were chosen.
               if (standaloneSaveBlocked) {

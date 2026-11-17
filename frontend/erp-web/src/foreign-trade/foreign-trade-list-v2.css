@@ -8,10 +8,10 @@
   --ft-accent: #0f6cbd;
   --ft-accent-tint: #eaf3fb;
   --ft-accent-strong: #0f548c;
-  --ft-warn: #8a5a00;
-  --ft-warn-tint: #fff6e0;
-  --ft-warn-border: #f1d79a;
-  --ft-danger: var(--erp-color-danger, #b91c1c);
+  --ft-warn: var(--nx-warn);
+  --ft-warn-tint: var(--nx-warn-bg);
+  --ft-warn-border: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
+  --ft-danger: var(--erp-color-danger);
   --ft-success: #12734a;
   --ft-success-tint: #e9f7f0;
   gap: 12px;
@@ -20,9 +20,9 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page {
   --ft-accent: #8ec5fa;
   --ft-accent-tint: #1e3045;
   --ft-accent-strong: #b9dcff;
-  --ft-warn: #f2c66d;
-  --ft-warn-tint: #33291a;
-  --ft-warn-border: #5c4823;
+  --ft-warn: var(--nx-warn);
+  --ft-warn-tint: var(--nx-warn-bg);
+  --ft-warn-border: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
   --ft-danger: #f19999;
   --ft-success: #7fd8ad;
   --ft-success-tint: #18322a;
@@ -395,7 +395,7 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page {
 
 /* Create/edit form: format hints under coded inputs. */
 #root .foreign-trade-create .foreign-trade-field-hint {
-  color: var(--rf-muted, #6b778c);
+  color: var(--rf-muted);
   font-size: 11px;
   font-weight: 400;
   line-height: 1.35;
