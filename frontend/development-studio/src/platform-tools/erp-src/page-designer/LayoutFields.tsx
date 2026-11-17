@@ -3,7 +3,7 @@ import { sanitizeSafeValue } from "./DesignLanguageFields";
 import { parseFieldList } from "./layoutRefs";
 
 const MAX_ITEMS = 12;
-export type PickerInput = { id: string; label: string; inputType: string; hasOptions: boolean };
+export type PickerInput = { id: string; name?: string; label: string; inputType: string; hasOptions: boolean };
 
 /** Sunucunun SafeValue ve sütun kuralına uyan (kırpılmış, "=" içermeyen, en çok 128 karakter) sütun kodu mu. */
 export const isSafeColumnCode = (code: string) => code.length > 0 && code.length <= 128 && code === code.trim() && sanitizeSafeValue(code) === code;
@@ -21,6 +21,13 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled }
     [next[index], next[target]] = [next[target], next[index]];
     onChange(next);
   };
+  const labelCount = new Map<string, number>();
+  for (const input of inputs) { const key = input.label || input.id; labelCount.set(key, (labelCount.get(key) ?? 0) + 1); }
+  // Varsayılan ("Giriş") ya da yinelenen etiketlerde girişin adı/kimliği ayırt edici olarak eklenir.
+  const nameOf = (input: PickerInput) => {
+    const base = input.label || input.id;
+    return base === "Giriş" || (labelCount.get(base) ?? 0) > 1 ? `${base} (${input.name || input.id})` : base;
+  };
   const row = (input: PickerInput, index: number) => {
     const isOn = index >= 0;
     const taken = !isOn ? owned?.[input.id] : undefined;
@@ -28,12 +35,12 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled }
       <label>
         <input type="checkbox" checked={isOn} disabled={disabled || !!taken || (!isOn && selected.length >= MAX_ITEMS)}
           onChange={(event) => onChange(event.target.checked ? [...selected, input.id] : selected.filter((id) => id !== input.id))}/>
-        <span>{input.label || input.id}</span>
+        <span>{nameOf(input)}</span>
         {taken && <small className="pd-taken-hint">Başka kartta</small>}
       </label>
       {isOn && <>
-        <button type="button" className="pd-icon-button" aria-label={`${input.label || input.id} yukarı taşı`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ArrowUp size={12}/></button>
-        <button type="button" className="pd-icon-button" aria-label={`${input.label || input.id} aşağı taşı`} disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)}><ArrowDown size={12}/></button>
+        <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} yukarı taşı`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ArrowUp size={12}/></button>
+        <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} aşağı taşı`} disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)}><ArrowDown size={12}/></button>
       </>}
     </li>;
   };
@@ -59,7 +66,7 @@ export function FieldListEditor({ columns, value, onChange, disabled }: {
         const column = usable.find((item) => item.code === event.target.value);
         if (column) write(rows.map((item, i) => i === index ? { code: column.code, label: item.label || labelFor(column) } : item));
       }}>
-        {usable.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}
+        {usable.filter((column) => column.code === row.code || !rows.some((other) => other.code === column.code)).map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}
         {!usable.some((column) => column.code === row.code) && <option value={row.code}>{row.code}</option>}
       </select>
       <input key={`${index}:${row.label}`} defaultValue={row.label} disabled={disabled} maxLength={60} aria-label={`Alan ${index + 1} etiketi`} onBlur={(event) => {

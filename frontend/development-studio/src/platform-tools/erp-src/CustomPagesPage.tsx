@@ -150,7 +150,7 @@ function reconcileLayoutRefs(definition: PageDefinition): PageDefinition {
       const tableOk = !!table && table.type === "dataTable" && !!table.name && typeof table.props.query === "string" && table.props.query !== "";
       const next = { ...props };
       let touched = false;
-      if (!tableOk && "table" in next) { delete next.table; delete next.fields; touched = true; }
+      if (!tableOk && "table" in next) { delete next.table; touched = true; }
       if ("relatedQuery" in next && !(typeof next.relatedQuery === "string" && readIds.has(next.relatedQuery))) { delete next.relatedQuery; delete next.relatedTitle; touched = true; }
       if (!touched) return component;
       changed = true;
@@ -772,8 +772,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     window.addEventListener("pointercancel", stop);
   };
   const saveDraft = async () => {
-    const definition = normalizeDefinition(definitionRef.current);
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
+    // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
+    const reconciled = reconcileLayoutRefs(definitionRef.current);
+    if (reconciled !== definitionRef.current) commit(() => reconciled);
+    const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
     // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
     for (const component of definition.components) {
@@ -1022,7 +1025,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           const { ready, rows } = optionRows(input.props);
           const countColumn = countColumns[id];
           return [{ id, label: String(input.props.label || input.name || id), ready, options: rows.map(({ label, row }) => {
-            const count = countColumn ? Number(row[countColumn]) : Number.NaN;
+            const cell = countColumn ? row[countColumn] : undefined;
+            const count = cell == null || cell === "" ? Number.NaN : Number(cell);
             return { label, count: Number.isFinite(count) ? count : undefined };
           }) }];
         });
@@ -1115,7 +1119,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
   // Düzen bileşenleri (formCard, contextPanel, filterChips, facetPanel) için müfettiş verileri.
   const pageInputs: PickerInput[] = definition.components.filter((component) => component.type === "input").map((component) => ({
-    id: component.id, label: String(component.props.label || component.name || "Giriş"), inputType: String(component.props.inputType || "text"),
+    id: component.id, name: component.name, label: String(component.props.label || component.name || "Giriş"), inputType: String(component.props.inputType || "text"),
     hasOptions: typeof component.props.optionsQuery === "string" && readQueries.some((query) => query.id === component.props.optionsQuery),
   }));
   const layoutOwners: Record<string, string> = {};

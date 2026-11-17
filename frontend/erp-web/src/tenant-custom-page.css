@@ -158,7 +158,7 @@
 .app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action) button.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
 
 /* Form kartı — taslak `.card` + `.fg3`: girişler 1/2/3 sütunlu ızgarada; girişin kendi genişliği form içinde yok sayılır */
-.tenant-page-form-card-grid { display: grid; gap: 10px 12px; }
+.tenant-page-form-card-grid { display: grid; gap: 10px 14px; }
 .tenant-page-form-card-grid.is-cols-1 { grid-template-columns: minmax(0, 1fr); }
 .tenant-page-form-card-grid.is-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -166,10 +166,11 @@
 .tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
 /* Süzgeç çipleri — taslak `.chips`/`.chip`; ✕ ve Temizle düğmeleri eski kabuk `.content button` kuralını ezmek için önekli */
 .tenant-page-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.tenant-page-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 9px; border: 1px solid color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 11.5px; line-height: 1.6; }
+.tenant-page-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 12px; line-height: 1.6; }
 .tenant-page-chip-label { color: var(--nx-muted); }
 .tenant-page-chip strong { font-weight: 600; }
 .app-shell .tenant-custom-page .tenant-page-chip button { display: inline-grid; place-items: center; width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; border-radius: 50%; color: var(--nx-muted); background: transparent; box-shadow: none; font: 400 11px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-chip button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
 .app-shell .tenant-custom-page .tenant-page-chip button:hover { color: var(--nx-bad); background: var(--nx-bad-bg); }
 .app-shell .tenant-custom-page .tenant-page-chips-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
 .app-shell .tenant-custom-page .tenant-page-chips-clear:hover { background: var(--nx-primary-soft); }
@@ -193,7 +194,7 @@
 .tenant-page-context-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .tenant-page-context-field { min-width: 0; padding: 7px 9px; border: 1px solid var(--nx-line-soft); border-radius: var(--nx-radius-control); background: var(--nx-table-head); }
 .tenant-page-context-field dt { margin: 0 0 2px; color: var(--nx-muted); font-size: 11px; font-weight: 600; }
-.tenant-page-context-field dd { margin: 0; color: var(--nx-text); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tenant-page-context-field dd { margin: 0; color: var(--nx-text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .tenant-page-context-related { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--nx-line-soft); }
 .tenant-page-context-related h4 { margin: 0 0 6px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
 .tenant-page-context-related ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
@@ -203,3 +204,6 @@
 .tenant-page-context-note.is-error { color: var(--nx-bad) !important; }
 @media (max-width: 900px) { .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .tenant-page-form-card-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
+/* Eski kabuk `.app-shell h3/h4 !important` başlık kurallarını yalnız yeni bileşenler için ezer */
+.app-shell .tenant-custom-page :is(.tenant-page-form-card, .tenant-page-facet, .tenant-page-context) > h3, .app-shell .tenant-custom-page .tenant-page-facet-head h3 { font-size: 13px !important; font-weight: 650 !important; letter-spacing: normal !important; color: var(--nx-text) !important; }
+.app-shell .tenant-custom-page .tenant-page-context-related h4 { font-size: 11px !important; color: var(--nx-muted) !important; letter-spacing: .04em !important; text-transform: uppercase; }

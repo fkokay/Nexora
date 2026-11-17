@@ -90,7 +90,7 @@ export function FilterChipsPreview({ chips, style }: { chips: { id: string; labe
   if (chips.length === 0) return <div className="pd-chips" style={style}><span className="pd-chip is-sample"><span className="pd-chip-label">Örnek:</span><strong>değer</strong></span></div>;
   return <div className="pd-chips" style={style} role="group" aria-label="Etkin süzgeçler">
     {chips.map((chip) => <span className="pd-chip" key={chip.id}><span className="pd-chip-label">{chip.label}:</span><strong>{chip.text}</strong><span className="pd-chip-x" aria-hidden="true">✕</span></span>)}
-    <span className="pd-chips-clear">Temizle</span>
+    <span className="pd-chips-clear" aria-label="Tüm süzgeçleri temizle">Temizle</span>
   </div>;
 }
 
@@ -99,8 +99,8 @@ const FACET_OPTION_LIMIT = 8;
 
 export function FacetPanelPreview({ title, groups, style }: { title: string; groups: FacetPreviewGroup[]; style: CSSProperties }) {
   return <aside className="pd-layout-block pd-facet" style={style}>
-    <div className="pd-facet-head"><h3>{title}</h3><span className="pd-facet-clear">Temizle</span></div>
-    {groups.map((group) => <div className="pd-facet-group" key={group.id}>
+    <div className="pd-facet-head"><h3>{title}</h3><span className="pd-facet-clear" aria-label={`${title || "Süzgeç"} süzgeçlerini temizle`}>Temizle</span></div>
+    {groups.map((group) => <div className="pd-facet-group" key={group.id} role="group" aria-label={group.label}>
       <div className="pd-facet-label">{group.label}</div>
       {!group.ready ? <p className="pd-facet-state">Seçenekler için sorguyu önizleyin</p> : <>
         <div className="pd-facet-option is-selected"><span>Tümü</span></div>

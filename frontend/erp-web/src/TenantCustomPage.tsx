@@ -9,7 +9,7 @@ import { displayText, interpolate, type PageScope } from "./custom-page/pageBind
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
-import { chipText, ContextPanel, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
+import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import "./tenant-custom-page.css";
 
@@ -395,8 +395,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
         const countColumn = counts[id];
         const options = selectOptions(inputProps, optionsState).map(({ value, label, row }) => {
-          const count = countColumn ? Number(row[countColumn]) : Number.NaN;
-          return { value, label, count: Number.isFinite(count) ? count : undefined };
+          return { value, label, count: countColumn ? facetCount(row[countColumn]) : undefined };
         });
         const raw = runtime.inputValues[id];
         return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined }];

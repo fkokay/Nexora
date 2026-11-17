@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chipText, ContextPanel, FacetPanel, FilterChips, FormCard } from './LayoutComponents';
+import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard } from './LayoutComponents';
 
 afterEach(cleanup);
 
@@ -35,6 +35,17 @@ describe('ContextPanel', () => {
   it('ilgili liste boşsa Kayıt yok yazar', () => {
     render(<ContextPanel title="C" row={{}} fields={fields} related={{ title: 'Son hareketler', rows: [], loading: false }} style={{}} />);
     expect(screen.getByText('Kayıt yok')).toBeTruthy();
+  });
+});
+
+describe('facetCount', () => {
+  it('boş ya da sayısal olmayan değerde sayı yoktur, 0 gerçek sayıdır', () => {
+    expect(facetCount(null)).toBeUndefined();
+    expect(facetCount(undefined)).toBeUndefined();
+    expect(facetCount('')).toBeUndefined();
+    expect(facetCount('abc')).toBeUndefined();
+    expect(facetCount(0)).toBe(0);
+    expect(facetCount('12')).toBe(12);
   });
 });
 
@@ -76,7 +87,7 @@ describe('FilterChips', () => {
     render(<FilterChips chips={chips} onClear={onClear} onClearAll={onClearAll} style={{}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Şube süzgecini kaldır' }));
     expect(onClear).toHaveBeenCalledWith('in1');
-    fireEvent.click(screen.getByRole('button', { name: 'Temizle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tüm süzgeçleri temizle' }));
     expect(onClearAll).toHaveBeenCalledTimes(1);
   });
   it('çip yoksa hiçbir şey çizmez', () => {
@@ -96,23 +107,23 @@ describe('FacetPanel', () => {
   it('başlığı yazar ve Tümü seçili başlar', () => {
     panel();
     expect(screen.getByText('Süzgeçler')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /Tümü/ }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('radio', { name: /Merkez/ }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('button', { name: /Tümü/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Merkez/ }).getAttribute('aria-pressed')).toBe('false');
   });
   it('seçeneğe tıklamak onSelect çağırır, seçiliye tekrar tıklamak boşaltır', () => {
     const onSelect = vi.fn();
     const { rerender } = panel([group()], onSelect);
-    fireEvent.click(screen.getByRole('radio', { name: /Merkez/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Merkez/ }));
     expect(onSelect).toHaveBeenLastCalledWith('in1', 'Merkez');
     rerender(<FacetPanel title="Süzgeçler" groups={[group({ selected: 'Merkez' })]} onSelect={onSelect} style={{}} />);
-    expect(screen.getByRole('radio', { name: /Merkez/ }).getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(screen.getByRole('radio', { name: /Merkez/ }));
+    expect(screen.getByRole('button', { name: /Merkez/ }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: /Merkez/ }));
     expect(onSelect).toHaveBeenLastCalledWith('in1', '');
   });
   it('sayı varsa sağda yazar, yoksa yazmaz', () => {
     panel();
     expect(screen.getByText('7')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Ankara' }).querySelector('.tenant-page-facet-count')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Ankara' }).querySelector('.tenant-page-facet-count')).toBeNull();
   });
   it('hata ve yükleniyor durumlarını gösterir', () => {
     panel([group({ error: 'Sorgu başarısız' }), group({ id: 'in2', label: 'Tür', loading: true, options: [] })]);
@@ -122,8 +133,27 @@ describe('FacetPanel', () => {
   it('Temizle seçili tüm grupları boşaltır', () => {
     const onSelect = vi.fn();
     panel([group({ selected: 'Merkez' }), group({ id: 'in2', label: 'Tür', selected: 'X', options: [{ value: 'X', label: 'X' }] }), group({ id: 'in3', label: 'Üç' })], onSelect);
-    fireEvent.click(screen.getByRole('button', { name: 'Temizle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Süzgeçler süzgeçlerini temizle' }));
     expect(onSelect.mock.calls).toEqual([['in1', ''], ['in2', '']]);
+  });
+});
+
+describe('FacetPanel semantiği', () => {
+  it('seçenekler aria-pressed düğmeleri, grup role=group', () => {
+    render(<FacetPanel title="S" groups={[{ id: 'a', label: 'Şube', selected: 'M', loading: false, options: [{ value: 'M', label: 'M' }] }]} onSelect={() => {}} style={{}} />);
+    expect(screen.getByRole('group', { name: 'Şube' })).toBeTruthy();
+    expect(screen.queryAllByRole('radio').length).toBe(0);
+    expect(screen.getByRole('button', { name: 'M', pressed: true })).toBeTruthy();
+  });
+});
+
+describe('FilterChips odak', () => {
+  it('çip kaldırılınca odak sonraki çipin ✕ düğmesine geçer', () => {
+    const chips = [{ id: 'a', label: 'A', text: '1' }, { id: 'b', label: 'B', text: '2' }];
+    const { rerender } = render(<FilterChips chips={chips} onClear={() => {}} onClearAll={() => {}} style={{}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'A süzgecini kaldır' }));
+    rerender(<FilterChips chips={[chips[1]]} onClear={() => {}} onClearAll={() => {}} style={{}} />);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'B süzgecini kaldır' }));
   });
 });
 
