@@ -144,7 +144,6 @@ export function ForeignTradeDetail({
   const busy = busyId === item.id;
   const stageIndex = tradeStageFlow.indexOf(item.status);
   const cancelled = item.status === "Cancelled";
-  const editable = ["Draft", "Booked"].includes(item.status);
   const linked = Boolean(item.purchaseReceiptId || item.salesDeliveryId);
   const canLinkNow =
     (item.direction === "Import" &&

@@ -66,7 +66,7 @@ function openMenu() {
 
 describe('Dış Ticaret frame', () => {
   it('moves create, edit and cancel to the action bar and keeps their conditions', async () => {
-    renderScreen(<ForeignTradePage token="t" />);
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
     await screen.findAllByText('IHR-001');
     const cell = screen.getAllByText('IHR-001').find((node) => node.closest('tr'))!;
     expect(within(cell.closest('tr')!).getByText('Taslak').className).toContain('nx-status-tag is-info');
@@ -90,7 +90,7 @@ describe('Dış Ticaret frame', () => {
   });
 
   it('a shipped case cannot be edited or cancelled', async () => {
-    renderScreen(<ForeignTradePage token="t" />);
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
     await screen.findAllByText('IHR-001');
     fireEvent.click(screen.getAllByText('IHR-002').find((node) => node.closest('tr'))!);
     await waitFor(() => expect(reason('open')).toBe('Yalnız Taslak ve Planlandı dosyalar düzenlenebilir'));
