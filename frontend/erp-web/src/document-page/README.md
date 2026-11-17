@@ -94,7 +94,8 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
 - `DetailSection` (Ödemeler, İadeler…), `DetailNotes`, işlem formları için sağdan kayan `DetailDrawer`.
   Bölüm başlığındaki düğmeler (`actions`: "Ödeme ekle", "Mal kabul ekle", "Teklif kaydet") kontrol boyundadır
   (31px, 6px köşe; `document-detail.css`), tablo satırındaki eski `.row-action` düğmeleri ("Fatura oluştur", "İptal et",
-  "Bu teklifle sipariş") 26px / 12px — eski genel kuralların 34 / 38px ve 9px boyları belgede geçerli değildir.
+  "Bu teklifle sipariş") 12px yazı, 26px (kiracı ızgarasının satırında 24px) — eski genel kuralların 34 / 38px ve 9px boyları
+  belgede geçerli değildir. Sayı sütunu başlıkları (`th.nx-num`, kiracı ızgarasında `th.dd-num`) hücreler gibi sağa dayanır.
 
 ## Kurallar
 
