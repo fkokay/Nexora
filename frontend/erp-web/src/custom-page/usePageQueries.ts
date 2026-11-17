@@ -112,7 +112,8 @@ export function usePageQueries(options: {
   const latestOperations = useRef(operations);
   latestOperations.current = operations;
   const operationOf = (query: PageQueryDefinition): ErpOperation => {
-    const op = latestOperations.current?.get(query.operation!);
+    if (!latestOperations.current) throw new Error("ERP işlem kataloğu henüz yüklenmedi.");
+    const op = latestOperations.current.get(query.operation!);
     if (!op) throw new Error(`ERP işlemi bulunamadı: ${query.operation}`);
     return op;
   };
@@ -123,6 +124,9 @@ export function usePageQueries(options: {
     const source = sourceQueryOf(op);
     return (source && latestStates.current[source.name]?.rows[0]) ?? null;
   };
+  /** 403 her zaman genel yetki metniyle gösterilir; sunucunun `error` gövdesi (serverError) onu ezmesin. */
+  const operationFailure = (cause: unknown): unknown => (cause as { status?: number } | null)?.status === 403
+    ? Object.assign(new Error("Bu işlem için yetkiniz yok."), { status: 403 }) : cause;
   const operationInit = (request: OperationRequest): RequestInit => request.body !== undefined
     ? { method: request.method, headers: { "Content-Type": "application/json" }, body: request.body }
     : { method: request.method };
@@ -142,7 +146,7 @@ export function usePageQueries(options: {
       setStates((current) => ({ ...current, [query.name]: { ...mapped, truncated: false, loading: false, error: "", ran: true } }));
     } catch (cause) {
       if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
-      const failure = cause as Error & { serverError?: string };
+      const failure = operationFailure(cause) as Error & { serverError?: string };
       setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
     }
   };
@@ -163,7 +167,7 @@ export function usePageQueries(options: {
       const failure = cause as Error & { fieldErrors?: Record<string, string[]> };
       const fieldErrors = fieldErrorsByParameter(op, failure.fieldErrors);
       setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, fieldErrors } }));
-      throw cause;
+      throw operationFailure(cause);
     }
   };
 

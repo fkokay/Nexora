@@ -112,6 +112,23 @@ describe('usePageQueries ERP işlemleri', () => {
     expect(result.current.states.guncelle.fieldErrors).toEqual({ name: 'Zorunlu.' });
   });
 
+  it('runtime 403 shows the generic rights text even with a server error body', async () => {
+    const denied = () => Object.assign(new Error('Bu işlem için yetkiniz yok.'), { status: 403, serverError: 'permission_denied' });
+    apiMock.mockImplementation(async () => { throw denied(); });
+    const { result } = setup([listQuery, updateQuery], catalog);
+    await waitFor(() => expect(result.current.states.kartlar.error).toBe('Bu işlem için yetkiniz yok.'));
+    let thrown: (Error & { serverError?: string }) | undefined;
+    await act(async () => { await result.current.runWrite({ ...updateQuery, operation: 'stok.kart.guncelle' }, { id: guid, name: 'B' }).catch((cause) => { thrown = cause; }); });
+    expect(thrown?.message).toBe('Bu işlem için yetkiniz yok.');
+    expect(thrown?.serverError).toBeUndefined();
+  });
+
+  it('write before the catalog loads reports the catalog, not an unknown operation', async () => {
+    const { result } = setup([updateQuery], null);
+    await expect(result.current.runWrite(updateQuery, { name: 'B' })).rejects.toThrow('ERP işlem kataloğu henüz yüklenmedi.');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   it('preview write is refused', async () => {
     apiMock.mockResolvedValue({ Id: guid, name: 'A', rowVersion: 'AAA=' });
     const { result } = setup([getQuery, updateQuery], catalog, 'taslak-1');
