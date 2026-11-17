@@ -11,7 +11,7 @@ Faz 0, Faz 1 (Task 1–11), Faz 2 Stok (Task 1–8), Faz 3 Satış (Task 1–5: 
 - **Gerçek ortam doğrulaması:** Playwright UI denetimi (`npm run test:ui-design`) bu dalda hiç çalıştırılamadı (test ortamı/kimlik bilgisi yok); tüm görsel kontroller sahte API ile yapıldı.
 
 ## Satış'tan kalanlar (Faz 3, veri / karar bekleyen)
-- **Fatura listesinde vade ve kalan yok:** `/api/sales/invoices/` liste cevabında vade tarihi, tahsil edilen / kalan tutar yok → Vade ve Kalan sütunları, "Tahsil edilmemiş" / "Vadesi geçen" özet kartları, "Vadesi geçti" etiketi ve "bu ay" filtresi çizilmiyor (Kalan yalnız sağ panelde, detay cevabından). Uç nokta genişletilirse eklenecek (Faz 4).
+- **Fatura listesinde vade ve kalan yok:** `/api/sales/invoices/` liste cevabında vade tarihi, tahsil edilen / kalan tutar yok → Vade ve Kalan sütunları, "Tahsil edilmemiş" / "Vadesi geçen" özet kartları, "Vadesi geçti" etiketi ve "bu ay" filtresi çizilmiyor (Kalan yalnız sağ panelde, detay cevabından). Uç nokta genişletilirse eklenecek (Faz 4 Satınalma'da bu veri alış faturası listesinde vardı; satış uç noktası genişletilmedi — sonraki plan).
 - **Fatura durumlarında Taslak / Onaylı / e-Fatura / Tahsil edildi yok:** fatura kaydedilince Kesildi olur; akış tek adım (Kesildi, İptal). Oluşturma ekranında geçerli adım yok. Bu durumlar arka uçta tanımlanırsa akışa eklenecek.
 - **Cari bakiye / risk uç noktası yok:** belge bağlam panelinde ve oluşturma ekranında cari bakiye, risk limiti, vadesi geçen çizilmiyor (yalnız kod, VKN, plasiyer).
 - **Belge satırında depo stoku yok:** taslak 02'deki "aktif satırın stoku" (depolara göre mevcut / rezerve) için belge cevaplarında veri yok; çizilmiyor.
@@ -70,4 +70,4 @@ Faz 0, Faz 1 (Task 1–11), Faz 2 Stok (Task 1–8), Faz 3 Satış (Task 1–5: 
   - Bağımsız fatura taslakları: form listenin üstünde sürekli durmuyor; F2 ya da Düzenle tam sayfa açar, kaydet / vazgeç listeye döner; satır düğmeleri (Düzenle, Muhasebeleştir) İşlemler'de; üst etiket, rol çipi ve "Taslak · muhasebeleştirilmedi" bandı kaldırıldı.
   - Yeni satınalma siparişi toplamları Satış oluşturma dökümüyle: KDV oranlarına göre, "Mal / hizmet toplamı", "Genel toplam · Ödenecek tutar".
   - Belgelerdeki bölüm düğmeleri ve tablo satırı düğmeleri (Fatura oluştur, İptal et, Bu teklifle sipariş) tek boyda; satır düğmelerinin yazısı okunur boyda (Satış belgelerinde de).
-- Taslaktaki ama veri kaynağı olmayan alanlar (açık belgeler, stok seyri grafiği, depo türü/şube/sorumlu, sipariş önerisi, kayıtlı görünümler, gruplama) Faz 4'e kadar çizilmiyor.
+- Taslaktaki ama veri kaynağı olmayan alanlar (açık belgeler, stok seyri grafiği, depo türü/şube/sorumlu, sipariş önerisi, kayıtlı görünümler, gruplama) çizilmiyor; Faz 4 Satınalma da bunları eklemedi, veri kaynağı gelene kadar bekliyor.
