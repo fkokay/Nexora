@@ -17,7 +17,9 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     komutu varsa · PgUp/PgDn yalnızca `recordNav` varsa · Ctrl+. yalnızca `aside` varsa · Esc kapat), sağda `status`.
     Aynı tuşlar F1 kısayol yardımında "Kayıt formu" başlığı altında listelenir.
   - `<form>` etiketini kendisi üretir; içine ayrıca `<form>` koymayın. Modal içindeki formlar için `variant="dialog"`
-    (gezgin yerine yatay sekmeler, kısayol satırı yok). Form açıkken İşlem Çubuğu'nun Kaydet komutunu (`Ctrl+S`,
+    (gezgin yerine yatay sekmeler, kısayol satırı yok). Satırlı belge oluşturma / düzenleme ekranında `document`
+    verilir: başlık belge ekranınınkidir (tür, numara · cari, durum akışı), davranış aynıdır (`document-page/README.md`,
+    "Belge oluşturma ekranı"). Form açıkken İşlem Çubuğu'nun Kaydet komutunu (`Ctrl+S`,
     birincil) kaydeder; "Kaydet ve Yeni" (`Ctrl+F2`) ve "Temizle" İşlemler menüsündedir. `F2` çubuğun Yeni komutudur;
     sayfa kaydeder (kaydedilmemiş değişiklik varsa onay sorarak).
   - **Formun kendi düğmeleri**: Kaydet, Kaydet ve Yeni, Temizle formun başlığında yalnızca İşlem Çubuğu'nun

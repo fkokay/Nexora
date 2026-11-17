@@ -98,8 +98,8 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
 - **Kart tek katmandır.** Kart yarıçapı 8px, kontrol 6px; kart içine kart konmaz. Renkler yalnızca
   `--nx-*` token'larıdır. Sınıf adları `-panel`, `-card`, `-badge`, `-chip`, `-dialog` içermez
   (`global-components.css` bu parçaları içeren sınıflara stil dayatır).
-- **Yeni kayıt ve düzenleme** `RecordFormPage` ile yapılır. Belgenin içinden açılan kısa formlar
-  (ödeme, iade) `DetailDrawer` içinde `variant="dialog"` ile çizilir.
+- **Yeni kayıt ve düzenleme** `RecordFormPage` ile yapılır (aşağıda "Belge oluşturma ekranı"). Belgenin içinden açılan
+  kısa formlar (ödeme, iade) `DetailDrawer` içinde `variant="dialog"` ile çizilir.
 - **Davranış değişmez.** API çağrıları, yetki kontrolleri ve kayıtlı ekran ayarları korunur.
 - **Yeni metinlerin İngilizce karşılığı** `locales/en/document-page.ts` sözlüğüne eklenir.
 
@@ -110,3 +110,28 @@ Başlık iki görünümde aynıdır. Eski gövde, iç stilleri bozulmasın diye 
 kullanılır. Gövde tek bir 8px kart olarak çizilir; pencereye özgü ölçü, gölge ve iç kaydırma
 `document-page.css` içinde kaldırılır. Bu ekranlar `variant="detail"` gövdesine taşındıkça bu iki
 özellik gereksizleşir.
+
+## Belge oluşturma ekranı (`RecordFormPage` `document`)
+
+Satırlı bir belgeyi oluşturan / taslağını düzenleyen tam sayfa form (taslak 02, "düzenleniyor"). Davranış kayıt
+formunundur (`record-form/README.md`): İşlem Çubuğu'nun Kaydet'i (`Ctrl+S`), "Kaydet ve Yeni" (`Ctrl+F2`) / "Temizle"
+İşlemler'de, `F2` sayfanın Yeni'si, Esc = Vazgeç (alan değiştiyse onay), tek satırlık alanda Enter kaydeder, geçersiz
+ilk alana odak, `saveDisabledReason`. `document` yalnızca görünümü değiştirir:
+
+- **Başlık**: üstte kırıntı › belge türü (`type`), büyük numara (`code`; girilmemişse `title`, ör. "Yeni satış faturası")
+  ve `·` cari (`party`), künye satırında YENİ KAYIT / DÜZENLEME ve `subtitle`, ortada durum akışı (`statusFlow`: kaydın
+  oluşturacağı durum geçerli adım; bugün olmayan durum çizilmez), sağda değişiklik notu ve Vazgeç. Kök `.record-form.doc-form`
+  olur; `.doc-surface` değildir (liste kapanmaz, belge tuşları devreye girmez).
+- **Belge bilgileri**: `RecordFormGroup bodyClassName="rf-identity doc-form-fields"` — dört sütun; kartın genişliğine
+  göre 760px altında iki, 420px altında tek sütun (`@container doc-card`). Uzun alan `rf-span-2`.
+- **Satır kartı**: `.dd-box` içinde `DetailLinesHead`, `.dd-lines-wrap > table.dd-lines` ve (fiyatlı belgede)
+  `DetailLinesFooter` (solda notlar, sağda `DocumentTotals`). Hücredeki alanlar 26px, çerçevesiz; üzerine gelince ince
+  çizgi, odakta mavi çizgi; kapalı (hesaplanan) tutarlar düz metin. Sayı hücresi `dd-num`, stok hücresi `dd-stock-cell`,
+  sıra no `dd-ix` (satırı kaldır düğmesi `dd-line-remove`), son satır `dd-new-line` içinde formun "Satır ekle" düğmesi
+  (`data-line-add-shortcut`; `Ctrl+Shift+Enter` onu tıklar, App.tsx). Izgara kartın içinde yatay kayar, sayfa kaymaz.
+- **Alt bilgi**: kayıt formunun kısayolları; `hints` "Ctrl+S kaydet"ten sonra eklenir. Yalnızca ekranda çalışan tuşlar
+  yazılır (bugün satır tuşu yalnız `Ctrl+Shift+Enter`; İşlemler menüsü doluysa "Alt+İ işlemler").
+- **Bağlam paneli**: `aside` (ör. talepten açılan teklifte belge zinciri); veri yoksa verilmez.
+
+Satış ekranlarının ortak parçaları `sales/salesDocumentForm.tsx` içindedir (`SalesFormLines`, `LineAddLabel`,
+`salesFormTotalRows`, `SALES_FORM_HINTS`).

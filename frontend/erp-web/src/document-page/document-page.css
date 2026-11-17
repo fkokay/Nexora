@@ -475,3 +475,16 @@
 }
 .app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-shell .record-form.doc-form form.rf-form table.dd-lines td small { margin-top: 1px; font-size: 11px !important; }
+/* Satır yüksekliği taslaktaki gibi ~31px: 26px alan + ince dikey boşluk. Sayı sütunları sabit, kalan genişlik stok
+   sütununa kalır; seçim kutuları (birim, döviz, KDV türü) metnini kesmeyecek kadar geniş. */
+#root .app-shell .record-form.doc-form table.dd-lines tbody td { height: 31px !important; padding-block: 2px !important; }
+#root .app-shell .doc-form table.dd-lines :is(th, td).dd-num { width: 96px; }
+#root .app-shell .doc-form table.dd-lines td.dd-stock-cell { min-width: 220px; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td select { min-width: 96px !important; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td .searchable-record-trigger { font-weight: 400 !important; }
+/* Alanlar sütun daralınca kaybolmasın: sayı alanı en az 64px, hesaplanan tutar 80px; ızgara sığmazsa kartın içinde
+   yatay kayar (sayfa kaymaz). Hücre iç boşluğu düzenlenen satırlarda dar. */
+#root .app-shell .record-form.doc-form table.dd-lines tbody td { padding-inline: 4px !important; }
+#root .app-shell .record-form.doc-form table.dd-lines tbody td.dd-ix { padding-inline: 6px !important; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td.dd-num input { min-width: 64px !important; }
+.app-shell .record-form.doc-form form.rf-form table.dd-lines td.dd-num input:disabled { min-width: 80px !important; }
