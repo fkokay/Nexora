@@ -156,3 +156,50 @@
 }
 .app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit):hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
 .app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action) button.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
+
+/* Form kartı — taslak `.card` + `.fg3`: girişler 1/2/3 sütunlu ızgarada; girişin kendi genişliği form içinde yok sayılır */
+.tenant-page-form-card-grid { display: grid; gap: 10px 12px; }
+.tenant-page-form-card-grid.is-cols-1 { grid-template-columns: minmax(0, 1fr); }
+.tenant-page-form-card-grid.is-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tenant-page-form-card-cell { min-width: 0; }
+.tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
+/* Süzgeç çipleri — taslak `.chips`/`.chip`; ✕ ve Temizle düğmeleri eski kabuk `.content button` kuralını ezmek için önekli */
+.tenant-page-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tenant-page-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 9px; border: 1px solid color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 11.5px; line-height: 1.6; }
+.tenant-page-chip-label { color: var(--nx-muted); }
+.tenant-page-chip strong { font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-chip button { display: inline-grid; place-items: center; width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; border-radius: 50%; color: var(--nx-muted); background: transparent; box-shadow: none; font: 400 11px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-chip button:hover { color: var(--nx-bad); background: var(--nx-bad-bg); }
+.app-shell .tenant-custom-page .tenant-page-chips-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-chips-clear:hover { background: var(--nx-primary-soft); }
+
+/* Yan filtre paneli — taslak `.facet`: başlık + Temizle, gruplar, "Tümü"/seçenek satırları (radio), sağda sayı */
+.tenant-page-facet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tenant-page-block.tenant-page-facet .tenant-page-facet-head h3 { margin: 0; }
+.tenant-page-facet-group { display: grid; gap: 1px; padding: 8px 0; border-top: 1px solid var(--nx-line-soft); }
+.tenant-page-facet-label { margin-bottom: 3px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 26px; padding: 3px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-text); background: transparent; box-shadow: none; font: 400 12.5px var(--nx-font); text-align: left; cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option:hover { background: var(--nx-table-head); }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option.is-selected { color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.tenant-page-facet-count { color: var(--nx-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.tenant-page-facet-state { margin: 0 !important; color: var(--nx-muted) !important; font-size: 11.5px; }
+.tenant-page-facet-state.is-error { color: var(--nx-bad) !important; }
+.app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear:hover { background: var(--nx-primary-soft); }
+/* Bağlam paneli — taslak `.det` (başlık), `.st4` (2 sütunlu alan kutuları), `.sect`/`.tl` (ilgili kayıt listesi) */
+.tenant-page-context-empty { margin: 0 !important; padding: 18px 8px; color: var(--nx-muted) !important; text-align: center; white-space: normal !important; }
+.tenant-page-context-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.tenant-page-context-field { min-width: 0; padding: 7px 9px; border: 1px solid var(--nx-line-soft); border-radius: var(--nx-radius-control); background: var(--nx-table-head); }
+.tenant-page-context-field dt { margin: 0 0 2px; color: var(--nx-muted); font-size: 11px; font-weight: 600; }
+.tenant-page-context-field dd { margin: 0; color: var(--nx-text); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tenant-page-context-related { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--nx-line-soft); }
+.tenant-page-context-related h4 { margin: 0 0 6px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.tenant-page-context-related ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.tenant-page-context-related li { padding: 5px 0 5px 12px; border-bottom: 1px solid var(--nx-line-soft); border-left: 2px solid var(--nx-line); font-size: 12.5px; overflow-wrap: anywhere; }
+.tenant-page-context-related li:last-child { border-bottom: 0; }
+.tenant-page-context-note { margin: 0 !important; color: var(--nx-muted) !important; font-size: 11.5px; white-space: normal !important; }
+.tenant-page-context-note.is-error { color: var(--nx-bad) !important; }
+@media (max-width: 900px) { .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .tenant-page-form-card-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
