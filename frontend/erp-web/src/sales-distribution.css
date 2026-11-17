@@ -20,9 +20,13 @@
 .sales-distribution-table-wrap td small { display: block; margin-top: 3px; color: var(--nx-muted); }
 #root .sales-distribution-table-wrap :is(th, td).nx-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; }
 #root .sales-distribution-table-wrap th.nx-num .advanced-grid-heading { justify-content: flex-end; }
-.sales-distribution-table-wrap .sales-distribution-short { color: var(--nx-warn); }
+/* A shortfall: warning colour plus weight, so it does not rely on colour alone. */
+#root .sales-distribution-table-wrap td.nx-num .sales-distribution-short { color: var(--nx-warn); font-weight: 600; }
 .sales-distribution-table-wrap tbody tr { cursor: pointer; }
-.sales-distribution-table-wrap tbody tr[aria-selected="true"] { background: var(--nx-primary-soft); box-shadow: inset 3px 0 var(--nx-primary); }
+/* Lighter than --nx-primary-soft so the muted code and the warning shortfall keep 4.5:1 on the selected row. */
+#root .sales-distribution-table-wrap .advanced-grid .advanced-grid-scroll .advanced-grid-table > tbody > tr[aria-selected="true"]:not(.advanced-grid-row-selected) > td {
+  background: color-mix(in srgb, var(--nx-primary-soft) 60%, var(--nx-surface));
+}
 .sales-distribution-table-wrap tbody tr:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 .sales-distribution-empty { padding: 28px !important; color: var(--nx-muted); text-align: center; white-space: normal !important; }
 /* Selected stock summary: a column of the same card, set off by a divider. */

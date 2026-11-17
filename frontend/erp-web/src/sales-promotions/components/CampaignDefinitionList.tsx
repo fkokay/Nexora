@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BadgePercent } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { formatDate } from "../../document-detail/DocumentDetailLayout";
+import type { BulkAction } from "../../list-page/BulkActionBar";
 import { ListFooter } from "../../list-page/ListFooter";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import { StatusTag } from "../../list-page/StatusTag";
@@ -49,6 +50,9 @@ type Props = {
   onClearFilters: () => void;
   onRefresh: () => void;
   onCurrentRowChange: (key: string | null) => void;
+  onSelectionChange: (keys: string[]) => void;
+  selectedCount: number;
+  bulkActions: BulkAction[];
   toolsSlot: HTMLDivElement | null;
   toolsSlotRef: (element: HTMLDivElement | null) => void;
   /** Shown in the empty list (first campaign). */
@@ -116,6 +120,8 @@ export function CampaignDefinitionList(p: Props) {
               selectable
               currentRowKey={p.currentId}
               onCurrentRowChange={p.onCurrentRowChange}
+              onSelectionChange={p.onSelectionChange}
+              bulkActions={p.bulkActions}
               toolbarContainer={p.toolsSlot}
               hideExport
               aria-label="Kampanya listesi"
@@ -167,6 +173,11 @@ export function CampaignDefinitionList(p: Props) {
           </div>
         )}
         <ListFooter hints="↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön · F2 yeni kampanya">
+          {p.selectedCount > 0 && (
+            <span>
+              <span>{p.selectedCount}</span> <span>seçili</span>
+            </span>
+          )}
           <span>
             <span>{p.campaigns.length}</span> <span>kampanya</span> · <span>{counts.current}</span> <span>geçerli</span>
           </span>

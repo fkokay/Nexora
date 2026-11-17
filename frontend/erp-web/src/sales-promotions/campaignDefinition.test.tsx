@@ -54,6 +54,20 @@ function respond(url: string, init?: RequestInit): unknown {
 }
 
 const fetchMock = vi.hoisted(() => vi.fn());
+const xlsx = vi.hoisted(() => ({ sheets: [] as unknown[][][], files: [] as string[] }));
+vi.mock('xlsx', () => ({
+  utils: {
+    book_new: () => ({}),
+    aoa_to_sheet: (data: unknown[][]) => {
+      xlsx.sheets.push(data);
+      return {};
+    },
+    book_append_sheet: () => {},
+  },
+  writeFile: (_book: unknown, name: string) => {
+    xlsx.files.push(name);
+  },
+}));
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: fetchMock,
@@ -66,6 +80,8 @@ beforeAll(() => {
 });
 beforeEach(() => {
   conflicts = {};
+  xlsx.sheets.length = 0;
+  xlsx.files.length = 0;
   campaigns = [
     { id: 'p1', code: 'KMP-KIS', name: 'Kış kampanyası', discountPercent: 10, effectiveFrom: day(-10), effectiveThrough: day(40), isActive: true, applicationCount: 4 },
     { id: 'p2', code: 'KMP-YIL', name: 'Yılbaşı', discountPercent: 15, effectiveFrom: day(5), effectiveThrough: day(20), isActive: true, applicationCount: 0 },
@@ -145,6 +161,42 @@ async function ctrlS() {
 }
 
 describe('Kampanyalar definition screen', () => {
+  it('Excel (seçilenler) exports only the ticked campaigns with the Excel columns', async () => {
+    renderPage();
+    await settle();
+    fireEvent.click(within(rowOf('KMP-YIL')).getByRole('checkbox'));
+    fireEvent.click(within(rowOf('KMP-ESK')).getByRole('checkbox'));
+    const bulk = screen.getByRole('toolbar', { name: 'Toplu işlemler' });
+    await act(async () => {
+      fireEvent.click(within(bulk).getByRole('button', { name: 'Excel (seçilenler)' }));
+    });
+    await waitFor(() => expect(xlsx.sheets).toHaveLength(1));
+    const [header, ...rows] = xlsx.sheets[0];
+    expect(header).toEqual(['Kod', 'Kampanya', 'İndirim %', 'Başlangıç', 'Bitiş', 'Durum', 'Uygulama']);
+    expect(rows).toEqual([
+      ['KMP-YIL', 'Yılbaşı', 15, day(5), day(20), 'Planlanan', 0],
+      ['KMP-ESK', 'Eski kampanya', 8, day(-10), day(10), 'Pasif', 1],
+    ]);
+    expect(xlsx.files[0]).toBe(`kampanyalar-${today}.xlsx`);
+    // Ticking does not open a campaign.
+    expect(within(pane()).getByText('Bir kampanya seçin ya da F2 ile yeni kampanya ekleyin.')).toBeTruthy();
+  });
+
+  it('a failed refresh stays at page level; a refused save shows in the form', async () => {
+    renderPage();
+    await settle();
+    await select('KMP-KIS');
+    conflicts['GET /api/sales/promotions/'] = 'Kampanyalar alınamadı.';
+    await act(async () => {
+      fireEvent.click(command('refresh')!);
+    });
+    await settle();
+    const pageAlert = screen.getAllByRole('alert').find((node) => node.textContent?.includes('Kampanyalar alınamadı.'));
+    expect(pageAlert).toBeTruthy();
+    expect(pane().contains(pageAlert!)).toBe(false);
+    expect(within(pane()).queryByText('Kampanyalar alınamadı.')).toBeNull();
+  });
+
   it('lists the campaigns with status tags and loads the selected one into the right-hand form', async () => {
     renderPage();
     await settle();

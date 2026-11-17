@@ -55,7 +55,7 @@ describe('Dağıtım planı frame', () => {
     expect(within(workspace as HTMLElement).getByRole('complementary', { name: 'Seçili stok özeti' }).textContent).toContain('Ürün 1');
   });
 
-  it('quantity columns are numeric cells (right-aligned, tabular); a shortfall is marked, not bolded', async () => {
+  it('quantity columns are numeric cells (right-aligned, tabular); a shortfall is marked by its class (warning colour + weight), not a <b>', async () => {
     await renderPage();
     const table = document.querySelector<HTMLElement>('.sales-distribution-table-wrap table')!;
     const headers = Array.from(table.querySelectorAll('thead th')).filter((th) => th.classList.contains('nx-num')).map((th) => th.textContent);

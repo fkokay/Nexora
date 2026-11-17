@@ -9,6 +9,9 @@
   #root .list-v2 .nx-def.kmp-def { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 }
 
+/* Search, four status chips and Görünüm share one toolbar line in the list half at 1440: the search gives way first. */
+#root .list-v2 .kmp-def .list-v2-search { flex: 1 1 150px; min-width: 140px; }
+
 /* Definition screen: the compact list card (toolbar above it, footer inside it). */
 #root .sales-promotions-page .kmp-def-grid {
   display: grid;

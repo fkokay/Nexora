@@ -118,6 +118,8 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     [quotes, setQuotes] = useState<Quote[]>([]);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    // Save / apply errors of the open campaign form; list, quote and report loading errors stay at page level.
+    [formError, setFormError] = useState(""),
     [notice, setNotice] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const reportExportRef = useRef<GridExportActions | null>(null);
@@ -211,7 +213,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
   }
   async function saveCampaign(draft: CampaignDraft, editing: Campaign | null): Promise<Campaign | null> {
     setBusy(true);
-    setError("");
+    setFormError("");
     setNotice("");
     try {
       const body = JSON.stringify({
@@ -241,7 +243,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       );
       return row;
     } catch (e) {
-      setError((e as Error).message);
+      setFormError((e as Error).message);
       return null;
     } finally {
       setBusy(false);
@@ -285,7 +287,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
   }
   async function apply(campaignId: string, quoteId: string): Promise<boolean> {
     setBusy(true);
-    setError("");
+    setFormError("");
     setNotice("");
     try {
       const result = await request<{
@@ -298,14 +300,20 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setNotice(
         `Kampanya uygulandı. Ek indirim: ${result.discountAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} · Yeni toplam: ${result.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`,
       );
+    } catch (e) {
+      setFormError((e as Error).message);
+      setBusy(false);
+      return false;
+    }
+    // The applied quote leaves the draft list: reload (a failure here is a page-level loading error).
+    try {
       await load();
-      return true;
     } catch (e) {
       setError((e as Error).message);
-      return false;
     } finally {
       setBusy(false);
     }
+    return true;
   }
   const today = localDateString();
   const performanceById = new Map(
@@ -319,9 +327,10 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     performanceById,
     fields: campaignScreenFields.filter((field) => field.visible),
     busy,
-    error,
-    setError,
+    error: formError,
+    setError: setFormError,
     save: saveCampaign,
+    exportRows: (rows) => void exportCampaigns(rows),
     setStatus: setCampaignStatus,
     apply,
     toolsSlot: listToolsSlot,
@@ -350,12 +359,12 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
         total.currencyCode,
         (discountByCurrency.get(total.currencyCode) ?? 0) + total.amount,
       );
-  async function exportCampaigns() {
+  async function exportCampaigns(items: Campaign[]) {
     try {
       const XLSX = await import("xlsx");
       const rows = [
         ["Kod", "Kampanya", "İndirim %", "Başlangıç", "Bitiş", "Durum", "Uygulama"],
-        ...visibleCampaigns.map((item) => [
+        ...items.map((item) => [
           item.code,
           item.name,
           item.discountPercent,
@@ -402,7 +411,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
     commands.refresh = { run: () => void refreshAll() };
     commands.export = {
       disabledReason: visibleCampaigns.length === 0 ? "Dışa aktarılacak kampanya yok." : undefined,
-      run: () => exportCampaigns(),
+      run: () => exportCampaigns(visibleCampaigns),
     };
   }
   commands.more = more;
@@ -421,8 +430,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
           </button>
         )}
       </ListPageHeader>
-      {/* An open campaign form shows the error itself. */}
-      {error && (reportOpen || !definition.formOpen) && (
+      {error && (
         <div className="alert inline-alert" role="alert">
           {error}
         </div>

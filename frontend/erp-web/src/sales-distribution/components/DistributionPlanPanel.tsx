@@ -46,7 +46,7 @@ function fieldValue(item: Need, key: string) {
   ) : key === "available" ? (
     `${item.available.toLocaleString("tr-TR")} ${item.unitCode}`
   ) : key === "uncovered" ? (
-    // A shortfall is marked in the warning colour (numbers stay normal weight).
+    // A shortfall is marked (warning colour + weight via the class) instead of the former bold tag.
     item.uncovered > 0 ? (
       <span className="sales-distribution-short">
         {item.uncovered.toLocaleString("tr-TR")} {item.unitCode}

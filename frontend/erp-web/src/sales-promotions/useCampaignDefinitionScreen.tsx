@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import type { CommandSpec, MenuCommand } from "../commands/types";
 import { confirmDialog } from "../confirmDialog";
 import { addLocalCalendarDays, localDateString } from "../dateUtils";
+import type { BulkAction } from "../list-page/BulkActionBar";
 import { DefinitionEmptyPane, DefinitionLayout } from "../list-page/DefinitionLayout";
 import { isInPopup, openDialogs, useWindowKeyDown } from "../record-form/recordFormKeys";
 import { campaignState, type CampaignState } from "./campaignState";
@@ -53,6 +54,8 @@ type Options = {
   save: (draft: CampaignDraft, editing: Campaign | null) => Promise<Campaign | null>;
   setStatus: (campaign: Campaign, isActive: boolean) => Promise<Campaign | null>;
   apply: (campaignId: string, quoteId: string) => Promise<boolean>;
+  /** The page's Excel export (same columns and labels) for the given rows. */
+  exportRows: (rows: Campaign[]) => void;
   toolsSlot: HTMLDivElement | null;
   toolsSlotRef: (element: HTMLDivElement | null) => void;
   onRefresh: () => void;
@@ -75,7 +78,8 @@ export function useCampaignDefinitionScreen(o: Options) {
     [baseline, setBaseline] = useState<CampaignDraft | null>(null),
     // The open row as loaded (or last saved / status-changed): an unchanged form follows a refreshed row.
     [baseRow, setBaseRow] = useState<string | null>(null),
-    [quoteId, setQuoteId] = useState("");
+    [quoteId, setQuoteId] = useState(""),
+    [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const formId = `campaign-definition${useId()}`;
   const applySelectId = `${formId}-quote`;
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +114,7 @@ export function useCampaignDefinitionScreen(o: Options) {
     setBaseRow(rowKey(campaign));
     setDraft(base);
     setQuoteId("");
+    o.setError("");
   }
   function closeRecord() {
     setSelectedId(null);
@@ -118,6 +123,7 @@ export function useCampaignDefinitionScreen(o: Options) {
     setBaseRow(null);
     setDraft(createDefaults());
     setQuoteId("");
+    o.setError("");
   }
   async function requestRow(key: string | null) {
     if (key === selectedId || busyRef.current) return;
@@ -240,6 +246,14 @@ export function useCampaignDefinitionScreen(o: Options) {
       });
   }
 
+  const bulkActions: BulkAction[] = [
+    {
+      id: "export-selected",
+      label: "Excel (seçilenler)",
+      run: (keys) => o.exportRows(o.campaigns.filter((row) => keys.includes(row.id))),
+    },
+  ];
+
   const term = search.trim().toLocaleLowerCase("tr-TR");
   const visible = o.campaigns.filter(
     (item) =>
@@ -302,6 +316,9 @@ export function useCampaignDefinitionScreen(o: Options) {
           }}
           onRefresh={o.onRefresh}
           onCurrentRowChange={(key) => void requestRow(key)}
+          onSelectionChange={setSelectedKeys}
+          selectedCount={selectedKeys.length}
+          bulkActions={bulkActions}
           toolsSlot={o.toolsSlot}
           toolsSlotRef={o.toolsSlotRef}
           emptyAction={
