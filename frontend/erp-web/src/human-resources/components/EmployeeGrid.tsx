@@ -1,4 +1,6 @@
 import { Users } from "lucide-react";
+import { StatusTag } from "../../list-page/StatusTag";
+import { hrStatusTone } from "../hrStatus";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Employee, EmployeeScreenField, Translate } from "./types";
@@ -89,9 +91,9 @@ export default function EmployeeGrid({
                   ) : field.key === "employmentCategory" ? (
                     employee.employmentCategory || "—"
                   ) : field.key === "status" ? (
-                    <span className="hr-status">
+                    <StatusTag tone={hrStatusTone(employee.status)}>
                       {statusLabel(employee.status, isEnglish)}
-                    </span>
+                    </StatusTag>
                   ) : field.key === "actions" && isAdmin ? (
                     <button
                       type="button"

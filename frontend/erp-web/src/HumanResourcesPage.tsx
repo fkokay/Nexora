@@ -7,7 +7,7 @@ import type {
   EmployeeScreenField,
 } from "./human-resources/components/types";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Check, Download, Plus, RefreshCw } from "lucide-react";
+import { Check, Download, RefreshCw } from "lucide-react";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
@@ -18,6 +18,9 @@ import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
+import { HrStatusTag, hrStatusLabel } from "./human-resources/hrStatus";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { PageCommands } from "./commands/types";
 import { FormSaveCommand } from "./record-form/FormSaveCommand";
 type Leave = {
   id: string;
@@ -342,15 +345,6 @@ function hrTokenUserId(token: string) {
   }
 }
 
-function hrLeaveStatusTone(status: string) {
-  return status === "Requested"
-    ? "pending"
-    : status === "Approved"
-      ? "approved"
-      : status === "Rejected"
-        ? "rejected"
-        : "muted";
-}
 const today = localDateString();
 
 const hrErrorTranslations: Record<string, string> = {
@@ -469,20 +463,6 @@ function localizeHrError(error: unknown, isEn: boolean): string {
   return hrErrorTranslations[message] ?? message;
 }
 
-function hrStatusLabel(status: string, isEn: boolean): string {
-  const labels: Record<string, [string, string]> = {
-    Active: ["Aktif", "Active"],
-    Terminated: ["Ayrıldı", "Terminated"],
-    Requested: ["Bekliyor", "Pending"],
-    PendingApproval: ["Onay bekliyor", "Pending approval"],
-    Approved: ["Onaylandı", "Approved"],
-    Finalized: ["Kesinleştirildi (iç sonuç)", "Finalized (internal result)"],
-    Rejected: ["Reddedildi", "Rejected"],
-    Cancelled: ["İptal edildi", "Cancelled"],
-    Draft: ["Taslak", "Draft"],
-  };
-  return labels[status]?.[isEn ? 1 : 0] ?? status;
-}
 
 function leaveTypeLabel(leaveType: string, isEn: boolean): string {
   const labels: Record<string, [string, string]> = {
@@ -2729,59 +2709,31 @@ export default function HumanResourcesPage({
   const refreshList = () => {
     if (!busy) void reload();
   };
+  // Header buttons of each tab moved to the action bar: Yeni (F2) is the tab's create action, Yenile reloads.
+  const busyReason = busy ? tr("İşlem sürüyor…", "An operation is in progress…") : undefined;
+  const hrNew =
+    section === "employees" && admin
+      ? () => {
+          setError("");
+          setCreatingEmployee(true);
+        }
+      : section === "leave" && !loading
+        ? () => focusCreateForm("hr-leave-create")
+        : section === "attendance" && admin && !loading
+          ? () => focusCreateForm("hr-attendance-create")
+          : null;
+  const hrCommands: PageCommands = {
+    refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
+    ...(hrNew ? { new: { primary: true, disabledReason: busyReason, run: hrNew } } : {}),
+  };
   return (
     <div className="hr-page list-v2" aria-busy={loading || busy}>
+      <PageCommandsSlot commands={hrCommands} />
       <ListPageHeader
         title={tr("İnsan kaynakları", "Human resources")}
         description={sectionDescription}
-      >
-        {(loading || sectionCount === null) && (
-          <button
-            className="secondary"
-            disabled={loading || busy}
-            onClick={() => void reload()}
-          >
-            <RefreshCw size={16} />
-            {tr("Yenile", "Refresh")}
-          </button>
-        )}
-        {section === "employees" && admin && (
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => {
-              setError("");
-              setCreatingEmployee(true);
-            }}
-          >
-            <Plus size={16} />
-            {tr("Personel ekle", "Add employee")}
-          </button>
-        )}
-        {section === "leave" && !loading && (
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => focusCreateForm("hr-leave-create")}
-          >
-            <Plus size={16} />
-            {tr("İzin talebi", "Leave request")}
-          </button>
-        )}
-        {section === "attendance" && admin && !loading && (
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => focusCreateForm("hr-attendance-create")}
-          >
-            <Plus size={16} />
-            {tr("Puantaj gir", "Record attendance")}
-          </button>
-        )}
-      </ListPageHeader>
+        count={loading ? null : sectionCount}
+      />
       <div
         className="hr-tabs"
         role="tablist"
@@ -3374,9 +3326,7 @@ export default function HumanResourcesPage({
                                     ) : field.key === "requestedDays" ? (
                                       x.requestedDays.toLocaleString("tr-TR")
                                     ) : field.key === "status" ? (
-                                      <span className={`hr-status hr-status--${hrLeaveStatusTone(x.status)}`}>
-                                        {hrStatusLabel(x.status, isEn)}
-                                      </span>
+                                      <HrStatusTag status={x.status} isEn={isEn} />
                                     ) : null;
                                   return (
                                     <td
@@ -3652,9 +3602,7 @@ export default function HumanResourcesPage({
                                 ) : field.key === "overtimeMinutes" ? (
                                   `${Math.floor(x.overtimeMinutes / 60)}${tr(" sa", " h")} ${x.overtimeMinutes % 60}${tr(" dk", " min")}`
                                 ) : field.key === "approvalStatus" ? (
-                                  <span className="hr-status">
-                                    {hrStatusLabel(x.approvalStatus, isEn)}
-                                  </span>
+                                  <HrStatusTag status={x.approvalStatus} isEn={isEn} />
                                 ) : field.key === "note" ? (
                                   x.note || "—"
                                 ) : null;
@@ -4160,9 +4108,7 @@ export default function HumanResourcesPage({
                                     {formatHrDate(x.effectiveFrom)} · v{x.version}
                                   </>
                                 ) : field.key === "status" ? (
-                                  <span className="hr-status">
-                                    {hrStatusLabel(x.status, isEn)}
-                                  </span>
+                                  <HrStatusTag status={x.status} isEn={isEn} />
                                 ) : field.key === "actions" ? (
                                 compensationAccess.approve && x.canApprove && (
                                   <div className="hr-actions">
@@ -4622,9 +4568,7 @@ export default function HumanResourcesPage({
                                 ) : field.key === "evidenceReference" ? (
                                   x.evidenceReference
                                 ) : field.key === "status" ? (
-                                  <span className="hr-status">
-                                    {hrStatusLabel(x.status, isEn)}
-                                  </span>
+                                  <HrStatusTag status={x.status} isEn={isEn} />
                                 ) : field.key === "actions" ? (
                                 compensationAccess.approve && x.canApprove && (
                                   <div className="hr-actions">
@@ -5825,9 +5769,7 @@ export default function HumanResourcesPage({
                                   </pre>
                                 </details>
                                 ) : field.key === "status" ? (
-                                <span className="hr-status">
-                                  {hrStatusLabel(x.status, isEn)}
-                                </span>
+                                <HrStatusTag status={x.status} isEn={isEn} />
                                 ) : field.key === "actions" ? (
                                 x.status === "Draft" && x.canApprove && (
                                   <button
