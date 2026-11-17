@@ -32,3 +32,34 @@
 #root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-search { flex: 1 1 140px; min-width: 140px; }
 #root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-chips { gap: 4px; }
 #root .list-v2 .customer-ld-caveat { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+
+/* Cari kartı › Adresler section (record form v3): the addresses as a 30px sub-table, the new address below. */
+#root .record-form .customer-address-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#root .app-shell .record-form table.customer-address-table :is(th, td) {
+  height: var(--nx-row-h-dense) !important;
+  padding: 0 8px !important;
+  border-bottom: 1px solid var(--nx-line-soft);
+  color: var(--nx-text);
+  font-size: 12.5px !important;
+  text-align: left;
+}
+#root .app-shell .record-form table.customer-address-table th {
+  height: 28px !important;
+  background: var(--nx-table-head) !important;
+  color: var(--nx-muted);
+  font-size: 11.5px !important;
+  font-weight: 600;
+}
+#root .record-form .customer-address-table tr.is-inactive td { color: var(--nx-muted); }
+#root .record-form .customer-address-table td:last-child { width: 1%; white-space: nowrap; text-align: right; }
+#root .app-shell .record-form .customer-address-table td:last-child button { height: 26px; min-height: 0; padding: 0 8px; font-size: 12px; }
+#root .record-form .customer-rf-empty { margin: 0; color: var(--nx-muted); }
+#root .record-form .customer-address-actions { display: flex; align-items: flex-end; }
+/* The map picker sits inside an address card: no second frame (single-layer cards). */
+#root .app-shell .record-form .rf-group .customer-location-picker {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

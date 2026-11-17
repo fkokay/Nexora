@@ -107,6 +107,8 @@ export type CustomerCreatePageProps = {
   setStayAfterSave?: (value: boolean) => void;
   /** Clears every field of a new card back to its default. */
   onReset?: () => void;
+  /** Sections the card adds after its own (edit only: Adresler), each with its own content and save. */
+  extraSections?: Array<{ key: string; label: string; count?: number; content: ReactNode }>;
 };
 
 export default function CustomerCreatePage({
@@ -171,6 +173,7 @@ export default function CustomerCreatePage({
   notice,
   setStayAfterSave,
   onReset,
+  extraSections = [],
 }: CustomerCreatePageProps) {
   const parentCompany = companyOptions.find(
     (company) => company.id === parentCompanyId,
@@ -182,6 +185,7 @@ export default function CustomerCreatePage({
     { key: "other", label: "Vergi ve E-Fatura" },
   ];
   if (customerCreateFields.length > 0) tabs.push({ key: "custom", label: "Özel Alanlar" });
+  for (const section of extraSections) tabs.push({ key: section.key, label: section.label, count: section.count });
   const activeTab = tabs.some((tab) => tab.key === customerCreateTab)
     ? customerCreateTab
     : "contact";
@@ -621,6 +625,7 @@ export default function CustomerCreatePage({
                   </div>
                               </RecordFormGroup>
             )}
+            {extraSections.find((section) => section.key === activeTab)?.content}
         </RecordFormTabs>
     </RecordFormPage>
   );

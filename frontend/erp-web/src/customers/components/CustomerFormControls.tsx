@@ -34,6 +34,7 @@ export function CustomerLocationInput({
   onChange,
   required = false,
   optional = true,
+  form,
 }: {
   id: string;
   label: string;
@@ -42,6 +43,8 @@ export function CustomerLocationInput({
   onChange: (value: string) => void;
   required?: boolean;
   optional?: boolean;
+  /** Id of the form the input belongs to when it sits inside another form (the card's Adresler section). */
+  form?: string;
 }) {
   return (
     <label>
@@ -54,6 +57,7 @@ export function CustomerLocationInput({
         onChange={(event) => onChange(event.target.value)}
         maxLength={100}
         required={required}
+        form={form}
       />
       <datalist id={`${id}-options`}>
         {options.map((option) => (
@@ -72,9 +76,12 @@ export function CustomerLocationInput({
 export function CustomerCountryInput({
   value,
   onChange,
+  form,
 }: {
   value: string;
   onChange: (value: string) => void;
+  /** Id of the form the select belongs to when it sits inside another form. */
+  form?: string;
 }) {
   return (
     <label>
@@ -83,6 +90,7 @@ export function CustomerCountryInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required
+        form={form}
       >
         {customerCountryCodes.map((code) => (
           <option key={code} value={code}>

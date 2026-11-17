@@ -48,6 +48,8 @@ type Options = {
   onLedger: (item: CustomerItem) => void;
   onAddresses: (item: CustomerItem) => void;
   onFields: (item: CustomerItem) => void;
+  /** The custom field definitions window (definitions, value history, restore). */
+  onFieldDefinitions: (item: CustomerItem) => void;
   onInvoices: (item: CustomerItem) => void;
   onPurchaseInvoices: (item: CustomerItem) => void;
 };
@@ -93,6 +95,7 @@ export function useCustomerListScreen(o: Options) {
       { id: "customer-ledger", label: "Cari mutabakatı", run: () => o.onLedger(current) },
       { id: "customer-addresses", label: "Adresler", run: () => o.onAddresses(current) },
       { id: "customer-fields", label: "Özel alanlar", run: () => o.onFields(current) },
+      { id: "customer-field-definitions", label: "Özel alan tanımları ve geçmiş", run: () => o.onFieldDefinitions(current) },
     );
     if (current.type !== "Supplier") more.push({ id: "customer-invoices", label: "Satış faturaları", run: () => o.onInvoices(current) });
     if (current.type !== "Customer")

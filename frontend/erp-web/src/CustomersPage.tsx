@@ -43,14 +43,14 @@ import {
   CustomerDetailPanel,
   type CustomerDetailTab,
 } from "./customers/components/CustomerDetailPanel";
-import {
-  CustomerCountryInput,
-  CustomerLocationInput,
-  CustomerLocationMap,
-  turkeyDistrictsForProvince,
-} from "./customers/components/CustomerFormControls";
 import CustomerCreatePage from "./customers/components/CustomerCreatePage";
 import CustomerEditPage from "./customers/components/CustomerEditPage";
+import {
+  CUSTOMER_ADDRESS_FORM_ID,
+  CustomerAddressSection,
+  emptyAddressDraft,
+  type CustomerAddressDraft,
+} from "./customers/components/CustomerAddressSection";
 import type { CustomerCreatePageProps } from "./customers/components/CustomerCreatePage";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchasing-record-forms.css";
@@ -168,6 +168,7 @@ function customerFieldTypeLabel(dataType: string) {
 }
 
 const CUSTOMER_EDIT_REQUEST_EVENT = "nexora:customer-edit-request";
+const CUSTOMER_EDIT_SECTION_KEY = "nexora.customer-edit-section";
 
 function CustomersPage({
   token,
@@ -408,13 +409,11 @@ function CustomersPage({
       customerFieldValueHistoryDefinition,
       setCustomerFieldValueHistoryDefinition,
     ] = useState<CustomerCustomFieldDefinition | null>(null);
-  const [addressCustomer, setAddressCustomer] = useState<CustomerItem | null>(
-      null,
-    ),
-    [addresses, setAddresses] = useState<CustomerAddressItem[]>([]);
-  const [addressKind, setAddressKind] =
-      useState<CustomerAddressItem["kind"]>("General"),
-    [addressLabel, setAddressLabel] = useState(""),
+  // Addresses of the open card (Adresler section) and the section's new-address fields. The card's own "Adres"
+  // fields (its primary address, sent with the card) keep their separate state below.
+  const [addresses, setAddresses] = useState<CustomerAddressItem[]>([]),
+    [addressDraft, setAddressDraft] = useState<CustomerAddressDraft>(emptyAddressDraft);
+  const [addressLabel, setAddressLabel] = useState(""),
     [addressLine, setAddressLine] = useState(""),
     [addressCity, setAddressCity] = useState(""),
     [addressDistrict, setAddressDistrict] = useState(""),
@@ -1040,9 +1039,11 @@ function CustomersPage({
       setBusy(false);
     }
   }
-  async function openEditCustomer(item: CustomerItem, openPage = true) {
+  async function openEditCustomer(item: CustomerItem, openPage = true, section?: "addresses" | "custom") {
     if (openPage) {
       sessionStorage.setItem("nexora.customer-edit-id", item.id);
+      if (section) sessionStorage.setItem(CUSTOMER_EDIT_SECTION_KEY, section);
+      else sessionStorage.removeItem(CUSTOMER_EDIT_SECTION_KEY);
       onNavigate("customer-edit");
       // An edit tab that is already open stays mounted; tell it to load the newly chosen account.
       window.dispatchEvent(new CustomEvent(CUSTOMER_EDIT_REQUEST_EVENT));
@@ -1081,6 +1082,8 @@ function CustomersPage({
         api<CustomerCustomFieldDefinition[]>("/api/customers/custom-fields", token),
         api<CustomerCustomFieldValue[]>(`/api/customers/${item.id}/custom-fields`, token),
       ]);
+      setAddresses(existing);
+      setAddressDraft(emptyAddressDraft);
       const primary = existing.find(
         (x) => x.kind === "General" && x.isDefault && x.isActive,
       );
@@ -1102,6 +1105,10 @@ function CustomersPage({
       setError((e as Error).message);
     }
     setEditingCustomer(item);
+    // Opened from the list's Adresler / Özel alanlar: start on that section of the card.
+    const startSection = sessionStorage.getItem(CUSTOMER_EDIT_SECTION_KEY);
+    sessionStorage.removeItem(CUSTOMER_EDIT_SECTION_KEY);
+    if (startSection) setCustomerCreateTab(startSection);
     setModal(true);
   }
   async function saveCustomerEdit(e: React.FormEvent) {
@@ -1548,79 +1555,42 @@ function CustomersPage({
       setBusy(false);
     }
   }
-  async function openAddresses(item: CustomerItem) {
-    setError("");
-    setAddressKind("General");
-    setAddressLabel("");
-    setAddressLine("");
-    setAddressCity("");
-    setAddressDistrict("");
-    setAddressPostalCode("");
-    setAddressCountry("TR");
-    setAddressLatitude(null);
-    setAddressLongitude(null);
-    setAddressCustomer(item);
-    try {
-      setAddresses(
-        await api<CustomerAddressItem[]>(
-          `/api/customers/${item.id}/addresses`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  async function createAddress(e: React.FormEvent) {
+  /** Adds an address to the open card (same request as the former Adresler window). */
+  async function createSectionAddress(e: React.FormEvent) {
     e.preventDefault();
-    if (!addressCustomer) return;
+    if (!editingCustomer) return;
+    const fields = addressDraft;
     setBusy(true);
     setError("");
     try {
       const isDefault = !addresses.some(
-        (x) => x.isActive && x.kind === addressKind && x.isDefault,
+        (x) => x.isActive && x.kind === fields.kind && x.isDefault,
       );
       const address = await api<CustomerAddressItem>(
-        `/api/customers/${addressCustomer.id}/addresses`,
+        `/api/customers/${editingCustomer.id}/addresses`,
         token,
         {
           method: "POST",
           body: JSON.stringify({
-            kind: addressKind,
-            label: addressLabel,
-            addressLine,
-            city: addressCity,
-            district: addressDistrict || null,
-            postalCode: addressPostalCode || null,
-            countryCode: addressCountry,
+            kind: fields.kind,
+            label: fields.label,
+            addressLine: fields.addressLine,
+            city: fields.city,
+            district: fields.district || null,
+            postalCode: fields.postalCode || null,
+            countryCode: fields.countryCode,
             isDefault,
-            latitude: addressLatitude,
-            longitude: addressLongitude,
+            latitude: fields.latitude,
+            longitude: fields.longitude,
           }),
         },
       );
-      const nextAddresses = [
-        ...addresses.filter(
-          (x) => !(address.isDefault && x.kind === address.kind),
-        ),
+      setAddresses((current) => [
+        ...current.filter((x) => !(address.isDefault && x.kind === address.kind)),
         address,
-      ];
-      setAddresses(nextAddresses);
-      setCustomerDetailAddress(
-        nextAddresses.find(
-          (x) => x.isActive && x.isDefault && x.kind === "General",
-        ) ??
-          nextAddresses.find((x) => x.isActive && x.isDefault) ??
-          null,
-      );
-      setCustomerDetailAddressLoaded(true);
-      setAddressLabel("");
-      setAddressLine("");
-      setAddressCity("");
-      setAddressDistrict("");
-      setAddressPostalCode("");
-      setAddressLatitude(null);
-      setAddressLongitude(null);
+      ]);
+      // Kind and country stay for the next address, as in the former window.
+      setAddressDraft({ ...emptyAddressDraft, kind: fields.kind, countryCode: fields.countryCode });
       setNotice("Adres kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
@@ -1629,12 +1599,12 @@ function CustomersPage({
     }
   }
   async function toggleAddressActive(address: CustomerAddressItem) {
-    if (!addressCustomer) return;
+    if (!editingCustomer) return;
     setBusy(true);
     setError("");
     try {
       const updated = await api<CustomerAddressItem>(
-        `/api/customers/${addressCustomer.id}/addresses/${address.id}`,
+        `/api/customers/${editingCustomer.id}/addresses/${address.id}`,
         token,
         {
           method: "PUT",
@@ -1645,18 +1615,7 @@ function CustomersPage({
           }),
         },
       );
-      const nextAddresses = addresses.map((x) =>
-        x.id === address.id ? updated : x,
-      );
-      setAddresses(nextAddresses);
-      setCustomerDetailAddress(
-        nextAddresses.find(
-          (x) => x.isActive && x.isDefault && x.kind === "General",
-        ) ??
-          nextAddresses.find((x) => x.isActive && x.isDefault) ??
-          null,
-      );
-      setCustomerDetailAddressLoaded(true);
+      setAddresses((current) => current.map((x) => (x.id === address.id ? updated : x)));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1950,8 +1909,9 @@ function CustomersPage({
     onToggleActive: (item) => void toggleActive(item),
     onSalesAction: (target) => openCustomerSalesAction(target),
     onLedger: (item) => void openLedger(item),
-    onAddresses: (item) => void openAddresses(item),
-    onFields: (item) => void openCustomerFields(item),
+    onAddresses: (item) => void openEditCustomer(item, true, "addresses"),
+    onFields: (item) => void openEditCustomer(item, true, "custom"),
+    onFieldDefinitions: (item) => void openCustomerFields(item),
     onInvoices: (item) => setSalesInvoicesCustomer(item),
     onPurchaseInvoices: (item) => onOpenPurchaseInvoices({ id: item.id, name: item.name }),
   });
@@ -2039,11 +1999,37 @@ function CustomersPage({
       setNotice("");
     },
   };
+  if (initialEdit && editingCustomer)
+    customerFormProps.extraSections = [
+      {
+        key: "addresses",
+        label: "Adresler",
+        count: addresses.length,
+        content: (
+          <CustomerAddressSection
+            addresses={addresses}
+            busy={busy}
+            draft={addressDraft}
+            onDraftChange={setAddressDraft}
+            onToggleActive={(address) => void toggleAddressActive(address)}
+            locationDefinitions={locationDefinitions}
+          />
+        ),
+      },
+    ];
   const customerCreatePage = <CustomerCreatePage {...customerFormProps} />;
   const customerEditPage = <CustomerEditPage {...customerFormProps} />;
   if (initialCreate || initialEdit)
     return modal ? (
-      initialEdit ? customerEditPage : customerCreatePage
+      initialEdit ? (
+        <>
+          {customerEditPage}
+          {/* The Adresler section's new-address fields submit this form (forms cannot nest in the card's form). */}
+          <form id={CUSTOMER_ADDRESS_FORM_ID} hidden onSubmit={(event) => void createSectionAddress(event)} />
+        </>
+      ) : (
+        customerCreatePage
+      )
     ) : error ? (
       <div className="customer-page-main">
         <div className="alert inline-alert" role="alert">
@@ -2152,8 +2138,8 @@ function CustomersPage({
             onInvoices={() => setSalesInvoicesCustomer(customer)}
             onPurchaseInvoices={() => onOpenPurchaseInvoices({ id: customer.id, name: customer.name })}
             onLedger={() => void openLedger(customer)}
-            onAddresses={() => void openAddresses(customer)}
-            onFields={() => void openCustomerFields(customer)}
+            onAddresses={() => void openEditCustomer(customer, true, "addresses")}
+            onFields={() => void openEditCustomer(customer, true, "custom")}
           />
         ))}
       </div>
@@ -2759,185 +2745,6 @@ function CustomersPage({
                   />
                 </label>
               </RecordFormGroup>
-            </RecordFormPage>
-          </div>
-        </div>
-      )}
-      {addressCustomer && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setAddressCustomer(null);
-          }}
-        >
-          <div
-            className="modal customer-address-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="customer-address-title"
-          >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">{addressCustomer.code}</p>
-                <h2 id="customer-address-title">
-                  {addressCustomer.name} · Adresler
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Kapat"
-                onClick={() => setAddressCustomer(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <div className="address-list">
-              {addresses.map((a) => (
-                <div
-                  className={`address-row ${a.isActive ? "" : "inactive"}`}
-                  key={a.id}
-                >
-                  <div>
-                    <b>
-                      {a.label}
-                      {a.isDefault ? " · Varsayılan" : ""}
-                    </b>
-                    <small>
-                      {a.addressLine}, {a.district ? `${a.district}, ` : ""}
-                      {a.city} · {a.countryCode}
-                    </small>
-                  </div>
-                  <div>
-                    <span>
-                      {a.kind === "Billing"
-                        ? "Fatura"
-                        : a.kind === "Delivery"
-                          ? "Teslimat"
-                          : "Genel"}
-                    </span>
-                    <button
-                      className="row-action"
-                      disabled={busy}
-                      onClick={() => void toggleAddressActive(a)}
-                    >
-                      {a.isActive ? "Pasife al" : "Etkinleştir"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {addresses.length === 0 && (
-                <p className="muted">Bu cari için henüz adres yok.</p>
-              )}
-            </div>
-            <RecordFormPage
-              variant="dialog"
-              className="prf-embedded"
-              title="Yeni Adres"
-              mode="create"
-              busy={busy}
-              saveLabel="Adres ekle"
-              onSubmit={createAddress}
-              onCancel={() => setAddressCustomer(null)}
-              status={<span>Varsayılan adres ilk kayıtta atanır.</span>}
-            >
-              <RecordFormGroup title="Adres Kimliği" bodyClassName="rf-identity prf-identity-code-name">
-                <label>
-                  Adres türü
-                  <select
-                    value={addressKind}
-                    onChange={(e) =>
-                      setAddressKind(
-                        e.target.value as CustomerAddressItem["kind"],
-                      )
-                    }
-                  >
-                    <option value="General">Genel</option>
-                    <option value="Billing">Fatura</option>
-                    <option value="Delivery">Teslimat</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Adres etiketi <RequiredMark /></span>
-                  <input
-                    className="rf-must"
-                    value={addressLabel}
-                    onChange={(e) => setAddressLabel(e.target.value)}
-                    required
-                    maxLength={80}
-                    placeholder="Merkez ofis"
-                  />
-                </label>
-              </RecordFormGroup>
-              <RecordFormGroup title="Adres">
-              <label>
-                <span>Adres <RequiredMark /></span>
-                <input
-                  className="rf-must"
-                  value={addressLine}
-                  onChange={(e) => setAddressLine(e.target.value)}
-                  required
-                  maxLength={400}
-                />
-              </label>
-              <div className="rf-pair">
-                <CustomerLocationInput
-                  id="customer-address-province"
-                  label="İl"
-                  value={addressCity}
-                  options={
-                    addressCountry === "TR" ? locationDefinitions.provinces : []
-                  }
-                  required
-                  optional={false}
-                  onChange={(value) => {
-                    setAddressCity(value);
-                    setAddressDistrict("");
-                  }}
-                />
-                <CustomerLocationInput
-                  id="customer-address-district"
-                  label="İlçe"
-                  value={addressDistrict}
-                  options={
-                    addressCountry === "TR"
-                      ? turkeyDistrictsForProvince(
-                          addressCity,
-                          locationDefinitions.provinces,
-                          locationDefinitions.districts,
-                        )
-                      : []
-                  }
-                  onChange={setAddressDistrict}
-                />
-              </div>
-              <div className="rf-pair">
-                <label>
-                  Posta kodu
-                  <input
-                    value={addressPostalCode}
-                    onChange={(e) => setAddressPostalCode(e.target.value)}
-                    maxLength={20}
-                  />
-                </label>
-                <CustomerCountryInput
-                  value={addressCountry}
-                  onChange={(value) => {
-                    setAddressCountry(value);
-                    setAddressCity("");
-                    setAddressDistrict("");
-                  }}
-                />
-              </div>
-              </RecordFormGroup>
-              <CustomerLocationMap
-                latitude={addressLatitude}
-                longitude={addressLongitude}
-                onChange={(latitude, longitude) => {
-                  setAddressLatitude(latitude);
-                  setAddressLongitude(longitude);
-                }}
-              />
             </RecordFormPage>
           </div>
         </div>

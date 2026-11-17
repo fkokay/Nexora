@@ -50,6 +50,8 @@ function respond(url: string): unknown {
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   if (path === '/api/customers/c1/balance') return { currencyCode: 'TRY', balance: 186242, balanceSide: 'Debit', riskLimit: 400000 };
   if (path.endsWith('/balance')) return { currencyCode: 'TRY', balance: 0, balanceSide: 'Balanced', riskLimit: null };
+  if (path === '/api/customers/c1/addresses')
+    return [{ id: 'a1', kind: 'Billing', label: 'Merkez', addressLine: 'Lara Cad. 112', city: 'Antalya', district: 'Muratpaşa', postalCode: '07230', countryCode: 'TR', isDefault: true, isActive: true, latitude: 36.85, longitude: 30.76 }];
   if (path.endsWith('/addresses')) return [];
   if (path === '/api/customers/c1') return customers[0];
   if (path === '/api/location-definitions/') return { provinces: [], districts: [] };
@@ -193,7 +195,7 @@ describe('Cari Hesaplar list', () => {
     fireEvent.click(row('C-c1'));
     await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
     expect(menuItems()).toEqual([
-      'Yeni sipariş', 'Yeni teklif', 'Yeni irsaliye', 'Yeni fatura', 'Cari mutabakatı', 'Adresler', 'Özel alanlar',
+      'Yeni sipariş', 'Yeni teklif', 'Yeni irsaliye', 'Yeni fatura', 'Cari mutabakatı', 'Adresler', 'Özel alanlar', 'Özel alan tanımları ve geçmiş',
       'Satış faturaları', 'Pasife al', 'Gruplar', 'CSV / Excel içe aktar', 'CSV olarak dışa aktar',
     ]);
     cleanup();
@@ -273,6 +275,7 @@ describe('English labels of the new Cari texts', () => {
       '↑↓ gez · Boşluk işaretle · Enter kartı aç · Çift tık aç · Ctrl+. detay paneli', 'Cari kayıtları',
       '— yeni sipariş, teklif, irsaliye, fatura ve pasife alma', 'Müşteri & Tedarikçi',
       'cari dövizi; farklı dövizli hareketler ayrıştırılmaz', 'e-Fatura alıcı etiketi', 'Harita konumu:',
+      'Yeni adres', 'adres', 'Adres kaydedildi.', 'Özel alan tanımları ve geçmiş',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
   });
@@ -340,5 +343,64 @@ describe('Global arama isteği', () => {
     await settle(600);
     expect(within(grid()).queryByText('C-c1')).toBeNull();
     expect(row('C-c2').getAttribute('aria-current')).toBe('true');
+  });
+});
+
+describe('Cari kartı › Adresler bölümü', () => {
+  const renderCard = (section?: string) => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    if (section) sessionStorage.setItem('nexora.customer-edit-section', section);
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+  };
+
+  it('the list opens the card on its Adresler section (no window)', async () => {
+    const onNavigate = renderList();
+    await settle();
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(row('C-c1').getAttribute('aria-current')).toBe('true'));
+    fireEvent.click(command('more'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Adresler' }));
+    expect(onNavigate).toHaveBeenCalledWith('customer-edit');
+    expect(sessionStorage.getItem('nexora.customer-edit-section')).toBe('addresses');
+    expect(document.querySelector('.customer-address-modal')).toBeNull();
+  });
+
+  it('lists the addresses, toggles one and adds a new one with its own save (same request body); the card is not saved', async () => {
+    renderCard('addresses');
+    await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('Merkez')).toBeTruthy();
+    expect(within(table).getByText('Varsayılan').className).toContain('nx-status-tag');
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    apiMock.mockImplementation(async (url: string, _token: string, init?: RequestInit) => {
+      if (init?.method && init.method !== 'GET') {
+        calls.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+        if (url === '/api/customers/c1/addresses/a1') return { ...(respond('/api/customers/c1/addresses') as object[])[0], isActive: false, isDefault: false };
+        return { id: 'a2', ...(JSON.parse(String(init.body)) as object) };
+      }
+      return respond(url);
+    });
+    await act(async () => {
+      fireEvent.click(within(table).getByRole('button', { name: 'Pasife al' }));
+    });
+    await waitFor(() => expect(within(screen.getByRole('table')).getByText('Pasif')).toBeTruthy());
+    expect(calls[0]).toMatchObject({ url: '/api/customers/c1/addresses/a1', method: 'PUT', body: { isActive: false, isDefault: false } });
+
+    fireEvent.change(screen.getByLabelText(/Adres etiketi/), { target: { value: 'Depo' } });
+    fireEvent.change(screen.getByLabelText(/^Adres\s*\*?$/), { target: { value: 'OSB 3. Cad.' } });
+    fireEvent.change(screen.getAllByLabelText(/^İl/)[0], { target: { value: 'Antalya' } });
+    await act(async () => {
+      fireEvent.submit(document.getElementById('customer-address-form')!);
+    });
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/customers/c1/addresses' && c.method === 'POST')).toBe(true));
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      kind: 'General', label: 'Depo', addressLine: 'OSB 3. Cad.', city: 'Antalya', district: null, postalCode: null,
+      countryCode: 'TR', isDefault: true, latitude: null, longitude: null,
+    });
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/customers/c1')).toBe(false);
+    // The address inputs belong to the address form, not to the card's form.
+    expect((screen.getByLabelText(/Adres etiketi/) as HTMLInputElement).form?.id).toBe('customer-address-form');
   });
 });

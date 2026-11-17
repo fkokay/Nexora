@@ -42,6 +42,8 @@ Object.assign(english, {
   'Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz':
     'There are movements in another currency; totals and balance are not separated by currency',
   'e-Fatura alıcı etiketi': 'E-invoice recipient alias', 'Harita konumu:': 'Map location:',
+  'Yeni adres': 'New address', adres: 'addresses', 'Adres kaydedildi.': 'Address saved.',
+  'Özel alan tanımları ve geçmiş': 'Custom field definitions and history',
 } satisfies Record<string, string>);
 
 /** Anchored patterns for Turkish text rendered with dynamic values. */
