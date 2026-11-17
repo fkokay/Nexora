@@ -608,12 +608,6 @@ html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { c
 #root .mfg-rf .mfg-rf-info { display: inline-flex; color: var(--mfg-rf-muted); cursor: help; }
 #root .mfg-rf .mfg-rf-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
 /* Component table */
-#root .mfg-rf .mfg-rf-table { display: grid; min-width: 0; }
-#root .mfg-rf .mfg-rf-components :is(.mfg-rf-thead, .mfg-rf-tr) { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(70px, .6fr) minmax(64px, .5fr) minmax(90px, .7fr) 30px; align-items: center; gap: 8px; }
-#root .mfg-rf .mfg-rf-thead { padding: 0 0 6px; border-bottom: 1px solid var(--mfg-rf-divider); color: var(--mfg-rf-muted); font-size: 11px; font-weight: 700; }
-#root .mfg-rf .mfg-rf-tr { padding: 6px 0; border-bottom: 1px solid var(--mfg-rf-divider); }
-#root .mfg-rf .mfg-rf-tr > * { min-width: 0; }
-#root .mfg-rf .rf-form .mfg-rf-tr :is(input, select) { width: 100%; height: 36px; min-height: 36px; }
 #root .mfg-rf .rf-form .manufacturing-remove { width: 30px; height: 36px; padding: 0; font-size: 17px; cursor: pointer; }
 /* Operations: compact row + "Gelişmiş" disclosure */
 #root .mfg-rf .mfg-rf-op-list { display: grid; min-width: 0; }
@@ -668,9 +662,6 @@ html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disa
 @media (max-width: 640px) {
   #root .mfg-rf :is(.mfg-rf-row, .mfg-rf-row--wide, .mfg-rf-op-details) { grid-template-columns: minmax(0, 1fr); }
   #root .mfg-rf .mfg-rf-card { padding: 16px; }
-  #root .mfg-rf .mfg-rf-components .mfg-rf-thead { display: none; }
-  #root .mfg-rf .mfg-rf-components .mfg-rf-tr { grid-template-columns: repeat(3, minmax(0, 1fr)) 30px; }
-  #root .mfg-rf .mfg-rf-components .mfg-rf-tr > :first-child { grid-column: 1 / -1; }
   #root .mfg-rf .mfg-rf-op-main { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 30px; }
   #root .mfg-rf .mfg-rf-op-main > label:first-of-type { grid-column: 2 / -1; }
   #root .mfg-rf :is(.mfg-rf-op-details, .mfg-rf-disclosure) { margin-left: 0 !important; }
@@ -754,3 +745,10 @@ html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: var(--n
   #root .manufacturing-page.list-v2 .nx-def.work-center-def { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
 }
 #root .manufacturing-page .mfg-wc-embedded .mfg-rf .mfg-rf-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* Reçete / emir oluşturma (kayıt v3): kimlik kartı, kit satır tablosu ve rota kartı alt alta, tek katman. */
+#root .mfg-rf .mfg-rf-stack { display: grid; gap: 12px; min-width: 0; align-content: start; }
+#root .mfg-rf .mfg-rf-stack > .dd-box { margin: 0; }
+#root .mfg-rf .mfg-rf-lines-note { margin: 0; padding: 8px 12px; border-top: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 11.5px; }
+#root .mfg-rf table.dd-lines td.mfg-rf-lines-empty { color: var(--nx-muted); text-align: center; }
+/* The shell's legacy card rule gives every [class*=-card] 12px (!important): the form cards keep the 8px card radius. */
+#root .app-shell:not(.standalone-studio) .workspace-page-main .record-form.mfg-rf :is(.mfg-rf-card, .mfg-rf-tip) { border-radius: var(--nx-radius-card) !important; }

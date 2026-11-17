@@ -391,6 +391,9 @@ describe('English locale', () => {
       'Henüz ürün reçetesi yok. Yeni (F2) ile ilk reçeteyi oluşturun.', '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç',
       'İş merkezi silinemez; durumu Genel sekmesinden değiştirilir.', 'İş merkezi kayıtları', 'Plan geçmişi', 'reçete', 'iş merkezi', 'depo',
       'kayıt · günlük kapasite 480 dk', 'Bu emirde bileşen satırı yok.', 'Operasyon rotası tanımlı değil.',
+      'Ürün reçetesi', 'Üretim emri', 'Sıra', 'Stok kartı', 'Miktar', 'Fire %', 'Birim maliyet', 'Satır işlemleri', 'Bileşen ekle',
+      'Bileşeni kaldır', 'Bileşenler', 'reçeteden, salt okunur', 'Gereken miktar', 'Planlanan maliyet', 'Kurulum dk', 'Çalışma dk',
+      'Miktar reçete çıktısı başınadır; birim maliyet baz para birimindedir.',
       'İş merkezi kaydı', 'İş merkezi oluşturuldu.', 'Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.',
       'Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.',
     ])

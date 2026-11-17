@@ -436,6 +436,8 @@ export const english: Record<string, string> = {
   'Ürün reçetesi etkinleştirildi.': 'Product recipe activated.',
   'İş merkezi oluşturuldu. Liste ekranına dönebilirsiniz.': 'Work center created. You can return to the list screen.',
   'İş merkezi oluşturuldu.': 'Work center created.',
+  'reçeteden, salt okunur': 'from the recipe, read-only',
+  'Gereken miktar': 'Required quantity',
   'İş merkezi kaydı': 'Work center record',
   'Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.': 'Select a work center or press F2 to add a new one.',
   'Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.':

@@ -18,7 +18,10 @@ import {
   Clock3,
   Factory,
   Info,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { DetailLinesHead } from "./document-detail/DocumentDetailLayout";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
@@ -71,6 +74,8 @@ import {
   orderStatusTag,
   type OrderStep,
 } from "./manufacturing/orderList";
+// Kit line table (table.dd-lines) of the lined record forms (recipe, production order).
+import "./document-page/document-page.css";
 import "./manufacturing.css";
 import "./manufacturing-record-forms.css";
 import "./manufacturing/manufacturing-list-v2.css";
@@ -2434,6 +2439,12 @@ export default function ManufacturingPage({
         <RecordFormPage
           className="mfg-rf"
           title={editingBomId ? "Ürün Reçetesini Düzenle" : "Ürün Reçetesi Tanımlama"}
+          // Record v3 with the kit line table (the lined-record header: type, code · mamul).
+          document={{
+            type: "Ürün reçetesi",
+            code: code.trim() || undefined,
+            party: eligibleItems.find((x) => x.id === product)?.name,
+          }}
           mode={editingBomId ? "edit" : "create"}
           busy={busy}
           saveLabel={editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"}
@@ -2474,6 +2485,7 @@ export default function ManufacturingPage({
             />
           )}
           <div className="mfg-rf-layout">
+            <div className="mfg-rf-stack">
             <section className="mfg-rf-card mfg-rf-main">
               <div className="mfg-rf-row">
                 <label>
@@ -2543,37 +2555,34 @@ export default function ManufacturingPage({
                   />
                 </label>
               </div>
-              <div className="mfg-rf-section">
-                <div className="mfg-rf-section-head">
-                  <h2>Bileşenler</h2>
-                  <button
-                    type="button"
-                    className="mfg-rf-link"
-                    onClick={() =>
-                      setComponents((x) => [
-                        ...x,
-                        {
-                          stockItemId: "",
-                          quantity: "1",
-                          scrap: "0",
-                          standardUnitCostBase: "0",
-                        },
-                      ])
-                    }
-                  >
-                    + Bileşen ekle
-                  </button>
-                </div>
-                <div className="mfg-rf-table mfg-rf-components">
-                  <div className="mfg-rf-thead" aria-hidden="true">
-                    <span>Stok kartı</span>
-                    <span>Miktar</span>
-                    <span>Fire %</span>
-                    <span>Birim maliyet</span>
-                    <span></span>
-                  </div>
+            </section>
+            {/* Bileşenler: the kit line table (mockup 02 satır kartı), its own card next to the identity card. */}
+            <section className="dd-box mfg-rf-lines" aria-label="Bileşenler">
+              <DetailLinesHead
+                title="Bileşenler"
+                meta={
+                  <>
+                    <span>{components.length.toLocaleString("tr-TR")}</span> <span>bileşen</span>
+                  </>
+                }
+              />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines mfg-rf-components">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">Sıra</th>
+                      <th>Stok kartı</th>
+                      <th className="dd-num">Miktar</th>
+                      <th className="dd-num">Fire %</th>
+                      <th className="dd-num">Birim maliyet</th>
+                      <th className="dd-menu" aria-label="Satır işlemleri" />
+                    </tr>
+                  </thead>
+                  <tbody>
                   {components.map((line, index) => (
-                    <div className="mfg-rf-tr" key={index}>
+                    <tr key={index}>
+                      <td className="dd-ix">{index + 1}</td>
+                      <td className="dd-stock-cell">
                       <SearchableRecordPicker
                         options={eligibleItems
                           .filter((x) => x.id !== product)
@@ -2598,6 +2607,8 @@ export default function ManufacturingPage({
                         emptyMessage="Aramanızla eşleşen bileşen bulunamadı."
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Bileşen miktarı"
@@ -2617,6 +2628,8 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Fire yüzdesi"
@@ -2635,6 +2648,8 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Standart birim maliyeti baz para"
@@ -2654,10 +2669,13 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-menu">
                       <button
                         type="button"
-                        className="manufacturing-remove"
+                        className="dd-line-remove"
                         aria-label="Bileşeni kaldır"
+                        title="Bileşeni kaldır"
                         disabled={components.length === 1}
                         onClick={() =>
                           setComponents((rows) =>
@@ -2665,16 +2683,40 @@ export default function ManufacturingPage({
                           )
                         }
                       >
-                        ×
+                        <Trash2 size={13} aria-hidden="true" />
                       </button>
-                    </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-                <small className="mfg-rf-hint">
-                  Miktar reçete çıktısı başınadır; birim maliyet baz para
-                  birimindedir.
-                </small>
+                  <tr className="dd-new-line">
+                    <td colSpan={6}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setComponents((x) => [
+                            ...x,
+                            {
+                              stockItemId: "",
+                              quantity: "1",
+                              scrap: "0",
+                              standardUnitCostBase: "0",
+                            },
+                          ])
+                        }
+                      >
+                        <Plus size={13} aria-hidden="true" /> Bileşen ekle
+                      </button>
+                    </td>
+                  </tr>
+                  </tbody>
+                </table>
               </div>
+              <p className="mfg-rf-lines-note">
+                Miktar reçete çıktısı başınadır; birim maliyet baz para
+                birimindedir.
+              </p>
+            </section>
+            <section className="mfg-rf-card mfg-rf-route">
               <div className="mfg-rf-section">
                 <div className="mfg-rf-section-head">
                   <h2>Rota / operasyonlar</h2>
@@ -2963,6 +3005,7 @@ export default function ManufacturingPage({
                 </small>
               </div>
             </section>
+            </div>
             <aside className="mfg-rf-side">
               <section className="mfg-rf-card" aria-labelledby="mfg-recipe-summary">
                 <h2 id="mfg-recipe-summary">Özet</h2>
@@ -3071,6 +3114,12 @@ export default function ManufacturingPage({
         <RecordFormPage
           className="mfg-rf"
           title="Üretim Emri Planlama"
+          // Record v3: lined-record header (type, code · mamul); no status step before the order is saved.
+          document={{
+            type: "Üretim emri",
+            code: orderCode.trim() || undefined,
+            party: orderBom?.productName,
+          }}
           mode="create"
           busy={busy}
           saveLabel="Emir Planla"
@@ -3098,6 +3147,7 @@ export default function ManufacturingPage({
           }
         >
           <div className="mfg-rf-layout">
+            <div className="mfg-rf-stack">
             <section className="mfg-rf-card mfg-rf-main">
               <label className="mfg-rf-lead">
                 <span>Reçete <RequiredMark /></span>
@@ -3241,6 +3291,100 @@ export default function ManufacturingPage({
                 </div>
               )}
             </section>
+            {/* Bileşen ve rota reçeteden gelir: salt okunur önizleme (kit satır tablosu); emir satır girişi almaz. */}
+            {orderBom && (
+              <section className="dd-box mfg-rf-lines" aria-label="Bileşenler">
+                <DetailLinesHead
+                  title="Bileşenler"
+                  meta={
+                    <>
+                      <span>{orderBom.lines.length.toLocaleString("tr-TR")}</span> <span>bileşen</span> ·{" "}
+                      <span>reçeteden, salt okunur</span>
+                    </>
+                  }
+                />
+                <div className="dd-lines-wrap">
+                  <table className="dd-lines">
+                    <thead>
+                      <tr>
+                        <th className="dd-ix">Sıra</th>
+                        <th>Bileşen</th>
+                        <th className="dd-num">Fire %</th>
+                        <th className="dd-num">Gereken miktar</th>
+                        <th className="dd-num">Birim maliyet</th>
+                        <th className="dd-num">Planlanan maliyet</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderBom.lines.map((line, index) => {
+                        const required = line.quantity * (1 + line.scrapPercent / 100) * orderFactor;
+                        return (
+                          <tr key={`${line.componentStockItemId}-${index}`}>
+                            <td className="dd-ix">{index + 1}</td>
+                            <td>{line.componentName}</td>
+                            <td className="dd-num">{line.scrapPercent.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</td>
+                            <td className="dd-num">{required.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}</td>
+                            <td className="dd-num">{line.standardUnitCostBase.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                            <td className="dd-num">
+                              {(required * line.standardUnitCostBase).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {orderBom.lines.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="mfg-rf-lines-empty">Bu emirde bileşen satırı yok.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            {orderBom && (
+              <section className="dd-box mfg-rf-lines" aria-label="Rota">
+                <DetailLinesHead
+                  title="Rota"
+                  meta={
+                    <>
+                      <span>{orderBom.operations.length.toLocaleString("tr-TR")}</span> <span>operasyon</span>
+                    </>
+                  }
+                />
+                <div className="dd-lines-wrap">
+                  <table className="dd-lines">
+                    <thead>
+                      <tr>
+                        <th className="dd-ix">Sıra</th>
+                        <th>İş merkezi</th>
+                        <th className="dd-num">Kurulum dk</th>
+                        <th className="dd-num">Çalışma dk</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderBom.operations.map((op, index) => (
+                        <tr key={`${op.sequence}-${index}`}>
+                          <td className="dd-ix">{op.sequence}</td>
+                          <td>{op.workCenterName}</td>
+                          <td className="dd-num">{op.setupMinutes.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</td>
+                          <td className="dd-num">
+                            {(op.runMinutesPerOutputUnit * (Number.isFinite(orderQuantity) ? orderQuantity : 0)).toLocaleString("tr-TR", {
+                              maximumFractionDigits: 1,
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                      {orderBom.operations.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="mfg-rf-lines-empty">Operasyon rotası tanımlı değil.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            </div>
             <aside className="mfg-rf-side">
               <section className="mfg-rf-card" aria-labelledby="mfg-order-summary">
                 <h2 id="mfg-order-summary">Reçete özeti</h2>
