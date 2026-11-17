@@ -455,7 +455,15 @@ export default function CrmOpportunitiesPage({
       },
     },
     // Silme kalıcıdır (mevcut onay penceresi); kapanmış fırsat da silinebilir (bugünkü kural).
-    delete: { disabledReason: !target ? "Önce bir kayıt seçin" : busyReason, run: () => (target ? remove(target) : undefined) },
+    // Same target as Aç: the focused row first (Ctrl+Del on a row), else the current / single ticked row.
+    delete: {
+      disabledReason: !target ? "Önce bir kayıt seçin" : busyReason,
+      run: () => {
+        const id = focusedRecordId();
+        const item = (id && items.find((row) => row.id === id)) || target;
+        return item ? remove(item) : undefined;
+      },
+    },
   };
   const more: MenuCommand[] = [];
   if (current && !isClosed(current)) {

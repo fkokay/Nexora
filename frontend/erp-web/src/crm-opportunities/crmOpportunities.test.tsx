@@ -6,6 +6,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import CrmOpportunitiesPage from '../CrmOpportunitiesPage';
+import { CrmOpportunityDetail } from './components/CrmOpportunityDetail';
 
 const opp = (id: string, stage: string, extra: Record<string, unknown> = {}) => ({
   id, code: `FRS-${id}`, name: `Fırsat ${id}`, customerId: 'c1', customerName: 'Akdeniz Gıda', stage, estimatedValue: 1000,
@@ -147,5 +148,34 @@ describe('English labels of the CRM texts', () => {
       'Tahmin ve takip', 'tahmini tutar × olasılık', 'Fırsat', 'Not', 'Fırsatlar yükleniyor…', 'zorunlu alan',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
+  });
+});
+
+describe('Aşama akışı', () => {
+  const flowOf = (stage: string) => {
+    render(
+      <CrmOpportunityDetail selected={opp('x', stage) as never} tab="summary" onTabChange={vi.fn()} onOpen={vi.fn()} openDisabled={false} onClose={vi.fn()} />,
+    );
+    const items = Array.from(document.querySelectorAll<HTMLElement>('.crm-ld-flow > li')).map((li) => `${li.textContent?.replace('Şu an', '').trim()}:${li.className}`);
+    cleanup();
+    return items;
+  };
+  it('a lost opportunity marks only Kaybedildi (no stage history); open and won ones have passed every earlier step', () => {
+    expect(flowOf('Lost')).toEqual(['İlk temas:', 'Nitelikli:', 'Teklif:', 'Müzakere:', 'Kaybedildi:is-current']);
+    expect(flowOf('Won')).toEqual(['İlk temas:is-done', 'Nitelikli:is-done', 'Teklif:is-done', 'Müzakere:is-done', 'Kazanıldı:is-current']);
+    expect(flowOf('Proposal')).toEqual(['İlk temas:is-done', 'Nitelikli:is-done', 'Teklif:is-current', 'Müzakere:', 'Kazanıldı:']);
+  });
+});
+
+describe('CRM Sil hedefi', () => {
+  it('Ctrl+Del on a focused row deletes that row, like Enter opens it', async () => {
+    renderPage();
+    await settle();
+    fireEvent.click(row('FRS-o1'));
+    await waitFor(() => expect(row('FRS-o1').getAttribute('aria-current')).toBe('true'));
+    row('FRS-o3').focus();
+    fireEvent.keyDown(row('FRS-o3'), { key: 'Delete', ctrlKey: true });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Fırsat silinsin mi?' });
+    expect(within(dialog).getByText('FRS-o3')).toBeTruthy();
   });
 });
