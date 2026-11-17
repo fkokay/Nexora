@@ -144,7 +144,7 @@ async function actionBarRefresh() {
 }
 /** Refresh while the TMS 7 tab is open. */
 async function tms7Refresh() {
-  await click('Raporu yenile');
+  await actionBarRefresh();
 }
 /** Refresh of the Döviz Pozisyonu report. */
 async function fxRefresh() {
@@ -229,7 +229,7 @@ describe('Nakit Akışı (characterization)', () => {
 
 describe('Döviz Pozisyonu (characterization)', () => {
   it('requests the exposure once without parameters and again on refresh', async () => {
-    renderScreen(<FxExposurePage token="t" />);
+    renderScreen(<FxExposurePage token="t" role="TenantAdmin" />);
     await settle();
     expect(queries(FX)).toEqual([{}]);
     await fxRefresh();

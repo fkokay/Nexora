@@ -1023,6 +1023,12 @@ export const english: Record<string, string> = {
   'Bakiye farkı': 'Balance difference',
   'Enter: muavini aç': 'Enter: open subsidiary ledger',
   'Gösterim': 'Display',
+  'Baz para:': 'Base currency:',
+  'Para birimine göre': 'By currency',
+  'Para birimine göre nakit akışı': 'Cash flow by currency',
+  'Fark var': 'Difference',
+  'TMS 7 özeti': 'IAS 7 summary',
+  'TMS 7 hesap sınıfları': 'IAS 7 account classes',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
