@@ -169,6 +169,15 @@ function customerFieldTypeLabel(dataType: string) {
 
 const CUSTOMER_EDIT_REQUEST_EVENT = "nexora:customer-edit-request";
 const CUSTOMER_EDIT_SECTION_KEY = "nexora.customer-edit-section";
+const CUSTOMER_ADDRESSES_CHANGED_EVENT = "nexora:customer-addresses-changed";
+/** The panel's default address: the active default General address, else any active default (as before). */
+function defaultAddressOf(list: CustomerAddressItem[]): CustomerAddressItem | null {
+  return (
+    list.find((x) => x.isActive && x.isDefault && x.kind === "General") ??
+    list.find((x) => x.isActive && x.isDefault) ??
+    null
+  );
+}
 
 function CustomersPage({
   token,
@@ -791,6 +800,16 @@ function CustomersPage({
   useEffect(() => {
     void loadCustomerDetailLayout();
   }, [token]);
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      const { customerId, addresses: list } = (event as CustomEvent<{ customerId: string; addresses: CustomerAddressItem[] }>).detail;
+      if (customerId !== selectedCustomerId) return;
+      setCustomerDetailAddress(defaultAddressOf(list));
+      setCustomerDetailAddressLoaded(true);
+    };
+    window.addEventListener(CUSTOMER_ADDRESSES_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(CUSTOMER_ADDRESSES_CHANGED_EVENT, onChanged);
+  }, [selectedCustomerId]);
   useEffect(() => {
     let cancelled = false;
     setCustomerDetailAddress(null);
@@ -1555,6 +1574,13 @@ function CustomersPage({
       setBusy(false);
     }
   }
+  /**
+   * The card (its own route) tells the list that the account's addresses changed, so the list panel's default
+   * address follows (the base window updated it in place).
+   */
+  function announceAddresses(customerId: string, list: CustomerAddressItem[]) {
+    window.dispatchEvent(new CustomEvent(CUSTOMER_ADDRESSES_CHANGED_EVENT, { detail: { customerId, addresses: list } }));
+  }
   /** Adds an address to the open card (same request as the former Adresler window). */
   async function createSectionAddress(e: React.FormEvent) {
     e.preventDefault();
@@ -1585,10 +1611,12 @@ function CustomersPage({
           }),
         },
       );
-      setAddresses((current) => [
-        ...current.filter((x) => !(address.isDefault && x.kind === address.kind)),
+      const nextAddresses = [
+        ...addresses.filter((x) => !(address.isDefault && x.kind === address.kind)),
         address,
-      ]);
+      ];
+      setAddresses(nextAddresses);
+      announceAddresses(editingCustomer.id, nextAddresses);
       // Kind and country stay for the next address, as in the former window.
       setAddressDraft({ ...emptyAddressDraft, kind: fields.kind, countryCode: fields.countryCode });
       setNotice("Adres kaydedildi.");
@@ -1615,7 +1643,9 @@ function CustomersPage({
           }),
         },
       );
-      setAddresses((current) => current.map((x) => (x.id === address.id ? updated : x)));
+      const nextAddresses = addresses.map((x) => (x.id === address.id ? updated : x));
+      setAddresses(nextAddresses);
+      announceAddresses(editingCustomer.id, nextAddresses);
     } catch (e) {
       setError((e as Error).message);
     } finally {

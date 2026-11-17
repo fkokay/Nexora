@@ -404,3 +404,59 @@ describe('Cari kartı › Adresler bölümü', () => {
     expect((screen.getByLabelText(/Adres etiketi/) as HTMLInputElement).form?.id).toBe('customer-address-form');
   });
 });
+
+describe('Cari kartı › Adresler: harita koordinatları', () => {
+  it('a half-entered coordinate in the new address belongs to the address form: Enter and the card Kaydet do not post it, Kaydet saves the card', async () => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    sessionStorage.setItem('nexora.customer-edit-section', 'addresses');
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
+    const calls: Array<{ url: string; method: string }> = [];
+    apiMock.mockImplementation(async (url: string, _token: string, init?: RequestInit) => {
+      if (init?.method && init.method !== 'GET') {
+        calls.push({ url, method: init.method });
+        return url === '/api/customers/c1' ? customers[0] : {};
+      }
+      return respond(url);
+    });
+    const section = screen.getByText('Yeni adres').closest('section')!;
+    await act(async () => {
+      fireEvent.click(within(section).getByRole('button', { name: 'Haritayı aç' }));
+    });
+    const latitude = within(section).getByLabelText('Enlem') as HTMLInputElement;
+    const longitude = within(section).getByLabelText('Boylam') as HTMLInputElement;
+    fireEvent.change(latitude, { target: { value: '36.8' } });
+    expect(latitude.form?.id).toBe('customer-address-form');
+    expect(longitude.form?.id).toBe('customer-address-form');
+    expect(longitude.required).toBe(true);
+    // Enter in the coordinate is the address form's (implicit submission targets the input's own form).
+    fireEvent.keyDown(latitude, { key: 'Enter' });
+    expect(calls.some((c) => c.url === '/api/customers/c1')).toBe(false);
+    await act(async () => {
+      fireEvent.click(command('save'));
+    });
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/customers/c1')).toBe(true));
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('the list panel follows address changes made on the card', async () => {
+    renderList();
+    await settle();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    fireEvent.click(row('C-c1'));
+    await waitFor(() => expect(panel()!.textContent).toContain('Lara Cad. 112'));
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('nexora:customer-addresses-changed', {
+          detail: {
+            customerId: 'c1',
+            addresses: [{ id: 'a2', kind: 'General', label: 'Depo', addressLine: 'OSB 3. Cad.', city: 'Antalya', district: null, postalCode: null, countryCode: 'TR', isDefault: true, isActive: true, latitude: null, longitude: null }],
+          },
+        }),
+      );
+    });
+    expect(panel()!.textContent).toContain('OSB 3. Cad.');
+  });
+});

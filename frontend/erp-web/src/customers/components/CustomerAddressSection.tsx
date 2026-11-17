@@ -168,6 +168,7 @@ export function CustomerAddressSection({ addresses, busy, draft, onDraftChange, 
         <CustomerCountryInput form={form} value={draft.countryCode} onChange={(value) => set({ countryCode: value, city: "", district: "" })} />
         <div className="rf-field rf-span-2">
           <CustomerLocationMap
+            form={form}
             latitude={draft.latitude}
             longitude={draft.longitude}
             onChange={(latitude, longitude) => set({ latitude, longitude })}
