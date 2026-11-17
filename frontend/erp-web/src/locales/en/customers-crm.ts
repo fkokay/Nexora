@@ -28,5 +28,18 @@ export const english: Record<string, string> = {
   'Borç, alacak ve bakiye hareketlerini görmek için önce bir cari hesap seçin.': 'Select an account first to see its debit, credit and balance transactions.',
 };
 
+Object.assign(english, {
+  // CRM Fırsatları (list type, record form v3)
+  'Açık fırsat': 'Open opportunities', 'Açık fırsat değeri': 'Open opportunity value', 'Takibi geçmiş': 'Follow-up overdue',
+  'Kapanmış fırsat düzenlenemez': 'A closed opportunity cannot be edited', 'Fırsat özeti': 'Opportunity summary',
+  Kapandı: 'Closed', 'Şu an': 'Current', 'Aşama akışı': 'Stage flow',
+  'Özetini görmek için listeden bir fırsat seçin.': 'Select an opportunity in the list to see its summary.',
+  'Fırsat kayıtları': 'Opportunity records', 'Tahmin ve takip': 'Forecast and follow-up',
+  'tahmini tutar × olasılık': 'estimated amount × probability', 'zorunlu alan': 'required field',
+  'Kazanma olasılığı': 'Win probability', 'Kazanma olasılığı (%)': 'Win probability (%)',
+} satisfies Record<string, string>);
+
 /** Anchored patterns for Turkish text rendered with dynamic values. */
-export const englishPatterns: Array<[RegExp, string]> = [];
+export const englishPatterns: Array<[RegExp, string]> = [
+  [/^Aşamayı ilerlet: (.+)$/, 'Advance stage: $1'],
+];

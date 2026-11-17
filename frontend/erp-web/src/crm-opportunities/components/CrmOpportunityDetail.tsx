@@ -1,228 +1,95 @@
-import { BriefcaseBusiness, Pencil, Search, Target, X } from "lucide-react";
-import { nextStage, stageLabels, type Opportunity } from "../types";
+import { StatusTag } from "../../list-page/StatusTag";
+import {
+  SalesListDetailPanel,
+  SalesPanelFacts,
+  SalesPanelSection,
+  SalesPanelStats,
+} from "../../sales/components/SalesListDetailPanel";
+import { formatMoney, stageLabels, stages, type Opportunity } from "../types";
+import { stageTone } from "../stageTone";
 
 type Props = {
-  selected: Opportunity | null;
-  itemsCount: number;
-  loading: boolean;
-  listError: string;
-  query: string;
-  filter: string;
-  busy: boolean;
-  formatMoney: (amount: number, code: string, digits: number) => string;
-  onClear: () => void;
-  onCreate: () => void;
+  selected: Opportunity;
+  tab: string;
+  onTabChange: (tab: string) => void;
+  /** Opens the opportunity form (bar Aç / Enter); kapanmış fırsat düzenlenemez. */
+  onOpen: () => void;
+  openDisabled: boolean;
   onClose: () => void;
-  onEdit: (item: Opportunity) => void;
-  onMove: (stage: string) => void;
-  onDelete: (item: Opportunity) => void;
+  takeFocus?: () => boolean;
 };
 
-export function CrmOpportunityDetail({
-  selected,
-  itemsCount,
-  loading,
-  listError,
-  query,
-  filter,
-  busy,
-  formatMoney,
-  onClear,
-  onCreate,
-  onClose,
-  onEdit,
-  onMove,
-  onDelete,
-}: Props) {
+const dateText = (value: string | null, empty: string) => (value ? new Date(value).toLocaleDateString("tr-TR") : empty);
+
+/**
+ * Right-hand panel of CRM Fırsatları (list type, as Satış): code and Aç, name, stage tag, the opportunity's figures
+ * and its place in the stage flow. Stage changes and Sil are on the action bar (İşlemler / Sil).
+ */
+export function CrmOpportunityDetail({ selected, tab, onTabChange, onOpen, openDisabled, onClose, takeFocus }: Props) {
+  const tabs = [{ id: "summary", label: "Özet" }, ...(selected.notes ? [{ id: "notes", label: "Not" }] : [])];
+  const activeTab = tabs.some((item) => item.id === tab) ? tab : "summary";
+  const closed = selected.stage === "Won" || selected.stage === "Lost";
+  // The flow: İlk temas → Nitelikli → Teklif → Müzakere → Kazanıldı; Kaybedildi replaces Kazanıldı once lost.
+  const flow = stages.filter((stage) => (selected.stage === "Lost" ? stage !== "Won" : stage !== "Lost"));
+  const reached = flow.indexOf(selected.stage as (typeof stages)[number]);
   return (
-    <aside className="crm-record-detail" aria-label="Seçili fırsat ayrıntıları">
-      {selected ? (
+    <SalesListDetailPanel
+      label="Fırsat özeti"
+      code={selected.code}
+      title={selected.name}
+      tags={
         <>
-          <header className="list-v2-detail-head">
-            <div>
-              <h2>{selected.name}</h2>
-            </div>
-            <div className="list-v2-detail-head-actions">
-              {!["Won", "Lost"].includes(selected.stage) && (
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={busy}
-                  onClick={() => onEdit(selected)}
-                >
-                  <Pencil size={14} /> Düzenle
-                </button>
-              )}
-              <button
-                type="button"
-                className="icon-button crm-detail-close"
-                aria-label="Seçimi kaldır"
-                onClick={onClose}
-              >
-                <X size={16} />
-              </button>
-            </div>
-          </header>
-          <div className="list-v2-detail-meta">
-            <span className="list-v2-detail-code">{selected.code}</span>
-            <span
-              className={`crm-stage crm-stage-${selected.stage.toLowerCase()}`}
-            >
-              {stageLabels[selected.stage] || selected.stage}
-            </span>
-            <span>{selected.customerName || "Müşteri bağlanmadı"}</span>
-          </div>
-          {!["Won", "Lost"].includes(selected.stage) && (
-            <section className="list-v2-quick" aria-label="Aşama">
-              <div>
-                {nextStage[selected.stage] && (
-                  <button
-                    type="button"
-                    className="primary small-button"
-                    disabled={busy}
-                    aria-label={`${selected.name} fırsatını ${stageLabels[nextStage[selected.stage]]} aşamasına ilerlet`}
-                    title={stageLabels[nextStage[selected.stage]]}
-                    onClick={() => onMove(nextStage[selected.stage])}
-                  >
-                    Aşamayı ilerlet
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={busy}
-                  aria-label={`${selected.name} fırsatını kaybedildi olarak işaretle`}
-                  onClick={() => onMove("Lost")}
-                >
-                  Kaybedildi olarak işaretle
-                </button>
-              </div>
-            </section>
-          )}
-          <dl className="list-v2-facts">
-            <div>
-              <dt>Tahmini değer</dt>
-              <dd>
-                {selected.estimatedValue === null
-                  ? "—"
-                  : formatMoney(
-                      selected.estimatedValue,
-                      selected.currencyCode,
-                      2,
-                    )}
-              </dd>
-            </div>
-            <div>
-              <dt>Kazanma olasılığı</dt>
-              <dd>%{selected.probabilityPercent}</dd>
-            </div>
-            <div>
-              <dt>Beklenen kapanış</dt>
-              <dd>
-                {selected.expectedCloseDate
-                  ? new Date(selected.expectedCloseDate).toLocaleDateString(
-                      "tr-TR",
-                    )
-                  : "Belirtilmedi"}
-              </dd>
-            </div>
-            <div>
-              <dt>Sonraki takip</dt>
-              <dd>
-                {selected.nextActivityAt
-                  ? new Date(selected.nextActivityAt).toLocaleString("tr-TR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })
-                  : "Planlanmadı"}
-              </dd>
-            </div>
-          </dl>
-          {selected.notes && (
-            <div className="crm-detail-notes">
-              <b>Not</b>
-              <p>{selected.notes}</p>
-            </div>
-          )}
-          <div className="list-v2-detail-foot">
-            <button
-              type="button"
-              className="is-danger"
-              disabled={busy}
-              onClick={() => onDelete(selected)}
-            >
-              Sil
-            </button>
-          </div>
+          <StatusTag tone={stageTone(selected.stage)}>{stageLabels[selected.stage] || selected.stage}</StatusTag>
+          {closed && <StatusTag tone="off">Kapandı</StatusTag>}
         </>
-      ) : itemsCount === 0 &&
-        !loading &&
-        !listError &&
-        (query.trim() || filter) ? (
-        <div className="crm-detail-placeholder crm-filter-guide">
-          <div className="crm-empty-icon">
-            <Search size={20} aria-hidden="true" />
-          </div>
-          <b>Sonuçlar filtrelenmiş olabilir</b>
-          <span>
-            Arama metni veya seçili aşama nedeniyle kayıt görünmüyor. Filtreleri
-            temizleyerek satış hattının tamamını yeniden görüntüleyebilirsiniz.
-          </span>
-          <button
-            type="button"
-            className="secondary crm-guide-action"
-            onClick={onClear}
-          >
-            Arama ve aşama filtresini temizle
-          </button>
-        </div>
-      ) : itemsCount === 0 && !loading && !listError ? (
-        <div className="crm-detail-placeholder crm-detail-guide">
-          <div className="crm-empty-icon">
-            <BriefcaseBusiness size={21} aria-hidden="true" />
-          </div>
-          <b>Satış hattı nasıl başlar?</b>
-          <span>
-            Bir fırsat kaydı, müşteriyle yürüttüğünüz satış sürecini tek yerde
-            takip etmenizi sağlar.
-          </span>
-          <ol>
-            <li>
-              <strong>Fırsatı tanımlayın</strong>
-              <small>Kod ve anlaşmayı özetleyen bir ad girin.</small>
-            </li>
-            <li>
-              <strong>Satış tahminini ekleyin</strong>
-              <small>
-                Müşteriyi, tutarı ve beklenen kapanış tarihini belirtin.
-              </small>
-            </li>
-            <li>
-              <strong>Takip adımını planlayın</strong>
-              <small>
-                Sonraki görüşme zamanını ekleyin; aşamayı ilerledikçe
-                güncelleyin.
-              </small>
-            </li>
-          </ol>
-          <button
-            type="button"
-            className="secondary crm-guide-action"
-            onClick={onCreate}
-          >
-            Fırsat oluştur
-          </button>
-        </div>
+      }
+      tabs={tabs}
+      tab={activeTab}
+      onTabChange={onTabChange}
+      onOpen={onOpen}
+      openDisabled={openDisabled}
+      onClose={onClose}
+      takeFocus={takeFocus}
+    >
+      {activeTab === "notes" ? (
+        <p className="crm-ld-notes">{selected.notes}</p>
       ) : (
-        <div className="crm-detail-placeholder">
-          <Target size={22} />
-          <b>Listeden bir fırsat seçin</b>
-          <span>
-            Fırsat kaydı seçildiğinde müşteri, değer, kapanış tarihi ve sonraki
-            takip bilgileri burada görüntülenir.
-          </span>
-        </div>
+        <>
+          <SalesPanelStats
+            items={[
+              {
+                label: "Tahmini değer",
+                value: selected.estimatedValue === null ? "—" : formatMoney(selected.estimatedValue, selected.currencyCode, 2),
+              },
+              { label: "Kazanma olasılığı", value: `%${selected.probabilityPercent}` },
+              { label: "Beklenen kapanış", value: dateText(selected.expectedCloseDate, "Belirtilmedi") },
+              {
+                label: "Sonraki takip",
+                value: selected.nextActivityAt
+                  ? new Date(selected.nextActivityAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })
+                  : "Planlanmadı",
+              },
+            ]}
+          />
+          <SalesPanelFacts items={[{ label: "Müşteri", value: selected.customerName || "Müşteri bağlanmadı" }]} />
+          <SalesPanelSection title="Aşama akışı">
+            <ol className="sales-ld-chain crm-ld-flow">
+              {flow.map((stage, index) => (
+                <li
+                  key={stage}
+                  className={stage === selected.stage ? "is-current" : index < reached ? "is-done" : undefined}
+                  aria-current={stage === selected.stage ? "step" : undefined}
+                >
+                  <span className="sales-ld-chain-text">
+                    <span>{stageLabels[stage]}</span>
+                  </span>
+                  {stage === selected.stage && <StatusTag tone={stageTone(stage)}>Şu an</StatusTag>}
+                </li>
+              ))}
+            </ol>
+          </SalesPanelSection>
+        </>
       )}
-    </aside>
+    </SalesListDetailPanel>
   );
 }
