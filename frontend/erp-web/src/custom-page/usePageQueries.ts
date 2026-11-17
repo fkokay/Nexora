@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
@@ -139,7 +139,15 @@ export function usePageQueries(options: {
     try {
       const op = operationOf(query);
       if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
-      const request = buildOperationRequest(op, values, sourceRow(op));
+      const source = sourceRow(op);
+      // Yol parametresi henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
+      if (missingRouteValue(op, values, source)) {
+        if (sequences.current.get(query.name) === sequence && generation.current === currentGeneration) {
+          setStates((current) => ({ ...current, [query.name]: emptyState(false) }));
+        }
+        return;
+      }
+      const request = buildOperationRequest(op, values, source);
       const json = await api<unknown>(request.url, token, operationInit(request));
       if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
       const mapped = mapOperationResult(op, json);

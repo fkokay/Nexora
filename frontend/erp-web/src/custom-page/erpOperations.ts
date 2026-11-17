@@ -11,6 +11,7 @@ export type ErpOperation = {
 };
 export type OperationRequest = { url: string; method: string; body?: string };
 
+const ROUTE_PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)(?::[^}]*)?\}/g;
 const GUID = /^[0-9a-fA-F-]{36}$/;
 const INTEGER = /^-?\d+$/;
 
@@ -42,7 +43,7 @@ function routeValue(parameter: ErpOperationParameter, value: unknown): string {
  */
 export function buildOperationRequest(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): OperationRequest {
   const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter]));
-  const url = op.route.replace(/\{([A-Za-z_][A-Za-z0-9_]*)(?::[^}]*)?\}/g, (_match, name: string) => {
+  const url = op.route.replace(ROUTE_PLACEHOLDER, (_match, name: string) => {
     const parameter = byName.get(name.toLowerCase()) ?? { name, in: "route" as const, type: "text", required: true };
     const bound = values[parameter.name];
     return routeValue(parameter, isEmpty(bound) ? propertyCaseInsensitive(source, parameter.name) : bound);
@@ -64,11 +65,24 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   for (const parameter of op.parameters) {
     if (parameter.in !== "body" || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
     const lower = parameter.name.toLowerCase();
+    const value = values[parameter.name];
+    // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
+    if ((value === null || value === undefined) && Object.keys(body).some((key) => key.toLowerCase() === lower)) continue;
     for (const key of Object.keys(body)) if (key !== parameter.name && key.toLowerCase() === lower) delete body[key];
-    body[parameter.name] = values[parameter.name];
+    body[parameter.name] = value;
   }
   request.body = JSON.stringify(body);
   return request;
+}
+
+/** Bir yol parametresinin ne bağlı değeri ne de kaynak kayıtta karşılığı varsa true (henüz seçim yapılmamış ayrıntı okuması). */
+export function missingRouteValue(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): boolean {
+  const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
+  for (const match of op.route.matchAll(ROUTE_PLACEHOLDER)) {
+    const name = byName.get(match[1].toLowerCase()) ?? match[1];
+    if (isEmpty(values[name]) && isEmpty(propertyCaseInsensitive(source, name))) return true;
+  }
+  return false;
 }
 
 /** İşlem yanıtını sayfa sorgu durumu biçimine çevirir; `rowCount` sayısal `totalCount` varsa odur, yoksa satır sayısı. */

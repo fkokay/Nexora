@@ -129,6 +129,23 @@ describe('usePageQueries ERP işlemleri', () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  it('detail read with an unselected source sends nothing and shows no error', async () => {
+    const detail: PageQueryDefinition = { ...getQuery, parameters: [{ name: 'id', binding: '{{tablo.seciliSatir.id}}', type: 'guid' }] };
+    const { result } = setup([detail], catalog);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.states.kart.loading).toBe(false));
+    expect(apiMock).not.toHaveBeenCalled();
+    expect(result.current.states.kart).toMatchObject({ rows: [], loading: false, error: '', ran: false });
+  });
+
+  it('detail read with a malformed id still reports the parameter', async () => {
+    const detail: PageQueryDefinition = { ...getQuery, parameters: [{ name: 'id', binding: '{{bozuk.value}}', type: 'text' }] };
+    const { result } = renderHook(() => usePageQueries({ queries: [detail], token: 't', pageCode: 'sayfa', operations: catalog,
+      buildScope: (states) => ({ ...states, bozuk: { value: '../x' } }) }));
+    await waitFor(() => expect(result.current.states.kart.error).toBe('Geçersiz parametre: id'));
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   it('preview write is refused', async () => {
     apiMock.mockResolvedValue({ Id: guid, name: 'A', rowVersion: 'AAA=' });
     const { result } = setup([getQuery, updateQuery], catalog, 'taslak-1');

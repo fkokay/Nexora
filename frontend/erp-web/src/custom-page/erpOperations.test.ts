@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, type ErpOperation } from './erpOperations';
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, type ErpOperation } from './erpOperations';
 
 const guid = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const columns = [{ code: 'id', label: 'Kimlik', dataType: 'guid' }];
@@ -69,6 +69,21 @@ describe('buildOperationRequest', () => {
     expect(() => buildOperationRequest(byCode, { code: '..' }, null)).toThrow('Geçersiz parametre: code');
     expect(() => buildOperationRequest(byCode, { code: '.' }, null)).toThrow('Geçersiz parametre: code');
     expect(buildOperationRequest(byCode, { code: 'a/b' }, null).url).toBe('/api/x/a%2Fb');
+  });
+
+  it('null bound body value keeps the source value; empty string overwrites', () => {
+    const withCategory = op({ method: 'PUT', kind: 'write', pageKind: 'update', route: '/api/x',
+      parameters: [{ name: 'category', in: 'body', type: 'text', required: false }] });
+    expect(JSON.parse(buildOperationRequest(withCategory, { category: null }, { category: 'A' }).body!)).toEqual({ category: 'A' });
+    expect(JSON.parse(buildOperationRequest(withCategory, { category: undefined }, { Category: 'A' }).body!)).toEqual({ Category: 'A' });
+    expect(JSON.parse(buildOperationRequest(withCategory, { category: '' }, { category: 'A' }).body!)).toEqual({ category: '' });
+    expect(JSON.parse(buildOperationRequest(withCategory, { category: null }, null).body!)).toEqual({ category: null });
+  });
+
+  it('reports missing route values without throwing', () => {
+    expect(missingRouteValue(update, { name: 'B' }, null)).toBe(true);
+    expect(missingRouteValue(update, { id: '' }, { Id: guid })).toBe(false);
+    expect(missingRouteValue(update, { id: '../x' }, null)).toBe(false);
   });
 
   it('sends no body for DELETE', () => {
