@@ -56,7 +56,17 @@ const columns: { key: ColumnKey; label: string; sources: string[] }[] = [
   { key: "currentRate", label: "Güncel kur", sources: ["currentRate"] },
   { key: "estimatedChangeBase", label: "Tahmini fark", sources: ["estimatedChangeBase"] },
 ];
-const defaultColumns: Column[] = columns.map(({ key, label }) => ({ key, label }));
+/** Default widths so the invoice grid fits the report card at 1440 (a tenant view's own widths win). */
+const defaultWidths: Record<ColumnKey, number> = {
+  invoice: 220,
+  direction: 72,
+  invoiceDate: 96,
+  outstandingAmount: 140,
+  invoiceDateRate: 100,
+  currentRate: 100,
+  estimatedChangeBase: 150,
+};
+const defaultColumns: Column[] = columns.map(({ key, label }) => ({ key, label, width: defaultWidths[key] }));
 
 function columnsFromView(fields: BuiltInScreenLayoutField[]): Column[] {
   return columns
@@ -70,7 +80,7 @@ function columnsFromView(fields: BuiltInScreenLayoutField[]): Column[] {
         column: {
           key: column.key,
           label: column.label,
-          width: primary?.width,
+          width: primary?.width ?? defaultWidths[column.key],
           pinned: primary?.pinned,
         } as Column,
         position: Math.min(...matches.map((field) => field.position ?? index)),
