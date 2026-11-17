@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -10,6 +10,8 @@ import InventoryTransfersPage from '../InventoryTransfersPage';
 import InventoryTrackingPage from '../InventoryTrackingPage';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { expiryState } from './trackingExpiry';
+import { useCostListScreen } from './useCostListScreen';
+import { useTransferListScreen } from './useTransferListScreen';
 
 const xlsx = vi.hoisted(() => ({ sheets: [] as unknown[][][] }));
 vi.mock('xlsx', () => ({
@@ -204,7 +206,8 @@ describe('Stok Değerleme list', () => {
     expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
     expect(document.querySelector('.inventory-cost-card')).toBeNull();
     const cards = within(document.querySelector<HTMLElement>('.nx-summary-row')!);
-    expect(cards.getByText('Stok değeri').closest('.nx-summary-item')!.textContent).toContain('4.800,00 TRY');
+    // Only the warning card: no decorative totals.
+    expect(document.querySelectorAll('.nx-summary-row > .nx-summary-item')).toHaveLength(1);
     const unvalued = cards.getByText('Maliyetsiz').closest('.nx-summary-item')!;
     expect(unvalued.className).toContain('is-warn');
     expect(unvalued.tagName).not.toBe('BUTTON');
@@ -353,5 +356,43 @@ describe('Lot / seri izleme list', () => {
     expect(expiryState(day(0), day(0))).toBe('soon');
     expect(expiryState(day(30), day(0))).toBe('soon');
     expect(expiryState(day(31), day(0))).toBeNull();
+  });
+});
+
+describe('moved actions keep their busy condition', () => {
+  const noop = () => {};
+  it('Değerleme Aç (former Yönet) is disabled while another write runs', () => {
+    const onManage = vi.fn();
+    const { result, rerender } = renderHook((busy: boolean) =>
+      useCostListScreen({
+        balances: costRows.map((row) => row.balance), total: 2, page: 1, pageSize: 25, loading: false, busy,
+        exportRef: { current: null }, onManage, onPageChange: noop,
+      }), { initialProps: false });
+    expect(result.current.commands.open.disabledReason).toBe('Önce bir kayıt seçin');
+    act(() => result.current.grid.onCurrentRowChange('s2'));
+    expect(result.current.commands.open.disabledReason).toBeUndefined();
+    rerender(true);
+    expect(result.current.commands.open.disabledReason).toBe('İşlem sürüyor…');
+    rerender(false);
+    void result.current.commands.open.run?.();
+    expect(onManage).toHaveBeenCalledWith(expect.objectContaining({ stockItemId: 's2' }));
+  });
+
+  it('Transferi iptal et is disabled while busy and absent for a voided transfer', () => {
+    const onVoid = vi.fn();
+    const { result, rerender } = renderHook((busy: boolean) =>
+      useTransferListScreen({
+        transfers, total: 2, page: 1, busy, loading: false, exportRef: { current: null }, onOpen: noop, onVoid, onPageChange: noop,
+      }), { initialProps: false });
+    expect(result.current.moreItems).toEqual([]);
+    act(() => result.current.grid.onCurrentRowChange('t2'));
+    expect(result.current.moreItems).toEqual([]);
+    act(() => result.current.grid.onCurrentRowChange('t1'));
+    expect(result.current.moreItems.map((item) => [item.label, item.disabledReason])).toEqual([['Transferi iptal et', undefined]]);
+    rerender(true);
+    expect(result.current.moreItems[0].disabledReason).toBe('İşlem sürüyor…');
+    rerender(false);
+    void result.current.moreItems[0].run?.();
+    expect(onVoid).toHaveBeenCalledWith(transfers[0]);
   });
 });

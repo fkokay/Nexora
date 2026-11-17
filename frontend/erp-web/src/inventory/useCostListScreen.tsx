@@ -27,7 +27,7 @@ type Options = {
 
 /**
  * Stok Değerleme list wiring (TenantAdmin only, like the screen): selection and current row, Aç = the former card's
- * "Yönet" (cost manager of the current row, Enter), page summary cards, the selection export and the footer.
+ * "Yönet" (cost manager of the current row, Enter), the Maliyetsiz warning card, the selection export and the footer.
  */
 export function useCostListScreen(o: Options) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]),
@@ -50,19 +50,12 @@ export function useCostListScreen(o: Options) {
     { id: "export-selected", label: "Excel (seçilenler)", run: () => void o.exportRef.current?.exportExcel() },
   ];
 
-  // The endpoint has no valuation totals: both cards add up the loaded page only.
-  const pageValue = o.balances.reduce((sum, balance) => sum + balance.valuationAmountBase, 0);
+  // The only warning of this screen: cards with uncosted quantity. The endpoint has no such total, so the card counts
+  // the loaded page; no uncosted filter exists, so it is information only.
   const unvaluedCards = o.balances.filter((balance) => balance.unvaluedQuantity > 0).length;
   const summary = (
     <ListSummaryCards
       cards={[
-        {
-          id: "value",
-          label: "Stok değeri",
-          value: o.loading ? "—" : `${money(pageValue)}${currency ? ` ${currency}` : ""}`,
-          icon: IconPack.CircleDollarSign,
-          hint: "bu sayfa",
-        },
         {
           id: "unvalued",
           label: "Maliyetsiz",
