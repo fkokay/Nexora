@@ -29,6 +29,9 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
   - Ekranda birden çok form varsa `Ctrl+S` ve `Ctrl+F2` odaktaki forma gider; odak hiçbirinde değilse `Ctrl+F2`
     yalnızca tek başına olan forma gider. RecordFormPage olmayan bir form (yan panel, fiş girişi) Kaydet'i
     `FormSaveCommand` ile kaydeder; `F2` hiçbir formda kaydetmez.
+  - **Bağlı ama görünmeyen form**: liste sayfasında kalan bir form, listenin üstünde belge açıkken
+    `commandsActive={false}` alır (Mal kabulleri'ndeki siparişsiz mal kabul formu): çubuğa hiçbir komut (Kaydet, Kaydet ve
+    Yeni, Temizle) kaydetmez, `Ctrl+F2` / çubuksuz `Ctrl+S` / Esc ona gitmez; form ve girilen değerler korunur. Varsayılan `true`.
   - **Kaydetme hatası**: yalnızca alan düzeyindeki sorunlarda hareket edilir. Tarayıcı doğrulaması geçmezse ya da
     kapsayıcı kayıttan sonra `error` verirse ilk geçersiz alana (`:invalid` / `aria-invalid="true"`) odaklanılır.
     Alan, kapsayıcının gizli tuttuğu bir bölümdeyse (bölüm sarmalayıcısı `data-rf-section="anahtar"` ve `hidden`)

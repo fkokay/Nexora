@@ -1,15 +1,29 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link2Off, X } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import { localDateString } from "./dateUtils";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { ListToolbar } from "./list-page/ListToolbar";
+import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
+import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import "./sales/sales-list-v2.css";
 import "./purchase-delivery-notes.css";
-import "./purchase-list-v2/purchase-list-v2.css";
 import { DeliveryNoteComposePanel } from "./purchase-delivery-notes/components/DeliveryNoteComposePanel";
-import { DeliveryNoteDetailDialog } from "./purchase-delivery-notes/components/DeliveryNoteDetailDialog";
+import { DeliveryNoteCreateView } from "./purchase-delivery-notes/components/DeliveryNoteCreateView";
+import { DeliveryNoteDocument } from "./purchase-delivery-notes/components/DeliveryNoteDocument";
 import { DeliveryNotesListPanel } from "./purchase-delivery-notes/components/DeliveryNotesListPanel";
 import { OrderDeliveryNotesPanel } from "./purchase-delivery-notes/components/OrderDeliveryNotesPanel";
 import { OrderSelectionPanel } from "./purchase-delivery-notes/components/OrderSelectionPanel";
 import { PurchaseDeliveryNotesHeader } from "./purchase-delivery-notes/components/PurchaseDeliveryNotesHeader";
+import {
+  PurchaseDeliveryNoteListPanel,
+  PurchaseDeliveryNoteListPanelEmpty,
+} from "./purchasing/purchaseDeliveryNotePanel";
 import {
   deliveryNotePageSize,
   detailGridDefaults,
@@ -81,6 +95,12 @@ export default function PurchaseDeliveryNotesPage({
     [error, setError] = useState(""),
     [mutationOrderError, setMutationOrderError] = useState(""),
     [notice, setNotice] = useState("");
+  // List type (mockup 07): the current row (click, ↑/↓) and ticked rows; the create view replaces the list.
+  const [creating, setCreating] = useState(false),
+    [currentId, setCurrentId] = useState<string | null>(null),
+    [ticked, setTicked] = useState<string[]>([]),
+    [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
   const [screenFields, setScreenFields] = useState<ScreenField[]>(
     purchaseNoteDefaultFields,
   );
@@ -318,9 +338,6 @@ export default function PurchaseDeliveryNotesPage({
     setOrderId(id);
     void loadOrder(id);
   }
-  async function openDeliveryNoteOrder(note: Note) {
-    selectOrder(note.purchaseOrderId);
-  }
   async function openDeliveryNote(note: Note) {
     const sequence = ++noteDetailSequence.current;
     setSelectedNote(note);
@@ -469,110 +486,231 @@ export default function PurchaseDeliveryNotesPage({
     }
   }
 
+  // Action bar: the list (Yeni opens the create view, Aç the current note), an open note, or the create view (its
+  // form registers Kaydet; Yeni starts a fresh note on the same order). A delivery note has no delete endpoint.
+  const shownNotes = noteSearchResults ?? deliveryNotes;
+  const current = shownNotes.find((note) => note.id === currentId);
+  const target = selectedNote ?? current ?? (ticked.length === 1 ? shownNotes.find((note) => note.id === ticked[0]) : undefined);
+  const listActive = !creating && !selectedNote;
+  const formDirty = Boolean(documentNumber.trim() || Object.values(quantities).some((value) => Number(value) > 0));
+  function startCreate(orderToOpen?: string) {
+    closeDeliveryNoteDetail();
+    setCreating(true);
+    if (orderToOpen) selectOrder(orderToOpen);
+  }
+  const commands: PageCommands = {};
+  const more: MenuCommand[] = [];
+  if (creating) {
+    commands.new = {
+      run: async () => {
+        if (!(await confirmStartNew(formDirty))) return;
+        setDocumentNumber("");
+        setQuantities({});
+        setNotice("");
+        setError("");
+      },
+    };
+  } else {
+    commands.new = { primary: !selectedNote, run: () => startCreate() };
+    commands.delete = {
+      disabledReason: target
+        ? "İrsaliye kaydı silinemez — mal kabul bağlantısı İşlemler › Siparişi aç'ta yönetilir"
+        : "Önce bir kayıt seçin",
+    };
+    if (selectedNote) {
+      Object.assign(commands, documentOpenCommands(() => openDeliveryNote(selectedNote)));
+    } else {
+      commands.open = {
+        disabledReason: target ? undefined : "Önce bir kayıt seçin",
+        run: () => {
+          const id = focusedRecordId() ?? target?.id;
+          const note = shownNotes.find((item) => item.id === id);
+          if (note) return openDeliveryNote(note);
+        },
+      };
+    }
+    if (target)
+      more.push({ id: "delivery-note-open-order", label: "Siparişi aç", run: () => startCreate(target.purchaseOrderId) });
+    if (!selectedNote) more.push(csvExportCommand(gridExportRef));
+  }
+  commands.more = more;
+
+  const panel = useSalesListPanel<Note>({
+    active: listActive,
+    token,
+    currentId: current?.id ?? null,
+    path: (id) => `/api/purchasing/delivery-notes/${id}`,
+    reloadKey: current ? JSON.stringify(current) : undefined,
+  });
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <PurchaseDeliveryNoteListPanel
+          row={current}
+          detail={panel.detail}
+          error={panel.error}
+          onOpen={() => void openDeliveryNote(current)}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <PurchaseDeliveryNoteListPanelEmpty />
+      )
+    ) : null;
+  const searching = noteSearchResults !== null;
+
   return (
-    <div
-      className={`purchase-delivery-notes-page list-v2 ${detail ? "has-selected-order" : ""}`}
-    >
-      <PurchaseDeliveryNotesHeader
-        total={noteListLoading && noteTotal === 0 ? null : noteTotal}
-      />
-      {(mutationOrderError || error) && (
-        <div className="alert" role="alert">
-          {mutationOrderError || error}
-        </div>
-      )}
-      {notice && (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      )}
-      <DeliveryNotesListPanel
-        fields={visibleScreenFields}
-        notes={deliveryNotes}
-        searchResults={noteSearchResults}
-        searchTotal={noteSearchTotal}
-        searchPage={noteSearchPage}
-        page={notePage}
-        total={noteTotal}
-        loading={noteListLoading}
-        search={noteSearch}
-        onSearchChange={setNoteSearch}
-        onSearchApply={applyDeliveryNoteSearch}
-        onRefresh={() => {
-          void loadOrders();
-          void refreshDeliveryNotes();
-        }}
-        onPageChange={(page) =>
-          noteSearchResults === null
-            ? setNotePage(page)
-            : void loadDeliveryNoteSearch(page)
-        }
-        onOpenNote={(note) => {
-          void openDeliveryNote(note);
-        }}
-        onOpenOrder={(note) => {
-          void openDeliveryNoteOrder(note);
-        }}
-      />
-      <OrderSelectionPanel
-        orders={noteEligibleOrders}
-        orderId={orderId}
-        query={orderQuery}
-        page={orderPage}
-        total={orderTotal}
-        loading={loading}
-        onQueryChange={setOrderQuery}
-        onSearch={(event) => {
-          event.preventDefault();
-          void loadOrders(1, orderQuery);
-        }}
-        onSelect={selectOrder}
-        onRefresh={() => {
-          void loadOrders(orderPage);
-        }}
-        onPageChange={(page) => {
-          void loadOrders(page);
-        }}
-      />
-      {detail && (
+    <div className="purchase-delivery-notes-page list-v2">
+      <PageCommandsSlot commands={commands} />
+      {creating ? (
+        <DeliveryNoteCreateView
+          detail={detail}
+          documentNumber={documentNumber}
+          busy={busy}
+          error={mutationOrderError || error}
+          notice={notice}
+          dirty={formDirty}
+          onSubmit={(event) => {
+            void createNote(event);
+          }}
+          onCancel={() => setCreating(false)}
+          onDismissError={() => {
+            setError("");
+            setMutationOrderError("");
+          }}
+        >
+          <OrderSelectionPanel
+            orders={noteEligibleOrders}
+            orderId={orderId}
+            query={orderQuery}
+            page={orderPage}
+            total={orderTotal}
+            loading={loading}
+            onQueryChange={setOrderQuery}
+            onSearch={() => {
+              void loadOrders(1, orderQuery);
+            }}
+            onSelect={selectOrder}
+            onRefresh={() => {
+              void loadOrders(orderPage);
+            }}
+            onPageChange={(page) => {
+              void loadOrders(page);
+            }}
+          />
+          {detail && (
+            <>
+              <DeliveryNoteComposePanel
+                detail={detail}
+                notes={notes}
+                receiptId={receiptId}
+                quantities={quantities}
+                documentNumber={documentNumber}
+                documentDate={documentDate}
+                fields={visibleDetailFields("purchase-delivery-order-lines")}
+                onDocumentNumberChange={setDocumentNumber}
+                onDocumentDateChange={setDocumentDate}
+                onReceiptChange={setReceiptId}
+                onQuantityChange={(lineNumber, value) =>
+                  setQuantities((current) => ({ ...current, [lineNumber]: value }))
+                }
+              />
+              <OrderDeliveryNotesPanel
+                detail={detail}
+                notes={notes}
+                fields={visibleDetailFields("purchase-order-delivery-notes")}
+                receiptId={receiptId}
+                busy={busy}
+                onReceiptChange={setReceiptId}
+                onLink={(note) => {
+                  void linkNote(note);
+                }}
+                onUnlink={(note) => {
+                  void unlinkNote(note);
+                }}
+              />
+            </>
+          )}
+        </DeliveryNoteCreateView>
+      ) : (
         <>
-          <DeliveryNoteComposePanel
-            detail={detail}
-            notes={notes}
-            receiptId={receiptId}
-            quantities={quantities}
-            documentNumber={documentNumber}
-            documentDate={documentDate}
-            busy={busy}
-            fields={visibleDetailFields("purchase-delivery-order-lines")}
-            onSubmit={(event) => {
-              void createNote(event);
-            }}
-            onDocumentNumberChange={setDocumentNumber}
-            onDocumentDateChange={setDocumentDate}
-            onReceiptChange={setReceiptId}
-            onQuantityChange={(lineNumber, value) =>
-              setQuantities((current) => ({ ...current, [lineNumber]: value }))
-            }
-          />
-          <OrderDeliveryNotesPanel
-            detail={detail}
-            notes={notes}
-            fields={visibleDetailFields("purchase-order-delivery-notes")}
-            receiptId={receiptId}
-            busy={busy}
-            onReceiptChange={setReceiptId}
-            onLink={(note) => {
-              void linkNote(note);
-            }}
-            onUnlink={(note) => {
-              void unlinkNote(note);
-            }}
-          />
+          <div className="sales-lv2-stack">
+            <PurchaseDeliveryNotesHeader
+              total={noteListLoading && noteTotal === 0 ? null : noteTotal}
+            />
+            <ListSummaryCards
+              cards={[
+                {
+                  id: "unlinked",
+                  label: "Bağlantısı yok",
+                  value: noteListLoading ? "—" : shownNotes.filter((note) => !note.purchaseReceiptId).length.toLocaleString("tr-TR"),
+                  icon: Link2Off,
+                  tone: "warn",
+                  hint: "bu sayfa",
+                },
+              ]}
+            />
+            <ListToolbar
+              search={noteSearch}
+              onSearchChange={setNoteSearch}
+              onSearchApply={applyDeliveryNoteSearch}
+              searchLabel="Gelen irsaliyelerde ara"
+              searchPlaceholder="İrsaliye no, sipariş, tedarikçi veya mal kabul ara"
+              toolsSlotRef={setToolsSlot}
+              onRefresh={() => {
+                if (noteListLoading) return;
+                void loadOrders();
+                void refreshDeliveryNotes();
+              }}
+            >
+              <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+            </ListToolbar>
+          </div>
+          {(mutationOrderError || error) && (
+            <div className="alert inline-alert" role="alert">
+              {mutationOrderError || error}
+              <button
+                type="button"
+                aria-label="Kapat"
+                onClick={() => {
+                  setError("");
+                  setMutationOrderError("");
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+            <DeliveryNotesListPanel
+              fields={visibleScreenFields.filter((field) => field.key !== "actions")}
+              rows={shownNotes}
+              searching={searching}
+              page={searching ? noteSearchPage : notePage}
+              total={searching ? noteSearchTotal : noteTotal}
+              loading={noteListLoading}
+              currentId={currentId}
+              ticked={ticked.length}
+              listActive={listActive}
+              exportActionsRef={gridExportRef}
+              toolbarContainer={toolsSlot}
+              onCurrentChange={setCurrentId}
+              onTickedChange={setTicked}
+              onPageChange={(page) =>
+                noteSearchResults === null
+                  ? setNotePage(page)
+                  : void loadDeliveryNoteSearch(page)
+              }
+              onOpenNote={(note) => {
+                void openDeliveryNote(note);
+              }}
+            />
+            {listPanel}
+          </div>
         </>
       )}
       {selectedNote && (
-        <DeliveryNoteDetailDialog
+        <DeliveryNoteDocument
           note={selectedNote}
           loading={noteDetailLoading}
           fields={visibleDetailFields("purchase-delivery-note-lines")}
