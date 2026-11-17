@@ -28,6 +28,7 @@ describe("cellFormat", () => {
 
   it("parses column formats", () => {
     expect(parseColumnFormats(["kod=money", "ad=bogus", "x", "d=date"])).toEqual({ kod: "money", d: "date" });
+    expect(parseColumnFormats([])["toString"]).toBeUndefined();
   });
 
   it("formats cells", () => {
@@ -38,6 +39,10 @@ describe("cellFormat", () => {
     expect(formatCell("2026-11-17T09:18:24+00:00", "date")).toBe("17.11.2026");
     expect(formatCell(1250, undefined, "decimal")).toBe("1.250");
     expect(formatCell("abc", "date")).toBe("abc");
+    expect(formatCell("2026-11-17", "date")).toBe("17.11.2026");
+    expect(formatCell("  ", "money")).toBe("—");
+    expect(formatCell(-0, "number")).toBe("0");
+    expect(formatCell(true, "number")).toBe("true");
     expect(formatCell("abc", "code")).toBe("abc");
   });
 
@@ -62,6 +67,8 @@ describe("cellFormat", () => {
     expect(flat.map((p) => p[1])).toEqual([13, 13]);
     expect(sparklinePath([5], 70, 26)).toBe("");
     expect(sparklinePath([], 70, 26)).toBe("");
+    expect(sparklinePath([1, NaN, 3], 70, 26)).toBe(sparklinePath([1, 3], 70, 26));
+    expect(sparklinePath([1, NaN], 70, 26)).toBe("");
     expect(sparklinePath([1, 3], 70, 26).split(" ")).toHaveLength(2);
   });
 });

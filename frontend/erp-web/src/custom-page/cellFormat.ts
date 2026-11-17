@@ -35,7 +35,7 @@ export function toneFor(text: string, map: { key: string; tone: Tone }[]): Tone 
 }
 
 export function parseColumnFormats(entries: unknown): Record<string, ColumnFormat> {
-  const result: Record<string, ColumnFormat> = {};
+  const result: Record<string, ColumnFormat> = Object.create(null);
   if (!Array.isArray(entries)) return result;
   for (const entry of entries) {
     const pair = splitEntry(entry);
@@ -53,14 +53,23 @@ const moneyFormat = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, m
 const dateFormat = new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 export function formatCell(value: unknown, format: ColumnFormat | undefined, dataType?: string): string {
-  if (value === null || value === undefined || value === "") return EMPTY;
+  if (value === null || value === undefined) return EMPTY;
+  if (typeof value === "string" && value.trim() === "") return EMPTY;
   const effective = format ?? (isNumericType(dataType) ? "number" : undefined);
   if (effective === "number" || effective === "money") {
+    if (typeof value === "boolean") return String(value);
     const numeric = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(numeric)) return (effective === "money" ? moneyFormat : numberFormat).format(numeric);
+    if (Number.isFinite(numeric)) {
+      const text = (effective === "money" ? moneyFormat : numberFormat).format(numeric);
+      return /^-0(,0+)?$/.test(text) ? text.slice(1) : text;
+    }
     return String(value);
   }
   if (effective === "date") {
+    if (typeof value === "string") {
+      const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+      if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+    }
     const date = value instanceof Date ? value : new Date(String(value));
     return Number.isNaN(date.getTime()) ? String(value) : dateFormat.format(date);
   }
@@ -95,7 +104,8 @@ export function trendPoints(rows: Record<string, unknown>[], max = 30): number[]
   return rows.map((row) => row[key]).filter(isFiniteNumber).slice(0, max);
 }
 
-export function sparklinePath(points: number[], width: number, height: number): string {
+export function sparklinePath(rawPoints: number[], width: number, height: number): string {
+  const points = rawPoints.filter(Number.isFinite);
   if (points.length < 2) return "";
   const min = Math.min(...points);
   const max = Math.max(...points);
