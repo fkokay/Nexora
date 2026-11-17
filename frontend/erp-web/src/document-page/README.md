@@ -33,6 +33,18 @@ bir son durumdur (İptal, Reddedildi): yalnızca belge o durumdayken gri son ad�
 önceki adımlar nötr kalır. Adım adları `documentStatus.ts` ile aynı olmalıdır; **bugün olmayan
 durum çizilmez** (ör. faturada Taslak / Onaylı yoktur).
 
+Kurallar (Satış'ta uygulandığı gibi, `sales/salesDocumentDetail.tsx` akış bileşenleri):
+
+- **Detay**: `current` belgenin kayıtlı durumudur. Akış yalnız bugünkü durumlardan oluşur — teklif Taslak → İletildi →
+  Kabul edildi (Reddedildi / Süresi doldu son durum); sipariş Açık → Tamamlandı (İptal); irsaliye Sevk edildi →
+  Faturalandı (İptal; Faturalandı = faturası kesilmiş irsaliye); fatura tek adım Kesildi (İptal; tahsilat bir durum değildir,
+  bağlam panelinde "Ödeme durumu"); talep Açık → Teklif verildi (İptal); iade İşlendi (İptal).
+- **Oluşturma**: kaydın kendisi ilk durumu üretiyorsa (fatura → Kesildi, sipariş → Açık, talep → Açık) **geçerli adım
+  yoktur**: tüm adımlar "gelecek" olarak çizilir, `aria-current` verilmez; başlıkta YENİ KAYIT etiketi durur. Gerçekten
+  taslak olarak kaydedilen belgede (teklif, siparişsiz irsaliye) geçerli adım "Taslak"tır. Mevcut belgenin düzenlenmesinde
+  (sipariş düzenleme) geçerli adım belgenin durumudur. Akış bileşenleri bunun için `status` almadan çağrılır
+  (`<SalesInvoiceFlow />`).
+
 ```tsx
 <DocumentSurface
   variant="detail"
@@ -67,9 +79,13 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
   konur; kartın kenarına dayanır, ikinci çerçeve çizilmez; sayı sütunlarına `dd-num` verilir. Bölüm (`DetailSection`)
   içindeki ızgaralar da çerçevesizdir.
 - **Toplamlar**: `DocumentTotals` (yalnızca görünüm, hesap yapmaz). Satırlar sayfadan gelir:
-  `emphasis: "negative"` düşülen tutar, `"sub"` bir üst satırın girintili dökümü (KDV oranlarına göre
-  matrah / KDV), `"grand"` vurgulu genel toplam. `DetailLinesFooter` satır kartının alt bandında solda
-  notlar, sağda bu bloğu çizer.
+  `emphasis: "negative"` düşülen tutar, `"muted"` soluk bilgi satırı (ör. irsaliyede sıfır olsa da gösterilen
+  "Toplam iskonto − X"), `"sub"` bir üst satırın girintili dökümü (KDV oranlarına göre matrah / KDV), `"grand"` vurgulu
+  genel toplam, `"strong"` genel toplamdan sonra gelen kalın satır. **Blokta tek `"grand"` satır olur**: siparişsiz
+  fatura oluşturmada Genel toplam `"grand"`, Ödenecek tutar tevkifat yokken (tutarlar eşit) `"strong"`; ikisi farklıysa
+  Ödenecek tutar da vurgulanır. Tutarlar belgenin kayıtlı toplamlarıdır; KDV dökümü (`vatByRate`) kayıtlı matrah / KDV ile
+  tutmazsa (tevkifat, ek vergi) çizilmez. İrsaliye bilinen sıra ve adlarını korur (Mal / hizmet toplamı … Genel toplam ·
+  Ödenecek tutar). `DetailLinesFooter` satır kartının alt bandında solda notlar, sağda bu bloğu çizer.
 - **Bağlam paneli bölümleri**: `DetailContext` (başlık + sağda kısa açıklama, tek katman kart),
   içine `DetailChain` (sipariş → irsaliye → fatura; açık belge vurgulu, diğerleri `onOpen` ile açılır; numarası
   bilinmeyen bağlı belge `code` olmadan yalnızca türüyle; işaret harfleri `kind` ya da `label`den: "Bu fatura" + `kind`
@@ -87,7 +103,9 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
   (çekmece dahil) ya da odaktaki bir kayıt formu varken belge bu tuşları bırakır.
 - **İş akışı düğmeleri başlıkta durmaz.** Onayla, İletildi yap, Kabul et, Siparişe dönüştür, İptal
   İşlem Çubuğu'nun İşlemler menüsündedir; ilerleme durum akış şeridinde görünür. `actions` yalnızca
-  geçiş dönemi için nötr bir "eski düğmeler" yuvasıdır; yeni ekranlar kullanmaz.
+  geçiş dönemi için nötr bir "eski düğmeler" yuvasıdır; yeni ekranlar kullanmaz. **Satış artık kullanmaz** (altı belge
+  türünün detayında başlıkta yalnız geri düğmesi ve Vazgeç vardır); yuvayı bugün yalnız Satınalma kullanıyor (ör. Alış
+  faturasında "İade oluştur", "Ödeme ekle") — Satınalma planında İşlemler'e taşınınca yuva kaldırılabilir.
 - **Başlık metinleri tek tiptir.** `title` belge türünün tekil adıdır ("Satış teklifi",
   "Alış faturası"); numara `code`, cari `subtitle` ile verilir. "… Detay", "… DETAYI" gibi ekler ve
   büyük harfli üst başlıklar kullanılmaz.
@@ -111,6 +129,20 @@ kullanılır. Gövde tek bir 8px kart olarak çizilir; pencereye özgü ölçü,
 `document-page.css` içinde kaldırılır. Bu ekranlar `variant="detail"` gövdesine taşındıkça bu iki
 özellik gereksizleşir.
 
+## Satış detay ekranları (örnek uygulama)
+
+Altı belge türünün detayı (`SalesPage.tsx` teklif / sipariş, `SalesDeliveriesPage.tsx`, `SalesInvoiceModal.tsx`,
+`SalesRequestDetailSurface.tsx`, `document-returns/components/ReturnDetailSurface.tsx`) `variant="detail"` ile çizilir:
+`title` tür adı, `code` numara, `subtitle` cari; `statusFlow` yukarıdaki kurallarla; gövde başlık alanları kartı →
+satır kartı (`table.dd-lines` ya da kiracının `sales-order-lines` ızgarası `.dd-grid` içinde) → `DetailLinesFooter`
+(notlar + `salesTotalRows`) → mevcut sekmeler (`DetailTabs`) ve bölümler; `hints={SALES_DETAIL_HINTS}`,
+`footerStatus={<SalesFooterStatus …/>}`.
+
+**Bağlam paneli** yalnız mevcut veriyle doldurulur: belge zinciri (talep → teklif → sipariş → irsaliye → fatura → iade;
+açık belge vurgulu, diğerleri tıklanınca açılır), cari özeti yalnız verisi olan alanlarla (teklifte cari kodu ve
+plasiyer, faturada VKN), faturada "Ödeme durumu" (tahsil edilen / iade edilen / açık bakiye). Cari bakiye / risk ve aktif
+satırın depo stoku için uç nokta yok — çizilmez; panelde gösterecek bir şey yoksa `aside` verilmez.
+
 ## Belge oluşturma ekranı (`RecordFormPage` `document`)
 
 Satırlı bir belgeyi oluşturan / taslağını düzenleyen tam sayfa form (taslak 02, "düzenleniyor"). Davranış kayıt
@@ -132,6 +164,27 @@ ilk alana odak, `saveDisabledReason`. `document` yalnızca görünümü değişt
 - **Alt bilgi**: kayıt formunun kısayolları; `hints` "Ctrl+S kaydet"ten sonra eklenir. Yalnızca ekranda çalışan tuşlar
   yazılır (bugün satır tuşu yalnız `Ctrl+Shift+Enter`; İşlemler menüsü doluysa "Alt+İ işlemler").
 - **Bağlam paneli**: `aside` (ör. talepten açılan teklifte belge zinciri); veri yoksa verilmez.
+- **Dış boşluk**: form çalışma alanı görünümüne boşluksuz oturur (sol / sağ / üst / alt 0); tam sayfa siparişsiz fatura
+  (`SalesInvoiceFromDeliveryDialog fullPage`, `.sales-invoice-entry-page`) da aynıdır — eski pencere düzenindeki
+  `sales-rf-host` iç boşlukları ve sayfa altındaki 24px artık yoktur (pencere içindeki formlar `sales-rf-host` ile kalır).
+
+```tsx
+<RecordFormPage
+  className="sales-rf"
+  title="Yeni Satış Talebi"
+  mode="create"
+  document={{ type: "Satış talebi", code: code || undefined, party: customerName, statusFlow: <SalesRequestFlow />,
+    hints: [...SALES_FORM_HINTS, "Alt+İ işlemler"] }}
+  onSubmit={submit}
+  onCancel={onCancel}
+  onSaveIntent={(stay) => { stayForNext.current = stay; }} // Kaydet ve Yeni (Ctrl+F2)
+  onReset={reset}                                          // İşlemler › Temizle
+>
+  …Belge bilgileri grubu, SalesFormLines…
+</RecordFormPage>
+```
+
+Sayfa F2'yi (`PageCommandsSlot` `new`, `confirmStartNew(dirty)`) kendisi bağlar: değişmiş formda önce onay sorulur.
 
 Satış ekranlarının ortak parçaları `sales/salesDocumentForm.tsx` içindedir (`SalesFormLines`, `LineAddLabel`,
 `salesFormTotalRows`, `SALES_FORM_HINTS`).
