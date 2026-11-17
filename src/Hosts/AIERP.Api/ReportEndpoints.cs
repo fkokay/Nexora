@@ -351,7 +351,6 @@ public static class ReportEndpoints
             if (!TryTenantContext(user, out _, out _, out var role)) return Results.Forbid();
             var sources = new List<ReportSource>
             {
-                new("customSql", "SQL sorgusu", [], []),
                 new("customers", "Cari hesaplar", CustomerColumns, CustomerAggregates),
                 new("salesInvoices", "Satış faturaları", SalesInvoiceColumns, SalesInvoiceAggregates),
                 new("purchaseOrders", "Satın alma siparişleri", PurchaseOrderColumns, PurchaseOrderAggregates),
@@ -383,6 +382,7 @@ public static class ReportEndpoints
             sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
             sources.Add(new("supplierLedgerEntries", "Tedarikçi hesap hareketleri", SupplierLedgerColumns, []));
             sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
+            if (role == "TenantAdmin") sources.Insert(0, new("customSql", "SQL sorgusu", [], []));
             if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
             return Results.Ok(sources);
         });
@@ -681,9 +681,10 @@ public static class ReportEndpoints
     private static async Task<IResult> RunAsync(ReportRunRequest request, ClaimsPrincipal user, TenantDbContext db, HttpContext context, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        // SQL raporları yalnız yöneticiye açıktır; yetkisiz kullanıcı doğrulayıcı geri bildirimi de almaz.
+        if (request?.Source == "customSql" && role != "TenantAdmin") return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return Results.Problem(
-            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
+        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, tenantId, userId, db, context, export: false, ct);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await RunSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
@@ -749,9 +750,10 @@ public static class ReportEndpoints
     private static async Task<IResult> ExportAsync(ReportRunRequest request, ClaimsPrincipal user, TenantDbContext db, HttpContext context, CancellationToken ct)
     {
         if (!TryTenantContext(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
+        // SQL raporları yalnız yöneticiye açıktır; yetkisiz kullanıcı doğrulayıcı geri bildirimi de almaz.
+        if (request?.Source == "customSql" && role != "TenantAdmin") return Results.Forbid();
         if (!Validate(request, out var normalized, out var errors)) return Results.ValidationProblem(errors!);
-        if (normalized!.Source == "customSql") return Results.Problem(
-            "SQL raporları, salt okunur veritabanı erişimi sağlanana kadar geçici olarak kullanılamıyor.", statusCode: 503);
+        if (normalized!.Source == "customSql") return await RunCustomSqlAsync(normalized, tenantId, userId, db, context, export: true, ct);
         if (normalized!.Source == "workflowInstances" && role != "TenantAdmin") return Results.Forbid();
         if (!await CanReadReportSourceAsync(normalized.Source, tenantId, userId, role, context, ct)) return Results.Forbid();
         if (normalized!.Source == "salesInvoices") return await ExportSalesInvoicesAsync(normalized, user, db, context.RequestServices.GetRequiredService<PlatformDbContext>(), ct);
@@ -1481,6 +1483,41 @@ public static class ReportEndpoints
     };
 
     private static ReportColumn WarehouseStockColumnByCode(string code) => WarehouseStockColumns.First(x => x.Code == code);
+
+    private static async Task<IResult> RunCustomSqlAsync(NormalizedReport report, Guid callerTenantId, Guid userId, TenantDbContext db,
+        HttpContext context, bool export, CancellationToken ct)
+    {
+        var platformDb = context.RequestServices.GetRequiredService<PlatformDbContext>();
+        var companies = await CustomSqlReportRunner.AuthorizeCompaniesAsync(userId, report.CompanyIds ?? [], platformDb, ct);
+        if (companies is null) return Results.Forbid();
+        // Fabrika ancak tüm yetki kontrolleri geçtikten sonra çözülür.
+        var factory = context.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
+        CustomSqlResult result;
+        try
+        {
+            result = await CustomSqlReportRunner.ExecuteAsync(report.SqlQuery!, companies, factory, ct);
+        }
+        catch (Exception exception) when (CustomSqlReportRunner.MapError(exception) is not null)
+        {
+            return CustomSqlReportRunner.MapError(exception)!;
+        }
+        // Kiracı veritabanına yalnız çağıran kiracı için tek satır; firma başına iz PlatformDB'ye. Sorgu metni yazılmaz.
+        CustomSqlReportRunner.AddAuditEvents(db, platformDb, callerTenantId, userId, companies, export,
+            report.SqlQuery!.Length, result.Rows.Count);
+        await platformDb.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);
+        if (export)
+        {
+            var csv = new StringBuilder().Append('﻿')
+                .AppendLine(string.Join(',', result.Columns.Select(column => Csv(column.Label, protectFormula: true))));
+            foreach (var row in result.Rows)
+                csv.AppendLine(string.Join(',', result.Columns.Select(column => CsvValue(row.TryGetValue(column.Code, out var value) ? value : null))));
+            return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", "sql-raporu.csv");
+        }
+        var pageSize = Math.Clamp(report.PageSize, 1, CustomSqlReportRunner.MaxPageSize);
+        var pageRows = result.Rows.Skip((report.Page - 1) * pageSize).Take(pageSize).ToArray();
+        return Results.Ok(new ReportResult("customSql", result.Columns, pageRows, report.Page, pageSize, result.Rows.Count, Truncated: result.Truncated));
+    }
 
     private static string CsvValue(object? value) => Csv(value switch
     {
@@ -5431,7 +5468,7 @@ public static class ReportEndpoints
         return true;
     }
 
-    private static bool TryValidateReadOnlySql(string? sql, out string? error)
+    internal static bool TryValidateReadOnlySql(string? sql, out string? error)
     {
         error = null;
         if (string.IsNullOrWhiteSpace(sql) || sql.Length > 10000)
@@ -5440,6 +5477,48 @@ public static class ReportEndpoints
             return false;
         }
 
+        if (!TryStripSqlLiterals(sql, "Tek bir salt okunur SELECT sorgusu kullanın; yorum, batch ve noktalı virgül kullanılamaz.",
+                keepIdentifierText: true, out var normalized, out error)) return false;
+        if (!Regex.IsMatch(normalized, @"^\s*(SELECT|WITH)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = "Sorgu SELECT veya WITH ... SELECT ile başlamalıdır.";
+            return false;
+        }
+        if (Regex.IsMatch(normalized,
+                @"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|NEXT\s+VALUE|UPDLOCK|XLOCK|TABLOCKX|HOLDLOCK|XP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*|\.\s*\.",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = "Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.";
+            return false;
+        }
+        // Sunucudaki diğer (kiracı) veritabanlarının adlarını/dosyalarını listeleyen katalog ve fonksiyonlar.
+        if (Regex.IsMatch(normalized, DatabaseListingPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            error = DatabaseListingError;
+            return false;
+        }
+        if (Regex.IsMatch(normalized, @"\b[A-Za-z_][\w$#]*\s*\.\s*[A-Za-z_][\w$#]*\s*\(", RegexOptions.CultureInvariant))
+        {
+            error = "Şemaya bağlı kullanıcı fonksiyonları çalıştırılamaz.";
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>Catalog views and functions that list other databases, files or logins on the server.</summary>
+    private const string DatabaseListingPattern =
+        @"\b(sysdatabases|sysaltfiles|sysfiles|master_files|DB_NAME|DB_ID|ORIGINAL_DB_NAME|HAS_DBACCESS|DATABASEPROPERTYEX|SUSER_[A-Z_]+|sysservers|syslogins|sql_logins|server_principals|dm_[A-Z0-9_]+)\b";
+    private const string DatabaseListingError = "Sorgu sunucudaki veritabanlarını, dosyaları veya oturum açma bilgilerini listeleyemez; yalnız bu firmanın tablolarını okuyun.";
+
+    /// <summary>
+    /// Replaces string literals with a space and rejects comments, batches (';') and '#'. Bracketed and double-quoted
+    /// identifiers either keep their text (so deny-lists still see names such as [master]) or become a neutral
+    /// placeholder (so a column named [Update] is not read as a keyword).
+    /// </summary>
+    private static bool TryStripSqlLiterals(string sql, string separatorError, bool keepIdentifierText, out string normalized, out string? error)
+    {
+        normalized = "";
+        error = null;
         var code = new StringBuilder(sql.Length);
         for (var index = 0; index < sql.Length; index++)
         {
@@ -5462,13 +5541,19 @@ public static class ReportEndpoints
             {
                 var closing = current == '[' ? ']' : '"';
                 code.Append(' ');
+                if (!keepIdentifierText) code.Append("quoted_identifier");
                 index++;
                 var closed = false;
                 while (index < sql.Length)
                 {
-                    if (sql[index] == closing && index + 1 < sql.Length && sql[index + 1] == closing) { code.Append(closing); index += 2; continue; }
+                    if (sql[index] == closing && index + 1 < sql.Length && sql[index + 1] == closing)
+                    {
+                        if (keepIdentifierText) code.Append(closing);
+                        index += 2;
+                        continue;
+                    }
                     if (sql[index] == closing) { closed = true; break; }
-                    code.Append(sql[index]);
+                    if (keepIdentifierText) code.Append(sql[index]);
                     index++;
                 }
                 if (!closed) { error = "SQL alan adında tırnak kapanmamış."; return false; }
@@ -5478,31 +5563,84 @@ public static class ReportEndpoints
             if (current == ';' || current == '#' || current == '-' && index + 1 < sql.Length && sql[index + 1] == '-' ||
                 current == '/' && index + 1 < sql.Length && sql[index + 1] == '*')
             {
-                error = "Tek bir salt okunur SELECT sorgusu kullanın; yorum, batch ve noktalı virgül kullanılamaz.";
+                error = separatorError;
                 return false;
             }
             code.Append(current);
         }
-
-        var normalized = code.ToString();
-        if (!Regex.IsMatch(normalized, @"^\s*(SELECT|WITH)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
-        {
-            error = "Sorgu SELECT veya WITH ... SELECT ile başlamalıdır.";
-            return false;
-        }
-        if (Regex.IsMatch(normalized,
-                @"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|INTO|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|NEXT\s+VALUE|UPDLOCK|XLOCK|TABLOCKX|HOLDLOCK|XP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
-        {
-            error = "Sorgu yalnızca okuma yapabilir; yazma, kilitleme, dış kaynak ve başka veritabanı erişimi kapalıdır.";
-            return false;
-        }
-        if (Regex.IsMatch(normalized, @"\b[A-Za-z_][\w$#]*\s*\.\s*[A-Za-z_][\w$#]*\s*\(", RegexOptions.CultureInvariant))
-        {
-            error = "Şemaya bağlı kullanıcı fonksiyonları çalıştırılamaz.";
-            return false;
-        }
+        normalized = code.ToString();
         return true;
+    }
+
+    internal const string MissingWhereError = "UPDATE/DELETE sorgusunda WHERE koşulu zorunludur.";
+
+    private static readonly IReadOnlyDictionary<string, string> WriteVerbs = new Dictionary<string, string>(StringComparer.Ordinal)
+    { ["insert"] = "INSERT", ["update"] = "UPDATE", ["delete"] = "DELETE" };
+
+    /// <summary>
+    /// Early, text-level check for a page write query of the given kind (insert, update or delete). The real boundary is
+    /// the write login's database permissions; this only rejects what a single parameterized DML statement never needs:
+    /// a second statement (with or without ';'), CTEs, procedures, DDL, permissions, MERGE/BULK, external sources,
+    /// SELECT … INTO / OUTPUT … INTO, comments, <c>{{ }}</c>, other databases (including <c>db..table</c>) and server
+    /// catalogs. UPDATE and DELETE must have a top-level WHERE.
+    /// </summary>
+    internal static bool TryValidateWriteSql(string? sql, string kind, out string? error)
+    {
+        error = null;
+        if (!WriteVerbs.TryGetValue(kind ?? "", out var verb)) { error = "Yazma sorgusu türü insert, update veya delete olmalıdır."; return false; }
+        if (string.IsNullOrWhiteSpace(sql) || sql.Length > 10000) { error = "SQL sorgusu 1–10.000 karakter olmalıdır."; return false; }
+        if (sql.Contains("{{", StringComparison.Ordinal) || sql.Contains("}}", StringComparison.Ordinal))
+        { error = "SQL içinde {{ }} ifadesi kullanılamaz; değerleri parametreyle bağlayın."; return false; }
+        const string SeparatorError = "Tek bir yazma ifadesi kullanın; yorum, batch ve noktalı virgül kullanılamaz.";
+        if (!TryStripSqlLiterals(sql, SeparatorError, keepIdentifierText: true, out var named, out error)) return false;
+        if (!TryStripSqlLiterals(sql, SeparatorError, keepIdentifierText: false, out var structure, out error)) return false;
+        const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+
+        if (!Regex.IsMatch(structure, $@"^\s*{verb}\b", Options))
+        { error = $"{kind} sorgusu {verb} ile başlamalıdır; WITH ile başlayan sorgu veya başka türde ifade kullanılamaz."; return false; }
+        if (Regex.IsMatch(named,
+                @"\b(MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC(?:UTE)?|WAITFOR|OPENROWSET|OPENQUERY|OPENDATASOURCE|BULK|BACKUP|RESTORE|DBCC|USE|GRANT|DENY|REVOKE|KILL|SHUTDOWN|RECONFIGURE|CHECKPOINT|XP_[A-Z0-9_]+|SP_[A-Z0-9_]+)\b|\b(master|msdb|model|tempdb)\s*\.|\b(sys\s*\.\s*databases)\b|(?:\b[A-Za-z_][\w$#]*\s*\.\s*){2,}[A-Za-z_][\w$#]*|\.\s*\.",
+                Options))
+        { error = "Sorgu prosedür çalıştırma, şema değiştirme (DDL), yetki, MERGE, BULK, dış kaynak ve başka veritabanı erişimi içeremez."; return false; }
+        if (Regex.IsMatch(named, DatabaseListingPattern, Options)) { error = DatabaseListingError; return false; }
+
+        // T-SQL needs no ';' between statements, so the shape of the single allowed statement is checked as well.
+        const string SecondStatementError = "Sorgu tek bir yazma ifadesi olmalıdır; ikinci bir ifade eklenemez.";
+        if (Regex.Matches(structure, @"\b(INSERT|UPDATE|DELETE)\b", Options).Count != 1
+            || Regex.IsMatch(structure, @"\b(DECLARE|PRINT|RAISERROR|THROW|BEGIN|COMMIT|ROLLBACK|SAVE|IF|WHILE|GOTO|RETURN|GO|BREAK|CONTINUE|OPEN|CLOSE|FETCH|DEALLOCATE|SETUSER|REVERT|READTEXT|WRITETEXT|UPDATETEXT)\b", Options))
+        { error = SecondStatementError; return false; }
+        var topLevel = TopLevelWords(structure);
+        int Count(string word) => topLevel.Count(x => x.Equals(word, StringComparison.OrdinalIgnoreCase));
+        var (selects, sets, values) = (Count("SELECT"), Count("SET"), Count("VALUES"));
+        var shapeOk = verb switch
+        {
+            // INSERT … VALUES, INSERT … DEFAULT VALUES or INSERT … SELECT: one source, never both.
+            "INSERT" => sets == 0 && selects + values == 1,
+            "UPDATE" => sets == 1 && selects == 0 && values == 0,
+            _ => sets == 0 && selects == 0 && values == 0
+        };
+        if (!shapeOk) { error = SecondStatementError; return false; }
+        // An UPDATE or DELETE without a top-level WHERE changes every row of the table.
+        if (verb is "UPDATE" or "DELETE" && Count("WHERE") == 0) { error = MissingWhereError; return false; }
+
+        var allowedInto = verb == "INSERT" && Regex.IsMatch(structure, @"^\s*INSERT\s+INTO\b", Options) ? 1 : 0;
+        if (Regex.Matches(structure, @"\bINTO\b", Options).Count != allowedInto)
+        { error = "INTO yalnız INSERT INTO hedefinde kullanılabilir; SELECT … INTO ve OUTPUT … INTO kullanılamaz."; return false; }
+        return true;
+    }
+
+    /// <summary>Words outside any parentheses, so subqueries and value lists do not count as top-level clauses.</summary>
+    private static List<string> TopLevelWords(string code)
+    {
+        var words = new List<string>();
+        var depth = 0;
+        foreach (Match token in Regex.Matches(code, @"[()]|[A-Za-z_@][\w$#@]*", RegexOptions.CultureInvariant))
+        {
+            if (token.Value == "(") depth++;
+            else if (token.Value == ")") depth = Math.Max(0, depth - 1);
+            else if (depth == 0) words.Add(token.Value);
+        }
+        return words;
     }
 
     private static async Task<AggregatePage> AggregateAsync(IQueryable<CustomerAccount> query, IReadOnlyList<string> groupBy, string aggregate,
@@ -5931,6 +6069,6 @@ public sealed record RestoreSavedReportRequest(int ExpectedRevision);
 public sealed record NormalizedReport(string Source, IReadOnlyList<string> Columns, IReadOnlyList<ReportFilter> Filters, string SortBy, bool Descending, int Page, int PageSize, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<string> GroupByFields = null!, string? SqlQuery = null, IReadOnlyList<Guid>? CompanyIds = null);
 public sealed record ReportAggregateRow(object? GroupValue, int RowCount, decimal? Value, IReadOnlyList<object?>? GroupValues = null);
 public sealed record AggregatePage(IReadOnlyList<ReportAggregateRow> Rows, int TotalGroups);
-public sealed record ReportResult(string Source, IReadOnlyList<ReportColumn> Columns, IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, int Page, int PageSize, int TotalCount, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<ReportAggregateRow>? Groups = null, int TotalGroups = 0, IReadOnlyList<string>? GroupByFields = null);
+public sealed record ReportResult(string Source, IReadOnlyList<ReportColumn> Columns, IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, int Page, int PageSize, int TotalCount, string? GroupBy = null, string? Aggregate = null, IReadOnlyList<ReportAggregateRow>? Groups = null, int TotalGroups = 0, IReadOnlyList<string>? GroupByFields = null, bool Truncated = false);
 public sealed record ReportView(Guid Id, string Name, string Source, ReportRunRequest Definition, string Kind, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int DefinitionRevision);
 public sealed record SavedReportRevisionView(Guid Id, int Revision, string Name, string Kind, string Source, ReportRunRequest Definition, Guid CreatedByUserId, DateTimeOffset CreatedAt);

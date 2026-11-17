@@ -87,6 +87,12 @@ builder.Services.AddVaultTenantSqlCredentialReader(options =>
     options.SecretId = DeploymentSecretConfiguration.GetValue(builder.Configuration, "Vault:TenantSqlCredentialReader:SecretId") ?? "";
     options.AllowHttpForLocalDevelopment = builder.Configuration.GetValue<bool>("Vault:AllowHttpForLocalDevelopment");
 });
+builder.Services.AddScoped<ITenantQueryConnectionFactory>(sp => new TenantQueryConnectionFactory(
+    tenantConnectionString,
+    builder.Configuration.GetValue<bool>("Database:SeparationEnabled"),
+    sp.GetRequiredService<ITenantSqlCredentialReader>(),
+    () => sp.GetRequiredService<PlatformDbContext>(),
+    sp.GetService<ILogger<TenantQueryConnectionFactory>>()));
 builder.Services.AddScoped<ITenantStorageLimitProvider, TenantStorageLimitProvider>();
 builder.Services.AddScoped<TenantStorageQuotaInterceptor>();
 builder.Services.AddDbContext<TenantDbContext>((services, options) =>
@@ -143,7 +149,11 @@ builder.Services.AddRateLimiter(o =>
         context.User.FindFirstValue("sub") ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     LiveAiEvaluationEndpoints.ConfigureRateLimiting(o);
+    // Custom page query runs: 300 per user per minute; Studio preview runs: 120 per user per minute (fixed windows, sub claim).
+    CustomPageQueryEndpoints.ConfigureRateLimiting(o);
 });
+// Custom page write runs (published and preview): 60 per user per minute, checked in the handler.
+builder.Services.AddSingleton<CustomPageWriteRateLimiter>();
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Trace-Id")));
 builder.Services.AddOpenApi();
@@ -236,6 +246,8 @@ app.MapCustomFormEndpoints();
 app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
+app.MapCustomPageAccessEndpoints();
+app.MapCustomPageQueryEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();

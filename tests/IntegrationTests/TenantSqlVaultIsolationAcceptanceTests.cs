@@ -335,7 +335,10 @@ public sealed class TenantSqlVaultIsolationAcceptanceTests
         finally
         {
             await DropAcceptanceDatabasesAsync(rootConnection, platformDatabase,
-                tenantDatabases.Concat(studioDatabases).ToArray(), tenantLogins.Concat(studioLogins).Append(provisioningWorkerLogin).ToArray(),
+                tenantDatabases.Concat(studioDatabases).ToArray(), tenantLogins.Concat(studioLogins)
+                    // New-tenant provisioning also creates the query read/write logins.
+                    .Concat(tenantIds.Where(id => id != Guid.Empty).SelectMany(id => new[] { $"aierp_tr_{id:N}", $"aierp_tw_{id:N}" }))
+                    .Append(provisioningWorkerLogin).ToArray(),
                 masterKeyCreated);
         }
     }

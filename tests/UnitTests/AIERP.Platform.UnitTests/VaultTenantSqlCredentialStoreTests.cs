@@ -15,6 +15,15 @@ public sealed class VaultTenantSqlCredentialStoreTests
     private const string SecretId = "test-secret-id";
     private const string FixtureCredential = "test-vault-password";
 
+    [Theory]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryRead, "erp-query-read")]
+    [InlineData(TenantSqlDatabaseComponent.ErpQueryWrite, "erp-query-write")]
+    public void Query_credential_paths_stay_under_the_tenant_sql_policy(TenantSqlDatabaseComponent component, string leaf)
+    {
+        var tenantId = Guid.NewGuid();
+        Assert.Equal($"tenants/{tenantId:D}/sql/{leaf}", TenantSqlCredentialPath.ForTenant(tenantId, component));
+    }
+
     [Fact]
     public void Deployment_secret_is_read_from_a_mounted_file_without_needing_an_environment_value()
     {

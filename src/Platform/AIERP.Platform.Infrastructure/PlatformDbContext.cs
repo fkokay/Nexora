@@ -3097,6 +3097,12 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     : PlatformDbContextBase<PlatformDbContext>(options, auditExecutionContext)
 {
     public DbSet<TenantCompanyProfile> TenantCompanyProfiles => Set<TenantCompanyProfile>();
+    // Custom page access is platform-owned (it references tenant memberships), so it is mapped only here.
+    public DbSet<TenantCustomPageAccess> TenantCustomPageAccesses => Set<TenantCustomPageAccess>();
+    public DbSet<TenantCustomPageAccessUser> TenantCustomPageAccessUsers => Set<TenantCustomPageAccessUser>();
+    public DbSet<TenantCustomPageAccessRevision> TenantCustomPageAccessRevisions => Set<TenantCustomPageAccessRevision>();
+    // Write-query audit sits next to the access rows it is checked against.
+    public DbSet<TenantCustomPageWriteAudit> TenantCustomPageWriteAudits => Set<TenantCustomPageWriteAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -3144,6 +3150,44 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.TaxOffice).HasMaxLength(100);
             e.Property(x => x.TaxNumber).HasMaxLength(10).IsUnicode(false);
             e.HasOne<Tenant>().WithOne().HasForeignKey<TenantCompanyProfile>(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<TenantCustomPageAccess>(e =>
+        {
+            e.ToTable("TenantCustomPageAccesses");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.PageCode }).IsUnique();
+            e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
+            e.Property(x => x.Mode).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Revision).IsConcurrencyToken();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Users).WithOne().HasForeignKey(x => x.AccessId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<TenantCustomPageAccessUser>(e =>
+        {
+            e.ToTable("TenantCustomPageAccessUsers");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.AccessId, x.UserId }).IsUnique();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomPageAccessRevision>(e =>
+        {
+            e.ToTable("TenantCustomPageAccessRevisions");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.PageCode, x.Revision }).IsUnique();
+            e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
+            e.Property(x => x.SnapshotJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCustomPageWriteAudit>(e =>
+        {
+            e.ToTable("TenantCustomPageWriteAudits");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.PageCode, x.OccurredAt });
+            e.Property(x => x.PageCode).HasMaxLength(80).IsRequired();
+            e.Property(x => x.QueryName).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Kind).HasMaxLength(10).IsRequired();
+            e.Property(x => x.ParametersJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
