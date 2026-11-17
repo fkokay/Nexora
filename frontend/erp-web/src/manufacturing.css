@@ -656,7 +656,7 @@ html[data-theme="dark"] #root .app-shell .mfg-more-list > button:hover:not(:disa
 @media (max-width: 760px) {
   /* Only forms that render their own sticky action bar hide the toolbar actions. */
   #root .record-form.mfg-rf:has(.mfg-sticky-bar) > .rf-toolbar .rf-actions { display: none; }
-  #root .mfg-rf .mfg-sticky-bar { position: sticky; bottom: 0; z-index: 20; display: flex; gap: 8px; margin: 16px -16px -24px; padding: 10px 16px; border-top: 1px solid var(--mfg-rf-border); background: var(--mfg-rf-card); }
+  #root .mfg-rf .mfg-sticky-bar { position: sticky; bottom: 0; z-index: 20; display: flex; gap: 8px; margin: 16px 0 -24px; padding: 10px 0; border-top: 1px solid var(--mfg-rf-border); background: var(--mfg-rf-card); }
   #root .mfg-rf .mfg-sticky-bar > .rf-btn--primary { flex: 1; justify-content: center; }
 }
 @media (max-width: 640px) {
@@ -747,6 +747,7 @@ html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: var(--n
 #root .manufacturing-page .mfg-wc-embedded .mfg-rf .mfg-rf-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 /* Reçete / emir oluşturma (kayıt v3): kimlik kartı, kit satır tablosu ve rota kartı alt alta, tek katman. */
 #root .mfg-rf .mfg-rf-stack { display: grid; gap: 12px; min-width: 0; align-content: start; }
+#root .mfg-rf .mfg-rf-stack > * { min-width: 0; }
 #root .mfg-rf .mfg-rf-stack > .dd-box { margin: 0; }
 #root .mfg-rf .mfg-rf-lines-note { margin: 0; padding: 8px 12px; border-top: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 11.5px; }
 #root .mfg-rf table.dd-lines td.mfg-rf-lines-empty { color: var(--nx-muted); text-align: center; }
