@@ -7,6 +7,7 @@ import * as pageReview from './page-review'
 import * as platformA from './platform-a'
 import * as platformB from './platform-b'
 import * as purchasingCustomers from './purchasing-customers'
+import * as purchasingReceipts from './purchasing-receipts'
 import * as sales from './sales'
 import * as recordFormsSales from './record-forms-sales'
 import * as recordFormsInventory from './record-forms-inventory'
@@ -18,7 +19,7 @@ import * as recordFormsPlatform from './record-forms-platform'
 import * as documentPage from './document-page'
 import * as shell from './shell'
 
-const groups = [actionBar, platformA, platformB, sales, purchasingCustomers, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform, documentPage, shell]
+const groups = [actionBar, platformA, platformB, sales, purchasingCustomers, purchasingReceipts, inventoryManufacturing, finance, hrAssets, dialogs, pageReview, recordFormsSales, recordFormsInventory, recordFormsManufacturing, recordFormsHrProjects, recordFormsFinance, recordFormsPurchasing, recordFormsPlatform, documentPage, shell]
 
 
 /** Module dictionaries; the first group that defines a key wins. */
