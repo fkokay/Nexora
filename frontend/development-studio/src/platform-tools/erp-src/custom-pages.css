@@ -497,3 +497,16 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-context-note{margin:0;color:var(--dl-muted);font-size:11.5px}
 /* Sahiplenilen girişler sahibinin içinde çizilir; kendi konumunda gizlenir (katmanlardan seçilebilir kalır) */
 .pd-block.is-owned{display:none}
+/* İşlem Çubuğu (taslak 06: .bar / .b / .k / .sep) */
+.pd-frame .pd-actionbar-wrap{display:grid;gap:6px}
+.pd-frame .pd-actionbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:6px 12px;border:1px solid var(--dl-line);border-radius:6px;background:#fafbfc}
+.pd-frame .pd-bar-btn{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--dl-text);font-size:12.5px;font-weight:500;white-space:nowrap}
+.pd-frame .pd-bar-btn.is-primary{background:var(--dl-primary);color:#fff}
+.pd-frame .pd-bar-btn.is-off{opacity:.38}
+.pd-frame .pd-bar-btn.is-more{border:1px solid var(--dl-line);background:#fff}
+.pd-frame .pd-bar-key{padding:0 4px;border:1px solid var(--dl-line);border-radius:3px;background:#fff;color:var(--dl-muted);font:10px Consolas,monospace}
+.pd-frame .pd-bar-btn.is-primary .pd-bar-key{border-color:#7fa3e8;background:transparent;color:#fff}
+.pd-frame .pd-bar-sep{width:1px;height:20px;margin:0 6px;background:var(--dl-line)}
+.pd-frame .pd-bar-grow{flex:1}
+.pd-frame .pd-actionbar-note{margin:0;color:var(--dl-muted);font-size:11px}
+.pd-action-key{margin-left:6px;padding:0 4px;border:1px solid var(--pd-line);border-radius:3px;background:#fff;color:#667085;font:10px Consolas,monospace}

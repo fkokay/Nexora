@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
-  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, Plus, Redo2,
+  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, Plus, Redo2,
   Rows3, Save, Search, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -17,6 +17,7 @@ import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope 
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
+import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
 import { chipText, idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
 import "./custom-pages.css";
 
@@ -28,7 +29,7 @@ type WorkflowOption = { id: string; code: string; name: string; status: string }
 type ReportSource = { code: string; label: string; columns: { code: string; label: string; dataType: string }[]; aggregates: { code: string; label: string }[] };
 type PreviewData = { totalCount: number; rows: Record<string, unknown>[] };
 type Capability = { canRead: boolean; canCreate: boolean; canUpdate: boolean; canPublish: boolean; canDelete: boolean };
-type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel";
+type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar";
 type PropValue = string | number | boolean | string[];
 type PageComponent = { id: string; type: ComponentType; name?: string; props: Record<string, PropValue>; children?: unknown };
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
@@ -39,6 +40,7 @@ type DropTarget = { index: number; edge: "before" | "after" } | null;
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" };
 
 const palette: PaletteItem[] = [
+  { type: "actionBar", label: "İşlem Çubuğu", group: "Tasarım dili", icon: PanelTop, sample: {} },
   { type: "formCard", label: "Form kartı", group: "Tasarım dili", icon: ClipboardList, sample: { title: "Form kartı", inputs: [], columns: 2 } },
   { type: "contextPanel", label: "Bağlam paneli", group: "Tasarım dili", icon: PanelRight, sample: { title: "Bağlam paneli", fields: [] } },
   { type: "filterChips", label: "Filtre çipleri", group: "Tasarım dili", icon: Filter, sample: { inputs: [] } },
@@ -85,10 +87,11 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   contextPanel: [{ key: "title", label: "Başlık", kind: "text" }],
   filterChips: [],
   facetPanel: [{ key: "title", label: "Başlık", kind: "text" }],
+  actionBar: [],
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts"]);
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage"]);
@@ -121,9 +124,11 @@ const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b
 function reconcileLayoutRefs(definition: PageDefinition): PageDefinition {
   const byId = new Map(definition.components.map((component) => [component.id, component]));
   const readIds = new Set(definition.queries.filter((query) => !isWriteKind(query.kind)).map((query) => query.id));
+  const writeKinds = new Map(definition.queries.map((query) => [query.id, query.kind]));
   const owned = new Set<string>();
   let changed = false;
-  const components = definition.components.map((component) => {
+  let barSeen = false;
+  const components = definition.components.map((component): PageComponent | null => {
     const props = component.props;
     if (component.type === "formCard" || component.type === "facetPanel" || component.type === "filterChips") {
       const wanted = idList(props.inputs).filter((id) => {
@@ -156,8 +161,36 @@ function reconcileLayoutRefs(definition: PageDefinition): PageDefinition {
       changed = true;
       return { ...component, props: next };
     }
+    if (component.type === "actionBar") {
+      // Sayfada en çok bir İşlem Çubuğu olabilir; sunucu ikincisini reddeder.
+      if (barSeen) { changed = true; return null; }
+      barSeen = true;
+      const next = { ...props };
+      let touched = false;
+      const list = (key: string, max: number, ok: (id: string) => boolean) => {
+        if (!(key in next)) return;
+        const wanted = idList(next[key], max).filter(ok);
+        if (sameList(next[key], wanted)) return;
+        if (wanted.length > 0) next[key] = wanted; else delete next[key];
+        touched = true;
+      };
+      const single = (key: string, ok: (id: string) => boolean) => {
+        if (key in next && !(typeof next[key] === "string" && ok(next[key] as string))) { delete next[key]; touched = true; }
+      };
+      const isInput = (id: string) => byId.get(id)?.type === "input";
+      list("newInputs", 12, isInput);
+      list("moreButtons", 10, (id) => byId.get(id)?.type === "button");
+      single("focusInput", isInput);
+      single("saveQuery", (id) => writeKinds.get(id) === "insert" || writeKinds.get(id) === "update");
+      single("deleteQuery", (id) => writeKinds.get(id) === "delete");
+      single("exportTable", (id) => { const table = byId.get(id); return table?.type === "dataTable" && typeof table.props.query === "string" && table.props.query !== ""; });
+      if ("printEnabled" in next && next.printEnabled !== true) { delete next.printEnabled; touched = true; }
+      if (!touched) return component;
+      changed = true;
+      return { ...component, props: next };
+    }
     return component;
-  });
+  }).filter((component): component is PageComponent => component !== null);
   return changed ? { ...definition, components } : definition;
 }
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -180,7 +213,7 @@ const sessionUser = (token: string) => {
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 const iconFor = (type: ComponentType) => palette.find((item) => item.type === type)?.icon ?? LayoutTemplate;
-const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "formCard" || type === "filterChips" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
+const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "formCard" || type === "filterChips" || type === "actionBar" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
 // ERP tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); ERP gösterimi aynı değerleri kullanır.
 const DEFAULT_RADIUS = 8;
 const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel"].includes(type) ? 12 : 0;
@@ -564,6 +597,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const addComponent = (item: PaletteItem, at?: number) => {
     if (!canEdit) return;
+    if (item.type === "actionBar" && actionBarOf(definitionRef.current.components)) return; // sayfada en çok bir İşlem Çubuğu
     const id = newId(item.type);
     const props = Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
     commit((value) => {
@@ -726,7 +760,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const removeComponent = (id: string) => { commit((state) => ({ ...state, components: state.components.filter((component) => component.id !== id).map((component) => { if (component.props.filterInput !== id) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = definitionRef.current.components.find((component) => component.id === id);
-    if (!original || !canEdit) return;
+    if (!original || !canEdit || original.type === "actionBar") return;
     const copyId = newId(original.type);
     const duplicate: PageComponent = { ...original, id: copyId, props: Object.fromEntries(Object.entries(original.props).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])) };
     delete duplicate.name; // Ad sayfada benzersiz olmalı; kopya adsız başlar.
@@ -935,6 +969,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   }, []);
 
   const ownedIds = useMemo(() => ownedInputIds(definition.components), [definition]);
+  // "İşlemler" menüsüne taşınan düğmeler ERP'de kendi yerinde çizilmez; tuvalde de gizlenir (katmanlardan seçilebilir kalır).
+  const movedIds = useMemo(() => movedButtonIds(definition.components), [definition]);
   const rendered = useMemo(() => {
   const owned = ownedInputIds(definition.components);
   const inputById = new Map(definition.components.filter((item) => item.type === "input").map((item) => [item.id, item]));
@@ -1046,6 +1082,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         } : undefined;
         return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
+      case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
+        new: idList(props.newInputs).length > 0, save: typeof props.saveQuery === "string" && props.saveQuery !== "", remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
+        filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
+      }} moreCount={idList(props.moreButtons, 10).length} />;
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
   });
@@ -1128,6 +1168,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     for (const id of idList(component.props.inputs)) layoutOwners[id] = summaryOf(component);
   }
   const layoutInputIds = selected ? idList(selected.props.inputs) : [];
+  // İşlem Çubuğu müfettişi: bağlanabilir düğmeler, sorgulu ızgaralar ve seçili listeler.
+  const pageButtons: PickerInput[] = definition.components.filter((component) => component.type === "button").map((component) => ({
+    id: component.id, name: component.name, label: String(component.props.label || component.name || "Düğme"), inputType: "button", hasOptions: false,
+  }));
+  const queryTables = definition.components.filter((component) => component.type === "dataTable" && typeof component.props.query === "string" && component.props.query !== "");
+  const barNewInputs = selected?.type === "actionBar" ? idList(selected.props.newInputs) : [];
+  const barMoreButtons = selected?.type === "actionBar" ? idList(selected.props.moreButtons, 10) : [];
   const eligibleTables = definition.components.filter((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
   const contextTable = selected?.type === "contextPanel" && typeof selected.props.table === "string" ? eligibleTables.find((component) => component.id === selected.props.table) : undefined;
   const contextColumns = contextTable ? queryPreviews[String(contextTable.props.query)]?.columns ?? [] : [];
@@ -1182,7 +1229,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             if (items.length === 0) return null;
             return <div className="pd-palette-group" key={group}><h4>{group}</h4>{items.map((item) => {
               const Icon = item.icon;
-              return <button type="button" key={item.type} className="pd-palette-item" draggable={canEdit} disabled={!canEdit}
+              const taken = item.type === "actionBar" && !!actionBarOf(definition.components);
+              return <button type="button" key={item.type} className="pd-palette-item" draggable={canEdit && !taken} disabled={!canEdit || taken} title={taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined}
                 onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-component", item.type); event.dataTransfer.effectAllowed = "copy"; setDragging(item.type); }}
                 onDragEnd={() => { setDragging(null); setDropTarget(null); }}
                 onClick={() => addComponent(item, insertIndex())}><span className="pd-palette-icon"><Icon size={15}/></span><span>{item.label}</span></button>;
@@ -1240,7 +1288,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 const drop = dropTarget?.index === index ? dropTarget.edge : null;
                 const horizontal = deviceSpan(spanOf(component), device) < 12;
                 return <div key={component.id}
-                  className={`pd-block ${ownedIds.has(component.id) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
+                  className={`pd-block ${ownedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
@@ -1252,7 +1300,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
                     <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
                     <button type="button" title="Aşağı taşı (Alt+↓)" aria-label="Aşağı taşı" disabled={index === definition.components.length - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
-                    <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => duplicateComponent(component.id)}><Copy size={13}/></button>
+                    <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" disabled={component.type === "actionBar"} onClick={() => duplicateComponent(component.id)}><Copy size={13}/></button>
                     <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(component.id)}><Trash2 size={13}/></button>
                   </div>}
                   <div className="pd-block-render">{rendered[index]}</div>
@@ -1418,6 +1466,42 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </label>;
               })}
             </>)}
+            {selected.type === "actionBar" && section("layout", "Komutlar", <>
+              <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
+              <div className="pd-field">Yeni<span className="pd-action-key" aria-hidden="true">F2</span><small>Temizlenecek girişler (seçilmezse komut kapalı kalır).</small>
+                <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
+                {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
+              </div>
+              <label className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
+                <select value={typeof selected.props.saveQuery === "string" ? selected.props.saveQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { saveQuery: event.target.value || undefined })}>
+                  <option value="">Yok</option>
+                  {definition.queries.filter((query) => query.kind === "insert" || query.kind === "update").map((query) => <option key={query.id} value={query.id}>{query.name} ({queryKindLabels[query.kind]})</option>)}
+                </select>
+              </label>
+              <label className="pd-field">Sil<span className="pd-action-key" aria-hidden="true">Ctrl+Del</span>
+                <select value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { deleteQuery: event.target.value || undefined })}>
+                  <option value="">Yok</option>
+                  {definition.queries.filter((query) => query.kind === "delete").map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}
+                </select>
+              </label>
+              <label className="pd-field">Filtre<span className="pd-action-key" aria-hidden="true">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
+                <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
+                  <option value="">Yok</option>
+                  {pageInputs.map((input) => <option key={input.id} value={input.id}>{input.label}{input.name ? ` (${input.name})` : ""}</option>)}
+                </select>
+              </label>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key" aria-hidden="true">Ctrl+P</span></label>
+              <label className="pd-field">Excel<span className="pd-action-key" aria-hidden="true">Ctrl+E</span><small>Dışa aktarılacak ızgara; sorguya bağlı olmalı.</small>
+                <select value={typeof selected.props.exportTable === "string" ? selected.props.exportTable : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { exportTable: event.target.value || undefined })}>
+                  <option value="">Yok</option>
+                  {queryTables.map((table) => <option key={table.id} value={table.id}>{table.name || table.id}</option>)}
+                </select>
+              </label>
+              <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
+                <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
+                {pageButtons.length === 0 && <small>Önce sayfaya bir eylem düğmesi ekleyin.</small>}
+              </div>
+            </>)}
             {selected.type === "contextPanel" && section("layout", "Bağlam paneli", <>
               <label className="pd-field">Tablo<small>Seçili satırı gösterilecek ızgara; adlı ve sorgulu olmalı.</small>
                 <select value={contextTable?.id ?? ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { table: event.target.value || undefined, fields: [] })}>
@@ -1457,7 +1541,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
           {canEdit && <div className="pd-inspector-footer">
             <button type="button" className="pd-button small" disabled={selectedIndex <= 0} onClick={() => moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
-            <button type="button" className="pd-button small" onClick={() => duplicateComponent(selected.id)}><Copy size={13}/>Kopyala</button>
+            <button type="button" className="pd-button small" disabled={selected.type === "actionBar"} title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : undefined} onClick={() => duplicateComponent(selected.id)}><Copy size={13}/>Kopyala</button>
             <button type="button" className="pd-button small danger" onClick={() => removeComponent(selected.id)}><Trash2 size={13}/>Sil</button>
           </div>}
         </div> : <div className="pd-right-body">

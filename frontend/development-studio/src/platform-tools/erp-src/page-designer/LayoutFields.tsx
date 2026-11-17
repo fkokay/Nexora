@@ -9,8 +9,8 @@ export type PickerInput = { id: string; name?: string; label: string; inputType:
 export const isSafeColumnCode = (code: string) => code.length > 0 && code.length <= 128 && code === code.trim() && sanitizeSafeValue(code) === code;
 
 /** Onay kutulu giriş listesi; seçilenler sırayla taşınabilir. Başka sahibe ait girişler soluk ve seçilemez. */
-export function InputPicker({ inputs, value, onChange, owned, filter, disabled }: {
-  inputs: PickerInput[]; value: string[]; onChange: (next: string[]) => void; owned?: Record<string, string>; filter?: (input: PickerInput) => boolean; disabled?: boolean;
+export function InputPicker({ inputs, value, onChange, owned, filter, disabled, max = MAX_ITEMS }: {
+  inputs: PickerInput[]; value: string[]; onChange: (next: string[]) => void; owned?: Record<string, string>; filter?: (input: PickerInput) => boolean; disabled?: boolean; max?: number;
 }) {
   const byId = new Map(inputs.map((input) => [input.id, input]));
   const selected = value.filter((id) => byId.has(id));
@@ -33,7 +33,7 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled }
     const taken = !isOn ? owned?.[input.id] : undefined;
     return <li key={input.id} className={`${isOn ? "is-on" : ""}${taken ? " is-taken" : ""}`} title={taken ? `Başka kartta: ${taken}` : undefined}>
       <label>
-        <input type="checkbox" checked={isOn} disabled={disabled || !!taken || (!isOn && selected.length >= MAX_ITEMS)}
+        <input type="checkbox" checked={isOn} disabled={disabled || !!taken || (!isOn && selected.length >= max)}
           onChange={(event) => onChange(event.target.checked ? [...selected, input.id] : selected.filter((id) => id !== input.id))}/>
         <span>{nameOf(input)}</span>
         {taken && <small className="pd-taken-hint">Başka kartta</small>}
