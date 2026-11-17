@@ -902,7 +902,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
-  }), [definition, forms, sources, previewData, queryPreviews]);
+  }), [definition, forms, sources, previewData, queryPreviews, counts, token]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
