@@ -10,7 +10,7 @@ import {
   DetailNotes,
   DetailSection,
 } from "../../document-detail/DocumentDetailLayout";
-import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesRequestFlow } from "../../sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesRequestFlow } from "../../sales/salesDocumentDetail";
 import { formatRequestAmount, formatRequestDate, formatRequestQuantity, type SalesRequestDetail } from "../types";
 
 type Props = {
@@ -83,7 +83,7 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
         />
       </div>
       <div className="dd-box">
-        <DetailLinesHead title="Satırlar" meta={`${detail.lines.length} satır`} />
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} />} />
         <div className="dd-lines-wrap">
           <table className="dd-lines" aria-label="Talep satırları">
             <thead>

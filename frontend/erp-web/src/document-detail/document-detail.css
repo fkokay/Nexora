@@ -268,12 +268,14 @@ html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
 #root .doc-surface.doc-detail .dd-grid .advanced-grid-scroll { min-height: 0; border: 0; border-top: 1px solid var(--dd-line); border-radius: 0; }
 #root .doc-surface.doc-detail .dd-grid :is(th, td).dd-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; }
 #root .doc-surface.doc-detail .dd-grid td.dd-num b { font-weight: 400; }
-/* A grid in a section (collections, returns) is as tall as its rows, not the grid's empty-state minimum. */
-#root .doc-surface.doc-detail .dd-section .advanced-grid-scroll { min-height: 0; }
+/* A grid in a section (collections, returns): no second frame inside the section card, and as tall as its rows. */
+#root .doc-surface.doc-detail .dd-section .advanced-grid-toolbar { padding: 6px 0; border: 0; border-radius: 0; background: transparent; }
+#root .doc-surface.doc-detail .dd-section .advanced-grid-scroll { min-height: 0; border: 0; border-top: 1px solid var(--dd-line); border-radius: 0; }
 
 /* Legacy inline forms kept in a detail body (custom fields, requested date, collection / return forms): the labels stack
    above their fields as they did inside the old window (.modal label). */
 #root .doc-surface.doc-detail :is(.form-two, .collection-form) > label { display: grid; align-content: start; gap: 6px; min-width: 0; }
+#root .doc-surface.doc-detail .panel > .panel-heading > div:first-child { display: grid; gap: 2px; min-width: 0; }
 /* DocumentTotals: satırlar, KDV dökümü girintili, genel toplam vurgulu. */
 #root .doc-surface .dd-totals { margin: 0; }
 #root .doc-surface .dd-totals > div {

@@ -43,7 +43,7 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, salesTotalRows } from "./sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, SalesLinesMeta, salesTotalRows } from "./sales/salesDocumentDetail";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -756,7 +756,7 @@ export function SalesDeliveriesScreen({
               />
             </div>
             <div className="dd-box">
-              <DetailLinesHead title="Satırlar" meta={`${detail.lines.length} satır · ${detail.warehouseName}`} />
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} extra={detail.warehouseName} />} />
               <div className="dd-lines-wrap">
                 <table className="dd-lines" aria-label="İrsaliye satırları">
                   <thead>

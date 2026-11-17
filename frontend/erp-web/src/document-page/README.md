@@ -9,7 +9,7 @@ detay ekranlarının ortak yapısı. Görsel referans: onaylı taslak
 ## Bölümler (`DocumentSurface`)
 
 1. **Başlık** – geri düğmesi; üst satırda kırıntı ve belge türü (`eyebrow`, verilmezse `title`);
-   büyük belge numarası (`code`) ve yanında `·` ile cari (`subtitle`); künye satırında durum etiketi
+   büyük belge numarası (`code`; yüklenirken verilmez, başlıkta o sırada belge türü görünür) ve yanında `·` ile cari (`subtitle`); künye satırında durum etiketi
    (`status`) ve kısa bilgiler (`meta`: "5 satır", "Oluşturan …"). Ortada **durum akış şeridi**
    (`statusFlow`), sağda "N değişiklik kaydedilmedi" (`dirty`), belgeler arası gezinme
    (`recordNav`: ‹ PgUp · 7 / 31 · PgDn ›) ve Vazgeç (`onCancel` verilirse). Sayfa zemininde durur,
@@ -54,7 +54,8 @@ durum çizilmez** (ör. faturada Taslak / Onaylı yoktur).
 Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kartı → bölümler.
 
 - **Başlık alanları**: `.dd-box` kartında `DetailInfoGrid` — dört sütun etiket / değer, giriş kutusu
-  yok (1100px altında iki, 520px altında tek sütun).
+  yok. Sütun sayısı kartın kendi genişliğine göredir (container query, `.dd-info-wrap`): 760px altında iki,
+  420px altında tek sütun — yanında bağlam paneli açıkken kart daralır.
 - **Satır kartı**: `.dd-box` içinde `DetailLinesHead` (başlık, özet, satır kısayolları — yalnızca
   ekranda gerçekten çalışan tuşlar), `.dd-lines-wrap > table.dd-lines` ve `DetailLinesFooter`.
   Izgara kartın kenarlarına dayanır: gri başlık satırı, 30px satırlar, ince hücre çizgileri.
@@ -62,12 +63,17 @@ Sıra: (`DetailTiles`) → (`DetailTabs`) → başlık alanları → satır kart
   stok hücresi `dd-stock` (kod üstte, ad altta); satırlar `is-active` (aktif satır, mavi sol çizgi),
   `is-warning` (uyarılı satır, sarı sol çizgi) ve hemen altında `dd-line-message` (uyarı metni),
   sonda boş `dd-new-line` ("yeni satır"), iptal edilmiş `is-voided`.
+- **Kiracı satır düzeni**: ekran görünümüyle (screen view) çizilen `AdvancedDataGrid` satır kartında `.dd-grid` içine
+  konur; kartın kenarına dayanır, ikinci çerçeve çizilmez; sayı sütunlarına `dd-num` verilir. Bölüm (`DetailSection`)
+  içindeki ızgaralar da çerçevesizdir.
 - **Toplamlar**: `DocumentTotals` (yalnızca görünüm, hesap yapmaz). Satırlar sayfadan gelir:
   `emphasis: "negative"` düşülen tutar, `"sub"` bir üst satırın girintili dökümü (KDV oranlarına göre
   matrah / KDV), `"grand"` vurgulu genel toplam. `DetailLinesFooter` satır kartının alt bandında solda
   notlar, sağda bu bloğu çizer.
 - **Bağlam paneli bölümleri**: `DetailContext` (başlık + sağda kısa açıklama, tek katman kart),
-  içine `DetailChain` (sipariş → irsaliye → fatura; açık belge vurgulu, diğerleri `onOpen` ile açılır),
+  içine `DetailChain` (sipariş → irsaliye → fatura; açık belge vurgulu, diğerleri `onOpen` ile açılır; numarası
+  bilinmeyen bağlı belge `code` olmadan yalnızca türüyle; işaret harfleri `kind` ya da `label`den: "Bu fatura" + `kind`
+  "Satış faturası" → SF),
   `DetailKeyValues` (bakiye, rezerve…) ve `DetailMeterRows` (depolara göre stok, oran çubuğu).
 - `DetailSection` (Ödemeler, İadeler…), `DetailNotes`, işlem formları için sağdan kayan `DetailDrawer`.
 

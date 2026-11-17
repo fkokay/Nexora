@@ -82,7 +82,7 @@ import {
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
 import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
-import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -3447,7 +3447,7 @@ export function SalesPage({
                 <div className="dd-box">
                   <DetailLinesHead
                     title="Satırlar"
-                    meta={`${detail.lines.length} satır${usesForeignCurrency ? "" : ` · ${detail.currencyCode}`}`}
+                    meta={<SalesLinesMeta lines={detail.lines.length} extra={usesForeignCurrency ? undefined : detail.currencyCode} />}
                   />
                   <div className="dd-lines-wrap">
                     <table className="dd-lines" aria-label="Teklif satırları">
@@ -10648,7 +10648,7 @@ function SalesOrderModal({
           </form>
         )}
         <div className="dd-box">
-        <DetailLinesHead title="Satırlar" meta={`${order.lines.length} satır · ${order.currencyCode}`} />
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={order.lines.length} extra={order.currencyCode} />} />
         <div className="dd-grid">
           <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
@@ -10726,38 +10726,6 @@ function SalesOrderModal({
         </div>
         </>}
         {detailTab === "deliveries" && <>
-        <DetailSection
-          title="İrsaliyeler"
-          count={deliveries.length}
-          actions={
-            <>
-          {order.status === "Open" &&
-            activeReservation &&
-            role === "TenantAdmin" && (
-              <button
-                className="secondary danger-action"
-                disabled={busy}
-                onClick={() => void releaseOrderReservation()}
-              >
-                Rezervasyonu bırak
-              </button>
-            )}
-          {order.status === "Open" && (
-            <button
-              className="primary"
-              disabled={
-                busy ||
-                warehouses.length === 0 ||
-                order.lines.every((x) => x.remainingQuantity === 0)
-              }
-              onClick={startDelivery}
-            >
-              <Plus size={14} /> İrsaliye oluştur
-            </button>
-          )}
-            </>
-          }
-        >
         {editor && (
           <RecordFormPage
             variant="dialog"
@@ -10882,6 +10850,38 @@ function SalesOrderModal({
             </RecordFormGroup>
           </RecordFormPage>
         )}
+        <DetailSection
+          title="İrsaliyeler"
+          count={deliveries.length}
+          actions={
+            <>
+          {order.status === "Open" &&
+            activeReservation &&
+            role === "TenantAdmin" && (
+              <button
+                className="secondary danger-action"
+                disabled={busy}
+                onClick={() => void releaseOrderReservation()}
+              >
+                Rezervasyonu bırak
+              </button>
+            )}
+          {order.status === "Open" && (
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                warehouses.length === 0 ||
+                order.lines.every((x) => x.remainingQuantity === 0)
+              }
+              onClick={startDelivery}
+            >
+              <Plus size={14} /> İrsaliye oluştur
+            </button>
+          )}
+            </>
+          }
+        >
         <div className="delivery-list">
           {loading ? (
             <span className="cell-subtitle">İrsaliyeler yükleniyor…</span>

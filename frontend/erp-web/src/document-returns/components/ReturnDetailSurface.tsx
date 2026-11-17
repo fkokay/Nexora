@@ -9,7 +9,7 @@ import {
   DetailLinesHead,
   formatAmount,
 } from "../../document-detail/DocumentDetailLayout";
-import { ReturnFlow, SALES_DETAIL_HINTS, SalesFooterStatus, salesTotalRows, vatByRate } from "../../sales/salesDocumentDetail";
+import { ReturnFlow, SALES_DETAIL_HINTS, SalesLinesMeta, SalesFooterStatus, salesTotalRows, vatByRate } from "../../sales/salesDocumentDetail";
 import { formatReturnAmount, formatReturnDate, formatReturnQuantity, type ReturnDetail, type ReturnSideConfig } from "../types";
 
 type Props = {
@@ -86,7 +86,7 @@ export function ReturnDetailSurface({ detail, config, error, notice, onDismissEr
         />
       </div>
       <div className="dd-box">
-        <DetailLinesHead title="Satırlar" meta={`${detail.lines.length} satır`} />
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} />} />
         <div className="dd-lines-wrap">
           <table className="dd-lines" aria-label="İade satırları">
             <thead>

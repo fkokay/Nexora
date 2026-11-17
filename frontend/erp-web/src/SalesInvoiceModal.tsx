@@ -27,7 +27,7 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesInvoiceFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesInvoiceFlow, SalesLinesMeta, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type CustomerCollection = AppTypes.CustomerCollection;
 type FinancialAccount = AppTypes.FinancialAccount;
@@ -827,7 +827,7 @@ export function SalesInvoiceModal({
               />
             </div>
             <div className="dd-box">
-              <DetailLinesHead title="Satırlar" meta={`${invoice.lines.length} satır · ${invoice.currencyCode}`} />
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={invoice.lines.length} extra={invoice.currencyCode} />} />
               <div className="dd-lines-wrap">
                 <table className="dd-lines" aria-label="Fatura satırları">
                   <thead>

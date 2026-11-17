@@ -146,5 +146,20 @@ export function SalesFooterStatus({ lines, total }: { lines: number; total?: Rea
   );
 }
 
+/** Satır kartı başlığının özeti: "5 satır · TRY". Parçalar ayrı metin düğümleridir (çeviri her parçayı ayrı bulur). */
+export function SalesLinesMeta({ lines, extra }: { lines: number; extra?: string }) {
+  return (
+    <>
+      <span>{`${lines} satır`}</span>
+      {extra && (
+        <>
+          {" · "}
+          <span>{extra}</span>
+        </>
+      )}
+    </>
+  );
+}
+
 /** Detay satır tabloları salt okunurdur; alt bilgide yalnızca ekranda gerçekten çalışan tuşlar listelenir. */
 export const SALES_DETAIL_HINTS = ["Alt+İ işlemler"];

@@ -230,6 +230,8 @@ describe('Satış teklifi detayı', () => {
     expectNoHeaderActions();
     expect(openMenu()).toEqual([]);
     expect(within(surface()).getByRole('table', { name: 'Teklif satırları' }).className).toBe('dd-lines');
+    // The lines summary is separate text nodes, so the English lookup translates "2 satır" on its own.
+    expect(Array.from(surface().querySelectorAll('.dd-lines-meta > span')).map((node) => node.textContent)).toEqual(['2 satır', 'TRY']);
     expect(totals()).toEqual([
       ['Ara toplam', '150,00 TRY', ''],
       ['Toplam iskonto', '0,00 TRY', ''],
