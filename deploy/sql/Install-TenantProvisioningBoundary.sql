@@ -393,7 +393,7 @@ IF EXISTS (SELECT 1 FROM sys.database_permissions p
                  OR (p.permission_name IN (N'SELECT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.TenantProvisioningJobs') AND p.minor_id=0)
                  OR (p.permission_name IN (N'SELECT',N'INSERT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.TenantDatabaseCatalog') AND p.minor_id=0)
                  OR (p.permission_name IN (N'SELECT',N'INSERT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.DatabaseSeparationComponentStates') AND p.minor_id=0)
-                 OR (p.permission_name=N'INSERT' AND p.major_id=OBJECT_ID(N'dbo.AuditEvents') AND p.minor_id=0)
+                 OR (p.permission_name IN (N'SELECT',N'INSERT') AND p.major_id=OBJECT_ID(N'dbo.AuditEvents') AND p.minor_id=0)
              ))
     THROW 51052, 'Worker has Platform grants outside the approved job/catalog permission set.', 1;
 
@@ -403,6 +403,10 @@ GRANT UPDATE (IsActive) ON dbo.Tenants TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, UPDATE ON dbo.TenantProvisioningJobs TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, INSERT, UPDATE ON dbo.TenantDatabaseCatalog TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, INSERT, UPDATE ON dbo.DatabaseSeparationComponentStates TO [$(TenantProvisioningLoginName)];
-GRANT INSERT ON dbo.AuditEvents TO [$(TenantProvisioningLoginName)];
+/* SELECT is required too: PlatformDbContext.SaveChanges adds a fallback mutation
+   AuditEvent for every TenantDatabaseCatalog change, and EF inserts it with
+   OUTPUT INSERTED.Id, which needs SELECT on the table. Without it every new-tenant
+   provisioning job fails with DbUpdateException. */
+GRANT SELECT, INSERT ON dbo.AuditEvents TO [$(TenantProvisioningLoginName)];
 GO
 
