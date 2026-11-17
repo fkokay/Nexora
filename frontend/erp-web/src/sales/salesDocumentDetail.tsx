@@ -20,7 +20,8 @@ const CANCELLED = step("Cancelled", "İptal");
 const VOIDED = step("Voided", "İptal");
 
 /** Talep: Açık → Teklif verildi; İptal akış dışı son durum. */
-export function SalesRequestFlow({ status }: { status: string }) {
+/** `status` verilmezse (kaydedilmemiş yeni belge) geçerli adım yoktur: bütün adımlar ilerididir. */
+export function SalesRequestFlow({ status }: { status?: string }) {
   return (
     <DocumentStatusFlow
       steps={[step("Open", salesRequestStatus("Open").label), step("Quoted", salesRequestStatus("Quoted").label)]}
@@ -43,7 +44,7 @@ export function SalesQuoteFlow({ status }: { status: string }) {
 }
 
 /** Sipariş: Açık → Tamamlandı; İptal akış dışı son durum. */
-export function SalesOrderFlow({ status }: { status: string }) {
+export function SalesOrderFlow({ status }: { status?: string }) {
   return (
     <DocumentStatusFlow
       steps={[step("Open", salesOrderStatus("Open").label), step("Fulfilled", salesOrderStatus("Fulfilled").label)]}
@@ -73,7 +74,7 @@ export function SalesDeliveryFlow({ status, invoiced, draft = false }: { status:
 }
 
 /** Fatura: Kesildi; İptal akış dışı son durum (faturanın Taslak / Onaylı durumu yoktur). */
-export function SalesInvoiceFlow({ status }: { status: string }) {
+export function SalesInvoiceFlow({ status }: { status?: string }) {
   return <DocumentStatusFlow steps={[step("Posted", salesInvoiceStatus("Posted").label)]} current={status} terminal={VOIDED} />;
 }
 

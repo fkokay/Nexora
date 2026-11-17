@@ -2778,7 +2778,8 @@ export function SalesPage({
               type: "Satış siparişi",
               code: directOrderCode.trim() || undefined,
               party: customers.find((x) => x.id === customerId)?.name,
-              statusFlow: <SalesOrderFlow status="Open" />,
+              // A new order is Açık only once saved; an edited order already is.
+              statusFlow: <SalesOrderFlow status={directOrderEditId ? "Open" : undefined} />,
               hints: SALES_FORM_HINTS,
             }}
             title={directOrderEditId ? "Sipariş Düzenleme" : "Yeni Sipariş"}

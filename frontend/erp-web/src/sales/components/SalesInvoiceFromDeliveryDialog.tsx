@@ -953,7 +953,8 @@ export default function SalesInvoiceFromDeliveryDialog({
                 ? {
                     type: "Satış faturası",
                     party: customers.find((customer) => customer.id === standaloneCustomerId)?.name,
-                    statusFlow: <SalesInvoiceFlow status="Posted" />,
+                    // Saving issues the invoice (Kesildi); before that no step is current.
+                    statusFlow: <SalesInvoiceFlow />,
                     hints: SALES_FORM_HINTS,
                   }
                 : undefined

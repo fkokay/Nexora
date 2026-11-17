@@ -153,7 +153,8 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
         type: "Satış talebi",
         code: code.trim() || undefined,
         party: customers.find((customer) => customer.id === customerId)?.name,
-        statusFlow: <SalesRequestFlow status="Open" />,
+        // The request is Açık only once saved: no current step before that.
+        statusFlow: <SalesRequestFlow />,
         hints: [...SALES_FORM_HINTS, "Alt+İ işlemler"],
       }}
       mode="create"

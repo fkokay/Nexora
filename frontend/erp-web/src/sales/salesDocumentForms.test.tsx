@@ -327,14 +327,15 @@ describe('Belge ekranı görünümü', () => {
     expect(openMenu()).toEqual([]);
   });
 
-  it('order create: Açık current, cari next to the heading, totals', async () => {
+  it('order create: no current step before save (Açık exists once saved), cari next to the heading, totals', async () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantUser" onNavigate={vi.fn()} createOrderPage />);
     await waitFor(() => expect(enabled('save')).toBe(true));
     await settle();
     expectKitChrome('Satış siparişi');
     expect(openMenu()).toEqual([]);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
-    expect(flowSteps()).toEqual(['Açık*', 'Tamamlandı']);
+    expect(flowSteps()).toEqual(['Açık', 'Tamamlandı']);
+    expect(head().querySelector('.doc-surface-meta .rf-badge')!.textContent).toBe('YENİ KAYIT');
     fireEvent.click(document.querySelector<HTMLElement>('.customer-popup-trigger')!);
     fireEvent.click(await screen.findByRole('option', { name: /Acme/ }));
     await waitFor(() => expect(head().querySelector('.doc-surface-party')?.textContent).toBe('Acme'));
@@ -349,7 +350,7 @@ describe('Belge ekranı görünümü', () => {
     ]);
   });
 
-  it('request create: Açık current, lines grid without prices (no totals)', async () => {
+  it('request create: no current step before save, lines grid without prices (no totals)', async () => {
     renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
     await settle();
     fireEvent.keyDown(window, { key: 'F2' });
@@ -357,7 +358,7 @@ describe('Belge ekranı görünümü', () => {
     expectKitChrome('Satış talebi');
     expect(openMenu()).toEqual(['Kaydet ve YeniCtrl+F2', 'Temizle']);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Alt+İ işlemler', 'Esc kapat']);
-    expect(flowSteps()).toEqual(['Açık*', 'Teklif verildi']);
+    expect(flowSteps()).toEqual(['Açık', 'Teklif verildi']);
     expect(form().querySelector('.dd-totals')).toBeNull();
   });
 
@@ -372,14 +373,15 @@ describe('Belge ekranı görünümü', () => {
     expect(form().querySelector('.dd-totals')).toBeNull();
   });
 
-  it('invoice create: Kesildi (the save issues it), totals as today', async () => {
+  it('invoice create: Kesildi not current before save (the save issues it), totals as today', async () => {
     renderScreen(<SalesInvoicesPage token="t" role="TenantUser" onNavigate={vi.fn()} openInvoiceCreate />);
     await waitFor(() => expect(command('save').getAttribute('data-primary')).toBe('true'));
     await settle();
     expectKitChrome('Satış faturası');
     expect(openMenu()).toEqual([]);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
-    expect(flowSteps()).toEqual(['Kesildi*']);
+    expect(flowSteps()).toEqual(['Kesildi']);
+    expect(head().querySelector('[aria-current]')).toBeNull();
     await pick('Müşteri seçin', /Acme/);
     await waitFor(() => expect(head().querySelector('.doc-surface-party')?.textContent).toBe('Acme'));
     await pick('Stok kartı seçin', /Koli 40x30/);
