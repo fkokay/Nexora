@@ -325,3 +325,95 @@ html[data-theme="dark"] #root .general-ledger-panel.list-v2 {
 @media (max-width: 760px) {
   #root .general-ledger-panel.list-v2 .glrp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/*
+ * Report screen frame (LedgerReportFrame, approved mockup 04 "Rapor ekranı"): header, bar, then the parameter panel
+ * (left, 248px, Ctrl+. hides it) beside the result. The page sits on the canvas; the parameter panel and the result
+ * card are the only boxes. Colours: --nx-* tokens.
+ */
+#root .app-shell .general-ledger-panel:is(.general-ledger-view-trial-balance, .general-ledger-view-balance-sheet).list-v2 {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .general-ledger-panel.list-v2 .glrp-frame-root { display: grid; gap: 12px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glrp-frame { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glrp-frame.is-params-hidden { grid-template-columns: minmax(0, 1fr); }
+#root .general-ledger-panel.list-v2 .glrp-params {
+  display: grid;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+#root .general-ledger-panel.list-v2 .glrp-params-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--nx-text); font-size: 13px; }
+#root .general-ledger-panel.list-v2 .glrp-param { display: grid; gap: 6px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glrp-param-label { color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root .general-ledger-panel.list-v2 .glrp-param .list-v2-chips { flex-wrap: wrap; }
+#root .general-ledger-panel.list-v2 .glrp-param-dates { display: grid; gap: 6px; }
+#root .general-ledger-panel.list-v2 .glrp-param-dates .list-v2-filter { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; }
+#root .general-ledger-panel.list-v2 .glrp-param-dates input { width: 100%; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glrp-params-note { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-params-toggle, .glrp-run) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--nx-control-h);
+  min-height: 0;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font: 500 12.5px/1 var(--nx-font);
+  box-shadow: none;
+  cursor: pointer;
+}
+#root .app-shell .general-ledger-panel.list-v2 .glrp-params-toggle { height: 26px; padding: 0 8px; border-color: transparent; color: var(--nx-muted); }
+#root .app-shell .general-ledger-panel.list-v2 .glrp-run { border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-run kbd { padding: 1px 4px; border: 1px solid currentColor; border-radius: 4px; font: 10px var(--nx-font-mono); opacity: 0.85; }
+#root .general-ledger-panel.list-v2 .glrp-result { display: grid; gap: 10px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glrp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 26px; color: var(--nx-muted); font-size: 12px; }
+#root .general-ledger-panel.list-v2 .glrp-summary-item b { color: var(--nx-text); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-card {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  overflow: hidden;
+}
+#root .general-ledger-panel.list-v2 .glbs-side { border-color: var(--nx-line); border-radius: var(--nx-radius-card); }
+#root .general-ledger-panel.list-v2 .glrp-card > .glrp-table-wrap { max-height: calc(100dvh - 330px); overflow: auto; border: 0; border-radius: 0; }
+/* Dense 30px rows; amounts right-aligned, tabular, normal weight (the shell gives legacy tables 44px rows). */
+#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) :is(th, td) {
+  height: var(--nx-row-h-dense) !important;
+  padding: 4px 10px !important;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+#root .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-table, .glbs-table) thead th { background: var(--nx-table-head); color: var(--nx-muted); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-card .glrp-group-row th { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
+#root .general-ledger-panel.list-v2 .glrp-card .glrp-subtotal-row :is(th, td) { color: var(--nx-muted); font-weight: 600; }
+#root .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(.glrp-total-row, .glbs-total-row) :is(th, td) { background: var(--nx-table-head); color: var(--nx-text); font-weight: 650; }
+#root .general-ledger-panel.list-v2 .glrp-total-check { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-size: 12px; font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-total-check.is-ok { color: var(--nx-ok); }
+#root .general-ledger-panel.list-v2 .glrp-total-check.is-bad { color: var(--nx-bad); }
+#root .general-ledger-panel.list-v2 .glrp-foot-warn { color: var(--nx-warn); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glrp-result > .list-v2-toolbar { margin: 0; }
+@media (max-width: 1099px) {
+  #root .general-ledger-panel.list-v2 .glrp-frame { grid-template-columns: minmax(0, 1fr); }
+  #root .general-ledger-panel.list-v2 .glrp-layout.has-side { grid-template-columns: minmax(0, 1fr); }
+}
+#root .app-shell .general-ledger-panel.list-v2 .glrp-card .glrp-subtotal-row > th { background: transparent !important; }
+#root .general-ledger-panel.list-v2 .glrp-params .gl-seg { border-radius: var(--nx-radius-control); }
+#root .app-shell .general-ledger-panel.list-v2 :is(.glrp-card, .glbs-side) :is(tr.glrp-row, tr.glbs-line, tr.glbs-group-row) > th { background: transparent !important; }

@@ -878,7 +878,7 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" || view === "mappings" ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
+    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" || view === "mappings" || isReportView ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
       {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
