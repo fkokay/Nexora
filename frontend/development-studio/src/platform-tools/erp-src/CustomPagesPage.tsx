@@ -1468,36 +1468,36 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
             {selected.type === "actionBar" && section("layout", "Komutlar", <>
               <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
-              <div className="pd-field">Yeni<span className="pd-action-key">F2</span><small>Temizlenecek girişler (seçilmezse komut kapalı kalır).</small>
+              <div className="pd-field">Yeni<span className="pd-action-key" aria-hidden="true">F2</span><small>Temizlenecek girişler (seçilmezse komut kapalı kalır).</small>
                 <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
                 {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
               </div>
-              <label className="pd-field">Kaydet<span className="pd-action-key">Ctrl+S</span>
+              <label className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <select value={typeof selected.props.saveQuery === "string" ? selected.props.saveQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { saveQuery: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {definition.queries.filter((query) => query.kind === "insert" || query.kind === "update").map((query) => <option key={query.id} value={query.id}>{query.name} ({queryKindLabels[query.kind]})</option>)}
                 </select>
               </label>
-              <label className="pd-field">Sil<span className="pd-action-key">Ctrl+Del</span>
+              <label className="pd-field">Sil<span className="pd-action-key" aria-hidden="true">Ctrl+Del</span>
                 <select value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { deleteQuery: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {definition.queries.filter((query) => query.kind === "delete").map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}
                 </select>
               </label>
-              <label className="pd-field">Filtre<span className="pd-action-key">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
+              <label className="pd-field">Filtre<span className="pd-action-key" aria-hidden="true">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
                 <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {pageInputs.map((input) => <option key={input.id} value={input.id}>{input.label}{input.name ? ` (${input.name})` : ""}</option>)}
                 </select>
               </label>
-              <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key">Ctrl+P</span></label>
-              <label className="pd-field">Excel<span className="pd-action-key">Ctrl+E</span><small>Dışa aktarılacak ızgara; sorguya bağlı olmalı.</small>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key" aria-hidden="true">Ctrl+P</span></label>
+              <label className="pd-field">Excel<span className="pd-action-key" aria-hidden="true">Ctrl+E</span><small>Dışa aktarılacak ızgara; sorguya bağlı olmalı.</small>
                 <select value={typeof selected.props.exportTable === "string" ? selected.props.exportTable : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { exportTable: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {queryTables.map((table) => <option key={table.id} value={table.id}>{table.name || table.id}</option>)}
                 </select>
               </label>
-              <div className="pd-field">İşlemler<span className="pd-action-key">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
+              <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
                 <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
                 {pageButtons.length === 0 && <small>Önce sayfaya bir eylem düğmesi ekleyin.</small>}
               </div>
