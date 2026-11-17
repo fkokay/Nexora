@@ -190,7 +190,25 @@ export const english: Record<string, string> = {
   'Ret gerekçesi zorunludur.': 'A rejection reason is required.', 'Kararı onaylayın': 'Confirm the decision', 'Evet, onayla': 'Yes, approve', 'Evet, reddet': 'Yes, reject',
   'Talep kararı': 'Request decision', 'bugün': 'today', 'Talep ve tedarikçi teklifi kayıtlarına eklenen tenant özel alanları.': 'Tenant custom fields added to request and supplier quote records.',
   // Words captured by patterns below
-  'güncellendi': 'updated', 'oluşturuldu': 'created', 'Döviz': 'Currency', 'reddedildi': 'rejected'
+  'güncellendi': 'updated', 'oluşturuldu': 'created', 'Döviz': 'Currency', 'reddedildi': 'rejected',
+  // Sales lists (mockup 06): summary cards, detail panel, belge zinciri.
+  'Teklif tutarı': 'Quote amount', 'Yanıt bekleyen': 'Awaiting answer', 'Sipariş tutarı': 'Order amount',
+  'Sevk bekleyen': 'Awaiting shipment', 'Kesilen': 'Issued', 'fatura · bu sayfa': 'invoices · this page',
+  'Faturalanmamış': 'Not invoiced', 'Teklif bekleyen': 'Awaiting a quote', 'İade tutarı': 'Return amount',
+  'birden çok para birimi': 'several currencies', 'bu sayfa · birden çok para birimi': 'this page · several currencies',
+  'Satış teklifi özeti': 'Sales quote summary', 'Satış siparişi özeti': 'Sales order summary',
+  'Satış irsaliyesi özeti': 'Sales delivery note summary',
+  'Satış talebi özeti': 'Sales request summary', 'İade özeti': 'Return summary',
+  'Özetini görmek için listeden bir teklif seçin.': 'Select a quote in the list to see its summary.',
+  'Özetini görmek için listeden bir sipariş seçin.': 'Select an order in the list to see its summary.',
+  'Özetini görmek için listeden bir fatura seçin.': 'Select an invoice in the list to see its summary.',
+  'Özetini görmek için listeden bir irsaliye seçin.': 'Select a delivery note in the list to see its summary.',
+  'Özetini görmek için listeden bir talep seçin.': 'Select a request in the list to see its summary.',
+  'Özetini görmek için listeden bir iade seçin.': 'Select a return in the list to see its summary.',
+  'Bu teklif': 'This quote', 'Bu sipariş': 'This order', 'Bu fatura': 'This invoice', 'Bu irsaliye': 'This delivery note',
+  'Bu talep': 'This request', 'Bu iade': 'This return', 'Belge zinciri': 'Document chain', 'Teslim tarihi': 'Delivery date',
+  'Tahsil edilen': 'Collected', 'Matrah': 'Taxable amount', 'Henüz tahsilat yok.': 'No collections yet.', 'Satırlar': 'Lines',
+  'Satır yok.': 'No lines.', 'Satış iadesi': 'Sales return', 'Alış faturası': 'Purchase invoice', 'Satış talebi': 'Sales request'
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -280,5 +298,6 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Kıyas: (.+?) (\S+)$/, 'Comparison: $1 $2'],
   [/^Kampanya uygulandı\. Ek indirim: (.+?) · Yeni toplam: (.+?)$/, 'Campaign applied. Additional discount: $1 · New total: $2'],
   [/^(.+?) taslağı düzenleniyor\.$/, 'Editing draft $1.'],
-  [/^Fatura (.+?) oluşturuldu; irsaliyedeki stok çıkışı tekrarlanmadı\.$/, 'Invoice $1 created; the stock issue on the delivery note was not repeated.']
+  [/^Fatura (.+?) oluşturuldu; irsaliyedeki stok çıkışı tekrarlanmadı\.$/, 'Invoice $1 created; the stock issue on the delivery note was not repeated.'],
+  [/^(.+?) fatura ayrıntılarını aç$/, 'Open invoice $1 details']
 ]

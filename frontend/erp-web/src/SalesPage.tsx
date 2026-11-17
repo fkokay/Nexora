@@ -24,6 +24,22 @@ import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import {
+  INVOICE_LIST_WIDTHS,
+  ORDER_LIST_WIDTHS,
+  QUOTE_LIST_WIDTHS,
+  SALES_CODE_FIELDS,
+  SALES_NUMBER_FIELDS,
+  listAmount,
+  listTag,
+} from "./sales/components/salesListCells";
+import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter, pageAmount, pageAmountHint } from "./sales/components/SalesListFooter";
+import { InvoiceListPanel, OrderListPanel, QuoteListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
+import type { BulkAction } from "./list-page/BulkActionBar";
+import { CircleDollarSign, CircleSlash, Clock3, Truck } from "lucide-react";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
@@ -61,7 +77,7 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -394,7 +410,9 @@ export function SalesPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
-    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null);
+    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null),
+    // Ticked rows of the visible list page (checkbox column).
+    [salesTicked, setSalesTicked] = useState<string[]>([]);
   const [detail, setDetail] = useState<SalesQuoteDetail | null>(null),
     [quoteRevisions, setQuoteRevisions] = useState<SalesQuoteRevisionSummary[]>([]),
     [quoteDetailTab, setQuoteDetailTab] = useState<"information" | "revisions">("information"),
@@ -1822,19 +1840,10 @@ export function SalesPage({
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
+  // The quote row menu moved to İşlemler (current row) and the detail panel: no "⋯" column.
   const visibleQuoteFields = quoteScreenFields
-    .filter(
-      (field) =>
-        field.key !== "revisionNumber" &&
-        (field.key === "actions" || field.visible),
-    )
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+    .filter((field) => field.key !== "revisionNumber" && field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position);
   const visibleOrderFields = orderScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -1892,46 +1901,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesQuoteStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void openQuote(item.id)}>Detay</button>
-            {item.status === "Draft" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteEdit(item.id)}>Düzenle</button>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void sendQuote(item)}>İletildi yap</button>
-                {role === "TenantAdmin" && (
-                  <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(item)}>Sil</button>
-                )}
-              </>
-            )}
-            {item.status === "Sent" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void decideQuote(item, "accept")}>Kabul et</button>
-                <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void decideQuote(item, "reject")}>Reddet</button>
-              </>
-            )}
-            {item.status === "Accepted" && !item.hasSalesOrder && (
-              <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void convertQuote(item)}>Sipariş oluştur</button>
-            )}
-            {item.status === "Accepted" && item.hasSalesOrder && (
-              <span className="sales-row-menu-note">Sipariş hazır</span>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("quote", item.status);
       default:
         return null;
     }
@@ -1966,19 +1938,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesOrderStatus(item.status)} />
-        );
+        return listTag("order", item.status);
       case "actions":
         return (
           <SalesRowActionsMenu label={item.code}>
@@ -2005,6 +1967,35 @@ export function SalesPage({
   const quoteListScreen = activeTab === "quotes" && !createQuotePage && !createOrderPage;
   const orderListScreen = activeTab === "orders" && !createQuotePage && !createOrderPage;
   const salesPageDialogOpen = quoteFieldCatalogOpen || orderFieldCatalogOpen;
+  // List type (mockup 06): the current row is the one the user chose (click, ↑/↓; `selectedSalesId`), never an
+  // implicit first row. Aç / Sil act on it, else on a single ticked row; the detail panel shows the current row.
+  const invoiceListScreen = activeTab === "invoices" && !createQuotePage && !createOrderPage && !createInvoicePage;
+  const visibleInvoices = invoices.filter(
+    (x) =>
+      !search ||
+      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
+        .toLocaleLowerCase("tr")
+        .includes(search.toLocaleLowerCase("tr")),
+  );
+  const listRows: Array<SalesQuoteSummary | SalesOrderSummary | SalesInvoiceSummary> = quoteListScreen
+    ? filtered
+    : orderListScreen
+      ? filteredOrders
+      : invoiceListScreen
+        ? visibleInvoices
+        : [];
+  const listCurrent = listRows.find((row) => row.id === selectedSalesId);
+  const listTarget = listCurrent ?? (salesTicked.length === 1 ? listRows.find((row) => row.id === salesTicked[0]) : undefined);
+  const salesListActive =
+    (quoteListScreen || orderListScreen || invoiceListScreen) &&
+    !detail && !orderDetail && !invoiceId && !salesPageDialogOpen && !invoiceCreateOpen;
+  const salesPanel = useSalesListPanel<SalesQuoteDetail | SalesOrderDetail | AppTypes.SalesInvoiceDetail>({
+    active: salesListActive,
+    token,
+    currentId: listCurrent?.id ?? null,
+    path: (id) => `/api/sales/${quoteListScreen ? "quotes" : orderListScreen ? "orders" : "invoices"}/${id}`,
+    reloadKey: listCurrent ? JSON.stringify(listCurrent) : undefined,
+  });
   const ownsActionBar =
     !orderDetail && !invoiceId && (createQuotePage || createOrderPage || quoteListScreen || orderListScreen);
   const salesNewCommand: CommandSpec | undefined = salesPageDialogOpen
@@ -2063,8 +2054,8 @@ export function SalesPage({
       more.push({ id: "quote-revise", label: "Revizyon oluştur", disabledReason: busyReason, run: () => beginQuoteRevision() });
     salesCommands.more = more;
   } else if (quoteListScreen || orderListScreen) {
-    const selectedQuote = quoteListScreen ? filtered.find((item) => item.id === selectedSalesId) : undefined;
-    const selectedOrder = orderListScreen ? filteredOrders.find((item) => item.id === selectedSalesId) : undefined;
+    const selectedQuote = quoteListScreen ? (listTarget as SalesQuoteSummary | undefined) : undefined;
+    const selectedOrder = orderListScreen ? (listTarget as SalesOrderSummary | undefined) : undefined;
     const selectedRecord = selectedQuote ?? selectedOrder;
     salesCommands.open = {
       disabledReason: selectedRecord ? undefined : "Önce bir kayıt seçin",
@@ -2084,6 +2075,17 @@ export function SalesPage({
         run: () => (selectedQuote ? deleteQuote(selectedQuote) : selectedOrder ? deleteOrder(selectedOrder) : undefined),
       };
     const more: MenuCommand[] = [];
+    // Former row menu ("⋯") of the quote list, with its conditions; Detay is Aç, Sil is the bar's Sil.
+    if (selectedQuote?.status === "Draft") {
+      more.push({ id: "quote-row-edit", label: "Düzenle", disabledReason: busyReason, run: () => beginQuoteEdit(selectedQuote.id) });
+      more.push({ id: "quote-row-send", label: "İletildi yap", disabledReason: busyReason, run: () => sendQuote(selectedQuote) });
+    }
+    if (selectedQuote?.status === "Sent") {
+      more.push({ id: "quote-row-accept", label: "Kabul et", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "accept") });
+      more.push({ id: "quote-row-reject", label: "Reddet", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "reject") });
+    }
+    if (selectedQuote?.status === "Accepted" && !selectedQuote.hasSalesOrder)
+      more.push({ id: "quote-row-convert", label: "Sipariş oluştur", disabledReason: busyReason, run: () => convertQuote(selectedQuote) });
     if (role === "TenantAdmin" || role === "TenantDeveloper")
       more.push(
         quoteListScreen
@@ -2095,6 +2097,143 @@ export function SalesPage({
   }
   // Passed to an open order / invoice detail, which owns the bar while it is open.
   const detailNewCommand = salesNewCommand ? { run: salesNewCommand.run } : undefined;
+  // Summary cards: figures of the loaded page only ("bu sayfa"); the list endpoints return no totals, due dates or
+  // outstanding amounts, so there is no Tahsil edilmemiş / Vadesi geçen card.
+  const amountCard = (id: string, label: string, rows: Array<{ grandTotal: number; currencyCode: string }>, hint?: React.ReactNode) => ({
+    id,
+    label,
+    value: loading ? "—" : pageAmount(rows) ?? "—",
+    icon: CircleDollarSign,
+    hint: new Set(rows.map((row) => row.currencyCode)).size > 1 ? pageAmountHint(rows) : hint ?? "bu sayfa",
+  });
+  const countValue = (count: number) => (loading ? "—" : count.toLocaleString("tr-TR"));
+  let listSummary: React.ReactNode = null;
+  if (quoteListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard("quote-total", "Teklif tutarı", filtered),
+          {
+            id: "quote-sent",
+            label: "Yanıt bekleyen",
+            value: countValue(filtered.filter((item) => item.status === "Sent").length),
+            icon: Clock3,
+            tone: "warn",
+            hint: "bu sayfa",
+            // The list's existing status filter (İletildi).
+            filterActive: quoteStatusFilter === "Sent",
+            onFilter: () => setQuoteStatusFilter((value) => (value === "Sent" ? "" : "Sent")),
+          },
+        ]}
+      />
+    );
+  else if (orderListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard("order-total", "Sipariş tutarı", filteredOrders),
+          {
+            id: "order-open",
+            label: "Sevk bekleyen",
+            value: countValue(filteredOrders.filter((item) => item.status === "Open").length),
+            icon: Truck,
+            tone: "warn",
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  else if (invoiceListScreen) {
+    const posted = visibleInvoices.filter((item) => item.status === "Posted");
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          {
+            ...amountCard(
+              "invoice-posted",
+              "Kesilen",
+              posted,
+              <>
+                <span>{posted.length.toLocaleString("tr-TR")}</span> <span>fatura · bu sayfa</span>
+              </>,
+            ),
+            tone: "ok",
+          },
+          {
+            id: "invoice-voided",
+            label: "İptal",
+            value: countValue(visibleInvoices.filter((item) => item.status === "Voided").length),
+            icon: CircleSlash,
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  }
+  const salesPanelOpen = salesPanel.open && salesListActive;
+  const panelControls = {
+    error: salesPanel.error,
+    onClose: salesPanel.close,
+    takeFocus: salesPanel.takeFocus,
+    openDisabled: busy,
+  };
+  let salesListPanel: React.ReactNode = null;
+  if (salesPanelOpen) {
+    if (quoteListScreen)
+      salesListPanel = listCurrent ? (
+        <QuoteListPanel
+          {...panelControls}
+          row={listCurrent as SalesQuoteSummary}
+          detail={salesPanel.detail as SalesQuoteDetail | null}
+          onOpen={() => void openQuote(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="quote" />
+      );
+    else if (orderListScreen)
+      salesListPanel = listCurrent ? (
+        <OrderListPanel
+          {...panelControls}
+          row={listCurrent as SalesOrderSummary}
+          detail={salesPanel.detail as SalesOrderDetail | null}
+          onOpen={() => void openOrder(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="order" />
+      );
+    else if (invoiceListScreen)
+      salesListPanel = listCurrent ? (
+        <InvoiceListPanel
+          {...panelControls}
+          row={listCurrent as SalesInvoiceSummary}
+          detail={salesPanel.detail as AppTypes.SalesInvoiceDetail | null}
+          onOpen={() => void openInvoice(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="invoice" />
+      );
+  }
+  const salesListFooter = (
+    <SalesListFooter
+      ticked={salesTicked.length}
+      shown={listRows.length}
+      total={salesListTotal}
+      page={salesListPage}
+      loading={loading}
+      onPageChange={setSalesListPage}
+    />
+  );
+  const salesBulkActions: BulkAction[] = [
+    { id: "export-selected", label: "Excel (seçilenler)", run: () => void salesGridExportRef.current?.exportExcel() },
+  ];
+  const salesGridSelection = {
+    currentId: selectedSalesId,
+    onCurrentChange: setSelectedSalesId,
+    onTickedChange: setSalesTicked,
+    bulkActions: salesBulkActions,
+    onOpen: (id: string) => void (quoteListScreen ? openQuote(id) : openOrder(id)),
+  };
+  const salesListBodyClass = `sales-list-body${salesListPanel ? " has-detail" : ""}`;
   return (
     <div className="list-v2 sales-lv2-root">
       {ownsActionBar && <PageCommandsSlot commands={salesCommands} />}
@@ -2126,6 +2265,7 @@ export function SalesPage({
               }
               count={salesListTotal}
             />
+            {listSummary}
             <SalesListToolbar
               activeTab={activeTab as "quotes" | "orders" | "invoices"}
               search={search}
@@ -2138,6 +2278,7 @@ export function SalesPage({
               onQuoteDateToChange={setQuoteDateTo}
               toolsSlotRef={setSalesGridToolsSlot}
               onRefresh={() => void load()}
+              extra={<SalesListPanelToggle open={salesPanel.open} onToggle={salesPanel.toggle} />}
             />
           </div>
         )}
@@ -2215,7 +2356,7 @@ export function SalesPage({
           />
         ) : activeTab === "invoices" ? (
           <SalesInvoiceTable
-            invoices={invoices}
+            invoices={visibleInvoices}
             orders={orders}
             customers={customers}
             stockItems={stockItems}
@@ -2223,6 +2364,12 @@ export function SalesPage({
             onOpen={openInvoice}
             onSelect={setSelectedSalesId}
             selectedId={selectedSalesId}
+            ticked={salesTicked}
+            onTickedChange={setSalesTicked}
+            listFooter={salesListFooter}
+            listPanel={salesListPanel}
+            listBodyRef={salesPanel.rootRef}
+            listBodyClass={salesListBodyClass}
             search={search}
             fields={invoiceScreenFields}
             toolbarContainer={salesGridToolsSlot}
@@ -2252,61 +2399,62 @@ export function SalesPage({
             commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış teklifi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-quotes"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleQuoteFields}
-              items={filtered}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Teklifler yükleniyor…"
-              emptyMessage="Henüz satış teklifi yok."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen teklif yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderQuoteField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış teklifi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-quotes"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleQuoteFields}
+                items={filtered}
+                loading={loading}
+                loadingMessage="Teklifler yükleniyor…"
+                emptyMessage="Henüz satış teklifi yok."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen teklif yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderQuoteField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={QUOTE_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ) : (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış siparişi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-orders"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleOrderFields}
-              items={filteredOrders}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Siparişler yükleniyor…"
-              emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen sipariş yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderOrderField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış siparişi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-orders"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleOrderFields}
+                items={filteredOrders}
+                loading={loading}
+                loadingMessage="Siparişler yükleniyor…"
+                emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen sipariş yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderOrderField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={ORDER_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ))}
-      {(activeTab === "quotes" ||
-        activeTab === "orders" ||
-        activeTab === "invoices") &&
-        !createOrderPage && !createQuotePage && (
-          <ListPagination
-            page={salesListPage}
-            total={salesListTotal}
-            loading={loading}
-            onPageChange={setSalesListPage}
-          />
-        )}
       {quoteFieldCatalogOpen && (
         <div
           className="modal-backdrop"
@@ -10749,6 +10897,8 @@ function SalesOrderModal({
   );
 }
 
+const noTicks = () => undefined;
+
 function SalesInvoiceTable({
   invoices,
   orders,
@@ -10772,6 +10922,12 @@ function SalesInvoiceTable({
   onChanged,
   onNew,
   commandsSuspended = false,
+  ticked = [],
+  onTickedChange,
+  listFooter,
+  listPanel,
+  listBodyRef,
+  listBodyClass = "sales-list-body",
 }: {
   invoices: SalesInvoiceSummary[];
   orders: SalesOrderSummary[];
@@ -10779,7 +10935,7 @@ function SalesInvoiceTable({
   stockItems: StockItem[];
   warehouses: Warehouse[];
   onOpen: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   selectedId: string | null;
   search: string;
   fields: BuiltInScreenLayoutField[];
@@ -10797,6 +10953,14 @@ function SalesInvoiceTable({
   onNew: () => void;
   /** An invoice / order detail or a page dialog owns the action bar. */
   commandsSuspended?: boolean;
+  /** Ticked rows of the list page (the current row is `selectedId`). */
+  ticked?: string[];
+  onTickedChange?: (ids: string[]) => void;
+  /** Footer and detail panel of the list (owned by SalesPage, which also renders the summary cards). */
+  listFooter?: React.ReactNode;
+  listPanel?: React.ReactNode;
+  listBodyRef?: React.Ref<HTMLDivElement>;
+  listBodyClass?: string;
 }) {
   const [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState(""),
@@ -10913,28 +11077,35 @@ function SalesInvoiceTable({
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
-  const ordered = fields
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+  // The bar (Aç, Sil, İşlemler › İptal et) and the detail panel cover the former row menu: no "⋯" column.
+  const ordered = fields.filter((field) => field.key !== "actions" && field.visible).sort((a, b) => a.position - b.position);
   const render = (
     item: SalesInvoiceSummary,
     field: BuiltInScreenLayoutField,
   ) => {
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-haspopup="dialog"
+            aria-label={`${item.code} fatura ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(item.id);
+              onOpen(item.id);
+            }}
+          >
+            {item.code}
+          </button>
+        );
       case "deliveryCode":
         return item.deliveryCode || "—";
       case "orderCode":
         return item.orderCode || "—";
       case "customerName":
-        return <b className="customer-name">{item.customerName}</b>;
+        return <span className="customer-name">{item.customerName}</span>;
       case "customerTaxNumber":
         return item.customerTaxNumber || "—";
       case "invoiceDate":
@@ -10942,48 +11113,9 @@ function SalesInvoiceTable({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesInvoiceStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" onClick={() => onOpen(item.id)}>Detay</button>
-            {role === "TenantAdmin" && item.status === "Posted" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy}
-                onClick={() => void voidInvoice(item)}
-              >
-                İptal et
-              </button>
-            )}
-            {role === "TenantAdmin" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy || item.status === "Posted"}
-                title={item.status === "Posted" ? "Kesilmiş belge silinemez — İşlemler › İptal et" : undefined}
-                onClick={() => void deleteInvoice(item)}
-              >
-                Sil
-              </button>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("invoice", item.status);
       default:
         if (field.key.startsWith("custom:")) return item.listCustomFields?.[field.key] || "—";
         return null;
@@ -11003,7 +11135,10 @@ function SalesInvoiceTable({
       },
     };
   } else if (!createOpen) {
-    const selected = visible.find((item) => item.id === selectedId);
+    // The current row, else a single ticked row (never an implicit first row).
+    const selected =
+      visible.find((item) => item.id === selectedId) ??
+      (ticked.length === 1 ? visible.find((item) => item.id === ticked[0]) : undefined);
     commands.new = { primary: true, run: onNew };
     commands.open = {
       disabledReason: selected ? undefined : "Önce bir kayıt seçin",
@@ -11050,30 +11185,40 @@ function SalesInvoiceTable({
           </button>
         </div>
       )}
-      {!entryPage && <section
-        className="sales-invoice-list-card list-v2-list"
-        aria-label="Satış faturası listesi"
-      >
-        <SalesDocumentGrid
-          gridId="sales-invoices"
-          hideExport
-          exportActionsRef={gridExportRef}
-          fields={ordered}
-          items={visible}
-          selectedId={selectedId}
-          loading={false}
-          loadingMessage="Faturalar yükleniyor…"
-          emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
-          search={search}
-          searchEmptyMessage="Aramanızla eşleşen fatura yok."
-          toolbarContainer={toolbarContainer}
-          onSelect={(id) => {
-            onSelect(id);
-            onOpen(id);
-          }}
-          renderCell={(field, item) => render(item, field)}
-        />
-      </section>}
+      {!entryPage && (
+        <div ref={listBodyRef} className={listBodyClass}>
+          <section className="sales-invoice-list-card list-v2-list" aria-label="Satış faturası listesi">
+            <SalesDocumentGrid
+              gridId="sales-invoices"
+              hideExport
+              exportActionsRef={gridExportRef}
+              fields={ordered}
+              items={visible}
+              loading={false}
+              loadingMessage="Faturalar yükleniyor…"
+              emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
+              search={search}
+              searchEmptyMessage="Aramanızla eşleşen fatura yok."
+              toolbarContainer={toolbarContainer}
+              renderCell={(field, item) => render(item, field)}
+              selection={{
+                currentId: selectedId,
+                onCurrentChange: onSelect,
+                onTickedChange: onTickedChange ?? noTicks,
+                bulkActions: [
+                  { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+                ],
+                onOpen,
+              }}
+              footer={listFooter}
+              columnWidths={INVOICE_LIST_WIDTHS}
+              numberFields={SALES_NUMBER_FIELDS}
+              codeFields={SALES_CODE_FIELDS}
+            />
+          </section>
+          {listPanel}
+        </div>
+      )}
       {createOpen && (
         <SalesInvoiceFromDeliveryDialog
           key={createFormKey}

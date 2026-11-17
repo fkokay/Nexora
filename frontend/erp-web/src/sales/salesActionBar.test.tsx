@@ -303,8 +303,11 @@ describe('Satış Faturaları', () => {
   it('a posted invoice is cancelled, not deleted; a voided one can be deleted', async () => {
     renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
-    // A row click opens the invoice; its detail owns the bar.
+    // A row click makes the invoice current (list type, mockup 06); Aç opens it and its detail owns the bar.
     fireEvent.click(row('F-i1'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › Faturayı iptal et'));
     expect(enabled('delete')).toBe(false);
     expect(openMenu()).toEqual(['Faturayı iptal et']);
@@ -313,6 +316,9 @@ describe('Satış Faturaları', () => {
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › İptal et'));
     expect(openMenu()).toEqual(['İptal et', 'CSV olarak dışa aktar']);
     fireEvent.click(row('F-i2'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     fireEvent.click(await screen.findByRole('button', { name: 'Listeye dön' }));
     await waitFor(() => expect(enabled('delete')).toBe(true));
   });
@@ -434,6 +440,9 @@ describe('Other Satış screens', () => {
     renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
     fireEvent.click(row('IADE-r1'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › İadeyi iptal et'));
     expect(enabled('delete')).toBe(false);
     expect(openMenu()).toEqual(['Faturayı aç', 'İadeyi iptal et']);

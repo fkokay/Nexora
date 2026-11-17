@@ -12,8 +12,14 @@ import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { StandaloneFulfillmentPanel } from "./StandaloneFulfillmentPanel";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
-import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { CircleSlash, FileWarning } from "lucide-react";
+import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter } from "./sales/components/SalesListFooter";
+import { DeliveryListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
+import { DELIVERY_LIST_WIDTHS, SALES_CODE_FIELDS, SALES_NUMBER_FIELDS, listTag } from "./sales/components/salesListCells";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
@@ -24,9 +30,7 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./sales/sales-record-forms.css";
-import { ListPagination } from "./list-page/ListPagination";
 import { DocumentSurface } from "./document-page/DocumentSurface";
-import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
 import { salesDeliveryStatus } from "./document-page/documentStatus";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
@@ -85,13 +89,6 @@ export function SalesDeliveriesScreen({
     { key: "lineCount", label: "Satır", visible: true, position: 4 },
     { key: "status", label: "Durum", visible: true, position: 5 },
     { key: "invoiceStatus", label: "Fatura", visible: true, position: 6 },
-    {
-      key: "actions",
-      label: "İşlemler",
-      visible: true,
-      position: 7,
-      fixed: true,
-    },
   ]);
   const [detail, setDetail] = useState<{
     id: string;
@@ -149,6 +146,9 @@ export function SalesDeliveriesScreen({
   const pageSize = 25;
   // Arama sunucuda yapılır; yalnızca açık sayfa değil tüm irsaliyeler taranır.
   const [filter, setFilter] = useState("");
+  // Existing server filter of the list endpoint (shipped, not yet invoiced).
+  const [unbilledOnly, setUnbilledOnly] = useState(false);
+  const [ticked, setTicked] = useState<string[]>([]);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const gridExportRef = useRef<GridExportActions | null>(null);
   async function load() {
@@ -158,7 +158,7 @@ export function SalesDeliveriesScreen({
       const result = await api<{
         items: SalesDeliverySummary[];
         totalCount: number;
-      }>(`/api/sales/deliveries/?page=${page}&pageSize=${pageSize}${filter ? `&q=${encodeURIComponent(filter)}` : ""}`, token);
+      }>(`/api/sales/deliveries/?page=${page}&pageSize=${pageSize}${filter ? `&q=${encodeURIComponent(filter)}` : ""}${unbilledOnly ? "&unbilledOnly=true" : ""}`, token);
       setItems(result.items);
       setTotal(result.totalCount);
     } catch (e) {
@@ -169,7 +169,7 @@ export function SalesDeliveriesScreen({
   }
   useEffect(() => {
     void load();
-  }, [token, page, filter]);
+  }, [token, page, filter, unbilledOnly]);
   useEffect(() => {
     let active = true;
     void api<SalesInvoiceCustomFieldDefinition[]>(
@@ -195,7 +195,6 @@ export function SalesDeliveriesScreen({
           setScreenFields(
             view.fields.map((field, index) => ({
               ...field,
-              fixed: field.key === "actions",
               position: field.position ?? index,
             })),
           );
@@ -205,17 +204,9 @@ export function SalesDeliveriesScreen({
       cancelled = true;
     };
   }, [token]);
-  const filtered = items.filter(
-    (x) =>
-      !search ||
-      `${x.code} ${x.orderCode} ${x.warehouseName}`
-        .toLocaleLowerCase("tr")
-        .includes(search.toLocaleLowerCase("tr")),
-  );
-  const selected =
-    filtered.find((x) => x.id === selectedId) ?? filtered[0] ?? null;
+  // The bar (Faturalaştır, Faturayı aç, İptal et, Sil) and the detail panel cover the former row menu: no "⋯".
   const visibleFields = screenFields
-    .filter((field) => field.visible)
+    .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
   const deliveryTotals = (detail?.lines ?? []).reduce((totals, line) => {
     const gross = line.quantity * (line.unitPrice ?? 0);
@@ -269,9 +260,7 @@ export function SalesDeliveriesScreen({
       case "lineCount":
         return item.lineCount;
       case "status":
-        return (
-          <DocumentStatusBadge status={salesDeliveryStatus(item.status)} />
-        );
+        return listTag("delivery", item.status);
       case "invoiceStatus":
         return item.invoiceId ? (
           <button
@@ -282,87 +271,6 @@ export function SalesDeliveriesScreen({
           </button>
         ) : (
           <span className="cell-subtitle">Yok</span>
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            {item.status === "Posted" && !item.hasSalesInvoice && (
-              <button
-                role="menuitem"
-                className="sales-row-menu-item"
-                disabled={busy}
-                onClick={() =>
-                  void (item.orderId
-                    ? createInvoice(item.id)
-                    : startOrderlessInvoice(item.id))
-                }
-              >
-                {busy ? "İşleniyor…" : "Faturalaştır"}
-              </button>
-            )}
-            {item.invoiceId && (
-              <button
-                role="menuitem"
-                className="sales-row-menu-item"
-                onClick={() => setInvoiceId(item.invoiceId)}
-              >
-                Faturayı aç
-              </button>
-            )}
-            <button role="menuitem" className="sales-row-menu-item" onClick={() => void open(item.id)}>
-              Satırları gör
-            </button>
-            {item.status === "Posted" && (
-              <button
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={
-                  busy ||
-                  role !== "TenantAdmin" ||
-                  item.invoiceStatus === "Posted"
-                }
-                title={
-                  role !== "TenantAdmin"
-                    ? "İrsaliye iptali için yönetici yetkisi gerekir."
-                    : item.invoiceStatus === "Posted"
-                      ? "Önce bağlı satış faturasını iptal edin."
-                      : "İrsaliyeyi iptal et ve stok çıkışını geri al"
-                }
-                onClick={() => void voidDelivery(item)}
-              >
-                İptal et
-              </button>
-            )}
-            {item.status === "Posted" &&
-              role === "TenantAdmin" &&
-              item.invoiceStatus === "Posted" && (
-                <small className="sales-row-menu-note">
-                  Önce bağlı faturayı iptal edin.
-                </small>
-              )}
-            {role === "TenantAdmin" && (
-              <button
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy || item.status !== "Voided"}
-                title={
-                  item.status !== "Voided"
-                    ? "Silmeden önce irsaliyeyi iptal edin."
-                    : "İrsaliyeyi listeden kaldır"
-                }
-                onClick={() => void deleteDelivery(item)}
-              >
-                Sil
-              </button>
-            )}
-            {item.status === "Posted" &&
-              role === "TenantAdmin" &&
-              item.invoiceStatus !== "Posted" && (
-                <small className="sales-row-menu-note">
-                  Silmek için önce irsaliyeyi iptal edin.
-                </small>
-              )}
-          </SalesRowActionsMenu>
         );
       default:
         return null;
@@ -550,10 +458,11 @@ export function SalesDeliveriesScreen({
   // Action bar of the delivery list and of an open delivery. A shipped (Posted) delivery is cancelled, never
   // deleted; only a cancelled one can be deleted. The create page's Yeni comes from StandaloneFulfillmentPanel.
   const busyReason = busy ? "İşleniyor…" : undefined;
-  // The bar acts on the open delivery, else on the row the user chose (not the grid's first-row highlight).
+  // The bar acts on the open delivery, else on the row the user chose (current row, else a single ticked row).
+  const current = items.find((item) => item.id === selectedId);
   const target: SalesDeliverySummary | undefined = detail
     ? ({ warehouseId: "", lineCount: detail.lines.length, createdAt: "", ...detail } as SalesDeliverySummary)
-    : items.find((item) => item.id === selectedId);
+    : current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
   const commands: PageCommands = {
     // The create page replaces the list; an open delivery is closed first so the form is what shows.
     new: {
@@ -614,6 +523,57 @@ export function SalesDeliveriesScreen({
     });
   if (!detail) more.push(csvExportCommand(gridExportRef));
   commands.more = more;
+  const listActive = !creating && !detail && !invoiceId;
+  const panel = useSalesListPanel<Parameters<typeof DeliveryListPanel>[0]["detail"]>({
+    active: listActive,
+    token,
+    currentId: current?.id ?? null,
+    path: (id) => `/api/sales/deliveries/${id}`,
+    reloadKey: current ? JSON.stringify(current) : undefined,
+  });
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <DeliveryListPanel
+          row={current}
+          detail={panel.detail}
+          error={panel.error}
+          onOpen={() => void open(current.id)}
+          openDisabled={busy}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="delivery" />
+      )
+    ) : null;
+  // Cards: figures of the loaded page ("bu sayfa"); Faturalanmamış filters with the endpoint's unbilledOnly.
+  const summary = (
+    <ListSummaryCards
+      cards={[
+        {
+          id: "unbilled",
+          label: "Faturalanmamış",
+          value: loading ? "—" : items.filter((item) => item.status === "Posted" && !item.hasSalesInvoice).length.toLocaleString("tr-TR"),
+          icon: FileWarning,
+          tone: "warn",
+          hint: "bu sayfa",
+          filterActive: unbilledOnly,
+          onFilter: () => {
+            setPage(1);
+            setUnbilledOnly((on) => !on);
+          },
+        },
+        {
+          id: "voided",
+          label: "İptal",
+          value: loading ? "—" : items.filter((item) => item.status === "Voided").length.toLocaleString("tr-TR"),
+          icon: CircleSlash,
+          hint: "bu sayfa",
+        },
+      ]}
+    />
+  );
   return (
     <div
       className={`delivery-screen list-v2${creating ? " delivery-create-screen" : ""}`}
@@ -643,6 +603,7 @@ export function SalesDeliveriesScreen({
             description="Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin."
             count={total}
           />
+          {summary}
           <ListToolbar
             search={search}
             onSearchChange={setSearch}
@@ -651,7 +612,9 @@ export function SalesDeliveriesScreen({
             onSearchApply={() => { setPage(1); setFilter(search.trim()); }}
             toolsSlotRef={setToolsSlot}
             onRefresh={() => void load()}
-          />
+          >
+            <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+          </ListToolbar>
         </div>
       )}
       {error && (
@@ -674,7 +637,7 @@ export function SalesDeliveriesScreen({
           ownsActionBar={!invoiceId}
         />
       ) : (
-        <>
+        <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
           <section className="list-v2-list">
             <SalesDocumentGrid
               gridId="sales-deliveries"
@@ -682,26 +645,41 @@ export function SalesDeliveriesScreen({
               exportActionsRef={gridExportRef}
               fields={visibleFields}
               items={items}
-              selectedId={selected?.id ?? null}
               loading={loading}
               loadingMessage="İrsaliyeler yükleniyor…"
               emptyMessage="Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur."
               search={filter}
               searchEmptyMessage="Aramanızla eşleşen irsaliye yok."
               toolbarContainer={toolsSlot}
-              onSelect={setSelectedId}
               renderCell={(field, item) => renderField(item, field)}
               ariaLabel="Satış irsaliyesi kayıtları"
+              selection={{
+                currentId: selectedId,
+                onCurrentChange: setSelectedId,
+                onTickedChange: setTicked,
+                bulkActions: [
+                  { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+                ],
+                onOpen: (id) => void open(id),
+              }}
+              footer={
+                <SalesListFooter
+                  ticked={ticked.length}
+                  shown={items.length}
+                  total={total}
+                  page={page}
+                  pageSize={pageSize}
+                  loading={loading}
+                  onPageChange={setPage}
+                />
+              }
+              columnWidths={DELIVERY_LIST_WIDTHS}
+              numberFields={SALES_NUMBER_FIELDS}
+              codeFields={SALES_CODE_FIELDS}
             />
           </section>
-          <ListPagination
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            loading={loading}
-            onPageChange={setPage}
-          />
-        </>
+          {listPanel}
+        </div>
       )}
       {detail && (
           <DocumentSurface
