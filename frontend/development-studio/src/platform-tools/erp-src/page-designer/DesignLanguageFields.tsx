@@ -17,14 +17,14 @@ export const iconOptions: { value: string; label: string; icon: LucideIcon }[] =
   { value: "alert", label: "Uyarı", icon: AlertTriangle },
 ];
 
-export function ToneSelect({ value, onChange, disabled }: { value: Tone | undefined; onChange: (tone: Tone) => void; disabled?: boolean }) {
-  return <div className="pd-segment" role="group">
+export function ToneSelect({ value, onChange, disabled, label = "Ton" }: { value: Tone | undefined; onChange: (tone: Tone) => void; disabled?: boolean; label?: string }) {
+  return <div className="pd-segment" role="group" aria-label={label}>
     {toneOrder.map((tone) => <button type="button" key={tone} disabled={disabled} className={`tone-${tone} ${(value ?? "info") === tone ? "active" : ""}`} aria-pressed={(value ?? "info") === tone} onClick={() => onChange(tone)}>{toneLabels[tone]}</button>)}
   </div>;
 }
 
 export function IconSelect({ value, onChange, disabled }: { value: string | undefined; onChange: (icon: string | undefined) => void; disabled?: boolean }) {
-  return <div className="pd-icon-grid" role="group">
+  return <div className="pd-icon-grid" role="group" aria-label="İkon">
     <button type="button" disabled={disabled} className={!value ? "active" : ""} aria-pressed={!value} onClick={() => onChange(undefined)}>İkon yok</button>
     {iconOptions.map(({ value: key, label, icon: Icon }) => <button type="button" key={key} title={label} aria-label={label} disabled={disabled} className={value === key ? "active" : ""} aria-pressed={value === key} onClick={() => onChange(key)}><Icon size={15}/></button>)}
   </div>;
@@ -41,7 +41,7 @@ export function ToneMapEditor({ value, onChange, disabled }: { value: string[]; 
   return <div className="pd-tonemap">
     {rows.map((row, index) => <div className="pd-tonemap-row" key={index}>
       <input key={`${index}:${row.key}`} defaultValue={row.key} disabled={disabled} maxLength={60} aria-label="Değer" onBlur={(event) => { const key = event.target.value.replace(/=/g, "").trim(); if (key && key !== row.key) write(rows.map((item, i) => i === index ? { ...item, key } : item)); else event.target.value = row.key; }}/>
-      <ToneSelect value={row.tone} disabled={disabled} onChange={(tone) => write(rows.map((item, i) => i === index ? { ...item, tone } : item))}/>
+      <ToneSelect value={row.tone} label={`${row.key} tonu`} disabled={disabled} onChange={(tone) => write(rows.map((item, i) => i === index ? { ...item, tone } : item))}/>
       <button type="button" className="pd-icon-button" aria-label="Satırı sil" disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}><X size={13}/></button>
     </div>)}
     <button type="button" className="pd-button small" disabled={disabled || rows.length >= MAX_ENTRIES} onClick={addRow}><Plus size={13}/>Değer ekle</button>
@@ -50,16 +50,18 @@ export function ToneMapEditor({ value, onChange, disabled }: { value: string[]; 
 
 export function ColumnFormatEditor({ columns, value, onChange, disabled }: { columns: { code: string; label: string }[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
   const formats = parseColumnFormats(value);
+  const used = Object.keys(formats).length;
+  const visible = columns.filter((column) => column.code.length <= 128 && column.code === column.code.trim() && !column.code.includes("="));
   const change = (code: string, format: ColumnFormat) => {
     const next = { ...formats };
     if (format === "text") delete next[code]; else next[code] = format;
     onChange(Object.entries(next).filter(([key]) => !key.includes("=")).map(([key, item]) => `${key}=${item}`).slice(0, MAX_ENTRIES));
   };
   return <ul className="pd-format-list">
-    {columns.map((column) => <li key={column.code}>
+    {visible.map((column) => <li key={column.code}>
       <span>{column.label || column.code}</span>
-      <select value={formats[column.code] ?? "text"} disabled={disabled || (column.code.includes("=") && !formats[column.code])} aria-label={`${column.label || column.code} biçimi`} onChange={(event) => change(column.code, event.target.value as ColumnFormat)}>
-        {COLUMN_FORMATS.map((format) => <option key={format} value={format}>{formatLabels[format]}</option>)}
+      <select value={formats[column.code] ?? "text"} disabled={disabled} aria-label={`${column.label || column.code} biçimi`} onChange={(event) => change(column.code, event.target.value as ColumnFormat)}>
+        {COLUMN_FORMATS.map((format) => <option key={format} value={format} disabled={format !== "text" && !formats[column.code] && used >= MAX_ENTRIES}>{formatLabels[format]}</option>)}
       </select>
     </li>)}
   </ul>;
