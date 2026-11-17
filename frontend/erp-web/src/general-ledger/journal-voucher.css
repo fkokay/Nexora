@@ -1,114 +1,50 @@
 /*
- * "Yeni yevmiye fişi" (finance-journal-vouchers): single header, meta band, line table and a
- * summary/save bar kept at the bottom of the viewport while the form is longer than the screen.
- * Scoped under #root because the shell styles headings, inputs and buttons with !important.
+ * Yevmiye fişi (finance-journal-vouchers) on the document create form (RecordFormPage `document`, mockup 02 / 09).
+ * The kit draws the header, the cards, the line grid and the totals; only the voucher's own cells are set here.
+ * Colours are --nx-* tokens (both themes).
  */
-#root .general-ledger-view-voucher.general-ledger-panel { padding: 0; overflow: visible; }
-#root .gl-voucher { display: grid; gap: 0; color: #172b45; }
-
-/* Header */
-#root .gl-voucher-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px 14px; border-bottom: 1px solid #e4eaf1; }
-#root .gl-voucher-title { display: grid; gap: 2px; min-width: 0; }
-#root .gl-voucher-eyebrow { color: #687b92; font-size: 11.5px; font-weight: 600; }
-#root .gl-voucher-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-#root .app-shell .gl-voucher-title-row h1 { margin: 0; font-size: 20px !important; font-weight: 700 !important; line-height: 1.3; }
-#root .gl-voucher-badge { padding: 2px 8px; border: 1px solid #9cc3e6; border-radius: 4px; background: #e3f0fb; color: #0b4f8a; font-size: 11px; font-weight: 700; white-space: nowrap; }
-#root .gl-voucher-recent { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; white-space: nowrap; }
-#root .gl-voucher-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 20px 0; }
-#root .gl-voucher-notice button { display: inline-flex; padding: 2px; border: 0; background: transparent; color: inherit; cursor: pointer; }
-#root .gl-voucher-readonly { margin: 0; padding: 28px 20px; color: #687b92; font-size: 13px; }
-
-/* Meta band: date | description | accounting standard */
-#root .gl-voucher-form { display: grid; gap: 0; }
-#root .gl-voucher-meta { display: grid; grid-template-columns: 150px minmax(0, 1fr) 190px; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #e4eaf1; background: #f8fafc; }
-#root .gl-voucher-field { display: grid; gap: 5px; min-width: 0; margin: 0; color: #526983; font-size: 12px; font-weight: 600; }
-#root .gl-voucher-field :is(input, select),
-#root .gl-voucher-table :is(input) { box-sizing: border-box; width: 100%; min-width: 0; height: 36px; margin: 0; padding: 0 10px; border: 1px solid #d3deea; border-radius: 7px; background: #fff; color: #172b45; font: inherit; font-size: 13px; font-weight: 400; }
-#root .gl-voucher-field :is(input, select):focus,
-#root .gl-voucher-table input:focus { outline: 0; border-color: #1769aa; box-shadow: 0 0 0 3px rgba(23, 105, 170, .14); }
-
-/* Line table */
-#root .gl-voucher-lines { padding: 12px 20px 16px; }
-#root .gl-voucher-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-#root .gl-voucher-table th { padding: 0 6px 6px; border: 0; background: transparent; color: #687b92; font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; }
-#root .gl-voucher-table td { padding: 4px 6px; border: 0; border-top: 1px solid #edf1f6; background: transparent; vertical-align: middle; }
-#root .gl-voucher-table tbody tr:first-child td { border-top: 0; }
-#root .gl-voucher-table tbody tr:hover td { background: transparent; }
-#root .gl-voucher-table .gl-voucher-col-no { width: 34px; color: #8a99ab; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; padding-right: 8px; }
-#root .gl-voucher-table .gl-voucher-col-account { width: 34%; }
-#root .gl-voucher-table .gl-voucher-col-amount { width: 140px; }
-#root .gl-voucher-table th.gl-voucher-col-amount { text-align: right; }
-#root .gl-voucher-table .gl-voucher-col-remove { width: 36px; padding-inline: 2px; text-align: center; }
-#root .gl-voucher-table input.gl-voucher-amount { font-variant-numeric: tabular-nums; text-align: right; }
-#root .gl-voucher-table input[aria-invalid="true"] { border-color: #d14343; }
-#root .app-shell .gl-voucher-remove { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #8a99ab; cursor: pointer; }
-#root .app-shell .gl-voucher-remove:hover { background: #fdecec; color: #b42318; }
-#root .gl-voucher .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-#root .gl-voucher-add { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; padding-left: 40px; }
-#root .gl-voucher-add > button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
-#root .gl-voucher-hint { color: #687b92; font-size: 12px; }
-
-/* Account type-ahead */
-#root .gl-account-combobox { position: relative; min-width: 0; }
-#root .gl-account-options { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0; min-width: 260px; max-height: 260px; margin: 0; padding: 4px; overflow: auto; list-style: none; border: 1px solid #d3deea; border-radius: 8px; background: #fff; box-shadow: 0 12px 32px rgba(16, 29, 49, .16); }
-#root .gl-account-options li { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; color: #172b45; font-size: 13px; cursor: pointer; }
-#root .gl-account-options li b { flex: 0 0 auto; min-width: 48px; font-variant-numeric: tabular-nums; }
-#root .gl-account-options li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#root .gl-account-options li.is-active { background: #eaf2fb; }
-#root .gl-account-options li.is-selected b { color: #1769aa; }
-#root .gl-account-options li.gl-account-options-empty { color: #687b92; cursor: default; }
-
-/* Summary + save bar, sticky to the bottom of the viewport */
-#root .gl-voucher-footer { position: sticky; bottom: 0; z-index: 20; display: grid; gap: 8px; padding: 12px 20px; border-top: 1px solid #dfe5ee; border-radius: 0 0 12px 12px; background: #fff; box-shadow: 0 -6px 18px rgba(16, 29, 49, .06); }
-#root .gl-voucher-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px solid #f3c2c2; border-radius: 8px; background: #fdf1f1; color: #9f1d1d; font-size: 13px; }
-#root .gl-voucher-error button { display: inline-flex; padding: 2px; border: 0; background: transparent; color: inherit; cursor: pointer; }
-#root .gl-voucher-summary { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-#root .gl-voucher-totals { display: flex; align-items: center; gap: 22px; margin: 0; }
-#root .gl-voucher-totals > div { display: grid; gap: 1px; }
-#root .gl-voucher-totals dt { color: #687b92; font-size: 11.5px; font-weight: 600; }
-#root .gl-voucher-totals dd { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: #172b45; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#root .gl-voucher-difference.is-unbalanced dd { color: #b42318; }
-#root .gl-voucher-difference.is-balanced dd { color: #157347; }
-#root .gl-voucher-note { flex: 1 1 220px; margin: 0; color: #687b92; font-size: 12px; }
-#root .app-shell .gl-voucher-save { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; margin-left: auto; padding: 0 16px; }
-#root .gl-voucher-save kbd { padding: 1px 5px; border: 1px solid rgba(255, 255, 255, .45); border-radius: 4px; font: inherit; font-size: 11px; opacity: .85; }
-
-/* Dark theme */
-html[data-theme="dark"] #root .gl-voucher { color: var(--erp-text); }
-html[data-theme="dark"] #root :is(.gl-voucher-head, .gl-voucher-meta) { border-color: var(--erp-border); }
-html[data-theme="dark"] #root .gl-voucher-meta { background: var(--erp-surface-soft); }
-html[data-theme="dark"] #root :is(.gl-voucher-eyebrow, .gl-voucher-field, .gl-voucher-table th, .gl-voucher-hint, .gl-voucher-note, .gl-voucher-totals dt, .gl-voucher-readonly) { color: var(--erp-text-muted); }
-html[data-theme="dark"] #root .gl-voucher-field :is(input, select),
-html[data-theme="dark"] #root .gl-voucher-table input { border-color: var(--erp-border); background: var(--erp-surface-soft); color: var(--erp-text); }
-html[data-theme="dark"] #root .gl-voucher-table td { border-color: var(--erp-border); }
-html[data-theme="dark"] #root .gl-voucher-badge { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
-html[data-theme="dark"] #root .gl-voucher-footer { border-color: var(--erp-border); background: var(--erp-surface); }
-html[data-theme="dark"] #root .gl-voucher-totals dd { color: var(--erp-text); }
-html[data-theme="dark"] #root .gl-voucher-difference.is-unbalanced dd { color: #f97066; }
-html[data-theme="dark"] #root .gl-voucher-difference.is-balanced dd { color: #4ade80; }
-html[data-theme="dark"] #root .gl-voucher-error { border-color: #7a2e2e; background: #3a1d1d; color: #fecaca; }
-html[data-theme="dark"] #root .gl-account-options { border-color: var(--erp-border); background: var(--erp-surface); }
-html[data-theme="dark"] #root .gl-account-options li { color: var(--erp-text); }
-html[data-theme="dark"] #root .gl-account-options li.is-active { background: rgba(96, 165, 250, .14); }
-
-@media (max-width: 900px) {
-  #root .gl-voucher-meta { grid-template-columns: 150px minmax(0, 1fr); }
-  #root .gl-voucher-field--basis { grid-column: 1 / -1; }
+/* The ledger root is named "*-panel": the shell's name rules would give it a white 12px surface around the form. */
+#root .app-shell .general-ledger-panel.general-ledger-view-voucher {
+  padding: 0 !important;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
-/* Phones: each line becomes a small card; the amounts stay side by side. */
-@media (max-width: 700px) {
-  #root .gl-voucher-head, #root .gl-voucher-lines, #root .gl-voucher-footer { padding-inline: 16px; }
-  #root .gl-voucher-meta { grid-template-columns: 1fr; padding-inline: 16px; }
-  #root .gl-voucher-table, #root .gl-voucher-table tbody { display: block; }
-  #root .gl-voucher-table thead { display: none; }
-  #root .gl-voucher-table tr { display: grid; grid-template-columns: 1fr 1fr 32px; gap: 6px; padding: 10px 0; border-top: 1px solid #edf1f6; }
-  #root .gl-voucher-table tbody tr:first-child { border-top: 0; }
-  #root .gl-voucher-table td { display: block; width: auto !important; padding: 0; border: 0; }
-  #root .gl-voucher-table td.gl-voucher-col-no { display: none; }
-  #root .gl-voucher-table :is(td.gl-voucher-col-account, td.gl-voucher-col-description) { grid-column: 1 / 3; }
-  #root .gl-voucher-table td.gl-voucher-col-remove { grid-column: 3; grid-row: 1; }
-  #root .gl-voucher-table td.gl-voucher-col-amount::before { content: attr(data-label); display: block; margin-bottom: 3px; color: #687b92; font-size: 11px; font-weight: 600; }
-  #root .gl-voucher-add { padding-left: 0; }
-  #root .gl-voucher-totals { gap: 14px; }
-  #root .app-shell .gl-voucher-save { width: 100%; justify-content: center; margin-left: 0; }
+
+/* The account cell holds the type-ahead; it takes the free width of the grid. */
+#root .doc-form table.gl-voucher-lines :is(th, td).gl-voucher-col-account { width: 34%; min-width: 220px; }
+#root .doc-form table.gl-voucher-lines :is(th, td).dd-num { width: 130px; }
+#root .gl-voucher-rf .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
+
+/* Borç = Alacak line of the totals: balanced in green, the difference in red. */
+#root .gl-voucher-difference { display: inline-flex; align-items: center; gap: 5px; }
+#root .gl-voucher-difference.is-balanced { color: var(--nx-ok); }
+#root .gl-voucher-difference.is-unbalanced { color: var(--nx-bad); }
+
+#root .app-shell .gl-voucher-dismiss {
+  display: inline-flex;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* A firm user sees why the voucher cannot be entered (no form). */
+#root .gl-voucher-locked { display: grid; gap: 6px; padding: 4px 0; }
+#root .app-shell .gl-voucher-locked h1 { margin: 0; color: var(--nx-text); font-size: 19px !important; font-weight: 650 !important; }
+#root .gl-voucher-locked p { margin: 0; color: var(--nx-muted); font-size: 13px; }

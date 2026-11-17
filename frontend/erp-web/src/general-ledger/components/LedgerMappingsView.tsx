@@ -8,7 +8,6 @@ import { ListToolbar } from "../../list-page/ListToolbar";
 import { downloadCsv, downloadXlsx } from "../ledgerReportUtils";
 import { mappingInfo, mappingModuleLabels, mappingModuleOrder, type MappingModule } from "../mappingCatalog";
 import { LedgerAccountCombobox } from "./LedgerAccountCombobox";
-import "../journal-voucher.css";
 import "../ledger-reports.css";
 import "../ledger-chart.css";
 

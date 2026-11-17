@@ -144,6 +144,9 @@ export default function GeneralLedgerPage({
     [entryFrom, setEntryFrom] = useState(""),
     [entryTo, setEntryTo] = useState("");
   const [journalSourceChip, setJournalSourceChip] = useState("");
+  // Server-side accounting basis filter of the journal ledger ("" = all; the endpoint already takes it).
+  const [entryBasis, setEntryBasis] = useState("");
+  const [entriesLoading, setEntriesLoading] = useState(false);
   const [manualDate, setManualDate] = useState(localDateString()),
     [manualAccountingBasis, setManualAccountingBasis] = useState<"TDHP" | "IFRS">("TDHP"),
     [manualDescription, setManualDescription] = useState(""),
@@ -274,6 +277,8 @@ export default function GeneralLedgerPage({
         });
         if (entryFrom) entryParams.set("from", entryFrom);
         if (entryTo) entryParams.set("to", entryTo);
+        if (entryBasis) entryParams.set("accountingBasis", entryBasis);
+        setEntriesLoading(true);
         const [e, s] = await Promise.all([
           api<{
             items: JournalEntrySummary[];
@@ -286,6 +291,7 @@ export default function GeneralLedgerPage({
         setEntries(e.items);
         setEntryTotal(e.total);
         setSources(s);
+        setEntriesLoading(false);
       }
       if (view === "transfer-sources") {
         const s = await api<typeof sources>(
@@ -296,11 +302,12 @@ export default function GeneralLedgerPage({
       }
     } catch (e) {
       setError((e as Error).message);
+      setEntriesLoading(false);
     }
   }
   useEffect(() => {
     void load();
-  }, [token, entryPage, view, entryFrom, entryTo]);
+  }, [token, entryPage, view, entryFrom, entryTo, entryBasis]);
   async function createAccount(e: React.FormEvent) {
     e.preventDefault();
     const parent = accounts.find(
@@ -783,13 +790,10 @@ export default function GeneralLedgerPage({
     view === "journal-ledger" ||
     view === "transfer-sources";
   const showListHeader = isListView && !accountFormOpen;
-  // The chart of accounts and the mappings render their own list-v2 header inside the view.
-  const ownsHeader = view === "accounts" || view === "mappings";
+  // The chart of accounts, the mappings and the journal ledger render their own list-v2 header inside the view.
+  const ownsHeader = view === "accounts" || view === "mappings" || view === "journal-ledger";
   // Mizan and Bilanço render their own list-v2 header (with report exports) inside the view.
   const isReportView = view === "trial-balance" || view === "balance-sheet";
-  // Journal ledger header meta: amount of the loaded page (entries are balanced, so debit = amount).
-  const journalPageAmount = entries.reduce((total, entry) => total + entry.totalDebit, 0);
-  const journalCountLabel = `fiş · ${fmt(journalPageAmount)} ${sources.baseCurrencyCode || ""}${entryTotal > entries.length ? " (bu sayfa)" : ""}`.replace(/\s+\(/, " (").trimEnd();
   const isTenantAdmin = role === "TenantAdmin";
   const listCount =
     view === "accounts"
@@ -802,32 +806,14 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`panel general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader || isReportView ? " list-v2" : ""}`}>
+    <section className={`${view === "journal-ledger" || view === "voucher" ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader || isReportView ? " list-v2" : ""}`}>
       {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
           description={viewDescriptions[view]}
           count={listCount}
-          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : view === "journal-ledger" ? journalCountLabel : undefined}
+          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : undefined}
         >
-          {view === "journal-ledger" && (
-            <>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => onNavigate?.("finance-transfer-sources")}
-              >
-                Aktarılabilir kaynaklar
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={() => onNavigate?.("finance-journal-vouchers")}
-              >
-                Yeni fiş
-              </button>
-            </>
-          )}
           {view === "transfer-sources" && isTenantAdmin && (
             <button
               type="button"
@@ -1082,6 +1068,12 @@ export default function GeneralLedgerPage({
           notice={notice}
           onDismissNotice={() => setNotice("")}
           onOpenRecentEntries={onNavigate ? () => onNavigate("finance-journal-ledger") : undefined}
+          onReset={() => {
+            setManualDescription("");
+            setManualLines([emptyManualJournalLine(), emptyManualJournalLine(), emptyManualJournalLine()]);
+            setError("");
+            setNotice("");
+          }}
         />
       )}
       {view === "trial-balance" && <TrialBalanceView token={token} />}
@@ -1334,6 +1326,7 @@ export default function GeneralLedgerPage({
           role={role}
           entries={entries}
           entryTotal={entryTotal}
+          loading={entriesLoading}
           entryPage={entryPage}
           setEntryPage={setEntryPage}
           entryFrom={entryFrom}
@@ -1343,13 +1336,19 @@ export default function GeneralLedgerPage({
             setEntryFrom(from);
             setEntryTo(to);
           }}
+          basis={entryBasis}
+          onBasisChange={(next) => {
+            setEntryPage(1);
+            setEntryBasis(next);
+          }}
           sourceChip={journalSourceChip}
           setSourceChip={setJournalSourceChip}
           busy={busy}
           onReverse={reverseJournalEntry}
           onRefresh={() => void load()}
-          toolsSlot={listToolsSlot}
-          setToolsSlot={setListToolsSlot}
+          pendingSources={isTenantAdmin ? transferSourceRows.length : null}
+          baseCurrency={sources.baseCurrencyCode || ""}
+          onNavigate={onNavigate}
         />
       )}
     </section>

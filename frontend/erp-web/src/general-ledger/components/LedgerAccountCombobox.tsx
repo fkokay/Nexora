@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { LedgerAccount } from "../../erp-types";
+import "../ledger-account-combobox.css";
 
 const MAX_OPTIONS = 40;
 
