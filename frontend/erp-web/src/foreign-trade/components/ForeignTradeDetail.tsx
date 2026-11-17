@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Globe2, PackageCheck, Pencil, X } from "lucide-react";
+import { AlertTriangle, Globe2, PackageCheck, X } from "lucide-react";
 import { localizedText } from "../../locale";
 import {
   tradeStageFlow,
@@ -34,10 +34,8 @@ type Props = {
   onDismissNotice: () => void;
   onDocumentChange: (id: string) => void;
   onLinkDocument: (item: TradeCase) => void;
-  onEdit: (item: TradeCase) => void;
   /** Saves the collected prerequisite inputs (if any) and moves the case to `status`. */
   onAdvance: (item: TradeCase, status: TradeStatus, inputs: AdvanceInputs) => void;
-  onCancelCase: (item: TradeCase) => void;
 };
 
 const tr = (turkish: string, english: string) =>
@@ -93,15 +91,11 @@ export function ForeignTradeDetail({
   onDismissNotice,
   onDocumentChange,
   onLinkDocument,
-  onEdit,
   onAdvance,
-  onCancelCase,
 }: Props) {
   const [inputs, setInputs] = useState<AdvanceInputs>({});
-  const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
     setInputs({});
-    setConfirmCancel(false);
   }, [item?.id, item?.status]);
 
   if (!item)
@@ -405,59 +399,7 @@ export function ForeignTradeDetail({
         </section>
       )}
 
-      {(editable && (capabilities.canUpdate || capabilities.canAdvance)) && (
-        <div className="foreign-trade-detail-actions">
-          {capabilities.canUpdate && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => onEdit(item)}
-            >
-              <Pencil size={14} /> {tr("Düzenle", "Edit")}
-            </button>
-          )}
-          {capabilities.canAdvance && !confirmCancel && (
-            <button
-              type="button"
-              className="secondary is-danger"
-              disabled={busy}
-              onClick={() => setConfirmCancel(true)}
-            >
-              {tr("İptal et", "Cancel case")}
-            </button>
-          )}
-        </div>
-      )}
-      {confirmCancel && editable && capabilities.canAdvance && (
-        <div className="foreign-trade-cancel-confirm" role="group">
-          <span>
-            {tr(
-              "Dosya iptal edilsin mi? Bu işlem geri alınamaz.",
-              "Cancel this case? This cannot be undone.",
-            )}
-          </span>
-          <div>
-            <button
-              type="button"
-              className="secondary is-danger"
-              disabled={busy}
-              onClick={() => onCancelCase(item)}
-            >
-              {tr("Evet, iptal et", "Yes, cancel")}
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => setConfirmCancel(false)}
-            >
-              {tr("Vazgeç", "Keep")}
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* Düzenle and İptal et are in the action bar (Aç, İşlemler). */}
       {(linked || canLinkNow || item.inventoryPostingRequired) && !cancelled && (
         <section className="foreign-trade-inventory-link">
           <h4>{tr("Stok belgesi", "Inventory document")}</h4>

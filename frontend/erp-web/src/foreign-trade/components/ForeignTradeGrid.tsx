@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { StatusTag } from "../../list-page/StatusTag";
+import { tradeStatusTone } from "../tradeStatus";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { ScreenColumnPin } from "../../erp-types";
@@ -259,11 +261,9 @@ export function ForeignTradeGrid({
                 }
                 case "status":
                   return (
-                    <span
-                      className={`trade-status ${item.status.toLowerCase()}`}
-                    >
+                    <StatusTag tone={tradeStatusTone(item.status)}>
                       {statusLabel(item.status)}
-                    </span>
+                    </StatusTag>
                   );
                 case "transportMode":
                   return transportLabel(item.transportMode);

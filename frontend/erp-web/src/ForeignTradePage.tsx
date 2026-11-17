@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { authenticatedFetch } from "./authApi";
 import { localizedText } from "./locale";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
+import { confirmDialog } from "./confirmDialog";
 import "./foreign-trade.css";
 import {
   RecordFormGroup,
@@ -529,8 +532,62 @@ export default function ForeignTradePage({
     }
   }
 
+  // Header create buttons, the panel's Düzenle and İptal et are on the action bar (mockup 10, Dış Ticaret).
+  const createReason = capabilities.canCreate
+    ? undefined
+    : tr("erp.foreign-trade.create izni gerekir", "Requires the erp.foreign-trade.create permission");
+  const caseEditable = !!selectedCase && ["Draft", "Booked"].includes(selectedCase.status);
+  const caseBusy = !!selectedCase && busyId === selectedCase.id;
+  const tradeMore: MenuCommand[] = [
+    { id: "trade-new-import", label: tr("İthalat dosyası", "Import case"), disabledReason: createReason, run: () => startCreate("Import") },
+    { id: "trade-new-export", label: tr("İhracat dosyası", "Export case"), disabledReason: createReason, run: () => startCreate("Export") },
+  ];
+  if (selectedCase && caseEditable && capabilities.canAdvance)
+    tradeMore.push({
+      id: "trade-cancel",
+      label: tr("İptal et", "Cancel case"),
+      disabledReason: caseBusy ? tr("İşlem sürüyor…", "An operation is in progress…") : undefined,
+      run: async () => {
+        const confirmed = await confirmDialog({
+          title: tr("Dosyayı iptal et", "Cancel case"),
+          message: tr("Dosya iptal edilsin mi? Bu işlem geri alınamaz.", "Cancel this case? This cannot be undone."),
+          confirmLabel: tr("Evet, iptal et", "Yes, cancel"),
+          cancelLabel: tr("Vazgeç", "Keep"),
+          tone: "danger",
+        });
+        if (confirmed) void transition(selectedCase, "Cancelled");
+      },
+    });
+  const tradeCommands: PageCommands = {
+    new: {
+      primary: true,
+      disabledReason: createReason,
+      run: () => startCreate(filter === "Import" ? "Import" : "Export"),
+    },
+    open: {
+      disabledReason: !selectedCase
+        ? tr("Önce bir kayıt seçin", "Select a record first")
+        : !caseEditable
+          ? tr("Yalnız Taslak ve Planlandı dosyalar düzenlenebilir", "Only Draft and Booked cases can be edited")
+          : !capabilities.canUpdate
+            ? tr("erp.foreign-trade.update izni gerekir", "Requires the erp.foreign-trade.update permission")
+            : caseBusy
+              ? tr("İşlem sürüyor…", "An operation is in progress…")
+              : undefined,
+      run: () => {
+        if (selectedCase) startEdit(selectedCase);
+      },
+    },
+    delete: {
+      disabledReason: selectedCase
+        ? tr("Dosya silinemez; İşlemler'den iptal edin.", "Cases cannot be deleted; cancel from Actions.")
+        : tr("Önce bir kayıt seçin", "Select a record first"),
+    },
+    more: tradeMore,
+  };
   return (
     <div className="page-content foreign-trade-page list-v2">
+      {!creating && <PageCommandsSlot commands={tradeCommands} />}
       <ListPageHeader
         title={tr("İthalat ve ihracat dosyaları", "Import and export cases")}
         description={tr(
@@ -539,23 +596,7 @@ export default function ForeignTradePage({
         )}
         count={loading && cases.length === 0 ? null : cases.length}
         countLabel={tr("dosya", "cases")}
-      >
-        {capabilities.canCreate && (
-          <>
-            <button
-              className="secondary"
-              onClick={() => startCreate("Import")}
-            >
-              <Plus size={15} />
-              {tr("İthalat dosyası", "Import case")}
-            </button>
-            <button className="primary" onClick={() => startCreate("Export")}>
-              <Plus size={15} />
-              {tr("İhracat dosyası", "Export case")}
-            </button>
-          </>
-        )}
-      </ListPageHeader>
+      />
       {(!capabilities.canCreate ||
         !capabilities.canUpdate ||
         !capabilities.canAdvance) &&
@@ -998,11 +1039,9 @@ export default function ForeignTradePage({
             onDismissNotice={() => setNotice(null)}
             onDocumentChange={setInventoryDocumentId}
             onLinkDocument={(item) => void linkInventoryDocument(item)}
-            onEdit={startEdit}
             onAdvance={(item, status, inputs) =>
               void transition(item, status, inputs)
             }
-            onCancelCase={(item) => void transition(item, "Cancelled")}
           />
         </div>
       </section>
