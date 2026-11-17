@@ -31,9 +31,16 @@ function respond(url: string): { status: number; body: unknown } {
   return ok([]);
 }
 
+const writes: Array<{ method: string; path: string; body: unknown }> = [];
+
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
-  authenticatedFetch: vi.fn(async (url: string) => {
+  authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    if (method !== 'GET') {
+      writes.push({ method, path: url.split('?')[0], body: init?.body ? JSON.parse(String(init.body)) : null });
+      return new Response(JSON.stringify(asset('a9', 'DV-0099', 'Yeni')), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     const { status, body } = respond(url);
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   }),
@@ -47,6 +54,7 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
+  writes.length = 0;
   localStorage.clear();
 });
 
@@ -93,5 +101,35 @@ describe('Duran Varlıklar register', () => {
       fireEvent.click(command('new'));
     });
     expect(await screen.findByRole('heading', { name: 'Edinim kaydı oluştur' })).toBeTruthy();
+  });
+
+  it('Edinim kaydı: the POST body', async () => {
+    renderScreen(<FixedAssetsPage token="t" locale="tr" />);
+    await screen.findByText('Dolum makinesi');
+    await waitFor(() => expect(enabled('new')).toBe(true));
+    await act(async () => {
+      fireEvent.click(command('new'));
+    });
+    await screen.findByRole('heading', { name: 'Edinim kaydı oluştur' });
+    const field = (label: string) => screen.getByLabelText(label, { exact: false, selector: 'input' }) as HTMLInputElement;
+    fireEvent.change(field('Kıymet kodu'), { target: { value: 'DV-0100' } });
+    fireEvent.change(field('Ad'), { target: { value: 'Paketleme robotu' } });
+    fireEvent.change(field('Kategori'), { target: { value: 'Makine' } });
+    fireEvent.change(field('Edinim tarihi'), { target: { value: '2026-10-01' } });
+    fireEvent.change(field('Kullanıma giriş'), { target: { value: '2026-10-15' } });
+    const form = field('Kıymet kodu').closest('form')!;
+    const numbers = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="number"]'));
+    // Field order on the form: useful life (months), acquisition cost, residual value.
+    numbers.forEach((input, index) => fireEvent.change(input, { target: { value: String([60, 96000, 6000][index] ?? input.value) } }));
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].method).toBe('POST');
+    expect(writes[0].path).toBe('/api/fixed-assets');
+    expect(writes[0].body).toEqual({
+      assetCode: 'DV-0100', name: 'Paketleme robotu', category: 'Makine', acquisitionDate: '2026-10-01', inServiceDate: '2026-10-15',
+      acquisitionCostBase: 96000, residualValueBase: 6000, usefulLifeMonths: 60, sourceReference: null, supplierAccountId: null, purchaseInvoiceId: null,
+    });
   });
 });
