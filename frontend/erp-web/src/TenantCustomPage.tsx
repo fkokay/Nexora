@@ -1,13 +1,14 @@
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { confirmDialog } from "./confirmDialog";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
+import { MetricCard } from "./custom-page/MetricCard";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
-import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
+import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -166,19 +167,18 @@ function QueryError({ message }: { message: string }) {
   return <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{message}</span></div>;
 }
 
+type MetricExtras = Pick<ComponentProps<typeof MetricCard>, "tone" | "icon" | "trend" | "active" | "onActivate">;
+
 const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
 /** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
 const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
 
-function QueryMetric({ state, title, description, style }: { state: QueryState; title: string; description: string; style: CSSProperties }) {
+function QueryMetric({ state, title, description, style, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties } & MetricExtras) {
   const first = state.columns[0]?.code;
   const value = state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
-  return <article className={`tenant-page-metric tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
-    {title && <span>{title}</span>}
-    {state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
-      : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>}
-    {description && <small>{description}</small>}
-  </article>;
+  return <MetricCard title={title} description={description} style={style} hasError={!!state.error} {...card}
+    value={state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
+      : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
 export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense" }: {
@@ -348,8 +348,17 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
-      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} />;
-      return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} />;
+      const tone = (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info";
+      const icon = typeof props.icon === "string" ? props.icon : undefined;
+      const trendState = runtime && typeof props.trendQuery === "string" ? runtime.states[runtime.queryNames[props.trendQuery]] : undefined;
+      const trend = trendState ? trendPoints(trendState.rows) : undefined;
+      const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;
+      const filterValue = typeof props.filterValue === "string" ? props.filterValue : "";
+      const active = !!runtime && !!filterInput && String(runtime.inputValues[filterInput] ?? "") === filterValue;
+      const onActivate = runtime && filterInput ? () => runtime.setInput(filterInput, active ? "" : filterValue) : undefined;
+      const card = { tone, icon, trend, active, onActivate };
+      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
+      return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
     case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
     case "divider": return <hr key={component.id} style={style} />;

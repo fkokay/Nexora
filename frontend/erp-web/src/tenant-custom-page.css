@@ -19,11 +19,22 @@
 .tenant-page-label { align-self: center; font-weight: 600; }
 .tenant-page-spacer { min-height: 8px; }
 
-/* Özet kartı (gösterge): etiket, değer, açıklama — taslak 01 özet mini kartları */
-.tenant-page-metric { display: flex; flex-direction: column; gap: 2px; }
-.tenant-page-metric > span { color: var(--nx-muted); font-size: 11.5px; }
+/* Özet kartı (gösterge): ikon kutusu, etiket/değer/açıklama, sağda eğilim — taslak `.mk` kartı; `.act` = süzgeç uygulanmış */
+.tenant-page-metric { --metric-tone: var(--nx-primary-strong); --metric-soft: var(--nx-primary-soft); display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.tenant-page-metric.tone-success { --metric-tone: var(--nx-ok); --metric-soft: var(--nx-ok-bg); }
+.tenant-page-metric.tone-warning { --metric-tone: var(--nx-warn); --metric-soft: var(--nx-warn-bg); }
+.tenant-page-metric.tone-danger { --metric-tone: var(--nx-bad); --metric-soft: var(--nx-bad-bg); }
+.tenant-metric-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 8px; color: var(--metric-tone); background: var(--metric-soft); }
+.tenant-metric-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.tenant-metric-label { color: var(--nx-muted); font-size: 11.5px; }
 .tenant-page-metric strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tenant-page-metric:is(.tone-warning, .tone-danger) strong:not(.tenant-report-status) { color: var(--metric-tone); }
 .tenant-page-metric small { color: var(--nx-muted); font-size: 11px; }
+.tenant-metric-trend { flex: none; margin-left: auto; }
+.tenant-metric-trend polyline { stroke: var(--nx-primary); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tenant-page-metric.is-clickable { cursor: pointer; }
+.tenant-page-metric.is-clickable:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-metric.is-active { border-color: color-mix(in srgb, var(--metric-tone) 35%, var(--nx-surface)); background: color-mix(in srgb, var(--metric-soft) 45%, var(--nx-surface)); }
 
 /* Düğmeler */
 .tenant-page-action { display: flex; align-items: center; }

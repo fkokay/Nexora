@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useState } from "react";
 import { api } from "./erpApi";
-import { formatCell, isRightAligned, parseColumnFormats, parseToneMap, toneFor } from "./custom-page/cellFormat";
+import { formatCell, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type Tone } from "./custom-page/cellFormat";
+import { MetricCard } from "./custom-page/MetricCard";
 
 type CatalogColumn = { code: string; label: string; dataType?: string };
 type CatalogSource = { code: string; label: string; columns: CatalogColumn[] };
@@ -30,12 +31,18 @@ type Props = {
   columnFormats?: unknown;
   toneMap?: unknown;
   density?: unknown;
+  tone?: Tone;
+  icon?: string;
+  trend?: number[];
+  active?: boolean;
+  onActivate?: () => void;
 };
 
 const MAX_ROWS = 50;
 export default function TenantReportWidget({
   kind, source: sourceValue, columns: columnsValue, title, description, fallbackValue, style, token,
   rowActionsEnabled = false, rowActionWorkflowId, rowActionLabel, pageCode = "", componentId = "", columnFormats, toneMap, density,
+  tone = "info", icon, trend, active, onActivate,
 }: Props) {
   const sourceCode = typeof sourceValue === "string" ? sourceValue.trim() : "";
   const selectedColumns = Array.isArray(columnsValue)
@@ -120,15 +127,14 @@ export default function TenantReportWidget({
 
   if (kind === "metric") {
     const value = result ? new Intl.NumberFormat("tr-TR").format(result.totalCount) : fallbackValue || "—";
-    return <article className={`tenant-page-metric tenant-page-report-widget ${status === "error" ? "is-error" : ""}`} style={style}>
-      {title && <span>{title}</span>}
-      {status === "loading" ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong>
-        : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
-          : !sourceCode ? <strong className="tenant-report-unbound">{value}</strong>
-            : <strong>{value}</strong>}
-      {description && <small>{description}</small>}
-      {sourceCode && status === "ready" && result && <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small>}
-    </article>;
+    return <MetricCard title={title} description={description} style={style ?? {}} tone={tone} icon={icon} trend={trend} active={active} onActivate={onActivate} hasError={status === "error"}
+      value={<>
+        {status === "loading" ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong>
+          : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
+            : !sourceCode ? <strong className="tenant-report-unbound">{value}</strong>
+              : <strong>{value}</strong>}
+        {sourceCode && status === "ready" && result && <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small>}
+      </>} />;
   }
 
   const formats = parseColumnFormats(columnFormats);
