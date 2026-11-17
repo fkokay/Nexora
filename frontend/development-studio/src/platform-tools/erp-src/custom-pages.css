@@ -452,3 +452,48 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .custom-page-preview-grid tfoot .pd-total-label{float:left;color:var(--dl-muted);font-weight:600}
 .pd-frame .custom-page-preview-grid tfoot td>.num{float:right}
 .pd-frame .custom-page-preview-grid tfoot td{max-width:none;overflow:visible;text-overflow:clip}
+
+/* Tasarım dili bileşenleri: giriş seçici */
+.pd-input-picker li.is-taken{opacity:.55}
+.pd-input-picker li .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-input-picker li .pd-icon-button:disabled{opacity:.3}
+.pd-taken-hint{margin-left:auto;color:#8a5307;font-size:10.5px;white-space:nowrap}
+.pd-tonemap-row select{max-width:100%}
+
+/* Düzen bileşenleri önizlemeleri: ERP tenant-custom-page.css (form kartı, çipler, yan filtre, bağlam paneli) ile aynı görünüm */
+.pd-frame .pd-layout-block{box-sizing:border-box;min-height:100%;padding:12px 14px;border:1px solid var(--dl-line);border-radius:10px;background:var(--dl-surface)}
+.pd-frame .pd-layout-block h3{margin:0 0 10px;color:var(--dl-text);font-size:13px;font-weight:650}
+.pd-frame .pd-form-card-grid{display:grid;gap:10px 14px}
+.pd-frame .pd-form-card-grid.is-cols-1{grid-template-columns:minmax(0,1fr)}
+.pd-frame .pd-form-card-grid.is-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pd-frame .pd-form-card-grid.is-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pd-frame .pd-form-card-cell{min-width:0}
+.pd-frame .pd-form-card-cell .pd-binding-preview-input{margin:0;padding:0}
+.pd-frame .pd-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pd-frame .pd-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--dl-primary) 30%,var(--dl-surface));border-radius:999px;color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-size:12px;line-height:1.6}
+.pd-frame .pd-chip.is-sample{opacity:.55}
+.pd-frame .pd-chip-label{color:var(--dl-muted)}
+.pd-frame .pd-chip strong{font-weight:600}
+.pd-frame .pd-chip-x{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--dl-muted);font-size:11px}
+.pd-frame .pd-chips-clear,.pd-frame .pd-facet-clear{padding:2px 8px;border-radius:6px;color:var(--dl-primary-strong);font-size:11.5px;font-weight:600}
+.pd-frame .pd-facet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.pd-frame .pd-layout-block.pd-facet .pd-facet-head h3{margin:0}
+.pd-frame .pd-facet-group{display:grid;gap:1px;padding:8px 0;border-top:1px solid var(--dl-line-soft)}
+.pd-frame .pd-facet-label{margin-bottom:3px;color:var(--dl-muted);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.pd-frame .pd-facet-option{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;padding:3px 8px;border-radius:6px;color:var(--dl-text);font-size:12.5px}
+.pd-frame .pd-facet-option.is-selected{color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-weight:600}
+.pd-frame .pd-facet-count{color:var(--dl-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.pd-frame .pd-facet-state{margin:0;color:var(--dl-muted);font-size:11.5px}
+.pd-frame .pd-context-empty{margin:0;padding:18px 8px;color:var(--dl-muted);text-align:center}
+.pd-frame .pd-context-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.pd-frame .pd-context-field{min-width:0;padding:7px 9px;border:1px solid var(--dl-line-soft);border-radius:6px;background:var(--dl-head)}
+.pd-frame .pd-context-field dt{margin:0 0 2px;color:var(--dl-muted);font-size:11px;font-weight:600}
+.pd-frame .pd-context-field dd{margin:0;color:var(--dl-text);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pd-frame .pd-context-related{margin-top:12px;padding-top:10px;border-top:1px solid var(--dl-line-soft)}
+.pd-frame .pd-context-related h4{margin:0 0 6px;color:var(--dl-muted);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.pd-frame .pd-context-related ul{display:grid;margin:0;padding:0;list-style:none}
+.pd-frame .pd-context-related li{padding:5px 0 5px 12px;border-bottom:1px solid var(--dl-line-soft);border-left:2px solid var(--dl-line);font-size:12.5px;overflow-wrap:anywhere}
+.pd-frame .pd-context-related li:last-child{border-bottom:0}
+.pd-frame .pd-context-note{margin:0;color:var(--dl-muted);font-size:11.5px}
+/* Sahiplenilen girişler sahibinin içinde çizilir; kendi konumunda gizlenir (katmanlardan seçilebilir kalır) */
+.pd-block.is-owned{display:none}

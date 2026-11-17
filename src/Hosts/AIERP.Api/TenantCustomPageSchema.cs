@@ -15,7 +15,7 @@ internal static class TenantCustomPageSchema
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -25,15 +25,22 @@ internal static class TenantCustomPageSchema
     private static readonly HashSet<string> SafePropsV2 = new(SafeProps, StringComparer.Ordinal)
     { "query", "inputType", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn",
       "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage",
-      "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals" };
+      "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals",
+      "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts" };
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
     private const int MaxTotals = 12;
     private const int MaxFilterValueLength = 200;
+    private const int MaxLayoutInputs = 12;
+    private const int MaxContextFields = 12;
+    private const int MaxFacetCounts = 12;
+    private const int MaxRelatedTitleLength = 60;
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly Regex ToneMapItem = new(@"^[^=]{1,60}=(info|success|warning|danger)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ContextFieldItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage" };
@@ -58,6 +65,16 @@ internal static class TenantCustomPageSchema
         public HashSet<string> InputIds { get; } = new(StringComparer.Ordinal);
         /// <summary>filterInput values seen on metrics; resolved against <see cref="InputIds"/> once every component was visited.</summary>
         public List<string> PendingFilterInputs { get; } = [];
+        /// <summary>Component id to type, for every component at any depth.</summary>
+        public Dictionary<string, string> ComponentTypesById { get; } = new(StringComparer.Ordinal);
+        /// <summary>Ids of named dataTable components bound to a query (valid contextPanel tables).</summary>
+        public HashSet<string> NamedQueryTables { get; } = new(StringComparer.Ordinal);
+        /// <summary>Ids of select inputs that have an optionsQuery (valid facetPanel inputs).</summary>
+        public HashSet<string> SelectInputsWithOptions { get; } = new(StringComparer.Ordinal);
+        /// <summary>Layout components' input id lists; resolved once every component was visited.</summary>
+        public List<(string OwnerId, string OwnerType, List<string> InputIds)> PendingInputLists { get; } = [];
+        /// <summary>contextPanel table references.</summary>
+        public List<(string OwnerId, string TableId)> PendingTables { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -83,6 +100,7 @@ internal static class TenantCustomPageSchema
                 if (!ValidateComponent(component, context, 0, out error)) return false;
             if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x)) is { } missingInput)
             { error = $"Göstergenin süzeceği giriş bileşeni sayfada yok: {missingInput}."; return false; }
+            if (!ResolveLayoutReferences(context, out error)) return false;
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
             return true;
@@ -178,6 +196,7 @@ internal static class TenantCustomPageSchema
         if (idText.Length is < 1 or > 64 || !idText.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') || !context.Ids.Add(idText))
         { error = "Bileşen kimlikleri benzersiz, kısa ve yalnızca harf/rakam/-/_ içermelidir."; return false; }
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
+        context.ComponentTypesById[idText] = typeText;
         if (typeText == "input") context.InputIds.Add(idText);
         if (component.TryGetProperty("name", out var nameElement)
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
@@ -235,7 +254,15 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty("rowActionLabel", out var rowActionLabel) && (typeText != "dataTable" || rowActionLabel.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(rowActionLabel.GetString()) || rowActionLabel.GetString()!.Length > 60))
             { error = "Satır işlemi düğme metni 1–60 karakter olmalıdır."; return false; }
             if (context.V2 && !ValidateV2Props(props, typeText, context, out error)) return false;
+            if (context.V2 && !ValidateLayoutProps(props, idText, typeText, context, out error)) return false;
+            if (typeText == "input" && props.TryGetProperty("inputType", out var selectType) && selectType.ValueKind == JsonValueKind.String && selectType.GetString() == "select"
+                && props.TryGetProperty("optionsQuery", out var selectOptions) && selectOptions.ValueKind == JsonValueKind.String)
+                context.SelectInputsWithOptions.Add(idText);
+            if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
+                context.NamedQueryTables.Add(idText);
         }
+        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel")
+        { error = $"'{typeText}' bileşeni için props gerekli."; return false; }
         if (component.TryGetProperty("children", out var children))
         {
             if (typeText is not ("section" or "card") || children.ValueKind != JsonValueKind.Array || children.GetArrayLength() > MaxComponents)
@@ -315,6 +342,81 @@ internal static class TenantCustomPageSchema
             if (!props.TryGetProperty("query", out var tableQuery) || tableQuery.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(tableQuery.GetString()))
             { error = "'totals' yalnızca sorguya bağlı (query) veri listesinde kullanılabilir."; return false; }
         }
+        return true;
+    }
+
+    private static bool AllowedOn(string prop, string typeText) => prop switch
+    {
+        "inputs" => typeText is "formCard" or "filterChips" or "facetPanel",
+        "columns" => true,
+        "table" or "fields" or "relatedQuery" or "relatedTitle" => typeText == "contextPanel",
+        "facetCounts" => typeText == "facetPanel",
+        _ => true
+    };
+
+    /// <summary>formCard, contextPanel, filterChips and facetPanel props (design language step 2b); references resolve after the loop.</summary>
+    private static bool ValidateLayoutProps(JsonElement props, string id, string typeText, Context context, out string? error)
+    {
+        error = null;
+        foreach (var key in new[] { "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts" })
+            if (props.TryGetProperty(key, out _) && !AllowedOn(key, typeText))
+            { error = $"'{key}' özelliği bu bileşen türünde kullanılamaz."; return false; }
+        if (props.TryGetProperty("columns", out var columns) && typeText == "formCard"
+            && (columns.ValueKind != JsonValueKind.Number || !columns.TryGetInt32(out var columnCount) || columnCount is < 1 or > 3))
+        { error = "Form kartının 'columns' değeri 1, 2 veya 3 olmalıdır."; return false; }
+        List<string>? inputIds = null;
+        if (typeText is "formCard" or "filterChips" or "facetPanel")
+        {
+            if (!props.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Array
+                || inputs.GetArrayLength() is < 1 or > MaxLayoutInputs
+                || inputs.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())))
+            { error = $"'inputs' 1–{MaxLayoutInputs} adet giriş bileşeni kimliği içeren bir dizi olmalıdır."; return false; }
+            inputIds = inputs.EnumerateArray().Select(x => x.GetString()!).ToList();
+            context.PendingInputLists.Add((id, typeText, inputIds));
+        }
+        if (typeText == "facetPanel" && props.TryGetProperty("facetCounts", out var facetCounts))
+        {
+            if (!ValidateMapItems("facetCounts", facetCounts, true, MaxFacetCounts, FacetCountItem, "girişKimliği=sayıSütunu", out error)) return false;
+            if (facetCounts.EnumerateArray().Any(x => !inputIds!.Contains(x.GetString()!.Split('=')[0])))
+            { error = "'facetCounts' öğelerindeki giriş kimliği panelin 'inputs' listesinde olmalıdır."; return false; }
+        }
+        if (typeText == "contextPanel")
+        {
+            if (!props.TryGetProperty("table", out var table) || table.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(table.GetString()))
+            { error = "Bağlam panelinin 'table' değeri sayfadaki bir veri listesi kimliği olmalıdır."; return false; }
+            context.PendingTables.Add((id, table.GetString()!));
+            if (!props.TryGetProperty("fields", out var fields) || fields.ValueKind != JsonValueKind.Array || fields.GetArrayLength() < 1)
+            { error = $"'fields' 1–{MaxContextFields} adet sütun=Etiket öğesi içermelidir."; return false; }
+            if (!ValidateMapItems("fields", fields, true, MaxContextFields, ContextFieldItem, "sütun=Etiket", out error)) return false;
+            if (props.TryGetProperty("relatedQuery", out var relatedQuery)
+                && (relatedQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(relatedQuery.GetString())))
+            { error = $"'relatedQuery' sayfada tanımlı bir okuma sorgusu olmalıdır: {(relatedQuery.ValueKind == JsonValueKind.String ? relatedQuery.GetString() : "?")}."; return false; }
+            if (props.TryGetProperty("relatedTitle", out var relatedTitle)
+                && (relatedTitle.ValueKind != JsonValueKind.String || relatedTitle.GetString()!.Length > MaxRelatedTitleLength))
+            { error = $"'relatedTitle' en fazla {MaxRelatedTitleLength} karakterlik metin olmalıdır."; return false; }
+        }
+        return true;
+    }
+
+    private static bool ResolveLayoutReferences(Context context, out string? error)
+    {
+        error = null;
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (ownerId, ownerType, inputIds) in context.PendingInputLists)
+            foreach (var inputId in inputIds)
+            {
+                if (!context.ComponentTypesById.TryGetValue(inputId, out var type))
+                { error = $"'{ownerId}' bileşeninin 'inputs' listesindeki giriş sayfada yok: {inputId}."; return false; }
+                if (type != "input")
+                { error = $"'{ownerId}' bileşeninin 'inputs' listesindeki '{inputId}' bir giriş bileşeni değil."; return false; }
+                if (ownerType == "facetPanel" && !context.SelectInputsWithOptions.Contains(inputId))
+                { error = $"Yan filtre panelinin 'inputs' listesi yalnızca seçenek sorgulu seçim girişleri içerebilir: {inputId}."; return false; }
+                if (ownerType is "formCard" or "facetPanel" && !owners.TryAdd(inputId, ownerId))
+                { error = $"'{inputId}' girişi birden fazla form kartı veya yan filtre panelinde kullanılamaz."; return false; }
+            }
+        foreach (var (ownerId, tableId) in context.PendingTables)
+            if (!context.NamedQueryTables.Contains(tableId))
+            { error = $"'{ownerId}' bağlam panelinin 'table' değeri sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {tableId}."; return false; }
         return true;
     }
 

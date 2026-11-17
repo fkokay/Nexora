@@ -323,4 +323,55 @@ public sealed class TenantCustomPageSchemaV2Tests
         });
         Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
     }
+
+    private static object In(string id, string type = "text", string? optionsQuery = null) =>
+        optionsQuery is null
+            ? new { id, type = "input", name = id + "n", props = (object)new { inputType = type } }
+            : new { id, type = "input", name = id + "n", props = (object)new { inputType = type, optionsQuery } };
+
+    [Fact]
+    public void Accepts_layout_components()
+    {
+        var json = Page(
+            new { id = "fc1", type = "formCard", props = new { title = "Filtre", inputs = new[] { "in1", "in2" }, columns = 3 } },
+            In("in1"), In("in2", "select", "q1"),
+            new { id = "cp1", type = "contextPanel", props = new { title = "Detay", table = "t1", fields = new[] { "Tutar=Toplam", "Durum=Durum" }, relatedQuery = "q1", relatedTitle = "İlgili" } },
+            new { id = "chips", type = "filterChips", props = new { inputs = new[] { "in1", "in3" } } },
+            new { id = "fp1", type = "facetPanel", props = new { title = "Yan", inputs = new[] { "in4" }, facetCounts = new[] { "in4=Adet" } } },
+            new { id = "t1", type = "dataTable", name = "tablo", props = new { query = "q1" } },
+            new { id = "c1", type = "card", children = new object[] { In("in3"), In("in4", "select", "q1") } });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        Assert.True(TenantCustomPageSchema.Validate(Page(new { id = "fc1", type = "formCard", props = new { inputs = new[] { "in1" } } }, In("in1")), out error), error);
+    }
+
+    [Fact]
+    public void Rejects_invalid_layout_components()
+    {
+        object Fc(object props, string id = "fc1") => new { id, type = "formCard", props };
+        object Cp(object props) => new { id = "cp1", type = "contextPanel", props };
+        object Fp(object props, string id = "fp1") => new { id, type = "facetPanel", props };
+        var tbl = new { id = "t1", type = "dataTable", name = "tablo", props = new { query = "q1" } };
+        var ids13 = Enumerable.Range(0, 13).Select(i => $"i{i}").ToArray();
+        var fields13 = Enumerable.Range(0, 13).Select(i => $"C{i}=E{i}").ToArray();
+
+        AssertRejected(JsonSerializer.Serialize(new { schemaVersion = 1, components = new object[] { new { id = "f1", type = "formCard" } } }), "İzin verilmeyen bileşen türü");
+        AssertRejected(Page(Fc(new { inputs = Array.Empty<string>() })), "inputs");
+        AssertRejected(Page(Fc(new { inputs = ids13 })), "inputs");
+        AssertRejected(Page(Fc(new { inputs = new object[] { 5 } })), "inputs");
+        AssertRejected(Page(Fc(new { inputs = new[] { "yok" } })), "sayfada yok");
+        AssertRejected(Page(new { id = "h1", type = "heading" }, Fc(new { inputs = new[] { "h1" } })), "giriş bileşeni değil");
+        AssertRejected(Page(In("in1"), Fc(new { inputs = new[] { "in1" } }), Fc(new { inputs = new[] { "in1" } }, "fc2")), "birden fazla");
+        AssertRejected(Page(In("in1", "select", "q1"), Fc(new { inputs = new[] { "in1" } }), Fp(new { inputs = new[] { "in1" } })), "birden fazla");
+        AssertRejected(Page(In("in1"), Fc(new { inputs = new[] { "in1" }, columns = 4 })), "columns");
+        AssertRejected(Page(In("in1"), tbl, Cp(new { table = "t1", fields = new[] { "Tutar" } })), "fields");
+        AssertRejected(Page(tbl, Cp(new { table = "t1", fields = fields13 })), "fields");
+        AssertRejected(Page(new { id = "t1", type = "dataTable", props = new { query = "q1" } }, Cp(new { table = "t1", fields = new[] { "A=B" } })), "table");
+        AssertRejected(Page(new { id = "t1", type = "dataTable", name = "tablo", props = new { source = "customers" } }, Cp(new { table = "t1", fields = new[] { "A=B" } })), "table");
+        AssertRejected(Page(Cp(new { table = "yok", fields = new[] { "A=B" } })), "table");
+        var queries = new object[] { Query("q1", "liste", "SELECT 1 AS x"), new { id = "w1", name = "ekle", kind = "insert", sql = "INSERT INTO Notlar (Metin) VALUES ('x')", parameters = Array.Empty<object>(), runOn = "manual" } };
+        AssertRejected(V2(queries, [new { id = "t1", type = "dataTable", name = "tbl", props = new { query = "q1" } }, Cp(new { table = "t1", fields = new[] { "A=B" }, relatedQuery = "w1" })]), "relatedQuery");
+        AssertRejected(Page(In("in1"), Fp(new { inputs = new[] { "in1" } })), "seçenek sorgulu");
+        AssertRejected(Page(In("in1", "select"), Fp(new { inputs = new[] { "in1" } })), "seçenek sorgulu");
+        AssertRejected(Page(In("in1", "select", "q1"), Fp(new { inputs = new[] { "in1" }, facetCounts = new[] { "in9=Adet" } })), "facetCounts");
+    }
 }

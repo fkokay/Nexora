@@ -9,6 +9,8 @@ import { displayText, interpolate, type PageScope } from "./custom-page/pageBind
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
+import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
+import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -45,6 +47,11 @@ type PageRuntime = {
   selections: Record<string, Record<string, unknown> | null>;
   select: (tableName: string, row: Record<string, unknown> | null) => void;
   queryById: Record<string, PageQueryDefinition>;
+  /** formCard/facetPanel'in sahiplendiği girişler (üst düzeyde ayrıca çizilmez) ve kimliğe göre giriş bileşenleri. */
+  ownedInputs: Set<string>;
+  inputById: Record<string, ComponentDefinition>;
+  /** contextPanel'in `table` başvurusu için kimliğe göre veri tabloları. */
+  tableById: Record<string, ComponentDefinition>;
   rights: NonNullable<PublishedPage["rights"]>;
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
@@ -107,16 +114,18 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "filterChips" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
+    // ERP kabuğunun eski `[class*="-card"]`/`-panel` köşe kuralı !important; seçilen köşe bu değişkenle korunur.
+    ["--tp-radius" as string]: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
   };
 };
 
@@ -303,7 +312,14 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   </div>;
 }
 
-function PageInput({ component, props, raw, onChange, optionsState, style }: {
+/** Seçim girişinin seçenekleri (optionsQuery sonucundan); satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur. */
+const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState) => {
+  const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
+  const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
+  return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
+};
+
+export function PageInput({ component, props, raw, onChange, optionsState, style }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties;
 }) {
@@ -314,9 +330,7 @@ function PageInput({ component, props, raw, onChange, optionsState, style }: {
   if (inputType === "checkbox") {
     control = <input id={inputId} type="checkbox" checked={raw === true} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
-    const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
-    const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
-    const options = (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]) }));
+    const options = selectOptions(props, optionsState);
     control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
@@ -329,6 +343,12 @@ function PageInput({ component, props, raw, onChange, optionsState, style }: {
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
   </div>;
+}
+
+function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+  return <PageInput key={component.id} component={component} props={props} style={style}
+    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
+    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
 }
 
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime) {
@@ -344,9 +364,60 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
     case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
-    case "input": return <PageInput key={component.id} component={component} props={props} style={style}
-      raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
-      optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
+    case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
+    case "formCard": {
+      const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+      const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
+      return <FormCard key={component.id} title={title} columns={columns} style={style}>
+        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
+      </FormCard>;
+    }
+    case "filterChips": {
+      if (!runtime) return null;
+      const chips = idList(props.inputs).flatMap((id) => {
+        const input = runtime.inputById[id];
+        if (!input) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        const inputType = textValue(inputProps.inputType, "text");
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const text = chipText(runtime.inputValues[id], inputType, inputType === "select" ? selectOptions(inputProps, optionsState) : undefined);
+        return text === null ? [] : [{ id, label: textValue(inputProps.label) || input.name || id, text }];
+      });
+      const clear = (id: string) => runtime.setInput(id, textValue(runtime.inputById[id]?.props?.inputType, "text") === "checkbox" ? false : "");
+      return <FilterChips key={component.id} chips={chips} style={style} onClear={clear} onClearAll={() => chips.forEach((chip) => clear(chip.id))} />;
+    }
+    case "facetPanel": {
+      if (!runtime) return null;
+      const counts = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
+      const groups = idList(props.inputs).flatMap((id): FacetGroup[] => {
+        const input = runtime.inputById[id];
+        if (!input) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        if (textValue(inputProps.inputType, "text") !== "select") return [];
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const countColumn = counts[id];
+        const options = selectOptions(inputProps, optionsState).map(({ value, label, row }) => {
+          return { value, label, count: countColumn ? facetCount(row[countColumn]) : undefined };
+        });
+        const raw = runtime.inputValues[id];
+        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined }];
+      });
+      return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
+    }
+    case "contextPanel": {
+      if (!runtime) return null;
+      const table = typeof props.table === "string" ? runtime.tableById[props.table] : undefined;
+      const row = table?.name ? runtime.selections[table.name] ?? null : null;
+      const formats = parseColumnFormats(table?.props?.columnFormats);
+      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+      const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
+      const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
+      const related = relatedState ? {
+        title: textValue(props.relatedTitle) || "İlgili kayıtlar", loading: relatedState.loading, error: relatedState.error || undefined,
+        rows: relatedState.rows.map((relatedRow) => relatedCodes.map((code) => displayText(relatedRow[code])).filter(Boolean).join(" · ")),
+      } : undefined;
+      return <ContextPanel key={component.id} title={title} row={row} fields={fields} related={related} style={style} />;
+    }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
@@ -423,6 +494,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     : [], [isV2, components, queryDefinitions]);
   const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
+  const ownedInputs = useMemo(() => ownedInputIds(flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }))), [components]);
+  const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
+  const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
@@ -450,7 +524,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    queryById, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
     writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
   } : undefined;
 

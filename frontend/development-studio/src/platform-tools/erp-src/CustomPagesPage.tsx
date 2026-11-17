@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
-  Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Gauge,
-  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, Plus, Redo2,
-  Rows3, Save, Search, Send, Settings2, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
+  Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
+  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, Plus, Redo2,
+  Rows3, Save, Search, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
-import { parseColumnFormats } from "./page-designer/cellFormat";
-import { BadgePreview, GridPreview, MetricPreview, toneOf } from "./page-designer/CanvasPreviews";
+import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
+import { BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -16,6 +16,8 @@ import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
+import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
+import { chipText, idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
@@ -26,7 +28,7 @@ type WorkflowOption = { id: string; code: string; name: string; status: string }
 type ReportSource = { code: string; label: string; columns: { code: string; label: string; dataType: string }[]; aggregates: { code: string; label: string }[] };
 type PreviewData = { totalCount: number; rows: Record<string, unknown>[] };
 type Capability = { canRead: boolean; canCreate: boolean; canUpdate: boolean; canPublish: boolean; canDelete: boolean };
-type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress";
+type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel";
 type PropValue = string | number | boolean | string[];
 type PageComponent = { id: string; type: ComponentType; name?: string; props: Record<string, PropValue>; children?: unknown };
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
@@ -37,6 +39,10 @@ type DropTarget = { index: number; edge: "before" | "after" } | null;
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" };
 
 const palette: PaletteItem[] = [
+  { type: "formCard", label: "Form kartı", group: "Tasarım dili", icon: ClipboardList, sample: { title: "Form kartı", inputs: [], columns: 2 } },
+  { type: "contextPanel", label: "Bağlam paneli", group: "Tasarım dili", icon: PanelRight, sample: { title: "Bağlam paneli", fields: [] } },
+  { type: "filterChips", label: "Filtre çipleri", group: "Tasarım dili", icon: Filter, sample: { inputs: [] } },
+  { type: "facetPanel", label: "Yan filtre paneli", group: "Tasarım dili", icon: SlidersHorizontal, sample: { title: "Filtreler", inputs: [] } },
   { type: "heading", label: "Başlık", group: "Metin ve düzen", icon: Heading1, sample: { text: "Sayfa başlığı" } },
   { type: "text", label: "Açıklama", group: "Metin ve düzen", icon: AlignLeft, sample: { text: "Kısa bir açıklama yazın." } },
   { type: "label", label: "Etiket", group: "Metin ve düzen", icon: Type, sample: { text: "Etiket metni" } },
@@ -55,7 +61,7 @@ const palette: PaletteItem[] = [
   { type: "badge", label: "Durum rozeti", group: "Bildirim ve gelişmiş", icon: Tag, sample: { label: "Aktif", variant: "success" } },
   { type: "code", label: "Yalıtılmış kod alanı", group: "Bildirim ve gelişmiş", icon: Code2, sample: { title: "Özel bileşen", css: "", javascript: "" } },
 ];
-const paletteGroups = ["Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
+const paletteGroups = ["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
 const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
   heading: [{ key: "text", label: "Başlık metni", kind: "text" }],
@@ -75,10 +81,14 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   badge: [{ key: "label", label: "Rozet metni", kind: "text" }, { key: "variant", label: "Ton", kind: "variant" }],
   list: [{ key: "title", label: "Başlık", kind: "text" }],
   progress: [{ key: "title", label: "Başlık", kind: "text" }, { key: "value", label: "Değer (%)", kind: "number" }],
+  formCard: [{ key: "title", label: "Başlık", kind: "text" }],
+  contextPanel: [{ key: "title", label: "Başlık", kind: "text" }],
+  filterChips: [],
+  facetPanel: [{ key: "title", label: "Başlık", kind: "text" }],
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals"]);
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage"]);
@@ -100,6 +110,56 @@ function dropQueryReferences(component: PageComponent, queryId: string, removed:
   if (staleRefresh) { const next = (refresh as string[]).filter((item) => item !== queryId); if (next.length > 0) props.refreshQueries = next; else delete props.refreshQueries; }
   return { ...component, props };
 }
+const isFacetInput = (component: PageComponent) => component.props.inputType === "select" && typeof component.props.optionsQuery === "string" && component.props.optionsQuery !== "";
+const FACET_COUNT = /^[^=]{1,64}=[^=]{1,128}$/;
+const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b.length && a.every((item, index) => item === b[index]);
+/**
+ * Düzen bileşenlerinin (formCard, contextPanel, filterChips, facetPanel) başvurularını tanımla tutarlı tutar; sunucunun
+ * reddedeceği tanım üretilmez: silinen/uygunsuz girişler, ikinci sahip, geçersiz tablo, silinen sorgu ve sayı sütunu temizlenir.
+ * Değişiklik yoksa aynı nesneyi döndürür (geri alma yığını ve commit karşılaştırması bozulmaz).
+ */
+function reconcileLayoutRefs(definition: PageDefinition): PageDefinition {
+  const byId = new Map(definition.components.map((component) => [component.id, component]));
+  const readIds = new Set(definition.queries.filter((query) => !isWriteKind(query.kind)).map((query) => query.id));
+  const owned = new Set<string>();
+  let changed = false;
+  const components = definition.components.map((component) => {
+    const props = component.props;
+    if (component.type === "formCard" || component.type === "facetPanel" || component.type === "filterChips") {
+      const wanted = idList(props.inputs).filter((id) => {
+        const input = byId.get(id);
+        if (!input || input.type !== "input") return false;
+        if (component.type === "facetPanel" && !isFacetInput(input)) return false;
+        if (component.type !== "filterChips") { if (owned.has(id)) return false; owned.add(id); }
+        return true;
+      });
+      const next = { ...props };
+      let touched = false;
+      if (!sameList(props.inputs, wanted)) { next.inputs = wanted; touched = true; }
+      if (component.type === "facetPanel" && "facetCounts" in props) {
+        const counts = (Array.isArray(props.facetCounts) ? props.facetCounts : []).filter((entry): entry is string => typeof entry === "string" && FACET_COUNT.test(entry) && wanted.includes(entry.slice(0, entry.indexOf("="))));
+        if (!sameList(props.facetCounts, counts)) { if (counts.length > 0) next.facetCounts = counts; else delete next.facetCounts; touched = true; }
+      }
+      if (component.type === "formCard" && ![1, 2, 3].includes(Number(props.columns))) { next.columns = 2; touched = true; }
+      if (!touched) return component;
+      changed = true;
+      return { ...component, props: next };
+    }
+    if (component.type === "contextPanel") {
+      const table = typeof props.table === "string" ? byId.get(props.table) : undefined;
+      const tableOk = !!table && table.type === "dataTable" && !!table.name && typeof table.props.query === "string" && table.props.query !== "";
+      const next = { ...props };
+      let touched = false;
+      if (!tableOk && "table" in next) { delete next.table; touched = true; }
+      if ("relatedQuery" in next && !(typeof next.relatedQuery === "string" && readIds.has(next.relatedQuery))) { delete next.relatedQuery; delete next.relatedTitle; touched = true; }
+      if (!touched) return component;
+      changed = true;
+      return { ...component, props: next };
+    }
+    return component;
+  });
+  return changed ? { ...definition, components } : definition;
+}
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
 const normalizeDefinition = (raw: unknown): PageDefinition => {
   const value = (raw ?? {}) as { components?: unknown; queries?: unknown };
@@ -120,10 +180,10 @@ const sessionUser = (token: string) => {
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 const iconFor = (type: ComponentType) => palette.find((item) => item.type === type)?.icon ?? LayoutTemplate;
-const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
+const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "formCard" || type === "filterChips" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
 // ERP tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); ERP gösterimi aynı değerleri kullanır.
 const DEFAULT_RADIUS = 8;
-const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress"].includes(type) ? 12 : 0;
+const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel"].includes(type) ? 12 : 0;
 const spanOf = (component: PageComponent) => Math.max(1, Math.min(12, Number(component.props.width) || defaultSpan(component.type)));
 // Mirrors erp-web's tenant-custom-page.css: tablets show every block at half width, phones stack them.
 const deviceSpan = (span: number, device: Device) => device === "mobile" ? 12 : device === "tablet" ? 6 : span;
@@ -409,7 +469,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commit = (update: (value: PageDefinition) => PageDefinition, coalesceKey?: string) => {
     if (!canEdit) return;
     const previous = definitionRef.current;
-    const next = update(previous);
+    const next = reconcileLayoutRefs(update(previous));
     if (next === previous) return;
     const now = Date.now();
     const last = lastCommit.current;
@@ -508,10 +568,27 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const props = Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
     commit((value) => {
       const components = [...value.components];
+      fillLayoutDefaults(item.type, props, value);
       components.splice(at == null ? components.length : Math.max(0, Math.min(at, components.length)), 0, { id, type: item.type, props });
       return { ...value, components };
     });
     setSelectedComponentId(id);
+  };
+  // Palet'ten eklenen düzen bileşenleri sunucunun kabul etmediği boş liste yerine sayfanın uygun girişleri/tablosuyla başlar.
+  const fillLayoutDefaults = (type: ComponentType, props: PageComponent["props"], state: PageDefinition) => {
+    const owned = ownedInputIds(state.components);
+    const inputs = state.components.filter((component) => component.type === "input");
+    if (type === "formCard") props.inputs = inputs.filter((component) => !owned.has(component.id)).slice(0, 12).map((component) => component.id);
+    else if (type === "filterChips") props.inputs = inputs.slice(0, 12).map((component) => component.id);
+    else if (type === "facetPanel") props.inputs = inputs.filter((component) => !owned.has(component.id) && isFacetInput(component)).slice(0, 12).map((component) => component.id);
+    else if (type === "contextPanel") {
+      const table = state.components.find((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
+      if (!table) return;
+      props.table = table.id;
+      const columns = queryPreviews[String(table.props.query)]?.columns ?? [];
+      props.fields = columns.filter((column) => isSafeColumnCode(column.code) && !column.code.includes("=")).slice(0, 6)
+        .map((column) => `${column.code}=${sanitizeSafeValue(column.label || column.code).slice(0, 60) || "Alan"}`);
+    }
   };
   const dropAt = (targetIndex: number, event: DragEvent) => {
     event.preventDefault();
@@ -695,9 +772,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     window.addEventListener("pointercancel", stop);
   };
   const saveDraft = async () => {
-    const definition = normalizeDefinition(definitionRef.current);
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
+    // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
+    const reconciled = reconcileLayoutRefs(definitionRef.current);
+    if (reconciled !== definitionRef.current) commit(() => reconciled);
+    const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
+    // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
+    for (const component of definition.components) {
+      const label = `“${summaryOf(component)}”`;
+      const empty = component.type === "formCard" || component.type === "filterChips" || component.type === "facetPanel" ? idList(component.props.inputs).length === 0 ? `${label} için en az bir giriş kutusu seçin.` : null
+        : component.type === "contextPanel" ? !component.props.table ? `${label} için bir tablo seçin.` : parseFieldList(component.props.fields).length === 0 ? `${label} için en az bir alan ekleyin.` : null
+          : null;
+      if (empty) { setError(empty); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+    }
     setSaving(true); setError(""); setNotice("");
     const sentSnapshot = snapshotOf(name, description, definition);
     try {
@@ -846,22 +934,35 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  const rendered = useMemo(() => definition.components.map((component) => {
+  const ownedIds = useMemo(() => ownedInputIds(definition.components), [definition]);
+  const rendered = useMemo(() => {
+  const owned = ownedInputIds(definition.components);
+  const inputById = new Map(definition.components.filter((item) => item.type === "input").map((item) => [item.id, item]));
+  const optionRows = (inputProps: Record<string, PropValue>) => {
+    const preview = typeof inputProps.optionsQuery === "string" ? queryPreviews[inputProps.optionsQuery] : undefined;
+    const valueColumn = String(inputProps.optionValueColumn || "") || preview?.columns[0]?.code || "";
+    const labelColumn = String(inputProps.optionLabelColumn || "") || valueColumn;
+    const show = (value: unknown) => value == null ? "" : String(value);
+    return { ready: !!preview, rows: (preview?.rows ?? []).map((row) => ({ value: show(row[valueColumn]), label: show(row[labelColumn]) || show(row[valueColumn]), row })) };
+  };
+  const renderInput = (component: PageComponent, style: CSSProperties) => {
+    const props = component.props;
+    const inputType = String(props.inputType || "text");
+    const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
+    // Varsayılan değer {{…}} içerebileceğinden tuvalde ham metin olarak gösterilir.
+    const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
+      : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
+        : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
+    return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
+  };
+  return definition.components.map((component) => {
     const props = component.props;
     const style = componentStyle(component.type, props);
     switch (component.type) {
       case "heading": return <h2 key={component.id} className="custom-page-preview-heading" style={style}>{String(props.text || props.title || "Başlık")}</h2>;
       case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{String(props.text || "Metin")}</p>;
       case "label": return <p key={component.id} className="custom-page-preview-text pd-binding-label" style={style}>{String(props.text || "Etiket")}</p>;
-      case "input": {
-        const inputType = String(props.inputType || "text");
-        const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
-        // Varsayılan değer {{…}} içerebileceğinden tuvalde ham metin olarak gösterilir.
-        const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
-          : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
-            : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
-        return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
-      }
+      case "input": return owned.has(component.id) ? null : renderInput(component, style);
       case "metric": if (typeof props.query === "string") {
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
@@ -900,9 +1001,55 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "badge": return <BadgePreview key={component.id} text={String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
       case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
       case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
+      case "formCard": {
+        const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+        const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
+        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} style={style}>{members.map((input) => renderInput(input, {}))}</FormCardPreview>;
+      }
+      case "filterChips": {
+        const chips = idList(props.inputs).flatMap((id) => {
+          const input = inputById.get(id);
+          if (!input) return [];
+          const inputType = String(input.props.inputType || "text");
+          const raw = inputType === "checkbox" ? /^(true|1|evet)$/i.test(String(input.props.defaultValue ?? "")) : input.props.defaultValue;
+          const text = chipText(raw, inputType, inputType === "select" ? optionRows(input.props).rows : undefined);
+          return text === null ? [] : [{ id, label: String(input.props.label || input.name || id), text }];
+        });
+        return <FilterChipsPreview key={component.id} chips={chips} style={style} />;
+      }
+      case "facetPanel": {
+        const countColumns = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
+        const groups = idList(props.inputs).flatMap((id): FacetPreviewGroup[] => {
+          const input = inputById.get(id);
+          if (!input || input.props.inputType !== "select") return [];
+          const { ready, rows } = optionRows(input.props);
+          const countColumn = countColumns[id];
+          return [{ id, label: String(input.props.label || input.name || id), ready, options: rows.map(({ label, row }) => {
+            const cell = countColumn ? row[countColumn] : undefined;
+            const count = cell == null || cell === "" ? Number.NaN : Number(cell);
+            return { label, count: Number.isFinite(count) ? count : undefined };
+          }) }];
+        });
+        return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={groups} style={style} />;
+      }
+      case "contextPanel": {
+        const table = typeof props.table === "string" ? definition.components.find((item) => item.id === props.table && item.type === "dataTable") : undefined;
+        const tablePreview = table && typeof table.props.query === "string" ? queryPreviews[table.props.query] : undefined;
+        const row = tablePreview && tablePreview.rows.length > 0 ? tablePreview.rows[0] : null;
+        const formats = parseColumnFormats(table?.props.columnFormats);
+        const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+        const relatedPreview = typeof props.relatedQuery === "string" ? queryPreviews[props.relatedQuery] : undefined;
+        const relatedCodes = (relatedPreview?.columns ?? []).slice(0, 2).map((column) => column.code);
+        const related = typeof props.relatedQuery === "string" ? {
+          title: String(props.relatedTitle || "İlgili kayıtlar"),
+          rows: (relatedPreview?.rows ?? []).map((relatedRow) => relatedCodes.map((code) => relatedRow[code] == null ? "" : String(relatedRow[code])).filter(Boolean).join(" · ")),
+        } : undefined;
+        return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
+      }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
-  }), [definition, forms, sources, previewData, queryPreviews, counts, token]);
+  });
+  }, [definition, forms, sources, previewData, queryPreviews, counts, token]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
@@ -969,6 +1116,29 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const totalsCandidatesBase = formatColumns.filter((column) => totalsFormats[column.code] ? totalsFormats[column.code] === "number" || totalsFormats[column.code] === "money" : column.dataType === "number" || column.dataType === "decimal");
   // Biçim ya da gösterilen sütunlar değişince adaylıktan düşen seçili toplam girdileri de listelenir; böylece işaretleri kaldırılabilir.
   const totalsCandidates = [...totalsCandidatesBase, ...totalsSelected.filter((code) => !totalsCandidatesBase.some((column) => column.code === code)).map((code) => ({ code, label: code }))];
+
+  // Düzen bileşenleri (formCard, contextPanel, filterChips, facetPanel) için müfettiş verileri.
+  const pageInputs: PickerInput[] = definition.components.filter((component) => component.type === "input").map((component) => ({
+    id: component.id, name: component.name, label: String(component.props.label || component.name || "Giriş"), inputType: String(component.props.inputType || "text"),
+    hasOptions: typeof component.props.optionsQuery === "string" && readQueries.some((query) => query.id === component.props.optionsQuery),
+  }));
+  const layoutOwners: Record<string, string> = {};
+  if (selected) for (const component of definition.components) {
+    if (component.id === selected.id || (component.type !== "formCard" && component.type !== "facetPanel")) continue;
+    for (const id of idList(component.props.inputs)) layoutOwners[id] = summaryOf(component);
+  }
+  const layoutInputIds = selected ? idList(selected.props.inputs) : [];
+  const eligibleTables = definition.components.filter((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
+  const contextTable = selected?.type === "contextPanel" && typeof selected.props.table === "string" ? eligibleTables.find((component) => component.id === selected.props.table) : undefined;
+  const contextColumns = contextTable ? queryPreviews[String(contextTable.props.query)]?.columns ?? [] : [];
+  const contextFields = selected?.type === "contextPanel" ? parseFieldList(selected.props.fields) : [];
+  const facetCountEntries = selected && Array.isArray(selected.props.facetCounts) ? selected.props.facetCounts.filter((item): item is string => typeof item === "string") : [];
+  const setFacetCount = (inputId: string, column: string) => {
+    if (!selected) return;
+    const rest = facetCountEntries.filter((entry) => entry.slice(0, entry.indexOf("=")) !== inputId);
+    const next = column ? [...rest, `${inputId}=${column}`] : rest;
+    patchComponent(selected.id, { facetCounts: next.length ? next : undefined });
+  };
 
   return <main className={`pd-shell${fullscreen ? " pd-fullscreen" : ""}`}>
     <header className="pd-topbar">
@@ -1070,7 +1240,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 const drop = dropTarget?.index === index ? dropTarget.edge : null;
                 const horizontal = deviceSpan(spanOf(component), device) < 12;
                 return <div key={component.id}
-                  className={`pd-block ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
+                  className={`pd-block ${ownedIds.has(component.id) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
@@ -1214,6 +1384,61 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "code" && section("code", "Kod", <>
               <label className="pd-field">CSS<small>Yalnızca iframe içeriğine uygulanır; dış ağ kaynaklarına izin verilmez.</small><textarea className="pd-code" rows={6} maxLength={4000} value={String(selected.props.css || "")} onChange={(event) => updateComponent(selected.id, "css", event.target.value)} placeholder=".panel { display: grid; gap: 1rem; }"/></label>
               <label className="pd-field">JavaScript<small>Yalıtılmış iframe içinde çalışır; ERP oturumuna ve API'lere erişemez.</small><textarea className="pd-code" rows={8} maxLength={4000} value={String(selected.props.javascript || "")} onChange={(event) => updateComponent(selected.id, "javascript", event.target.value)} placeholder="document.body.textContent = 'Merhaba';"/></label>
+            </>)}
+            {selected.type === "formCard" && section("layout", "Form kartı", <>
+              <div className="pd-field">Giriş kutuları<small>Seçilen girişler yalnız bu kartta çizilir; sayfadaki kendi yerlerinden kalkar.</small>
+                <InputPicker inputs={pageInputs} value={layoutInputIds} owned={layoutOwners} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { inputs: next })}/>
+                {layoutInputIds.length === 0 && <small className="pd-query-warning">{pageInputs.length === 0 ? "Bu bileşen için önce bir giriş kutusu ekleyin" : "En az bir giriş kutusu seçin; boş kart kaydedilemez."}</small>}
+              </div>
+              <div className="pd-field">Sütun sayısı<div className="pd-segment" role="group" aria-label="Sütun sayısı">{[1, 2, 3].map((count) => <button type="button" key={count} disabled={!canEdit} aria-pressed={(Number(selected.props.columns) || 2) === count} className={(Number(selected.props.columns) || 2) === count ? "active" : ""} onClick={() => patchComponent(selected.id, { columns: count })}>{count}</button>)}</div></div>
+            </>)}
+            {selected.type === "filterChips" && section("layout", "Filtre çipleri", <>
+              <div className="pd-field">Çip olarak gösterilecek girişler<small>Dolu girişler çip olur; ✕ yalnız o girişi boşaltır.</small>
+                <InputPicker inputs={pageInputs} value={layoutInputIds} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { inputs: next })}/>
+                {layoutInputIds.length === 0 && <small className="pd-query-warning">{pageInputs.length === 0 ? "Bu bileşen için önce bir giriş kutusu ekleyin" : "En az bir giriş kutusu seçin; boş liste kaydedilemez."}</small>}
+              </div>
+            </>)}
+            {selected.type === "facetPanel" && section("layout", "Yan filtre paneli", <>
+              <div className="pd-field">Süzme girişleri<small>Yalnız seçenek sorgulu açılır listeler seçilebilir.</small>
+                <InputPicker inputs={pageInputs} value={layoutInputIds} owned={layoutOwners} filter={(input) => input.inputType === "select" && input.hasOptions} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { inputs: next })}/>
+                {layoutInputIds.length === 0 && <small className="pd-query-warning">{pageInputs.some((input) => input.inputType === "select" && input.hasOptions) ? "En az bir açılır liste seçin; boş panel kaydedilemez." : "Bu bileşen için önce bir giriş kutusu ekleyin: seçenek sorgulu bir açılır liste."}</small>}
+              </div>
+              {layoutInputIds.map((id) => {
+                const input = definition.components.find((component) => component.id === id);
+                if (!input) return null;
+                const columns = (queryPreviews[String(input.props.optionsQuery)]?.columns ?? []).filter((column) => isSafeColumnCode(column.code) && !column.code.includes("=") && column.code.length <= 128);
+                const chosen = facetCountEntries.find((entry) => entry.slice(0, entry.indexOf("=")) === id)?.slice(id.length + 1) ?? "";
+                return <label key={id} className="pd-field">{String(input.props.label || input.name || id)} · Sayı sütunu
+                  <select value={chosen} disabled={!canEdit} onChange={(event) => setFacetCount(id, event.target.value)}>
+                    <option value="">Yok</option>
+                    {columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}
+                    {chosen && !columns.some((column) => column.code === chosen) && <option value={chosen}>{chosen}</option>}
+                  </select>
+                  {columns.length === 0 && <small>Seçenek sorgusunun önizlemesi çalışınca sütunlar listelenir.</small>}
+                </label>;
+              })}
+            </>)}
+            {selected.type === "contextPanel" && section("layout", "Bağlam paneli", <>
+              <label className="pd-field">Tablo<small>Seçili satırı gösterilecek ızgara; adlı ve sorgulu olmalı.</small>
+                <select value={contextTable?.id ?? ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { table: event.target.value || undefined, fields: [] })}>
+                  <option value="">Tablo seçin</option>
+                  {eligibleTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
+                </select>
+                {eligibleTables.length === 0 && <small className="pd-query-warning">Önce sayfaya adlı ve sorguya bağlı bir ızgara ekleyin.</small>}
+                {eligibleTables.length > 0 && !contextTable && <small className="pd-query-warning">Bir tablo seçin; tablosuz panel kaydedilemez.</small>}
+              </label>
+              {contextTable && <div className="pd-field">Alanlar<small>Her alan için sütun ve görünen etiket seçin (en fazla 12).</small>
+                <FieldListEditor columns={contextColumns} value={contextFields.map((field) => `${field.code}=${field.label}`)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { fields: next })}/>
+                {contextColumns.length === 0 && <small>Izgaranın sorgu önizlemesi çalışınca sütunlar listelenir.</small>}
+                {contextFields.length === 0 && <small className="pd-query-warning">En az bir alan ekleyin; boş panel kaydedilemez.</small>}
+              </div>}
+              <label className="pd-field">İlgili liste<small>İsteğe bağlı: seçili satıra göre ikinci bir okuma sorgusu.</small>
+                <select value={typeof selected.props.relatedQuery === "string" ? selected.props.relatedQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, event.target.value ? { relatedQuery: event.target.value } : { relatedQuery: undefined, relatedTitle: undefined })}>
+                  <option value="">Yok</option>
+                  {readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}
+                </select>
+              </label>
+              {typeof selected.props.relatedQuery === "string" && <label className="pd-field">İlgili liste başlığı<input value={String(selected.props.relatedTitle ?? "")} maxLength={60} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { relatedTitle: sanitizeSafeValue(event.target.value, false) || undefined })} onBlur={(event) => { const trimmed = event.target.value.trim(); if (trimmed !== event.target.value) patchComponent(selected.id, { relatedTitle: trimmed || undefined }); }}/></label>}
             </>)}
             {section("style", "Görünüm", <>
               {selected.type === "metric" && <>
