@@ -12,18 +12,10 @@ import { screenViewGridDefaults } from "./screenViewGridLayout";
 import MasterDataImportDialog from "./MasterDataImportDialog";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { InventoryStockFilters } from "./inventory/components/InventoryStockFilters";
-import { InventoryStockGrid, stockListStatus } from "./inventory/components/InventoryStockGrid";
-import {
-  InventoryStockDetailPanel,
-  useStockDetailPanelOpen,
-  type StockDetailTab,
-} from "./inventory/components/InventoryStockDetailPanel";
+import { InventoryStockGrid, StockAvailableCell, stockListStatus } from "./inventory/components/InventoryStockGrid";
+import { useStockListScreen } from "./inventory/useStockListScreen";
 import { ListPageHeader } from "./list-page/ListPageHeader";
-import { ListSummaryCards } from "./list-page/ListSummaryCards";
-import { ListFooter } from "./list-page/ListFooter";
-import { ListPagination } from "./list-page/ListPagination";
 import { StatusTag } from "./list-page/StatusTag";
-import type { BulkAction } from "./list-page/BulkActionBar";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./inventory/inventory-list-v2.css";
 import "./inventory/inventory-modals.css";
@@ -296,11 +288,6 @@ export function InventoryPage({
     [transferStatusFilter, setTransferStatusFilter] = useState(""),
     [stockToolsSlot, setStockToolsSlot] = useState<HTMLDivElement | null>(null),
     [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
-  // Stok Kartları list: ticked rows and the grid's current row (stock item ids), the detail panel tab.
-  const [selectedStockIds, setSelectedStockIds] = useState<string[]>([]),
-    [currentStockId, setCurrentStockId] = useState<string | null>(null),
-    [stockDetailTab, setStockDetailTab] = useState<StockDetailTab>("summary");
-  const stockListRootRef = useRef<HTMLDivElement>(null);
   const [transferModal, setTransferModal] = useState(false),
     [transferSelectedItems, setTransferSelectedItems] = useState<string[]>([]),
     [transferSearch, setTransferSearch] = useState(""),
@@ -1265,43 +1252,6 @@ export function InventoryPage({
       await loadBalances();
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  /** Bar Sil / bulk Sil: one card keeps the single-card confirmation; several are confirmed once and deleted in turn. */
-  async function deleteStockItems(targets: InventoryBalance[]) {
-    const cards = targets
-      .map((balance) => itemsById.get(balance.stockItemId))
-      .filter((card): card is StockItem => !!card);
-    if (!cards.length) return;
-    if (cards.length === 1) return deleteItem(cards[0]);
-    if (
-      !(await confirmDialog({
-        title: "Stok kartları kalıcı olarak silinsin mi?",
-        message: `${cards.length} stok kartı kalıcı olarak silinecek. İlişkili kayıtları olan kartlar silinemez.`,
-        tone: "danger",
-        confirmLabel: "Sil",
-      }))
-    )
-      return;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    const failed: string[] = [];
-    let deleted = 0;
-    try {
-      for (const card of cards) {
-        try {
-          await api<void>(`/api/stock/items/${card.id}`, token, { method: "DELETE" });
-          deleted += 1;
-        } catch (e) {
-          failed.push(`${card.code}: ${(e as Error).message}`);
-        }
-      }
-      if (deleted) setNotice(`${deleted} stok kartı silindi.`);
-      if (failed.length) setError(`Silinemeyen stok kartları: ${failed.join(" · ")}`);
-      await loadBalances();
     } finally {
       setBusy(false);
     }
@@ -2365,16 +2315,6 @@ export function InventoryPage({
   );
   const filteredBalances = balances;
   const pagedBalances = balances;
-  // Summary cards of the Stok Kartları list: totals of the loaded page (the API returns no list totals except
-  // the below-minimum count). Quantities of different units are added as plain numbers.
-  const stockPageValue = pagedBalances.reduce((sum, balance) => sum + balance.valuationAmountBase, 0);
-  const stockPageAvailable = pagedBalances.reduce((sum, balance) => sum + balance.availableQuantity, 0);
-  const stockPageUnvaluedCount = pagedBalances.filter((balance) => balance.unvaluedQuantity > 0).length;
-  const stockCurrency = pagedBalances[0]?.baseCurrencyCode ?? "";
-  const formatStockMoney = (value: number) =>
-    value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const formatStockQuantity = (value: number) =>
-    value.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
   const toggleBelowMinimum = () => {
     setBelowMinimumOnly((value) => !value);
     setInventoryPage(1);
@@ -2461,26 +2401,8 @@ export function InventoryPage({
         return `${quantity(item.quantityOnHand)} ${item.unitCode}`;
       case "reservedQuantity":
         return `${quantity(item.reservedQuantity)} ${item.unitCode}`;
-      case "availableQuantity": {
-        // Thin level bar: available against the minimum, coloured like the row status (export reads the text only).
-        const status = stockListStatus(item, stock);
-        const level =
-          item.minimumStock > 0
-            ? Math.max(0, Math.min(100, (item.availableQuantity / item.minimumStock) * 100))
-            : null;
-        return (
-          <>
-            <span className={item.belowMinimum ? "inventory-stock-low" : undefined}>
-              {quantity(item.availableQuantity)} {item.unitCode}
-            </span>
-            {level !== null && (
-              <span className={`inventory-stock-level is-${status.tone}`} aria-hidden="true">
-                <i style={{ width: `${Math.round(level)}%` }} />
-              </span>
-            )}
-          </>
-        );
-      }
+      case "availableQuantity":
+        return <StockAvailableCell balance={item} />;
       case "minimumStock":
         return quantity(item.minimumStock);
       case "valuationAmountBase":
@@ -2512,35 +2434,34 @@ export function InventoryPage({
       return;
     await open();
   };
-  // Stok Kartları list: Aç follows the grid's current row (Enter), else a single ticked row; Sil the ticked rows,
-  // else the current row. The detail panel shows the current row.
-  const stockListActive = section === "inventory-stock" && !editingItem;
-  const stockDetail = useStockDetailPanelOpen(stockListActive, stockListRootRef);
-  const currentStockBalance = currentStockId
-    ? pagedBalances.find((balance) => balance.stockItemId === currentStockId)
-    : undefined;
-  const selectedStockBalances = pagedBalances.filter((balance) =>
-    selectedStockIds.includes(balance.stockItemId),
-  );
-  const openStockBalance =
-    currentStockBalance ?? (selectedStockBalances.length === 1 ? selectedStockBalances[0] : undefined);
-  const openStockItem = openStockBalance ? itemsById.get(openStockBalance.stockItemId) : undefined;
-  const deleteStockBalances = selectedStockBalances.length
-    ? selectedStockBalances
-    : currentStockBalance
-      ? [currentStockBalance]
-      : [];
-  const movementsDisabledReason = !warehouseId ? "Hareket eklemek için önce bir depo seçin" : undefined;
-  const stockBulkActions: BulkAction[] = [
-    { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
-  ];
-  if (role === "TenantAdmin")
-    stockBulkActions.push({
-      id: "delete-selected",
-      label: "Sil",
-      disabledReason: busy ? "İşlem sürüyor…" : undefined,
-      run: (keys) => void deleteStockItems(pagedBalances.filter((balance) => keys.includes(balance.stockItemId))),
-    });
+  const stockList = useStockListScreen({
+    active: section === "inventory-stock" && !editingItem,
+    token,
+    role,
+    busy,
+    balances: pagedBalances,
+    itemsById,
+    warehouses,
+    warehouseId,
+    search: stockSearch,
+    total: inventoryTotal,
+    page: inventoryPage,
+    pageSize: inventoryPageSize,
+    loading: balancesLoading,
+    belowMinimumCount,
+    belowMinimumOnly,
+    exportRef: gridExportRef,
+    onToggleBelowMinimum: toggleBelowMinimum,
+    onPageChange: setInventoryPage,
+    onOpen: (stock) => void editItem(stock),
+    onDeleteOne: deleteItem,
+    onDeactivate: (stock) => void changeItemState(stock, false),
+    onMovements: (balance) => void openMovements(balance),
+    onBusy: setBusy,
+    onError: setError,
+    onNotice: setNotice,
+    reload: () => loadBalances(),
+  });
   // Saving is registered by the open RecordFormPage itself (Kaydet / Ctrl+S, primary).
   const pageCommands: PageCommands = {};
   if (pageDialogOpen) {
@@ -2548,23 +2469,7 @@ export function InventoryPage({
   } else if (section === "inventory-stock") {
     // An edited card stays in this tab; the new card opens in its own tab.
     pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
-    if (!editingItem) {
-      pageCommands.open = {
-        disabledReason: openStockItem ? undefined : "Önce bir kayıt seçin",
-        run: () => {
-          if (openStockItem) void editItem(openStockItem);
-        },
-      };
-      if (role === "TenantAdmin")
-        pageCommands.delete = {
-          disabledReason: !deleteStockBalances.length
-            ? "Önce bir kayıt seçin"
-            : busy
-              ? "İşlem sürüyor…"
-              : undefined,
-          run: () => deleteStockItems(deleteStockBalances),
-        };
-    }
+    if (!editingItem) Object.assign(pageCommands, stockList.commands);
   } else if (section === "inventory-stock-create") {
     pageCommands.new = { run: () => startNew(!!(code.trim() || name.trim()), openItemModal) };
   } else if (section === "inventory-warehouses") {
@@ -2590,21 +2495,7 @@ export function InventoryPage({
   if (!editingItem && section !== "inventory-stock-create") {
     const more: MenuCommand[] = [];
     if (section === "inventory-stock") {
-      // Former row menu ("⋯") actions of the current card; Düzenle is Aç, Sil is the bar's Sil.
-      if (openStockItem && openStockBalance) {
-        more.push({
-          id: "stock-deactivate",
-          label: "Devre dışı bırak",
-          disabledReason: busy ? "İşlem sürüyor…" : undefined,
-          run: () => void changeItemState(openStockItem, false),
-        });
-        more.push({
-          id: "stock-movements",
-          label: "Hareketler / ekle",
-          disabledReason: movementsDisabledReason ?? (busy ? "İşlem sürüyor…" : undefined),
-          run: () => void openMovements(openStockBalance),
-        });
-      }
+      more.push(...stockList.moreItems);
       if (role === "TenantAdmin") {
         more.push({ id: "stock-categories", label: "Kategorileri yönet", run: () => void openCategoryManager() });
         more.push({ id: "stock-import-csv", label: "CSV içe aktar", run: () => setImportOpen(true) });
@@ -2684,47 +2575,7 @@ export function InventoryPage({
               </span>
             </div>
           )}
-          {section === "inventory-stock" && (
-            <ListSummaryCards
-              cards={[
-                {
-                  id: "value",
-                  label: "Stok değeri",
-                  value: balancesLoading
-                    ? "—"
-                    : `${formatStockMoney(stockPageValue)}${stockCurrency ? ` ${stockCurrency}` : ""}`,
-                  icon: IconPack.CircleDollarSign,
-                  hint: "bu sayfa",
-                },
-                {
-                  id: "available",
-                  label: "Kullanılabilir",
-                  value: balancesLoading ? "—" : formatStockQuantity(stockPageAvailable),
-                  icon: IconPack.PackageCheck,
-                  tone: "ok",
-                  hint: "bu sayfa",
-                },
-                {
-                  id: "below",
-                  label: "Minimum altı",
-                  value: balancesLoading ? "—" : belowMinimumCount.toLocaleString("tr-TR"),
-                  icon: IconPack.TrendingDown,
-                  tone: "bad",
-                  hint: warehouseId ? "seçili depoda" : "tüm depolarda",
-                  filterActive: belowMinimumOnly,
-                  onFilter: toggleBelowMinimum,
-                },
-                {
-                  id: "unvalued",
-                  label: "Maliyetsiz",
-                  value: balancesLoading ? "—" : stockPageUnvaluedCount.toLocaleString("tr-TR"),
-                  icon: IconPack.CircleAlert,
-                  tone: "warn",
-                  hint: "bu sayfa",
-                },
-              ]}
-            />
-          )}
+          {section === "inventory-stock" && stockList.summary}
           {(section === "inventory-stock" ||
             (section === "inventory-cost" && role === "TenantAdmin")) && (
             <InventoryStockFilters
@@ -2747,20 +2598,7 @@ export function InventoryPage({
               onToggleBelowMinimum={toggleBelowMinimum}
               onApplyFilters={() => void loadBalances()}
               toolsSlotRef={section === "inventory-stock" ? setStockToolsSlot : undefined}
-              extra={
-                section === "inventory-stock" ? (
-                  <button
-                    type="button"
-                    className="inventory-stock-panel-toggle"
-                    aria-pressed={stockDetail.open}
-                    title="Detay paneli (Ctrl+.)"
-                    onClick={stockDetail.toggle}
-                  >
-                    <IconPack.PanelRight size={15} aria-hidden="true" />
-                    <span>Detay paneli</span>
-                  </button>
-                ) : undefined
-              }
+              extra={section === "inventory-stock" ? stockList.panelToggle : undefined}
             />
           )}
           {section === "inventory-cost" && role === "TenantAdmin" && (
@@ -2847,8 +2685,8 @@ export function InventoryPage({
           )}
           {section === "inventory-stock" && (
             <div
-              ref={stockListRootRef}
-              className={`inventory-stock-body${stockDetail.open ? " has-detail" : ""}`}
+              ref={stockList.rootRef}
+              className={`inventory-stock-body${stockList.detailOpen ? " has-detail" : ""}`}
             >
               <InventoryStockGrid
                 fields={visibleStockFields}
@@ -2862,75 +2700,12 @@ export function InventoryPage({
                 }
                 belowMinimumOnly={belowMinimumOnly}
                 renderCell={renderStockScreenCell}
-                footer={
-                  <ListFooter
-                    hints={
-                      role === "TenantAdmin"
-                        ? "↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+Del sil · Ctrl+. detay paneli"
-                        : "↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+. detay paneli"
-                    }
-                  >
-                    {selectedStockBalances.length > 0 && (
-                      <span>
-                        <span>{selectedStockBalances.length}</span> <span>seçili</span> ·{" "}
-                        <span>Seçili değer</span>{" "}
-                        <b>
-                          {formatStockMoney(
-                            selectedStockBalances.reduce((sum, balance) => sum + balance.valuationAmountBase, 0),
-                          )}
-                          {stockCurrency ? ` ${stockCurrency}` : ""}
-                        </b>
-                      </span>
-                    )}
-                    <span>
-                      <span>Gösterilen</span>{" "}
-                      <span>
-                        {pagedBalances.length.toLocaleString("tr-TR")} / {inventoryTotal.toLocaleString("tr-TR")}
-                      </span>
-                    </span>
-                    <ListPagination
-                      page={inventoryPage}
-                      total={inventoryTotal}
-                      pageSize={inventoryPageSize}
-                      loading={balancesLoading}
-                      onPageChange={setInventoryPage}
-                    />
-                  </ListFooter>
-                }
                 toolbarContainer={stockToolsSlot}
                 hideExport
                 exportActionsRef={gridExportRef}
-                bulkActions={stockBulkActions}
-                onSelectionChange={setSelectedStockIds}
-                onCurrentRowChange={setCurrentStockId}
+                {...stockList.grid}
               />
-              {stockDetail.open &&
-                (currentStockBalance ? (
-                  <InventoryStockDetailPanel
-                    token={token}
-                    balance={currentStockBalance}
-                    stock={itemsById.get(currentStockBalance.stockItemId)}
-                    warehouses={warehouses}
-                    tab={stockDetailTab}
-                    onTabChange={setStockDetailTab}
-                    busy={busy}
-                    onOpen={() => {
-                      const stock = itemsById.get(currentStockBalance.stockItemId);
-                      if (stock) void editItem(stock);
-                    }}
-                    onClose={stockDetail.close}
-                    onMovements={() => void openMovements(currentStockBalance)}
-                    movementsDisabledReason={movementsDisabledReason}
-                    onDeactivate={() => {
-                      const stock = itemsById.get(currentStockBalance.stockItemId);
-                      if (stock) void changeItemState(stock, false);
-                    }}
-                  />
-                ) : (
-                  <aside className="inventory-stock-detail is-empty" aria-label="Stok kartı özeti">
-                    <p>Özetini görmek için listeden bir stok kartı seçin.</p>
-                  </aside>
-                ))}
+              {stockList.panel}
             </div>
           )}
           {section === "inventory-warehouses" && (

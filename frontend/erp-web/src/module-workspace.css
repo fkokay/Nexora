@@ -717,7 +717,7 @@ html[data-theme="dark"] #root .module-launcher-profile-menu > button:hover { bac
   background: #fff;
 }
 /* Shared row action menu buttons across data tables. */
-#root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .inventory-stock-menu-trigger, .advanced-grid-menu > summary) {
+#root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .advanced-grid-menu > summary) {
   box-sizing: border-box;
   display: inline-grid;
   width: 36px;
@@ -733,17 +733,16 @@ html[data-theme="dark"] #root .module-launcher-profile-menu > button:hover { bac
   box-shadow: 0 2px 5px #1829470a;
   transition: border-color .14s ease, background .14s ease, color .14s ease, box-shadow .14s ease;
 }
-#root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .inventory-stock-menu-trigger, .advanced-grid-menu > summary):hover,
-#root .workspace-page-main :is(.customer-actions-menu[open] > summary, .customer-actions-trigger[aria-expanded=true], .inventory-stock-menu-trigger[aria-expanded=true], .advanced-grid-menu[open] > summary) {
+#root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .advanced-grid-menu > summary):hover,
+#root .workspace-page-main :is(.customer-actions-menu[open] > summary, .customer-actions-trigger[aria-expanded=true], .advanced-grid-menu[open] > summary) {
   border-color: var(--nx-primary);
   background: color-mix(in srgb, var(--nx-primary) 5%, var(--nx-surface));
   color: var(--nx-primary-strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 8%, transparent);
 }
 #root .workspace-page-main :is(.customer-actions-menu > summary, .advanced-grid-menu > summary):focus-visible,
-#root .workspace-page-main :is(.customer-actions-trigger, .inventory-stock-menu-trigger):focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+#root .workspace-page-main :is(.customer-actions-trigger):focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 #root .workspace-page-main .customer-actions-popover,
-#root .workspace-page-main .inventory-stock-actions-menu,
 #root .workspace-page-main .advanced-grid-popover {
   border: 1px solid #dfe5ef;
   border-radius: 11px;
@@ -791,7 +790,7 @@ html[data-theme="dark"] #root .workspace-page-main .advanced-grid-toolbar,
 html[data-theme="dark"] #root .workspace-page-main .erp-pane-heading { border-color: #35435b; background: #1a263a; }
 html[data-theme="dark"] #root .workspace-page-main .customer-table th,
 html[data-theme="dark"] #root .workspace-page-main .inventory-table th { background: #222f45; color: #d6deeb; }
-html[data-theme="dark"] #root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .inventory-stock-menu-trigger, .advanced-grid-menu > summary) { border-color: #46556e; background: #1e2b40; color: #e4eaf3; }
+html[data-theme="dark"] #root .workspace-page-main :is(.customer-actions-menu > summary, .customer-actions-trigger, .advanced-grid-menu > summary) { border-color: #46556e; background: #1e2b40; color: #e4eaf3; }
 @media (max-width: 1450px) {
   #root .app-shell:not(.standalone-studio) > .main-area > .workspace-content.with-reference-widgets { grid-template-columns: minmax(0, 1fr); }
   #root .workspace-content > .customer-reference-aside { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1957,19 +1956,6 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .content .customer-di
 .app-shell:not(.standalone-studio) .content button.small-button { min-height: 34px; padding: 0 10px; font-size: 12px; }
 .app-shell:not(.standalone-studio) .content button.icon-button { width: 36px; height: 36px; min-height: 36px; border: 1px solid #D4DDE8; background: #FFFFFF; color: var(--nx-text); }
 .app-shell:not(.standalone-studio) .content button.row-action { min-height: 30px; padding: 4px 8px; border: 1px solid #D4DDE8; border-radius: 4px; background: #FFFFFF; color: var(--nx-text); }
-.app-shell:not(.standalone-studio) .content .inventory-stock-menu-trigger { width: 34px; height: 32px; display: inline-grid; place-items: center; padding: 0; border: 1px solid #D4DDE8; border-radius: 5px; background: #fff; color: #32465f; }
-.app-shell:not(.standalone-studio) .content .inventory-stock-menu-trigger:hover,
-.app-shell:not(.standalone-studio) .content .inventory-stock-menu-trigger[aria-expanded="true"] { border-color: #9db5cf; background: #f3f7fb; color: var(--nx-text); }
-.inventory-stock-actions-menu { position: fixed; z-index: 1001; box-sizing: border-box; width: 188px; max-height: min(280px, calc(100vh - 16px)); overflow: auto; padding: 5px; border: 1px solid #d6e0eb; border-radius: 8px; background: #fff; box-shadow: 0 12px 30px rgb(15 32 56 / 20%); }
-.inventory-stock-actions-menu .row-action { width: 100%; min-height: 36px; display: flex; align-items: center; justify-content: flex-start; padding: 0 10px; border: 0 !important; border-radius: 5px !important; background: transparent !important; color: #263b55 !important; font-size: 12px; font-weight: 550; text-align: left; white-space: nowrap; }
-.inventory-stock-actions-menu .row-action:hover:not(:disabled) { background: #f1f5f9 !important; }
-.inventory-stock-actions-menu .row-action:disabled { opacity: .48; }
-html[data-theme="dark"] .inventory-stock-menu-trigger { border-color: #3b4960; background: #182235; color: #e4ebf5; }
-html[data-theme="dark"] .inventory-stock-menu-trigger:hover,
-html[data-theme="dark"] .inventory-stock-menu-trigger[aria-expanded="true"] { border-color: #506985; background: #223148; color: #fff; }
-html[data-theme="dark"] .inventory-stock-actions-menu { border-color: #3b4960; background: #182235; box-shadow: 0 12px 30px rgb(0 0 0 / 42%); }
-html[data-theme="dark"] .inventory-stock-actions-menu .row-action { color: #e4ebf5 !important; }
-html[data-theme="dark"] .inventory-stock-actions-menu .row-action:hover:not(:disabled) { background: #26354a !important; }
 .app-shell:not(.standalone-studio) .content button:disabled { cursor: not-allowed; opacity: .55; }
 @media(max-width:760px){
   .app-shell:not(.standalone-studio) .content .customer-directory-toolbar { flex-wrap: wrap; }

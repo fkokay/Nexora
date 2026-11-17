@@ -10,17 +10,49 @@ import type {
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 
 /**
- * Status of a stock list row (mockup 01): Pasif, then Maliyetsiz (uncosted quantity, as on row HM-1012 of the
- * mockup), then Minimum altı, else Yeterli.
+ * Status of a stock list row: Pasif, then Minimum altı (the primary, red warning), then Maliyetsiz (uncosted
+ * quantity), else Yeterli.
  */
 export function stockListStatus(
   balance: InventoryBalance,
   stock: StockItem | undefined,
 ): { tone: StatusTagTone; label: string } {
   if (stock && !stock.isActive) return { tone: "off", label: "Pasif" };
-  if (balance.unvaluedQuantity > 0) return { tone: "warn", label: "Maliyetsiz" };
   if (balance.belowMinimum) return { tone: "bad", label: "Minimum altı" };
+  if (balance.unvaluedQuantity > 0) return { tone: "warn", label: "Maliyetsiz" };
   return { tone: "ok", label: "Yeterli" };
+}
+
+/**
+ * Available quantity against the minimum: one basis for the shortage (minimum − available) everywhere. The ratio is
+ * null when there is no minimum; the level tone follows the ratio itself (< 50% bad, < 100% warn, else ok).
+ */
+export function stockLevel(balance: InventoryBalance): {
+  ratio: number | null;
+  tone: "bad" | "warn" | "ok";
+  shortage: number;
+} {
+  const shortage = Math.max(0, balance.minimumStock - balance.availableQuantity);
+  if (balance.minimumStock <= 0) return { ratio: null, tone: "ok", shortage };
+  const ratio = Math.max(0, balance.availableQuantity / balance.minimumStock);
+  return { ratio, tone: ratio < 0.5 ? "bad" : ratio < 1 ? "warn" : "ok", shortage };
+}
+
+/** Kullanılabilir cell: the quantity (red while short) and a thin level bar (presentational; export reads the text). */
+export function StockAvailableCell({ balance }: { balance: InventoryBalance }) {
+  const level = stockLevel(balance);
+  return (
+    <>
+      <span className={level.shortage > 0 ? "inventory-stock-low" : undefined}>
+        {balance.availableQuantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })} {balance.unitCode}
+      </span>
+      {level.ratio !== null && (
+        <span className={`inventory-stock-level is-${level.tone}`} aria-hidden="true">
+          <i style={{ width: `${Math.round(Math.min(1, level.ratio) * 100)}%` }} />
+        </span>
+      )}
+    </>
+  );
 }
 
 /** Right-aligned number columns of the stock list. */

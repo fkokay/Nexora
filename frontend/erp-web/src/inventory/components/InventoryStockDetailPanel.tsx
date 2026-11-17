@@ -5,7 +5,7 @@ import type { InventoryBalance, InventoryMovement, StockItem, Warehouse } from "
 import { openModals } from "../../commands/CommandProvider";
 import { useWindowKeyDown } from "../../record-form/recordFormKeys";
 import { StatusTag } from "../../list-page/StatusTag";
-import { stockListStatus } from "./InventoryStockGrid";
+import { stockLevel, stockListStatus } from "./InventoryStockGrid";
 import "../inventory-list-v2.css";
 
 export type StockDetailTab = "summary" | "warehouses" | "movements";
@@ -53,7 +53,30 @@ export function useStockDetailPanelOpen(enabled: boolean, rootRef: RefObject<HTM
 const quantity = (value: number) => value.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
 const money = (value: number) => value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-type WarehouseRow = { warehouse: Warehouse; quantity: number };
+/** `quantity` is null when it is unknown (request failed, or the card was beyond the result page). */
+type WarehouseRow = { warehouse: Warehouse; quantity: number | null };
+
+/** Runs `task` over `items` with at most `limit` running at once; each result settles on its own. */
+async function settleEach<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: "fulfilled", value: await task(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** Below this width the open panel is a drawer over the list (see inventory-list-v2.css). */
+const DRAWER_QUERY = "(max-width: 1099px)";
+const isDrawer = () => typeof window.matchMedia === "function" && window.matchMedia(DRAWER_QUERY).matches;
 
 type Props = {
   token: string;
@@ -89,7 +112,15 @@ export function InventoryStockDetailPanel({
   onDeactivate,
 }: Props) {
   const status = stockListStatus(balance, stock);
-  const shortage = balance.minimumStock - balance.quantityOnHand;
+  const { shortage } = stockLevel(balance);
+  const rootRef = useRef<HTMLElement>(null);
+  // As a drawer (< 1100px) the panel takes the focus when it opens and gives it back when Esc closes it.
+  const returnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isDrawer()) return;
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    rootRef.current?.focus();
+  }, []);
   const activeWarehouses = warehouses.filter((item) => item.isActive);
   const warehouseKey = activeWarehouses.map((item) => item.id).join("|");
   const [warehouseRows, setWarehouseRows] = useState<WarehouseRow[] | null>(null);
@@ -107,18 +138,26 @@ export function InventoryStockDetailPanel({
     const timer = window.setTimeout(() => {
       const load =
         tab === "warehouses"
-          ? Promise.all(
-              activeWarehouses.map(async (warehouse) => {
-                const params = new URLSearchParams({ page: "1", pageSize: "100", belowMinimumOnly: "false", q: balance.code });
-                const page = await api<{ items: Array<{ balance: InventoryBalance }> }>(
-                  `/api/warehouses/${warehouse.id}/balances/page?${params}`,
-                  token,
-                );
-                const row = page.items.find((item) => item.balance.stockItemId === balance.stockItemId);
-                return { warehouse, quantity: row?.balance.quantityOnHand ?? 0 };
-              }),
-            ).then((rows) => {
-              if (id === request.current) setWarehouseRows(rows);
+          ? settleEach(activeWarehouses, 4, async (warehouse) => {
+              const params = new URLSearchParams({ page: "1", pageSize: "100", belowMinimumOnly: "false", q: balance.code });
+              const page = await api<{ items: Array<{ balance: InventoryBalance }>; totalCount: number }>(
+                `/api/warehouses/${warehouse.id}/balances/page?${params}`,
+                token,
+              );
+              const row =
+                page.items.find((item) => item.balance.stockItemId === balance.stockItemId) ??
+                page.items.find((item) => item.balance.code === balance.code);
+              // Not on this result page while more matches exist: unknown, not zero.
+              if (!row) return page.totalCount > page.items.length ? null : 0;
+              return row.balance.quantityOnHand;
+            }).then((results) => {
+              if (id !== request.current) return;
+              setWarehouseRows(
+                results.map((result, index) => ({
+                  warehouse: activeWarehouses[index],
+                  quantity: result.status === "fulfilled" ? result.value : null,
+                })),
+              );
             })
           : api<{ items: InventoryMovement[] }>(`/api/stock/items/${balance.stockItemId}/transactions?page=1&pageSize=5`, token).then(
               (page) => {
@@ -133,14 +172,26 @@ export function InventoryStockDetailPanel({
     // The warehouse list is keyed by its ids (a reloaded but equal list does not refetch).
   }, [tab, balance.stockItemId, balance.code, token, warehouseKey]);
 
-  const maxWarehouseQuantity = Math.max(0, ...(warehouseRows ?? []).map((row) => row.quantity));
+  const maxWarehouseQuantity = Math.max(0, ...(warehouseRows ?? []).map((row) => row.quantity ?? 0));
   const tabs: Array<{ id: StockDetailTab; label: string }> = [
     { id: "summary", label: "Özet" },
     { id: "warehouses", label: "Depolar" },
     { id: "movements", label: "Hareketler" },
   ];
   return (
-    <aside className="inventory-stock-detail" aria-label="Stok kartı özeti">
+    <aside
+      ref={rootRef}
+      className="inventory-stock-detail"
+      aria-label="Stok kartı özeti"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !isDrawer() || event.defaultPrevented) return;
+        event.preventDefault();
+        event.stopPropagation();
+        returnFocus.current?.focus();
+        onClose();
+      }}
+    >
       <div className="inventory-stock-detail-head">
         <div className="inventory-stock-detail-top">
           <span className="nx-code">{balance.code}</span>
@@ -166,6 +217,11 @@ export function InventoryStockDetailPanel({
               status.label
             )}
           </StatusTag>
+          {status.label !== "Minimum altı" && shortage > 0 && (
+            <StatusTag tone="warn">
+              <span>{quantity(shortage)}</span> <span>eksik</span>
+            </StatusTag>
+          )}
           {stock?.trackingMode === "Lot" && <StatusTag tone="off">Lot takipli</StatusTag>}
           {stock?.trackingMode === "Serial" && <StatusTag tone="off">Seri no takipli</StatusTag>}
         </div>
@@ -195,7 +251,7 @@ export function InventoryStockDetailPanel({
               </div>
               <div>
                 <small>Kullanılabilir</small>
-                <b className={balance.belowMinimum ? "is-low" : undefined}>{quantity(balance.availableQuantity)}</b>
+                <b className={shortage > 0 ? "is-low" : undefined}>{quantity(balance.availableQuantity)}</b>
               </div>
               <div>
                 <small>Rezerve</small>
@@ -251,9 +307,13 @@ export function InventoryStockDetailPanel({
                 <div key={row.warehouse.id} className="inventory-stock-detail-warehouse">
                   <span title={`${row.warehouse.code} · ${row.warehouse.name}`}>{row.warehouse.name}</span>
                   <span className="inventory-stock-detail-bar" aria-hidden="true">
-                    <i style={{ width: `${maxWarehouseQuantity > 0 ? Math.max(0, (row.quantity / maxWarehouseQuantity) * 100) : 0}%` }} />
+                    <i style={{ width: `${maxWarehouseQuantity > 0 && row.quantity ? Math.max(0, (row.quantity / maxWarehouseQuantity) * 100) : 0}%` }} />
                   </span>
-                  <b>{quantity(row.quantity)}</b>
+                  {row.quantity === null ? (
+                    <b title="Bu depoda bulunamadı veya sonuç sayfası aşıldı">—</b>
+                  ) : (
+                    <b>{quantity(row.quantity)}</b>
+                  )}
                 </div>
               ))
             )}

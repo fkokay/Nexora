@@ -763,11 +763,16 @@ export const english: Record<string, string> = {
   'Stok kartları kalıcı olarak silinsin mi?': 'Permanently delete the stock items?',
   'Yeterli': 'Sufficient',
   'Stok kartı kalıcı olarak silinsin mi?': 'Permanently delete the stock item?',
+  'Kullanılabilir stoklu kart': 'Cards with available stock',
+  'kart': 'cards',
+  'tüm depolarda (arama hariç)': 'in all warehouses (search not applied)',
+  'seçili depoda (arama hariç)': 'in the selected warehouse (search not applied)',
+  'Bu depoda bulunamadı veya sonuç sayfası aşıldı': 'Not found in this warehouse or beyond the result page',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
-  [/^(\d[\d.,]*) stok kartı kalıcı olarak silinecek\. İlişkili kayıtları olan kartlar silinemez\.$/, '$1 stock items will be permanently deleted. Items with related records cannot be deleted.'],
+  [/^(\d[\d.,]*) stok kartı kalıcı olarak silinecek: (.+?)\. İlişkili kayıtları olan kartlar silinemez\.$/, '$1 stock items will be permanently deleted: $2. Items with related records cannot be deleted.'],
   [/^(\d[\d.,]*) stok kartı silindi\.$/, '$1 stock items deleted.'],
   [/^Silinemeyen stok kartları: (.+)$/, 'Stock items that could not be deleted: $1'],
   [/^(.+?) aşamasına geçir$/, 'Move to $1 stage'],

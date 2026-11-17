@@ -36,6 +36,33 @@ describe('CommandProvider', () => {
     expect(b).toHaveBeenCalledTimes(1);
   });
 
+  it('a list row selection checkbox is not typing; other checkboxes and fields still block Enter / Ctrl+Del', () => {
+    const open = vi.fn();
+    const remove = vi.fn();
+    function List() {
+      usePageCommands({ open: { run: open }, delete: { run: remove } });
+      return (
+        <>
+          <table><tbody><tr><td className="advanced-grid-select-cell"><input type="checkbox" aria-label="row" /></td></tr></tbody></table>
+          <form><input type="checkbox" aria-label="form box" /><input aria-label="text" /></form>
+        </>
+      );
+    }
+    render(<CommandProvider><KeepAliveViews activeKey="root" openKeys={['root']}><List /></KeepAliveViews></CommandProvider>);
+    const row = screen.getByRole('checkbox', { name: 'row' });
+    fireEvent.keyDown(row, { key: 'Enter' });
+    fireEvent.keyDown(row, { key: 'Delete', ctrlKey: true });
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledTimes(1);
+    for (const name of ['form box', 'text']) {
+      const field = screen.getByRole(name === 'text' ? 'textbox' : 'checkbox', { name });
+      fireEvent.keyDown(field, { key: 'Enter' });
+      fireEvent.keyDown(field, { key: 'Delete', ctrlKey: true });
+    }
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the latest handler without re-registering', () => {
     const seen: number[] = [];
     const runs = new Set<unknown>();

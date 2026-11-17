@@ -7,6 +7,7 @@ export const ViewKeyContext = createContext<string>('root');
 const RegistryContext = createContext<CommandRegistry | null>(null);
 
 const TYPING_SELECTOR = 'input,textarea,select,[contenteditable="true"]';
+const GRID_SELECT_CELL = '.advanced-grid-select-cell';
 const INTERACTIVE_SELECTOR = 'button, a[href], [role=button], [role=menuitem], [role=tab], summary';
 const STANDARD_IDS = Object.keys(STANDARD_SHORTCUTS) as StandardCommandId[];
 
@@ -41,7 +42,9 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       const target = event.target instanceof Element ? event.target : null;
       const modals = openModals();
       registry.handleKeyDown(event, {
-        typing: Boolean(target?.closest(TYPING_SELECTOR)),
+        // A list row's selection checkbox is not typing: Enter / Ctrl+Del keep acting on the list (the grid
+        // handles Ctrl+A there itself; no command uses it).
+        typing: Boolean(target?.closest(TYPING_SELECTOR)) && !target?.closest(GRID_SELECT_CELL),
         modalOpen: modals.length > 0,
         modalInActiveView: modalsBelongToView(modals, registry.getActiveView()),
         onInteractive: Boolean(target?.closest(INTERACTIVE_SELECTOR)),
