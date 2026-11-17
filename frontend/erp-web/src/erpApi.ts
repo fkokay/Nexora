@@ -33,9 +33,10 @@ export async function api<T>(url: string, token?: string, init?: RequestInit): P
       ? 'Aktif firma oturumu bulunamadı. Çıkış yapıp doğru firmayı yeniden seçin.'
       : payload?.error || validation || problemDetail(payload) || `İstek başarısız (${response.status}).`
     const trace = payload?.traceId && !message.includes(payload.traceId) ? ` İz kimliği: ${payload.traceId}.` : ''
-    const failure = new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace) as Error & { status?: number; serverError?: string }
+    const failure = new Error(response.status === 401 ? 'Oturum geçersiz. Yeniden giriş yapın.' : response.status === 403 ? 'Bu işlem için yetkiniz yok.' : message + trace) as Error & { status?: number; serverError?: string; fieldErrors?: Record<string, string[]> }
     failure.status = response.status
     if (payload?.error) failure.serverError = payload.error
+    if (payload?.errors && typeof payload.errors === 'object' && !Array.isArray(payload.errors)) failure.fieldErrors = payload.errors
     throw failure
   }
   if (response.status === 204) return undefined as T
