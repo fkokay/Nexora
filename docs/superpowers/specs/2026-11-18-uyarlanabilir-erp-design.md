@@ -35,10 +35,11 @@ Bugünkü durum:
    kaldırılmaz ve bozulmaz.
 5. **Her ekranın firma başına tek tasarımı olur.** Rol veya kullanıcı başına ayrı görünüm yoktur. Farklı ihtiyaç için
    ayrı bir özel sayfa tasarlanır ve menüye eklenir.
-6. **Kullanıcı kodu hedefin parçasıdır.**
-   - Tarayıcı tarafında yalıtılmış kod bileşeni zaten var.
-   - Sunucu tarafında "kaydetmeden önce" gibi kural kancaları ileride eklenecek (Proje 5). Bunlar mevcut WASM eklenti
-     altyapısıyla yalıtılır (`AIERP.PluginHost`).
+6. **Üç uyarlama türünün üçü de gerekli.**
+   - **Veritabanına alan ve tablo eklemek** (Proje 3b).
+   - **API'de kod değişikliği.** Kural kancaları ve AI Development Studio akışıyla yapılır (Proje 5).
+   - **Sayfaya JS kodu eklemek.** Yalıtılmış kod bileşenine güvenli köprü verilir (Proje 2b).
+   - Sunucu kancaları mevcut WASM eklenti altyapısıyla yalıtılır (`AIERP.PluginHost`).
 
 ## Hedefler, hedef olmayanlar, kaçınılacaklar
 
@@ -50,7 +51,8 @@ Bugünkü durum:
 
 **Hedef olmayanlar**
 - Rol bazlı görünümler.
-- Bu turda sunucu tarafı kullanıcı kodu (Proje 5'e kaldı).
+- Proje 1'de kod köprüsü, firma tabloları ve sunucu kancaları (sırasıyla Proje 2b, 3b ve 5).
+- Nexora'nın kendi tablolarına firmaya özel sütun eklemek.
 - 94 ekranın hepsini birden taşımak.
 
 **Kaçınılacaklar.** Teknik olarak çalışsa bile başarısızlık sayılacak durumlar:
@@ -96,6 +98,16 @@ Her proje ayrı tasarım, plan ve PR dizisiyle ilerler. Sıra bağımlılığa g
    - özel alanlar bloğu,
    - seçime bağlı alt liste (hareket geçmişi, depo bakiyeleri),
    - sayfalı ve sunucu taraflı arama yapan liste.
+2b. **Sayfaya JS kodu (kod köprüsü).**
+   - Mevcut "yalıtılmış kod alanı" bileşeni (iframe kum havuzu) güvenli bir köprü kazanır. Kod şunları yapabilir:
+     - sayfa değişkenlerini okuyabilir,
+     - giriş kutularına değer yazabilir,
+     - katalogdaki ERP işlemlerini ve sayfanın sorgularını kullanıcının yetkisiyle çağırabilir,
+     - olaylara bağlanabilir: sayfa açıldı, kayıt seçildi, kaydetmeden önce (iptal edebilir), kaydettikten sonra.
+   - Görünmez kod bileşeni seçeneği olur: yalnız mantık taşır, ekranda yer kaplamaz.
+   - Kod oturum belirtecini göremez ve doğrudan ağa çıkamaz. Mevcut CSP korunur; her istek köprüden ve katalog
+     denetiminden geçer.
+   - Köprü sürümlüdür ve geriye dönük uyumludur, katalog adlarıyla aynı kural geçerlidir.
 3. **Sistem sayfaları.**
    - Yerleşik ekran, Nexora'nın yayımladığı sürümlü bir sayfa tanımı olur.
    - Firma "Tasarımcıda aç" ile kendi kopyasını taslak/yayın düzeniyle düzenler.
@@ -106,13 +118,35 @@ Her proje ayrı tasarım, plan ve PR dizisiyle ilerler. Sıra bağımlılığa g
    - Bugünkü alan düzeni ayarları, ilk açılışta firma kopyasına aktarılır.
    - Adım 3'teki şablon çalışması (Liste, Kayıt kartı, Tanım, Rapor, Ana sayfa) buraya katılır; şablonlar, sistem
      sayfalarının ortak iskeletleri olur.
+3b. **Veritabanına alan ve tablo eklemek.**
+   - **Mevcut kayda alan.** Bugün yalnız Cari ve Stok'ta olan özel alan mekanizması (değişmez revizyonlar, değer
+     geçmişi) diğer ana kayıtlara genişler.
+     - Özel alanlar katalogda okuma ve yazma işlemi olarak yer alır.
+     - Tasarımcıda sıradan alan gibi forma ve listeye konur.
+     - Rapor ve SQL sorgularında da kullanılabilir.
+   - **Yeni tablo ("firma tabloları").** Studio'da tablo ve sütunlar tanımlanır.
+     - Tablolar firmanın ERP veritabanında ayrı bir şemada (`ext.`) oluşturulur.
+     - DDL'yi yalnız yetkili bir servis üretir: tip, ad ve uzunluk doğrulanır, kullanıcı ham DDL yazamaz.
+     - Değişiklikler sürümlü ve yalnız genişleyicidir: sütun eklenir; silme ve yeniden adlandırma "genişlet → taşı →
+       daralt" kuralıyla yapılır.
+     - Sayfa sorguları (SQL ve ERP işlemi) bu tablolara okuyup yazabilir.
+     - Firma tablolarına yazma, ERP tablolarındaki yazma yasağından ayrı ve açık bir izinle verilir.
+   - **Kural:** Nexora'nın kendi tablolarına firma bazında sütun eklenmez. Ortak kod ve migration'lar bozulur.
 4. **Pilot: Stok Kartları.**
    - Standart tanım yazılır.
    - Eski ekranla eşdeğerlik listesi çıkarılır ve doğrulanır.
    - Ekran başına bir anahtarla yeni çizime geçilir.
    - Eski ekran bir sürüm boyunca geri dönüş için kalır.
-5. **Sunucu tarafı kullanıcı kodu.** Seçili işlemler için "önce/sonra" kancaları. WASM ile yalıtılır, ağ ve gizli
-   bilgiye erişimi olmaz. Yaklaşım B bu işlemler için burada devreye girer.
+5. **Sunucu tarafı kullanıcı kodu ve API değişiklikleri.**
+   - **Kural kancaları.** Seçili işlemler için "önce/sonra" kancaları eklenir.
+     - "Önce" kancası işlemi doğrulama mesajıyla reddedebilir veya değer ekleyebilir.
+     - "Sonra" kancası bildirim, ek kayıt ve benzeri işleri yapar.
+     - Kod firma bazında tanımlanır, WASM ile yalıtılır; ağa ve gizli bilgilere erişemez, Nexora kodunu değiştirmez.
+     - Kanca bağlı işlemler için Yaklaşım B (sunucu üzerinden tek kapı) burada devreye girer.
+   - **Gerçek API kod değişikliği.** Yeni uç nokta veya yeni iş kuralı gibi değişiklikler mevcut AI Development Studio
+     akışıyla yapılır: talep, öneri, yalıtılmış test, ayrı onaylarla yayım. Böyle bir değişiklik yeni bir ERP işlemi
+     açıyorsa katalog kaydı da aynı değişikliğin parçasıdır; yayımlanınca tasarımcıda görünür. Studio'ya "bu işlemi
+     kataloğa ekle" talep türü eklenir.
 6. **Diğer ekranların taşınması.** Ekran ekran ilerler: önce katalog işlemleri, sonra standart tanım, sonra eşdeğerlik.
 
 Durdurulan iş: tasarım dili Adım 3 (şablonlar) Proje 3'e katıldı. `feat/design-language-step3` dalında kod yok.
@@ -215,8 +249,7 @@ Sunucu doğrulaması (`TenantCustomPageSchema`):
 5. **Rapor kaynakları.** Her rapor kaynağı ayrı ve kararlı bir katalog adı alır (`rapor.<kaynak>`, ör.
    `rapor.stockItems`). Hepsi `POST /api/reports/run` uç noktasına gider. Bir test, rapor kaynakları listesiyle katalog
    kayıtlarının eşit olduğunu doğrular.
-6. **Kod bileşeni.** Proje 1'de yalıtılmış kod bileşeninin ERP işlemlerine erişimi yoktur. Kataloğa sınırlı bir köprü,
-   kullanıcı kodu çalışmasında (Proje 5) ayrıca tasarlanır.
+6. **Kod bileşeni.** Proje 1'de yalıtılmış kod bileşeninin ERP işlemlerine erişimi yoktur; köprü Proje 2b'de gelir.
 7. **Toplu içe aktarma kapsam dışıdır.** Dosya yükleme ve kendi tekrar korumasıyla ayrı bir biçim; ilk katalogda
    yoktur.
 
