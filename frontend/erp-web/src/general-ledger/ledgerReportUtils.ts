@@ -152,7 +152,7 @@ export function downloadCsv(fileName: string, rows: ExportCell[][]) {
 
 /** Excel sayfa adı kuralları: `: \ / ? * [ ]` yasak, baştaki/sondaki kesme yasak, en fazla 31 karakter; boşsa "Liste". */
 export function safeSheetName(name: string): string {
-  const cleaned = name.replace(/[:\/?*[\]]/g, "").trim().slice(0, 31).replace(/^'+|'+$/g, "").trim();
+  const cleaned = name.replace(/[:\\/?*\[\]]/g, "").trim().slice(0, 31).replace(/^'+|'+$/g, "").trim();
   return cleaned || "Liste";
 }
 
