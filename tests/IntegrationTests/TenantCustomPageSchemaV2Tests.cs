@@ -259,4 +259,68 @@ public sealed class TenantCustomPageSchemaV2Tests
         var v2TooLarge = V2(components: [new { id = "t1", type = "text", props = new { text = new string('a', 130 * 1024) } }]);
         AssertRejected(v2TooLarge, "128 KiB");
     }
+
+    private static object[] Q1 => [Query("q1", "liste", "SELECT 1 AS x")];
+
+    private static string Page(params object[] components) => V2(Q1, components);
+
+    [Fact]
+    public void Accepts_design_language_props()
+    {
+        var json = Page(
+            new { id = "m1", type = "metric", props = new { query = "q1", variant = "danger", icon = "alert", trendQuery = "q1", filterInput = "in1", filterValue = "kritik" } },
+            new { id = "in1", type = "input", name = "durum" },
+            new { id = "b1", type = "badge", props = new { toneMap = new[] { "Aktif=success" } } },
+            new { id = "t1", type = "dataTable", props = new { query = "q1", density = "dense", columnFormats = new[] { "Tutar=money", "Durum=status" }, toneMap = new[] { "Pasif=danger" }, totals = new[] { "Tutar" } } });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
+
+    [Fact]
+    public void Filter_input_may_be_declared_after_metric_or_nested()
+    {
+        var after = Page(
+            new { id = "m1", type = "metric", props = new { query = "q1", filterInput = "in1" } },
+            new { id = "in1", type = "input", name = "durum" });
+        Assert.True(TenantCustomPageSchema.Validate(after, out var error), error);
+        var nested = Page(
+            new { id = "m1", type = "metric", props = new { query = "q1", filterInput = "in1", filterValue = "x" } },
+            new { id = "c1", type = "card", children = new object[] { new { id = "in1", type = "input", name = "durum" } } });
+        Assert.True(TenantCustomPageSchema.Validate(nested, out error), error);
+    }
+
+    [Fact]
+    public void Rejects_invalid_design_language_props()
+    {
+        object Metric(object props) => new { id = "m1", type = "metric", props };
+        object Table(object props) => new { id = "t1", type = "dataTable", props };
+        object Badge(object props) => new { id = "b1", type = "badge", props };
+        var tones21 = Enumerable.Range(0, 21).Select(i => $"K{i}=info").ToArray();
+        var totals13 = Enumerable.Range(0, 13).Select(i => $"C{i}").ToArray();
+
+        AssertRejected(Page(Metric(new { query = "q1", variant = "mor" })), "görünüm türü");
+        AssertRejected(Page(Metric(new { query = "q1", icon = "rocket" })), "icon");
+        AssertRejected(Page(Metric(new { query = "q1", trendQuery = "yok" })), "trendQuery");
+        AssertRejected(Page(Metric(new { query = "q1", filterInput = "yok" })), "giriş");
+        AssertRejected(Page(new { id = "h1", type = "heading" }, Metric(new { query = "q1", filterInput = "h1" })), "giriş");
+        AssertRejected(Page(Metric(new { query = "q1", filterValue = "x" })), "filterValue");
+        AssertRejected(Page(Badge(new { toneMap = new[] { "Aktif=mor" } })), "toneMap");
+        AssertRejected(Page(Table(new { query = "q1", toneMap = tones21 })), "toneMap");
+        AssertRejected(Page(Table(new { query = "q1", columnFormats = new[] { "Tutar=para" } })), "columnFormats");
+        AssertRejected(Page(Table(new { query = "q1", density = "tight" })), "density");
+        AssertRejected(Page(Table(new { source = "customers", totals = new[] { "Tutar" } })), "totals");
+        AssertRejected(Page(Table(new { query = "q1", totals = totals13 })), "totals");
+        AssertRejected(Page(new { id = "h1", type = "heading", props = new { toneMap = new[] { "A=info" } } }), "toneMap");
+        AssertRejected(Page(Metric(new { query = "q1", filterInput = "in1", filterValue = new string('a', 201) }), new { id = "in1", type = "input", name = "d" }), "filterValue");
+    }
+
+    [Fact]
+    public void Metric_variant_stays_unvalidated_in_v1()
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            components = new object[] { new { id = "m1", type = "metric", props = new { variant = "mor" } } }
+        });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
 }
