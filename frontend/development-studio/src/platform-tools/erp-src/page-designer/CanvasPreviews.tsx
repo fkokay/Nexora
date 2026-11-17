@@ -130,3 +130,26 @@ export function ContextPanelPreview({ title, row, fields, related, style }: {
     </>}
   </aside>;
 }
+
+type ActionBarBound = { new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+
+/** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
+export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
+  // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
+  const primary = bound.save ? "save" : bound.new ? "new" : "";
+  const button = (id: string, label: string, key: string, on: boolean) =>
+    <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={on ? undefined : "Bu sayfada bağlanmadı"}>{id === "new" ? "+ " : ""}{label}<span className="pd-bar-key">{key}</span></span>;
+  const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
+  return <div className="pd-actionbar-wrap" style={style}>
+    <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
+      {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", false)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
+      <span className="pd-bar-sep" />
+      {button("refresh", "Yenile", "F5", true)}{button("filter", "Filtre", "Ctrl+F", bound.filter)}
+      <span className="pd-bar-sep" />
+      {button("print", "Yazdır", "Ctrl+P", bound.print)}{button("excel", "Excel", "Ctrl+E", bound.excel)}
+      <span className="pd-bar-grow" />
+      <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={moreCount > 0 ? undefined : "Bu sayfada bağlanmadı"}>İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾<span className="pd-bar-key">Alt+İ</span></span>
+    </div>
+    <p className="pd-actionbar-note">Bu çubuk ERP'de sayfanın üstündeki İşlem Çubuğu'nda görünür.</p>
+  </div>;
+}

@@ -15,7 +15,7 @@ internal static class TenantCustomPageSchema
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -26,7 +26,10 @@ internal static class TenantCustomPageSchema
     { "query", "inputType", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn",
       "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage",
       "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals",
-      "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts" };
+      "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts",
+      "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
+    private const int MaxMoreButtons = 10;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
@@ -75,6 +78,11 @@ internal static class TenantCustomPageSchema
         public List<(string OwnerId, string OwnerType, List<string> InputIds)> PendingInputLists { get; } = [];
         /// <summary>contextPanel table references.</summary>
         public List<(string OwnerId, string TableId)> PendingTables { get; } = [];
+        /// <summary>Ids of dataTable components bound to a query, named or not (valid actionBar export tables).</summary>
+        public HashSet<string> QueryTables { get; } = new(StringComparer.Ordinal);
+        public int ActionBarCount { get; set; }
+        /// <summary>actionBar references (property, component id) resolved after every component was visited.</summary>
+        public List<(string Property, string ComponentId, string ExpectedType)> PendingActionRefs { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -197,6 +205,8 @@ internal static class TenantCustomPageSchema
         { error = "Bileşen kimlikleri benzersiz, kısa ve yalnızca harf/rakam/-/_ içermelidir."; return false; }
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
         context.ComponentTypesById[idText] = typeText;
+        if (typeText == "actionBar" && ++context.ActionBarCount > 1)
+        { error = "Sayfada en fazla bir İşlem Çubuğu (actionBar) bulunabilir."; return false; }
         if (typeText == "input") context.InputIds.Add(idText);
         if (component.TryGetProperty("name", out var nameElement)
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
@@ -258,6 +268,9 @@ internal static class TenantCustomPageSchema
             if (typeText == "input" && props.TryGetProperty("inputType", out var selectType) && selectType.ValueKind == JsonValueKind.String && selectType.GetString() == "select"
                 && props.TryGetProperty("optionsQuery", out var selectOptions) && selectOptions.ValueKind == JsonValueKind.String)
                 context.SelectInputsWithOptions.Add(idText);
+            if (context.V2 && !ValidateActionBarProps(props, typeText, context, out error)) return false;
+            if (typeText == "dataTable" && props.TryGetProperty("query", out var anyTableQuery) && anyTableQuery.ValueKind == JsonValueKind.String)
+                context.QueryTables.Add(idText);
             if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
                 context.NamedQueryTables.Add(idText);
         }
@@ -398,9 +411,76 @@ internal static class TenantCustomPageSchema
         return true;
     }
 
+    /// <summary>actionBar props (design language step 2c); id references resolve after the loop.</summary>
+    private static bool ValidateActionBarProps(JsonElement props, string typeText, Context context, out string? error)
+    {
+        error = null;
+        if (typeText != "actionBar")
+        {
+            foreach (var key in ActionBarProps)
+                if (props.TryGetProperty(key, out _))
+                { error = $"'{key}' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir."; return false; }
+            return true;
+        }
+        foreach (var (key, expected) in new[] { ("newInputs", "input"), ("moreButtons", "button") })
+        {
+            if (!props.TryGetProperty(key, out var list)) continue;
+            var max = key == "newInputs" ? MaxLayoutInputs : MaxMoreButtons;
+            if (list.ValueKind != JsonValueKind.Array || list.GetArrayLength() is < 1 || list.GetArrayLength() > max
+                || list.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())))
+            { error = $"'{key}' 1–{max} adet bileşen kimliği içeren bir dizi olmalıdır."; return false; }
+            var ids = list.EnumerateArray().Select(x => x.GetString()!).ToList();
+            if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+            { error = $"'{key}' listesinde aynı kimlik birden fazla kez bulunamaz."; return false; }
+            foreach (var id in ids) context.PendingActionRefs.Add((key, id, expected));
+        }
+        if (props.TryGetProperty("focusInput", out var focus))
+        {
+            if (focus.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(focus.GetString()))
+            { error = "'focusInput' bir giriş bileşeni kimliği olmalıdır."; return false; }
+            context.PendingActionRefs.Add(("focusInput", focus.GetString()!, "input"));
+        }
+        if (props.TryGetProperty("exportTable", out var export))
+        {
+            if (export.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(export.GetString()))
+            { error = "'exportTable' sorguya bağlı bir veri listesi kimliği olmalıdır."; return false; }
+            context.PendingActionRefs.Add(("exportTable", export.GetString()!, "queryTable"));
+        }
+        if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        { error = "'printEnabled' true veya false olmalıdır."; return false; }
+        foreach (var (key, kinds) in new[] { ("saveQuery", "insert veya update"), ("deleteQuery", "delete") })
+        {
+            if (!props.TryGetProperty(key, out var q)) continue;
+            var queryId = q.ValueKind == JsonValueKind.String ? q.GetString() : null;
+            if (string.IsNullOrEmpty(queryId) || !context.QueryKinds.TryGetValue(queryId, out var kind))
+            { error = $"'{key}' sorgusu sayfada yok: {queryId ?? "?"}."; return false; }
+            if (key == "saveQuery" ? kind is not ("insert" or "update") : kind != "delete")
+            { error = $"'{key}' {kinds} türünde bir sorgu olmalıdır: {queryId}."; return false; }
+        }
+        return true;
+    }
+
+    private static bool ResolveActionBarReferences(Context context, out string? error)
+    {
+        error = null;
+        foreach (var (property, id, expected) in context.PendingActionRefs)
+        {
+            if (!context.ComponentTypesById.TryGetValue(id, out var type))
+            { error = $"İşlem Çubuğu '{property}' özelliğindeki bileşen sayfada yok: {id}."; return false; }
+            if (expected == "input" && type != "input")
+            { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir giriş bileşeni değil."; return false; }
+            if (expected == "button" && type != "button")
+            { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir düğme bileşeni değil."; return false; }
+            if (expected == "queryTable" && !context.QueryTables.Contains(id))
+            { error = $"İşlem Çubuğu 'exportTable' özelliği sorguya bağlı bir veri listesi olmalıdır: {id}."; return false; }
+        }
+        return true;
+    }
+
     private static bool ResolveLayoutReferences(Context context, out string? error)
     {
         error = null;
+        if (!ResolveActionBarReferences(context, out error)) return false;
         var owners = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (ownerId, ownerType, inputIds) in context.PendingInputLists)
             foreach (var inputId in inputIds)

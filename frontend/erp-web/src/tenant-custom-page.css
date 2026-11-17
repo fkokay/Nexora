@@ -50,6 +50,11 @@
 .tenant-page-action-feedback { margin: 0; font-size: 12px; }
 .tenant-page-action-feedback.is-success { color: var(--nx-ok); }
 .tenant-page-action-feedback.is-error { color: var(--nx-bad); }
+/* İşlem Çubuğu durum satırı: yazma/Excel sonucu */
+#root .app-shell .tenant-custom-page .tenant-page-action-status { padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-error { color: var(--nx-bad); background: var(--nx-bad-bg); }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
 .tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
 
 /* Liste tablosu — taslak 01: başlık 11,5px/600, satır çizgisi line-soft, sayılar sağa hizalı */

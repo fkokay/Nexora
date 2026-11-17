@@ -150,6 +150,12 @@ export function downloadCsv(fileName: string, rows: ExportCell[][]) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Excel sayfa adı kuralları: `: \ / ? * [ ]` yasak, baştaki/sondaki kesme yasak, en fazla 31 karakter; boşsa "Liste". */
+export function safeSheetName(name: string): string {
+  const cleaned = name.replace(/[:\\/?*\[\]]/g, "").trim().slice(0, 31).replace(/^'+|'+$/g, "").trim();
+  return cleaned || "Liste";
+}
+
 export async function downloadXlsx(fileName: string, sheetName: string, rows: ExportCell[][]) {
   const XLSX = await import("xlsx");
   const workbook = XLSX.utils.book_new();
@@ -158,7 +164,7 @@ export async function downloadXlsx(fileName: string, sheetName: string, rows: Ex
     XLSX.utils.aoa_to_sheet(
       rows.map((row) => row.map((cell) => (typeof cell === "number" ? cell : safeText(cell)))),
     ),
-    sheetName.slice(0, 31),
+    safeSheetName(sheetName),
   );
   XLSX.writeFileXLSX(workbook, fileName);
 }
