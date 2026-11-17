@@ -797,27 +797,40 @@ export default function AdvancedDataGrid({
     selectColumns = selectable ? 1 : 0,
     selectedPageKeys = visiblePageKeys.filter((key) => selected.has(key)),
     somePageSelected = selectedPageKeys.length > 0 && !allPageSelected;
+  // A row the page marks as its current record (aria-current / aria-selected) is the keyboard's starting row
+  // until the user moves or clicks.
+  const pageMarkedKey = selectable
+      ? pageRows.find((row) =>
+          [true, "true"].includes(
+            row.element.props["aria-current"] ?? row.element.props["aria-selected"],
+          ),
+        )?.key ?? null
+      : null,
+    activeKey = currentKey ?? pageMarkedKey;
   // `selectable` keeps the selection to the visible page: a page, page size, search, filter or sort change
-  // clears it, and keys that leave the row set (refresh, external pagination) are dropped.
-  const viewSignature = JSON.stringify([
-    currentPage,
-    pageSize,
-    query,
-    filters,
-    filterLogic,
-    sorts,
-    sensitive,
-  ]);
+  // clears it, and keys that leave the row set (refresh, external pagination) are dropped. Layout effects, so a
+  // stale selection never paints for a frame.
+  const viewSignature = selectable
+    ? JSON.stringify([
+        currentPage,
+        pageSize,
+        query,
+        filters,
+        filterLogic,
+        sorts,
+        sensitive,
+      ])
+    : "";
   const viewSignatureRef = useRef(viewSignature);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (viewSignatureRef.current === viewSignature) return;
     viewSignatureRef.current = viewSignature;
     if (!selectable) return;
     setSelected((current) => (current.size ? new Set() : current));
     setCurrentKey(null);
   }, [viewSignature, selectable]);
-  const pageKeySignature = JSON.stringify(visiblePageKeys);
-  useEffect(() => {
+  const pageKeySignature = selectable ? JSON.stringify(visiblePageKeys) : "";
+  useLayoutEffect(() => {
     if (!selectable) return;
     const keys = new Set<string>(JSON.parse(pageKeySignature));
     setSelected((current) => {
@@ -1081,7 +1094,7 @@ export default function AdvancedDataGrid({
   }
   function moveCurrentRow(step: 1 | -1) {
     if (!visiblePageKeys.length) return;
-    const at = currentKey === null ? -1 : visiblePageKeys.indexOf(currentKey),
+    const at = activeKey === null ? -1 : visiblePageKeys.indexOf(activeKey),
       index =
         at < 0
           ? step > 0
@@ -1110,6 +1123,8 @@ export default function AdvancedDataGrid({
     // Typing stays native (a row checkbox is not typing, but Space on it toggles natively).
     if (target.closest('textarea,select,[contenteditable="true"],input:not([type="checkbox"])'))
       return;
+    // An open row menu ("⋯" details / role=menu) keeps its own arrow and Space handling.
+    if (target.closest('details[open],[role="menu"]')) return;
     const grid = event.currentTarget,
       modals = openModals();
     if (modals.length && !modals.some((modal) => modal.contains(grid))) return;
@@ -1131,12 +1146,12 @@ export default function AdvancedDataGrid({
       moveCurrentRow(event.key === "ArrowDown" ? 1 : -1);
     } else if (event.key === " ") {
       if (
-        currentKey === null ||
+        activeKey === null ||
         target.closest('input,button,a[href],summary,[role="button"]')
       )
         return;
       event.preventDefault();
-      toggleRow(currentKey);
+      toggleRow(activeKey);
     }
   }
   function togglePageSelection() {
@@ -1634,18 +1649,11 @@ export default function AdvancedDataGrid({
       rowNumber = start + pageIndex + 1,
       checked = selected.has(row.key);
     // `selectable`: aria-selected is the checkbox. The current row is the keyboard row, or until there is one the
-    // page's own marked record (its aria-current / aria-selected), so a page's selected-record highlight is kept.
-    const pageMarksCurrent = [true, "true"].includes(
-      row.element.props["aria-current"] ?? row.element.props["aria-selected"],
-    );
+    // page's own marked record (pageMarkedKey), so a page's selected-record highlight is kept.
     const selectionProps = selectable
       ? {
           "aria-selected": checked,
-          "aria-current": (
-            currentKey === null ? pageMarksCurrent : currentKey === row.key
-          )
-            ? "true"
-            : undefined,
+          "aria-current": activeKey === row.key ? "true" : undefined,
           "data-grid-row": pageIndex,
           onClick: (event: ReactMouseEvent) => {
             row.element.props.onClick?.(event);

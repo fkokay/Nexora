@@ -316,6 +316,9 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
 /* The bulk bar floats over the bottom rows from a zero-height dock after the scroll container (no layout space);
    BulkActionBar lifts it (--nx-bulk-lift) to the window's bottom edge while the grid runs past it. */
 .nx-bulk-dock { position: relative; z-index: 7; height: 0; }
+/* While the bar is shown, BulkActionBar sets --nx-bulk-space (bar height + 12px) on the scroll area: room under
+   the last row, and the scroll padding keeps a keyboard-moved current row clear of the bar. */
+.advanced-grid-scroll { padding-bottom: var(--nx-bulk-space, 0px); scroll-padding-bottom: var(--nx-bulk-space, 0px); }
 .nx-bulk {
   position: absolute;
   bottom: calc(12px + var(--nx-bulk-lift, 0px));

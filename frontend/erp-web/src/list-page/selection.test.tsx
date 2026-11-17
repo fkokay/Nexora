@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdvancedDataGrid from '../AdvancedDataGrid';
 import { CommandProvider } from '../commands/CommandProvider';
+import { supplementalEnglish } from '../locales/en';
 
 type Item = { id: string; name: string; qty: number };
 const items = (count: number, prefix = 'S'): Item[] =>
@@ -49,6 +50,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('AdvancedDataGrid selectable', () => {
@@ -233,5 +235,117 @@ describe('AdvancedDataGrid selectable', () => {
     fireEvent.click(within(bulkBar()!).getByRole('button', { name: 'Seçimi temizle' }));
     expect(bulkBar()).toBeNull();
     expect(checkedCount()).toBe(0);
+  });
+
+  it('starts the keyboard from the row the page marks as current', () => {
+    render(
+      <CommandProvider>
+        <AdvancedDataGrid gridId="selection-marked" selectable>
+          <thead><tr><th>Stok adı</th></tr></thead>
+          <tbody>
+            {items(3).map((row) => (
+              <tr key={row.id} aria-selected={row.id === 'S2'}><td>{row.name}</td></tr>
+            ))}
+          </tbody>
+        </AdvancedDataGrid>
+      </CommandProvider>,
+    );
+    expect(bodyRows()[1].getAttribute('aria-current')).toBe('true');
+    fireEvent.keyDown(region(), { key: ' ' });
+    expect(rowBoxes().map((box) => (box as HTMLInputElement).checked)).toEqual([false, true, false]);
+    fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    expect(bodyRows()[2].getAttribute('aria-current')).toBe('true');
+  });
+
+  it('leaves arrow keys to an open menu inside a row', () => {
+    render(
+      <CommandProvider>
+        <AdvancedDataGrid gridId="selection-menu" selectable>
+          <thead><tr><th>Stok adı</th><th>İşlemler</th></tr></thead>
+          <tbody>
+            {items(2).map((row) => (
+              <tr key={row.id}>
+                <td>{row.name}</td>
+                <td><details open><summary>⋯</summary><div role="menu"><button type="button" role="menuitem">Aç {row.id}</button></div></details></td>
+              </tr>
+            ))}
+          </tbody>
+        </AdvancedDataGrid>
+      </CommandProvider>,
+    );
+    const item = screen.getByRole('menuitem', { name: 'Aç S1' });
+    fireEvent.keyDown(item, { key: 'ArrowDown' });
+    fireEvent.keyDown(screen.getAllByText('⋯')[0], { key: 'ArrowDown' });
+    expect(bodyRows().map((row) => row.getAttribute('aria-current'))).toEqual([null, null]);
+  });
+});
+
+describe('BulkActionBar', () => {
+  it('is one tab stop: only one button is tabbable and ←/→ move it (roving tabindex)', () => {
+    render(
+      tree(items(3), {
+        selectable: true,
+        bulkActions: [
+          { id: 'excel', label: 'Excel', run: () => {} },
+          { id: 'locked', label: 'Kilitli', run: () => {}, disabledReason: 'Yetki yok.' },
+          { id: 'print', label: 'Yazdır', run: () => {} },
+        ],
+      }),
+    );
+    fireEvent.click(rowBoxes()[0]);
+    const bar = bulkBar()!;
+    const tabbable = () => within(bar).getAllByRole('button').filter((b) => b.tabIndex === 0).map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(tabbable()).toEqual(['Excel']);
+    const excel = within(bar).getByRole('button', { name: 'Excel' });
+    excel.focus();
+    fireEvent.keyDown(excel, { key: 'ArrowRight' });
+    expect(document.activeElement?.textContent).toBe('Yazdır');
+    expect(tabbable()).toEqual(['Yazdır']);
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Seçimi temizle');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
+    expect(document.activeElement?.textContent).toBe('Excel');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Seçimi temizle');
+  });
+
+  it('its Turkish labels have English dictionary entries (the DOM translator also translates aria-label)', () => {
+    for (const source of ['Toplu işlemler', 'Seçimi temizle', 'seçili', 'Tümünü seç', 'Satırı seç'])
+      expect(supplementalEnglish[source], source).toBeTruthy();
+  });
+
+  it('reserves room under the last row for the bar on the scroll area while it is shown', () => {
+    render(tree(items(3), { selectable: true, bulkActions: [{ id: 'x', label: 'Excel', run: () => {} }] }));
+    expect(region().style.getPropertyValue('--nx-bulk-space')).toBe('');
+    fireEvent.click(rowBoxes()[0]);
+    expect(region().style.getPropertyValue('--nx-bulk-space')).toMatch(/px$/);
+    fireEvent.keyDown(region(), { key: 'Escape' });
+    expect(region().style.getPropertyValue('--nx-bulk-space')).toBe('');
+  });
+
+  it('re-measures its lift when the grid or page layout resizes without a scroll', () => {
+    const observers: { callback: () => void; targets: Element[] }[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        targets: Element[] = [];
+        constructor(public callback: () => void) { observers.push(this); }
+        observe(target: Element) { this.targets.push(target); }
+        unobserve() {}
+        disconnect() { this.targets = []; }
+      },
+    );
+    // Run the scheduled measurement at once (returning 0 leaves no frame pending).
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => { callback(0); return 0; });
+    render(tree(items(3), { selectable: true, bulkActions: [{ id: 'x', label: 'Excel', run: () => {} }] }));
+    fireEvent.click(rowBoxes()[0]);
+    const dock = document.querySelector<HTMLElement>('.nx-bulk-dock')!;
+    expect(dock.style.getPropertyValue('--nx-bulk-lift')).toBe('0px');
+    const watcher = observers.find((o) => o.targets.includes(region()) && o.targets.includes(document.documentElement));
+    expect(watcher).toBeTruthy();
+    // Layout change (fullscreen, density, side panel): the grid now ends 232px below the window (768px high).
+    dock.getBoundingClientRect = () => ({ top: window.innerHeight + 232 }) as DOMRect;
+    act(() => watcher!.callback());
+    expect(dock.style.getPropertyValue('--nx-bulk-lift')).toBe('232px');
   });
 });
