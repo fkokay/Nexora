@@ -7,7 +7,7 @@ import type {
   EmployeeScreenField,
 } from "./human-resources/components/types";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Check, Download, RefreshCw } from "lucide-react";
+import { Check, Download } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
@@ -16,6 +16,7 @@ import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
+import { HR_REPORT_FORM_ID, HrPeriodReport } from "./human-resources/components/HrPeriodReport";
 import { RecordFormGroup } from "./record-form/RecordForm";
 import { HrStatusTag, hrStatusLabel } from "./human-resources/hrStatus";
 import { HrListFooter, HrRecordPanel, hrGridSelection, hrRowProps } from "./human-resources/hrList";
@@ -940,7 +941,8 @@ export default function HumanResourcesPage({
     [attendanceNote, setAttendanceNote] = useState("");
   const [reportFrom, setReportFrom] = useState(`${today.slice(0, 7)}-01`),
     [reportTo, setReportTo] = useState(today),
-    [summary, setSummary] = useState<HrSummary | null>(null);
+    [summary, setSummary] = useState<HrSummary | null>(null),
+    [reportParamsOpen, setReportParamsOpen] = useState(true);
   const [taxYear, setTaxYear] = useState("2026"),
     [effectiveFrom, setEffectiveFrom] = useState(today),
     [effectiveTo, setEffectiveTo] = useState(""),
@@ -2857,7 +2859,41 @@ export default function HumanResourcesPage({
   const listTab = section === "employees" || section === "leave" || section === "attendance" || (section === "compensation" && compensationAccess.view);
   if (listTab) hrMore.push(csvExportCommand(hrGridExportRef));
   const hrCurrentRecord = currentEmployee ?? currentLeave ?? currentAttendance ?? currentCompensation;
-  const hrCommands: PageCommands = {
+  // Dönem özeti is a report (mockup 04): record commands are unavailable, Excel downloads the summary CSV.
+  const notInReport = tr("Raporda kullanılamaz", "Not available in a report");
+  const reportCommands: PageCommands | null =
+    section === "report" && admin
+      ? {
+          new: { disabledReason: notInReport },
+          open: { disabledReason: notInReport },
+          save: { disabledReason: notInReport },
+          delete: { disabledReason: notInReport },
+          export: { disabledReason: busyReason, run: () => void exportSummary() },
+          more: [
+            {
+              id: "report-run",
+              label: tr("Raporu çalıştır", "Run report"),
+              shortcut: "F9",
+              disabledReason: busyReason,
+              run: () => {
+                const form = document.getElementById(HR_REPORT_FORM_ID) as HTMLFormElement | null;
+                if (form && !form.checkValidity()) form.reportValidity();
+                else void loadSummary();
+              },
+            },
+            {
+              id: "report-params",
+              label: reportParamsOpen ? tr("Parametreleri gizle", "Hide parameters") : tr("Parametreleri göster", "Show parameters"),
+              shortcut: "Ctrl+.",
+              run: () => setReportParamsOpen((open) => !open),
+            },
+          ],
+        }
+      : null;
+  const hrCommands: PageCommands = reportCommands ? {
+    refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
+    ...reportCommands,
+  } : {
     refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
     ...(hrNew ? { new: { primary: true, disabledReason: busyReason, run: hrNew } } : {}),
     ...(listTab
@@ -3956,175 +3992,21 @@ export default function HumanResourcesPage({
               </>
             )}
             {section === "report" && admin && (
-              <>
-                <div className="hr-panel">
-                  <div className="panel-heading">
-                    <div>
-                      <h3>{tr("Dönem özeti", "Period summary")}</h3>
-                      <p>
-                        {tr(
-                          "Firma yöneticileri için kişi bazında satır içermeyen personel, puantaj ve izin toplamları. Dönem erişimi denetim kaydına yazılır.",
-                          "Tenant wide employee, attendance and leave totals without employee-level rows. Report access is recorded in the audit log.",
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <form
-                    className="hr-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void loadSummary();
-                    }}
-                  >
-                    <label>
-                      {tr("Başlangıç", "From")}
-                      <input
-                        type="date"
-                        value={reportFrom}
-                        onChange={(e) => setReportFrom(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      {tr("Bitiş", "To")}
-                      <input
-                        type="date"
-                        value={reportTo}
-                        onChange={(e) => setReportTo(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <div className="hr-actions">
-                      <button className="primary" disabled={busy}>
-                        <RefreshCw size={15} />
-                        {tr("Özeti getir", "Load summary")}
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => void exportSummary()}
-                      >
-                        <Download size={15} />
-                        {tr("CSV indir", "Download CSV")}
-                      </button>
-                    </div>
-                  </form>
-                  <p className="hr-footnote">
-                    {tr(
-                      "Rapor dönemi en fazla 366 takvim günüdür. İzin günleri, döneme denk gelen taleplerin talep edilen toplam günüdür.",
-                      "Reports cover up to 366 calendar days. Leave days are the requested totals for requests overlapping the period.",
-                    )}
-                  </p>
-                </div>
-                {summary && (
-                  <div className="hr-panel">
-                    <div className="panel-heading">
-                      <div>
-                        <h3>
-                          {formatHrDate(summary.from)} – {formatHrDate(summary.to)}
-                        </h3>
-                        <p>
-                          {tr(
-                            "Dönem sonundaki personel sayısı",
-                            "Employees at period end",
-                          )}
-                        </p>
-                      </div>
-                      <b>{summary.employeesAtPeriodEnd}</b>
-                    </div>
-                    <div className="hr-summary-grid">
-                      <div>
-                        <span>{tr("Puantaj kaydı", "Attendance records")}</span>
-                        <b>{summary.attendanceRecordCount}</b>
-                      </div>
-                      <div>
-                        <span>
-                          {tr(
-                            "Puantajı olan personel",
-                            "Employees with attendance",
-                          )}
-                        </span>
-                        <b>{summary.employeesWithAttendance}</b>
-                      </div>
-                      <div>
-                        <span>{tr("Çalışma süresi", "Worked time")}</span>
-                        <b>
-                          {Math.floor(summary.workedMinutes / 60)}
-                          {tr(" sa", " h")} {summary.workedMinutes % 60}
-                          {tr(" dk", " min")}
-                        </b>
-                      </div>
-                      <div>
-                        <span>{tr("Fazla mesai", "Overtime")}</span>
-                        <b>
-                          {Math.floor(summary.overtimeMinutes / 60)}
-                          {tr(" sa", " h")} {summary.overtimeMinutes % 60}
-                          {tr(" dk", " min")}
-                        </b>
-                      </div>
-                      <div>
-                        <span>
-                          {tr(
-                            "Dönemle çakışan izin talebi",
-                            "Overlapping leave requests",
-                          )}
-                        </span>
-                        <b>{summary.leaveRequestCount}</b>
-                      </div>
-                      <div>
-                        <span>
-                          {tr("Talep edilen izin günü", "Requested leave days")}
-                        </span>
-                        <b>{summary.requestedLeaveDays}</b>
-                      </div>
-                    </div>
-                    <div className="hr-table-wrap">
-                      <AdvancedDataGrid className="hr-table">
-                        <thead>
-                          <tr>
-                            <th>{tr("İzin durumu", "Leave status")}</th>
-                            <th>{tr("Talep", "Requests")}</th>
-                            <th>{tr("Talep edilen gün", "Requested days")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {summary.leaveStatuses.map((x) => (
-                            <tr key={x.status}>
-                              <td
-                                data-label={tr("İzin durumu", "Leave status")}
-                              >
-                                {hrStatusLabel(x.status, isEn)}
-                              </td>
-                              <td data-label={tr("Talep", "Requests")}>
-                                {x.requestCount}
-                              </td>
-                              <td
-                                data-label={tr(
-                                  "Talep edilen gün",
-                                  "Requested days",
-                                )}
-                              >
-                                {x.requestedDays}
-                              </td>
-                            </tr>
-                          ))}
-                          {!summary.leaveStatuses.length && (
-                            <tr>
-                              <td colSpan={3}>
-                                {tr(
-                                  "Dönemle çakışan izin talebi yok.",
-                                  "No overlapping leave requests.",
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </AdvancedDataGrid>
-                    </div>
-                  </div>
-                )}
-              </>
+              <HrPeriodReport
+                tr={tr}
+                isEn={isEn}
+                from={reportFrom}
+                to={reportTo}
+                onFromChange={setReportFrom}
+                onToChange={setReportTo}
+                onRun={() => void loadSummary()}
+                busy={busy}
+                summary={summary}
+                paramsOpen={reportParamsOpen}
+                onParamsOpenChange={setReportParamsOpen}
+                statusLabel={(status) => hrStatusLabel(status, isEn)}
+                formatDate={formatHrDate}
+              />
             )}
             {section === "compensation" && (
               <>

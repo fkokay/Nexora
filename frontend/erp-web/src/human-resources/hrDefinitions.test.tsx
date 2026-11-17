@@ -193,7 +193,7 @@ describe('İK request bodies (characterization, layout independent)', () => {
   });
 });
 
-describe.skip('İK Dönem özeti (report 04)', () => {
+describe('İK Dönem özeti (report 04)', () => {
   it('runs the summary with the period and downloads the CSV from Excel', async () => {
     await openTab(/Dönem özeti/);
     change(document.body, 'Başlangıç', '2026-10-01');
@@ -211,6 +211,7 @@ describe.skip('İK Dönem özeti (report 04)', () => {
     await waitFor(() => expect(gets()).toContain('/api/hr/period-summary?from=2026-10-01&to=2026-10-30'));
     expect(enabled('new')).toBe(false);
     expect(enabled('save')).toBe(false);
+    await waitFor(() => expect(enabled('export')).toBe(true));
     fireEvent.click(command('export'));
     await waitFor(() => expect(gets()).toContain('/api/hr/period-summary.csv?from=2026-10-01&to=2026-10-30'));
   });
