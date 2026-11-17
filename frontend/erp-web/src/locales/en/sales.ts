@@ -210,7 +210,27 @@ export const english: Record<string, string> = {
   'Tahsil edilen': 'Collected', 'Matrah': 'Taxable amount', 'Henüz tahsilat yok.': 'No collections yet.', 'Satırlar': 'Lines',
   'Satır yok.': 'No lines.', 'bu sayfa · iptaller hariç': 'this page · cancelled excluded',
   'bu sayfa · tüm durumlar': 'this page · all statuses',
-  '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli': '↑↓ move · Space mark · Enter open · Double-click open · Ctrl+. detail panel', 'Satış iadesi': 'Sales return', 'Alış faturası': 'Purchase invoice', 'Satış talebi': 'Sales request'
+  '↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli': '↑↓ move · Space mark · Enter open · Double-click open · Ctrl+. detail panel', 'Satış iadesi': 'Sales return', 'Alış faturası': 'Purchase invoice', 'Satış talebi': 'Sales request',
+  // Kampanyalar definition screen (Faz 3 Task 4).
+  'Bir kampanya seçin ya da F2 ile yeni kampanya ekleyin.': 'Select a campaign or press F2 to add a new one.',
+  'Kampanya kaydı': 'Campaign record', 'Performans': 'Performance', 'Teklife uygula': 'Apply to quote',
+  'Kampanyalar silinemez; bu kampanya zaten pasif.': 'Campaigns cannot be deleted; this campaign is already inactive.',
+  'Kampanyalar silinmez; uygulandığı teklifler ve performans sonuçları korunur. Pasifleştirebilirsiniz: pasif kampanya tekliflere uygulanamaz, etkinleştirildiğinde yeniden kullanılabilir.': 'Campaigns are not deleted; the quotes they were applied to and their performance results are kept. You can deactivate it: an inactive campaign cannot be applied to quotes and can be used again once reactivated.',
+  'Kampanyaları firma yöneticisi düzenler': 'Campaigns are edited by the company administrator',
+  'Yalnızca bugün geçerli kampanyalar uygulanabilir.': 'Only campaigns valid today can be applied.',
+  'Filtrelerle eşleşen kampanya yok.': 'No campaigns match the filters.', 'Arama ifadesini veya durum filtresini değiştirin.': 'Change the search text or the status filter.',
+  'İlk kampanyayı tarih aralığı ve indirim oranıyla oluşturun.': 'Create the first campaign with a date range and a discount rate.',
+  'Kampanyalar firma yöneticisi tarafından tanımlanır.': 'Campaigns are defined by the company administrator.',
+  '↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön · F2 yeni kampanya': '↑↓ move in list · Tab to form · Ctrl+S save · Esc back to list · F2 new campaign',
+  'geçerli': 'valid', 'kampanya': 'campaigns', 'Bugün bitiyor': 'Ends today', 'bugün bitiyor': 'ends today', 'Kampanya kodu': 'Campaign code', 'Uygulama': 'Applications',
+  'Kampanyaları yenile': 'Refresh campaigns', 'Uygun taslak teklif yok.': 'No eligible draft quotes.',
+  'Yalnızca bugün geçerli ve etkin kampanyalar tekliflere uygulanabilir.': 'Only active campaigns valid today can be applied to quotes.',
+  'Kampanya başlangıç tarihinden önce tekliflere uygulanamaz.': 'The campaign cannot be applied to quotes before its start date.',
+  'Geçerlilik süresi dolduğu için kampanya yeni tekliflere uygulanamaz; geçmiş sonuçlar korunur.': 'The campaign has expired and cannot be applied to new quotes; past results are kept.',
+  'Pasif kampanya tekliflere uygulanamaz; etkinleştirildiğinde yeniden kullanılabilir.': 'An inactive campaign cannot be applied to quotes; it can be used again once reactivated.',
+  'Dönüşüm': 'Conversion', 'Verilen indirim': 'Discount given', 'Uygulanan teklif': 'Applied quotes', 'Planlanan': 'Planned', 'Geçerli': 'Valid', 'süresi doldu': 'expired',
+  'Etkin kampanya': 'Active campaigns', 'Tüm kampanyalar': 'All campaigns', 'Yakında biten kampanya yok': 'No campaigns ending soon', 'bugün geçerli': 'valid today',
+  'Taslak teklif': 'Draft quote'
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -301,5 +321,11 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Kampanya uygulandı\. Ek indirim: (.+?) · Yeni toplam: (.+?)$/, 'Campaign applied. Additional discount: $1 · New total: $2'],
   [/^(.+?) taslağı düzenleniyor\.$/, 'Editing draft $1.'],
   [/^Fatura (.+?) oluşturuldu; irsaliyedeki stok çıkışı tekrarlanmadı\.$/, 'Invoice $1 created; the stock issue on the delivery note was not repeated.'],
-  [/^(.+?) fatura ayrıntılarını aç$/, 'Open invoice $1 details']
+  [/^(.+?) fatura ayrıntılarını aç$/, 'Open invoice $1 details'],
+  [/^Uygun taslak teklif: (\d+)\. Teklif tarihi kampanya aralığında olmalı ve en az bir satır içermelidir\.$/, 'Eligible draft quotes: $1. The quote date must fall within the campaign period and the quote must have at least one line.'],
+  [/^(\d+) gün sonra başlıyor$/, 'starts in $1 days'],
+  [/^(\d+) gün içinde bitiyor$/, 'Ending within $1 days'],
+  [/^(\d[\d.]*) siparişe dönüştü$/, '$1 converted to orders'],
+  [/^%(\d+(?:,\d+)?) indirimi uygula$/, 'Apply %$1 discount'],
+  [/^Teklif tarihi (.+?) – (.+?) aralığında, taslak durumda ve en az bir satırlı olmalıdır\.$/, 'The quote date must be between $1 and $2, the quote must be a draft and have at least one line.']
 ]

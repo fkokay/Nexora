@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -465,7 +465,10 @@ describe('Other Satış screens', () => {
     expect(screen.queryByRole('button', { name: /Yeni kampanya/ })).toBeNull();
     expect(duplicates()).toEqual([]);
     expect(openMenu()).toEqual(['Performans raporu']);
+    // F2 opens the empty campaign form in the definition screen's right pane (no modal).
     fireEvent.keyDown(window, { key: 'F2' });
-    expect(await screen.findByRole('dialog')).toBeTruthy();
+    const pane = document.querySelector<HTMLElement>('.nx-def-pane')!;
+    expect(await within(pane).findByRole('heading', { name: 'Kampanya oluştur' })).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
