@@ -180,6 +180,52 @@ public sealed class CustomPageQueryRulesIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
     }
 
+    [Fact]
+    public async Task Non_admin_get_and_history_hide_query_sql()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+
+        // Ayse is a TenantUser; a stale TenantAdmin claim without an admin membership is not enough either.
+        foreach (var role in new[] { "TenantUser", "TenantAdmin" })
+        {
+            SetIdentity(client, Ayse, role);
+            var detail = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{pageId}");
+            AssertQueriesWithoutSql(detail.GetProperty("definitionJson").GetString()!);
+            var history = await client.GetFromJsonAsync<JsonElement[]>($"/api/custom-pages/{pageId}/history") ?? [];
+            Assert.NotEmpty(history);
+            foreach (var revision in history) AssertQueriesWithoutSql(revision.GetProperty("definitionJson").GetString()!);
+        }
+
+        static void AssertQueriesWithoutSql(string definitionJson)
+        {
+            var query = Assert.Single(JsonDocument.Parse(definitionJson).RootElement.GetProperty("queries").EnumerateArray());
+            Assert.False(query.TryGetProperty("sql", out _));
+            Assert.Equal("q1", query.GetProperty("id").GetString());
+            Assert.DoesNotContain("CustomerAccounts", definitionJson, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task Admin_get_and_history_include_query_sql()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+
+        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{pageId}");
+        Assert.Contains("SELECT Code, Name FROM CustomerAccounts", detail.GetProperty("definitionJson").GetString(), StringComparison.Ordinal);
+        var history = await client.GetFromJsonAsync<JsonElement[]>($"/api/custom-pages/{pageId}/history") ?? [];
+        Assert.All(history, revision => Assert.Contains("SELECT Code, Name FROM CustomerAccounts", revision.GetProperty("definitionJson").GetString(), StringComparison.Ordinal));
+        // Static pages are returned unchanged to everyone.
+        SetIdentity(client, Ayse, "TenantUser");
+        var staticId = await IdOf(await CreateDraftAsync(client, "static-page", StaticDefinition()));
+        Assert.Contains("Sabit", (await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{staticId}")).GetProperty("definitionJson").GetString());
+    }
+
     private static Task<HttpResponseMessage> CreateDraftAsync(HttpClient client, string code, object definition) =>
         client.PostAsJsonAsync("/api/custom-pages/drafts", new { code, name = code, definition });
 

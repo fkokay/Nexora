@@ -258,9 +258,11 @@ public static class PlatformPermissionCatalog
         {
             // Published pages are runtime content reached through tenant navigation;
             // use the same read permission as menu navigation. Running a published page's
-            // read query is part of viewing that page (POST only carries parameter values),
-            // so it is a read as well. Draft management and draft preview runs stay under the
-            // low-code customization permission family.
+            // query (POST only carries parameter values) is gated here as a read as well; for
+            // insert/update/delete queries the handler then requires the page's own Insert/Update/
+            // Delete right (TenantCustomPageAccess), which is what actually authorizes a write.
+            // Draft management and draft preview runs stay under the low-code customization
+            // permission family.
             var publishedQueryRun = normalizedRoute.EndsWith("/{code}/queries/{queryId}/run", StringComparison.OrdinalIgnoreCase);
             explicitReadAction = publishedQueryRun;
             resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun

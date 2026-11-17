@@ -148,6 +148,78 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(V2(components: [new { id = "c1", type = "input", props = new { inputType = "radio" } }]));
     }
 
+    private static object WriteQuery(string id, string name, string kind, string sql, string runOn = "manual", params object[] parameters) =>
+        new { id, name, kind, sql, parameters, runOn };
+
+    private static object Button(string id, object props) => new { id, type = "button", props };
+
+    [Fact]
+    public void Accepts_write_query_kinds_with_manual_trigger()
+    {
+        var json = V2(
+        [
+            WriteQuery("ekle", "notEkle", "insert", "INSERT INTO Notlar (Metin) VALUES (@metin)", "manual", Param("metin", "{{notGirdi.value}}")),
+            WriteQuery("guncelle", "notGuncelle", "update", "UPDATE Notlar SET Metin = @metin WHERE Id = @id", "manual",
+                Param("metin", "{{notGirdi.value}}"), Param("id", "{{bugun}}", "int")),
+            WriteQuery("sil", "notSil", "delete", "DELETE FROM Notlar WHERE Id = @id", "manual", Param("id", "{{bugun}}", "int"))
+        ],
+        [new { id = "c1", type = "input", name = "notGirdi", props = new { inputType = "text" } }]);
+
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        Assert.Equal(["insert", "update", "delete"], TenantCustomPageQueries.ReadQueries(json).Select(x => x.Kind));
+    }
+
+    [Fact]
+    public void Rejects_write_query_with_runOn_load()
+    {
+        AssertRejected(V2([WriteQuery("q1", "ekle", "insert", "INSERT INTO Notlar (Metin) VALUES ('x')", "load")]), "manual");
+        AssertRejected(V2([WriteQuery("q1", "sil", "delete", "DELETE FROM Notlar", "load")]), "manual");
+        // Kind and SQL must agree, and unknown kinds stay rejected.
+        AssertRejected(V2([WriteQuery("q1", "sil", "update", "DELETE FROM Notlar")]), "UPDATE");
+        AssertRejected(V2([WriteQuery("q1", "sil", "merge", "DELETE FROM Notlar")]));
+        AssertRejected(V2([WriteQuery("q1", "oku", "read", "UPDATE Notlar SET Metin = 'x'", "manual")]), "SELECT");
+        AssertRejected(V2([WriteQuery("q1", "sil", "delete", "DELETE FROM Notlar; DROP TABLE Notlar")]));
+    }
+
+    [Fact]
+    public void Accepts_button_query_action_and_rejects_unknown_query_or_write_refresh_target()
+    {
+        object[] queries =
+        [
+            Query("liste", "notlar", "SELECT Id, Metin FROM Notlar"),
+            WriteQuery("sil", "notSil", "delete", "DELETE FROM Notlar WHERE Id = @id", "manual", Param("id", "{{notlar.rows[0].Id}}", "int"))
+        ];
+        var json = V2(queries,
+        [
+            Button("b1", new
+            {
+                label = "Sil", actionType = "query", queryId = "sil", confirmEnabled = true, confirmText = "{{notlar.rows[0].Metin}} silinsin mi?",
+                refreshQueries = new[] { "liste" }, successMessage = "Silindi", errorMessage = "Silinemedi: {{kullanici.ad}}"
+            }),
+            Button("b2", new { label = "Yenile", actionType = "query", queryId = "liste" }),
+            Button("b3", new { label = "Akış", actionType = "workflow", workflowId = "" }),
+            new { id = "t1", type = "dataTable", props = new { query = "liste" } }
+        ]);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "yok" })]), "yok");
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query" })]), "queryId");
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", refreshQueries = new[] { "sil" } })]), "okuma");
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", refreshQueries = new[] { "yok" } })]));
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", refreshQueries = Enumerable.Repeat("liste", 11).ToArray() })]));
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", confirmEnabled = "evet" })]));
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", confirmText = new string('a', 301) })]), "300");
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", successMessage = new string('a', 201) })]), "200");
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "query", queryId = "sil", errorMessage = "<b>x</b>" })]));
+        AssertRejected(V2(queries, [Button("b1", new { actionType = "script" })]));
+        // Query action props belong to buttons only, and grids/inputs cannot read from a write query.
+        AssertRejected(V2(queries, [new { id = "t1", type = "dataTable", props = new { queryId = "sil" } }]));
+        AssertRejected(V2(queries, [new { id = "t1", type = "dataTable", props = new { query = "sil" } }]));
+        AssertRejected(V2(queries, [new { id = "i1", type = "input", props = new { inputType = "select", optionsQuery = "sil" } }]));
+        // v1 has no queries, so its buttons still only run workflows.
+        AssertRejected(JsonSerializer.Serialize(new { schemaVersion = 1, components = new object[] { Button("b1", new { actionType = "query" }) } }));
+    }
+
     [Fact]
     public void SqlParameterNames_ignores_strings_brackets_and_system_variables()
     {

@@ -1,10 +1,11 @@
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
+import { confirmDialog } from "./confirmDialog";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
-import { readPageQueries, usePageQueries, type QueryState } from "./custom-page/usePageQueries";
+import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -23,6 +24,7 @@ type ComponentDefinition = {
 type PublishedPage = {
   id: string; code: string; name: string; description?: string | null; revision: number;
   definitionJson: string; forms: EmbeddedForm[];
+  rights?: { view?: boolean; insert?: boolean; update?: boolean; delete?: boolean };
 };
 
 const textValue = (value: unknown, fallback = "") =>
@@ -39,7 +41,15 @@ type PageRuntime = {
   setInput: (componentId: string, value: InputRaw) => void;
   selections: Record<string, Record<string, unknown> | null>;
   select: (tableName: string, row: Record<string, unknown> | null) => void;
+  queryById: Record<string, PageQueryDefinition>;
+  rights: NonNullable<PublishedPage["rights"]>;
+  rerun: (queryIds: string[]) => void;
+  /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
+  isPreview: boolean;
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
 };
+
+const PREVIEW_WRITE_WARNING = "Bu taslak önizlemesinde veriler gerçekten değişecek. Devam edilsin mi?";
 
 const bindProps = (props: Record<string, unknown>, scope: PageScope): Record<string, unknown> => {
   const bound = { ...props };
@@ -197,6 +207,68 @@ function QueryTable({ state, columns, title, description, style, selected, onSel
   </section>;
 }
 
+/**
+ * Yazma hatasının metni. 400/403 yanıtlarında sunucunun nedeni her zaman gösterilir: yapılandırılmış hata mesajı varsa
+ * "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
+ */
+function writeErrorText(configured: string, cause: unknown): string {
+  const failure = cause as Error & { status?: number; serverError?: string };
+  const server = failure.status === 400 || failure.status === 403 ? (failure.serverError || failure.message || "").trim() : "";
+  if (configured) return server ? `${configured} (${server})` : configured;
+  return failure.serverError || failure.message || "İşlem tamamlanamadı.";
+}
+
+/** Sorgu eylemli düğme: hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif kalır ve sonucu bildirir. */
+function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const allowed = runtime.rights[query.kind === "read" ? "view" : query.kind] === true;
+  const mounted = useRef(true);
+  // Çift tıklamada ikinci yazma isteğini engeller; busy durumu bir sonraki çizime kadar görünmez.
+  const inFlight = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  if (!allowed) return null;
+  const write = query.kind !== "read";
+  const refreshIds = Array.isArray(props.refreshQueries) ? props.refreshQueries.filter((id): id is string => typeof id === "string") : [];
+  const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
+
+  const click = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      setFeedback(null);
+      if (!write) { runtime.rerun([query.id]); return; }
+      // Önizlemede onay her zaman sorulur (düğmede onay kapalı olsa da), çünkü taslak gerçek veriyi değiştirir.
+      if (props.confirmEnabled === true || runtime.isPreview) {
+        const configured = props.confirmEnabled === true ? bound("confirmText") : "";
+        const message = runtime.isPreview ? [configured, PREVIEW_WRITE_WARNING].filter(Boolean).join(" ") : configured;
+        const confirmed = await confirmDialog({
+          title: "Emin misiniz?", message: message || undefined, confirmLabel: "Onayla", cancelLabel: "Vazgeç",
+          tone: query.kind === "delete" || query.kind === "update" || runtime.isPreview ? "danger" : "default",
+        });
+        if (!confirmed) return;
+      }
+      setBusy(true);
+      try {
+        const result = await runtime.writeFor(query, runtime.isPreview);
+        const message = `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)`;
+        if (mounted.current) setFeedback({ tone: "success", text: message });
+        runtime.rerun(refreshIds);
+      } catch (cause) {
+        if (mounted.current) setFeedback({ tone: "error", text: writeErrorText(bound("errorMessage"), cause) });
+      } finally {
+        if (mounted.current) setBusy(false);
+      }
+    } finally {
+      inFlight.current = false;
+    }
+  };
+  return <div className="tenant-page-query-action">
+    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button" disabled={busy} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    {feedback && <p className={`tenant-page-action-feedback is-${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p>}
+  </div>;
+}
+
 function PageInput({ component, props, raw, onChange, optionsState, style }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties;
@@ -252,6 +324,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     case "button": return <div className="tenant-page-action" style={style} key={component.id}>
       {props.actionType === "workflow" && typeof props.workflowId === "string"
         ? <TenantWorkflowAction token={token} workflowId={props.workflowId} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+        : props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
+          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} />
         : <button className="tenant-page-button" type="button" disabled>{text || title || "Eylem"}</button>}
     </div>;
     case "dataTable": {
@@ -298,6 +372,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const [selections, setSelections] = useState<Record<string, Record<string, unknown> | null>>({});
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
+  const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
@@ -318,7 +393,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     return { scope, raw };
   };
 
-  const { states, scope } = usePageQueries({
+  const { states, scope, rerun, runWrite } = usePageQueries({
     queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
   });
   const runtime: PageRuntime | undefined = isV2 ? {
@@ -326,6 +401,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
+    queryById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
   } : undefined;
 
   return <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}</div>;

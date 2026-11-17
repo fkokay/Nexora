@@ -17,6 +17,12 @@
 .tenant-page-action { display: flex; align-items: center; }
 .tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: 10px; background: #fff; }
 .tenant-page-button { justify-self: start; min-height: 38px; padding: 9px 15px; border: 0; border-radius: 8px; color: #fff; background: var(--custom-page-accent); font-weight: 700; box-shadow: 0 2px 5px #6844df24; }
+.tenant-page-query-action { display: grid; gap: 6px; justify-items: start; }
+.tenant-page-button:disabled { opacity: .65; cursor: not-allowed; }
+.tenant-page-button.is-danger { background: #c0352b; box-shadow: 0 2px 5px #c0352b24; }
+.tenant-page-action-feedback { margin: 0; font-size: 13px; }
+.tenant-page-action-feedback.is-success { color: #1f7a45; }
+.tenant-page-action-feedback.is-error { color: #b3261e; }
 .tenant-page-table { overflow: hidden; }
 .tenant-page-table-scroll { overflow-x: auto; }
 .tenant-page-table table { width: 100%; border-collapse: collapse; }

@@ -331,3 +331,13 @@ textarea.pd-binding-input{resize:vertical}
 .pd-binding-preview-input label{display:grid;gap:5px;color:#45536b;font-size:12.5px;font-weight:600}
 .pd-binding-preview-input input:not([type=checkbox]),.pd-binding-preview-input select{width:100%;min-height:34px;padding:6px 9px;border:1px solid var(--page-border);border-radius:8px;background:#fff;color:var(--page-ink);font:inherit;font-weight:400}
 .pd-binding-preview-input.is-checkbox label{grid-auto-flow:column;justify-content:start;align-items:center}
+
+.pd-query-kind.is-write{background:#fff3df;color:#8a5307}
+.pd-query-kinds button.is-write.active{color:#8a5307}
+.pd-query-manual{margin:0;padding:6px 8px;border:1px dashed var(--pd-line);border-radius:8px;color:var(--pd-muted);font-size:11.5px;font-weight:400}
+.pd-query-affected{padding:8px 10px;border:1px solid #f0d9a8;border-radius:8px;background:#fff8e8;color:#8a5307;font-size:12px;font-weight:600}
+.pd-action-chips{display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none}
+.pd-action-chips li{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 3px 2px 8px;border:1px solid var(--pd-accent-line);border-radius:999px;background:var(--pd-accent-soft);color:#5132c7;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;font-weight:600}
+.pd-action-chips li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-action-chips li button{display:grid;flex:none;place-items:center;width:16px;height:16px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.pd-action-chips li button:hover{background:#6844df26}

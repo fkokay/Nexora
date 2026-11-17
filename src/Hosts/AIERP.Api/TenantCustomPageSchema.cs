@@ -22,9 +22,16 @@ internal static class TenantCustomPageSchema
     private static readonly HashSet<string> SafeProps = new(StringComparer.Ordinal)
     { "title", "text", "label", "value", "description", "variant", "size", "icon", "source", "columns", "items", "format", "target", "required", "placeholder", "formCode", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "css", "javascript" };
     private static readonly HashSet<string> SafePropsV2 = new(SafeProps, StringComparer.Ordinal)
-    { "query", "inputType", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn" };
+    { "query", "inputType", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn",
+      "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
-    private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal) { "text", "title", "description", "label", "value", "placeholder", "defaultValue" };
+    private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
+    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage" };
+    /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
+    private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200 };
+    /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
+    private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
+    private const int MaxRefreshQueries = 10;
     private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "checkbox", "select" };
     private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn" };
     private static readonly HashSet<string> ParameterKeys = new(StringComparer.Ordinal) { "name", "binding", "type" };
@@ -35,7 +42,9 @@ internal static class TenantCustomPageSchema
         public bool V2 { get; } = version == 2;
         public HashSet<string> Ids { get; } = new(StringComparer.Ordinal);
         public HashSet<string> Names { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public HashSet<string> QueryIds { get; } = new(StringComparer.Ordinal);
+        /// <summary>Query id to kind (read, insert, update or delete).</summary>
+        public Dictionary<string, string> QueryKinds { get; } = new(StringComparer.Ordinal);
+        public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
     public static bool Validate(string json, out string? error)
@@ -82,14 +91,20 @@ internal static class TenantCustomPageSchema
             { error = "Sorgu kimlikleri benzersiz, 1–64 karakter ve yalnız harf/rakam/-/_ olmalıdır."; return false; }
             var name = StringOf(query, "name");
             if (!ValidName(name, context, out error)) return false;
-            if (StringOf(query, "kind") != "read") { error = $"'{name}' sorgusu: bu sürümde yalnız okuma (read) sorguları desteklenir."; return false; }
+            var kind = StringOf(query, "kind");
+            if (kind is not ("read" or "insert" or "update" or "delete"))
+            { error = $"'{name}' sorgusu: tür read, insert, update veya delete olmalıdır."; return false; }
             var runOn = StringOf(query, "runOn");
             if (runOn is not ("load" or "manual")) { error = $"'{name}' sorgusu: runOn load veya manual olmalıdır."; return false; }
+            if (kind != "read" && runOn != "manual")
+            { error = $"'{name}' sorgusu veri değiştirdiği için yalnız elle (manual) çalıştırılabilir."; return false; }
             var sql = StringOf(query, "sql");
             if (sql is null) { error = $"'{name}' sorgusu: SQL metni gerekli."; return false; }
             if (sql.Contains("{{", StringComparison.Ordinal) || sql.Contains("}}", StringComparison.Ordinal))
             { error = $"'{name}' sorgusu: SQL içinde {{{{ }}}} ifadesi kullanılamaz; değerleri parametreyle bağlayın."; return false; }
-            if (!ReportEndpoints.TryValidateReadOnlySql(sql, out var sqlError)) { error = $"'{name}' sorgusu: {sqlError}"; return false; }
+            string? sqlError;
+            if (kind == "read" ? !ReportEndpoints.TryValidateReadOnlySql(sql, out sqlError) : !ReportEndpoints.TryValidateWriteSql(sql, kind, out sqlError))
+            { error = $"'{name}' sorgusu: {sqlError}"; return false; }
 
             var parametersElement = query.GetProperty("parameters");
             if (parametersElement.ValueKind != JsonValueKind.Array || parametersElement.GetArrayLength() > MaxQueryParameters)
@@ -119,8 +134,8 @@ internal static class TenantCustomPageSchema
             { error = $"'{name}' sorgusu tanımlanmamış bir parametre kullanıyor: @{undeclared}."; return false; }
             if (declared.FirstOrDefault(x => !used.Contains(x)) is { } unused)
             { error = $"'{name}' sorgusundaki '{unused}' parametresi SQL içinde kullanılmıyor."; return false; }
-            context.QueryIds.Add(id);
-            result.Add(new PageQuery(id, name!, "read", sql, parameters, runOn));
+            context.QueryKinds.Add(id, kind);
+            result.Add(new PageQuery(id, name!, kind, sql, parameters, runOn));
         }
         return true;
     }
@@ -164,6 +179,9 @@ internal static class TenantCustomPageSchema
                     { error = $"'{prop.Name}' yalnızca yalıtılmış kod bileşeninde, 4 KiB sınırında kullanılabilir."; return false; }
                     continue;
                 }
+                if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
+                    && (prop.Value.ValueKind != JsonValueKind.String || prop.Value.GetString()!.Length > messageLimit))
+                { error = $"'{prop.Name}' en fazla {messageLimit} karakterlik metin olmalıdır."; return false; }
                 var bindable = context.V2 && BindableProps.Contains(prop.Name) && prop.Value.ValueKind == JsonValueKind.String;
                 if (bindable ? !SafeBindableText(prop.Value.GetString()!) : !SafeValue(prop.Value, 0))
                 {
@@ -185,8 +203,12 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty("variant", out var variant) && (typeText is "alert" or "badge")
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
-            if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String || actionType.GetString() != "workflow"))
-            { error = "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir."; return false; }
+            if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String
+                || actionType.GetString() is not ("workflow" or "query") || actionType.GetString() == "query" && !context.V2))
+            {
+                error = context.V2 ? "Düğme eylem türü iş akışı (workflow) veya sorgu (query) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
+                return false;
+            }
             if (props.TryGetProperty("workflowId", out var workflowId) && (typeText != "button" || workflowId.ValueKind != JsonValueKind.String || !string.IsNullOrEmpty(workflowId.GetString()) && !Guid.TryParse(workflowId.GetString(), out _)))
             { error = "Düğme iş akışı kimliği geçersiz."; return false; }
             if (props.TryGetProperty("rowActionWorkflowId", out var rowActionWorkflowId) && (typeText != "dataTable" || rowActionWorkflowId.ValueKind != JsonValueKind.String || !string.IsNullOrEmpty(rowActionWorkflowId.GetString()) && !Guid.TryParse(rowActionWorkflowId.GetString(), out _)))
@@ -210,10 +232,10 @@ internal static class TenantCustomPageSchema
     {
         error = null;
         if (props.TryGetProperty("query", out var query)
-            && (typeText is not ("dataTable" or "metric") || query.ValueKind != JsonValueKind.String || !context.QueryIds.Contains(query.GetString()!)))
+            && (typeText is not ("dataTable" or "metric") || query.ValueKind != JsonValueKind.String || !context.IsReadQuery(query.GetString())))
         {
             error = typeText is "dataTable" or "metric"
-                ? $"Bileşenin sorgusu sayfada tanımlı değil: {(query.ValueKind == JsonValueKind.String ? query.GetString() : "?")}."
+                ? $"Bileşenin sorgusu sayfada tanımlı bir okuma sorgusu değil: {(query.ValueKind == JsonValueKind.String ? query.GetString() : "?")}."
                 : "'query' özelliği yalnızca veri listesi ve gösterge bileşenlerinde kullanılabilir.";
             return false;
         }
@@ -221,12 +243,47 @@ internal static class TenantCustomPageSchema
             && (typeText != "input" || inputType.ValueKind != JsonValueKind.String || !InputTypes.Contains(inputType.GetString()!)))
         { error = "Giriş türü yalnızca giriş bileşeninde text, number, date, checkbox veya select olabilir."; return false; }
         if (props.TryGetProperty("optionsQuery", out var optionsQuery)
-            && (typeText != "input" || optionsQuery.ValueKind != JsonValueKind.String || !context.QueryIds.Contains(optionsQuery.GetString()!)))
-        { error = $"Seçenek sorgusu yalnızca giriş bileşeninde ve sayfada tanımlı bir sorgu olabilir: {(optionsQuery.ValueKind == JsonValueKind.String ? optionsQuery.GetString() : "?")}."; return false; }
+            && (typeText != "input" || optionsQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(optionsQuery.GetString())))
+        { error = $"Seçenek sorgusu yalnızca giriş bileşeninde ve sayfada tanımlı bir okuma sorgusu olabilir: {(optionsQuery.ValueKind == JsonValueKind.String ? optionsQuery.GetString() : "?")}."; return false; }
         foreach (var key in new[] { "optionLabelColumn", "optionValueColumn" })
             if (props.TryGetProperty(key, out var column)
                 && (typeText != "input" || column.ValueKind != JsonValueKind.String || column.GetString()!.Length is < 1 or > 128))
             { error = $"'{key}' yalnızca giriş bileşeninde 1–128 karakterlik sütun adı olabilir."; return false; }
+        return ValidateButtonQueryAction(props, typeText, context, out error);
+    }
+
+    /// <summary>
+    /// A button with actionType "query" runs one page query (queryId) and may re-run read queries afterwards. The
+    /// action props are button-only; queryId is required for a query action and must name a query on the page.
+    /// </summary>
+    private static bool ValidateButtonQueryAction(JsonElement props, string typeText, Context context, out string? error)
+    {
+        error = null;
+        if (typeText != "button")
+        {
+            var misplaced = props.EnumerateObject().Select(p => p.Name).FirstOrDefault(ButtonQueryProps.Contains);
+            if (misplaced is not null) { error = $"'{misplaced}' özelliği yalnızca düğme bileşeninde kullanılabilir."; return false; }
+            return true;
+        }
+        var isQueryAction = props.TryGetProperty("actionType", out var actionType) && actionType.ValueKind == JsonValueKind.String && actionType.GetString() == "query";
+        string? queryId = null;
+        if (props.TryGetProperty("queryId", out var queryIdElement))
+        {
+            if (queryIdElement.ValueKind != JsonValueKind.String) { error = "Düğmenin queryId değeri metin olmalıdır."; return false; }
+            queryId = queryIdElement.GetString();
+        }
+        if (isQueryAction && string.IsNullOrEmpty(queryId)) { error = "Sorgu eylemli düğme için queryId gerekli."; return false; }
+        if (!string.IsNullOrEmpty(queryId) && !context.QueryKinds.ContainsKey(queryId))
+        { error = $"Düğmenin sorgusu sayfada tanımlı değil: {queryId}."; return false; }
+        if (props.TryGetProperty("confirmEnabled", out var confirmEnabled) && confirmEnabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        { error = "Düğmenin confirmEnabled değeri true veya false olmalıdır."; return false; }
+        if (props.TryGetProperty("refreshQueries", out var refresh))
+        {
+            if (refresh.ValueKind != JsonValueKind.Array || refresh.GetArrayLength() > MaxRefreshQueries || refresh.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String))
+            { error = $"refreshQueries en fazla {MaxRefreshQueries} sorgu kimliği içeren bir dizi olmalıdır."; return false; }
+            var invalid = refresh.EnumerateArray().Select(x => x.GetString()).FirstOrDefault(x => !context.IsReadQuery(x));
+            if (invalid is not null) { error = $"Yenilenecek sorgu sayfada tanımlı bir okuma sorgusu olmalıdır: {invalid}."; return false; }
+        }
         return true;
     }
 

@@ -189,8 +189,12 @@ internal static class CustomPageAccess
         var codes = pageCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var result = new Dictionary<string, CustomPageRights>(StringComparer.OrdinalIgnoreCase);
         if (codes.Length == 0) return result;
-        var isMember = await platformDb.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.UserId == userId, ct);
-        var isTenantAdmin = role == "TenantAdmin";
+        var memberRole = await platformDb.TenantMemberships.AsNoTracking().Where(x => x.TenantId == tenantId && x.UserId == userId)
+            .Select(x => x.Role).FirstOrDefaultAsync(ct);
+        var isMember = memberRole is not null;
+        // Admin rights follow the membership row, so a demoted admin loses them before the token expires. The claim must
+        // agree as well (as in IsVerifiedTenantAdminAsync): a promoted user gets admin rights after re-selecting the tenant.
+        var isTenantAdmin = memberRole == "TenantAdmin" && role == "TenantAdmin";
         var accesses = !isMember || isTenantAdmin ? [] : await platformDb.TenantCustomPageAccesses.AsNoTracking()
             .Where(x => x.TenantId == tenantId && codes.Contains(x.PageCode))
             .Include(x => x.Users.Where(u => u.UserId == userId))

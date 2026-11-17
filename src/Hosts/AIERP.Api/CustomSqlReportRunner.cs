@@ -132,6 +132,53 @@ internal static partial class CustomSqlReportRunner
         }
     }
 
+    /// <summary>
+    /// Runs one parameterized page write query in a single tenant through the write login, inside a ReadCommitted
+    /// transaction with a 30 s command timeout and the 60 s total deadline. Commits on success and returns the affected
+    /// row count; any failure rolls the transaction back and is rethrown for <see cref="MapError"/>.
+    /// </summary>
+    internal static async Task<int> ExecuteWriteAsync(string sql, IReadOnlyList<SqlParameter> parameters, Guid tenantId,
+        ITenantQueryConnectionFactory factory, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TotalTimeout);
+        try
+        {
+            await using var connection = await factory.OpenAsync(tenantId, TenantQueryAccess.Write, deadline.Token);
+            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, deadline.Token);
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.Transaction = (SqlTransaction)transaction;
+                command.CommandType = CommandType.Text;
+                command.CommandText = sql;
+                command.CommandTimeout = CommandTimeoutSeconds;
+                foreach (var parameter in parameters) command.Parameters.Add(parameter);
+                var affected = await command.ExecuteNonQueryAsync(deadline.Token);
+                // Not cancellable: once the statement succeeded the outcome must be decided, not abandoned.
+                await transaction.CommitAsync(CancellationToken.None);
+                return affected;
+            }
+            catch
+            {
+                await RollbackQuietlyAsync(transaction);
+                throw;
+            }
+        }
+        catch (Exception exception) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested
+            && exception is not CustomSqlDeadlineExceededException)
+        {
+            throw new CustomSqlDeadlineExceededException();
+        }
+    }
+
+    private static async Task RollbackQuietlyAsync(DbTransaction transaction)
+    {
+        // SQL Server may already have rolled back (e.g. after a severe error); the original exception matters more.
+        try { await transaction.RollbackAsync(CancellationToken.None); }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException) { }
+    }
+
     private static async Task<CustomSqlResult> ExecuteCoreAsync(string sql,
         IReadOnlyList<(Guid TenantId, string CompanyName)> companies, ITenantQueryConnectionFactory factory, CancellationToken ct)
     {
