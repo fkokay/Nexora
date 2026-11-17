@@ -282,7 +282,7 @@ export function RecordFormPage({
   useEffect(() => setAsideOverride(null), [roomy]);
   const asideOpen = asideOverride ?? roomy;
   useWindowKeyDown(hasAside, (event) => {
-    if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.defaultPrevented) return;
     if (!ownsKeys()) return;
     event.preventDefault();
     setAsideOverride((current) => !(current ?? roomy));

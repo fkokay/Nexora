@@ -96,14 +96,19 @@
   line-height: 1.3 !important;
 }
 .doc-surface .doc-surface-title h1 b { color: inherit; font-weight: inherit; overflow-wrap: anywhere; }
+/* #root keeps legacy body styles (b, span, th rules) from revealing them; the short form covers a floating surface. */
+#root .doc-surface .doc-surface-sr,
+#root .doc-surface .dd-sr,
 .doc-surface .doc-surface-sr,
 .doc-surface .dd-sr {
   position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  border: 0;
   white-space: nowrap;
 }
 .doc-surface .doc-surface-sep { color: var(--doc-border); font-size: 18px; }

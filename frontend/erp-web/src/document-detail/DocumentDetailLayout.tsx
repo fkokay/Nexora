@@ -51,17 +51,19 @@ export function DetailTiles({ items, label }: { items: DetailTile[]; label?: str
 
 export type DetailInfoItem = { label: string; value: ReactNode; title?: string };
 
-/** Salt okunur bilgi ızgarası: etiket / değer, giriş kutusu yok. */
+/** Salt okunur bilgi ızgarası: etiket / değer, giriş kutusu yok. Sütun sayısı kartın kendi genişliğine göre (container query). */
 export function DetailInfoGrid({ items, label }: { items: DetailInfoItem[]; label?: string }) {
   return (
-    <dl className="dd-info" aria-label={label}>
-      {items.map((item) => (
-        <div key={item.label}>
-          <dt>{item.label}</dt>
-          <dd title={item.title}>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="dd-info-wrap">
+      <dl className="dd-info" aria-label={label}>
+        {items.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd title={item.title}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -191,7 +193,8 @@ export function DetailContext({ title, hint, children }: { title: string; hint?:
 
 export type DetailChainItem = {
   key: string;
-  code: string;
+  /** Belge numarası; numarası bilinmeyen bağlı belge yalnızca türüyle gösterilir. */
+  code?: string | null;
   /** Belge türü ("Satış siparişi"). */
   label: string;
   /** Alt satır: tarih, satır sayısı. */
@@ -218,7 +221,12 @@ export function DetailChain({ items, label }: { items: DetailChainItem[]; label?
             <span className="dd-chain-mark" aria-hidden="true">{initials}</span>
             <span className="dd-chain-text">
               <span>
-                <span className="dd-chain-code">{item.code}</span> {item.label}
+                {item.code && (
+                  <>
+                    <span className="dd-chain-code">{item.code}</span>{" "}
+                  </>
+                )}
+                {item.label}
               </span>
               {item.meta && <small>{item.meta}</small>}
             </span>

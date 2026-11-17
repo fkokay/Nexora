@@ -109,6 +109,8 @@ html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
 #root .doc-surface.doc-detail .dd-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--dd-bar); }
 
 /* Başlık alanları: dört sütun, etiket / değer (taslak 02, "Belge bilgileri"). */
+/* The fields follow the width of their own card (a context panel next to the body narrows it), not the viewport. */
+#root .doc-surface.doc-detail .dd-info-wrap { container-name: dd-info; container-type: inline-size; min-width: 0; }
 #root .doc-surface.doc-detail .dd-info {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -439,14 +441,20 @@ html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
 #root .doc-surface .dd-meter b { color: var(--nx-text); font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; }
 
 @media (max-width: 1100px) {
-  #root .doc-surface.doc-detail :is(.dd-tiles, .dd-info) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dd-info (max-width: 760px) {
+  #root .doc-surface.doc-detail .dd-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dd-info (max-width: 420px) {
+  #root .doc-surface.doc-detail .dd-info { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   #root .doc-surface.doc-detail .dd-lines-footer { grid-template-columns: minmax(0, 1fr); }
   #root .doc-surface.doc-detail .dd-lines-footer > .dd-totals { order: -1; }
 }
 @media (max-width: 520px) {
-  #root .doc-surface.doc-detail :is(.dd-tiles, .dd-info) { grid-template-columns: minmax(0, 1fr); }
+  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: minmax(0, 1fr); }
 }
 @media print {
   #root .doc-surface.doc-detail .dd-drawer,

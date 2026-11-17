@@ -20,7 +20,7 @@ const ASIDE_CLOSE = 1060;
 export type DocumentSurfaceProps = {
   /** Belge türü, tekil: "Satış teklifi", "Alış faturası". */
   title: string;
-  /** Belge numarası; yüklenirken boş bırakılabilir. */
+  /** Belge numarası; yüklenirken boş bırakılır, başlıkta o sırada belge türü görünür. */
   code?: string;
   /** Numaranın yanında duran cari (müşteri / tedarikçi) adı ya da kısa bilgi. */
   subtitle?: ReactNode;
@@ -210,9 +210,16 @@ export function DocumentSurface({
             <span>{eyebrow ?? title}</span>
           </div>
           <div className="doc-surface-code-row">
+            {/* Until the number is known (loading) the heading is the plain document type. */}
             <h1 id={titleId}>
-              <span className="doc-surface-sr">{title} </span>
-              <b>{code || "…"}</b>
+              {code ? (
+                <>
+                  <span className="doc-surface-sr">{title} </span>
+                  <b>{code}</b>
+                </>
+              ) : (
+                <b>{title}</b>
+              )}
             </h1>
             {subtitle && (
               <>
@@ -281,8 +288,8 @@ export function DocumentSurface({
         <footer className="doc-surface-foot">
           {footHints.length > 0 && (
             <span className="doc-surface-keys">
-              {footHints.map((hint) => (
-                <span key={hint}>{hint}</span>
+              {footHints.map((hint, index) => (
+                <span key={index}>{hint}</span>
               ))}
             </span>
           )}

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,6 +60,13 @@ describe('DocumentSurface header', () => {
     inView(surface({ variant: 'detail', eyebrow: 'Satış teklifi · Revizyon 2', title: 'Satış teklifi', code: 'TKL-1' }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Satış teklifi TKL-1');
     expect(document.querySelector('.doc-surface-eyebrow')!.textContent).toContain('Revizyon 2');
+  });
+
+  it('shows the plain type as the title while the document number is still loading', () => {
+    inView(surface({ code: undefined, subtitle: undefined }));
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading.textContent).toBe('Satış faturası');
+    expect(heading.textContent).not.toContain('…');
   });
 
   it('keeps page-passed header buttons in the legacy actions slot and shows Vazgeç only when asked', () => {
@@ -241,6 +250,29 @@ describe('DocumentSurface footer', () => {
   });
 });
 
+describe('DocumentSurface footer keys', () => {
+  it('draws repeated hints without a React key warning', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    inView(surface({ hints: ['Enter aç', 'Enter aç'] }));
+    expect(document.querySelectorAll('.doc-surface-keys > span')).toHaveLength(2);
+    expect(errors.mock.calls.some((call) => String(call[0]).includes('same key'))).toBe(false);
+  });
+});
+
+describe('Kit CSS', () => {
+  const pageCss = readFileSync(resolve(__dirname, 'document-page.css'), 'utf8');
+  const detailCss = readFileSync(resolve(__dirname, '..', 'document-detail', 'document-detail.css'), 'utf8');
+  it('keeps the screen-reader-only texts hidden with #root specificity (legacy body styles cannot reveal them)', () => {
+    expect(pageCss).toMatch(/#root \.doc-surface \.doc-surface-sr/);
+    expect(pageCss).toMatch(/#root \.doc-surface \.dd-sr/);
+  });
+  it('lays the header fields out by the width of their own card (container query), not the viewport', () => {
+    expect(detailCss).toMatch(/container-type:\s*inline-size/);
+    expect(detailCss).toMatch(/@container dd-info \(max-width:/);
+    expect(detailCss).not.toMatch(/@media[^{]*\{[^}]*\.dd-info/);
+  });
+});
+
 describe('Document body parts', () => {
   it('DocumentTotals emphasises the grand total and indents the VAT breakdown rows', () => {
     render(
@@ -286,6 +318,13 @@ describe('Document body parts', () => {
     expect(open).toHaveBeenCalledOnce();
     expect(screen.getByText('SF-0981').closest('li')!.getAttribute('aria-current')).toBe('true');
     expect(screen.getByRole('list', { name: 'Belge zinciri' })).toBeTruthy();
+  });
+
+  it('DetailChain shows a linked document without a number by its kind only', () => {
+    render(<DetailChain items={[{ key: 'self', code: 'SI-1', label: 'Satış irsaliyesi', current: true }, { key: 'inv', label: 'Satış faturası', status: { label: 'Kesildi', tone: 'success' } }]} />);
+    const items = screen.getAllByRole('listitem');
+    expect(items[1].textContent).toContain('Satış faturası');
+    expect(items[1].querySelector('.dd-chain-code')).toBeNull();
   });
 
   it('DetailContext, DetailKeyValues and DetailMeterRows draw a context section', () => {
