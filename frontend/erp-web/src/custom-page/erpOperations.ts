@@ -28,6 +28,8 @@ function propertyCaseInsensitive(source: Record<string, unknown> | null, name: s
 function routeValue(parameter: ErpOperationParameter, value: unknown): string {
   if (isEmpty(value) || typeof value === "object") throw new Error(`Geçersiz parametre: ${parameter.name}`);
   const text = String(value);
+  // encodeURIComponent "." ve ".." değerlerini kodlamaz; yol gezinmesini önlemek için açıkça reddedilir.
+  if (text === "." || text === "..") throw new Error(`Geçersiz parametre: ${parameter.name}`);
   if (parameter.type === "guid" && !GUID.test(text)) throw new Error(`Geçersiz parametre: ${parameter.name}`);
   if (parameter.type === "int" && !INTEGER.test(text)) throw new Error(`Geçersiz parametre: ${parameter.name}`);
   return encodeURIComponent(text);

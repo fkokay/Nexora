@@ -64,6 +64,13 @@ describe('buildOperationRequest', () => {
     expect(buildOperationRequest(byNumber, { no: 12 }, null).url).toBe('/api/x/12');
   });
 
+  it('rejects dot segments in text route params', () => {
+    const byCode = op({ route: '/api/x/{code}', parameters: [{ name: 'code', in: 'route', type: 'text', required: true }] });
+    expect(() => buildOperationRequest(byCode, { code: '..' }, null)).toThrow('Geçersiz parametre: code');
+    expect(() => buildOperationRequest(byCode, { code: '.' }, null)).toThrow('Geçersiz parametre: code');
+    expect(buildOperationRequest(byCode, { code: 'a/b' }, null).url).toBe('/api/x/a%2Fb');
+  });
+
   it('sends no body for DELETE', () => {
     const remove = op({ method: 'DELETE', kind: 'write', pageKind: 'delete', route: '/api/stock/items/{id}',
       parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }] });
