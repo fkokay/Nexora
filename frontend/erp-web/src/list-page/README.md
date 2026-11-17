@@ -46,6 +46,8 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   verilirse seçim varken koyu toplu işlem çubuğu (`BulkActionBar`: "N seçili", işlemler,
   "✕ Esc") tablonun altında yüzer; yalnız bugün var olan işlemler konur. Seçim
   `onSelectionChange` ile alınır; Excel dışa aktarımı seçim varsa yalnız seçilenleri yazar.
+  Geçerli satır (↑/↓ ya da tıklama) `onCurrentRowChange` ile sayfaya bildirilir: Aç / Enter ve detay paneli
+  onu izler (örnek: Stok Kartları, `InventoryPage.tsx`).
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
   bulunur; olmayanlarda `allowClear` verilir (etkin etikete tekrar tıklamak filtreyi
@@ -59,7 +61,9 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
 - **Listenin üstünde ayrı başlık şeridi yoktur** ("Kayıtlar / N kayıt · sayfa 1" gibi).
   Kayıt sayısı başlıkta ve sayfalama satırında zaten vardır.
 - **Kod, adın altında.** Ad/ünvan sütunu varken ayrı kod sütunu gösterilmez; kod, ad
-  hücresinde `<small className="cell-subtitle list-v2-name-code">` olarak yazılır.
+  hücresinde `<small className="cell-subtitle list-v2-name-code">` olarak yazılır. İstisna: Stok
+  Kartları taslak 01'deki gibi ayrı eş aralıklı "Stok kodu" sütunu gösterir (satırlar tek satır, 30px);
+  düzende kod sütunu gizlenirse kod yine adın altına yazılır.
 - **Satır işlem menüsü ("⋯") yoktur**, detay paneli olan ekranlarda. İşlemler detay
   panelinde durur. Detay paneli olmayan ekranlarda satır işlemleri yerinde kalır.
 - **Davranış değişmez.** API çağrıları, yetki kontrolleri, kayıtlı ekran ayarları

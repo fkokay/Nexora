@@ -1,10 +1,37 @@
 import type { MutableRefObject, ReactNode } from "react";
 import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
+import type { BulkAction } from "../../list-page/BulkActionBar";
+import type { StatusTagTone } from "../../list-page/StatusTag";
 import type {
   BuiltInScreenLayoutField,
   InventoryBalance,
+  StockItem,
 } from "../../erp-types";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
+
+/**
+ * Status of a stock list row (mockup 01): Pasif, then Maliyetsiz (uncosted quantity, as on row HM-1012 of the
+ * mockup), then Minimum altı, else Yeterli.
+ */
+export function stockListStatus(
+  balance: InventoryBalance,
+  stock: StockItem | undefined,
+): { tone: StatusTagTone; label: string } {
+  if (stock && !stock.isActive) return { tone: "off", label: "Pasif" };
+  if (balance.unvaluedQuantity > 0) return { tone: "warn", label: "Maliyetsiz" };
+  if (balance.belowMinimum) return { tone: "bad", label: "Minimum altı" };
+  return { tone: "ok", label: "Yeterli" };
+}
+
+/** Right-aligned number columns of the stock list. */
+export const STOCK_NUMBER_FIELDS = new Set([
+  "quantityOnHand",
+  "reservedQuantity",
+  "availableQuantity",
+  "minimumStock",
+  "valuationAmountBase",
+  "unvaluedQuantity",
+]);
 
 type Props = {
   fields: BuiltInScreenLayoutField[];
@@ -18,12 +45,17 @@ type Props = {
     field: BuiltInScreenLayoutField,
     item: InventoryBalance,
   ) => ReactNode;
-  pagination: ReactNode;
+  /** Line under the list (hints, selection, pagination). */
+  footer: ReactNode;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
   /** Hides the grid's XLSX/CSV buttons; the page offers export through the action bar instead. */
   hideExport?: boolean;
   exportActionsRef?: MutableRefObject<GridExportActions | null>;
+  bulkActions?: BulkAction[];
+  /** Keys are stock item ids. Pass a stable function (the grid reports through an effect). */
+  onSelectionChange?: (keys: string[]) => void;
+  onCurrentRowChange?: (key: string | null) => void;
 };
 
 export function InventoryStockGrid({
@@ -35,37 +67,42 @@ export function InventoryStockGrid({
   warehouseSelected,
   belowMinimumOnly,
   renderCell,
-  pagination,
+  footer,
   toolbarContainer,
   hideExport,
   exportActionsRef,
+  bulkActions,
+  onSelectionChange,
+  onCurrentRowChange,
 }: Props) {
+  // Sized so the default columns fit beside the menu at 1440 and beside the detail panel at 1720 (no
+  // horizontal scroll); saved layouts keep their own widths.
   const widths: Record<string, number> = {
-    code: 180,
-    name: 190,
-    category: 110,
-    quantityOnHand: 120,
-    reservedQuantity: 105,
-    availableQuantity: 120,
-    minimumStock: 90,
-    valuationAmountBase: 135,
-    unvaluedQuantity: 125,
-    status: 110,
-    actions: 180,
-  };
-  const minimumWidths: Record<string, number> = {
-    code: 130,
-    name: 140,
-    category: 90,
+    code: 95,
+    name: 185,
+    category: 85,
     quantityOnHand: 100,
-    reservedQuantity: 90,
-    availableQuantity: 100,
-    minimumStock: 80,
+    reservedQuantity: 80,
+    availableQuantity: 135,
+    minimumStock: 70,
     valuationAmountBase: 110,
     unvaluedQuantity: 100,
-    status: 90,
-    actions: 165,
+    status: 100,
   };
+  const minimumWidths: Record<string, number> = {
+    code: 80,
+    name: 130,
+    category: 75,
+    quantityOnHand: 80,
+    reservedQuantity: 65,
+    availableQuantity: 100,
+    minimumStock: 60,
+    valuationAmountBase: 95,
+    unvaluedQuantity: 75,
+    status: 90,
+  };
+  const numberClass = (field: BuiltInScreenLayoutField) =>
+    STOCK_NUMBER_FIELDS.has(field.key) ? "nx-num" : undefined;
   return (
     <section className="panel inventory-stock-grid-panel list-v2-list">
       <div className="customer-table-wrap">
@@ -85,12 +122,18 @@ export function InventoryStockGrid({
           hideExport={hideExport}
           exportActionsRef={exportActionsRef}
           enableRowSelection={false}
+          selectable
+          bulkActions={bulkActions}
+          onSelectionChange={onSelectionChange}
+          onCurrentRowChange={onCurrentRowChange}
           aria-label="Depo stok bakiyeleri"
         >
           <thead>
             <tr>
               {fields.map((field) => (
-                <th key={field.key}>{field.label}</th>
+                <th key={field.key} className={numberClass(field)}>
+                  {field.label}
+                </th>
               ))}
             </tr>
           </thead>
@@ -125,7 +168,9 @@ export function InventoryStockGrid({
               pageBalances.map((item) => (
                 <tr key={item.stockItemId}>
                   {fields.map((field) => (
-                    <td key={field.key}>{renderCell(field, item)}</td>
+                    <td key={field.key} className={numberClass(field)}>
+                      {renderCell(field, item)}
+                    </td>
                   ))}
                 </tr>
               ))
@@ -133,7 +178,7 @@ export function InventoryStockGrid({
           </tbody>
         </AdvancedDataGrid>
       </div>
-      {pagination}
+      {footer}
     </section>
   );
 }

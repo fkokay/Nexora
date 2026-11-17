@@ -257,6 +257,21 @@ describe('AdvancedDataGrid selectable', () => {
     expect(bodyRows()[2].getAttribute('aria-current')).toBe('true');
   });
 
+  it('reports the current row to the page (arrows, row click) and null when it leaves the page', () => {
+    const onCurrentRowChange = vi.fn();
+    const { rerender } = render(tree(items(3), { selectable: true, onCurrentRowChange }));
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith(null);
+    fireEvent.keyDown(region(), { key: 'ArrowDown' });
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith('S1');
+    fireEvent.click(bodyRows()[2]);
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith('S3');
+    const calls = onCurrentRowChange.mock.calls.length;
+    rerender(tree(items(3), { selectable: true, onCurrentRowChange }));
+    expect(onCurrentRowChange).toHaveBeenCalledTimes(calls);
+    rerender(tree(items(2), { selectable: true, onCurrentRowChange }));
+    expect(onCurrentRowChange).toHaveBeenLastCalledWith(null);
+  });
+
   it('leaves arrow keys to an open menu inside a row', () => {
     render(
       <CommandProvider>

@@ -86,6 +86,8 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   /** With `selectable`: actions of the floating bar shown while rows are selected. */
   bulkActions?: BulkAction[];
   onSelectionChange?: (keys: string[]) => void;
+  /** With `selectable`: the keyboard / clicked current row's key (the row element's key), or null when there is none. */
+  onCurrentRowChange?: (key: string | null) => void;
   serverData?: ServerData;
   onImportRows?: (rows: ImportedRow[]) => void | Promise<void>;
   onEditRows?: (rows: EditedRow[]) => void | Promise<void>;
@@ -460,6 +462,7 @@ export default function AdvancedDataGrid({
   selectable = false,
   bulkActions,
   onSelectionChange,
+  onCurrentRowChange,
   serverData,
   onImportRows,
   onEditRows,
@@ -807,6 +810,11 @@ export default function AdvancedDataGrid({
         )?.key ?? null
       : null,
     activeKey = currentKey ?? pageMarkedKey;
+  const currentRowChangeRef = useRef(onCurrentRowChange);
+  currentRowChangeRef.current = onCurrentRowChange;
+  useEffect(() => {
+    if (selectable) currentRowChangeRef.current?.(activeKey);
+  }, [activeKey, selectable]);
   // `selectable` keeps the selection to the visible page: a page, page size, search, filter or sort change
   // clears it, and keys that leave the row set (refresh, external pagination) are dropped. Layout effects, so a
   // stale selection never paints for a frame.
