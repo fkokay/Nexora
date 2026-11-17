@@ -16,6 +16,7 @@ import {
 } from "./record-form/RecordForm";
 import "./finance-record-forms.css";
 import "./foreign-trade/foreign-trade-list-v2.css";
+import "./sales/sales-list-v2.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
 import {

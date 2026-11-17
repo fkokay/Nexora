@@ -100,13 +100,12 @@ const noop = () => {};
 const WIDTHS: Record<string, number> = {
   reference: 190,
   direction: 90,
-  linkedOrder: 250,
-  countries: 190,
+  linkedOrder: 220,
+  countries: 170,
   dates: 120,
   status: 120,
   transportMode: 120,
 };
-const CODE_FIELDS: ReadonlySet<string> = new Set(["reference"]);
 
 /** Case list (list type): single click selects, double click / Enter opens; the panel and İşlemler follow the row. */
 export function ForeignTradeGrid({
@@ -144,7 +143,7 @@ export function ForeignTradeGrid({
       case "reference":
         return (
           <>
-            {item.referenceCode}{" "}
+            <span className="nx-code">{item.referenceCode}</span>{" "}
             <span className="foreign-trade-cell-muted">· {directionLabel(item.direction)}</span>
           </>
         );
@@ -229,7 +228,6 @@ export function ForeignTradeGrid({
       }}
       footer={footer}
       columnWidths={WIDTHS}
-      codeFields={CODE_FIELDS}
     />
   );
 }
