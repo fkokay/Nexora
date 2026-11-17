@@ -222,6 +222,7 @@ internal static class CustomPageQueryEndpoints
     }
 
     internal const string ForbiddenWriteError = "Bu sayfada bu işlemi yapma yetkiniz yok.";
+    internal const string OperationQueryRunError = "ERP işlemi sayfa üzerinden doğrudan çalıştırılır.";
     internal const string PreviewWriteConfirmationError = "Önizlemede yazan sorgu yalnız açık onayla çalışır.";
 
     /// <summary>Kind-to-right mapping: read → View, insert → Insert, update → Update, delete → Delete.</summary>
@@ -244,6 +245,8 @@ internal static class CustomPageQueryEndpoints
         var query = TenantCustomPageQueries.ReadQueries(definitionJson).FirstOrDefault(x => string.Equals(x.Id, queryId, StringComparison.Ordinal));
         if (query is null || query.Kind is not ("read" or "insert" or "update" or "delete")) return Results.NotFound(new { error = "Sorgu bu sayfada bulunamadı." });
         if (!Allows(rights, query.Kind)) return Results.Json(new { error = ForbiddenWriteError }, statusCode: StatusCodes.Status403Forbidden);
+        // ERP operation queries are called by the page runtime against their own endpoint with the user's token.
+        if (query.Operation is not null) return Results.BadRequest(new { error = OperationQueryRunError });
         // Session variables are bound from the verified claims, never from the request.
         var values = CustomPageQueryParameters.WithSessionValues(query.Parameters, request?.Parameters, CustomPageSession.From(http.User));
         var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, values);
