@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 
 type Props = {
@@ -9,6 +10,9 @@ type Props = {
   onStatusChange: (value: string) => void;
   /** Receives the toolbar slot the list grid renders its own tools into. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
+  onRefresh?: () => void;
+  /** Extra toolbar items after the chips (Detay paneli). */
+  children?: ReactNode;
 };
 
 export default function SupplierQuotesFilters({
@@ -18,6 +22,8 @@ export default function SupplierQuotesFilters({
   onSearchApply,
   onStatusChange,
   toolsSlotRef,
+  onRefresh,
+  children,
 }: Props) {
   return (
     <ListToolbar
@@ -27,6 +33,7 @@ export default function SupplierQuotesFilters({
       searchLabel="Tedarikçi tekliflerinde ara"
       searchPlaceholder="Teklif no, talep no veya tedarikçi"
       toolsSlotRef={toolsSlotRef}
+      onRefresh={onRefresh}
     >
       <ListChipGroup
         label="Durum"
@@ -39,6 +46,7 @@ export default function SupplierQuotesFilters({
           { value: "NotSelected", label: "Seçilmedi" },
         ]}
       />
+      {children}
     </ListToolbar>
   );
 }

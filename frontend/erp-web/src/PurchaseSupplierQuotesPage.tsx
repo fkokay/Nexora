@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import SupplierQuoteDetailPane from "./purchase-supplier-quotes/components/SupplierQuoteDetailPane";
 import SupplierQuotesFilters from "./purchase-supplier-quotes/components/SupplierQuotesFilters";
 import SupplierQuotesHeader from "./purchase-supplier-quotes/components/SupplierQuotesHeader";
-import { ListPagination } from "./list-page/ListPagination";
 import SupplierQuotesTable, {
   defaultSupplierQuoteFields,
 } from "./purchase-supplier-quotes/components/SupplierQuotesTable";
-import "./purchase-list-v2/purchase-list-v2.css";
 import type {
   Quote,
   QuoteDetail,
@@ -15,8 +12,19 @@ import type {
   ScreenField,
 } from "./purchase-supplier-quotes/types";
 import { problemDetail } from "./erpApi";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { PageCommands } from "./commands/types";
+import { SalesListFooter } from "./sales/components/SalesListFooter";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { PurchaseQuoteListEmpty, PurchaseQuoteListPanel } from "./purchasing/purchaseQuoteList";
+import { requestPurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
+import "./sales/sales-list-v2.css";
 
 type Props = { token: string; onOpenRequests: () => void };
+
+const pageSize = 50;
 
 async function request<T>(url: string, token: string): Promise<T> {
   const response = await authenticatedFetch(url, token, {
@@ -35,6 +43,10 @@ async function request<T>(url: string, token: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/**
+ * Satınalma Teklifleri (taslak 07): taleplere bağlı tedarikçi tekliflerinin salt okunur listesi. Liste tipi Satış
+ * listeleriyle aynıdır: tek tık satırı seçer (sağ panel), çift tık / Enter / Aç teklifin talebini açar.
+ */
 export default function PurchaseSupplierQuotesPage({
   token,
   onOpenRequests,
@@ -45,14 +57,21 @@ export default function PurchaseSupplierQuotesPage({
   const [filter, setFilter] = useState("");
   const [status, setStatus] = useState("");
   const [data, setData] = useState<QuotePage | null>(null);
-  const [selected, setSelected] = useState<Quote | null>(null);
-  const [detail, setDetail] = useState<QuoteDetail | null>(null);
+  // The row the user chose (click, ↑/↓); never an implicit first row.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [detail, setDetail] = useState<{ id: string; quote: QuoteDetail | null; error: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reload, setReload] = useState(0);
   const [error, setError] = useState("");
   const [screenFields, setScreenFields] = useState<ScreenField[]>(
     defaultSupplierQuoteFields,
   );
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const panel = usePurchaseListPanel(true);
+  const items = data?.items ?? [];
+  const current = items.find((item) => item.id === selectedId) ?? null;
 
   useEffect(() => {
     let active = true;
@@ -73,18 +92,14 @@ export default function PurchaseSupplierQuotesPage({
     let cancelled = false;
     setLoading(true);
     setError("");
-    const params = new URLSearchParams({ page: String(page), pageSize: "50" });
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (filter) params.set("search", filter);
     if (status) params.set("status", status);
     request<QuotePage>(`/api/purchasing/supplier-quotes/?${params}`, token)
       .then((result) => {
         if (cancelled) return;
         setData(result);
-        setSelected((current) =>
-          current && result.items.some((item) => item.id === current.id)
-            ? (result.items.find((item) => item.id === current.id) ?? null)
-            : (result.items[0] ?? null),
-        );
+        setSelectedId((id) => (id && result.items.some((item) => item.id === id) ? id : null));
       })
       .catch((error) => {
         if (!cancelled) setError((error as Error).message);
@@ -95,37 +110,73 @@ export default function PurchaseSupplierQuotesPage({
     return () => {
       cancelled = true;
     };
-  }, [token, page, filter, status]);
+  }, [token, page, filter, status, reload]);
 
+  // The panel's lines come from the request's supplier quotes (the endpoint this screen used before), only while the
+  // panel shows the row.
+  const panelVisible = panel.open && !!current;
   useEffect(() => {
+    if (!panelVisible || !current) return;
+    if (detail?.id === current.id) return;
     let cancelled = false;
-    setDetail(null);
-    if (!selected) return;
     request<QuoteDetail[]>(
-      `/api/purchasing/requests/${selected.purchaseRequestId}/supplier-quotes`,
+      `/api/purchasing/requests/${current.purchaseRequestId}/supplier-quotes`,
       token,
     )
-      .then((items) => {
-        if (!cancelled)
-          setDetail(items.find((item) => item.id === selected.id) ?? null);
+      .then((quotes) => {
+        if (!cancelled) setDetail({ id: current.id, quote: quotes.find((item) => item.id === current.id) ?? null, error: "" });
       })
       .catch((error) => {
-        if (!cancelled) setError((error as Error).message);
+        if (!cancelled) setDetail({ id: current.id, quote: null, error: (error as Error).message });
       });
     return () => {
       cancelled = true;
     };
-  }, [token, selected?.id]);
+  }, [token, panelVisible, current?.id]);
 
+  /** Aç: the quote is read-only here; its request opens in Satınalma talepleri. */
+  function openRequest(quote: Quote) {
+    requestPurchaseRequestOpen(quote.purchaseRequestId);
+    onOpenRequests();
+  }
+
+  const target = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
+  const commands: PageCommands = {
+    open: {
+      disabledReason: target ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? target?.id;
+        const quote = items.find((item) => item.id === id);
+        if (quote) openRequest(quote);
+      },
+    },
+    more: [
+      { id: "quote-request-entry", label: "Talep üzerinden teklif gir", run: onOpenRequests },
+      csvExportCommand(gridExportRef),
+    ],
+  };
+  const shownDetail = current && detail?.id === current.id ? detail : null;
+  const listPanel = panel.open ? (
+    current ? (
+      <PurchaseQuoteListPanel
+        row={current}
+        detail={shownDetail?.quote ?? null}
+        error={shownDetail ? shownDetail.error || (shownDetail.quote ? "" : "Teklif bulunamadı.") : ""}
+        onOpen={() => openRequest(current)}
+        onClose={panel.close}
+        takeFocus={panel.takeFocus}
+      />
+    ) : (
+      <PurchaseQuoteListEmpty />
+    )
+  ) : null;
 
   return (
-    <div className="purchase-requests-page supplier-quotes-page list-v2">
-      <SupplierQuotesHeader
-        onOpenRequests={onOpenRequests}
-        total={data?.totalCount ?? null}
-      />
+    <div className="pq-lv2 sales-lv2-stack list-v2">
+      <PageCommandsSlot commands={commands} />
+      <SupplierQuotesHeader total={data?.totalCount ?? null} />
       {error && (
-        <div role="alert" className="inline-error">
+        <div role="alert" className="alert inline-alert">
           {error}
         </div>
       )}
@@ -142,37 +193,44 @@ export default function PurchaseSupplierQuotesPage({
           setStatus(value);
         }}
         toolsSlotRef={setToolsSlot}
-      />
-      <div
-        className={`supplier-quotes-workspace${selected ? " has-selection" : ""}`}
+        onRefresh={() => {
+          if (!loading) setReload((value) => value + 1);
+        }}
       >
-        <section
-          className="supplier-quotes-list list-v2-list"
-          aria-label="Tedarikçi teklif listesi"
-        >
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </SupplierQuotesFilters>
+      <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list" aria-label="Tedarikçi teklif listesi">
           <SupplierQuotesTable
-            items={data?.items ?? []}
+            items={items}
             fields={screenFields}
             loading={loading}
-            selectedId={selected?.id}
-            onSelect={setSelected}
             toolbarContainer={toolsSlot}
-          />
-          <ListPagination
-            page={page}
-            total={data?.totalCount ?? 0}
-            pageSize={50}
-            loading={loading}
-            onPageChange={setPage}
+            exportActionsRef={gridExportRef}
+            selection={{
+              currentId: selectedId,
+              onCurrentChange: setSelectedId,
+              onTickedChange: setTicked,
+              bulkActions: [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }],
+              onOpen: (id) => {
+                const quote = items.find((item) => item.id === id);
+                if (quote) openRequest(quote);
+              },
+            }}
+            footer={
+              <SalesListFooter
+                ticked={ticked.length}
+                shown={items.length}
+                total={data?.totalCount ?? 0}
+                page={page}
+                pageSize={pageSize}
+                loading={loading}
+                onPageChange={setPage}
+              />
+            }
           />
         </section>
-        {selected && (
-          <SupplierQuoteDetailPane
-            selected={selected}
-            detail={detail}
-            onOpenRequests={onOpenRequests}
-          />
-        )}
+        {listPanel}
       </div>
     </div>
   );
