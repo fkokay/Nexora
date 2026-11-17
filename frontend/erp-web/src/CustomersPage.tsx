@@ -34,6 +34,7 @@ import { validateCustomerIdentifiers } from "./customers/identifierValidation";
 import "./list-page/list-page-v2.css";
 import "./sales/sales-list-v2.css";
 import "./customers/customers-list.css";
+import "./customers/customer-modals.css";
 import { StatusTag } from "./list-page/StatusTag";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { useCustomerListScreen } from "./customers/useCustomerListScreen";
@@ -2640,14 +2641,10 @@ function CustomersPage({
             <div className="group-list">
               {groups.map((g) => (
                 <article className="group-row" key={g.id}>
-                  <div className="group-mark">
-                    {g.name.slice(0, 1).toUpperCase()}
-                  </div>
+                  <span className="nx-code group-code">{g.code}</span>
                   <div className="group-info">
-                    <b>{g.name}</b>
-                    <small>
-                      {g.code} · {g.isActive ? "Aktif" : "Pasif"}
-                    </small>
+                    <span>{g.name}</span>
+                    <StatusTag tone={g.isActive ? "ok" : "off"}>{g.isActive ? "Aktif" : "Pasif"}</StatusTag>
                   </div>
                   <div className="group-actions">
                     <button
@@ -3157,7 +3154,7 @@ function CustomersPage({
             </div>
             <div className="ledger-list">
               <AdvancedDataGrid
-                className="customer-table"
+                className="customer-table customer-ledger-modal-grid"
                 gridId="customer-detail-movements"
                 {...screenViewGridDefaults(visibleMovementFields)}
                 externalPagination
@@ -3167,7 +3164,9 @@ function CustomersPage({
                 <thead>
                   <tr>
                     {visibleMovementFields.map((field) => (
-                      <th key={field.key}>{field.label}</th>
+                      <th key={field.key} className={field.key === "amount" || field.key === "balance" ? "nx-num" : undefined}>
+                        {field.label}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -3175,15 +3174,11 @@ function CustomersPage({
                   {pagedStatementItems.map((item) => (
                     <tr key={item.id}>
                       {visibleMovementFields.map((field) => (
-                        <td key={field.key}>
+                        <td key={field.key} className={field.key === "amount" || field.key === "balance" ? "nx-num" : undefined}>
                           {field.key === "entryDate" ? (
                             item.entryDate.split("-").reverse().join(".")
                           ) : field.key === "direction" ? (
-                            <span
-                              className={`party-pill ${item.direction === "Debit" ? "" : "supplier"}`}
-                            >
-                              {item.direction === "Debit" ? "Borç" : "Alacak"}
-                            </span>
+                            item.direction === "Debit" ? "Borç" : "Alacak"
                           ) : field.key === "description" ? (
                             <>
                               {item.description}

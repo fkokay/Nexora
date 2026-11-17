@@ -47,6 +47,7 @@ function respond(url: string): unknown {
   if (path === '/api/customers/c1/balance') return { currencyCode: 'TRY', balance: 186242, balanceSide: 'Debit', riskLimit: 400000 };
   if (path.endsWith('/balance')) return { currencyCode: 'TRY', balance: 0, balanceSide: 'Balanced', riskLimit: null };
   if (path.endsWith('/addresses')) return [];
+  if (path === '/api/customers/c1') return customers[0];
   if (path === '/api/location-definitions/') return { provinces: [], districts: [] };
   return [];
 }
@@ -241,5 +242,19 @@ describe('English labels of the new Cari texts', () => {
       '— yeni sipariş, teklif, irsaliye, fatura ve pasife alma', 'Müşteri & Tedarikçi',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
+  });
+});
+
+describe('Cari kartı (kayıt formu v3)', () => {
+  it('an opened card shows the name as the title and code, status, type and summary under it', async () => {
+    sessionStorage.setItem('nexora.customer-edit-id', 'c1');
+    renderScreen(
+      <CustomersPage token="t" role="TenantAdmin" initialSearch="" initialEdit onNavigate={vi.fn()} onOpenSalesInvoice={vi.fn()} onOpenPurchaseInvoices={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Cari c1' })).toBeTruthy());
+    const head = screen.getByRole('heading', { name: 'Cari c1' }).closest<HTMLElement>('.record-form')!;
+    expect(within(head).getByText('C-c1').className).toContain('rf-code');
+    expect(within(head).getAllByText('Aktif')[0].className).toContain('nx-status-tag');
+    expect(head.textContent).toContain('Toptan · Vade 30 gün · TRY · Vergi no 1234567890');
   });
 });

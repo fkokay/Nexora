@@ -1,0 +1,120 @@
+/* Cari Hesaplar windows (mutabakat, gruplar, adresler, özel alanlar, hareket ekle, onay) in the design language: one
+   frame (8px), flat sections separated by hairlines instead of boxes inside the window, 31px controls, numbers right /
+   tabular. Content and actions are unchanged. Colours are --nx-* tokens. */
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal, .customer-movement-modal, .customer-dialog-modal) {
+  border: 1px solid var(--nx-line) !important;
+  border-radius: var(--nx-radius-card) !important;
+  background: var(--nx-surface) !important;
+  color: var(--nx-text);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--nx-ink) 22%, transparent) !important;
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal) > .modal-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--nx-line);
+  background: transparent !important;
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal) > .modal-head h2 {
+  font-size: 16px !important;
+  font-weight: 650;
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal) .eyebrow {
+  color: var(--nx-muted) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em;
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal) .modal-head .icon-button {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  border-radius: var(--nx-radius-control);
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal, .customer-movement-modal) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  height: var(--nx-control-h) !important;
+  min-height: 0 !important;
+  border-radius: var(--nx-radius-control) !important;
+  font-size: 12.5px !important;
+}
+#root .app-shell .modal:is(.customer-ledger-modal, .group-modal, .customer-address-modal, .customer-fields-modal) :is(button.secondary, button.primary):not(.icon-button) {
+  min-height: var(--nx-control-h);
+  height: var(--nx-control-h);
+  padding: 0 12px;
+  border-radius: var(--nx-radius-control);
+  font-size: 12.5px;
+}
+
+/* Mutabakat: balance line, period, counterparty CSV and the movements as flat sections. */
+#root .app-shell .customer-ledger-modal .balance-banner {
+  margin: 0;
+  padding: 10px 0;
+  border: 0 !important;
+  border-bottom: 1px solid var(--nx-line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .customer-ledger-modal .balance-banner b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+#root .app-shell .customer-ledger-modal .balance-banner span { color: var(--nx-muted) !important; }
+#root .app-shell .customer-ledger-modal .ledger-currency { color: var(--nx-muted) !important; background: transparent !important; }
+#root .app-shell .customer-ledger-modal > .panel {
+  margin: 0;
+  padding: 10px 0;
+  border: 0 !important;
+  border-bottom: 1px solid var(--nx-line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .customer-ledger-modal > .panel .panel-heading { padding: 0 0 6px; border: 0; }
+#root .app-shell .customer-ledger-modal > .panel .panel-heading h3 { margin: 0; font-size: 13px !important; font-weight: 650; }
+#root .app-shell .customer-ledger-modal > .panel .panel-heading p { margin: 2px 0 0; color: var(--nx-muted); font-size: 12px !important; }
+#root .app-shell .customer-ledger-modal label { font-size: 12px !important; font-weight: 500 !important; }
+#root .app-shell .customer-ledger-modal input[type="file"] { height: var(--nx-control-h); min-height: 0; padding: 0 4px; border-radius: var(--nx-radius-control); }
+#root .app-shell .customer-ledger-modal .ledger-list { border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); overflow: hidden; }
+#root .app-shell .customer-ledger-modal .ledger-list .advanced-grid-toolbar {
+  min-height: 0 !important;
+  padding: 6px 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--nx-line-soft) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .customer-ledger-modal .ledger-list .advanced-grid-toolbar :is(button, summary) {
+  height: 28px !important;
+  min-height: 0 !important;
+  padding: 0 8px !important;
+  border-radius: var(--nx-radius-control) !important;
+  font-size: 12px !important;
+}
+#root .app-shell .customer-ledger-modal .ledger-list :is(.advanced-grid-shell, .advanced-grid-scroll) { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+#root .app-shell .customer-ledger-modal .ledger-list td.nx-num,
+#root .app-shell .customer-ledger-modal .ledger-list th.nx-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .app-shell .customer-ledger-modal .row-action { height: 26px; min-height: 0; padding: 0 8px; border-radius: var(--nx-radius-control); font-size: 12px; }
+#root .app-shell .customer-ledger-modal .address-list { border: 0; background: transparent; }
+
+/* Gruplar: a flat list (code · name · status, actions on the right) above the embedded record form. */
+#root .app-shell .group-modal .group-list { display: flex; flex-direction: column; gap: 0; margin: 0; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); overflow: hidden; }
+#root .app-shell .group-modal .group-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  margin: 0;
+  padding: 2px 8px 2px 12px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--nx-line-soft) !important;
+  border-radius: 0 !important;
+  background: var(--nx-surface) !important;
+  box-shadow: none !important;
+}
+#root .app-shell .group-modal .group-row:last-child { border-bottom: 0 !important; }
+#root .app-shell .group-modal .group-code { color: var(--nx-muted); font-size: 12px; }
+#root .app-shell .group-modal .group-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#root .app-shell .group-modal .group-info > span:first-child { overflow: hidden; color: var(--nx-text); text-overflow: ellipsis; white-space: nowrap; }
+#root .app-shell .group-modal .group-actions { display: inline-flex; gap: 4px; }
+#root .app-shell .group-modal .group-actions button { height: 26px !important; min-height: 0 !important; padding: 0 8px; border-radius: var(--nx-radius-control); font-size: 12px; }
+#root .app-shell .group-modal .group-actions .icon-button { width: 26px; padding: 0; }
+#root .app-shell .group-modal .group-empty { padding: 16px; border: 0 !important; background: transparent !important; color: var(--nx-muted); text-align: center; }
