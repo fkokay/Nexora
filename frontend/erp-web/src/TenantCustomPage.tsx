@@ -9,6 +9,8 @@ import { displayText, interpolate, type PageScope } from "./custom-page/pageBind
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
+import { FormCard } from "./custom-page/LayoutComponents";
+import { idList, ownedInputIds } from "./custom-page/layoutRefs";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -45,6 +47,9 @@ type PageRuntime = {
   selections: Record<string, Record<string, unknown> | null>;
   select: (tableName: string, row: Record<string, unknown> | null) => void;
   queryById: Record<string, PageQueryDefinition>;
+  /** formCard/facetPanel'in sahiplendiği girişler (üst düzeyde ayrıca çizilmez) ve kimliğe göre giriş bileşenleri. */
+  ownedInputs: Set<string>;
+  inputById: Record<string, ComponentDefinition>;
   rights: NonNullable<PublishedPage["rights"]>;
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
@@ -107,13 +112,13 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" ? 12 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
@@ -303,7 +308,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   </div>;
 }
 
-function PageInput({ component, props, raw, onChange, optionsState, style }: {
+export function PageInput({ component, props, raw, onChange, optionsState, style }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties;
 }) {
@@ -331,6 +336,12 @@ function PageInput({ component, props, raw, onChange, optionsState, style }: {
   </div>;
 }
 
+function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+  return <PageInput key={component.id} component={component} props={props} style={style}
+    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
+    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
+}
+
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime) {
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
   const style = visualStyle(component.type, props);
@@ -344,9 +355,14 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
     case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
-    case "input": return <PageInput key={component.id} component={component} props={props} style={style}
-      raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
-      optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
+    case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
+    case "formCard": {
+      const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+      const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
+      return <FormCard key={component.id} title={title} columns={columns} style={style}>
+        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
+      </FormCard>;
+    }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
@@ -423,6 +439,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     : [], [isV2, components, queryDefinitions]);
   const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
+  const ownedInputs = useMemo(() => ownedInputIds(flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }))), [components]);
+  const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
@@ -450,7 +468,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    queryById, ownedInputs, inputById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
     writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
   } : undefined;
 

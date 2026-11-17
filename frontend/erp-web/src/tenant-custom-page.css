@@ -156,3 +156,13 @@
 }
 .app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit):hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
 .app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action) button.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
+
+/* Form kartı — taslak `.card` + `.fg3`: girişler 1/2/3 sütunlu ızgarada; girişin kendi genişliği form içinde yok sayılır */
+.tenant-page-form-card-grid { display: grid; gap: 10px 12px; }
+.tenant-page-form-card-grid.is-cols-1 { grid-template-columns: minmax(0, 1fr); }
+.tenant-page-form-card-grid.is-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tenant-page-form-card-cell { min-width: 0; }
+.tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
+@media (max-width: 900px) { .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .tenant-page-form-card-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
