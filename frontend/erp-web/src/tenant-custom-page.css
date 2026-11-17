@@ -1,88 +1,113 @@
-.tenant-custom-page { max-width: 1440px; margin: 0 auto; padding: 24px; color: var(--nx-text); }
-.tenant-custom-page { --custom-page-gap: 16px; --custom-page-surface: var(--nx-canvas); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-text); --custom-page-accent: var(--nx-primary); }
-.tenant-custom-page-header { display: flex; align-items: center; gap: 14px; padding: 18px 20px; margin-bottom: 20px; background: var(--nx-canvas); border: 1px solid var(--nx-line); border-radius: 14px; }
-.tenant-custom-page-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; color: var(--nx-primary-strong); background: color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface)); }
-.tenant-custom-page-header h1 { margin: 0; font-size: 1.35rem; }
-.tenant-custom-page-header p { margin: 5px 0 0; color: var(--nx-text); }
+/* Özel sayfa gösterimi — ERP tasarım dili (docs/superpowers/specs/2026-11-16-erp-design-language-design.md §5).
+   Renkler yalnız --nx-* token'larından gelir (koyu tema dahil); ölçüler: yazı 12,5px, kontrol 31px,
+   köşe kontrol 6px / kart 8px, sayılar tabular-nums ve sağa hizalı. Studio tuvali aynı görünümü kopyalar
+   (frontend/development-studio/.../custom-pages.css "custom-page-preview-*"). */
+.tenant-custom-page { --custom-page-gap: 12px; --custom-page-surface: var(--nx-surface); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-muted); --custom-page-accent: var(--nx-primary); max-width: 1720px; margin: 0 auto; padding: 14px 16px 24px; color: var(--nx-text); font-family: var(--nx-font); font-size: 12.5px; }
+.tenant-custom-page-header { display: flex; align-items: center; gap: 12px; padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--nx-line); }
+.tenant-custom-page-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: var(--nx-radius-card); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-custom-page-header h1 { margin: 0; font-size: 19px; font-weight: 650; line-height: 1.25; }
+.tenant-custom-page-header p { margin: 3px 0 0; color: var(--nx-muted); font-size: 12px; }
 .tenant-custom-page-content { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap); }
 .tenant-custom-page-content > * { grid-column: span 12; min-width: 0; }
-.tenant-page-block, .tenant-page-metric { box-sizing: border-box; padding: 18px; border: 1px solid var(--custom-page-line); border-radius: 12px; background: var(--custom-page-surface); box-shadow: 0 2px 8px #17255408; }
-.tenant-page-heading { align-self: end; margin: 0; padding: 0 0 8px; border-bottom: 1px solid var(--custom-page-line); font-size: clamp(20px, 2vw, 28px); line-height: 1.2; letter-spacing: -.035em; }
-.tenant-page-text { margin: 0; color: var(--custom-page-muted); font-size: 13px; line-height: 1.65; }
-.tenant-page-block h3 { margin: 0 0 10px; font-size: 1rem; }
-.tenant-page-block p { margin: 8px 0; color: var(--nx-text); white-space: pre-wrap; }
-.tenant-page-metric { display: flex; flex-direction: column; gap: 7px; }
-.tenant-page-metric span, .tenant-page-metric small { color: var(--nx-text); }
-.tenant-page-metric strong { font-size: 1.6rem; }
+
+/* Kart ve bloklar */
+.tenant-page-block, .tenant-page-metric { box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-block h3 { margin: 0 0 10px; font-size: 13px; font-weight: 650; }
+.tenant-page-block p { margin: 6px 0; color: var(--nx-text); white-space: pre-wrap; line-height: 1.55; }
+.tenant-page-heading { align-self: end; margin: 0; padding: 0 0 6px; font-size: 19px; font-weight: 650; line-height: 1.25; }
+.tenant-page-text { margin: 0; color: var(--nx-text); font-size: 12.5px; line-height: 1.6; }
+.tenant-page-label { align-self: center; font-weight: 600; }
+.tenant-page-spacer { min-height: 8px; }
+
+/* Özet kartı (gösterge): etiket, değer, açıklama — taslak 01 özet mini kartları */
+.tenant-page-metric { display: flex; flex-direction: column; gap: 2px; }
+.tenant-page-metric > span { color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-metric strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tenant-page-metric small { color: var(--nx-muted); font-size: 11px; }
+
+/* Düğmeler */
 .tenant-page-action { display: flex; align-items: center; }
-.tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: 10px; background: #fff; }
-.tenant-page-button { justify-self: start; min-height: 38px; padding: 9px 15px; border: 0; border-radius: 8px; color: #fff; background: var(--custom-page-accent); font-weight: 700; box-shadow: 0 2px 5px color-mix(in srgb, var(--nx-primary) 14%, transparent); }
 .tenant-page-query-action { display: grid; gap: 6px; justify-items: start; }
-.tenant-page-button:disabled { opacity: .65; cursor: not-allowed; }
-.tenant-page-button.is-danger { background: var(--nx-bad); box-shadow: 0 2px 5px color-mix(in srgb, var(--nx-bad) 14%, transparent); }
-.tenant-page-action-feedback { margin: 0; font-size: 13px; }
+.tenant-page-button, .tenant-page-submit { display: inline-flex; align-items: center; justify-self: start; gap: 6px; min-height: var(--nx-control-h); padding: 0 12px; border: 1px solid var(--nx-primary); border-radius: var(--nx-radius-control); color: var(--nx-on-primary); background: var(--nx-primary); font: 600 12.5px var(--nx-font); cursor: pointer; }
+.tenant-page-button:hover:not(:disabled), .tenant-page-submit:hover:not(:disabled) { background: var(--nx-primary-hover); border-color: var(--nx-primary-hover); }
+.tenant-page-button:focus-visible, .tenant-page-submit:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-button:disabled { opacity: .38; cursor: not-allowed; }
+.tenant-page-submit:disabled { opacity: .6; cursor: wait; }
+.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
+.tenant-page-action-feedback { margin: 0; font-size: 12px; }
 .tenant-page-action-feedback.is-success { color: var(--nx-ok); }
 .tenant-page-action-feedback.is-error { color: var(--nx-bad); }
+.tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+
+/* Liste tablosu — taslak 01: başlık 11,5px/600, satır çizgisi line-soft, sayılar sağa hizalı */
 .tenant-page-table { overflow: hidden; }
-.tenant-page-table-scroll { overflow-x: auto; }
-.tenant-page-table table { width: 100%; border-collapse: collapse; }
-.tenant-page-table th, .tenant-page-table td { padding: 10px 12px; border-bottom: 1px solid var(--nx-line); text-align: left; }
-.tenant-page-table th { background: #f7f8fc; }
-.tenant-page-report-widget { min-width: 0; }
-.tenant-page-report-widget.is-error { border-color: #f0b9bb; }
-.tenant-page-table-scroll { max-width: 100%; }
-.tenant-page-table td { max-width: 360px; overflow-wrap: anywhere; }
-.tenant-report-state { padding: 18px 12px; color: var(--custom-page-muted); text-align: center; }
-.tenant-report-status { color: var(--custom-page-muted); font-size: 1rem; }
-.tenant-report-unbound { color: var(--custom-page-muted); }
-.tenant-report-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid #f2c5c6; border-radius: 8px; color: #a32932; background: #fff7f7; }
-.tenant-report-error button { padding: 6px 10px; border: 1px solid #e6b5b8; border-radius: 7px; color: #8c2029; background: #fff; cursor: pointer; }
-.tenant-report-footer { display: flex; justify-content: space-between; gap: 10px; padding-top: 10px; color: var(--custom-page-muted); font-size: 12px; }
-.tenant-page-spacer { min-height: 8px; }
-.tenant-page-alert { box-sizing: border-box; padding: 14px 16px; border: 1px solid #bfdbfe; border-radius: 10px; color: #1e3a8a; background: #eff6ff; }
-.tenant-page-alert strong { display: block; }
-.tenant-page-alert p { margin: 5px 0 0; color: inherit; }
-.tenant-page-alert.tone-success { border-color: #a7e4c4; color: #126344; background: #effaf4; }
-.tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
-.tenant-page-alert.tone-danger { border-color: #f1b8bd; color: #9f2632; background: #fff3f4; }
-.tenant-page-badge { display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 4px 10px; border: 1px solid #bfdbfe; border-radius: 999px; color: #1e40af; background: #eff6ff; font-size: 12px; font-weight: 700; }
-.tenant-page-badge.tone-success { border-color: #b7e6cc; color: #13734d; background: #effaf4; }
-.tenant-page-badge.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
-.tenant-page-badge.tone-danger { border-color: #f1b8bd; color: #9f2632; background: #fff3f4; }
-.tenant-page-list ul { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 20px; }
-.tenant-page-list li { padding-left: 3px; line-height: 1.5; }
-.tenant-page-progress > div { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.tenant-page-progress > div span { color: var(--custom-page-muted); font-variant-numeric: tabular-nums; }
-.tenant-page-progress progress { display: block; width: 100%; height: 10px; overflow: hidden; border: 0; border-radius: 999px; background: #e9eaf3; accent-color: var(--custom-page-accent); }
-.tenant-page-progress progress::-webkit-progress-bar { border-radius: 999px; background: #e9eaf3; }
-.tenant-page-progress progress::-webkit-progress-value { border-radius: 999px; background: var(--custom-page-accent); }
-.tenant-page-form-wrap { box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); border-radius: 12px; background: var(--custom-page-surface); }
-.tenant-page-form-wrap .tenant-page-form { border: 0; box-shadow: none; }
-.tenant-page-form { display: grid; gap: 14px; }
-.tenant-page-form-field { display: grid; gap: 6px; color: var(--nx-text); font-weight: 600; }
-.tenant-page-form-field > span b { color: #c24150; }
-.tenant-page-form-field input:not([type="checkbox"]), .tenant-page-form-field select, .tenant-page-form-field textarea { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--nx-line); border-radius: 8px; color: inherit; background: var(--nx-canvas); font: inherit; font-weight: 400; }
-.tenant-page-form-field textarea { min-height: 96px; resize: vertical; }
-.tenant-page-form-field input[type="checkbox"] { width: 18px; height: 18px; }
-.tenant-page-form-field small { color: var(--nx-text); font-weight: 400; }
-.tenant-page-submit { justify-self: start; padding: 10px 16px; border: 0; border-radius: 8px; color: #fff; background: var(--nx-primary); font-weight: 700; cursor: pointer; }
-.tenant-page-submit:disabled { opacity: .6; cursor: wait; }
-.tenant-page-form-error { color: #b42318 !important; }
-.tenant-page-form-success { border-color: #b9e6d3; background: #f0fbf5; }
-.tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 16px; border: 1px solid var(--nx-line); border-radius: 10px; background: var(--nx-canvas); }
-.tenant-custom-page-error { color: #b42318; background: #fff6f5; border-color: #f5c2be; }
-@media (max-width: 900px) { .tenant-custom-page { padding: 18px; } .tenant-custom-page-content { gap: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
-@media (max-width: 560px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
-.tenant-custom-page-preview-banner{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 13px;border:1px solid color-mix(in srgb, var(--nx-primary) 20%, var(--nx-surface));border-radius:10px;background:color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface));color:var(--nx-primary-strong);font-size:12px}.tenant-custom-page-preview-banner strong{white-space:nowrap}.tenant-custom-page-preview-banner span{color:#665b84}
-.tenant-page-label { align-self: center; font-weight: 600; }
-.tenant-page-input { min-width: 0; }
-.tenant-page-input > label { display: grid; gap: 6px; color: var(--nx-text); font-weight: 600; }
-.tenant-page-input input:not([type="checkbox"]), .tenant-page-input select { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--nx-line); border-radius: 6px; color: inherit; background: var(--nx-surface); font: inherit; font-weight: 400; }
-.tenant-page-input input[type="checkbox"] { width: 18px; height: 18px; justify-self: start; }
-.tenant-page-input-checkbox > label { display: flex; align-items: center; gap: 8px; }
-.tenant-page-query-error { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); border-radius: 8px; }
+.tenant-page-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); }
+.tenant-page-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tenant-page-table th { padding: 7px 9px; border-bottom: 1px solid var(--nx-line); background: var(--nx-table-head); color: var(--nx-muted); font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; }
+.tenant-page-table td { max-width: 360px; height: var(--nx-row-h-dense); padding: 5px 9px; border-bottom: 1px solid var(--nx-line-soft); text-align: left; overflow-wrap: anywhere; }
+.tenant-page-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tenant-page-table tbody tr:last-child td { border-bottom: 0; }
 .tenant-page-row-selectable { cursor: pointer; }
 .tenant-page-row-selectable:hover td { background: var(--nx-table-head); }
 .tenant-page-row-selectable.is-selected td { background: var(--nx-primary-soft); }
+.tenant-page-row-selectable.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
 .tenant-page-row-selectable:focus-visible { outline: 2px solid var(--custom-page-accent); outline-offset: -2px; }
-.tenant-page-truncated { margin: 10px 0 0; color: var(--custom-page-muted); font-size: 12px; }
+.tenant-page-truncated { margin: 8px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-report-widget { min-width: 0; }
+.tenant-page-report-widget.is-error { border-color: color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); }
+.tenant-report-state { padding: 16px 12px; color: var(--nx-muted); text-align: center; }
+.tenant-report-status { color: var(--nx-muted); font-size: 12.5px; font-weight: 500; }
+.tenant-report-unbound { color: var(--nx-muted); }
+.tenant-report-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-bad); background: var(--nx-bad-bg); }
+.tenant-report-error button { min-height: 27px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); border-radius: var(--nx-radius-control); color: var(--nx-bad); background: var(--nx-surface); cursor: pointer; }
+.tenant-report-footer { display: flex; justify-content: space-between; gap: 10px; padding-top: 8px; color: var(--nx-muted); font-size: 11.5px; }
+
+/* Bildirim kutusu ve durum etiketi: renk anlam taşır (§5.1) */
+.tenant-page-alert { box-sizing: border-box; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-page-alert strong { display: block; font-weight: 650; }
+.tenant-page-alert p { margin: 4px 0 0; color: inherit; }
+.tenant-page-alert.tone-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-alert.tone-danger { border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); color: var(--nx-bad); background: var(--nx-bad-bg); }
+.tenant-page-badge { display: inline-flex; align-items: center; width: fit-content; padding: 1px 8px !important; border: 0; border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 11px; font-weight: 600; line-height: 1.6; }
+.tenant-page-badge.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-badge.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-badge.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
+
+/* Liste ve ilerleme */
+.tenant-page-list ul { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 18px; }
+.tenant-page-list li { padding-left: 3px; line-height: 1.5; }
+.tenant-page-progress > div { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.tenant-page-progress > div span { color: var(--nx-muted); font-variant-numeric: tabular-nums; }
+.tenant-page-progress progress { display: block; width: 100%; height: 7px; overflow: hidden; border: 0; border-radius: 4px; background: var(--nx-line-soft); accent-color: var(--custom-page-accent); }
+.tenant-page-progress progress::-webkit-progress-bar { border-radius: 4px; background: var(--nx-line-soft); }
+.tenant-page-progress progress::-webkit-progress-value { border-radius: 4px; background: var(--custom-page-accent); }
+
+/* Formlar ve giriş kutuları — kontrol 31px, odakta mavi halka */
+.tenant-page-form-wrap { box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-form-wrap .tenant-page-form { border: 0; box-shadow: none; }
+.tenant-page-form { display: grid; gap: 10px; }
+.tenant-page-form-field, .tenant-page-input > label { display: grid; gap: 3px; color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+.tenant-page-form-field > span b { color: var(--nx-bad); }
+.tenant-page-form-field input:not([type="checkbox"]), .tenant-page-form-field select, .tenant-page-form-field textarea,
+.tenant-page-input input:not([type="checkbox"]), .tenant-page-input select { box-sizing: border-box; width: 100%; min-height: var(--nx-control-h); padding: 5px 9px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); color: var(--nx-text); background: var(--nx-surface); font: 400 12.5px var(--nx-font); }
+.tenant-page-form-field input:focus, .tenant-page-form-field select:focus, .tenant-page-form-field textarea:focus,
+.tenant-page-input input:focus, .tenant-page-input select:focus { outline: 0; border-color: var(--nx-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 18%, transparent); }
+.tenant-page-form-field textarea { min-height: 84px; resize: vertical; }
+.tenant-page-form-field input[type="checkbox"], .tenant-page-input input[type="checkbox"] { width: 15px; height: 15px; justify-self: start; accent-color: var(--nx-primary); }
+.tenant-page-form-field small { color: var(--nx-muted); font-size: 11px; font-weight: 400; }
+.tenant-page-form-error { color: var(--nx-bad) !important; }
+.tenant-page-form-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); }
+.tenant-page-input { min-width: 0; }
+.tenant-page-input-checkbox > label { display: flex; align-items: center; gap: 8px; color: var(--nx-text); font-size: 12.5px; }
+.tenant-page-query-error { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-bad); background: var(--nx-bad-bg); }
+
+/* Sayfa durumları ve önizleme şeridi */
+.tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 14px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+.tenant-custom-page-error { color: var(--nx-bad); background: var(--nx-bad-bg); border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); }
+.tenant-custom-page-preview-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); border-radius: var(--nx-radius-card); background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-size: 12px; }
+.tenant-custom-page-preview-banner strong { white-space: nowrap; }
+.tenant-custom-page-preview-banner span { color: var(--nx-muted); }
+
+@media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
+@media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }

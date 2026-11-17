@@ -29,6 +29,8 @@ type Props = {
 };
 
 const MAX_ROWS = 50;
+/** Sayı sütunları tasarım dilinde sağa hizalı ve eş genişlikli rakamlarla yazılır. */
+const isNumeric = (dataType: unknown) => dataType === "number" || dataType === "decimal";
 
 function displayValue(value: unknown): string {
   if (value == null || value === "") return "—";
@@ -146,9 +148,9 @@ export default function TenantReportWidget({
       : status === "loading" ? <div className="tenant-report-state" role="status">Veriler yükleniyor…</div>
         : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
           : <div className="tenant-page-table-scroll"><table>
-              <thead><tr>{resultColumns.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}{rowActionsEnabled && <th scope="col">İşlemler</th>}</tr></thead>
+              <thead><tr>{resultColumns.map((column) => <th scope="col" key={column.code} className={isNumeric(column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{rowActionsEnabled && <th scope="col">İşlemler</th>}</tr></thead>
               <tbody>{rows.length === 0 && <tr><td colSpan={resultColumns.length + (rowActionsEnabled ? 1 : 0)} className="tenant-report-state">Gösterilecek kayıt bulunamadı.</td></tr>}{rows.slice(0, MAX_ROWS).map((row, rowIndex) => <tr key={String(row.id ?? row.code ?? rowIndex)}>
-                {resultColumns.map((column) => <td key={column.code}>{displayValue(row[column.code])}</td>)}
+                {resultColumns.map((column) => <td key={column.code} className={isNumeric(column.dataType) ? "num" : undefined}>{displayValue(row[column.code])}</td>)}
                 {rowActionsEnabled && <td>{rowActionWorkflowId
                   ? <TenantReportRowAction token={token} workflowId={rowActionWorkflowId} label={rowActionLabel || "İşlemi başlat"} pageCode={pageCode} componentId={componentId} sourceCode={sourceCode} row={row} />
                   : <span className="tenant-report-unbound">İş akışı bağlanmadı</span>}</td>}

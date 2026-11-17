@@ -117,7 +117,9 @@ const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 const iconFor = (type: ComponentType) => palette.find((item) => item.type === type)?.icon ?? LayoutTemplate;
 const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
-const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form"].includes(type) ? 16 : 0;
+// ERP tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); ERP gösterimi aynı değerleri kullanır.
+const DEFAULT_RADIUS = 8;
+const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress"].includes(type) ? 12 : 0;
 const spanOf = (component: PageComponent) => Math.max(1, Math.min(12, Number(component.props.width) || defaultSpan(component.type)));
 // Mirrors erp-web's tenant-custom-page.css: tablets show every block at half width, phones stack them.
 const deviceSpan = (span: number, device: Device) => device === "mobile" ? 12 : device === "tablet" ? 6 : span;
@@ -147,7 +149,7 @@ const componentStyle = (type: ComponentType, props: PageComponent["props"]): CSS
     padding: `${bounded(props.padding, defaultPadding(type), 0, 64)}px`,
     backgroundColor: typeof props.backgroundColor === "string" ? props.backgroundColor : undefined,
     color: typeof props.textColor === "string" ? props.textColor : undefined,
-    borderRadius: `${bounded(props.borderRadius, 12, 0, 32)}px`,
+    borderRadius: `${bounded(props.borderRadius, DEFAULT_RADIUS, 0, 32)}px`,
   };
 };
 const codePreview = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
@@ -163,7 +165,7 @@ const templates: Template[] = [
       components: [
         block("heading", { text: "Cari Hesaplar", width: 12 }),
         block("text", { text: "Cari kayıtlarınızı görüntüleyin ve ihtiyacınıza göre gösterilecek alanları seçin.", width: 12 }),
-        block("dataTable", { title: "Cari listesi", source: "customers", columns: ["code", "name", "type", "currencyCode", "riskLimit", "paymentTermDays", "isActive"], width: 12, padding: 16, rowActionsEnabled: false, rowActionWorkflowId: "", rowActionLabel: "İşlemi başlat" }),
+        block("dataTable", { title: "Cari listesi", source: "customers", columns: ["code", "name", "type", "currencyCode", "riskLimit", "paymentTermDays", "isActive"], width: 12, padding: 12, rowActionsEnabled: false, rowActionWorkflowId: "", rowActionLabel: "İşlemi başlat" }),
       ],
     }),
   },
@@ -173,10 +175,10 @@ const templates: Template[] = [
       name: "Özet paneli", code: "ozet-paneli", description: "Önemli göstergeleri ve son kayıtları tek ekranda izleyin.",
       components: [
         block("heading", { text: "Özet paneli", width: 12 }),
-        block("metric", { title: "Toplam cari", description: "Kayıtlı cari hesap sayısı", source: "customers", width: 4, padding: 16 }),
-        block("progress", { title: "Aylık hedef", value: 65, width: 4, padding: 16 }),
+        block("metric", { title: "Toplam cari", description: "Kayıtlı cari hesap sayısı", source: "customers", width: 4, padding: 12 }),
+        block("progress", { title: "Aylık hedef", value: 65, width: 4, padding: 12 }),
         block("alert", { title: "Bilgilendirme", text: "Göstergeler her açılışta güncel verilerle hesaplanır.", variant: "info", width: 4 }),
-        block("dataTable", { title: "Son cariler", source: "customers", columns: ["code", "name", "type"], width: 12, padding: 16, rowActionsEnabled: false, rowActionWorkflowId: "", rowActionLabel: "İşlemi başlat" }),
+        block("dataTable", { title: "Son cariler", source: "customers", columns: ["code", "name", "type"], width: 12, padding: 12, rowActionsEnabled: false, rowActionWorkflowId: "", rowActionLabel: "İşlemi başlat" }),
       ],
     }),
   },
@@ -187,7 +189,7 @@ const templates: Template[] = [
       components: [
         block("heading", { text: "Talep formu", width: 12 }),
         block("text", { text: "Formu doldurup gönderin; talebiniz ilgili ekibe iletilir.", width: 12 }),
-        block("form", { title: "Talep", formCode: "", width: 8, padding: 16 }),
+        block("form", { title: "Talep", formCode: "", width: 8, padding: 12 }),
         block("alert", { title: "Not", text: "Zorunlu alanlar işaretlidir.", variant: "info", width: 4 }),
       ],
     }),
@@ -1187,7 +1189,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <div className="pd-field-row">
                 <label className="pd-field">İç boşluk<input type="number" min="0" max="64" value={Number(selected.props.padding ?? defaultPadding(selected.type))} onChange={(event) => updateComponent(selected.id, "padding", event.target.value)}/></label>
                 <label className="pd-field">Dış boşluk<input type="number" min="0" max="64" value={Number(selected.props.margin ?? 0)} onChange={(event) => updateComponent(selected.id, "margin", event.target.value)}/></label>
-                <label className="pd-field">Köşe<input type="number" min="0" max="32" value={Number(selected.props.borderRadius ?? 12)} onChange={(event) => updateComponent(selected.id, "borderRadius", event.target.value)}/></label>
+                <label className="pd-field">Köşe<input type="number" min="0" max="32" value={Number(selected.props.borderRadius ?? DEFAULT_RADIUS)} onChange={(event) => updateComponent(selected.id, "borderRadius", event.target.value)}/></label>
               </div>
               {([["backgroundColor", "Arka plan", "#ffffff"], ["textColor", "Metin rengi", "#172554"]] as const).map(([key, label, fallback]) => <div className="pd-field" key={key}>{label}<div className="pd-color"><input type="color" aria-label={label} value={String(selected.props[key] ?? fallback)} onChange={(event) => updateComponent(selected.id, key, event.target.value)}/><span>{typeof selected.props[key] === "string" ? String(selected.props[key]) : "Tema rengi"}</span>{typeof selected.props[key] === "string" && <button type="button" className="pd-button small" onClick={() => clearProp(selected.id, key)}>Sıfırla</button>}</div></div>)}
             </>)}
