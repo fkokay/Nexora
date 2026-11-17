@@ -15,6 +15,13 @@
   min-width: 0;
   margin: 0 0 12px;
 }
+/* Talepler / İadeler: the stack is the page root itself (no outer list-v2) — same 12px rhythm, nothing after it. */
+#root .sales-lv2-stack.list-v2 {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+}
 
 /* Indicators that stay (totals with no filter equivalent): a compact inline strip. */
 #root .list-v2 .sales-lv2-facts {
