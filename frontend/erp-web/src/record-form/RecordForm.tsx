@@ -32,8 +32,12 @@ export type RecordNav = {
   nextDisabledReason?: string;
 };
 
-/** The context panel opens by default when the record form itself is at least this wide (not the viewport). */
+/**
+ * The context panel opens by default when the record form itself (not the viewport) is at least ASIDE_ROOM wide and
+ * closes again below ASIDE_CLOSE: the gap keeps a scrollbar appearing or a resize near the edge from toggling it.
+ */
 const ASIDE_ROOM = 1100;
+const ASIDE_CLOSE = 1060;
 
 export type RecordFormPageProps = {
   /** Screen title, e.g. "Cari Kart Tanımlama". */
@@ -247,7 +251,7 @@ export function RecordFormPage({
     // A hidden keep-alive view measures 0 wide; the last state stays.
     const measure = () => {
       const width = root.getBoundingClientRect().width;
-      if (width > 0) setRoomy(width >= ASIDE_ROOM);
+      if (width > 0) setRoomy((open) => (width >= ASIDE_ROOM ? true : width < ASIDE_CLOSE ? false : open));
     };
     measure();
     if (typeof ResizeObserver !== "function") return;

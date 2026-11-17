@@ -59,6 +59,9 @@ function respond(url: string, init?: RequestInit): unknown {
         { id: 3, action: 'stock-item.updated', resource: 'AMB-2040-RED', userId: 'u2', userDisplayName: 'Ali V.', occurredAt: '2026-11-09T10:00:00Z' },
         { id: 2, action: 'stock-item.updated', resource: 'AMB-2040', userId: 'u1', userDisplayName: 'Ayşe K.', occurredAt: '2026-11-08T10:00:00Z' },
         { id: 1, action: 'stock-item.created', resource: 'AMB-2040', userId: 'u1', userDisplayName: 'Ayşe K.', occurredAt: '2026-03-02T09:00:00Z' },
+        // An earlier card with the same code: its deletion and its older changes are not this card's history.
+        { id: 0, action: 'stock-item.deleted', resource: 'AMB-2040', userId: 'u3', userDisplayName: 'Eski K.', occurredAt: '2026-02-01T09:00:00Z' },
+        { id: -1, action: 'stock-item.updated', resource: 'AMB-2040', userId: 'u3', userDisplayName: 'Eski K.', occurredAt: '2025-12-01T09:00:00Z' },
       ],
       page: 1, pageSize: 20, totalCount: 3,
     };
@@ -166,6 +169,32 @@ describe('stock card form helpers', () => {
 });
 
 describe('Stok kartı record screen (mockup 01 record part)', () => {
+  it('the inline unit add: Enter adds the unit, and an unfinished factor never blocks saving the card', async () => {
+    await openSecondCard();
+    // Takip yöntemi sits in Kimlik (mockup row 2: Barkod / Kategori / Takip yöntemi).
+    const kimlik = within(form()).getByRole('region', { name: 'Kimlik' });
+    expect(within(kimlik).getByLabelText(/Takip yöntemi/)).toBeTruthy();
+    const unitCode = screen.getByLabelText('Alternatif birim kodu');
+    const factor = screen.getByLabelText('Temel birim katsayısı') as HTMLInputElement;
+    expect(factor.required).toBe(false);
+    expect(factor.min).toBe('');
+    fireEvent.change(unitCode, { target: { value: 'PALET' } });
+    fireEvent.change(factor, { target: { value: '500' } });
+    factor.focus();
+    fireEvent.keyDown(factor, { key: 'Enter' });
+    const table = within(form()).getByRole('table', { name: 'Birim dönüşümleri' });
+    expect(table.textContent).toContain('1 PALET = 500 ADET');
+    expect(apiMock).not.toHaveBeenCalledWith('/api/stock/items/s2', 't', expect.objectContaining({ method: 'PUT' }));
+    // An emptied factor does not stop Kaydet.
+    fireEvent.change(factor, { target: { value: '' } });
+    const name = screen.getByLabelText(/Stok adı/);
+    name.focus();
+    fireEvent.keyDown(name, { key: 's', ctrlKey: true });
+    await waitFor(() =>
+      expect(apiMock).toHaveBeenCalledWith('/api/stock/items/s2', 't', expect.objectContaining({ method: 'PUT' })),
+    );
+  });
+
   it('header: image box, name, code, status tags, summary; navigator states, counts and completion', async () => {
     await openSecondCard();
     expect(header().querySelector('h1')!.textContent).toBe('Koli 40×30×30 çift oluklu');
@@ -204,8 +233,10 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     expect(minimum.closest('.rf-changed')!.textContent).toContain('Önceki: 500');
     fireEvent.change(screen.getByLabelText('Maksimum stok'), { target: { value: '3000' } });
     expect(header().querySelector('.rf-dirty')!.textContent).toBe('2 alan değişti');
-    // Back to the loaded value: no longer counted or marked.
-    fireEvent.change(minimum, { target: { value: '500' } });
+    // Previous numbers in Turkish format.
+    expect(screen.getByLabelText('Maksimum stok').closest('.rf-changed')!.textContent).toContain('Önceki: 2.000');
+    // Back to the loaded value (numbers compare by value, so "0500" is 500): no longer counted or marked.
+    fireEvent.change(minimum, { target: { value: '0500' } });
     expect(minimum.closest('.rf-changed')).toBeNull();
     expect(header().querySelector('.rf-dirty')!.textContent).toBe('1 alan değişti');
     // A required field left empty puts its section in the error state.
@@ -255,6 +286,9 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     const history = await within(aside).findByRole('region', { name: 'Geçmiş' });
     await waitFor(() => expect(history.textContent).toContain('Ayşe K.'));
     expect(history.textContent).not.toContain('Ali V.');
+    expect(history.textContent).not.toContain('Eski K.');
+    expect(history.querySelectorAll('li')).toHaveLength(2);
+    expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('pageSize=100'), 't');
     expect(within(aside).queryByRole('region', { name: 'Açık belgeler' })).toBeNull();
     cleanup();
     apiMock.mockClear();

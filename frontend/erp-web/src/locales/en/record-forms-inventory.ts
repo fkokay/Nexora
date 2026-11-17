@@ -21,7 +21,6 @@ export const english: Record<string, string> = {
   'Birim dönüşümleri': 'Unit conversions', 'Ana birim': 'Base unit', 'Katsayı': 'Factor', 'Açıklama': 'Description',
   'Maksimum stok': 'Maximum stock', 'Takip yöntemi': 'Tracking method', 'Barkod': 'Barcode',
   'Hareket geçmişi oluşunca takip yöntemi değiştirilemez.': 'The tracking method cannot change once the card has movements.',
-  'Kayıtlı kartın kodu değiştirilemez': 'The code of a saved card cannot change',
   'Negatif stoka izin verilmez': 'Negative stock is not allowed',
   'Negatif stok kuralı şirket ayarlarından gelir': 'The negative stock rule comes from the company settings',
   '(sistem kuralı)': '(system rule)',
@@ -32,7 +31,7 @@ export const english: Record<string, string> = {
   'Stok değeri / maliyetli miktar': 'Stock value / costed quantity',
   'Geçmiş': 'History', 'denetim kaydı': 'audit log', 'Sistem': 'System', 'tüm depolar': 'all warehouses', 'seçili depo': 'selected warehouse',
   'kartı oluşturdu': 'created the card', 'kartı güncelledi': 'updated the card', 'kartı devre dışı bıraktı': 'deactivated the card',
-  'kartı etkinleştirdi': 'activated the card', 'kartı içe aktardı': 'imported the card',
+  'kartı etkinleştirdi': 'activated the card',
   'Kayıtlar arası gezinme': 'Record navigation',
   'Listenin bu sayfasının başı': 'Start of this list page', 'Listenin bu sayfasının sonu': 'End of this list page',
   // Transfer

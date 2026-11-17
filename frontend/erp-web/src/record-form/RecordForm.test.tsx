@@ -497,6 +497,21 @@ describe('RecordFormPage context panel', () => {
     resize(1300);
     expect(aside.hidden).toBe(false);
   });
+
+  it('does not flicker near the edge: opens from 1100px, closes only below 1060px', () => {
+    formWidth = 1080;
+    inView(<Sectioned aside={<p>Stok durumu</p>} />);
+    const aside = screen.getByText('Stok durumu').closest('aside')!;
+    expect(aside.hidden).toBe(true);
+    resize(1100);
+    expect(aside.hidden).toBe(false);
+    resize(1070);
+    expect(aside.hidden).toBe(false);
+    resize(1059);
+    expect(aside.hidden).toBe(true);
+    resize(1090);
+    expect(aside.hidden).toBe(true);
+  });
 });
 
 describe('RecordFieldChange', () => {

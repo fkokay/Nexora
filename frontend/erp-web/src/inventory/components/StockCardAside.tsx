@@ -13,7 +13,6 @@ const AUDIT_VERBS: Record<string, string> = {
   "stock-item.updated": "kartı güncelledi",
   "stock-item.deactivated": "kartı devre dışı bıraktı",
   "stock-item.activated": "kartı etkinleştirdi",
-  "stock-item.bulk-imported": "kartı içe aktardı",
 };
 
 /** Header image box of the card: the saved product image, else (or when it fails to load) the "Görsel" placeholder. */
@@ -28,26 +27,34 @@ type HistoryLine ={ id: number; who: string; what: string; when: string };
 
 /**
  * The card's own audit events (who changed it, when). The endpoint is TenantAdmin-only and searches by substring,
- * so only events whose resource is exactly this code and whose action is a stock-card action are kept.
+ * so only events whose resource is exactly this code, whose action is one of the card actions above (a deletion
+ * belongs to an earlier card with the same code) and that are not older than this card are kept.
  */
-function useStockCardHistory(token: string, code: string, enabled: boolean): HistoryLine[] | null {
+function useStockCardHistory(token: string, code: string, createdAt: string, enabled: boolean): HistoryLine[] | null {
   const [lines, setLines] = useState<HistoryLine[] | null>(null);
   useEffect(() => {
     setLines(null);
     if (!enabled || !code) return;
     let cancelled = false;
-    const params = new URLSearchParams({ page: "1", pageSize: "20", q: code });
+    const params = new URLSearchParams({ page: "1", pageSize: "100", q: code });
+    // A minute of slack: the "created" event and the card's creation time are written in the same request.
+    const since = Date.parse(createdAt) - 60_000;
     api<AuditEventPage>(`/api/audit-events?${params}`, token)
       .then((page) => {
         if (cancelled) return;
         setLines(
           (page?.items ?? [])
-            .filter((event) => event.resource === code && event.action.startsWith("stock-item."))
+            .filter(
+              (event) =>
+                event.resource === code &&
+                event.action in AUDIT_VERBS &&
+                !(Date.parse(event.occurredAt) < since),
+            )
             .slice(0, 5)
             .map((event) => ({
               id: event.id,
               who: event.userDisplayName || "Sistem",
-              what: AUDIT_VERBS[event.action] ?? event.action,
+              what: AUDIT_VERBS[event.action],
               when: new Date(event.occurredAt).toLocaleDateString("tr-TR"),
             })),
         );
@@ -59,7 +66,7 @@ function useStockCardHistory(token: string, code: string, enabled: boolean): His
     return () => {
       cancelled = true;
     };
-  }, [token, code, enabled]);
+  }, [token, code, createdAt, enabled]);
   return lines;
 }
 
@@ -72,17 +79,20 @@ export function StockCardAside({
   token,
   role,
   code,
+  createdAt,
   balance,
   scope,
 }: {
   token: string;
   role: string;
   code: string;
+  /** The card's creation time: older events of the same code belong to an earlier card. */
+  createdAt: string;
   balance: InventoryBalance | undefined;
   /** Where the balance comes from: the list's warehouse filter. */
   scope: string;
 }) {
-  const history = useStockCardHistory(token, code, role === "TenantAdmin");
+  const history = useStockCardHistory(token, code, createdAt, role === "TenantAdmin");
   const valued = balance ? balance.quantityOnHand - balance.unvaluedQuantity : 0;
   const unitCost = balance && valued > 0 ? balance.valuationAmountBase / valued : null;
   const short = balance ? stockLevel(balance).shortage > 0 : false;

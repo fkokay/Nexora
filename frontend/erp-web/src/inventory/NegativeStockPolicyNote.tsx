@@ -4,14 +4,17 @@ import { api } from "../erpApi";
 
 export type NegativeStockPolicy = "blocked" | "allowed" | "unknown";
 
-// Last answer per session token: a remount (section switch, next card) shows it at once instead of "unknown" first.
-const policyCache = new Map<string, NegativeStockPolicy>();
+// The last answer, for the current session token only: a remount (section switch, next card) shows it at once
+// instead of "unknown" first. A new token replaces it.
+let policyCache: { token: string; policy: NegativeStockPolicy } | null = null;
 
 /** The company's negative-stock setting; "unknown" for users who cannot read company settings. */
 export function useNegativeStockPolicy(token: string): NegativeStockPolicy {
-  const [policy, setPolicyState] = useState<NegativeStockPolicy>(() => policyCache.get(token) ?? "unknown");
+  const [policy, setPolicyState] = useState<NegativeStockPolicy>(() =>
+    policyCache?.token === token ? policyCache.policy : "unknown",
+  );
   const setPolicy = (value: NegativeStockPolicy) => {
-    policyCache.set(token, value);
+    policyCache = { token, policy: value };
     setPolicyState(value);
   };
 

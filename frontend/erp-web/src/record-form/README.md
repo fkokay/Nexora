@@ -30,7 +30,7 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     pencere, açık seçici / liste kutusu (`[role=listbox]`, `[aria-expanded=true]`) ya da Esc'i işlemiş bir alan
     (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir.
   - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. Kayıt formunun kendi genişliği (görünüm alanı değil; açık
-    widget rayı ve menü düşülür) 1100px ve üstündeyse açık, altında kapalı; `ResizeObserver` ile izlenir. `Ctrl+.` açar /
+    widget rayı ve menü düşülür) 1100px olunca açılır, 1060px altına inince kapanır (arada titremesin); `ResizeObserver` ile izlenir. `Ctrl+.` açar /
     kapatır.
   - **Kayıtlar arası gezinme** (`recordNav={{ index, total, onPrev, onNext }}`): PgUp / PgDn önceki / sonraki kayıt.
     Olmayan adımın düğmesi kapalıdır; nedeni `prevDisabledReason` / `nextDisabledReason` ile ipucu olarak verilir;

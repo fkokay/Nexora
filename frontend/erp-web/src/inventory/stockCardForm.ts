@@ -117,9 +117,26 @@ export function stockCardValuesOf(item: StockItem): StockCardValues {
   };
 }
 
+/** Equal values of a field; numbers compare by value ("0500" = "500", "20.0" = "20"). */
+export function sameStockCardValue(key: StockCardField, a: string, b: string): boolean {
+  if (a === b) return true;
+  if (!NUMBER.includes(key) || !filled(a) || !filled(b)) return false;
+  const left = Number(a), right = Number(b);
+  return Number.isFinite(left) && Number.isFinite(right) && left === right;
+}
+
 /** Fields whose value differs from the baseline, in form order. */
 export function changedStockCardFields(current: StockCardValues, baseline: StockCardValues): StockCardField[] {
-  return (Object.keys(baseline) as StockCardField[]).filter((key) => current[key] !== baseline[key]);
+  return (Object.keys(baseline) as StockCardField[]).filter((key) => !sameStockCardValue(key, current[key], baseline[key]));
+}
+
+/** A loaded value as "Önceki: …" shows it: numbers in Turkish format, the tracking mode by its label, "—" when empty. */
+export function formatStockCardValue(key: StockCardField, value: string): string {
+  if (key === "trackingMode") return TRACKING_LABELS[value as StockItem["trackingMode"]] ?? value;
+  if (!filled(value)) return "—";
+  if (NUMBER.includes(key) && Number.isFinite(Number(value)))
+    return Number(value).toLocaleString("tr-TR", { maximumFractionDigits: 8 });
+  return value;
 }
 
 /** Custom field codes whose value differs from the baseline (missing = empty). */
@@ -200,7 +217,7 @@ export function stockCardSectionState(
 
 /** A value the user gave: not empty and not the new-card default ("0", "20", "TRY" do not count). */
 export function stockCardFieldEntered(key: StockCardField, value: string): boolean {
-  return filled(value) && value !== STOCK_CARD_DEFAULTS[key];
+  return filled(value) && !sameStockCardValue(key, value, STOCK_CARD_DEFAULTS[key]);
 }
 
 /**

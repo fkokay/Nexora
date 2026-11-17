@@ -24,9 +24,9 @@ import { StockCardAside, StockCardImage } from "./inventory/components/StockCard
 import {
   STOCK_CARD_DEFAULTS,
   STOCK_CARD_SECTION_FIELDS,
-  TRACKING_LABELS,
   changedCustomFields,
   changedStockCardFields,
+  formatStockCardValue,
   stockCardCompletion,
   stockCardFieldEntered,
   stockCardSectionState,
@@ -2354,7 +2354,7 @@ export function InventoryPage({
     return (
       <RecordFieldChange
         changed={!!editingItem && itemChangedFields.has(key)}
-        previous={key === "trackingMode" ? TRACKING_LABELS[previous as StockItem["trackingMode"]] ?? previous : previous || "—"}
+        previous={formatStockCardValue(key, previous)}
         className={className}
       >
         {field}
@@ -2486,7 +2486,17 @@ export function InventoryPage({
           </tbody>
         </table>
         {role === "TenantAdmin" && (
-          <div className="inv-rf-inline-add">
+          // Enter in these fields adds the unit; it must not save the whole card. The factor has no browser
+          // constraints (addItemUnitConversion rejects ≤ 0), so an unfinished entry never blocks Kaydet.
+          <div
+            className="inv-rf-inline-add"
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              if (!(event.target instanceof HTMLInputElement)) return;
+              event.preventDefault();
+              if (!busy) addItemUnitConversion();
+            }}
+          >
             <label>
               Alternatif birim kodu
               <input
@@ -2502,11 +2512,9 @@ export function InventoryPage({
               <input
                 className="rf-num"
                 type="number"
-                min="0.00000001"
-                step="0.00000001"
+                step="any"
                 value={itemUnitFactor}
                 onChange={(e) => setItemUnitFactor(e.target.value)}
-                required
               />
             </label>
             <button type="button" className="secondary" disabled={busy} onClick={addItemUnitConversion}>
@@ -3547,6 +3555,7 @@ export function InventoryPage({
                 token={token}
                 role={role}
                 code={editingItem.code}
+                createdAt={editingItem.createdAt}
                 balance={editingBalance}
                 scope={warehouseId ? (warehouses.find((row) => row.id === warehouseId)?.name ?? "seçili depo") : "tüm depolar"}
               />
@@ -3644,6 +3653,25 @@ export function InventoryPage({
               </label>,
             )}
             {trackField(
+              "trackingMode",
+              <label>
+                Takip yöntemi
+                <select
+                  value={trackingMode}
+                  onChange={(e) =>
+                    setTrackingMode(
+                      e.target.value as StockItem["trackingMode"],
+                    )
+                  }
+                >
+                  <option value="None">Kapalı</option>
+                  <option value="Lot">Lot</option>
+                  <option value="Serial">Seri numarası</option>
+                </select>
+                <small>Hareket geçmişi oluşunca takip yöntemi değiştirilemez.</small>
+              </label>,
+            )}
+            {trackField(
               "unitCode",
               <label>
                 <span>Ana birim <RequiredMark /></span>
@@ -3732,28 +3760,9 @@ export function InventoryPage({
                       />
                     </label>,
                   )}
-                  {trackField(
-                    "trackingMode",
-                    <label>
-                      Takip yöntemi
-                      <select
-                        value={trackingMode}
-                        onChange={(e) =>
-                          setTrackingMode(
-                            e.target.value as StockItem["trackingMode"],
-                          )
-                        }
-                      >
-                        <option value="None">Kapalı</option>
-                        <option value="Lot">Lot</option>
-                        <option value="Serial">Seri numarası</option>
-                      </select>
-                    </label>,
-                  )}
-                  <div className="rf-field rf-span-2 inv-card-rule-cell">
+                  <div className="inv-card-rule-cell">
                     <NegativeStockRuleLine token={token} />
                   </div>
-                  <small>Hareket geçmişi oluşunca takip yöntemi değiştirilemez.</small>
                 </RecordFormGroup>
                 {renderItemUnitConversions()}
               </div>
