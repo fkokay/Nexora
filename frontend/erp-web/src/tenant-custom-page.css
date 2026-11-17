@@ -111,3 +111,24 @@
 
 @media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
 @media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
+
+/* ERP kabuğunun eski genel kuralları (.app-shell :is(input…), .app-shell … thead th, .app-shell .content button;
+   kısmen !important) özel sayfada tasarım dili ölçülerini ezmesin. Kayıt formlarındaki (.record-form .rf-form)
+   yaklaşımın aynısı: daha özgül seçici, eski kuralda !important olan özelliklerde !important. */
+.app-shell .tenant-custom-page :is(.tenant-page-input, .tenant-page-form-field) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea) {
+  min-height: var(--nx-control-h); padding: 5px 9px; border: 1px solid var(--nx-line) !important; border-radius: var(--nx-radius-control) !important;
+  background-color: var(--nx-surface) !important; color: var(--nx-text) !important; box-shadow: none !important; font: 400 12.5px var(--nx-font) !important;
+}
+.app-shell .tenant-custom-page :is(.tenant-page-input, .tenant-page-form-field) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea):focus {
+  border-color: var(--nx-primary) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 18%, transparent) !important;
+}
+.app-shell .tenant-custom-page .tenant-page-table table thead th {
+  height: auto !important; padding: 7px 9px !important; background: var(--nx-table-head) !important; color: var(--nx-muted) !important; font-size: 11.5px !important; font-weight: 600 !important;
+}
+.app-shell .tenant-custom-page .tenant-page-table table tbody td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; font-size: 12.5px; }
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit) {
+  min-height: var(--nx-control-h); height: auto; padding: 0 12px; border: 1px solid var(--nx-primary); border-radius: var(--nx-radius-control);
+  color: var(--nx-on-primary); background: var(--nx-primary); font: 600 12.5px var(--nx-font); box-shadow: none;
+}
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit):hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action) button.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
