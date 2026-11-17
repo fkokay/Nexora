@@ -26,7 +26,11 @@ export function useStockDetailPanelOpen(enabled: boolean, rootRef: RefObject<HTM
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!enabled || !root) return;
-    const measure = () => setRoomy(root.getBoundingClientRect().width >= DETAIL_ROOM);
+    // A hidden keep-alive view measures 0 wide; keep the last state so a workspace tab switch does not reset Ctrl+.
+    const measure = () => {
+      const width = root.getBoundingClientRect().width;
+      if (width > 0 && !root.closest("[hidden]")) setRoomy(width >= DETAIL_ROOM);
+    };
     measure();
     if (typeof ResizeObserver !== "function") return;
     const observer = new ResizeObserver(measure);
@@ -152,7 +156,7 @@ export function InventoryStockDetailPanel({
           </span>
         </div>
         <h3>{balance.name}</h3>
-        <div className="inventory-stock-detail-tags">
+        <div className="inventory-stock-detail-labels">
           <StatusTag tone={status.tone}>
             {status.label === "Minimum altı" && shortage > 0 ? (
               <>

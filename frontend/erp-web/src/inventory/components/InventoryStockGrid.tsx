@@ -108,7 +108,9 @@ export function InventoryStockGrid({
       <div className="customer-table-wrap">
         <AdvancedDataGrid
           className="customer-table inventory-table"
-          gridId="inventory-stock-balances"
+          // New id with the code column back at index 0: settings stored by column index under the old id
+          // would land on the wrong columns, so they start fresh.
+          gridId="inventory-stock-list"
           initialColumnWidths={fields.map(
             (field) => field.width || widths[field.key] || 110,
           )}
