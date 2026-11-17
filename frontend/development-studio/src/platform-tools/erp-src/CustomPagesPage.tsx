@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Gauge,
-  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Minus, Monitor, MousePointerClick, MoveVertical, Plus, Redo2,
+  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, Plus, Redo2,
   Rows3, Save, Search, Send, Settings2, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
@@ -124,6 +124,7 @@ const summaryOf = (component: PageComponent) => {
   return typeof value === "string" && value.trim() ? value : titleFor(component.type);
 };
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
+const FULLSCREEN_STORAGE_KEY = "nexora.pageDesigner.fullscreen";
 const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
 /** Sunucudaki TenantCustomPageQueries.HasQueries ile aynı: schemaVersion 2 ve boş olmayan queries dizisi. */
 const definitionHasQueries = (definitionJson: string | undefined) => {
@@ -221,6 +222,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [device, setDevice] = useState<Device>("desktop");
   const [leftTab, setLeftTab] = useState<"components" | "layers" | "queries" | "templates">("components");
   const [rightMode, setRightMode] = useState<"inspector" | "history">("inspector");
+  // Tam ekran: Studio menüsü ve üst çubuğu gizlenir, tasarımcı tüm pencereyi kullanır. Tercih tarayıcıda hatırlanır.
+  const [fullscreen, setFullscreen] = useState(() => { try { return localStorage.getItem(FULLSCREEN_STORAGE_KEY) === "1"; } catch { return false; } });
   const [paletteSearch, setPaletteSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ rowActions: true, style: false });
   const [, setUndoTick] = useState(0);
@@ -795,13 +798,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     else if (mod && (keyName === "y" || (keyName === "z" && event.shiftKey))) { event.preventDefault(); redo(); }
     else if (mod && keyName === "d" && selectedComponentId) { event.preventDefault(); duplicateComponent(selectedComponentId); }
     else if ((event.key === "Delete" || event.key === "Backspace") && selectedComponentId && canEdit) { event.preventDefault(); removeComponent(selectedComponentId); }
-    else if (event.key === "Escape") setSelectedComponentId(null);
+    else if (event.key === "Escape") { if (selectedComponentId) setSelectedComponentId(null); else if (fullscreen) setFullscreen(false); }
     else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && event.altKey && selectedComponentId) {
       event.preventDefault();
       const index = definition.components.findIndex((component) => component.id === selectedComponentId);
       if (index >= 0) moveComponent(index, event.key === "ArrowUp" ? -1 : 1);
     }
   };
+  useEffect(() => {
+    try { localStorage.setItem(FULLSCREEN_STORAGE_KEY, fullscreen ? "1" : "0"); } catch { /* depolama kapalı */ }
+    document.documentElement.classList.toggle("pd-fullscreen-active", fullscreen);
+    return () => document.documentElement.classList.remove("pd-fullscreen-active");
+  }, [fullscreen]);
   useEffect(() => {
     const listener = (event: KeyboardEvent) => shortcuts.current(event);
     window.addEventListener("keydown", listener);
@@ -910,7 +918,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const selectedQueryRef = selected && typeof selected.props.query === "string" ? selected.props.query : null;
   const selectedQueryColumns = selectedQueryRef ? queryPreviews[selectedQueryRef]?.columns ?? [] : [];
 
-  return <main className="pd-shell">
+  return <main className={`pd-shell${fullscreen ? " pd-fullscreen" : ""}`}>
     <header className="pd-topbar">
       {onBack && <button type="button" className="pd-icon-button" onClick={goBack} title="Sayfa listesine dön" aria-label="Sayfa listesine dön"><ArrowLeft size={17}/></button>}
       <div className="pd-title">
@@ -922,6 +930,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <button type="button" className="pd-icon-button" onClick={undo} disabled={!canEdit || undoStack.current.length === 0} title="Geri al (Ctrl+Z)" aria-label="Geri al"><Undo2 size={16}/></button>
           <button type="button" className="pd-icon-button" onClick={redo} disabled={!canEdit || redoStack.current.length === 0} title="Yinele (Ctrl+Y)" aria-label="Yinele"><Redo2 size={16}/></button>
         </div>
+        <button type="button" className={`pd-icon-button pd-fullscreen-toggle${fullscreen ? " active" : ""}`} onClick={() => setFullscreen((value) => !value)} aria-pressed={fullscreen} title={fullscreen ? "Tam ekrandan çık (Esc)" : "Tam ekran"} aria-label={fullscreen ? "Tam ekrandan çık" : "Tam ekran"}>{fullscreen ? <Minimize2 size={16}/> : <Maximize2 size={16}/>}</button>
         {current && <button type="button" className={`pd-button ${rightMode === "history" ? "active" : ""}`} onClick={() => setRightMode((value) => value === "history" ? "inspector" : "history")}><History size={15}/>Geçmiş<span className="pd-count">{history.length}</span></button>}
         <button type="button" className="pd-button" onClick={() => void openErpPreview()} disabled={saving}><Eye size={15}/>{current?.isPublished ? "ERP'de aç" : "ERP'de önizle"}</button>
         {(current ? capabilities?.canUpdate : capabilities?.canCreate) && !current?.isPublished && <button type="button" className="pd-button" onClick={() => void saveDraft()} disabled={saving || !canEdit || (!dirty && !!current)} title="Kaydet (Ctrl+S)"><Save size={15}/>{saving ? "Kaydediliyor…" : "Kaydet"}</button>}
