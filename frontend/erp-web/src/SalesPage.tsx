@@ -84,6 +84,7 @@ import {
 import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
+import { PurchaseCreateOrderFlow, purchaseCreateOrderTotals } from "./purchasing/purchaseCreateForms";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -4228,18 +4229,7 @@ function PurchaseOrderCreatePage({
   );
   const supplier = customers.find((x) => x.id === supplierId);
   const currencyCode = supplier?.currencyCode || "TRY";
-  const totals = lines.reduce(
-    (sum, line) => {
-      const amounts = purchaseOrderLineAmounts(line);
-      return {
-        gross: sum.gross + amounts.gross,
-        discount: sum.discount + amounts.discount,
-        vat: sum.vat + amounts.vat,
-        grand: sum.grand + amounts.net + amounts.vat,
-      };
-    },
-    { gross: 0, discount: 0, vat: 0, grand: 0 },
-  );
+  const totals = purchaseCreateOrderTotals(lines);
   /** The tab stays mounted (keep-alive) after save or cancel; the next visit must start clean. */
   function resetForm() {
     setCode("");
@@ -4367,12 +4357,21 @@ function PurchaseOrderCreatePage({
       setBusy(false);
     }
   }
+  const money = (value: number) => formatPurchaseOrderMoney(value, currencyCode);
   return (
     <div className="purchase-order-create-page" ref={hostRef}>
       <RecordFormPage
         key={formKey}
         className="sales-rf purchase-order-create"
         title="Yeni satınalma siparişi"
+        document={{
+          type: "Satınalma siparişi",
+          code: code.trim() || undefined,
+          party: supplier?.name,
+          // The save creates the order as Onay bekliyor or Açık: no current step before that.
+          statusFlow: <PurchaseCreateOrderFlow />,
+          hints: SALES_FORM_HINTS,
+        }}
         mode="create"
         busy={busy}
         saveLabel="Sipariş oluştur"
@@ -4396,7 +4395,7 @@ function PurchaseOrderCreatePage({
           </>
         }
       >
-        <RecordFormGroup title="Sipariş bilgileri" bodyClassName="po-create-band">
+        <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
           <label>
             <span>
               Sipariş no <RequiredMark />
@@ -4410,7 +4409,7 @@ function PurchaseOrderCreatePage({
               placeholder="SA-2026-0001"
             />
           </label>
-          <label className="po-create-span-2">
+          <label className="rf-span-2">
             <span>
               Tedarikçi <RequiredMark />
             </span>
@@ -4454,7 +4453,7 @@ function PurchaseOrderCreatePage({
               onChange={(e) => setExpectedReceiptDate(e.target.value)}
             />
           </label>
-          <label className="po-create-span-2">
+          <label className="rf-span-2">
             <span>
               Hedef depo <span className="optional-label">İsteğe bağlı</span>
             </span>
@@ -4471,155 +4470,173 @@ function PurchaseOrderCreatePage({
             />
           </label>
         </RecordFormGroup>
-        <RecordFormGroup title="Sipariş satırları">
-          <div className="po-create-lines-wrap">
-            <table className="po-create-lines">
-              <thead>
-                <tr>
-                  <th scope="col" className="po-col-stock">Stok kartı</th>
-                  <th scope="col" className="po-num">Miktar</th>
-                  <th scope="col" className="po-col-unit">Birim</th>
-                  <th scope="col" className="po-num">Birim fiyat</th>
-                  <th scope="col" className="po-num">İsk. %</th>
-                  <th scope="col" className="po-num">KDV %</th>
-                  <th scope="col" className="po-num">Tutar</th>
-                  <th scope="col" className="po-col-remove">
-                    <span className="sr-only">Satırı kaldır</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, index) => {
-                  const baseUnit = line.baseUnitCode || line.unitCode;
-                  return (
-                    <tr key={line.rowKey}>
-                      <td data-label="Stok kartı" className="po-col-stock">
-                        <AsyncStockItemPicker
-                          token={token}
-                          selectedId={line.stockItemId}
-                          initialItems={[]}
-                          onSelect={(item) => selectStockItem(index, item)}
-                        />
-                      </td>
-                      <td data-label="Miktar" className="po-num">
-                        <input
-                          type="number"
-                          min="0.0001"
-                          step="0.0001"
-                          aria-label={`Satır ${index + 1} miktar`}
-                          value={line.quantity}
-                          onChange={(e) =>
-                            updateLine(index, { quantity: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="Birim" className="po-col-unit">
-                        <select
-                          aria-label={`Satır ${index + 1} birim`}
-                          value={line.unitCode || baseUnit}
-                          onChange={(e) =>
-                            updateLine(index, { unitCode: e.target.value })
-                          }
-                          required
-                        >
-                          <option value={baseUnit}>
-                            {baseUnit || "Temel birim"}
-                          </option>
-                          {(units[line.stockItemId] || [])
-                            .filter((x) => x.isActive && x.unitCode !== baseUnit)
-                            .map((unit) => (
-                              <option key={unit.id} value={unit.unitCode}>
-                                {unit.unitCode} (×{unit.factorToBase})
-                              </option>
-                            ))}
-                        </select>
-                      </td>
-                      <td data-label="Birim fiyat" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.0001"
-                          aria-label={`Satır ${index + 1} birim fiyat`}
-                          value={line.unitPrice}
-                          onChange={(e) =>
-                            updateLine(index, { unitPrice: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="İsk. %" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          aria-label={`Satır ${index + 1} iskonto yüzdesi`}
-                          value={line.discountPercent}
-                          onChange={(e) =>
-                            updateLine(index, { discountPercent: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="KDV %" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          aria-label={`Satır ${index + 1} KDV yüzdesi`}
-                          value={line.vatPercent}
-                          onChange={(e) =>
-                            updateLine(index, { vatPercent: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="Tutar" className="po-num po-amount">
-                        <output>
-                          {formatPurchaseOrderMoney(
-                            purchaseOrderLineAmounts(line).net,
-                            currencyCode,
-                          )}
-                        </output>
-                      </td>
-                      <td className="po-col-remove">
-                        <button
-                          type="button"
-                          className="po-line-remove"
-                          aria-label={`Satır ${index + 1} kaldır`}
-                          title="Satırı kaldır"
-                          disabled={lines.length === 1}
-                          onClick={() =>
-                            setLines((current) =>
-                              current.filter((_, i) => i !== index),
-                            )
-                          }
-                        >
-                          <X size={16} aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="po-create-lines-actions">
-            <button
-              type="button"
-              className="secondary small-button"
-              data-line-add-shortcut
-              title="Ctrl+Shift+Enter ile satır ekle"
-              onClick={() =>
-                setLines((current) => [...current, emptyPurchaseOrderLine()])
-              }
-            >
-              <Plus size={14} /> Satır ekle
-            </button>
-          </div>
-        </RecordFormGroup>
+        <SalesFormLines
+          label="Sipariş satırları"
+          lines={lines.length}
+          extra={currencyCode}
+          totals={salesFormTotalRows(totals, money)}
+          totalsLabel="Sipariş toplamları"
+          notes={
+            <label className="po-create-note">
+              <span>
+                Sipariş notu{" "}
+                <span className="optional-label">İsteğe bağlı</span>
+              </span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={1000}
+                rows={4}
+              />
+              <small className="sales-invoice-note-counter" aria-hidden="true">
+                {notes.length} / 1000
+              </small>
+            </label>
+          }
+        >
+          <table className="dd-lines po-create-lines">
+            <thead>
+              <tr>
+                <th className="dd-ix">#</th>
+                <th>Stok kartı</th>
+                <th className="dd-num">Miktar</th>
+                <th>Birim</th>
+                <th className="dd-num">Birim fiyat</th>
+                <th className="dd-num">İsk. %</th>
+                <th className="dd-num">KDV %</th>
+                <th className="dd-num">Tutar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, index) => {
+                const baseUnit = line.baseUnitCode || line.unitCode;
+                return (
+                  <tr key={line.rowKey}>
+                    <td className="dd-ix">
+                      <span>{index + 1}</span>
+                      <button
+                        type="button"
+                        className="dd-line-remove"
+                        aria-label={`Satır ${index + 1} kaldır`}
+                        title="Satırı kaldır"
+                        disabled={lines.length === 1}
+                        onClick={() =>
+                          setLines((current) =>
+                            current.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </td>
+                    <td className="dd-stock-cell">
+                      <AsyncStockItemPicker
+                        token={token}
+                        selectedId={line.stockItemId}
+                        initialItems={[]}
+                        onSelect={(item) => selectStockItem(index, item)}
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0.0001"
+                        step="0.0001"
+                        aria-label={`Satır ${index + 1} miktar`}
+                        value={line.quantity}
+                        onChange={(e) =>
+                          updateLine(index, { quantity: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td>
+                      <select
+                        aria-label={`Satır ${index + 1} birim`}
+                        value={line.unitCode || baseUnit}
+                        onChange={(e) =>
+                          updateLine(index, { unitCode: e.target.value })
+                        }
+                        required
+                      >
+                        <option value={baseUnit}>
+                          {baseUnit || "Temel birim"}
+                        </option>
+                        {(units[line.stockItemId] || [])
+                          .filter((x) => x.isActive && x.unitCode !== baseUnit)
+                          .map((unit) => (
+                            <option key={unit.id} value={unit.unitCode}>
+                              {unit.unitCode} (×{unit.factorToBase})
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        aria-label={`Satır ${index + 1} birim fiyat`}
+                        value={line.unitPrice}
+                        onChange={(e) =>
+                          updateLine(index, { unitPrice: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        aria-label={`Satır ${index + 1} iskonto yüzdesi`}
+                        value={line.discountPercent}
+                        onChange={(e) =>
+                          updateLine(index, { discountPercent: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        aria-label={`Satır ${index + 1} KDV yüzdesi`}
+                        value={line.vatPercent}
+                        onChange={(e) =>
+                          updateLine(index, { vatPercent: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num dd-total">
+                      <output aria-label={`Satır ${index + 1} tutar`}>
+                        {money(purchaseOrderLineAmounts(line).net)}
+                      </output>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="dd-new-line">
+                <td colSpan={8}>
+                  <button
+                    type="button"
+                    data-line-add-shortcut
+                    title="Ctrl+Shift+Enter ile satır ekle"
+                    onClick={() =>
+                      setLines((current) => [...current, emptyPurchaseOrderLine()])
+                    }
+                  >
+                    <LineAddLabel />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </SalesFormLines>
         {fieldDefinitions.length > 0 && (
           <RecordFormGroup title="Sipariş Özel Alanları">
             <div className="rf-custom-grid">
@@ -4671,49 +4688,6 @@ function PurchaseOrderCreatePage({
             </div>
           </RecordFormGroup>
         )}
-        <RecordFormGroup title="Not ve toplamlar">
-          <div className="sales-invoice-totals-layout">
-            <label className="sales-invoice-note">
-              <span>
-                Sipariş notu{" "}
-                <span className="optional-label">İsteğe bağlı</span>
-              </span>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                maxLength={1000}
-                rows={4}
-              />
-              <small className="sales-invoice-note-counter" aria-hidden="true">
-                {notes.length} / 1000
-              </small>
-            </label>
-            <section
-              className="sales-invoice-total-panel"
-              aria-label="Sipariş toplamları"
-            >
-              <div className="total-row">
-                <span>Ara toplam</span>
-                <output>{formatPurchaseOrderMoney(totals.gross, currencyCode)}</output>
-              </div>
-              <div className="total-row">
-                <span>İskonto</span>
-                <output>
-                  {totals.discount > 0 ? "− " : ""}
-                  {formatPurchaseOrderMoney(totals.discount, currencyCode)}
-                </output>
-              </div>
-              <div className="total-row">
-                <span>KDV</span>
-                <output>{formatPurchaseOrderMoney(totals.vat, currencyCode)}</output>
-              </div>
-              <div className="total-row grand">
-                <span>Genel toplam</span>
-                <output>{formatPurchaseOrderMoney(totals.grand, currencyCode)}</output>
-              </div>
-            </section>
-          </div>
-        </RecordFormGroup>
       </RecordFormPage>
     </div>
   );

@@ -9,13 +9,16 @@ type Props = {
   ) => void;
 };
 
+/**
+ * Belge toplamları tedarikçi belgesinden girilir (hesaplanmaz), bu yüzden belge takımının salt okunur toplamlar
+ * bloğu yerine giriş alanlarıdır; sırası belge toplamlarınınkiyle aynıdır.
+ */
 export function InvoiceDraftTotals({
   draft,
   onUpdate,
 }: Props) {
   return (
-    <RecordFormGroup title="Belge Toplamları" bodyClassName="prf-totals">
-      <small className="rf-columns-wide">Toplamları tedarikçi belgesinden aynen aktarın.</small>
+    <RecordFormGroup title="Belge toplamları" hint="Toplamları tedarikçi belgesinden aynen aktarın." bodyClassName="doc-form-fields sid-totals-fields">
         <label>
           <span>Ara toplam <RequiredMark /></span>
           <input

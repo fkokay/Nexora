@@ -1,18 +1,31 @@
-import AdvancedDataGrid from "./AdvancedDataGrid";
-import { screenViewGridDefaults } from "./screenViewGridLayout";
+import type { GridExportActions } from "./AdvancedDataGrid";
 import type { ScreenColumnPin } from "./erp-types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Check, Copy, Info } from "lucide-react";
+import { Check, Copy, Info, X } from "lucide-react";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListToolbar } from "./list-page/ListToolbar";
-import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
-import { RequiredMark } from "./record-form/RecordForm";
-import "./purchasing-record-forms.css";
-import "./purchase-list-v2/purchase-list-v2.css";
+import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchase-invoice-entry.css";
-import { ListPagination } from "./list-page/ListPagination";
 import { problemDetail } from "./erpApi";
+import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
+import { SalesListFooter } from "./sales/components/SalesListFooter";
+import {
+  SalesListDetailEmpty,
+  SalesListDetailPanel,
+  SalesListPanelToggle,
+  SalesPanelChain,
+  SalesPanelFacts,
+  SalesPanelRows,
+  SalesPanelStats,
+} from "./sales/components/SalesListDetailPanel";
+import { useStockDetailPanelOpen } from "./inventory/components/InventoryStockDetailPanel";
+import { SalesFormLines } from "./sales/salesDocumentForm";
+import { DetailChain, DetailContext, DetailKeyValues, type DocumentTotalRow } from "./document-detail/DocumentDetailLayout";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import { PurchaseCreateInvoiceFlow } from "./purchasing/purchaseCreateForms";
+import "./sales/sales-list-v2.css";
 
 type ReceiptOption = {
   id: string;
@@ -207,9 +220,9 @@ function shortCode(code: string): string {
  */
 function ShortCode({ value }: { value: string }) {
   return (
-    <b className="pie-code" title={value}>
+    <span className="pie-code" title={value}>
       {shortCode(value)}
-    </b>
+    </span>
   );
 }
 
@@ -271,6 +284,13 @@ export default function PurchaseInvoiceEntryPage({
   const [screenFields, setScreenFields] =
     useState<ReceiptScreenField[]>(defaultReceiptFields);
   const pageSize = 25;
+  // The row the user chose in the list (click, ↑/↓): the right panel shows it; Aç / Enter / double click opens its
+  // invoice form (`selected`).
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const listBodyRef = useRef<HTMLDivElement>(null);
+  const panel = useStockDetailPanelOpen(!selected, listBodyRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -445,7 +465,7 @@ export default function PurchaseInvoiceEntryPage({
     }
   }
 
-  // The invoice action lives in the detail panel, so the row action column is not shown.
+  // The invoice action is the panel's Aç (and the bar's Aç / Enter / double click), so the row action column is not shown.
   const visibleFields = screenFields.filter(
     (field) => (field.visible || field.fixed) && field.key !== "actions",
   );
@@ -454,14 +474,14 @@ export default function PurchaseInvoiceEntryPage({
       return (
         <>
           <ShortCode value={item.receiptCode} />
-          <small>{item.purchaseOrderCode}</small>
+          <small className="cell-subtitle list-v2-name-code">{item.purchaseOrderCode}</small>
         </>
       );
     if (key === "supplier")
       return (
         <>
-          <b>{item.supplierName}</b>
-          <small>{`${item.warehouseName} · ${item.lineCount} satır`}</small>
+          <span>{item.supplierName}</span>
+          <small className="cell-subtitle list-v2-name-code">{`${item.warehouseName} · ${item.lineCount} satır`}</small>
         </>
       );
     if (key === "receiptDate") return displayDate(item.receiptDate);
@@ -479,30 +499,250 @@ export default function PurchaseInvoiceEntryPage({
     [termDays, invoiceDate],
   );
 
+  function openReceipt(id: string) {
+    const item = items.find((row) => row.id === id);
+    if (!item) return;
+    setCurrentId(item.id);
+    selectReceipt(item);
+  }
+
+  if (selected) {
+    const totals: DocumentTotalRow[] | undefined = selectedAmounts
+      ? [
+          { key: "net", label: "Ara toplam", value: money(selectedAmounts.net) },
+          { key: "tax", label: "KDV", value: money(selectedAmounts.tax) },
+          { key: "grand", label: "Genel toplam", value: `${money(selectedAmounts.total)} ${selected.currencyCode}`, emphasis: "grand" },
+        ]
+      : undefined;
+    return (
+      <RecordFormPage
+        className="sales-rf pie-create"
+        title="Mal kabul faturası girişi"
+        document={{
+          type: "Alış faturası",
+          code: invoiceCode.trim() || undefined,
+          party: selected.supplierName,
+          // The save issues the invoice (İşlendi): no current step before that.
+          statusFlow: <PurchaseCreateInvoiceFlow />,
+        }}
+        aside={
+          <DetailContext title="Belge zinciri">
+            <DetailChain
+              items={[
+                { key: "order", code: selected.purchaseOrderCode, label: "Satınalma siparişi" },
+                { key: "receipt", code: selected.receiptCode, label: "Mal kabul", meta: displayDate(selected.receiptDate) },
+                { key: "self", code: invoiceCode.trim() || undefined, label: "Bu fatura", kind: "Alış faturası", current: true },
+              ]}
+            />
+            <DetailKeyValues
+              items={[
+                { label: "Depo", value: selected.warehouseName },
+                { label: "Kabul tarihi", value: displayDate(selected.receiptDate) },
+              ]}
+            />
+          </DetailContext>
+        }
+        mode="create"
+        busy={busy}
+        saveLabel="Faturayı kaydet"
+        formId="purchase-invoice-entry-form"
+        onSubmit={(event) => void createInvoice(event)}
+        onCancel={() => {
+          setSelected(null);
+          setFormError("");
+        }}
+        error={formError}
+        onDismissError={() => setFormError("")}
+        status={
+          <>
+            <span>Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.</span>
+            <span className="rf-status-end">
+              Satır: <b>{selected.lineCount}</b>
+            </span>
+          </>
+        }
+      >
+        <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
+          <label>
+            <span>Tedarikçi fatura no <RequiredMark /></span>
+            <input
+              className="rf-must rf-mono"
+              value={invoiceCode}
+              onChange={(e) => setInvoiceCode(e.target.value)}
+              maxLength={64}
+              required
+              disabled={busy}
+            />
+          </label>
+          <label>
+            <span>Fatura tarihi <RequiredMark /></span>
+            <input
+              className="rf-must"
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              required
+              disabled={busy}
+            />
+          </label>
+          {dueDate && typeof termDays === "number" && (
+            <p className="pie-create-due">{`Vade ${dueDate} · ${termDays} gün`}</p>
+          )}
+          {accountingProfiles.length > 0 && (
+            <label className="rf-span-2">
+              <span>Vergi mevzuatı profili <RequiredMark /></span>
+              <select value={accountingProfileCode} onChange={(e) => setAccountingProfileCode(e.target.value)} required disabled={busy}>
+                <option value="">Profil seçin</option>
+                {accountingProfiles.map((profile) => <option key={profile.profileCode} value={profile.profileCode}>{profile.name} · {profile.jurisdictionCode} · {profile.reportingStandard}</option>)}
+              </select>
+            </label>
+          )}
+          <details className="pie-create-edoc">
+            <summary>Gelen e-belge bilgileri</summary>
+            <div>
+              <label><span>Belge UUID</span><input className="rf-mono" value={providerInvoiceUuid} onChange={(e) => setProviderInvoiceUuid(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" disabled={busy} /></label>
+              <label><span>Belge senaryosu</span><input value={providerScenario} onChange={(e) => setProviderScenario(e.target.value)} placeholder="TEMELFATURA / TICARIFATURA / EARSIVFATURA" disabled={busy} /></label>
+              <label><span>Belge tür kodu</span><input value={providerTypeCode} onChange={(e) => setProviderTypeCode(e.target.value)} placeholder="SATIS / IADE / TEVKIFAT" disabled={busy} /></label>
+              <label><span>Gönderen e-Fatura etiketi</span><input className="rf-mono" value={providerSenderAlias} onChange={(e) => setProviderSenderAlias(e.target.value)} disabled={busy} /></label>
+            </div>
+          </details>
+        </RecordFormGroup>
+        <SalesFormLines
+          label="Fatura satırları"
+          lines={selectedAmounts ? selectedAmounts.lines.length : selected.lineCount}
+          extra={selected.currencyCode}
+          addHint={false}
+          totals={totals}
+          totalsLabel="Fatura toplamları"
+        >
+          <table className="dd-lines">
+            <thead>
+              <tr>
+                <th className="dd-ix">#</th>
+                <th>Stok</th>
+                <th className="dd-num">Miktar</th>
+                <th>Birim</th>
+                <th className="dd-num">Tutar</th>
+                <th className="dd-num">KDV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedAmounts ? (
+                selectedAmounts.lines.map((line, index) => (
+                  <tr key={`${line.orderLineNumber}-${index}`}>
+                    <td className="dd-ix">{index + 1}</td>
+                    <td className="dd-stock">
+                      <b>{line.stockCode}</b>
+                      <small>{line.stockName}</small>
+                    </td>
+                    <td className="dd-num">{quantity(line.quantity)}</td>
+                    <td>{line.unitCode}</td>
+                    <td className="dd-num">{money(line.net)}</td>
+                    <td className="dd-num">{money(line.tax)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="pie-create-lines-state">
+                    {selectedAmounts === undefined ? "Satırlar yükleniyor…" : "Mal kabul satırları alınamadı."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </SalesFormLines>
+      </RecordFormPage>
+    );
+  }
+
+  const current = items.find((item) => item.id === currentId);
+  const currentAmounts = current ? amountsFor(current) : undefined;
+  const listPanel = panel.open ? (
+    current ? (
+      <SalesListDetailPanel
+        label="Seçili mal kabul ayrıntıları"
+        code={current.receiptCode}
+        title={current.supplierName}
+        tags={
+          <button
+            type="button"
+            className="pie-copy"
+            aria-label="Mal kabul numarasını kopyala"
+            title="Mal kabul numarasını kopyala"
+            onClick={() => void copyReceiptCode(current.receiptCode)}
+          >
+            {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+          </button>
+        }
+        tabs={[{ id: "summary", label: "Özet" }]}
+        tab="summary"
+        onTabChange={() => {}}
+        onOpen={() => openReceipt(current.id)}
+        onClose={panel.close}
+        takeFocus={panel.takeFocus}
+      >
+        {currentAmounts === undefined ? (
+          <p className="sales-ld-muted">Satırlar yükleniyor…</p>
+        ) : currentAmounts === null ? (
+          <p className="sales-ld-muted">Mal kabul satırları alınamadı.</p>
+        ) : (
+          <>
+            <SalesPanelStats
+              items={[
+                { label: "Genel toplam", value: `${money(currentAmounts.total)} ${current.currencyCode}` },
+                { label: "Ara toplam", value: money(currentAmounts.net) },
+                { label: "KDV", value: money(currentAmounts.tax) },
+              ]}
+            />
+            <SalesPanelRows
+              empty="Satır yok."
+              rows={currentAmounts.lines.map((line, index) => ({
+                key: `${line.orderLineNumber}-${index}`,
+                label: line.stockName,
+                meta: `${quantity(line.quantity)} ${line.unitCode}`,
+                value: money(line.net),
+              }))}
+            />
+          </>
+        )}
+        <SalesPanelFacts
+          items={[
+            { label: "Kabul tarihi", value: displayDate(current.receiptDate) },
+            { label: "Depo", value: current.warehouseName },
+          ]}
+        />
+        <SalesPanelChain
+          items={[
+            { key: "order", code: current.purchaseOrderCode, label: "Satınalma siparişi" },
+            { key: "self", code: current.receiptCode, label: "Mal kabul", current: true },
+          ]}
+        />
+      </SalesListDetailPanel>
+    ) : (
+      <SalesListDetailEmpty label="Seçili mal kabul ayrıntıları" text="Fatura girmek için listeden bir mal kabul seçin." />
+    )
+  ) : null;
+
   return (
-    <main className="purchase-invoice-entry list-v2 purchase-lv2-stack">
+    <div className="purchase-invoice-entry sales-lv2-stack list-v2">
+      <PageCommandsSlot
+        commands={{
+          open: {
+            disabledReason: current ? undefined : "Önce bir kayıt seçin",
+            run: () => {
+              const id = focusedRecordId() ?? current?.id;
+              if (id) openReceipt(id);
+            },
+          },
+          more: [csvExportCommand(gridExportRef)],
+        }}
+      />
       <ListPageHeader
         title="Mal kabul faturası girişi"
         description="İşlenmiş mal kabullerini seçin; fatura kaydı sipariş ve stok kabulüyle bağlantısını korusun."
         count={loading && total === 0 ? null : total}
         countLabel="mal kabul fatura bekliyor"
       />
-      <p className="pie-hint-line" title={LONG_HINT}>
-        <Info size={14} aria-hidden="true" />
-        <span>Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.</span>
-      </p>
-      {error && (
-        <div className="pie-alert" role="alert">
-          {error}
-          <button type="button" onClick={() => setError("")}>Kapat</button>
-        </div>
-      )}
-      {notice && (
-        <div className="pie-notice" role="status">
-          {notice}
-          <button type="button" onClick={() => setNotice("")}>Kapat</button>
-        </div>
-      )}
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -520,192 +760,66 @@ export default function PurchaseInvoiceEntryPage({
           );
           void load();
         }}
-      />
-      <div className="pie-workbench">
-        <div className="pie-list-column">
-          <div className="pie-table-wrap list-v2-list">
-            <AdvancedDataGrid
-              gridId="purchase-invoice-receipt-selection-v2"
-              {...screenViewGridDefaults(visibleFields)}
-              hideSearch
-              externalPagination
-              enableRowSelection={false}
-              toolbarContainer={gridToolsSlot}
-            >
-              <thead>
-                <ScreenViewGroupHeader fields={visibleFields} />
-                <tr>
-                  {visibleFields.map((field) => (
-                    <th key={field.key}>{field.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={visibleFields.length} className="pie-empty">
-                      Mal kabuller yükleniyor…
-                    </td>
-                  </tr>
-                ) : items.length === 0 ? (
-                  <tr>
-                    <td colSpan={visibleFields.length} className="pie-empty">
-                      {query
-                        ? "Aramanızla eşleşen faturalanabilir mal kabul yok."
-                        : "Faturalanabilir mal kabul yok. Önce satın alma siparişi üzerinden mal kabul kaydedin."}
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((item) => (
-                    <tr
-                      key={item.id}
-                      tabIndex={0}
-                      aria-selected={selected?.id === item.id}
-                      onClick={() => selectReceipt(item)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          selectReceipt(item);
-                        }
-                      }}
-                    >
-                      {visibleFields.map((field) => (
-                        <td
-                          key={field.key}
-                          className={field.key === "invoiceAmount" ? "pie-num" : undefined}
-                        >
-                          {fieldValue(item, field.key)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </AdvancedDataGrid>
-          </div>
-          <ListPagination
-            page={page}
-            total={total}
-            pageSize={pageSize}
-            loading={loading}
-            onPageChange={setPage}
-          />
+      >
+        <span className="pie-hint-line" title={LONG_HINT}>
+          <Info size={14} aria-hidden="true" />
+          <span>Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.</span>
+        </span>
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </ListToolbar>
+      {error && (
+        <div className="alert inline-alert" role="alert">
+          {error}
+          <button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={15} /></button>
         </div>
-        <aside className="pie-record-detail" aria-label="Seçili mal kabul ayrıntıları">
-          {selected ? (
-            <>
-              <span className="list-v2-kind">Seçili mal kabul</span>
-              <div className="pie-detail-code">
-                <h2 title={selected.receiptCode}>{shortCode(selected.receiptCode)}</h2>
-                <button
-                  type="button"
-                  className="list-v2-icon-button pie-copy"
-                  aria-label="Mal kabul numarasını kopyala"
-                  title="Mal kabul numarasını kopyala"
-                  onClick={() => void copyReceiptCode(selected.receiptCode)}
-                >
-                  {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
-                </button>
-              </div>
-              <p className="pie-detail-sub">{`${selected.supplierName} · ${selected.purchaseOrderCode}`}</p>
-
-              {selectedAmounts === undefined ? (
-                <p className="pie-detail-muted">Satırlar yükleniyor…</p>
-              ) : selectedAmounts === null ? (
-                <p className="pie-detail-muted">Mal kabul satırları alınamadı.</p>
-              ) : (
-                <>
-                  <table className="pie-lines">
-                    <thead>
-                      <tr>
-                        <th>Stok</th>
-                        <th className="pie-num">Mkt</th>
-                        <th className="pie-num">Tutar</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedAmounts.lines.map((line, index) => (
-                        <tr key={`${line.orderLineNumber}-${index}`}>
-                          <td title={`${line.stockCode} · ${line.stockName}`}>{line.stockName}</td>
-                          <td className="pie-num">{`${quantity(line.quantity)} ${line.unitCode}`}</td>
-                          <td className="pie-num">{money(line.net)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <dl className="pie-totals">
-                    <div>
-                      <dt>Ara toplam</dt>
-                      <dd>{money(selectedAmounts.net)}</dd>
-                    </div>
-                    <div>
-                      <dt>KDV</dt>
-                      <dd>{money(selectedAmounts.tax)}</dd>
-                    </div>
-                    <div className="is-grand">
-                      <dt>Genel toplam</dt>
-                      <dd>{`${money(selectedAmounts.total)} ${selected.currencyCode}`}</dd>
-                    </div>
-                  </dl>
-                </>
-              )}
-
-              <form className="pie-form" onSubmit={createInvoice}>
-                <label>
-                  <span>Tedarikçi fatura no <RequiredMark /></span>
-                  <input
-                    className="pie-mono"
-                    value={invoiceCode}
-                    onChange={(e) => setInvoiceCode(e.target.value)}
-                    maxLength={64}
-                    required
-                    disabled={busy}
-                  />
-                </label>
-                <label>
-                  <span>Fatura tarihi <RequiredMark /></span>
-                  <input
-                    type="date"
-                    value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
-                    required
-                    disabled={busy}
-                  />
-                </label>
-                {dueDate && typeof termDays === "number" && (
-                  <p className="pie-detail-muted pie-due">{`Vade ${dueDate} · ${termDays} gün`}</p>
-                )}
-                {accountingProfiles.length > 0 && (
-                  <label>
-                    <span>Vergi mevzuatı profili <RequiredMark /></span>
-                    <select value={accountingProfileCode} onChange={(e) => setAccountingProfileCode(e.target.value)} required disabled={busy}>
-                      <option value="">Profil seçin</option>
-                      {accountingProfiles.map((profile) => <option key={profile.profileCode} value={profile.profileCode}>{profile.name} · {profile.jurisdictionCode} · {profile.reportingStandard}</option>)}
-                    </select>
-                  </label>
-                )}
-                <details className="pie-edoc">
-                  <summary>Gelen e-belge bilgileri</summary>
-                  <div>
-                    <label><span>Belge UUID</span><input className="pie-mono" value={providerInvoiceUuid} onChange={(e) => setProviderInvoiceUuid(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" disabled={busy} /></label>
-                    <label><span>Belge senaryosu</span><input value={providerScenario} onChange={(e) => setProviderScenario(e.target.value)} placeholder="TEMELFATURA / TICARIFATURA / EARSIVFATURA" disabled={busy} /></label>
-                    <label><span>Belge tür kodu</span><input value={providerTypeCode} onChange={(e) => setProviderTypeCode(e.target.value)} placeholder="SATIS / IADE / TEVKIFAT" disabled={busy} /></label>
-                    <label><span>Gönderen e-Fatura etiketi</span><input className="pie-mono" value={providerSenderAlias} onChange={(e) => setProviderSenderAlias(e.target.value)} disabled={busy} /></label>
-                  </div>
-                </details>
-                {formError && (
-                  <p className="pie-form-error" role="alert">{formError}</p>
-                )}
-                <button type="submit" className="pie-primary pie-submit" disabled={busy}>
-                  {busy ? "Kaydediliyor…" : "Faturayı kaydet"}
-                </button>
-              </form>
-            </>
-          ) : (
-            <p className="pie-record-empty">Fatura girmek için listeden bir mal kabul seçin.</p>
-          )}
-        </aside>
+      )}
+      {notice && (
+        <div className="notice" role="status">
+          {notice}
+          <button type="button" aria-label="Kapat" onClick={() => setNotice("")}><X size={15} /></button>
+        </div>
+      )}
+      <div ref={listBodyRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list">
+          <SalesDocumentGrid
+            gridId="purchase-invoice-receipt-selection-v2"
+            hideExport
+            exportActionsRef={gridExportRef}
+            fields={visibleFields}
+            items={items}
+            loading={loading}
+            loadingMessage="Mal kabuller yükleniyor…"
+            emptyMessage="Faturalanabilir mal kabul yok. Önce satın alma siparişi üzerinden mal kabul kaydedin."
+            search={query}
+            searchEmptyMessage="Aramanızla eşleşen faturalanabilir mal kabul yok."
+            toolbarContainer={gridToolsSlot}
+            renderCell={(field, item) => fieldValue(item, field.key)}
+            ariaLabel="Faturalanabilir mal kabuller"
+            selection={{
+              currentId,
+              onCurrentChange: setCurrentId,
+              onTickedChange: setTicked,
+              bulkActions: [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }],
+              onOpen: openReceipt,
+            }}
+            footer={
+              <SalesListFooter
+                ticked={ticked.length}
+                shown={items.length}
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                loading={loading}
+                onPageChange={setPage}
+              />
+            }
+            numberFields={RECEIPT_NUMBER_FIELDS}
+          />
+        </section>
+        {listPanel}
       </div>
-    </main>
+    </div>
   );
 }
+
+const RECEIPT_NUMBER_FIELDS: ReadonlySet<string> = new Set(["invoiceAmount"]);

@@ -1,119 +1,206 @@
-import { useState } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import { useRef, useState } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
 import { ListToolbar } from "../../list-page/ListToolbar";
-import "../../purchase-list-v2/purchase-list-v2.css";
+import { ListFooter } from "../../list-page/ListFooter";
+import { StatusTag } from "../../list-page/StatusTag";
+import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
+import {
+  SalesListDetailEmpty,
+  SalesListDetailPanel,
+  SalesListPanelToggle,
+  SalesPanelFacts,
+  SalesPanelStats,
+  panelMoney,
+} from "../../sales/components/SalesListDetailPanel";
+import { listAmount } from "../../sales/components/salesListCells";
+import { useStockDetailPanelOpen } from "../../inventory/components/InventoryStockDetailPanel";
+import { PageCommandsSlot } from "../../commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "../../commands/gridCommands";
+import type { MenuCommand } from "../../commands/types";
+import { supplierInvoiceDraftTag } from "../../purchasing/purchaseCreateForms";
+import "../../sales/sales-list-v2.css";
 import type { DraftScreenField, DraftSummary, DraftListProps } from "../types";
 
+/** Muhasebeleştirilmiş fatura düzenlenemez (bugünkü düzenleme kontrolünün iletisi). */
+export const SUPPLIER_INVOICE_DRAFT_LOCKED = "Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.";
+
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["grandTotal", "lineCount"]);
+const CODE_FIELDS: ReadonlySet<string> = new Set(["invoiceNumber"]);
+
+/**
+ * Bağımsız tedarikçi faturaları listesi (Satış liste tipi): tek tık satırı seçer (sağ panel), çift tık / Enter / Aç
+ * taslağı düzenlemeye açar; Düzenle ve Muhasebeleştir İşlem Çubuğu'nun İşlemler menüsünde, yalnız taslakta.
+ * Sayfalama bugünkü gibidir: ilk 50 kayıt (sayfalayıcı yok).
+ */
 export function InvoiceDraftList({
   drafts,
+  totalCount,
   fields,
   loading,
   busy,
+  currentId,
+  onCurrentChange,
   onRefresh,
+  onCreate,
   onEdit,
   onPost,
+  children,
 }: DraftListProps) {
   const visibleFields = visibleDraftFields(fields);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
-  return (
-    <section className="sid-card sid-list-card list-v2">
-      {/* The page is a form first; the list keeps its own title instead of a page header. */}
-      <h2
-        className="purchase-lv2-section-title"
-        title="Taslak kayıtları düzenleyebilir, hesap eşleştirmeleri tamamlandıktan sonra muhasebeleştirebilirsiniz."
+  const [ticked, setTicked] = useState<string[]>([]);
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const panel = useStockDetailPanelOpen(true, bodyRef);
+  const current = drafts.find((item) => item.id === currentId);
+  const busyReason = busy ? "İşleniyor…" : undefined;
+  const editReason = (item: DraftSummary | undefined) =>
+    !item ? "Önce bir kayıt seçin" : item.status !== "Draft" ? SUPPLIER_INVOICE_DRAFT_LOCKED : busyReason;
+
+  const more: MenuCommand[] = [
+    {
+      id: "draft-edit",
+      label: "Düzenle",
+      disabledReason: editReason(current),
+      run: () => {
+        if (current) onEdit(current.id);
+      },
+    },
+    {
+      id: "draft-post",
+      label: "Muhasebeleştir",
+      disabledReason: editReason(current),
+      run: () => {
+        if (current) onPost(current);
+      },
+    },
+    csvExportCommand(gridExportRef),
+  ];
+  const openRow = (id: string) => {
+    const item = drafts.find((row) => row.id === id);
+    if (item && !editReason(item)) onEdit(item.id);
+  };
+
+  const listPanel = panel.open ? (
+    current ? (
+      <SalesListDetailPanel
+        label="Bağımsız tedarikçi faturası özeti"
+        code={current.invoiceNumber}
+        title={current.supplierName}
+        tags={<StatusTag tone={supplierInvoiceDraftTag(current.status).tone}>{supplierInvoiceDraftTag(current.status).label}</StatusTag>}
+        tabs={[{ id: "summary", label: "Özet" }]}
+        tab="summary"
+        onTabChange={() => {}}
+        onOpen={() => openRow(current.id)}
+        openDisabled={!!editReason(current)}
+        onClose={panel.close}
+        takeFocus={panel.takeFocus}
       >
-        Bağımsız tedarikçi faturaları
-      </h2>
+        <SalesPanelStats items={[{ label: "Genel toplam", value: panelMoney(current.grandTotal, current.currencyCode) }]} />
+        <SalesPanelFacts
+          items={[
+            { label: "Fatura tarihi", value: current.invoiceDate },
+            { label: "Vade tarihi", value: current.dueDate || "—" },
+            { label: "Satır", value: current.lineCount },
+            { label: "Kaydedilme", value: new Date(current.createdAt).toLocaleString("tr-TR") },
+            ...(current.status === "Posted" ? [{ label: "Durum", value: "Deftere aktarıldı" }] : []),
+          ]}
+        />
+      </SalesListDetailPanel>
+    ) : (
+      <SalesListDetailEmpty label="Bağımsız tedarikçi faturası özeti" text="Özetini görmek için listeden bir fatura seçin." />
+    )
+  ) : null;
+
+  return (
+    <>
+      <PageCommandsSlot
+        commands={{
+          new: { primary: true, disabledReason: busyReason, run: onCreate },
+          open: {
+            disabledReason: editReason(current),
+            run: () => {
+              const id = focusedRecordId() ?? current?.id;
+              if (id) openRow(id);
+            },
+          },
+          more,
+        }}
+      />
+      <ListPageHeader
+        title="Bağımsız fatura taslakları"
+        description="Siparişsiz tedarikçi faturasını kaydedin; uygunsa mal kabul satırıyla eşleştirip maliyet farkını aktarın."
+        count={loading && totalCount === 0 ? null : totalCount}
+      />
       <ListToolbar
         toolsSlotRef={setToolsSlot}
         onRefresh={() => {
           if (!loading) onRefresh();
         }}
-      />
-      <div className="sid-table-wrap list-v2-list">
-        <AdvancedDataGrid
-          gridId="standalone-invoice-drafts"
-          {...screenViewGridDefaults(visibleFields)}
-          toolbarContainer={toolsSlot}
-        >
-          <thead>
-            {draftFieldGroups(fields).map((group, index) => (
-              <tr className="sid-group-row" key={`${group.label}-${index}`}>
-                <th colSpan={group.count}>{group.label}</th>
-              </tr>
-            ))}
-            <tr>
-              {visibleFields.map((field) => (
-                <th key={field.key}>{field.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={visibleFields.length} className="sid-empty">
-                  Faturalar yükleniyor…
-                </td>
-              </tr>
-            ) : drafts.length === 0 ? (
-              <tr>
-                <td colSpan={visibleFields.length} className="sid-empty">
-                  Henüz bağımsız fatura kaydı yok.
-                </td>
-              </tr>
-            ) : (
-              drafts.map((item) => (
-                <tr key={item.id}>
-                  {visibleFields.map((field) => (
-                    <td key={field.key}>
-                      {draftFieldValue(
-                        item,
-                        field.key,
-                        () => onEdit(item.id),
-                        () => onPost(item),
-                        busy,
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </AdvancedDataGrid>
+      >
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </ListToolbar>
+      {children}
+      <div ref={bodyRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list">
+          <SalesDocumentGrid
+            gridId="standalone-invoice-drafts"
+            hideExport
+            exportActionsRef={gridExportRef}
+            fields={visibleFields}
+            items={drafts}
+            loading={loading}
+            loadingMessage="Faturalar yükleniyor…"
+            emptyMessage="Henüz bağımsız fatura kaydı yok."
+            search=""
+            searchEmptyMessage="Henüz bağımsız fatura kaydı yok."
+            toolbarContainer={toolsSlot}
+            renderCell={(field, item) => draftFieldValue(item, field.key)}
+            ariaLabel="Bağımsız tedarikçi faturaları"
+            selection={{
+              currentId,
+              onCurrentChange,
+              onTickedChange: setTicked,
+              bulkActions: [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }],
+              onOpen: openRow,
+            }}
+            footer={
+              <ListFooter hints="↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli">
+                {ticked.length > 0 && (
+                  <span>
+                    <span>{ticked.length}</span> <span>seçili</span>
+                  </span>
+                )}
+                <span>
+                  <span>Gösterilen</span>{" "}
+                  <span>
+                    {drafts.length.toLocaleString("tr-TR")} / {totalCount.toLocaleString("tr-TR")}
+                  </span>
+                </span>
+              </ListFooter>
+            }
+            numberFields={NUMBER_FIELDS}
+            codeFields={CODE_FIELDS}
+          />
+        </section>
+        {listPanel}
       </div>
-    </section>
+    </>
   );
 }
 
+/** Tenant layout of the list; the row action column moved to İşlemler (Düzenle, Muhasebeleştir). */
 function visibleDraftFields(fields: DraftScreenField[]) {
   return fields
-    .filter((field) => field.visible)
+    .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
 }
 
-function draftFieldGroups(fields: DraftScreenField[]) {
-  const visible = visibleDraftFields(fields);
-  if (!visible.some((field) => field.section?.trim())) return [];
-  return visible.reduce<{ label: string; count: number }[]>((groups, field) => {
-    const label = field.section?.trim() || "Belge";
-    const current = groups[groups.length - 1];
-    if (current?.label === label) current.count++;
-    else groups.push({ label, count: 1 });
-    return groups;
-  }, []);
-}
-
-function draftFieldValue(
-  item: DraftSummary,
-  key: string,
-  edit: () => void,
-  post: () => void,
-  busy: boolean,
-) {
+function draftFieldValue(item: DraftSummary, key: string) {
   switch (key) {
     case "invoiceNumber":
-      return <b>{item.invoiceNumber}</b>;
+      return item.invoiceNumber;
     case "supplierName":
       return item.supplierName;
     case "invoiceDate":
@@ -123,52 +210,15 @@ function draftFieldValue(
     case "currencyCode":
       return item.currencyCode;
     case "grandTotal":
-      return (
-        <>
-          {item.grandTotal.toLocaleString("tr-TR", {
-            minimumFractionDigits: 2,
-          })}{" "}
-          {item.currencyCode}
-        </>
-      );
+      return listAmount(item.grandTotal, item.currencyCode);
     case "lineCount":
       return item.lineCount;
     case "createdAt":
       return new Date(item.createdAt).toLocaleString("tr-TR");
-    case "status":
-      return (
-        <span
-          className={`sid-status${item.status === "Posted" ? " sid-status-posted" : ""}`}
-        >
-          {item.status === "Posted" ? "Muhasebeleştirildi" : "Taslak"}
-        </span>
-      );
-    case "actions":
-      return (
-        <div className="sid-row-actions">
-          {item.status === "Draft" && (
-            <>
-              <button
-                type="button"
-                className="sid-secondary"
-                onClick={edit}
-                disabled={busy}
-              >
-                Düzenle
-              </button>
-              <button
-                type="button"
-                className="sid-primary sid-post-button"
-                onClick={post}
-                disabled={busy}
-              >
-                Muhasebeleştir
-              </button>
-            </>
-          )}
-          {item.status === "Posted" && <span>Deftere aktarıldı</span>}
-        </div>
-      );
+    case "status": {
+      const tag = supplierInvoiceDraftTag(item.status);
+      return <StatusTag tone={tag.tone}>{tag.label}</StatusTag>;
+    }
     default:
       return "—";
   }

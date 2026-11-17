@@ -189,9 +189,9 @@ describe('Mal kabul faturası girişi', () => {
   it('saves the selected receipt invoice with the same body', async () => {
     const onInvoiceCreated = vi.fn();
     renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" onInvoiceCreated={onInvoiceCreated} />);
-    fireEvent.click(await screen.findByText('MK-0009'));
+    await openReceipt();
     type(await screen.findByLabelText(/Tedarikçi fatura no/), 'TF-123');
-    fireEvent.click(screen.getByRole('button', { name: 'Faturayı kaydet' }));
+    await act(async () => ctrlS());
     await waitFor(() => expect(sent('/api/purchasing/receipts/r1/invoice')).toBeDefined());
     const body = sent('/api/purchasing/receipts/r1/invoice') as { invoiceDate: string };
     expect(body).toEqual({
@@ -208,13 +208,14 @@ describe('Bağımsız fatura taslakları', () => {
   it('Ctrl+S posts the same new draft body', async () => {
     renderDrafts();
     await screen.findByText('BF-d1');
+    await startNewDraft();
     await pick('Tedarikçi seçin', /Ege Ambalaj/);
     type(input(/Tedarikçi fatura no/), 'BF-77');
-    type(input(/Açıklama/), 'Nakliye');
-    type(input(/Ara toplam/, 0), '1000');
-    type(input(/Vergi tutarı/), '200');
-    type(input(/Satır toplamı/), '1200');
-    type(input(/Ara toplam/, 1), '1000');
+    type(input(/^Satır 1 açıklama$/), 'Nakliye');
+    type(input(/^Satır 1 ara toplam$/), '1000');
+    type(input(/^Satır 1 vergi tutarı$/), '200');
+    type(input(/^Satır 1 satır toplamı$/), '1200');
+    type(input(/^Ara toplam/), '1000');
     type(input(/Vergi toplamı/), '200');
     type(input(/Genel toplam/), '1200');
     await act(async () => ctrlS());
@@ -251,13 +252,269 @@ describe('Bağımsız fatura taslakları', () => {
   });
 });
 
-/* ---- Interaction helpers (base: row buttons). ---- */
+/* ---- Belge oluşturma görünümü (taslak 02) ve liste tipi ---- */
 
+const form = () => document.querySelector<HTMLElement>('.record-form')!;
+const head = () => form().querySelector<HTMLElement>('header.doc-surface-head')!;
+const flowSteps = () =>
+  Array.from(head().querySelectorAll('.doc-flow-step')).map(
+    (step) => `${step.querySelector('span')?.textContent}${step.getAttribute('aria-current') ? '*' : ''}`,
+  );
+const footKeys = () => Array.from(form().querySelectorAll('.rf-keys > span')).map((node) => node.textContent);
+/** Visible text with the parts of an amount ("200,00" + "TL") separated as they are on screen. */
+function words(node: Node): string {
+  const parts: string[] = [];
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) parts.push(text.textContent ?? '');
+  return parts.map((part) => part.trim()).filter(Boolean).join(' ');
+}
+const totalsOf = (label: string) =>
+  Array.from(screen.getByLabelText(label).querySelectorAll(':scope > div')).map((row) => [
+    words(row.querySelector('dt')!),
+    words(row.querySelector('dd')!),
+  ]);
+const headButtons = () => Array.from(head().querySelectorAll('button')).map((button) => button.textContent?.trim());
+function expectKitChrome(type: string) {
+  expect(form().classList.contains('doc-form')).toBe(true);
+  expect(head().querySelector('.doc-surface-eyebrow')!.textContent).toContain(type);
+  expect(headButtons()).toEqual(['Vazgeç']);
+  expect(head().querySelector('.doc-surface-meta .rf-badge')!.textContent).toMatch(/YENİ KAYIT|DÜZENLEME/);
+  expect(form().querySelector('.rf-group-body.doc-form-fields')).not.toBeNull();
+  const grid = form().querySelector<HTMLTableElement>('.dd-box table.dd-lines')!;
+  expect(grid).not.toBeNull();
+  return grid;
+}
+
+describe('Yeni satınalma siparişi: belge oluşturma görünümü', () => {
+  it('kit header without a current step (the save creates Onay bekliyor or Açık), lines grid, totals by KDV rate', async () => {
+    renderScreen(<SupplierOrdersPage token="t" role="TenantUser" onNavigate={vi.fn()} createPurchaseOrderPage />);
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    await settle();
+    const grid = expectKitChrome('Satınalma siparişi');
+    expect(grid.querySelector('tr.dd-new-line [data-line-add-shortcut]')).not.toBeNull();
+    expect(flowSteps()).toEqual(['Onay bekliyor', 'Açık', 'Kısmi mal kabul', 'Tam alındı']);
+    expect(head().querySelector('[aria-current]')).toBeNull();
+    expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
+    expect(openMenu()).toEqual([]);
+    type(screen.getByPlaceholderText('SA-2026-0001'), 'SA-9');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Satınalma siparişi SA-9');
+    await pick('Tedarikçi seçin', /Ege Ambalaj/);
+    await waitFor(() => expect(head().querySelector('.doc-surface-party')?.textContent).toBe('Ege Ambalaj'));
+    await pickStock();
+    await waitFor(() => expect((screen.getByLabelText('Satır 1 birim fiyat') as HTMLInputElement).value).toBe('35'));
+    type(screen.getByLabelText('Satır 1 miktar'), '10');
+    type(screen.getByLabelText('Satır 1 iskonto yüzdesi'), '10');
+    expect(screen.getByLabelText('Satır 1 miktar').closest('td')!.className).toContain('dd-num');
+    expect(words(screen.getByLabelText('Satır 1 tutar'))).toBe('315,00 TL');
+    expect(totalsOf('Sipariş toplamları')).toEqual([
+      ['Mal / hizmet toplamı', '350,00 TL'],
+      ['Toplam iskonto', '− 35,00 TL'],
+      ['KDV %20 matrahı', '315,00 TL'],
+      ['KDV %20', '63,00 TL'],
+      ['KDV toplamı', '63,00 TL'],
+      ['Genel toplam · Ödenecek tutar', '378,00 TL'],
+    ]);
+    // The order note sits left of the totals in the lines card's bottom band.
+    expect(screen.getByLabelText('Sipariş toplamları').closest('.dd-lines-footer')!.querySelector('textarea')).not.toBeNull();
+    // The only line cannot be removed; a second one can.
+    expect((screen.getByLabelText('Satır 1 kaldır') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(grid.querySelector<HTMLElement>('tr.dd-new-line [data-line-add-shortcut]')!);
+    expect((screen.getByLabelText('Satır 2 kaldır') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a hidden keep-alive tab does not save on Ctrl+S', async () => {
+    renderScreen(<SupplierOrdersPage token="t" role="TenantUser" onNavigate={vi.fn()} createPurchaseOrderPage />, 'other');
+    await settle();
+    await act(async () => ctrlS());
+    await settle();
+    expect(sent('/api/purchasing/orders/')).toBeUndefined();
+  });
+});
+
+describe('Mal kabul faturası girişi: liste ve belge oluşturma görünümü', () => {
+  it('a click makes the receipt current without opening the form; Aç opens it', async () => {
+    renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
+    await screen.findByText('MK-0009');
+    expect(command('open').getAttribute('title')).toContain('Önce bir kayıt seçin');
+    selectRow('MK-0009');
+    await waitFor(() => expect(enabled('open')).toBe(true));
+    expect(document.querySelector('.record-form')).toBeNull();
+    fireEvent.click(command('open'));
+    await screen.findByLabelText(/Tedarikçi fatura no/);
+  });
+
+  it('invoice form: kit header, İşlendi not current before save, read-only receipt lines and totals, chain', async () => {
+    renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
+    await openReceipt();
+    const grid = expectKitChrome('Alış faturası');
+    // Receipt lines are not edited here: no new-line row, no line shortcut.
+    expect(grid.querySelector('tr.dd-new-line')).toBeNull();
+    expect(flowSteps()).toEqual(['İşlendi']);
+    // No line shortcut; the context panel (belge zinciri) has its key.
+    expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+. bağlam paneli', 'Esc kapat']);
+    expect(head().querySelector('.doc-surface-party')?.textContent).toBe('Ege Ambalaj');
+    await waitFor(() => expect(totalsOf('Fatura toplamları')).toEqual([
+      ['Ara toplam', '7.000,00'],
+      ['KDV', '1.400,00'],
+      ['Genel toplam', '8.400,00 TRY'],
+    ]));
+    expect(Array.from(grid.querySelectorAll('tbody tr')[0].querySelectorAll('td')).map((td) => words(td))).toEqual(
+      ['1', 'AMB-1 Koli 40x30', '200', 'ADET', '7.000,00', '1.400,00'],
+    );
+    // Vade from the supplier's payment term, as today.
+    type(screen.getByLabelText(/Fatura tarihi/), '2026-11-10');
+    expect(await screen.findByText('Vade 10.12.2026 · 30 gün')).toBeTruthy();
+    const chain = Array.from(form().querySelectorAll('.dd-chain li')).map((li) => words(li));
+    expect(chain[0]).toContain('SA-0007');
+    expect(chain[1]).toContain('MK-0009');
+    type(screen.getByLabelText(/Tedarikçi fatura no/), 'TF-1');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Alış faturası TF-1');
+  });
+
+  it('Esc on a touched invoice asks before leaving; confirming returns to the list', async () => {
+    renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
+    await openReceipt();
+    await escapeAsksAndStays(screen.getByLabelText(/Tedarikçi fatura no/));
+    expect(document.querySelector('.record-form')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(await screen.findByText(confirmText)).toBeTruthy();
+    fireEvent.click(document.querySelector<HTMLElement>('.workspace-confirm-actions button:not(.secondary)')!);
+    await waitFor(() => expect(document.querySelector('.record-form')).toBeNull());
+    expect(await screen.findByText('MK-0009')).toBeTruthy();
+  });
+});
+
+describe('Bağımsız fatura taslakları: liste tipi ve belge oluşturma görünümü', () => {
+  const renderDrafts = () => renderScreen(<StandaloneSupplierInvoiceDraftPage token="t" role="TenantUser" />);
+
+  it('status tags, footer without a pager, İşlemler follow the current row', async () => {
+    renderDrafts();
+    await screen.findByText('BF-d1');
+    const tag = (text: string) => screen.getByText(text).closest('tr')!.querySelector('.nx-status-tag, [class*="status"]')!;
+    expect(tag('BF-d1').textContent).toBe('Taslak');
+    expect(tag('BF-d2').textContent).toBe('Muhasebeleştirildi');
+    expect(tag('BF-d1').className).toContain('warn');
+    expect(tag('BF-d2').className).toContain('ok');
+    expect(document.querySelector('.nx-list-footer')!.textContent).toContain('Gösterilen 2 / 2');
+    expect(document.querySelector('.nx-list-footer .list-pagination, .nx-list-footer nav')).toBeNull();
+    // No row action column: Düzenle / Muhasebeleştir are in İşlemler.
+    expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+    expect(openMenu().slice(0, 2)).toEqual([
+      { label: 'Düzenle', reason: 'Önce bir kayıt seçin' },
+      { label: 'Muhasebeleştir', reason: 'Önce bir kayıt seçin' },
+    ]);
+    selectRow('BF-d2');
+    await waitFor(() => expect(command('open').getAttribute('title')).toContain('Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.'));
+    expect(openMenu().slice(0, 2)).toEqual([
+      { label: 'Düzenle', reason: 'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.' },
+      { label: 'Muhasebeleştir', reason: 'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.' },
+    ]);
+    selectRow('BF-d1');
+    await waitFor(() => expect(enabled('open')).toBe(true));
+    expect(openMenu().slice(0, 2)).toEqual([
+      { label: 'Düzenle', reason: null },
+      { label: 'Muhasebeleştir', reason: null },
+    ]);
+  });
+
+  it('F2 opens the draft form: kit header, Taslak current, lines grid; Esc on a touched draft asks', async () => {
+    renderDrafts();
+    await screen.findByText('BF-d1');
+    await startNewDraft();
+    const grid = expectKitChrome('Tedarikçi faturası');
+    expect(grid.querySelector('tr.dd-new-line [data-line-add-shortcut]')).not.toBeNull();
+    expect(flowSteps()).toEqual(['Taslak*', 'Muhasebeleştirildi']);
+    expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
+    expect(screen.queryByText('BF-d1')).toBeNull();
+    fireEvent.click(grid.querySelector<HTMLElement>('tr.dd-new-line [data-line-add-shortcut]')!);
+    expect(screen.getByLabelText('Satır 2 açıklama')).toBeTruthy();
+    await escapeAsksAndStays(screen.getByLabelText(/Tedarikçi fatura no/));
+    expect(document.querySelector('.record-form')).not.toBeNull();
+  });
+
+  it('a failed save keeps the form and its request id', async () => {
+    renderDrafts();
+    await screen.findByText('BF-d1');
+    await startNewDraft();
+    apiMock.mockClear();
+    const { authenticatedFetch } = await import('../authApi');
+    vi.mocked(authenticatedFetch).mockImplementationOnce(async (url: string, _token: string, init?: RequestInit) => {
+      record(url, init as { method?: string; body?: unknown });
+      return new Response(JSON.stringify({ error: 'Fatura numarası kullanılıyor.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+    });
+    fireEvent.submit(document.querySelector('form.rf-form')!);
+    expect(await screen.findByText('Fatura numarası kullanılıyor.')).toBeTruthy();
+    expect(document.querySelector('.record-form')).not.toBeNull();
+    const posts = calls.filter((call) => call.url === '/api/purchasing/standalone-invoices/' && call.method === 'POST');
+    expect((posts[0].body as { requestId: string }).requestId).toBe('req-1');
+  });
+});
+
+describe('English text of the purchasing create screens', () => {
+  it('has an English entry for every new text', async () => {
+    localStorage.setItem('aierp.locale', 'en');
+    const { loadEnglishDictionaries, localizedUiText } = await import('../locale');
+    await loadEnglishDictionaries();
+    const texts = [
+      'Satınalma siparişi', 'Alış faturası', 'Tedarikçi faturası', 'Belge bilgileri', '* zorunlu alan', 'Sipariş satırları',
+      'Sipariş toplamları', 'Fatura satırları', 'Fatura toplamları', 'Belge toplamları', 'Belge zinciri', 'Bu fatura', 'Mal kabul',
+      'Satınalma siparişi', 'Depo', 'Kabul tarihi', 'Satır 1 tutar', 'Satır 1 kaldır', 'Satır 1 açıklama', 'Satır 1 vergi tutarı',
+      'Satır 1 KDV oranı', 'Satır 1 gider hesabı', 'Satır 1 satır toplamı', 'Satır 1 ara toplam', 'Satır 1 iskonto tutarı', 'Satır 1 sil',
+      'Siparişsiz mal kabul satırı', 'Açıklama *', 'Ara toplam *', 'İskonto *', 'Vergi tutarı *', 'Satır toplamı *', 'Gider hesabı',
+      'İsk. %', 'Tutar', 'Stok', 'Taslak', 'Muhasebeleştirildi', 'Düzenle', 'Muhasebeleştir', 'Kaydedilme', 'Vade tarihi', 'Fatura tarihi',
+      'Faturalanabilir mal kabuller', 'Seçili mal kabul ayrıntıları', 'Bağımsız tedarikçi faturası özeti', 'Bağımsız tedarikçi faturaları',
+      'Özetini görmek için listeden bir fatura seçin.', 'Fatura girmek için listeden bir mal kabul seçin.',
+      'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.', 'Satırlar yükleniyor…', 'Mal kabul satırları alınamadı.',
+      'Miktar ve birim fiyat isteğe bağlıdır; satır tutarları kaynak belgeden girilir, yeniden hesaplanmaz.',
+      'KDV oranı belge üzerinden kaydedilir; yeniden hesaplanmaz. Gider hesabı yalnız sonraki muhasebeleştirme için sınıflandırmadır.',
+      'Bu satır mal kabul maliyetini faturadaki net tutara günceller. Yalnız kalan, tüketilmemiş stok için aktarılır; stok miktarı değişmez.',
+      'Siparişsiz tedarikçi faturasını kaydedin; uygunsa mal kabul satırıyla eşleştirip maliyet farkını aktarın.',
+      'Toplamları tedarikçi belgesinden aynen aktarın.', 'Deftere aktarıldı', 'Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.',
+    ];
+    expect(texts.filter((text) => localizedUiText(text) === text)).toEqual([]);
+  });
+});
+
+/* ---- Interaction helpers: the lists are the Satış list type (click selects, İşlemler, F2 / Aç). ---- */
+
+/** The row's first data cell (not the checkbox cell). */
+function rowCell(text: string) {
+  return screen.getByText(text).closest('tr')!.querySelectorAll('td')[1] as HTMLElement;
+}
+function selectRow(text: string) {
+  fireEvent.click(rowCell(text));
+}
+function openMenu() {
+  fireEvent.click(command('more'));
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => ({
+    label: item.querySelector('span')?.textContent ?? '',
+    reason: item.getAttribute('aria-disabled') === 'true' ? item.getAttribute('title') : null,
+  }));
+  fireEvent.click(command('more'));
+  return items;
+}
+function runMenu(label: string) {
+  fireEvent.click(command('more'));
+  const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((node) => node.querySelector('span')?.textContent === label)!;
+  fireEvent.click(item);
+}
+async function openReceipt() {
+  await screen.findByText('MK-0009');
+  fireEvent.doubleClick(rowCell('MK-0009'));
+  await screen.findByLabelText(/Tedarikçi fatura no/);
+}
+async function startNewDraft() {
+  await waitFor(() => expect(enabled('new')).toBe(true));
+  fireEvent.keyDown(window, { key: 'F2' });
+  await screen.findByLabelText(/Tedarikçi fatura no/);
+}
 async function editDraft(id: string) {
-  const row = screen.getByText(`BF-${id}`).closest('tr')!;
-  fireEvent.click(within(row).getByRole('button', { name: 'Düzenle' }));
+  selectRow(`BF-${id}`);
+  await waitFor(() => expect(enabled('open')).toBe(true));
+  runMenu('Düzenle');
 }
 async function postDraft(id: string) {
-  const row = screen.getByText(`BF-${id}`).closest('tr')!;
-  fireEvent.click(within(row).getByRole('button', { name: 'Muhasebeleştir' }));
+  selectRow(`BF-${id}`);
+  await waitFor(() => expect(enabled('open')).toBe(true));
+  runMenu('Muhasebeleştir');
 }

@@ -1,5 +1,5 @@
 import type { ScreenColumnPin } from '../erp-types'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 export type Supplier = { id: string; code: string; name: string; currencyCode: string }
 export type SupplierPage = { items: Supplier[]; totalCount: number }
@@ -20,7 +20,8 @@ export type InvoiceDraftFormProps = {
   expenseAccounts: ExpenseAccount[]
   receiptOptions: ReceiptOption[]
   visibleSuppliers: Supplier[]
-  supplierCount: number
+  /** "… taslağı düzenleniyor." while a saved draft is open. */
+  notice?: string
   onSubmit: (event: FormEvent) => void
   onUpdate: <K extends keyof DraftInput>(field: K, value: DraftInput[K]) => void
   onUpdateLine: (index: number, field: keyof DraftLineInput, value: string) => void
@@ -30,15 +31,25 @@ export type InvoiceDraftFormProps = {
   onAddLine: () => void
   onRemoveLine: (index: number) => void
   onCancelEdit: () => void
+  error: string
+  onDismissError: () => void
 }
 
 export type DraftListProps = {
   drafts: DraftSummary[]
+  /** Server total; the page shows the first 50 (no pager, as today). */
+  totalCount: number
   fields: DraftScreenField[]
   loading: boolean
   busy: boolean
+  /** The row the user chose (click, ↑/↓); kept by the page while the form is open. */
+  currentId: string | null
+  onCurrentChange: (id: string | null) => void
   onRefresh: () => void
+  onCreate: () => void
   onEdit: (id: string) => void
   onPost: (item: DraftSummary) => void
+  /** Messages under the toolbar (load / post errors, save notices). */
+  children?: ReactNode
 }
 
