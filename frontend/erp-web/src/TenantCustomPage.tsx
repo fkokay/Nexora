@@ -65,6 +65,9 @@ const cellText = (value: unknown): string => {
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 };
 
+/** Sayı sütunları tasarım dilinde sağa hizalı ve eş genişlikli rakamlarla yazılır. */
+const isNumericColumn = (dataType: unknown) => dataType === "number" || dataType === "decimal";
+
 const localToday = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -97,6 +100,9 @@ const scopeInputValue = (inputType: string, raw: InputRaw): unknown => {
 
 const isolatedCodeDocument = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 
+// Tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); Studio tuvali aynı değerleri kullanır.
+const DEFAULT_BLOCK_PADDING = 12;
+const DEFAULT_RADIUS = 8;
 const visualStyle = (type: string, props: Record<string, unknown>): CSSProperties => {
   const bounded = (value: unknown, fallback: number, min: number, max: number) => {
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
@@ -108,10 +114,10 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form"].includes(type) ? 16 : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
-    borderRadius: `${number("borderRadius", 12, 32)}px`,
+    borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
   };
 };
 
@@ -193,14 +199,14 @@ function QueryTable({ state, columns, title, description, style, selected, onSel
       : state.error ? <QueryError message={state.error} />
         : neverRan(state) ? <div className="tenant-report-state" role="status">{MANUAL_QUERY_IDLE}</div>
         : <div className="tenant-page-table-scroll"><table>
-          <thead><tr>{visible.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
+          <thead><tr>{visible.map((column) => <th scope="col" key={column.code} className={isNumericColumn(column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}</tr></thead>
           <tbody>
             {state.rows.length === 0 && <tr><td colSpan={Math.max(1, visible.length)} className="tenant-report-state">Gösterilecek kayıt bulunamadı.</td></tr>}
             {state.rows.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
               onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(row); } } : undefined}>
-              {visible.map((column) => <td key={column.code}>{cellText(row[column.code])}</td>)}
+              {visible.map((column) => <td key={column.code} className={isNumericColumn(column.dataType) ? "num" : undefined}>{cellText(row[column.code])}</td>)}
             </tr>)}
           </tbody>
         </table></div>}
