@@ -111,3 +111,14 @@
 
 @media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
 @media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
+
+/* Durum etiketi, yoğunluk ve toplam satırı — eski kabuk tablo kuralları (.app-shell table … !important) için önekli */
+.tenant-page-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; color: var(--nx-muted); background: var(--nx-line-soft); font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.tenant-page-tag.tone-info { color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-page-tag.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-tag.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-tag.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
+.app-shell .tenant-custom-page .tenant-page-table td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; }
+.app-shell .tenant-custom-page .tenant-page-table table.is-comfort td { height: var(--nx-row-h-comfort) !important; padding: 8px 9px !important; }
+.app-shell .tenant-custom-page .tenant-page-table td.code { font-family: var(--nx-font-mono); font-size: 12px !important; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td { border-top: 1px solid var(--nx-line) !important; border-bottom: 0 !important; background: var(--nx-table-head) !important; font-weight: 650; }

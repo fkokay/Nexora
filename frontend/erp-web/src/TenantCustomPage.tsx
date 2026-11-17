@@ -7,6 +7,7 @@ import TenantWorkflowAction from "./TenantWorkflowAction";
 import { displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
+import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -64,9 +65,6 @@ const cellText = (value: unknown): string => {
   if (typeof value === "number" && Number.isFinite(value)) return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value);
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 };
-
-/** Sayı sütunları tasarım dilinde sağa hizalı ve eş genişlikli rakamlarla yazılır. */
-const isNumericColumn = (dataType: unknown) => dataType === "number" || dataType === "decimal";
 
 const localToday = () => {
   const now = new Date();
@@ -183,35 +181,62 @@ function QueryMetric({ state, title, description, style }: { state: QueryState; 
   </article>;
 }
 
-function QueryTable({ state, columns, title, description, style, selected, onSelect }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense" }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
   selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null) => void;
+  formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
 }) {
   const chosen = columns.length > 0 ? state.columns.filter((column) => columns.includes(column.code)) : [];
   const visible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
+  const hasTotals = visible.some((column) => totals.includes(column.code));
   // Yeni sonuç gelince eski satır seçimi geçersizdir.
   useEffect(() => { if (selected && !state.rows.includes(selected)) onSelect?.(null); }, [state.rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row);
+  const cellClass = (column: { code: string; dataType?: string }) => {
+    const format = formats[column.code];
+    return [isRightAligned(format, column.dataType) ? "num" : "", format === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
+  };
+  const renderCell = (column: { code: string; dataType?: string }, row: Record<string, unknown>) => {
+    const text = formatCell(row[column.code], formats[column.code], column.dataType);
+    if (formats[column.code] !== "status" || text === "—") return text;
+    const tone = toneFor(text, toneMap);
+    return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
+  };
+  const totalLabel = state.truncated ? `Toplam · ilk ${state.rows.length} satır` : `Toplam · ${state.rows.length} kayıt`;
   return <section className={`tenant-page-block tenant-page-table tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
     {title && <h3>{title}</h3>}
     {description && <p>{description}</p>}
     {state.loading ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
       : state.error ? <QueryError message={state.error} />
         : neverRan(state) ? <div className="tenant-report-state" role="status">{MANUAL_QUERY_IDLE}</div>
-        : <div className="tenant-page-table-scroll"><table>
-          <thead><tr>{visible.map((column) => <th scope="col" key={column.code} className={isNumericColumn(column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}</tr></thead>
+        : <div className="tenant-page-table-scroll"><table className={density === "comfort" ? "is-comfort" : undefined}>
+          <thead><tr>{visible.map((column) => <th scope="col" key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}</tr></thead>
           <tbody>
             {state.rows.length === 0 && <tr><td colSpan={Math.max(1, visible.length)} className="tenant-report-state">Gösterilecek kayıt bulunamadı.</td></tr>}
             {state.rows.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
               onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(row); } } : undefined}>
-              {visible.map((column) => <td key={column.code} className={isNumericColumn(column.dataType) ? "num" : undefined}>{cellText(row[column.code])}</td>)}
+              {visible.map((column) => <td key={column.code} className={cellClass(column)}>{renderCell(column, row)}</td>)}
             </tr>)}
           </tbody>
+          {hasTotals && state.rows.length > 0 && <tfoot><tr className="tenant-page-total">
+            {visible.map((column, index) => {
+              const total = totals.includes(column.code) ? columnTotal(state.rows, column.code) : null;
+              const text = total === null ? "" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
+              return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? (total !== null ? `${totalLabel} ${text}` : totalLabel) : text}</td>;
+            })}
+          </tr></tfoot>}
         </table></div>}
     {!state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
   </section>;
+}
+
+/** Durum rozeti: değer toneMap ile eşleşirse o ton, yoksa variant geri dönüş tonudur. */
+export function PageBadge({ text, variant, toneMap, style }: { text: string; variant?: unknown; toneMap?: unknown; style?: CSSProperties }) {
+  const fallback = ["success", "warning", "danger", "info"].includes(textValue(variant)) ? textValue(variant) : "info";
+  const tone = toneFor(text, parseToneMap(toneMap)) ?? fallback;
+  return <span className={`tenant-page-badge tone-${tone}`} style={style}>{text}</span>;
 }
 
 /**
@@ -340,10 +365,12 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       if (runtime && queryName && runtime.states[queryName]) {
         const tableName = component.name;
+        const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
         return <QueryTable key={component.id} state={runtime.states[queryName]} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
+          formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row) => runtime.select(tableName, row) : undefined} />;
       }
-      return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} />;
+      return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
     case "form": {
       const formCode = textValue(props.formCode);
@@ -356,8 +383,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
     }
     case "badge": {
-      const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
-      return <span key={component.id} className={`tenant-page-badge tone-${variant}`} style={style}>{text || title || "Durum"}</span>;
+      return <PageBadge key={component.id} text={text || title || "Durum"} variant={props.variant} toneMap={props.toneMap} style={style} />;
     }
     case "list": {
       const items = Array.isArray(props.items) ? props.items.filter((item): item is string => typeof item === "string").slice(0, 40) : [];
