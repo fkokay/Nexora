@@ -133,6 +133,8 @@ describe('purchaseInvoiceListTag', () => {
   it('derives the payment state from the amounts and the due date', () => {
     expect(purchaseInvoiceListTag({ ...posted, status: 'Voided' }, today)).toMatchObject({ tone: 'off', label: 'İptal' });
     expect(purchaseInvoiceListTag({ ...posted, outstandingAmount: 0, paidAmount: 100 }, today)).toMatchObject({ tone: 'ok', label: 'Ödendi' });
+    // Nothing outstanding and nothing paid (fully returned): not Ödendi.
+    expect(purchaseInvoiceListTag({ ...posted, outstandingAmount: 0, paidAmount: 0 }, today)).toMatchObject({ tone: 'info', label: 'İşlendi' });
     expect(purchaseInvoiceListTag({ ...posted, dueDate: '2026-11-13' }, today)).toMatchObject({ tone: 'bad', label: 'Vadesi geçti' });
     // Overdue wins over a partial payment.
     expect(purchaseInvoiceListTag({ ...posted, dueDate: '2026-11-13', paidAmount: 40 }, today)).toMatchObject({ tone: 'bad' });
@@ -200,6 +202,31 @@ describe('Satınalma Faturaları list', () => {
       'Vadesi geçen 1 1.200,00 TRY · bu sayfa',
       'İptal 0 bu sayfa',
     ]);
+  });
+
+  it('a card with no rows shows 0, and each card checks only its own rows for currencies', async () => {
+    // pi3 (paid, TRY) and a USD voided invoice: nothing unpaid or overdue; the TRY total is added.
+    overrides.set('/api/purchasing/invoices/', () => page([rows[2], { ...rows[4], currencyCode: 'USD' }]));
+    screenFor();
+    await settle();
+    expect(cards()).toEqual([
+      'Fatura toplamı 300,00 TRY bu sayfa · 1 fatura',
+      'Ödenmemiş 0,00 bu sayfa · 0 fatura',
+      'Vadesi geçen 0 bu sayfa',
+      'İptal 1 bu sayfa',
+    ]);
+  });
+
+  it('the panel shows no Kalan for a voided invoice', async () => {
+    screenFor();
+    await settle();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    await waitFor(() => expect(panel()).not.toBeNull());
+    fireEvent.click(row('AF-pi5'));
+    await waitFor(() => expect(within(panel()).getByText('Kalan')).toBeTruthy());
+    expect(within(panel()).getByText('Kalan').nextElementSibling?.textContent).toBe('—');
+    fireEvent.click(within(panel()).getByRole('tab', { name: 'Ödemeler' }));
+    expect(within(panel()).getByText('Kalan').nextElementSibling?.textContent).toBe('—');
   });
 
   it('a published tenant view keeps its columns (without the former ⋯ column)', async () => {
@@ -276,10 +303,10 @@ describe('Satınalma Faturaları list', () => {
     expect(rowItems()).toEqual([]);
     fireEvent.click(row('AF-pi2'));
     await waitFor(() => expect(row('AF-pi2').getAttribute('aria-current')).toBe('true'));
-    expect(rowItems()).toEqual(['Ödeme ekle', 'İade oluştur', 'İptal et (İptal için önce ödemeleri iptal edin.)']);
+    expect(rowItems()).toEqual(['Ödeme ekle', 'İade oluştur', 'İptal et (ters kayıt) (İptal için önce ödemeleri iptal edin.)']);
     fireEvent.click(row('AF-pi3'));
     await waitFor(() => expect(row('AF-pi3').getAttribute('aria-current')).toBe('true'));
-    expect(rowItems()).toEqual(['İade oluştur', 'İptal et (İptal için önce ödemeleri iptal edin.)']);
+    expect(rowItems()).toEqual(['İade oluştur', 'İptal et (ters kayıt) (İptal için önce ödemeleri iptal edin.)']);
     fireEvent.click(row('AF-pi5'));
     await waitFor(() => expect(row('AF-pi5').getAttribute('aria-current')).toBe('true'));
     expect(rowItems()).toEqual([]);
@@ -287,8 +314,8 @@ describe('Satınalma Faturaları list', () => {
     // An unpaid invoice can be cancelled: the document opens and asks first (its own confirmation).
     fireEvent.click(row('AF-pi4'));
     await waitFor(() => expect(row('AF-pi4').getAttribute('aria-current')).toBe('true'));
-    expect(rowItems()).toEqual(['Ödeme ekle', 'İade oluştur', 'İptal et']);
-    await runMenu('İptal et');
+    expect(rowItems()).toEqual(['Ödeme ekle', 'İade oluştur', 'İptal et (ters kayıt)']);
+    await runMenu('İptal et (ters kayıt)');
     expect(await screen.findByText('Alış faturası iptal edilsin mi?')).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
@@ -361,7 +388,7 @@ describe('Alış faturası document', () => {
     const head = document.querySelector('.doc-surface h1')!.closest('header')!;
     // Only the back button stays in the header.
     expect(within(head).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Geri']);
-    expect(menu()).toEqual(['Ödeme ekle', 'İade oluştur', 'Faturayı iptal et (İptal için önce ödemeleri iptal edin.)']);
+    expect(menu()).toEqual(['Ödeme ekle', 'İade oluştur', 'Faturayı iptal et (ters kayıt) (İptal için önce ödemeleri iptal edin.)']);
     expect(reason('delete')).toContain('İşlenmiş belge silinemez — İşlemler › Faturayı iptal et');
     expect(reason('export')).toContain('Belge açıkken kullanılamaz');
     expect(enabled('refresh')).toBe(true);
@@ -382,8 +409,8 @@ describe('Alış faturası document', () => {
 
   it('an unpaid invoice can be cancelled from İşlemler (confirmation first); a voided one has no actions', async () => {
     await openInvoice('pi4');
-    expect(menu()).toEqual(['Ödeme ekle', 'İade oluştur', 'Faturayı iptal et']);
-    await runMenu('Faturayı iptal et');
+    expect(menu()).toEqual(['Ödeme ekle', 'İade oluştur', 'Faturayı iptal et (ters kayıt)']);
+    await runMenu('Faturayı iptal et (ters kayıt)');
     expect(await screen.findByText('Alış faturası iptal edilsin mi?')).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
@@ -416,7 +443,7 @@ describe('English', () => {
       'Fatura toplamı', 'Ödenmemiş', 'Vadesi geçen', 'fatura', 'bu sayfa', 'Kısmen ödendi', 'Ödendi', 'Vadesi geçti', 'İşlendi',
       'Tarih', 'Vade', 'Genel toplam', 'Kalan', 'Ödenen', '· 4 gün geçti', 'Vadesi geçti · 4 gün', 'Alış faturası özeti',
       'Özetini görmek için listeden bir alış faturası seçin.', 'Ödemeler', 'Satınalma siparişi', 'Mal kabul', 'Alış iadesi',
-      'Mal kabulünden fatura', 'Mal kabulsüz fatura', 'Ödeme ekle', 'İade oluştur', 'İptal et', 'Faturayı iptal et',
+      'Mal kabulünden fatura', 'Mal kabulsüz fatura', 'Ödeme ekle', 'İade oluştur', 'İptal et (ters kayıt)', 'Faturayı iptal et (ters kayıt)',
       'İptal için önce ödemeleri iptal edin.', 'İşlenmiş belge silinemez — İşlemler › İptal et',
       'İşlenmiş belge silinemez — İşlemler › Faturayı iptal et', 'İptal edilmiş belge silinemez', 'Tedarikçi', 'Unvan',
       'Alış faturası listesi', 'Alış faturası kayıtları', 'AF-pi1 fatura ayrıntılarını aç', 'Henüz ödeme yok.',

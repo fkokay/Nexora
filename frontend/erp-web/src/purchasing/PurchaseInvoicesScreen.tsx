@@ -173,7 +173,7 @@ export function PurchaseInvoicesScreen({
     more.push({ id: "purchase-invoice-return", label: "İade oluştur", run: () => openInvoice(target.id, "return") });
     more.push({
       id: "purchase-invoice-void",
-      label: "İptal et",
+      label: "İptal et (ters kayıt)",
       disabledReason: target.paidAmount > 0 ? "İptal için önce ödemeleri iptal edin." : undefined,
       run: () => openInvoice(target.id, "void"),
     });
@@ -187,8 +187,14 @@ export function PurchaseInvoicesScreen({
   const overdue = unpaid.filter((item) => purchaseInvoiceOverdueDays(item, today) > 0);
   const voided = items.filter((item) => item.status !== "Posted");
   const pageSum = (rows: PurchaseInvoiceSummary[], pick: (row: PurchaseInvoiceSummary) => number): string | null => {
-    const currencies = new Set((rows.length ? rows : items).map((row) => row.currencyCode));
-    if (loading || currencies.size !== 1) return null;
+    if (loading) return null;
+    // The card's own rows decide; none is a real 0 (in the page's currency when it has one).
+    if (!rows.length) {
+      const page = new Set(items.map((row) => row.currencyCode));
+      return page.size === 1 ? `${amount(0)} ${[...page][0]}` : amount(0);
+    }
+    const currencies = new Set(rows.map((row) => row.currencyCode));
+    if (currencies.size !== 1) return null;
     return `${amount(rows.reduce((sum, row) => sum + pick(row), 0))} ${[...currencies][0]}`;
   };
   const countHint = (count: number) => (
@@ -206,7 +212,7 @@ export function PurchaseInvoicesScreen({
           label: "Fatura toplamı",
           value: pageSum(posted, (row) => row.grandTotal) ?? "—",
           icon: CircleDollarSign,
-          hint: pageAmountHint(posted.length ? posted : items, countHint(posted.length)),
+          hint: pageAmountHint(posted, countHint(posted.length)),
         },
         {
           id: "invoice-unpaid",
@@ -214,7 +220,7 @@ export function PurchaseInvoicesScreen({
           value: pageSum(unpaid, (row) => row.outstandingAmount) ?? "—",
           icon: Clock3,
           tone: "warn",
-          hint: pageAmountHint(unpaid.length ? unpaid : items, countHint(unpaid.length)),
+          hint: pageAmountHint(unpaid, countHint(unpaid.length)),
         },
         {
           id: "invoice-overdue",
@@ -222,7 +228,7 @@ export function PurchaseInvoicesScreen({
           value: count(overdue),
           icon: CircleAlert,
           tone: "bad",
-          hint: overdue.length && overdueSum ? <><span>{overdueSum}</span> · <span>bu sayfa</span></> : pageAmountHint(overdue.length ? overdue : items, <span>bu sayfa</span>),
+          hint: overdue.length && overdueSum ? <><span>{overdueSum}</span> · <span>bu sayfa</span></> : pageAmountHint(overdue, <span>bu sayfa</span>),
         },
         { id: "invoice-voided", label: "İptal", value: count(voided), icon: CircleSlash, hint: <span>bu sayfa</span> },
       ]}

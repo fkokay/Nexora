@@ -470,7 +470,7 @@ export function PurchaseInvoiceModal({
       if (canReturn(invoice)) more.push({ id: "purchase-invoice-return", label: "İade oluştur", disabledReason: busyReason, run: openReturnPanel });
       more.push({
         id: "purchase-invoice-void",
-        label: "Faturayı iptal et",
+        label: "Faturayı iptal et (ters kayıt)",
         disabledReason: busyReason ?? (invoice.paidAmount > 0 ? "İptal için önce ödemeleri iptal edin." : undefined),
         run: () => voidInvoice(),
       });

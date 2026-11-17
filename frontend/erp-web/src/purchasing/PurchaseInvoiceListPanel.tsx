@@ -65,6 +65,8 @@ export function PurchaseInvoiceListPanel({
       tabs={TABS}
       render={(tab, detail, showTab) => {
         const money = (value: number) => panelMoney(value, detail.currencyCode);
+        // A voided invoice owes nothing; the API still returns its total as outstanding (same as the list cell).
+        const kalan = (invoice: PurchaseInvoiceDetail) => (invoice.status === "Posted" ? money(invoice.outstandingAmount) : "—");
         const lines = (Array.isArray(detail.lines) ? detail.lines : []).map((line) => ({ key: line.id, ...line }));
         if (tab === "lines") return <SalesPanelLines currency={detail.currencyCode} lines={lines} />;
         if (tab === "payments") {
@@ -74,7 +76,7 @@ export function PurchaseInvoiceListPanel({
               <SalesPanelFacts
                 items={[
                   { label: "Ödenen", value: money(detail.paidAmount) },
-                  { label: "Kalan", value: money(detail.outstandingAmount) },
+                  { label: "Kalan", value: kalan(detail) },
                 ]}
               />
               <SalesPanelSection title="Ödemeler">
@@ -112,7 +114,7 @@ export function PurchaseInvoiceListPanel({
             <SalesPanelStats
               items={[
                 { label: "Genel toplam", value: money(detail.grandTotal) },
-                { label: "Kalan", value: money(detail.outstandingAmount), tone: overdue > 0 ? "bad" : undefined },
+                { label: "Kalan", value: kalan(detail), tone: overdue > 0 ? "bad" : undefined },
                 { label: "Ödenen", value: money(detail.paidAmount) },
                 { label: "Vade", value: date(detail.dueDate) },
               ]}
