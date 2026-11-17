@@ -971,6 +971,20 @@ export const english: Record<string, string> = {
   'Hesap kartı': 'Account card',
   'Yeni alt hesap': 'New sub-account',
   'Hareketli hesap silinemez; yevmiye kayıtları ve raporlar korunur. Pasife alabilirsiniz: pasif hesaba yeni kayıt yapılamaz, etkinleştirildiğinde yeniden kullanılır.': 'An account with movements cannot be deleted; its journal entries and reports are kept. You can deactivate it: an inactive account takes no new postings and can be used again once activated.',
+  'Hesap eşleştirmelerini firma yöneticisi düzenler': 'Account mappings are edited by the tenant administrator',
+  'Eşleştirme anahtarları sistemde tanımlıdır; yeni eşleştirme eklenmez': 'Mapping keys are defined by the system; no new mapping is added',
+  'Eşleştirmeler silinmez; başka bir hesap seçin': 'Mappings are not deleted; choose another account',
+  'Dışa aktarılacak eşleştirme yok': 'No mappings to export',
+  'Hesabını görmek ya da değiştirmek için bir eşleştirme seçin.': 'Select a mapping to see or change its account.',
+  'Nerede kullanılır': 'Where it is used',
+  'Eşleştirme anahtarı': 'Mapping key',
+  'Bu eşleştirme sonraki aktarımlarda kullanılacak. Daha önce oluşturulmuş yevmiye fişleri değişmez. Eksik eşleştirme aktarımı engeller.': 'This mapping is used by later postings. Journal entries already created do not change. A missing mapping blocks posting.',
+  'Eşleştirme durumu': 'Mapping status',
+  '↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön': '↑↓ move in the list · Tab go to the form · Ctrl+S save · Esc back to the list',
+  'eşleştirme': 'mappings',
+  'tamam': 'done',
+  'Alt defter kaynaklarını muhasebe hesaplarıyla eşleştirin. Eksik eşleştirme aktarımı engeller.': 'Map subledger sources to ledger accounts. A missing mapping blocks posting.',
+  'Hesap eşleştirmesi': 'Account mapping',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

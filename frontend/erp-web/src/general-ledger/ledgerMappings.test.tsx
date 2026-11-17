@@ -68,12 +68,19 @@ async function openMappings(role = 'TenantAdmin') {
   renderScreen(<GeneralLedgerPage token="t" role={role} view="mappings" />);
   await settle();
 }
-/** Picks the account for the mapping (by its label) and saves it. */
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const barCommand = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+/** Opens the mapping (by its label) in the card, picks the account and saves it (Kaydet). */
 async function assign(label: string, code: string) {
+  const row = [...document.querySelectorAll<HTMLElement>('tr[data-mapping-key]')].find((tr) => tr.textContent?.includes(label))!;
+  fireEvent.click(row);
+  await settle(50);
   const input = screen.getByRole('combobox', { name: `${label} için hesap ara` });
   fireEvent.focus(input);
   fireEvent.change(input, { target: { value: code } });
   fireEvent.blur(input);
+  await settle(50);
+  fireEvent.click(barCommand('save'));
   await settle(50);
 }
 const pickerFor = (label: string) => screen.queryByRole('combobox', { name: `${label} için hesap ara` });
@@ -109,5 +116,9 @@ describe('Hesap eşleştirmeleri (characterization)', () => {
     await openMappings('TenantUser');
     expect(pickerFor('Satış gelirleri')).toBeNull();
     expect(screen.getAllByText(/Satış gelirleri/).length).toBeGreaterThan(0);
+    fireEvent.click([...document.querySelectorAll<HTMLElement>('tr[data-mapping-key]')].find((tr) => tr.textContent?.includes('Satış gelirleri'))!);
+    await settle(50);
+    expect(pickerFor('Satış gelirleri')).toBeNull();
+    expect(barCommand('save').getAttribute('title')).toBe('Hesap eşleştirmelerini firma yöneticisi düzenler');
   });
 });

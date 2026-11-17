@@ -120,55 +120,27 @@
 #root .general-ledger-panel.list-v2 .glch-summary dd .glrp-reverse { margin-left: 4px; vertical-align: -2px; }
 #root .general-ledger-panel.list-v2 .nx-def-pane > .glmv { min-width: 0; }
 
-/* Hesap eşleştirmeleri */
-#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: 42%; }
-#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(3) { width: 130px; }
-#root .general-ledger-panel.list-v2 .glmp-usage b { display: block; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-usage small { display: block; margin-top: 2px; color: var(--glrp-muted); font-size: 12px; }
+/* Hesap eşleştirmeleri: the same definition screen (list left, the mapping's account card right). */
+#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: 40%; }
+#root .general-ledger-panel.list-v2 .glmp-list .glch-table th:first-child { width: 40%; }
+#root .general-ledger-panel.list-v2 .glmp-list .glch-table :is(th, td):last-child { width: 104px; text-align: left; }
+#root .general-ledger-panel.list-v2 .glmp-list td.glch-name { overflow: hidden; max-width: 0; text-overflow: ellipsis; white-space: nowrap; }
+#root .general-ledger-panel.list-v2 .glmp-facts .glmp-wide { grid-column: span 2; }
+#root .general-ledger-panel.list-v2 .glmp-account { display: grid; gap: 4px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glmp-account-label { color: var(--nx-text); font-size: 11.5px; font-weight: 500; }
 #root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 32px;
+  height: var(--nx-control-h);
   padding: 0 10px;
-  border: 1px solid var(--glrp-line);
-  border-radius: 7px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
   background: var(--nx-surface);
-  color: var(--glrp-ink);
-  font-size: 13px;
-}
-#root .general-ledger-panel.list-v2 .glmp-row.is-missing .gl-account-combobox input,
-#root .general-ledger-panel.list-v2 .glmp-row.is-inactive .gl-account-combobox input { border-color: var(--glrp-warn-line); }
-#root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input:focus { border-color: var(--glrp-accent); outline: none; }
-#root .general-ledger-panel.list-v2 .glmp-hint {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  color: var(--glrp-muted);
-  font-size: 11.5px;
-}
-#root .general-ledger-panel.list-v2 .glmp-hint.is-ok { color: var(--glrp-ok); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-hint.is-error { color: var(--glrp-bad); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-unset { color: var(--glrp-muted); }
-#root .general-ledger-panel.list-v2 .glmp-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  color: var(--nx-text);
   font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .glmp-status.is-mapped { color: var(--glrp-ok); }
-#root .general-ledger-panel.list-v2 .glmp-status:is(.is-missing, .is-inactive) { color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip { border-color: var(--glrp-warn-line); color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip.is-active { border-color: #b86e12; background: #b86e12; color: #fff; }
-#root .general-ledger-panel.list-v2 .glmp .glrp-table-wrap { overflow: visible; }
-
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip:not(.is-active) { border-color: #7a5320; color: var(--nx-warn); }
-
-@media (max-width: 760px) {
-  #root .general-ledger-panel.list-v2 .glch-table th:nth-child(3),
-  #root .general-ledger-panel.list-v2 .glch-table td.glch-type { display: none; }
-  #root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: auto; }
-}
+#root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input:focus { border-color: var(--nx-primary); outline: none; }
+#root .general-ledger-panel.list-v2 .glmp-hint { display: flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--nx-muted); font-size: 11.5px; }
+#root .general-ledger-panel.list-v2 .glmp-hint.is-error { color: var(--nx-bad); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glmp-unset { color: var(--nx-muted); }
 #root .app-shell .general-ledger-panel.list-v2 .glch-list .glch-class-row > :is(th, td) { background: var(--nx-table-head) !important; }
