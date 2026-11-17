@@ -1158,7 +1158,6 @@ html[data-theme="dark"] .maturity-status.upcoming { color: var(--nx-warn); backg
 }
 .general-ledger-panel.finance-workbench .ledger-accounts-panel > .ledger-list { max-height: min(62vh, 620px); }
 .general-ledger-panel.finance-workbench .ledger-subpanel[aria-label="Aktarılabilir alt defter kaynakları"] > .ledger-list { max-height: min(44vh, 460px); }
-.general-ledger-panel.finance-workbench .journal-entries-list { max-height: min(58vh, 560px); }
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form label { min-width: 0; }
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form input,
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form select { box-sizing: border-box; width: 100%; min-width: 0; }
@@ -1290,7 +1289,6 @@ html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-manual
   .general-ledger-panel.finance-workbench .ledger-subpanel .heading-actions > label input { width: 100%; }
   .general-ledger-panel.finance-workbench .ledger-subpanel > .ledger-list { max-height: min(52vh, 440px); }
   .general-ledger-panel.finance-workbench .ledger-subpanel[aria-label="Aktarılabilir alt defter kaynakları"] > .ledger-list { max-height: min(42vh, 360px); }
-  .general-ledger-panel.finance-workbench .journal-entries-list { max-height: min(52vh, 440px); }
   .general-ledger-panel.finance-workbench .ledger-page-nav { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; }
   .general-ledger-panel.finance-workbench .ledger-page-nav button { flex: 0 0 auto; }
   .general-ledger-panel.finance-workbench .ledger-account-search { flex: 1 1 100%; min-width: 0; }

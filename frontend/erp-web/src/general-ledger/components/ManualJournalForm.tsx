@@ -4,6 +4,7 @@ import { CheckCircle2, X } from "lucide-react";
 import type { LedgerAccount } from "../../erp-types";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import { PageCommandsSlot, confirmStartNew } from "../../commands/PageCommandsSlot";
+import { confirmDialog } from "../../confirmDialog";
 import type { MenuCommand } from "../../commands/types";
 import { LINE_ADD_HINT, LineAddLabel, SalesFormLines } from "../../sales/salesDocumentForm";
 import { LedgerAccountCombobox } from "./LedgerAccountCombobox";
@@ -145,6 +146,23 @@ export function ManualJournalForm({
           more,
         }}
       />
+      {/* The header's Vazgeç asks first when lines were entered, as Esc does (the kit asks before calling onCancel). */}
+      <div
+        className="gl-voucher-host"
+        onClickCapture={(event) => {
+          const button = (event.target as HTMLElement).closest("button");
+          if (!dirty || !button || !button.matches(".doc-surface-side > .rf-btn:last-child")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          void confirmDialog({ title: "Vazgeç", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }).then(
+            (confirmed) => {
+              if (!confirmed) return;
+              onReset();
+              onOpenRecentEntries?.();
+            },
+          );
+        }}
+      >
       <RecordFormPage
         className="gl-voucher-rf"
         title="Yeni yevmiye fişi"
@@ -329,6 +347,7 @@ export function ManualJournalForm({
           </table>
         </SalesFormLines>
       </RecordFormPage>
+      </div>
     </>
   );
 }

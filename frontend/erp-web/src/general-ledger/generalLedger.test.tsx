@@ -348,6 +348,22 @@ describe('Yevmiye fişi on the document form', () => {
     expect(navigate).toHaveBeenCalledTimes(2);
   });
 
+  it('Vazgeç asks before dropping entered lines, then clears and goes to the ledger', async () => {
+    const navigate = vi.fn();
+    renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="voucher" onNavigate={navigate} />);
+    await settle();
+    pickAccount(1, '770');
+    fireEvent.change(screen.getByRole('textbox', { name: '1. satır borç' }), { target: { value: '10' } });
+    const form = document.querySelector<HTMLElement>('.record-form.doc-form')!;
+    fireEvent.click(within(form).getByRole('button', { name: 'Vazgeç' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(navigate).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Devam' }));
+    await settle(50);
+    expect(navigate).toHaveBeenCalledWith('finance-journal-ledger');
+    expect((screen.getByRole('textbox', { name: '1. satır borç' }) as HTMLInputElement).value).toBe('');
+  });
+
   it('F2 (Yeni) asks before clearing an entered voucher', async () => {
     renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="voucher" />);
     await settle();

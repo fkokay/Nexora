@@ -337,8 +337,9 @@ export function JournalLedgerView({
         ]}
       />
       <ListToolbar toolsSlotRef={setToolsSlot} onRefresh={onRefresh}>
-        <label className="list-v2-filter">
-          <span>Başlangıç</span>
+        {/* One "Tarih" filter (from – to) keeps the toolbar on one line at 1440, as Satış Teklifler. */}
+        <div className="list-v2-filter gljl-date-range" role="group" aria-label="Tarih aralığı">
+          <span>Tarih</span>
           <input
             type="date"
             aria-label="Başlangıç"
@@ -346,9 +347,7 @@ export function JournalLedgerView({
             max={entryTo || undefined}
             onChange={(e) => onDateRangeChange(e.target.value, entryTo)}
           />
-        </label>
-        <label className="list-v2-filter">
-          <span>Bitiş</span>
+          <span aria-hidden="true">–</span>
           <input
             type="date"
             aria-label="Bitiş"
@@ -356,7 +355,7 @@ export function JournalLedgerView({
             min={entryFrom || undefined}
             onChange={(e) => onDateRangeChange(entryFrom, e.target.value)}
           />
-        </label>
+        </div>
         <label className="list-v2-filter">
           <span>Standart</span>
           <select aria-label="Standart" value={basis} onChange={(e) => onBasisChange(e.target.value)}>

@@ -48,3 +48,6 @@
 #root .gl-voucher-locked { display: grid; gap: 6px; padding: 4px 0; }
 #root .app-shell .gl-voucher-locked h1 { margin: 0; color: var(--nx-text); font-size: 19px !important; font-weight: 650 !important; }
 #root .gl-voucher-locked p { margin: 0; color: var(--nx-muted); font-size: 13px; }
+
+/* Wrapper that only catches the header Vazgeç click; it adds no box. */
+#root .gl-voucher-host { display: contents; }

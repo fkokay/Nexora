@@ -136,11 +136,8 @@ dialog.finance-form-dialog.fin-rf-dialog { width: min(820px, calc(100vw - 32px))
 .foreign-trade-create.fin-rf-host .rf-toolbar { position: sticky; top: 0; z-index: 2; }
 .foreign-trade-create.fin-rf-host .rf-status { position: sticky; bottom: 0; z-index: 2; }
 /* Form açıkken modal taşarsa alt bilgi (Kapat) kesilmesin diye modal kaydırılabilir olur. */
-.account-transactions-modal:has(.fin-rf-inline) { overflow-y: auto; }
-.account-transactions-modal .fin-rf-inline { flex: none; border-top: 1px solid #d5dfeb; border-bottom: 1px solid #d5dfeb; }
 html[data-theme="dark"] .foreign-trade-create.fin-rf-host .rf-toolbar { position: sticky; top: 0; z-index: 2; }
 .foreign-trade-create.fin-rf-host .rf-status { position: sticky; bottom: 0; z-index: 2; }
-.account-transactions-modal .fin-rf-inline { border-color: #30394d; }
 
 @media (max-width: 1100px) {
   .record-form .rf-form .fin-rf-grid-4,
