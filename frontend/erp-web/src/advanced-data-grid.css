@@ -47,9 +47,10 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-heading { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; overflow: hidden; }
 .advanced-grid-header-cell .advanced-grid-heading > span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .advanced-grid-heading small { flex: 0 0 auto; min-width: 12px; color: #1765a6; font-size: 9px; font-weight: 700; text-align: center; }
-/* Sayı sütununun başlığı da hücreleri gibi sağa dayanır (taslak 06 / 07; sayfa sayfa tekrarlanan kuralın ortak hali). */
-.advanced-grid-table th.nx-num .advanced-grid-heading { justify-content: flex-end; }
-.advanced-grid-table th.nx-num .advanced-grid-heading > span:first-child { text-align: right; }
+/* Sayı sütununun başlığı da hücreleri gibi sağa dayanır (taslak 06 / 07; sayfa sayfa tekrarlanan kuralın ortak hali);
+   belgelerdeki kiracı satır ızgaraları sayı sütununu `dd-num` ile işaretler. */
+.advanced-grid-table th:is(.nx-num, .dd-num) .advanced-grid-heading { justify-content: flex-end; }
+.advanced-grid-table th:is(.nx-num, .dd-num) .advanced-grid-heading > span:first-child { text-align: right; }
 .advanced-grid-resize { position: absolute; z-index: 8; top: 0; right: 0; width: 8px; height: 100%; touch-action: none; cursor: col-resize; }
 .advanced-grid-resize:hover,.advanced-grid-resize:active { background: #287ac640; }
 .advanced-grid-master { display: inline-flex; align-items: center; justify-content: center; width: 18px; vertical-align: middle; }
