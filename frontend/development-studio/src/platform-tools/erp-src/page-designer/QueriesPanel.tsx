@@ -13,7 +13,7 @@ export type QueryKind = "read" | "insert" | "update" | "delete";
  * sorgu ERP işlemi modundadır; SQL metni mod değişiminde kaybolmasın diye durumda kalır, kayıtta atılır.
  */
 export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
-export const isOperationQuery = (query: PageQuery) => query.operation !== undefined;
+export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
@@ -173,7 +173,9 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
   const setMode = (toErp: boolean) => {
     if (!selected || toErp === erpMode) return;
     // SQL'e dönüşte parametreler SQL metninden yeniden çıkarılır (sql yaması bunu tetikler).
-    onUpdate(selected.id, toErp ? { operation: "", parameters: [] } : { operation: undefined, sql: selected.sql ?? "SELECT 1 AS Deger" });
+    // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
+    onUpdate(selected.id, toErp ? { operation: "", parameters: [] }
+      : { operation: undefined, sql: selected.sql ?? "SELECT 1 AS Deger", kind: "read", runOn: "load", parameters: [] });
   };
   const preview = selected ? previews[selected.id] : undefined;
   // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.

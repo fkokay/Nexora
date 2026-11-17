@@ -47,6 +47,9 @@ const isEmpty = (value: unknown) => value === undefined || value === null || val
  * boş değerler atlanır; gövde {...fixedBody, ...bağlı gövde parametreleri} olur. Geçersiz değerde istek kurulmaz.
  */
 export function buildReadRequest(operation: ErpOperation, values: Record<string, unknown>): { url: string; method: string; body?: string } {
+  // Önizleme yalnız GET/POST okumalarını çağırır; başka yöntem yazma sayılır ve hiç kurulmaz.
+  const method = operation.method.toUpperCase();
+  if (method !== "GET" && method !== "POST") throw new Error(ERP_WRITE_PREVIEW_BLOCKED);
   const valueOf = (name: string) => {
     const key = Object.keys(values).find((item) => item.toLowerCase() === name.toLowerCase());
     return key === undefined ? undefined : values[key];
@@ -70,7 +73,6 @@ export function buildReadRequest(operation: ErpOperation, values: Record<string,
   }
   const search = query.toString();
   const url = search ? `${path}?${search}` : path;
-  const method = operation.method.toUpperCase();
   return method === "GET" ? { url, method } : { url, method, body: JSON.stringify(body) };
 }
 
