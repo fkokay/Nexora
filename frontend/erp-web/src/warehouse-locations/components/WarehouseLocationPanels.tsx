@@ -82,6 +82,8 @@ export function LocationListPanel({
           <AdvancedDataGrid
             enableRowSelection={false}
             selectable
+            // All locations of the warehouse are loaded; the list footer counts them (no second pager in the card).
+            externalPagination
             currentRowKey={selectedId}
             onCurrentRowChange={onSelect}
             onSelectionChange={onSelectionChange}
@@ -160,7 +162,7 @@ export function LocationBalancePanel({
 }: LocationBalanceProps) {
   return (
     <section
-      className="panel warehouse-location-detail"
+      className="panel warehouse-location-detail list-v2-grid-card"
       aria-labelledby="warehouse-location-balance-title"
       aria-busy={loading}
     >
@@ -267,7 +269,7 @@ export function LocationBalancePanel({
                   {visibleFields.map((field) => (
                     <td key={field.key}>
                       {field.key === "stockItemCode" ? (
-                        <b>{row.stockItemCode}</b>
+                        <span className="nx-code">{row.stockItemCode}</span>
                       ) : field.key === "stockItemName" ? (
                         row.stockItemName
                       ) : field.key === "quantity" ? (
@@ -304,7 +306,7 @@ export function ReconciliationPanel({
 }: ReconciliationPanelProps) {
   return (
     <section
-      className="panel warehouse-location-reconciliation"
+      className="panel warehouse-location-reconciliation list-v2-grid-card"
       aria-labelledby="warehouse-location-reconciliation-title"
       aria-busy={loading}
     >
@@ -374,7 +376,7 @@ export function ReconciliationPanel({
                   {visibleFields.map((field) => (
                     <td key={field.key}>
                       {field.key === "stockItemCode" ? (
-                        <b>{row.stockItemCode}</b>
+                        <span className="nx-code">{row.stockItemCode}</span>
                       ) : field.key === "stockItemName" ? (
                         row.stockItemName
                       ) : field.key === "warehouseQuantity" ? (

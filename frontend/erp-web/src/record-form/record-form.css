@@ -355,7 +355,8 @@
   border-radius: var(--nx-radius-card);
   background: var(--nx-surface);
 }
-.record-form .rf-snav-list { display: flex; flex-direction: column; gap: 2px; }
+/* Positioned: the visually hidden state texts stay inside the strip when it scrolls sideways (narrow screens). */
+.record-form .rf-snav-list { position: relative; display: flex; flex-direction: column; gap: 2px; }
 .record-form .rf-snav-item {
   display: flex;
   align-items: center;

@@ -132,18 +132,18 @@ html[data-theme="dark"] :is(.advanced-grid-view-trigger, .advanced-grid-view-pop
    single frame: the grid and its scroll area draw none. The list-v2 card (whose grid toolbar lives in the page
    toolbar, so no popover is clipped) also clips the table to its rounded corners. */
 #root .app-shell .list-v2 .list-v2-list:has(.advanced-grid) { padding: 0; overflow: hidden; }
-#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) :is(.advanced-grid, .advanced-grid-scroll) {
+#root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) :is(.advanced-grid, .advanced-grid-scroll) {
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 /* An inline grid toolbar inside such a card keeps only a divider under it. */
-#root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+#root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
   border: 0 !important;
   border-bottom: 1px solid #e6ebf1 !important;
   border-radius: 0 !important;
 }
-html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
+html[data-theme='dark'] #root .app-shell :is(.list-v2 .list-v2-list, .list-v2 .list-v2-grid-card, .crm-panel, .bank-statements-list-panel) .advanced-grid-toolbar:not(.is-external) {
   border-bottom-color: #2f3c52 !important;
 }
 

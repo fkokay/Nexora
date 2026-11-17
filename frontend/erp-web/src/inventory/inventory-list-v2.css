@@ -30,6 +30,12 @@
 #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide .searchable-record-trigger {
   width: 320px;
 }
+/* Phone width: the stock picker takes the row instead of pushing the page sideways. */
+@media (max-width: 600px) {
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide { flex: 1 1 100%; min-width: 0; }
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide > :not(span) { flex: 1 1 auto; min-width: 0; }
+  #root .inventory-movements-page.list-v2 .list-v2-filter.is-wide .searchable-record-trigger { width: 100%; min-width: 0; }
+}
 
 /* Detail panels: section title above a table that follows the facts. */
 #root :is(.inventory-tracking-page, .warehouse-locations-page).list-v2 .list-v2-detail-meta + .list-v2-facts {
@@ -62,7 +68,7 @@
   min-width: 0;
   padding: 10px 14px;
   border: 1px solid #dfe5ee;
-  border-radius: 10px;
+  border-radius: var(--nx-radius-card);
   background: #fff;
   color: #17263a;
 }
@@ -231,6 +237,8 @@ html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .
 #root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button:is(:hover, :focus) { background: transparent; color: var(--nx-text); }
 #root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 #root .app-shell .inventory-list-v2 .inventory-stock-detail-tabs button.is-active {
+  /* Underline only: the global [aria-selected=true] tint (global-components.css, !important) is not a tab style. */
+  background: transparent !important;
   box-shadow: inset 0 -2px 0 var(--nx-primary);
   color: var(--nx-primary-strong);
   font-weight: 600;
@@ -251,7 +259,8 @@ html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .
 }
 #root .inventory-list-v2 .inventory-stock-detail-facts dt { color: var(--nx-muted); }
 #root .inventory-list-v2 .inventory-stock-detail-facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-#root .app-shell .inventory-list-v2 .inventory-stock-detail-action { align-self: flex-start; }
+/* Control height (the legacy secondary button is 40px). */
+#root .app-shell .inventory-list-v2 .inventory-stock-detail-action { align-self: flex-start; height: var(--nx-control-h); min-height: var(--nx-control-h); padding: 0 12px; border-radius: var(--nx-radius-control); font-size: 12.5px; }
 #root .inventory-list-v2 .inventory-stock-detail-section {
   margin-bottom: 6px;
   color: var(--nx-muted);

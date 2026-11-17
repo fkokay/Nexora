@@ -751,6 +751,41 @@ html[data-theme='dark'] #root .list-v2 .list-v2-status.is-active {
 }
 #root .list-v2 .nx-def-link:hover { background: var(--nx-primary-soft); }
 #root .list-v2 .nx-def-link:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+/* The embedded record form is not a second frame around its cards (mockup 04: the title row sits on the canvas, the
+   cards below it are the only boxes). `record-form--dialog` matches the global "-dialog" rules, hence !important. */
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded,
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form {
+  margin: 0;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-toolbar { padding: 4px 0 10px; background: transparent; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-form { padding: 12px 0 0; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-error { margin: 12px 0 0; }
+#root .app-shell .list-v2 .nx-def-pane > .inv-rf-embedded > .record-form > .rf-status { padding-inline: 0; background: transparent; border: 0; }
+/* Its inline grid toolbar uses the design control height (the shell gives grid toolbars 40px controls). */
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar { min-height: 0 !important; padding: 0 0 8px !important; gap: 6px; background: transparent !important; }
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar :is(.advanced-grid-search, .advanced-grid-menu > summary, .advanced-grid-action) {
+  height: var(--nx-control-h) !important;
+  min-height: var(--nx-control-h) !important;
+  border-radius: var(--nx-radius-control) !important;
+  font: 500 12.5px/1.2 var(--nx-font) !important;
+}
+#root .app-shell .list-v2 .list-v2-grid-card .advanced-grid-toolbar .advanced-grid-search input { height: 100%; font-size: 12.5px !important; }
+/* list-v2-grid-card: a secondary card that frames a grid with its own inline toolbar (e.g. Konum bakiyesi). The card
+   is the only frame (advanced-data-grid.css); it does not clip, so the toolbar popovers stay visible. */
+/* Legacy card rule (module-workspace.css "Match all workspace card surfaces": 12px !important on every
+   [class*=-card] / [class*=-panel] / .panel) would give list-v2 cards 12px and the toggles that match by name a card
+   radius: list-v2 keeps the design radii (card 8px, control 6px). */
+#root .app-shell:not(.standalone-studio) .workspace-page-main .list-v2 :is([class*="-card"], [class*="-panel"], .panel, .card):not(button) {
+  border-radius: var(--nx-radius-card) !important;
+}
+#root .app-shell:not(.standalone-studio) .workspace-page-main .list-v2 button:is([class*="-card"], [class*="-panel"]) {
+  border-radius: var(--nx-radius-control) !important;
+}
 @media (max-width: 1279px) {
   #root .list-v2 .nx-def { grid-template-columns: minmax(0, 1fr); }
   #root .list-v2 .nx-def-pane { display: none; }
