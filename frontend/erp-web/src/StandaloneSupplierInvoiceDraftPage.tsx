@@ -538,8 +538,12 @@ export default function StandaloneSupplierInvoiceDraftPage({
           editing={!!editing}
           busy={busy}
           notice={notice}
-          error={formError}
-          onDismissError={() => setFormError("")}
+          // Save errors, and the supplier search / load errors that reach the page while the form is open.
+          error={formError || error}
+          onDismissError={() => {
+            setFormError("");
+            setError("");
+          }}
           visibleSuppliers={visibleSuppliers}
           expenseAccounts={expenseAccounts}
           receiptOptions={receiptOptions}

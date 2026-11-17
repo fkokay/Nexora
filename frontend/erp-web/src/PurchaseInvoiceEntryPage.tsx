@@ -586,7 +586,7 @@ export default function PurchaseInvoiceEntryPage({
             />
           </label>
           {dueDate && typeof termDays === "number" && (
-            <p className="pie-create-due">{`Vade ${dueDate} · ${termDays} gün`}</p>
+            <p className="rf-field pie-create-due">{`Vade ${dueDate} · ${termDays} gün`}</p>
           )}
           {accountingProfiles.length > 0 && (
             <label className="rf-span-2">
@@ -813,6 +813,7 @@ export default function PurchaseInvoiceEntryPage({
                 onPageChange={setPage}
               />
             }
+            columnWidths={RECEIPT_COLUMN_WIDTHS}
             numberFields={RECEIPT_NUMBER_FIELDS}
           />
         </section>
@@ -823,3 +824,5 @@ export default function PurchaseInvoiceEntryPage({
 }
 
 const RECEIPT_NUMBER_FIELDS: ReadonlySet<string> = new Set(["invoiceAmount"]);
+/** Default widths (fields without a tenant width), sized like the Satış lists. */
+const RECEIPT_COLUMN_WIDTHS: Record<string, number> = { receipt: 180, supplier: 280, receiptDate: 105, invoiceAmount: 150 };

@@ -27,6 +27,11 @@ export const SUPPLIER_INVOICE_DRAFT_LOCKED = "Yalnızca muhasebeleştirilmemiş 
 
 const NUMBER_FIELDS: ReadonlySet<string> = new Set(["grandTotal", "lineCount"]);
 const CODE_FIELDS: ReadonlySet<string> = new Set(["invoiceNumber"]);
+/** Default widths (fields without a tenant width): the default columns fit beside the menu at 1440 without a scroll. */
+const COLUMN_WIDTHS: Record<string, number> = {
+  invoiceNumber: 130, supplierName: 210, invoiceDate: 95, dueDate: 95, currencyCode: 60, grandTotal: 130, lineCount: 55,
+  createdAt: 140, status: 130,
+};
 
 /**
  * Bağımsız tedarikçi faturaları listesi (Satış liste tipi): tek tık satırı seçer (sağ panel), çift tık / Enter / Aç
@@ -180,6 +185,7 @@ export function InvoiceDraftList({
                 </span>
               </ListFooter>
             }
+            columnWidths={COLUMN_WIDTHS}
             numberFields={NUMBER_FIELDS}
             codeFields={CODE_FIELDS}
           />

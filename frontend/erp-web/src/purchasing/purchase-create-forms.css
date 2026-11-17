@@ -35,7 +35,14 @@
 
 /* Mal kabul faturası girişi: yalnızca okunan satırlar (mal kabul satırları). */
 #root .doc-form.pie-create table.dd-lines td { white-space: nowrap; }
-#root .doc-form.pie-create .pie-create-due { color: var(--nx-muted); font-size: 12px; align-self: end; padding-bottom: 7px; }
+/* The due date note sits on the date fields' input line. */
+#root .app-shell .doc-form.pie-create .rf-group-body > p.pie-create-due {
+  align-self: end;
+  margin: 0;
+  padding: 0 0 7px;
+  color: var(--nx-muted);
+  font-size: 12px;
+}
 #root .doc-form.pie-create .pie-create-edoc { grid-column: 1 / -1; }
 #root .doc-form.pie-create .pie-create-edoc > summary { cursor: pointer; color: var(--nx-text); font-size: 12.5px; font-weight: 600; }
 #root .doc-form.pie-create .pie-create-edoc > div {

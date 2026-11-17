@@ -3,11 +3,15 @@
  * the draft form is the document create view (record-form `document`, table.dd-lines). This file only adds what is
  * particular to the draft lines, whose amounts are typed from the supplier's document. Colours are --nx-* tokens.
  */
-#root .doc-form.sid-create table.dd-lines td.sid-description-cell { min-width: 200px; }
-#root .doc-form.sid-create table.dd-lines td.dd-num { min-width: 92px; }
-#root .doc-form.sid-create table.dd-lines td select { min-width: 150px; }
+#root .doc-form.sid-create table.dd-lines td.sid-description-cell { min-width: 150px; }
+#root .doc-form.sid-create table.dd-lines td.dd-num { min-width: 74px; }
+#root .doc-form.sid-create table.dd-lines td select { min-width: 130px; }
 #root .doc-form.sid-create table.dd-lines .sid-muted { color: var(--nx-muted); }
+/* The note stays in view while the grid scrolls sideways (narrow screens). */
 #root .doc-form.sid-create .sid-lines-note {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
   margin: 0;
   padding: 8px 14px 10px;
   border-top: 1px solid var(--nx-line);

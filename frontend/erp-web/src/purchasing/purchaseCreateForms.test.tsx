@@ -438,7 +438,7 @@ describe('Bağımsız fatura taslakları: liste tipi ve belge oluşturma görün
     await startNewDraft();
     apiMock.mockClear();
     const { authenticatedFetch } = await import('../authApi');
-    vi.mocked(authenticatedFetch).mockImplementationOnce(async (url: string, _token: string, init?: RequestInit) => {
+    vi.mocked(authenticatedFetch).mockImplementationOnce(async (url: string, _token?: string, init?: RequestInit) => {
       record(url, init as { method?: string; body?: unknown });
       return new Response(JSON.stringify({ error: 'Fatura numarası kullanılıyor.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
     });
