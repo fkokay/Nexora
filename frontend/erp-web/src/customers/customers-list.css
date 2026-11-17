@@ -31,3 +31,4 @@
 #root .list-v2.customer-page-main .list-v2-toolbar { column-gap: 8px; }
 #root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-search { flex: 1 1 140px; min-width: 140px; }
 #root .list-v2.customer-page-main .list-v2-toolbar > .list-v2-chips { gap: 4px; }
+#root .list-v2 .customer-ld-caveat { margin: -6px 0 0; color: var(--nx-muted); font-size: 11.5px; }

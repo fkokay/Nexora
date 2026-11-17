@@ -8,6 +8,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import { CustomersPage } from '../CustomersPage';
 import { customerTypeLabel } from './customerLabels';
+import { CustomerDetailPanel } from './components/CustomerDetailPanel';
 
 const customer = (id: string, extra: Record<string, unknown> = {}) => ({
   id, code: `C-${id}`, name: `Cari ${id}`, type: 'Customer', taxNumber: '1234567890', isActive: true, createdAt: '2026-11-01',
@@ -257,6 +258,7 @@ describe('Cari Hesaplar list', () => {
     expect(p.getByRole('tab', { name: 'Genel Bilgiler' })).toBeTruthy();
     expect(p.getByRole('tab', { name: 'İletişim' })).toBeTruthy();
     expect(fetched('/api/customers/c1/balance')).toBe(1);
+    expect(panel()!.textContent).toContain('cari dövizi; farklı dövizli hareketler ayrıştırılmaz');
   });
 });
 
@@ -270,6 +272,7 @@ describe('English labels of the new Cari texts', () => {
       'aktif', 'e-Fatura', 'Limit kullanımı', 'Özetini görmek için listeden bir cari seçin.', 'Cari özeti', 'Alış faturaları',
       '↑↓ gez · Boşluk işaretle · Enter kartı aç · Çift tık aç · Ctrl+. detay paneli', 'Cari kayıtları',
       '— yeni sipariş, teklif, irsaliye, fatura ve pasife alma', 'Müşteri & Tedarikçi',
+      'cari dövizi; farklı dövizli hareketler ayrıştırılmaz', 'e-Fatura alıcı etiketi', 'Harita konumu:',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
   });
@@ -286,5 +289,21 @@ describe('Cari kartı (kayıt formu v3)', () => {
     expect(within(head).getByText('C-c1').className).toContain('rf-code');
     expect(within(head).getAllByText('Aktif')[0].className).toContain('nx-status-tag');
     expect(head.textContent).toContain('Toptan · Vade 30 gün · TRY · Vergi no 1234567890');
+  });
+});
+
+describe('Cari paneli döviz dürüstlüğü', () => {
+  it('Limit kullanımı only when the balance is in the card currency; alias in İletişim', () => {
+    const props = {
+      tab: 'contact', fields: [], address: null, addressLoaded: true, balanceError: '', onTabChange: vi.fn(), onOpen: vi.fn(),
+      onClose: vi.fn(), onInvoices: vi.fn(), onPurchaseInvoices: vi.fn(), onLedger: vi.fn(), onAddresses: vi.fn(), onFields: vi.fn(),
+    };
+    const card = { ...customers[0], currencyCode: 'EUR', eInvoiceRecipientAlias: 'urn:mail:pk@akdeniz' } as never;
+    render(<CustomerDetailPanel {...props} customer={card} balance={{ currencyCode: 'TRY', balance: 1000, balanceSide: 'Debit', riskLimit: 2000 }} />);
+    expect(screen.getByText('Limit kullanımı').parentElement!.textContent).toBe('Limit kullanımı—');
+    expect(screen.getByText('urn:mail:pk@akdeniz')).toBeTruthy();
+    cleanup();
+    render(<CustomerDetailPanel {...props} customer={{ ...customers[0] } as never} balance={{ currencyCode: 'TRY', balance: 1000, balanceSide: 'Debit', riskLimit: 2000 }} />);
+    expect(screen.getByText('Limit kullanımı').parentElement!.textContent).toBe('Limit kullanımı%50');
   });
 });

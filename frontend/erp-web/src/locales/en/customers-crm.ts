@@ -37,6 +37,11 @@ Object.assign(english, {
   'Fırsat kayıtları': 'Opportunity records', 'Tahmin ve takip': 'Forecast and follow-up',
   'tahmini tutar × olasılık': 'estimated amount × probability', 'zorunlu alan': 'required field',
   'Kazanma olasılığı': 'Win probability', 'Kazanma olasılığı (%)': 'Win probability (%)',
+  // Fix round 1
+  'cari dövizi; farklı dövizli hareketler ayrıştırılmaz': 'account currency; movements in other currencies are not separated',
+  'Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz':
+    'There are movements in another currency; totals and balance are not separated by currency',
+  'e-Fatura alıcı etiketi': 'E-invoice recipient alias', 'Harita konumu:': 'Map location:',
 } satisfies Record<string, string>);
 
 /** Anchored patterns for Turkish text rendered with dynamic values. */

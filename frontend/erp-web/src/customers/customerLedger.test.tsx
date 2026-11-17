@@ -15,7 +15,7 @@ const statement = {
   items: [
     line('l1', '2026-10-14', 'Debit', 500, 'Satış faturası SF-1', 1500, { hasReversal: true }),
     line('l2', '2026-10-15', 'Credit', 500, 'Hatalı fiyat', 1000, { reversalOfId: 'l1' }),
-    line('l3', '2026-10-16', 'Debit', 100, 'Satış faturası SF-2', 1100),
+    line('l3', '2026-10-16', 'Debit', 100, 'Satış faturası SF-2', 1100, { currencyCode: 'EUR' }),
     line('l4', '2026-11-01', 'Credit', 1400, 'Tahsilat', -300),
   ],
 };
@@ -80,6 +80,15 @@ describe('Cari Hesap Hareketleri (taslak 03 ekstre)', () => {
     expect(balance.className).toContain('nx-num');
   });
 
+  it('a movement in another currency shows its code; the statement says totals are not split by currency', async () => {
+    await renderWithStatement();
+    const foreign = screen.getByText('Satış faturası SF-2').closest('tr')!;
+    expect(within(foreign).getByText('100,00').closest('td')!.textContent).toContain('EUR');
+    const own = screen.getByText('Tahsilat').closest('tr')!;
+    expect(own.textContent).not.toContain('TRY');
+    expect(screen.getByText('Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz')).toBeTruthy();
+  });
+
   it('marks the reversal from reversalOfId and strikes through the reversed line', async () => {
     await renderWithStatement();
     const reversal = screen.getByText('Hatalı fiyat').closest('tr')!;
@@ -111,6 +120,7 @@ describe('English labels of the statement texts', () => {
       'Açılış bakiyesi', 'Kapanış bakiyesi', 'itibarıyla', 'ters kayıt dahil', 'Dönem', 'Bu ay', 'Son 3 ay', 'Yıl başından',
       'Hesap hareketleri', 'Devir — açılış bakiyesi', 'Dönem toplamı', 'hareket', 'Açılış', 'Kapanış',
       'B borç bakiyesi · A alacak bakiyesi · Ters kayıt orijinal hareketin karşı kaydıdır, hareketler silinmez',
+      'Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz',
       'Cari hesap hareketleri', 'Aramayla eşleşen cari bulunamadı.', 'Cari ekstre görünümüne başlayın',
       'Borç, alacak ve bakiye hareketlerini görmek için önce bir cari hesap seçin.',
     ])

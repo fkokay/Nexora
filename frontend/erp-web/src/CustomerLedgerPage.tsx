@@ -63,7 +63,20 @@ function sided(value: number) {
 /** A reversal line (written for an original line; the statement DTO carries `reversalOfId`). */
 const isReversalLine = (item: CustomerStatementLine) => Boolean(item.reversalOfId) || item.isReversal;
 
-function renderLedgerCell(item: CustomerStatementLine, key: string) {
+/**
+ * A movement amount. The statement API adds amounts up whatever their currency and labels the result with the
+ * account's currency, so a movement in another currency shows its own code (as the base page's currency format did).
+ */
+function lineAmount(item: CustomerStatementLine, statementCurrency: string) {
+  return (
+    <span className="cl-amount">
+      {amount(item.amount)}
+      {item.currencyCode !== statementCurrency && <span className="cl-foreign"> {item.currencyCode}</span>}
+    </span>
+  );
+}
+
+function renderLedgerCell(item: CustomerStatementLine, key: string, statementCurrency: string) {
   switch (key) {
     case "entryDate":
       return displayDate(item.entryDate);
@@ -79,9 +92,9 @@ function renderLedgerCell(item: CustomerStatementLine, key: string) {
     case "direction":
       return item.direction === "Debit" ? "Borç" : "Alacak";
     case "debit":
-      return item.direction === "Debit" ? <span className="cl-amount">{amount(item.amount)}</span> : "";
+      return item.direction === "Debit" ? lineAmount(item, statementCurrency) : "";
     case "credit":
-      return item.direction === "Credit" ? <span className="cl-amount">{amount(item.amount)}</span> : "";
+      return item.direction === "Credit" ? lineAmount(item, statementCurrency) : "";
     case "balance":
       return sided(item.balance);
     case "currencyCode":
@@ -354,6 +367,9 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                 <span>{displayDate(statement.from)} – {displayDate(statement.to)}</span> · <span>{currency}</span>
               </span>
               {loadingStatement && <span role="status">Güncelleniyor…</span>}
+              {statement.items.some((item) => item.currencyCode !== statement.currencyCode) && (
+                <span className="cl-foreign-note">Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz</span>
+              )}
             </div>
             <div className="cl-line cl-opening">
               <span>
@@ -392,7 +408,7 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                         className={numericLedgerFields.has(field.key) ? "nx-num" : undefined}
                         title={field.key === "description" ? item.description : undefined}
                       >
-                        {renderLedgerCell(item, field.key)}
+                        {renderLedgerCell(item, field.key, statement.currencyCode)}
                       </td>
                     ))}
                   </tr>

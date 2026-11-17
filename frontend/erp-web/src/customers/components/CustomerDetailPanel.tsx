@@ -125,10 +125,17 @@ export function CustomerDetailPanel({
     }
   };
 
-  // Limit kullanımı only for a debit balance against a defined limit (the API's risk limit).
+  // `/balance` adds the account's movements up whatever their currency and labels the sum with the card currency
+  // (no conversion, no split); the risk limit is in the card currency. Limit kullanımı is shown only when both are in
+  // the card currency, for a debit balance against a defined limit, with the same caveat.
   const limit = balance?.riskLimit ?? null;
+  const sameCurrency = !!balance && balance.currencyCode === customer.currencyCode;
   const usage =
-    balance && limit && limit > 0 ? (balance.balanceSide === "Debit" ? (Math.abs(balance.balance) / limit) * 100 : 0) : null;
+    balance && sameCurrency && limit && limit > 0
+      ? balance.balanceSide === "Debit"
+        ? (Math.abs(balance.balance) / limit) * 100
+        : 0
+      : null;
 
   return (
     <SalesListDetailPanel
@@ -175,6 +182,7 @@ export function CustomerDetailPanel({
           ]}
         />
       )}
+      {!balanceError && balance && <p className="customer-ld-caveat">cari dövizi; farklı dövizli hareketler ayrıştırılmaz</p>}
       {activeTab === "contact" ? (
         <>
           <SalesPanelFacts
@@ -183,6 +191,7 @@ export function CustomerDetailPanel({
               { label: "Kurumsal e-posta", value: customer.email || "—" },
               { label: "Yetkili kişi", value: customer.contactName || "—" },
               { label: "Yetkili telefon", value: customer.contactPhone || "—" },
+              { label: "e-Fatura alıcı etiketi", value: customer.eInvoiceRecipientAlias || "—" },
             ]}
           />
         </>
@@ -212,6 +221,11 @@ export function CustomerDetailPanel({
               {address.city}
               {address.postalCode ? ` · ${address.postalCode}` : ""} · {address.countryCode}
             </span>
+            {address.latitude !== null && address.longitude !== null && (
+              <span className="sales-ld-muted">
+                <span>Harita konumu:</span> {address.latitude.toFixed(6)}, {address.longitude.toFixed(6)}
+              </span>
+            )}
           </p>
         ) : (
           <p className="sales-ld-muted">Varsayılan adres tanımlanmamış.</p>

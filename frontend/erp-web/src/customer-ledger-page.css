@@ -149,3 +149,5 @@
   #root .customer-ledger-page .customer-ledger-customer { flex: 1 1 100%; }
   #root .customer-ledger-page .cl-line-figures { justify-content: flex-start; }
 }
+#root .customer-ledger-page .cl-foreign { color: var(--nx-warn); font-size: 11px; font-weight: 600; }
+#root .customer-ledger-page .cl-foreign-note { color: var(--nx-warn); font-size: 12px; }
