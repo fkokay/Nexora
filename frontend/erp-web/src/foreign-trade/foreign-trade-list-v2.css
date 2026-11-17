@@ -449,3 +449,7 @@ html[data-theme="dark"] #root .list-v2.foreign-trade-page .foreign-trade-invento
 #root .list-v2.foreign-trade-page .foreign-trade-list th { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; }
 /* The inventory document block is a section of the panel, not a card inside it. */
 #root .list-v2.foreign-trade-page .foreign-trade-body .foreign-trade-inventory-link { border: 0; border-top: 1px solid var(--nx-line); border-radius: 0; background: transparent; padding-inline: 0; }
+
+/* The next step runs from İşlemler (Alt+İ); the panel names it under its prerequisites. */
+#root .foreign-trade-page.list-v2 .foreign-trade-next-hint { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
+#root .foreign-trade-page.list-v2 .foreign-trade-next-hint b { color: var(--nx-text); font-weight: 600; }

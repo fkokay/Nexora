@@ -18,6 +18,8 @@ const cases = [tradeCase('c1', 'IHR-001', 'Draft'), tradeCase('c2', 'IHR-002', '
 const calls: Array<{ url: string; method: string }> = [];
 /** Overrides the case page (e.g. a full first page of 100). */
 let casePage: { items: unknown[]; total: number } | null = null;
+/** While set, /transition requests wait for it (a running step). */
+let hold: Promise<void> | null = null;
 
 function respond(url: string): unknown {
   const path = url.split('?')[0];
@@ -32,6 +34,7 @@ vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method ?? 'GET' });
+    if (url.endsWith('/transition') && hold) await hold;
     return new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }),
 }));
@@ -46,6 +49,7 @@ afterEach(() => {
   cleanup();
   calls.length = 0;
   casePage = null;
+  hold = null;
   localStorage.clear();
 });
 
@@ -82,7 +86,7 @@ describe('Dış Ticaret frame', () => {
     await waitFor(() => expect(command('open').getAttribute('aria-disabled')).not.toBe('true'));
     expect(reason('delete')).toBe("Dosya silinemez; İşlemler'den iptal edin.");
     const items = openMenu();
-    expect(items).toEqual(['İthalat dosyası', 'İhracat dosyası', 'İptal et', 'CSV olarak dışa aktar']);
+    expect(items).toEqual(['İthalat dosyası', 'İhracat dosyası', 'Planlandı aşamasına geçir', 'İptal et', 'CSV olarak dışa aktar']);
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'İptal et' }));
     });
@@ -99,7 +103,47 @@ describe('Dış Ticaret frame', () => {
     await screen.findAllByText('IHR-001');
     fireEvent.click(screen.getAllByText('IHR-002').find((node) => node.closest('tr'))!);
     await waitFor(() => expect(reason('open')).toBe('Yalnız Taslak ve Planlandı dosyalar düzenlenebilir'));
-    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası', 'CSV olarak dışa aktar']);
+    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası', 'Gümrükte aşamasına geçir', 'CSV olarak dışa aktar']);
+  });
+
+  it('İlerle is in İşlemler with the panel conditions: a missing prerequisite disables it until filled in the panel', async () => {
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
+    await screen.findAllByText('IHR-001');
+    // Shipped → Gümrükte needs a customs reference (none on the case).
+    fireEvent.click(screen.getAllByText('IHR-002').find((node) => node.closest('tr'))!);
+    const panel = await screen.findByRole('region', { name: 'Sonraki adım' });
+    expect(within(panel).queryByRole('button', { name: /aşamasına geçir/ })).toBeNull();
+    fireEvent.click(command('more'));
+    const step = await screen.findByRole('menuitem', { name: /Gümrükte aşamasına geçir/ });
+    expect(step.getAttribute('aria-disabled')).toBe('true');
+    expect(step.getAttribute('title') ?? step.textContent).toContain('Önce paneldeki gerekli alanları doldurun');
+    fireEvent.click(command('more'));
+    fireEvent.change(within(panel).getByLabelText('Gümrük referansı'), { target: { value: 'GB-26-1' } });
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('menuitem', { name: /Gümrükte aşamasına geçir/ }));
+    });
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST' && call.url === '/api/foreign-trade/cases/c2/transition')).toBe(true));
+  });
+
+  it('while a case step runs, double click does not open its form', async () => {
+    let release: () => void = () => {};
+    hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
+    const draft = (await screen.findAllByText('IHR-001')).find((node) => node.closest('tr'))!;
+    fireEvent.click(draft);
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('menuitem', { name: /Planlandı aşamasına geçir/ }));
+    });
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith('/c1/transition'))).toBe(true));
+    fireEvent.doubleClick(draft);
+    expect(screen.queryByRole('dialog', { name: 'Dosyayı düzenle' })).toBeNull();
+    await act(async () => {
+      release();
+    });
   });
 
   it('stage chips filter the list; double click on a draft opens its form', async () => {

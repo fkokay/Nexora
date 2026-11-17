@@ -1,6 +1,7 @@
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef } from "react";
 import { AlertTriangle, Globe2, PackageCheck, X } from "lucide-react";
 import { localizedText } from "../../locale";
+import { advanceCheck, type AdvanceField } from "../advance";
 import {
   tradeStageFlow,
   type AdvanceInputs,
@@ -34,8 +35,12 @@ type Props = {
   onDismissNotice: () => void;
   onDocumentChange: (id: string) => void;
   onLinkDocument: (item: TradeCase) => void;
-  /** Saves the collected prerequisite inputs (if any) and moves the case to `status`. */
-  onAdvance: (item: TradeCase, status: TradeStatus, inputs: AdvanceInputs) => void;
+  /**
+   * Prerequisite inputs of the next stage, kept by the page: İşlemler's step ("… aşamasına geçir") saves them and
+   * moves the case (the panel no longer has its own button).
+   */
+  inputs: AdvanceInputs;
+  onInputsChange: (inputs: AdvanceInputs) => void;
 };
 
 const tr = (turkish: string, english: string) =>
@@ -92,12 +97,9 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
   onDismissNotice,
   onDocumentChange,
   onLinkDocument,
-  onAdvance,
+  inputs,
+  onInputsChange,
 }: Props, ref) {
-  const [inputs, setInputs] = useState<AdvanceInputs>({});
-  useEffect(() => {
-    setInputs({});
-  }, [item?.id, item?.status]);
 
   if (!item)
     return (
@@ -156,72 +158,9 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
         item.status,
       ));
 
-  // Prerequisites the backend checks on transition (ForeignTradeEndpoints.cs, /transition).
-  type Field = "plannedShipDate" | "declaredValue" | "incotermsCode" | "customsReference";
-  const fields: Field[] = [];
-  const blockers: string[] = [];
-  let fieldsEditable = true;
-  if (nextStatus === "Shipped") {
-    if (!item.plannedShipDate) fields.push("plannedShipDate");
-    if (!(item.declaredValue > 0)) fields.push("declaredValue");
-    if (!item.incotermsCode) fields.push("incotermsCode");
-    // Ship prerequisites are file details saved through the edit endpoint.
-    if (fields.length && !capabilities.canUpdate) {
-      fieldsEditable = false;
-      blockers.push(
-        tr(
-          "Planlanan sevk tarihi, pozitif beyan değeri ve Incoterms için dosya düzenleme izni (erp.foreign-trade.update) gerekir.",
-          "Planned ship date, a positive declared value and Incoterms require the case update permission (erp.foreign-trade.update).",
-        ),
-      );
-    }
-  }
-  if (nextStatus === "CustomsClearance") {
-    if (!item.customsReference) fields.push("customsReference");
-    if (
-      item.direction === "Export" &&
-      item.inventoryPostingRequired &&
-      !item.salesDeliveryId
-    )
-      blockers.push(
-        tr(
-          "Kayıtlı teslimat belgesini aşağıdan bu dosyaya bağlayın.",
-          "Link the posted delivery document to this case below.",
-        ),
-      );
-  }
-  if (nextStatus === "Closed") {
-    if (!item.actualArrivalDate)
-      blockers.push(
-        tr("Gerçek varış tarihi kaydedilmelidir.", "An actual arrival date must be recorded."),
-      );
-    if (
-      item.direction === "Import" &&
-      item.inventoryPostingRequired &&
-      !item.purchaseReceiptId
-    )
-      blockers.push(
-        tr(
-          "Kayıtlı mal kabul belgesini aşağıdan bu dosyaya bağlayın.",
-          "Link the posted goods receipt to this case below.",
-        ),
-      );
-  }
-  // Inputs stay visible next to other blockers so every prerequisite is shown up front.
-  const editableFields = fieldsEditable ? fields : [];
-  const fieldsFilled = editableFields.every((field) => {
-    const value = inputs[field]?.trim() || "";
-    if (field === "declaredValue") return Number(value) > 0;
-    return value.length > 0;
-  });
-  const canSubmitAdvance =
-    capabilities.canAdvance &&
-    !!nextStatus &&
-    !blockers.length &&
-    fieldsFilled &&
-    !busy;
-  const set = (field: Field, value: string) =>
-    setInputs((current) => ({ ...current, [field]: value }));
+  // Prerequisites of the next stage (advance.ts); the step itself runs from İşlemler with the same conditions.
+  const { fields, editableFields, blockers } = advanceCheck(item, nextStatus, capabilities, inputs, busy);
+  const set = (field: AdvanceField, value: string) => onInputsChange({ ...inputs, [field]: value });
 
   const order = orderMap.get(item.purchaseOrderId || item.salesOrderId || "");
 
@@ -389,17 +328,11 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
               )}
             </div>
           )}
-          <button
-            type="button"
-            className="primary foreign-trade-advance"
-            disabled={!canSubmitAdvance}
-            onClick={() => onAdvance(item, nextStatus, inputs)}
-          >
-            {tr(
-              `${statusLabel(nextStatus)} aşamasına geçir`,
-              `Move to ${statusLabel(nextStatus)}`,
-            )}
-          </button>
+          <p className="foreign-trade-next-hint">
+            <span>{tr("Sıradaki adım", "Next step")}</span>{" "}
+            <b>{statusLabel(nextStatus)}</b>{" "}
+            <span>{tr("· İşlemler (Alt+İ)", "· Actions (Alt+İ)")}</span>
+          </p>
         </section>
       )}
 

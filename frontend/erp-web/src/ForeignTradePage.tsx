@@ -42,6 +42,7 @@ import type {
   AdvanceInputs,
 } from "./foreign-trade/types";
 import { problemDetail } from "./erpApi";
+import { advanceCheck } from "./foreign-trade/advance";
 
 const blankDraft = (): Draft => ({
   direction: "Import",
@@ -157,6 +158,8 @@ export default function ForeignTradePage({
     InventoryDocument[]
   >([]);
   const [inventoryDocumentId, setInventoryDocumentId] = useState("");
+  // Prerequisite inputs of the selected case's next stage (entered in the panel, used by İşlemler's step).
+  const [advanceInputs, setAdvanceInputs] = useState<AdvanceInputs>({});
   const [screenFields, setScreenFields] = useState<ForeignTradeScreenField[]>(
     defaultForeignTradeFields,
   );
@@ -328,6 +331,10 @@ export default function ForeignTradePage({
   const selectedNextStatus = selectedCase
     ? nextStatus[selectedCase.status]
     : undefined;
+  // A new case or a moved case starts with empty prerequisite inputs (as the panel did).
+  useEffect(() => {
+    setAdvanceInputs({});
+  }, [selectedCase?.id, selectedCase?.status]);
   const orderMap = useMemo(
     () => new Map(orders.map((order) => [order.id, order])),
     [orders],
@@ -541,6 +548,16 @@ export default function ForeignTradePage({
     { id: "trade-new-import", label: tr("İthalat dosyası", "Import case"), disabledReason: createReason, run: () => startCreate("Import") },
     { id: "trade-new-export", label: tr("İhracat dosyası", "Export case"), disabledReason: createReason, run: () => startCreate("Export") },
   ];
+  // The panel's "… aşamasına geçir" step, with the same conditions (advanceCheck) and the inputs entered there.
+  if (selectedCase && capabilities.canAdvance && selectedNextStatus) {
+    const step = advanceCheck(selectedCase, selectedNextStatus, capabilities, advanceInputs, caseBusy);
+    tradeMore.push({
+      id: "trade-advance",
+      label: tr(`${statusLabel(selectedNextStatus)} aşamasına geçir`, `Move to ${statusLabel(selectedNextStatus)}`),
+      disabledReason: step.disabledReason,
+      run: () => void transition(selectedCase, selectedNextStatus, advanceInputs),
+    });
+  }
   if (selectedCase && caseEditable && capabilities.canAdvance)
     tradeMore.push({
       id: "trade-cancel",
@@ -1058,9 +1075,8 @@ export default function ForeignTradePage({
           onDismissNotice={() => setNotice(null)}
           onDocumentChange={setInventoryDocumentId}
           onLinkDocument={(item) => void linkInventoryDocument(item)}
-          onAdvance={(item, status, inputs) =>
-            void transition(item, status, inputs)
-          }
+          inputs={advanceInputs}
+          onInputsChange={setAdvanceInputs}
         />
       </div>
     </div>
