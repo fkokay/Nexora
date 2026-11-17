@@ -120,5 +120,7 @@
 .tenant-page-tag.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
 .app-shell .tenant-custom-page .tenant-page-table td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; }
 .app-shell .tenant-custom-page .tenant-page-table table.is-comfort td { height: var(--nx-row-h-comfort) !important; padding: 8px 9px !important; }
-.app-shell .tenant-custom-page .tenant-page-table td.code { font-family: var(--nx-font-mono); font-size: 12px !important; }
+.app-shell .tenant-custom-page .tenant-page-table td.code { font-family: var(--nx-font-mono); font-size: 12px; }
 .app-shell .tenant-custom-page .tenant-page-table tfoot td { border-top: 1px solid var(--nx-line) !important; border-bottom: 0 !important; background: var(--nx-table-head) !important; font-weight: 650; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot .tenant-page-total-label { float: left; color: var(--nx-muted); font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td > .num { float: right; }

@@ -224,7 +224,8 @@ export function QueryTable({ state, columns, title, description, style, selected
             {visible.map((column, index) => {
               const total = totals.includes(column.code) ? columnTotal(state.rows, column.code) : null;
               const text = total === null ? "" : formatCell(total, formats[column.code] === "money" ? "money" : "number");
-              return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? (total !== null ? `${totalLabel} ${text}` : totalLabel) : text}</td>;
+              if (index === 0 && total !== null) return <td key={column.code}><span className="tenant-page-total-label">{totalLabel}</span><span className="num">{text}</span></td>;
+              return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? totalLabel : text}</td>;
             })}
           </tr></tfoot>}
         </table></div>}

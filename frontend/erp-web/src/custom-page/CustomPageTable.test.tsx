@@ -77,3 +77,20 @@ describe('PageBadge', () => {
     expect(container.querySelector('.tenant-page-badge')!.classList.contains('tone-success')).toBe(true);
   });
 });
+
+describe('QueryTable ek durumlar', () => {
+  it('ilk sütun toplamlıysa etiket ve değer ayrı yazılır', () => {
+    const { container } = table(state([{ Tutar: 10 }, { Tutar: 5.5 }], [{ code: 'Tutar', label: 'Tutar' }]), { totals: ['Tutar'] });
+    expect(container.querySelector('tfoot .tenant-page-total-label')!.textContent).toBe('Toplam · 2 kayıt');
+    expect(container.querySelector('tfoot span.num')!.textContent).toBe('15,5');
+  });
+  it('boş status değeri tire olur, etiket çizilmez', () => {
+    const { container } = table(state([{ Durum: '' }], [{ code: 'Durum', label: 'Durum' }]), { formats: ['Durum=status'] });
+    expect(container.querySelector('tbody td')!.textContent).toBe('—');
+    expect(container.querySelector('.tenant-page-tag')).toBeNull();
+  });
+  it('money sütun başlığı sağa hizalanır', () => {
+    const { container } = table(state([{ Tutar: 1 }], [{ code: 'Tutar', label: 'Tutar' }]), { formats: ['Tutar=money'] });
+    expect(container.querySelector('th.num')).not.toBeNull();
+  });
+});
