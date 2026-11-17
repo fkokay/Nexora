@@ -20,7 +20,8 @@ import {
 import { createPortal } from "react-dom";
 import { ChevronDown, Download, SlidersHorizontal } from "lucide-react";
 import "./advanced-data-grid.css";
-import { usePageCommands } from "./commands/CommandProvider";
+import { openModals, usePageCommands } from "./commands/CommandProvider";
+import { BulkActionBar, type BulkAction } from "./list-page/BulkActionBar";
 
 type Operator =
   | "contains"
@@ -76,6 +77,14 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   externalPagination?: boolean;
   hideSearch?: boolean;
   enableRowSelection?: boolean;
+  /**
+   * List selection (design language): a checkbox column with a tri-state "Tümünü seç" header, a keyboard current row
+   * (↑/↓, Space toggles, Ctrl+A selects the page, Esc clears) and a selection limited to the visible page that resets
+   * on page / filter / sort changes. Replaces the inline row checkbox of `enableRowSelection`.
+   */
+  selectable?: boolean;
+  /** With `selectable`: actions of the floating bar shown while rows are selected. */
+  bulkActions?: BulkAction[];
   onSelectionChange?: (keys: string[]) => void;
   serverData?: ServerData;
   onImportRows?: (rows: ImportedRow[]) => void | Promise<void>;
@@ -94,6 +103,8 @@ type Row = {
   sourceIndex: number;
   cells: ReactElement<any>[];
 };
+/** Width of the `selectable` checkbox column (approved list draft). */
+const selectColumnWidth = 34;
 const defaultSettings: GridSettings = {
   order: [],
   hidden: [],
@@ -133,6 +144,7 @@ const trLabels = {
   next: "Sonraki",
   all: "Tümü",
   selectAll: "Görünen satırları seç",
+  selectAllPage: "Tümünü seç",
   selectRow: "Satırı seç",
   row: "Satır",
   noRows: "Filtrelerle eşleşen kayıt yok.",
@@ -201,6 +213,7 @@ const enLabels: typeof trLabels = {
   next: "Next",
   all: "All",
   selectAll: "Select visible rows",
+  selectAllPage: "Select all",
   selectRow: "Select row",
   row: "Row",
   noRows: "No records match these filters.",
@@ -444,6 +457,8 @@ export default function AdvancedDataGrid({
   externalPagination = false,
   hideSearch = false,
   enableRowSelection = true,
+  selectable = false,
+  bulkActions,
   onSelectionChange,
   serverData,
   onImportRows,
@@ -473,6 +488,8 @@ export default function AdvancedDataGrid({
     [filterLogic, setFilterLogic] = useState<"and" | "or">("and"),
     [sorts, setSorts] = useState<SortRule[]>([]),
     [selected, setSelected] = useState<Set<string>>(() => new Set()),
+    // `selectable`: the keyboard current row (arrow keys), shown as aria-current.
+    [currentKey, setCurrentKey] = useState<string | null>(null),
     [page, setPage] = useState(1),
     [sensitive, setSensitive] = useState(false),
     [fullscreen, setFullscreen] = useState(false),
@@ -774,6 +791,41 @@ export default function AdvancedDataGrid({
   useEffect(() => {
     onSelectionChange?.(selectedKeySignature ? selectedKeySignature.split("|") : []);
   }, [onSelectionChange, selectedKeySignature]);
+  // Legacy selection is a checkbox inside the first cell; `selectable` replaces it with its own column.
+  const inlineSelection = enableRowSelection && !selectable,
+    selectionEnabled = enableRowSelection || selectable,
+    selectColumns = selectable ? 1 : 0,
+    selectedPageKeys = visiblePageKeys.filter((key) => selected.has(key)),
+    somePageSelected = selectedPageKeys.length > 0 && !allPageSelected;
+  // `selectable` keeps the selection to the visible page: a page, page size, search, filter or sort change
+  // clears it, and keys that leave the row set (refresh, external pagination) are dropped.
+  const viewSignature = JSON.stringify([
+    currentPage,
+    pageSize,
+    query,
+    filters,
+    filterLogic,
+    sorts,
+    sensitive,
+  ]);
+  const viewSignatureRef = useRef(viewSignature);
+  useEffect(() => {
+    if (viewSignatureRef.current === viewSignature) return;
+    viewSignatureRef.current = viewSignature;
+    if (!selectable) return;
+    setSelected((current) => (current.size ? new Set() : current));
+    setCurrentKey(null);
+  }, [viewSignature, selectable]);
+  const pageKeySignature = JSON.stringify(visiblePageKeys);
+  useEffect(() => {
+    if (!selectable) return;
+    const keys = new Set<string>(JSON.parse(pageKeySignature));
+    setSelected((current) => {
+      const kept = [...current].filter((key) => keys.has(key));
+      return kept.length === current.size ? current : new Set(kept);
+    });
+    setCurrentKey((current) => (current !== null && !keys.has(current) ? null : current));
+  }, [pageKeySignature, selectable]);
   const virtualized = pageRows.length > 180,
     // Estimated row height for the virtual spacers: the single-line minimum per density in advanced-data-grid.css
     // (compact 26px, normal --nx-row-h-dense, comfortable --nx-row-h-comfort); taller (wrapping) rows make it approximate.
@@ -885,7 +937,10 @@ export default function AdvancedDataGrid({
             pinnedSide(column) === "left" &&
             visibleColumns.indexOf(column) < visibleColumns.indexOf(index),
         )
-        .reduce((sum, column) => sum + (widths[column] || 160), 0);
+        .reduce(
+          (sum, column) => sum + (widths[column] || 160),
+          selectColumns * selectColumnWidth,
+        );
       return { position: "sticky", left: offset, zIndex: 3 };
     }
     const offset = visibleColumns
@@ -999,6 +1054,83 @@ export default function AdvancedDataGrid({
       else delete pinned[index];
       return { ...current, pinned };
     });
+  }
+  function selectCellStyle(isHeader: boolean): CSSProperties {
+    return {
+      width: selectColumnWidth,
+      minWidth: selectColumnWidth,
+      maxWidth: selectColumnWidth,
+      position: "sticky",
+      left: 0,
+      ...(isHeader ? { top: 0, zIndex: 6 } : { zIndex: 3 }),
+    };
+  }
+  function toggleRow(key: string, checked = !selected.has(key)) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+  function selectPage() {
+    setSelected((current) => new Set([...current, ...visiblePageKeys]));
+  }
+  function clearSelection() {
+    setSelected((current) => (current.size ? new Set() : current));
+  }
+  function moveCurrentRow(step: 1 | -1) {
+    if (!visiblePageKeys.length) return;
+    const at = currentKey === null ? -1 : visiblePageKeys.indexOf(currentKey),
+      index =
+        at < 0
+          ? step > 0
+            ? 0
+            : visiblePageKeys.length - 1
+          : Math.max(0, Math.min(visiblePageKeys.length - 1, at + step));
+    setCurrentKey(visiblePageKeys[index]);
+    const container = scrollRef.current,
+      element = container?.querySelector<HTMLElement>(
+        `tbody > tr[data-grid-row="${index}"]`,
+      );
+    if (element) element.scrollIntoView?.({ block: "nearest" });
+    else if (container) container.scrollTop = index * rowHeight;
+  }
+  /** `selectable` keys while focus is inside the grid: arrows move the current row, Space toggles it,
+   * Ctrl+A selects the visible page, Esc clears the selection. */
+  function handleSelectionKey(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    // Typing stays native (a row checkbox is not typing, but Space on it toggles natively).
+    if (target.closest('textarea,select,[contenteditable="true"],input:not([type="checkbox"])'))
+      return;
+    const grid = event.currentTarget,
+      modals = openModals();
+    if (modals.length && !modals.some((modal) => modal.contains(grid))) return;
+    if (event.altKey) return;
+    if (event.ctrlKey || event.metaKey) {
+      if (event.shiftKey || (event.key !== "a" && event.key !== "A")) return;
+      event.preventDefault();
+      selectPage();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (!selected.size) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clearSelection();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (event.shiftKey || !visiblePageKeys.length) return;
+      event.preventDefault();
+      moveCurrentRow(event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === " ") {
+      if (
+        currentKey === null ||
+        target.closest('input,button,a[href],summary,[role="button"]')
+      )
+        return;
+      event.preventDefault();
+      toggleRow(currentKey);
+    }
   }
   function togglePageSelection() {
     setSelected((current) => {
@@ -1343,6 +1475,25 @@ export default function AdvancedDataGrid({
     );
   const renderedHeadRows = headNodes.map((node, nodeIndex) => {
     if (
+      selectable &&
+      asElement(node) &&
+      node.type === "tr" &&
+      nodeIndex !== headNodes.indexOf(headerRow!)
+    ) {
+      const groupRow = node as ReactElement<any>;
+      // Upper header rows (column groups) get a filler cell so they stay aligned with the selection column.
+      return cloneElement(
+        groupRow,
+        {},
+        <th
+          className="advanced-grid-select-cell"
+          aria-hidden="true"
+          style={selectCellStyle(true)}
+        />,
+        groupRow.props.children,
+      );
+    }
+    if (
       !asElement(node) ||
       node.type !== "tr" ||
       nodeIndex !== headNodes.indexOf(headerRow!)
@@ -1356,6 +1507,25 @@ export default function AdvancedDataGrid({
       headerElement,
       {},
       <>
+        {selectable && (
+          <th
+            className="advanced-grid-select-cell"
+            style={selectCellStyle(true)}
+          >
+            <input
+              type="checkbox"
+              className="nx-check"
+              aria-label={labels.selectAllPage}
+              aria-checked={somePageSelected ? "mixed" : undefined}
+              ref={(input) => {
+                if (input) input.indeterminate = somePageSelected;
+              }}
+              checked={allPageSelected}
+              disabled={!visiblePageKeys.length}
+              onChange={togglePageSelection}
+            />
+          </th>
+        )}
         {visibleColumns.map((index) => {
           const cell = raw[index];
           if (!cell) return null;
@@ -1364,7 +1534,7 @@ export default function AdvancedDataGrid({
             isFirst = index === visibleColumns[0];
           const content = (
             <>
-              {isFirst && enableRowSelection && (
+              {isFirst && inlineSelection && (
                 <span className="advanced-grid-master">
                   <input
                     type="checkbox"
@@ -1452,22 +1622,58 @@ export default function AdvancedDataGrid({
     );
   });
   const renderedHead = cloneElement(thead, {}, renderedHeadRows);
-  const renderedRows = renderPageRows.map((row, rowIndex) =>
-    cloneElement(
+  const renderedRows = renderPageRows.map((row, rowIndex) => {
+    const pageIndex = virtualStart + rowIndex,
+      rowNumber = start + pageIndex + 1,
+      checked = selected.has(row.key);
+    // `selectable`: aria-selected is the checkbox. The current row is the keyboard row, or until there is one the
+    // page's own marked record (its aria-current / aria-selected), so a page's selected-record highlight is kept.
+    const pageMarksCurrent = [true, "true"].includes(
+      row.element.props["aria-current"] ?? row.element.props["aria-selected"],
+    );
+    const selectionProps = selectable
+      ? {
+          "aria-selected": checked,
+          "aria-current": (
+            currentKey === null ? pageMarksCurrent : currentKey === row.key
+          )
+            ? "true"
+            : undefined,
+          "data-grid-row": pageIndex,
+          onClick: (event: ReactMouseEvent) => {
+            row.element.props.onClick?.(event);
+            setCurrentKey(row.key);
+          },
+        }
+      : {
+          "aria-selected": enableRowSelection
+            ? checked
+            : row.element.props["aria-selected"],
+        };
+    return cloneElement(
       row.element,
       {
-        "aria-selected": enableRowSelection
-          ? selected.has(row.key)
-          : row.element.props["aria-selected"],
+        ...selectionProps,
         className:
-          `${row.element.props.className || ""}${enableRowSelection && selected.has(row.key) ? " advanced-grid-row-selected" : ""}`.trim(),
+          `${row.element.props.className || ""}${selectionEnabled && checked ? " advanced-grid-row-selected" : ""}`.trim(),
       },
       <>
+        {selectable && (
+          <td className="advanced-grid-select-cell" style={selectCellStyle(false)}>
+            <input
+              type="checkbox"
+              className="nx-check"
+              aria-label={`${labels.selectRow} ${rowNumber}`}
+              checked={checked}
+              onChange={(event) => toggleRow(row.key, event.target.checked)}
+            />
+          </td>
+        )}
         {visibleColumns.map((index, columnPosition) => {
           const cell = row.cells[index];
           if (!cell) return null;
           const isFirst = columnPosition === 0,
-            number = start + virtualStart + rowIndex + 1,
+            number = rowNumber,
             editable = plainText(cell.props.children),
             active =
               editingCell?.key === row.key && editingCell.column === index,
@@ -1513,7 +1719,7 @@ export default function AdvancedDataGrid({
             original
           );
           const content =
-            isFirst && enableRowSelection ? (
+            isFirst && inlineSelection ? (
               <>
                 <span className="advanced-grid-row-select">
                   <span>{number}</span>
@@ -1562,8 +1768,8 @@ export default function AdvancedDataGrid({
           );
         })}
       </>,
-    ),
-  );
+    );
+  });
   const special = rows.length === 0 ? specialRows : [];
   const bodyChildren: ReactNode[] = renderedRows.length
     ? [
@@ -1572,7 +1778,7 @@ export default function AdvancedDataGrid({
               <tr key="virtual-top" aria-hidden="true">
                 <td
                   className="advanced-grid-virtual-spacer"
-                  colSpan={Math.max(1, visibleColumns.length)}
+                  colSpan={Math.max(1, visibleColumns.length) + selectColumns}
                   style={{
                     height: virtualStart * rowHeight,
                     padding: 0,
@@ -1588,7 +1794,7 @@ export default function AdvancedDataGrid({
               <tr key="virtual-bottom" aria-hidden="true">
                 <td
                   className="advanced-grid-virtual-spacer"
-                  colSpan={Math.max(1, visibleColumns.length)}
+                  colSpan={Math.max(1, visibleColumns.length) + selectColumns}
                   style={{
                     height: (pageRows.length - virtualEnd) * rowHeight,
                     padding: 0,
@@ -1604,7 +1810,7 @@ export default function AdvancedDataGrid({
       : [
           <tr key="advanced-grid-empty">
             <td
-              colSpan={Math.max(1, visibleColumns.length)}
+              colSpan={Math.max(1, visibleColumns.length) + selectColumns}
               className="advanced-grid-empty"
             >
               {serverData?.loading ? labels.loading : labels.noRows}
@@ -1850,7 +2056,7 @@ export default function AdvancedDataGrid({
             </b>
           )}
         </span>
-        {onEditRows && enableRowSelection && (
+        {onEditRows && selectionEnabled && (
           <>
             <button
               type="button"
@@ -2204,6 +2410,7 @@ export default function AdvancedDataGrid({
               .querySelector<HTMLInputElement>(".advanced-grid-search input")
               ?.focus();
           }
+          if (selectable) handleSelectionKey(event);
         }}
       >
         <table
@@ -2214,6 +2421,17 @@ export default function AdvancedDataGrid({
           {finalChildren}
         </table>
       </div>
+      {selectable && bulkActions?.length && selectedPageKeys.length > 0 ? (
+        <BulkActionBar
+          selectedKeys={selectedPageKeys}
+          actions={bulkActions}
+          onClear={() => {
+            clearSelection();
+            // The bar unmounts with the selection; keep focus in the grid.
+            scrollRef.current?.focus();
+          }}
+        />
+      ) : null}
       {serverData?.loading && (
         <div className="advanced-grid-loading" role="status">
           {labels.loading}

@@ -38,6 +38,14 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   `--nx-primary-soft` zemin ve solda 3px mavi çizgiyle; işaretlenen satırlar açık tonla
   gösterilir. Sağa hizalı sayı hücresine `nx-num`, eş aralıklı kod hücresine `nx-code`
   sınıfı verilir; sayılar kalın yazılmaz.
+- **Satır seçimi modül modül açılır.** `AdvancedDataGrid`'e `selectable` verilince ilk sütun
+  seçim kutucuğudur, başlıkta "Tümünü seç" (kısmi seçimde "—", `aria-checked="mixed"`).
+  Seçim yalnız görünen sayfadadır; sayfa, arama, filtre ya da sıralama değişince sıfırlanır.
+  Tablo odaktayken ↑/↓ geçerli satırı taşır, Boşluk işaretler, Ctrl+A sayfayı seçer, Esc
+  seçimi bırakır (yazarken ve tablo dışındaki bir pencere açıkken değil). `bulkActions`
+  verilirse seçim varken koyu toplu işlem çubuğu (`BulkActionBar`: "N seçili", işlemler,
+  "✕ Esc") tablonun altında yüzer; yalnız bugün var olan işlemler konur. Seçim
+  `onSelectionChange` ile alınır; Excel dışa aktarımı seçim varsa yalnız seçilenleri yazar.
 - **Filtre `<select>` yerine etiket.** Seçenek sayısı az (yaklaşık 6'ya kadar) ve sabitse
   `ListChipGroup` kullanılır. "Tümü" seçeneği olan gruplarda değeri `""` olan bir etiket
   bulunur; olmayanlarda `allowClear` verilir (etkin etikete tekrar tıklamak filtreyi

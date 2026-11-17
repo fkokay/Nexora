@@ -277,3 +277,79 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
 /* Opt-in cell classes for page renderers: right-aligned numbers and monospace codes. */
 .advanced-grid-table :is(th, td).nx-num { text-align: right; }
 .advanced-grid-table .nx-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
+/* ---- Row selection (`selectable`, approved list draft): checkbox column, 14px boxes, floating bulk bar ----
+   The checkbox column is sticky on the left; its opaque base yields to the hover / checked / current row tints above. */
+.advanced-grid-table :is(th, td).advanced-grid-select-cell { text-align: center; }
+.advanced-grid-table td.advanced-grid-select-cell { background: var(--nx-surface); }
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th.advanced-grid-select-cell,
+#root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td.advanced-grid-select-cell { padding-inline: 0; }
+.advanced-grid-table input.nx-check {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--nx-muted) 50%, var(--nx-surface));
+  border-radius: 3px;
+  background: var(--nx-surface);
+  vertical-align: middle;
+  appearance: none;
+  cursor: pointer;
+}
+.advanced-grid-table input.nx-check:is(:checked, :indeterminate) { border-color: var(--nx-primary); background: var(--nx-primary); }
+.advanced-grid-table input.nx-check:checked::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 3.5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--nx-on-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.advanced-grid-table input.nx-check:indeterminate::after { content: ""; position: absolute; top: 4.5px; left: 2px; width: 7px; height: 2px; background: var(--nx-on-primary); }
+.advanced-grid-table input.nx-check:disabled { opacity: .45; cursor: default; }
+/* The bulk bar floats over the bottom rows from a zero-height dock after the scroll container (no layout space);
+   BulkActionBar lifts it (--nx-bulk-lift) to the window's bottom edge while the grid runs past it. */
+.nx-bulk-dock { position: relative; z-index: 7; height: 0; }
+.nx-bulk {
+  position: absolute;
+  bottom: calc(12px + var(--nx-bulk-lift, 0px));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 14px;
+  overflow-x: auto;
+  /* A faint rim keeps the bar apart from a dark-theme table (the app shell drops box-shadows). */
+  border: 1px solid color-mix(in srgb, var(--nx-on-primary) 16%, var(--nx-ink));
+  border-radius: 10px;
+  background: var(--nx-ink);
+  color: var(--nx-on-primary);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 35%, transparent);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+#root .nx-bulk .nx-bulk-count { margin-right: 8px; color: var(--nx-on-primary); font-weight: 650; }
+#root .nx-bulk .nx-bulk-action {
+  height: auto;
+  min-height: 0;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  color: color-mix(in srgb, var(--nx-on-primary) 84%, var(--nx-ink));
+  font: inherit;
+  cursor: pointer;
+}
+#root .nx-bulk .nx-bulk-action:hover:not(:disabled) { background: var(--nx-ink-2); color: var(--nx-on-primary); }
+#root .nx-bulk .nx-bulk-action:disabled { opacity: .45; cursor: not-allowed; }
+#root .nx-bulk .nx-bulk-action:focus-visible { outline: 2px solid var(--nx-on-primary); outline-offset: 1px; }
+#root .nx-bulk .nx-bulk-clear { color: color-mix(in srgb, var(--nx-on-primary) 55%, var(--nx-ink)); }
+.nx-bulk-clear kbd { font: inherit; }
