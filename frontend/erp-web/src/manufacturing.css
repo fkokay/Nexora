@@ -641,7 +641,7 @@ html[data-theme="dark"] #root .app-shell .mfg-rf .mfg-rf-link:not(:disabled) { c
 #root .mfg-rf .mfg-rf-checklist li { display: flex; align-items: center; gap: 8px; }
 #root .mfg-rf .mfg-rf-checklist li > span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--mfg-rf-border); font-size: 11px; }
 #root .mfg-rf .mfg-rf-checklist li.is-done { color: var(--mfg-rf-text); }
-#root .mfg-rf .mfg-rf-checklist li.is-done > span { border-color: var(--nx-ok); background: var(--nx-ok); color: var(--nx-on-primary); }
+#root .mfg-rf .mfg-rf-checklist li.is-done > span { border-color: var(--nx-ok); background: var(--nx-ok); color: var(--nx-surface); }
 #root .mfg-rf .mfg-rf-tip { margin: 0; padding: 12px 14px; border: 1px solid var(--mfg-rf-border); border-radius: 10px; background: var(--mfg-rf-soft); color: var(--mfg-rf-muted); font-size: 12px; line-height: 1.5; }
 /* No yellow "must" backgrounds in these forms; the asterisk marks required fields. */
 #root .app-shell .mfg-rf .rf-form :is(input, select).rf-must { background-color: var(--mfg-rf-card) !important; }

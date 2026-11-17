@@ -9,6 +9,7 @@ import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import ManufacturingOrdersPage from '../ManufacturingOrdersPage';
 import ManufacturingRecipesPage from '../ManufacturingRecipesPage';
 import ManufacturingWorkCentersPage from '../ManufacturingWorkCentersPage';
+import ManufacturingWorkCenterCreatePage from '../ManufacturingWorkCenterCreatePage';
 import ManufacturingMrpPage from '../ManufacturingMrpPage';
 import { orderNextStep, orderPageFigures, orderStatusTag } from './orderList';
 import type { ManufacturingOrder } from './types';
@@ -59,10 +60,19 @@ function respond(url: string): unknown {
   return [];
 }
 
+/** Write requests the page sent (method, path, parsed body). */
+const writes: Array<{ method: string; path: string; body: unknown }> = [];
+
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
-  authenticatedFetch: vi.fn(async (url: string) =>
-    new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+  authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    if (method !== 'GET') writes.push({ method, path: url.split('?')[0], body: init?.body ? JSON.parse(String(init.body)) : null });
+    return new Response(JSON.stringify(method === 'POST' && url.split('?')[0] === '/api/manufacturing/work-centers/' ? { id: 'wc-new' } : respond(url)), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }),
 }));
 
 beforeAll(() => {
@@ -73,6 +83,7 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
+  writes.length = 0;
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -183,6 +194,26 @@ describe('İş merkezleri and Malzeme planlama frames', () => {
     await waitFor(() => expect(enabled('new')).toBe(true));
     fireEvent.click(command('new'));
     expect(onNavigate).toHaveBeenCalledWith('manufacturing-work-center-create');
+  });
+
+  it('İş merkezi tanımla (create page): the POST body', async () => {
+    renderScreen(<ManufacturingWorkCenterCreatePage token="t" onNavigate={vi.fn()} />);
+    const name = await screen.findByPlaceholderText('Montaj hattı');
+    fireEvent.change(name, { target: { value: 'Paketleme' } });
+    fireEvent.change(screen.getByPlaceholderText('WC-MONTAJ'), { target: { value: 'WC-PKT' } });
+    const numbers = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="number"]'));
+    fireEvent.change(numbers[0], { target: { value: '450' } });
+    fireEvent.change(numbers[1], { target: { value: '120.5' } });
+    fireEvent.change(numbers[2], { target: { value: '30' } });
+    await act(async () => {
+      fireEvent.submit(name.closest('form')!);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      method: 'POST',
+      path: '/api/manufacturing/work-centers/',
+      body: { code: 'WC-PKT', name: 'Paketleme', capacityMinutesPerDay: 450, laborCostPerHourBase: 120.5, overheadCostPerHourBase: 30 },
+    });
   });
 
   it('Malzeme planlama: plan history is in İşlemler', async () => {
