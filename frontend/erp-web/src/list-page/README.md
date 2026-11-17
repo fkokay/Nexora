@@ -13,13 +13,20 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
    (`className="primary"`) en sonda, diğerleri `secondary`. İşlem Çubuğu başlığın hemen
    altındaki yuvaya yerleşir; başlık → çubuk → araç satırı arasını sayfa yığınının
    boşluğu (12px) verir.
-2. **Özet kartları** (varsa) – `ListSummaryCards`, aşağıdaki kurala uyan kartlar; satırda sabit 4 sütun (az kart da bir sütun genişliğindedir, fazlası alt satıra geçer).
+2. **Özet kartları** (varsa) – `ListSummaryCards`, aşağıdaki kurala uyan kartlar; satırda sabit 4 sütun (az kart da bir
+   sütun genişliğindedir, tek kart tüm satıra yayılmaz). 4'ten fazla kart bilerek ikinci satıra geçer; hiçbir kart
+   gizlenmez ya da kesilmez (sessiz üst sınır yoktur). 1100px altında sütunlar en az 200px olacak şekilde sarar.
 3. **Araç satırı** – `ListToolbar`: arama kutusu, filtre etiketleri (`ListChipGroup`),
    sağda tablonun kendi araçları ve yenile düğmesi. Tek satırdır; dar ekranda sarar.
 4. **Liste** – `AdvancedDataGrid`. Bölüm öğesine `list-v2-list` sınıfı verilir.
 5. **Alt bilgi** (varsa) – `ListFooter`: solda klavye ipuçları, sağda seçim / toplam /
    `ListPagination`. Liste alanının altında durur (pencereye sabitlenmez).
-6. **Detay paneli** (varsa) – seçili kaydın özeti; `list-v2-detail-*` sınıfları.
+6. **Detay paneli** (varsa) – geçerli satırın özeti; `list-v2-detail-*` sınıfları (Stok Kartları'nda
+   `InventoryStockDetailPanel`). Liste alanı en az 1440px genişse varsayılan açıktır (yatay kaydırma olmasın diye);
+   `Ctrl+.` ve araç satırındaki "Detay paneli" düğmesi açar / kapatır, alan bu eşiği yeniden geçene kadar bu seçim
+   geçerlidir. 1100px altında panel listenin üstünde çekmecedir: yalnızca açıkça açıldığında (Ctrl+. / düğme) odağı
+   alır, Esc kapatır ve odağı geri verir; geçerli satır değişince (ilk ↓, sayfa değişimi) sonradan oluşan panel odağı
+   listeden almaz. Panel, kayıt seçilmemişken boş durum yazar; seçilmemiş bir satırı varsayılan olarak göstermez.
 
 ## Kurallar
 
@@ -30,6 +37,11 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   (`filterActive`) çerçevesi renklenir ve "süzülüyor ✕" yazar; tekrar tıklamak filtreyi
   kaldırır. Süs amaçlı sayaçlar konmaz. Yalnızca filtre karşılığı olan basit sayaçlar
   kart yerine filtre etiketinin sayısına (`count`) yazılabilir.
+- **Değer uydurulmaz.** Kart ve hücreler yalnızca API'nin verdiği değeri gösterir: bilinmeyen değer `—` olur, `0`
+  yazılmaz (ör. sonuç sayfası aşılan depo bakiyesi). Toplanamayan değerler toplanmaz: farklı birimlerdeki miktarlar
+  tek kartta toplanmaz, "Kullanılabilir stoklu kart" gibi sayıya döner; boş sayfada kart etiketi değişmez, değer `—`
+  olur. Sayfa toplamı olan kartın alt satırı "bu sayfa" der; sunucu toplamı kapsamını yazar ("tüm depolarda",
+  aramayı içermiyorsa "(arama hariç)"). Sabit eşikler (ör. "30 gün içinde dolacak") etikette yazılır.
 - **Durum etiketi `StatusTag`.** Tam yuvarlak, 11px/600; ton: `ok` (yeşil), `warn`
   (turuncu), `bad` (kırmızı), `off` (gri, pasif/iptal), `info` (mavi, taslak/bilgi).
 - **Tablo görünümü ortaktır.** `AdvancedDataGrid` bütün ekranlarda aynı görünür: açık gri
@@ -37,7 +49,9 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   38px), hücre 12,5px normal ağırlık ve `tabular-nums`. Seçili / odaktaki satır
   `--nx-primary-soft` zemin ve solda 3px mavi çizgiyle; işaretlenen satırlar açık tonla
   gösterilir. Sağa hizalı sayı hücresine `nx-num`, eş aralıklı kod hücresine `nx-code`
-  sınıfı verilir; sayılar kalın yazılmaz.
+  sınıfı verilir; sayılar kalın yazılmaz. Sayı sütununun başlığı (`th.nx-num`) da her iki temada sağa hizalıdır.
+  Satır durum önceliği tek etikette gösterilir (Stok Kartları: Pasif > Minimum altı > Maliyetsiz > Yeterli); ikinci
+  bilgi ayrı bir etiket ya da seviye çubuğudur. `gridId` değişirse kullanıcının yerel tablo ayarları bir kez sıfırlanır.
 - **Satır seçimi modül modül açılır.** `AdvancedDataGrid`'e `selectable` verilince ilk sütun
   seçim kutucuğudur, başlıkta "Tümünü seç" (kısmi seçimde "—", `aria-checked="mixed"`).
   Seçim yalnız görünen sayfadadır; sayfa, arama, filtre ya da sıralama değişince sıfırlanır.
@@ -69,7 +83,10 @@ Sayfanın kök öğesine `list-v2` sınıfı verilir; stiller yalnızca bu kök�
   Kartları taslak 01'deki gibi ayrı eş aralıklı "Stok kodu" sütunu gösterir (satırlar tek satır, 30px);
   düzende kod sütunu gizlenirse kod yine adın altına yazılır.
 - **Satır işlem menüsü ("⋯") yoktur**, detay paneli olan ekranlarda. İşlemler detay
-  panelinde durur. Detay paneli olmayan ekranlarda satır işlemleri yerinde kalır.
+  panelinde ve İşlem Çubuğu'nun İşlemler menüsünde durur. Detay paneli olmayan ya da detayı pencerede açılan ekranlarda
+  (ör. Depo Transferleri: "Kalemler", "Transferi iptal et") satır düğmeleri yerinde kalır.
+- **Toplu işlem çubuğunda yalnızca bugün yapılabilen işlem.** Toplu Sil yalnızca yetkili rolde (ör. TenantAdmin) görünür;
+  sunucunun reddettiği kayıtlar tek tek adlarıyla bildirilir, silinenler sayılır.
 - **Davranış değişmez.** API çağrıları, yetki kontrolleri, kayıtlı ekran ayarları
   (başlık metni, görünür sütunlar, filtre görünürlüğü) ve klavye erişimi korunur.
 - **Yeni metin eklemekten kaçının.** Görünen her Türkçe metin `locales/en/` altındaki
@@ -99,6 +116,22 @@ listeyi (araç satırı, tablo, alt bilgi), sağda seçili kaydın formunu aynı
   "Pasife al", keyHints: true })` düğmelerde Esc / Enter gösterir. Zaten pasif kayıtta ve kirli formda Sil nedeniyle
   kapalıdır.
 - Formdaki küçük alt tablolar (ör. deponun lokasyonları) `nx-def-subtable` ile 30px satırlı yazılır.
+
+- Sil komutu varsa yetkiye bağlıdır; silme API'si olmayan kayıtta Sil yine görünür ve nedenini söyler (aşağıda).
+- Kayıt seçilmeden Aç / Sil kapalıdır ("Önce bir kayıt seçin"); kirli formda Sil ve durum değiştirme kapalıdır ("Önce
+  değişiklikleri kaydedin veya vazgeçin"), böylece durum değişikliği formun saklı satır sürümünü sessizce yenilemez.
+- Yenile'den sonra kirli kalan form eski sürümünü korur; kullanıcı değişikliklerini geri alıp form yeniden temiz
+  olunca form canlı satırdan yeniden kurulur (eski değerlerle ve yeni sürümle kaydedilemez). Kaydetme 409 ile
+  reddedilirse sunucunun iletisi bir kez gösterilir, değişiklikler formda kalır.
+- Zorunlu özel alanlar yalnızca özel alan değerleri kaydedilirken denetlenir; kod / ad değişikliğini engellemez.
+- Kod alanı düzenlenebilir (kilit yoktur; bugünkü davranış). Formda yalnızca API'nin bugün verdiği alanlar durur
+  (Depolar: kod, ad, durum ve özel alanlar); taslaktaki tür / şube / varsayılan depo gibi alanlar çizilmez.
+- Kaydettikten sonra form açık kalır (ana-ayrıntı); Raf ve Konumlar'da Aç (Enter) geçerli satırı forma açar.
+- Gömülü form ikinci bir çerçeve değildir: `inv-rf-embedded` içindeki formun başlık satırı zeminde durur, altındaki
+  kartlar tek katmandır (kart içinde kart yok). Paneldeki ikincil tablo kartı (ör. "Konum bakiyesi") `list-v2-grid-card`
+  sınıfını alır: kart tek çerçevedir, içindeki tablo ve araç satırı ayrı kutu çizmez, kontroller 31px'tir.
+- Bütün kayıtları yüklenen tanım listesinde tablonun kendi sayfalayıcısı gösterilmez (`externalPagination`); sayıları
+  `ListFooter` yazar.
 
 ## Örnek
 
@@ -166,5 +199,8 @@ Tüm stiller `list-page-v2.css` dosyasındadır (tablo görünümü `advanced-da
 ve tema değişkenlerini (`--nx-*`, eski kurallarda `--erp-color-*`) kullanır; açık ve koyu
 temada çalışır. Kabuktaki genel kurallar `[class*='-card']`, `[class*='-icon']`,
 `[class*='-tag']` gibi adlara `!important` ile köşe ve zemin verir; yeni sınıf adlarında
-bu eklerden kaçının. Sayfaya özel CSS yazmadan önce buradaki
+bu eklerden kaçının. `nx-` önekli sınıflar bu ad kurallarının dışındadır (kendi köşe ve zeminlerini verirler).
+`module-workspace.css` ayrıca çalışma alanındaki her `[class*=-card]`, `[class*=-panel]` ve `.panel` öğesine 12px
+köşe verir; `list-v2` altında bu, `list-page-v2.css`'te tasarım değerlerine döndürülür (kart 8px, adı `-panel` /
+`-card` içeren düğme 6px). Bu eski kuralların temizliği ayrı bir görevdir ("legacy global-components cleanup"). Sayfaya özel CSS yazmadan önce buradaki
 sınıfların yetip yetmediğine bakın; eksik bir parça varsa bu dosyaya ekleyin.

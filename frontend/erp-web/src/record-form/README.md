@@ -72,7 +72,19 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
 
 ## Kurallar
 
-- Alanları, doğrulamaları, API çağrılarını ve kayıt davranışını değiştirmeyin; yalnızca düzeni taşıyın.
+- Alanları, doğrulamaları, API çağrılarını ve kayıt davranışını değiştirmeyin; yalnızca düzeni taşıyın. Taslakta
+  olup bugün olmayan davranış çizilmez (ör. stok kodu için kilit simgesi: kod bugün düzenlenebilir, kilit yoktur).
+- Bölüm gezgini durumları: oluşturma modunda bir bölümün hata işareti (`!`) ancak kayıt denendikten ya da bölümdeki
+  bir alana dokunulduktan sonra gösterilir; boş formu açar açmaz hata gösterilmez. "Kart doluluğu %N" varsayılan
+  değerinden farklı (dolu) alanları sayar.
+- `recordNav` görünen liste sayfasıyla sınırlıdır (listenin sırası `onVisibleRowsChange` ile alınır); sayfanın ilk /
+  son kaydında ilgili düğme nedeniyle kapalıdır, sayfa değiştirmez.
+- Bağlam paneli yalnızca bugün var olan veriyi gösterir (Stok kartı: stok durumu, geçmiş); taslaktaki "Açık belgeler"
+  ve stok seyri grafiği yeni uç nokta istediği için çizilmez (Faz 4).
+- Formu sayfaya gömen ekranlar (tanım ekranı, `inv-rf-embedded`) formun çevresine ikinci bir çerçeve çizmez: başlık
+  satırı zeminde, kartlar tek katmandır (`list-page/README.md`, "Tanım ekranı").
+- Bölüm gezgini dar ekranda yatay kayan bir şerittir; şerit konumlandırılmıştır (`position: relative`), böylece
+  görünmez durum metinleri sayfayı yana taşırmaz.
 - Ekranın başında kaydı tanımlayan alanlar "Kimlik" kartı olur; diğer alanlar anlamlı kartlara ayrılır.
 - Kart içine kart koymayın; tuvalde tek katman kart vardır.
 - "Kaydet ve Yeni" yalnızca oluşturma modunda ve kapsayıcı `onSaveIntent` verdiğinde görünür; kapsayıcı
