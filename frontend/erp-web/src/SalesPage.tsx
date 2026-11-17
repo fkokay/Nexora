@@ -4146,7 +4146,7 @@ function PurchaseOrderCreatePage({
   }
   async function createOrder(e: React.FormEvent) {
     e.preventDefault();
-    // RecordFormPage listens to F2 on the window; a hidden keep-alive tab must not submit.
+    // RecordFormPage save keys (Ctrl+S, Ctrl+F2) reach every mounted form; a hidden keep-alive tab must not submit.
     if (hostRef.current?.closest("[hidden]")) return;
     if (!supplier) {
       setError("Tedarikçi seçin.");
