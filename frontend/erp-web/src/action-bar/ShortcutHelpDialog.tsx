@@ -36,7 +36,8 @@ const RECORD_FORM_ROWS: readonly Row[] = [
 
 // Document screens (document-page/DocumentSurface): the keys their footer lists when the page enables them.
 const DOCUMENT_ROWS: readonly Row[] = [
-  ['PgUp/PgDn', 'Önceki / sonraki belge'],
+  // PgUp/PgDn önceki / sonraki belge: hiçbir belge sayfası `recordNav` vermiyor;
+  // bağlanınca buraya eklenecek (alt bilgi satırı zaten koşullu).
   ['Ctrl+.', 'Bağlam panelini aç / kapat'],
 ];
 

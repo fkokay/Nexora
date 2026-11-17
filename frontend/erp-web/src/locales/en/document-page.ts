@@ -140,6 +140,8 @@ export const english: Record<string, string> = {
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) talep ayrıntılarını aç$/, 'Open request $1 details'],
   [/^(.+?) iade ayrıntılarını aç$/, 'Open return $1 details'],
+  [/^(.+?) fatura ayrıntılarını aç$/, 'Open invoice $1 details'],
+  [/^(.+?) silinemez$/, '$1 cannot be deleted'],
   [/^(.+?) kaydedildi\.$/, '$1 saved.'],
   [/^Satır (\d+) sil$/, 'Delete line $1'],
   [/^(\d+) değişiklik kaydedilmedi$/, '$1 unsaved changes'],

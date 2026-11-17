@@ -22,6 +22,8 @@ Faz 0, Faz 1 (Task 1–11), Faz 2 Stok (Task 1–8) ve Faz 3 Satış (Task 1–5
 - **Teklif / sipariş oluşturma ızgarası:** 14 sütun korunduğu için 1440'ta kart içinde yatay kayıyor (sayfa kaymıyor) — sütun sadeleştirmesi kullanıcı kararı.
 - **Kampanyalar:** rowVersion yok (eşzamanlı düzenleme denetimi yok), son değiştiren / tarih bilgisi yok; Performans raporu modu yeniden tasarlanmadı (yalnız renkler).
 - **Eski gövde parçaları:** fatura "Vergi mevzuatı" bloğu, özel alan formları, tahsilat / iade formları ve iade ızgarasının kendi sayfalayıcısı detay gövdesinde tek kart olarak eski biçimiyle duruyor; kit parçalarına dönüştürülmedi.
+- **Ölü eski CSS:** `sales-purchasing-workbench.css` içinde artık çizilmeyen `.invoice-detail-layout`, `.invoice-detail-modal`, `.sales-delivery-detail-modal`, `.sales-invoice-detail-backdrop` kuralları (~144 satır) duruyor; bunlara bağlı `.invoice-collection-form` / `.invoice-return-form` boşluk ve tek sütun ayarları artık uygulanmıyor. Temizlikte silinmeli ve tahsilat / iade formları bir kez kontrol edilmeli.
+- **PgUp / PgDn:** hiçbir belge sayfası `recordNav` vermediği için F1 listesinden çıkarıldı (alt bilgi satırı zaten koşullu); listeden açılan belgede önceki / sonraki gezinme bağlanınca geri eklenecek.
 
 ## Bekleyebilir
 - Kısayol ayrıştırma boşlukları (Alt+Shift+ı, `Ctrl++`, Mac'te Delete), `void run()` işlenmeyen ret, kısayol yardım penceresinde odak tuzağı, İşlemler menüsü konumunun kaydırmada güncellenmemesi.
