@@ -34,6 +34,7 @@ export const english: Record<string, string> = {
   'kartı oluşturdu': 'created the card', 'kartı güncelledi': 'updated the card', 'kartı devre dışı bıraktı': 'deactivated the card',
   'kartı etkinleştirdi': 'activated the card', 'kartı içe aktardı': 'imported the card',
   'Kayıtlar arası gezinme': 'Record navigation',
+  'Listenin bu sayfasının başı': 'Start of this list page', 'Listenin bu sayfasının sonu': 'End of this list page',
   // Transfer
   'Transfer Bilgileri': 'Transfer details', 'Transfer Kalemleri': 'Transfer lines', 'Kalem:': 'Lines:',
   'Kaydetmek için hedef depo seçin ve en az bir kaleme miktar girin.':

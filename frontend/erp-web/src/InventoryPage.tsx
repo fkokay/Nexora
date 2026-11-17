@@ -28,6 +28,7 @@ import {
   changedCustomFields,
   changedStockCardFields,
   stockCardCompletion,
+  stockCardFieldEntered,
   stockCardSectionState,
   stockCardSummary,
   stockCardValuesOf,
@@ -251,6 +252,9 @@ export function InventoryPage({
   const [itemBaseline, setItemBaseline] = useState<{ values: StockCardValues; custom: Record<string, string> | null } | null>(null);
   // Variants and recipes of the open card are loaded (their navigator counts are real).
   const [itemRelationsLoaded, setItemRelationsLoaded] = useState(false);
+  // New card: fields entered so far (custom fields as "custom:CODE") and whether a save was attempted.
+  const [itemTouched, setItemTouched] = useState<ReadonlySet<string>>(() => new Set());
+  const [itemSaveAttempted, setItemSaveAttempted] = useState(false);
   // Displayed order of the list the card was opened from (PgUp / PgDn); null when not opened from the list.
   const [recordNavIds, setRecordNavIds] = useState<string[] | null>(null);
   const editRequestRef = useRef(0);
@@ -1071,6 +1075,8 @@ export function InventoryPage({
   }
   /** Puts every field of a new stock card back to its default ("Temizle" and "Kaydet ve Yeni"). */
   function resetItemFormFields() {
+    setItemTouched(new Set());
+    setItemSaveAttempted(false);
     setItemFormNotice("");
     setItemCreateTab("basic");
     setVariantDimensions([{ name: "", values: "" }]); setExistingVariants([]); setItemRecipes([]);
@@ -1277,6 +1283,7 @@ export function InventoryPage({
   }
   async function createItem(e: React.FormEvent) {
     e.preventDefault();
+    setItemSaveAttempted(true);
     setError("");
     setNotice("");
     const missingRequiredField = itemCustomFieldDefinitions.find(
@@ -2334,10 +2341,7 @@ export function InventoryPage({
     productImageUrl, marketplaceProductId,
   };
   const itemComparedTo = editingItem && itemBaseline ? itemBaseline.values : STOCK_CARD_DEFAULTS;
-  // The code is locked while editing, so it never counts as changed there.
-  const itemChangedFields = new Set(
-    changedStockCardFields(stockCardValues, itemComparedTo).filter((key) => !editingItem || key !== "code"),
-  );
+  const itemChangedFields = new Set(changedStockCardFields(stockCardValues, itemComparedTo));
   const itemUnitsChanged = itemUnitRemovals.length > 0 || itemUnitConversions.some((x) => x.id.startsWith("draft-"));
   const itemCustomChanged = changedCustomFields(itemCustomFieldValues, editingItem ? (itemBaseline?.custom ?? itemCustomFieldValues) : {});
   const itemChangeCount = itemChangedFields.size + itemCustomChanged.length + (itemUnitsChanged ? 1 : 0);
@@ -2362,16 +2366,35 @@ export function InventoryPage({
   );
   const filledCustomValues = itemCustomFieldDefinitions.map((field) => String(itemCustomFieldValues[field.code] || ""));
   const variantDraftCount = makeVariantDrafts(code, name, variantDimensions).length;
+  // A new card: a field remembers being entered (even when cleared again); until a save attempt only those may show
+  // "error", and only entered values (not the defaults) make a section "done". Editing keeps the plain rules.
+  const itemFieldsEntered = changedStockCardFields(stockCardValues, STOCK_CARD_DEFAULTS);
+  const itemCustomEntered = Object.keys(itemCustomFieldValues).filter((key) => itemCustomFieldValues[key]);
+  useEffect(() => {
+    if (editingItem) return;
+    const entered = [...itemFieldsEntered, ...itemCustomEntered.map((key) => `custom:${key}`)];
+    if (entered.some((key) => !itemTouched.has(key))) setItemTouched((current) => new Set([...current, ...entered]));
+  });
+  const newCardRules = editingItem
+    ? {}
+    : {
+        reportable: (key: StockCardField) => itemSaveAttempted || itemTouched.has(key),
+        hasValue: (key: StockCardField) => stockCardFieldEntered(key, stockCardValues[key]),
+      };
+  const customProblemShown =
+    !!editingItem ||
+    itemSaveAttempted ||
+    itemCustomFieldDefinitions.some((field) => field.isRequired && itemTouched.has(`custom:${field.code}`) && !String(itemCustomFieldValues[field.code] || "").trim());
   const itemFormTabs: RecordFormTab[] = [
-    { key: "basic", label: "Genel ve Stok Yönetimi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.basic) },
-    { key: "pricing", label: "Fiyat ve Vergi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.pricing) },
-    { key: "logistics", label: "Lojistik ve Muhasebe", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.logistics) },
+    { key: "basic", label: "Genel ve Stok Yönetimi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.basic, newCardRules) },
+    { key: "pricing", label: "Fiyat ve Vergi", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.pricing, newCardRules) },
+    { key: "logistics", label: "Lojistik ve Muhasebe", state: stockCardSectionState(stockCardValues, STOCK_CARD_SECTION_FIELDS.logistics, newCardRules) },
     {
       key: "units",
       label: "Birim ve Özel Alanlar",
-      warning: requiredCustomMissing,
+      warning: requiredCustomMissing && customProblemShown,
       state: stockCardSectionState(stockCardValues, [], {
-        invalid: requiredCustomMissing,
+        invalid: requiredCustomMissing && customProblemShown,
         extraFilled: filledCustomValues.filter((value) => value.trim()).length,
       }),
     },
@@ -2409,6 +2432,8 @@ export function InventoryPage({
           total: recordNavIds.length,
           onPrev: editingNavIndex > 0 ? () => void stepRecord(-1) : undefined,
           onNext: editingNavIndex < recordNavIds.length - 1 ? () => void stepRecord(1) : undefined,
+          prevDisabledReason: "Listenin bu sayfasının başı",
+          nextDisabledReason: "Listenin bu sayfasının sonu",
         }
       : undefined;
   /** "Birim dönüşümleri" card of the stock card: the base unit, then the alternative units (admins add / remove). */
@@ -3555,21 +3580,24 @@ export function InventoryPage({
             </>
           }
         >
+          {/* A blocked save (browser validation) counts as a save attempt: section errors show from then on. */}
+          <div className="inv-card-form-body" onInvalidCapture={() => setItemSaveAttempted(true)}>
           {/* Kimlik stays above the sections (always mounted, so its required fields are checked on every save). */}
           <RecordFormGroup title="Kimlik" hint="* zorunlu alan" bodyClassName="rf-identity">
-            <label>
-              <span>Stok kodu <RequiredMark /></span>
-              <input
-                className="rf-must rf-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                readOnly={!!editingItem}
-                title={editingItem ? "Kayıtlı kartın kodu değiştirilemez" : undefined}
-                maxLength={64}
-                placeholder="STK-1001"
-              />
-            </label>
+            {trackField(
+              "code",
+              <label>
+                <span>Stok kodu <RequiredMark /></span>
+                <input
+                  className="rf-must rf-mono"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  maxLength={64}
+                  placeholder="STK-1001"
+                />
+              </label>,
+            )}
             {trackField(
               "name",
               <label>
@@ -3901,6 +3929,7 @@ export function InventoryPage({
               </RecordFormGroup>
             )}
           </RecordFormTabs>
+          </div>
         </RecordFormPage>
       )}
       {selectedTransfer && (

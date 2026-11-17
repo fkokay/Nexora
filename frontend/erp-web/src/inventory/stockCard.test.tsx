@@ -143,13 +143,23 @@ describe('stock card form helpers', () => {
     expect(stockCardSectionState({ ...values, netWeight: '1.5' }, STOCK_CARD_SECTION_FIELDS.logistics)).toBe('done');
     expect(stockCardSectionState(values, [], { extraFilled: 2 })).toBe('done');
     expect(stockCardSectionState(values, [], { invalid: true })).toBe('error');
+    // New card: an untouched required field does not show "error", and defaults are not values.
+    const blank = STOCK_CARD_DEFAULTS;
+    const newCard = { reportable: () => false, hasValue: (key: keyof typeof blank) => blank[key] !== values[key] && values[key] !== '' };
+    expect(stockCardSectionState(blank, STOCK_CARD_SECTION_FIELDS.basic, { reportable: () => false })).toBe('empty');
+    expect(stockCardSectionState(blank, STOCK_CARD_SECTION_FIELDS.basic, { reportable: (key) => key === 'name' })).toBe('error');
+    expect(stockCardSectionState(blank, STOCK_CARD_SECTION_FIELDS.pricing, { hasValue: () => false })).toBe('empty');
+    expect(stockCardSectionState(values, STOCK_CARD_SECTION_FIELDS.basic, newCard)).toBe('done');
   });
 
-  it('completion counts filled fields over all fields (custom fields included) and the summary skips missing parts', () => {
+  it('completion counts entered values and filled required fields only (defaults do not count)', () => {
     const all = [...STOCK_CARD_SECTION_FIELDS.basic, ...STOCK_CARD_SECTION_FIELDS.pricing, ...STOCK_CARD_SECTION_FIELDS.logistics];
     const full = Object.fromEntries(all.map((key) => [key, '1'])) as unknown as typeof STOCK_CARD_DEFAULTS;
     expect(stockCardCompletion(full, [])).toBe(100);
     expect(stockCardCompletion(full, ['', ''])).toBe(Math.round((all.length / (all.length + 2)) * 100));
+    // A blank new card: only the pre-filled required unit (EA) and currency (TRY) count.
+    expect(stockCardCompletion(STOCK_CARD_DEFAULTS, [])).toBe(Math.round((2 / all.length) * 100));
+    expect(stockCardCompletion({ ...STOCK_CARD_DEFAULTS, salesVatPercent: '10', minimumStock: '0' }, [])).toBe(Math.round((3 / all.length) * 100));
     expect(stockCardSummary(card('x', 'K', 'K', { trackingMode: 'Lot' }))).toBe('Ambalaj · ADET · Lot takipli');
     expect(stockCardSummary(card('x', 'K', 'K', { category: null }))).toBe('ADET');
   });
@@ -164,8 +174,13 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     expect(meta.querySelector('.rf-code')!.textContent).toBe('AMB-2040');
     expect(Array.from(meta.querySelectorAll('.nx-status-tag')).map((tag) => tag.textContent)).toEqual(['Aktif', 'Minimum altı']);
     expect(meta.textContent).toContain('Ambalaj · ADET · Lot takipli');
-    // The code is locked while editing.
-    expect((screen.getByDisplayValue('AMB-2040') as HTMLInputElement).readOnly).toBe(true);
+    // The code stays editable (the API accepts a new code) and a change is marked like any other field.
+    const codeInput = screen.getByDisplayValue('AMB-2040') as HTMLInputElement;
+    expect(codeInput.readOnly).toBe(false);
+    fireEvent.change(codeInput, { target: { value: 'AMB-2041' } });
+    expect(codeInput.closest('.rf-changed')!.textContent).toContain('Önceki: AMB-2040');
+    expect(header().querySelector('.rf-dirty')!.textContent).toBe('1 alan değişti');
+    fireEvent.change(codeInput, { target: { value: 'AMB-2040' } });
     // Cards of the first section in mockup order.
     const titles = Array.from(form().querySelectorAll('.rf-group-head h2')).map((h) => h.textContent);
     expect(titles.slice(0, 3)).toEqual(['Kimlik', 'Stok yönetimi', 'Birim dönüşümleri']);
@@ -205,6 +220,10 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     fireEvent.keyDown(document.body, { key: 'PageDown' });
     await waitFor(() => expect(screen.getByDisplayValue('AMB-3050')).toBeTruthy());
     expect(within(header()).getByRole('group', { name: 'Kayıtlar arası gezinme' }).textContent).toContain('3 / 3');
+    // The last row of the loaded page: Sonraki is disabled and says why.
+    const next = within(header()).getByRole('button', { name: 'Sonraki kayıt' }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    expect(next.title).toBe('Listenin bu sayfasının sonu');
     fireEvent.change(screen.getByLabelText('Minimum stok'), { target: { value: '77' } });
     fireEvent.keyDown(document.body, { key: 'PageUp' });
     const dialog = await screen.findByRole('alertdialog');
@@ -252,7 +271,29 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     expect(within(header()).queryByRole('group', { name: 'Kayıtlar arası gezinme' })).toBeNull();
     expect(form().querySelector('.rf-aside')).toBeNull();
     expect((screen.getByPlaceholderText('STK-1001') as HTMLInputElement).readOnly).toBe(false);
+    // Untouched sections are empty, not errors (defaults such as TRY / 20 are not entries).
+    const state = (label: string) => navItem(label).querySelector('.rf-snav-state')!.className;
+    expect(state('Genel ve Stok Yönetimi')).toContain('is-empty');
+    expect(state('Fiyat ve Vergi')).toContain('is-empty');
     fireEvent.change(screen.getByPlaceholderText('Stok adı'), { target: { value: 'Vida' } });
     expect(header().querySelector('.rf-dirty')!.textContent).toBe('Kaydedilmemiş değişiklik var');
+    // The code is still untouched: no error yet.
+    expect(state('Genel ve Stok Yönetimi')).toContain('is-empty');
+    // A touched required field left empty is an error.
+    fireEvent.change(screen.getByPlaceholderText('Stok adı'), { target: { value: '' } });
+    expect(state('Genel ve Stok Yönetimi')).toContain('is-error');
+  });
+
+  it('create mode: a save attempt shows the errors of untouched required fields', async () => {
+    renderStock('TenantUser', 'inventory-stock-create');
+    await waitFor(() => expect(screen.getByPlaceholderText('STK-1001')).toBeTruthy());
+    await settle();
+    const state = (label: string) => navItem(label).querySelector('.rf-snav-state')!.className;
+    expect(state('Genel ve Stok Yönetimi')).toContain('is-empty');
+    const code = screen.getByPlaceholderText('STK-1001');
+    code.focus();
+    fireEvent.keyDown(code, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(state('Genel ve Stok Yönetimi')).toContain('is-error'));
+    expect(apiMock).not.toHaveBeenCalledWith('/api/stock/items/', 't', expect.objectContaining({ method: 'POST' }));
   });
 });

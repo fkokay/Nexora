@@ -174,17 +174,39 @@ export function stockCardFieldInvalid(key: StockCardField, value: string): boole
 /**
  * Section state: "error" when a field is required but empty or invalid, "done" when every required field is filled
  * and at least one field holds a value, else "empty". `extraFilled` counts other content (custom values, rows).
+ * A new card passes `reportable` (only fields the user touched, or all after a save attempt, may show "error"; other
+ * problems leave the section "empty") and `hasValue` (only values that differ from the new-card defaults count).
  */
 export function stockCardSectionState(
   values: StockCardValues,
   fields: StockCardField[],
-  { invalid = false, extraFilled = 0 }: { invalid?: boolean; extraFilled?: number } = {},
+  {
+    invalid = false,
+    extraFilled = 0,
+    reportable = () => true,
+    hasValue = (key) => filled(values[key]),
+  }: {
+    invalid?: boolean;
+    extraFilled?: number;
+    reportable?: (key: StockCardField) => boolean;
+    hasValue?: (key: StockCardField) => boolean;
+  } = {},
 ): RecordFormSectionState {
-  if (invalid || fields.some((key) => stockCardFieldInvalid(key, values[key]))) return "error";
-  return fields.some((key) => filled(values[key])) || extraFilled > 0 ? "done" : "empty";
+  const problems = fields.filter((key) => stockCardFieldInvalid(key, values[key]));
+  if (invalid || problems.some(reportable)) return "error";
+  if (problems.length) return "empty";
+  return fields.some(hasValue) || extraFilled > 0 ? "done" : "empty";
 }
 
-/** "Kart doluluğu": filled fields over all fields of the Genel, Fiyat, Lojistik sections and the custom fields. */
+/** A value the user gave: not empty and not the new-card default ("0", "20", "TRY" do not count). */
+export function stockCardFieldEntered(key: StockCardField, value: string): boolean {
+  return filled(value) && value !== STOCK_CARD_DEFAULTS[key];
+}
+
+/**
+ * "Kart doluluğu": over all fields of the Genel, Fiyat, Lojistik sections and the custom fields, the share that holds
+ * an entered value (different from the new-card default), plus the required fields that are filled.
+ */
 export function stockCardCompletion(values: StockCardValues, customValues: string[]): number {
   const fields = [
     ...STOCK_CARD_SECTION_FIELDS.basic,
@@ -192,7 +214,9 @@ export function stockCardCompletion(values: StockCardValues, customValues: strin
     ...STOCK_CARD_SECTION_FIELDS.logistics,
   ];
   const total = fields.length + customValues.length;
-  const done = fields.filter((key) => filled(values[key])).length + customValues.filter(filled).length;
+  const done =
+    fields.filter((key) => (REQUIRED.includes(key) ? filled(values[key]) : stockCardFieldEntered(key, values[key]))).length +
+    customValues.filter(filled).length;
   return total ? Math.round((done / total) * 100) : 0;
 }
 

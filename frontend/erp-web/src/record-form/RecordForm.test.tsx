@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider, useViewDialogOwner } from '../commands/CommandProvider';
 import { ConfirmDialogHost, promptDialog } from '../confirmDialog';
@@ -424,6 +424,14 @@ describe('RecordFormPage record header', () => {
     expect(screen.getByText('PgUp/PgDn önceki/sonraki kayıt')).toBeTruthy();
   });
 
+  it('a missing step disables its button and says why', () => {
+    inView(<Sectioned recordNav={{ index: 1, total: 3, onNext: vi.fn(), prevDisabledReason: 'Listenin bu sayfasının başı' }} />);
+    const prev = screen.getByRole('button', { name: 'Önceki kayıt' }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(true);
+    expect(prev.title).toBe('Listenin bu sayfasının başı');
+    expect((screen.getByRole('button', { name: 'Sonraki kayıt' }) as HTMLButtonElement).title).toBe('');
+  });
+
   it('shows how many fields changed', () => {
     inView(<Sectioned dirty={2} />);
     expect(screen.getByText('2 alan değişti')).toBeTruthy();
@@ -441,18 +449,32 @@ describe('RecordFormPage record header', () => {
 });
 
 describe('RecordFormPage context panel', () => {
-  const stubWidth = (wide: boolean) => {
-    window.matchMedia = ((query: string) => ({
-      matches: wide, media: query, onchange: null,
-      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia;
-  };
+  // The panel follows the record form's own width (not the viewport): a fake ResizeObserver reports it.
+  let formWidth = 0;
+  const observers: Array<() => void> = [];
+  beforeEach(() => {
+    formWidth = 0;
+    observers.length = 0;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const width = this.classList.contains('record-form') ? formWidth : 0;
+      return { width, height: 0, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private callback: () => void) { observers.push(() => this.callback()); }
+      observe() {} unobserve() {} disconnect() {}
+    });
+  });
   afterEach(() => {
-    delete (window as { matchMedia?: unknown }).matchMedia;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+  const resize = (width: number) => act(() => {
+    formWidth = width;
+    observers.forEach((notify) => notify());
   });
 
-  it('is closed below 1280px and Ctrl+. toggles it', () => {
-    stubWidth(false);
+  it('is closed while the form is narrower than 1100px and Ctrl+. toggles it', () => {
+    formWidth = 1000;
     inView(<Sectioned aside={<p>Stok durumu</p>} />);
     const aside = screen.getByText('Stok durumu').closest('aside')!;
     expect(aside.hidden).toBe(true);
@@ -462,10 +484,18 @@ describe('RecordFormPage context panel', () => {
     expect(aside.hidden).toBe(true);
   });
 
-  it('is open from 1280px', () => {
-    stubWidth(true);
+  it('is open when the form is at least 1100px wide and follows later resizes', () => {
+    formWidth = 1200;
     inView(<Sectioned aside={<p>Stok durumu</p>} />);
-    expect(screen.getByText('Stok durumu').closest('aside')!.hidden).toBe(false);
+    const aside = screen.getByText('Stok durumu').closest('aside')!;
+    expect(aside.hidden).toBe(false);
+    resize(900);
+    expect(aside.hidden).toBe(true);
+    // A hidden keep-alive view measures 0 wide: the last state stays.
+    resize(0);
+    expect(aside.hidden).toBe(true);
+    resize(1300);
+    expect(aside.hidden).toBe(false);
   });
 });
 

@@ -13,9 +13,7 @@ import {
   isInPopup,
   isInScrollableRegion,
   isTextEntry,
-  matchesWide,
   ownsKeyboard,
-  useWideViewport,
   useWindowKeyDown,
 } from "./recordFormKeys";
 import "./record-form.css";
@@ -29,7 +27,13 @@ export type RecordNav = {
   total: number;
   onPrev?: () => void;
   onNext?: () => void;
+  /** Tooltip of the disabled ‹ / › button (e.g. the start / end of the list page). */
+  prevDisabledReason?: string;
+  nextDisabledReason?: string;
 };
+
+/** The context panel opens by default when the record form itself is at least this wide (not the viewport). */
+const ASIDE_ROOM = 1100;
 
 export type RecordFormPageProps = {
   /** Screen title, e.g. "Cari Kart Tanımlama". */
@@ -65,7 +69,7 @@ export type RecordFormPageProps = {
   recordNav?: RecordNav;
   /** Unsaved changes: a number shows "N alan değişti", `true` a generic note. */
   dirty?: boolean | number;
-  /** Context panel on the right (cards); open from 1280px, Ctrl+. shows / hides it. */
+  /** Context panel on the right (cards); open while the form is at least 1100px wide, Ctrl+. shows / hides it. */
   aside?: ReactNode;
   /** "dialog" fits the same structure inside an existing modal: tighter padding, no full-height stretch. */
   variant?: "page" | "dialog";
@@ -233,17 +237,32 @@ export function RecordFormPage({
     run();
   });
 
-  // Context panel: open from 1280px; Ctrl+. overrides until the viewport crosses the breakpoint again.
-  const wide = useWideViewport();
-  const [asideOverride, setAsideOverride] = useState<boolean | null>(null);
-  useEffect(() => setAsideOverride(null), [wide]);
-  const asideOpen = asideOverride ?? wide;
+  // Context panel: open while the form itself has room (≥ ASIDE_ROOM wide, so a shell rail or menu counts);
+  // Ctrl+. overrides until the form crosses that width again.
   const hasAside = aside != null && aside !== false;
+  const [roomy, setRoomy] = useState(false);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!hasAside || !root) return;
+    // A hidden keep-alive view measures 0 wide; the last state stays.
+    const measure = () => {
+      const width = root.getBoundingClientRect().width;
+      if (width > 0) setRoomy(width >= ASIDE_ROOM);
+    };
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [hasAside]);
+  const [asideOverride, setAsideOverride] = useState<boolean | null>(null);
+  useEffect(() => setAsideOverride(null), [roomy]);
+  const asideOpen = asideOverride ?? roomy;
   useWindowKeyDown(hasAside, (event) => {
     if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
     if (!ownsKeys()) return;
     event.preventDefault();
-    setAsideOverride((current) => !(current ?? matchesWide()));
+    setAsideOverride((current) => !(current ?? roomy));
   });
 
   const [navTarget, setNavTarget] = useState<HTMLDivElement | null>(null);
@@ -294,11 +313,23 @@ export function RecordFormPage({
             )}
             {recordNav && (
               <div className="rf-rnav" role="group" aria-label="Kayıtlar arası gezinme">
-                <button type="button" aria-label="Önceki kayıt" disabled={!recordNav.onPrev} onClick={recordNav.onPrev}>
+                <button
+                  type="button"
+                  aria-label="Önceki kayıt"
+                  disabled={!recordNav.onPrev}
+                  title={!recordNav.onPrev ? recordNav.prevDisabledReason : undefined}
+                  onClick={recordNav.onPrev}
+                >
                   ‹ <kbd>PgUp</kbd>
                 </button>
                 <span>{`${recordNav.index} / ${recordNav.total}`}</span>
-                <button type="button" aria-label="Sonraki kayıt" disabled={!recordNav.onNext} onClick={recordNav.onNext}>
+                <button
+                  type="button"
+                  aria-label="Sonraki kayıt"
+                  disabled={!recordNav.onNext}
+                  title={!recordNav.onNext ? recordNav.nextDisabledReason : undefined}
+                  onClick={recordNav.onNext}
+                >
                   <kbd>PgDn</kbd> ›
                 </button>
               </div>

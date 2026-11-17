@@ -29,9 +29,11 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     beri) ya da `dirty` doluysa önce "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?" sorulur. Açık bir
     pencere, açık seçici / liste kutusu (`[role=listbox]`, `[aria-expanded=true]`) ya da Esc'i işlemiş bir alan
     (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir.
-  - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. 1280px ve üstünde açık, altında kapalı; `Ctrl+.` açar /
+  - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. Kayıt formunun kendi genişliği (görünüm alanı değil; açık
+    widget rayı ve menü düşülür) 1100px ve üstündeyse açık, altında kapalı; `ResizeObserver` ile izlenir. `Ctrl+.` açar /
     kapatır.
-  - **Kayıtlar arası gezinme** (`recordNav={{ index, total, onPrev, onNext }}`): PgUp / PgDn önceki / sonraki kayıt;
+  - **Kayıtlar arası gezinme** (`recordNav={{ index, total, onPrev, onNext }}`): PgUp / PgDn önceki / sonraki kayıt.
+    Olmayan adımın düğmesi kapalıdır; nedeni `prevDisabledReason` / `nextDisabledReason` ile ipucu olarak verilir;
     metin giriş alanında (onay kutusu / seçenek düğmesi hariç), kaydırılabilir bir bölgede (ör. kalem tablosu) ve
     bir pencere açıkken değil.
 - `RecordFormGroup`: tek katman kart (beyaz, 1px çizgi, 8px yarıçap, 12px 14px iç boşluk). Başlık 13px/650, gri bant
