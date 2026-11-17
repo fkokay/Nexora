@@ -15,7 +15,7 @@ export const isWriteKind = (kind: QueryKind) => kind !== "read";
 export const MAX_QUERIES = 20;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-export const RESERVED_NAMES = ["kullanici", "bugun"];
+export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
 const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";
@@ -171,7 +171,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
               const update = (patch: Partial<PageQueryParameter>, key?: string) => onUpdate(selected.id, { parameters: selected.parameters.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }, key);
               return <tr key={parameter.name}>
                 <td><code>@{parameter.name}</code></td>
-                <td><BindingInput value={parameter.binding} suggestions={ownSuggestions}disabled={!editable} invalid={!bindingPath(parameter.binding)} placeholder="{{girisAdi.value}}"
+                <td><BindingInput value={parameter.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={!bindingPath(parameter.binding)} placeholder="{{girisAdi.value}}"
                   ariaLabel={`@${parameter.name} bağlaması`} onChange={(binding) => update({ binding }, `query:${selected.id}:param:${parameter.name}`)}/></td>
                 <td><select value={parameter.type} disabled={!editable} aria-label={`@${parameter.name} türü`} onChange={(event) => update({ type: event.target.value as QueryParameterType })}>
                   {parameterTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}

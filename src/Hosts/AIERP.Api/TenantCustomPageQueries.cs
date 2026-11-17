@@ -9,7 +9,7 @@ internal sealed record PageQuery(string Id, string Name, string Kind, string Sql
 internal static partial class TenantCustomPageQueries
 {
     internal const string PathPattern = @"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d{1,4}\])*";
-    internal static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "kullanici", "bugun" };
+    internal static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "kullanici", "bugun", "sayilar" };
     /// <summary>Names that collide with JavaScript object internals when used as runtime scope keys.</summary>
     internal static readonly IReadOnlySet<string> ObjectKeyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "__proto__", "constructor", "prototype" };
 
