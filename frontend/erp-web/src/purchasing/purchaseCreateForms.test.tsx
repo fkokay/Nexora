@@ -432,6 +432,18 @@ describe('Bağımsız fatura taslakları: liste tipi ve belge oluşturma görün
     expect(document.querySelector('.record-form')).not.toBeNull();
   });
 
+  it('F2 over a changed draft asks first (any edited field, e.g. the currency); declining keeps the value', async () => {
+    renderDrafts();
+    await screen.findByText('BF-d1');
+    await startNewDraft();
+    type(input(/Para birimi/), 'EUR');
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(await screen.findByText(confirmText)).toBeTruthy();
+    fireEvent.click(document.querySelector<HTMLElement>('.workspace-confirm-actions button.secondary')!);
+    await waitFor(() => expect(screen.queryByText(confirmText)).toBeNull());
+    expect(input(/Para birimi/).value).toBe('EUR');
+  });
+
   it('a failed save keeps the form and its request id', async () => {
     renderDrafts();
     await screen.findByText('BF-d1');

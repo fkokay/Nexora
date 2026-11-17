@@ -548,6 +548,8 @@ export default function PurchaseInvoiceEntryPage({
         formId="purchase-invoice-entry-form"
         onSubmit={(event) => void createInvoice(event)}
         onCancel={() => {
+          // Not while the invoice is being saved (the draft form does the same).
+          if (busy) return;
           setSelected(null);
           setFormError("");
         }}

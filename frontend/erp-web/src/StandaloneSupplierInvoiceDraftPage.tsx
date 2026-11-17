@@ -509,16 +509,16 @@ export default function StandaloneSupplierInvoiceDraftPage({
   }
 
   if (formOpen) {
+    // Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too.
+    const blank = blankDraft();
+    const blankLineValues = blank.lines[0];
     const dirty = Boolean(
       editing ||
-        draft.supplierId ||
-        draft.invoiceNumber.trim() ||
-        draft.dueDate ||
-        draft.notes.trim() ||
-        draft.subtotal ||
-        draft.taxTotal ||
-        draft.grandTotal ||
-        draft.lines.some((line) => line.description.trim() || line.subtotal || line.taxAmount || line.total || line.standalonePurchaseReceiptLineId),
+        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
+          (field) => draft[field] !== blank[field],
+        ) ||
+        draft.lines.length !== blank.lines.length ||
+        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
     );
     return (
       <>
