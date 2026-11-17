@@ -39,6 +39,33 @@ export function FilterChips({ chips, onClear, onClearAll, style }: {
   </div>;
 }
 
+const RELATED_MAX = 5;
+
+/** Bağlam paneli — taslak `.det`: seçili tablo satırının alanları (2 sütunlu kutular) ve isteğe bağlı ilgili kayıt listesi. */
+export function ContextPanel({ title, row, fields, related, style }: {
+  title: string; row: Record<string, unknown> | null; fields: { code: string; label: string; text: string }[];
+  related?: { title: string; rows: string[]; loading: boolean; error?: string }; style: CSSProperties;
+}) {
+  return <aside className="tenant-page-block tenant-page-context" style={style}>
+    {title && <h3>{title}</h3>}
+    {row === null ? <p className="tenant-page-context-empty" role="status">Bir satır seçin</p> : <>
+      <dl className="tenant-page-context-fields">
+        {fields.map((field) => <div className="tenant-page-context-field" key={field.code}>
+          <dt>{field.label}</dt>
+          <dd>{field.text}</dd>
+        </div>)}
+      </dl>
+      {related && <section className="tenant-page-context-related">
+        <h4>{related.title}</h4>
+        {related.loading ? <p className="tenant-page-context-note" role="status">Yükleniyor…</p>
+          : related.error ? <p className="tenant-page-context-note is-error" role="alert">{related.error}</p>
+          : related.rows.length === 0 ? <p className="tenant-page-context-note">Kayıt yok</p>
+          : <ul>{related.rows.slice(0, RELATED_MAX).map((text, index) => <li key={index}>{text}</li>)}</ul>}
+      </section>}
+    </>}
+  </aside>;
+}
+
 export type FacetGroup = {
   id: string; label: string; options: { value: string; label: string; count?: number }[];
   selected: string; loading: boolean; error?: string;

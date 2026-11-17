@@ -9,7 +9,7 @@ import { displayText, interpolate, type PageScope } from "./custom-page/pageBind
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
-import { chipText, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
+import { chipText, ContextPanel, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import "./tenant-custom-page.css";
 
@@ -50,6 +50,8 @@ type PageRuntime = {
   /** formCard/facetPanel'in sahiplendiği girişler (üst düzeyde ayrıca çizilmez) ve kimliğe göre giriş bileşenleri. */
   ownedInputs: Set<string>;
   inputById: Record<string, ComponentDefinition>;
+  /** contextPanel'in `table` başvurusu için kimliğe göre veri tabloları. */
+  tableById: Record<string, ComponentDefinition>;
   rights: NonNullable<PublishedPage["rights"]>;
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
@@ -401,6 +403,20 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       });
       return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
     }
+    case "contextPanel": {
+      if (!runtime) return null;
+      const table = typeof props.table === "string" ? runtime.tableById[props.table] : undefined;
+      const row = table?.name ? runtime.selections[table.name] ?? null : null;
+      const formats = parseColumnFormats(table?.props?.columnFormats);
+      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+      const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
+      const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
+      const related = relatedState ? {
+        title: textValue(props.relatedTitle) || "İlgili kayıtlar", loading: relatedState.loading, error: relatedState.error || undefined,
+        rows: relatedState.rows.map((relatedRow) => relatedCodes.map((code) => displayText(relatedRow[code])).filter(Boolean).join(" · ")),
+      } : undefined;
+      return <ContextPanel key={component.id} title={title} row={row} fields={fields} related={related} style={style} />;
+    }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
@@ -479,6 +495,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
   const ownedInputs = useMemo(() => ownedInputIds(flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }))), [components]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
+  const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
@@ -506,7 +523,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
     select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, ownedInputs, inputById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
+    queryById, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
     writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
   } : undefined;
 

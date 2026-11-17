@@ -1,8 +1,42 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chipText, FacetPanel, FilterChips, FormCard } from './LayoutComponents';
+import { chipText, ContextPanel, FacetPanel, FilterChips, FormCard } from './LayoutComponents';
 
 afterEach(cleanup);
+
+describe('ContextPanel', () => {
+  const fields = [{ code: 'Ad', label: 'Ünvan', text: 'Acme A.Ş.' }, { code: 'Bakiye', label: 'Bakiye', text: '1.250,00' }];
+
+  it('satır seçilmediyse yönerge yazar, alan çizmez', () => {
+    render(<ContextPanel title="Cari" row={null} fields={fields} style={{}} />);
+    expect(screen.getByText('Bir satır seçin')).toBeTruthy();
+    expect(screen.queryByText('Ünvan')).toBeNull();
+  });
+  it('seçili satırın alanlarını etiket ve değerle çizer', () => {
+    render(<ContextPanel title="Cari" row={{ Ad: 'x' }} fields={fields} style={{}} />);
+    expect(screen.getByText('Cari')).toBeTruthy();
+    expect(screen.getByText('Ünvan')).toBeTruthy();
+    expect(screen.getByText('Acme A.Ş.')).toBeTruthy();
+    expect(screen.getByText('1.250,00')).toBeTruthy();
+    expect(screen.queryByText('Bir satır seçin')).toBeNull();
+  });
+  it('ilgili liste yükleniyor ve hata durumlarını gösterir', () => {
+    const { rerender } = render(<ContextPanel title="C" row={{}} fields={fields} related={{ title: 'Son hareketler', rows: [], loading: true }} style={{}} />);
+    expect(screen.getByText('Yükleniyor…')).toBeTruthy();
+    rerender(<ContextPanel title="C" row={{}} fields={fields} related={{ title: 'Son hareketler', rows: [], loading: false, error: 'Sorgu başarısız' }} style={{}} />);
+    expect(screen.getByText('Sorgu başarısız')).toBeTruthy();
+  });
+  it('ilgili listeden en fazla 5 satır gösterir', () => {
+    const rows = Array.from({ length: 8 }, (_, index) => `S${index} · ${index}`);
+    const { container } = render(<ContextPanel title="C" row={{}} fields={fields} related={{ title: 'Son hareketler', rows, loading: false }} style={{}} />);
+    expect(screen.getByText('Son hareketler')).toBeTruthy();
+    expect(container.querySelectorAll('.tenant-page-context-related li').length).toBe(5);
+  });
+  it('ilgili liste boşsa Kayıt yok yazar', () => {
+    render(<ContextPanel title="C" row={{}} fields={fields} related={{ title: 'Son hareketler', rows: [], loading: false }} style={{}} />);
+    expect(screen.getByText('Kayıt yok')).toBeTruthy();
+  });
+});
 
 describe('chipText', () => {
   it('boş değeri çipe çevirmez', () => {

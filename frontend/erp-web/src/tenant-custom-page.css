@@ -188,5 +188,18 @@
 .tenant-page-facet-state.is-error { color: var(--nx-bad) !important; }
 .app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
 .app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear:hover { background: var(--nx-primary-soft); }
+/* Bağlam paneli — taslak `.det` (başlık), `.st4` (2 sütunlu alan kutuları), `.sect`/`.tl` (ilgili kayıt listesi) */
+.tenant-page-context-empty { margin: 0 !important; padding: 18px 8px; color: var(--nx-muted) !important; text-align: center; white-space: normal !important; }
+.tenant-page-context-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.tenant-page-context-field { min-width: 0; padding: 7px 9px; border: 1px solid var(--nx-line-soft); border-radius: var(--nx-radius-control); background: var(--nx-table-head); }
+.tenant-page-context-field dt { margin: 0 0 2px; color: var(--nx-muted); font-size: 11px; font-weight: 600; }
+.tenant-page-context-field dd { margin: 0; color: var(--nx-text); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tenant-page-context-related { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--nx-line-soft); }
+.tenant-page-context-related h4 { margin: 0 0 6px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.tenant-page-context-related ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.tenant-page-context-related li { padding: 5px 0 5px 12px; border-bottom: 1px solid var(--nx-line-soft); border-left: 2px solid var(--nx-line); font-size: 12.5px; overflow-wrap: anywhere; }
+.tenant-page-context-related li:last-child { border-bottom: 0; }
+.tenant-page-context-note { margin: 0 !important; color: var(--nx-muted) !important; font-size: 11.5px; white-space: normal !important; }
+.tenant-page-context-note.is-error { color: var(--nx-bad) !important; }
 @media (max-width: 900px) { .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .tenant-page-form-card-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
