@@ -28,6 +28,7 @@ export function StandaloneFulfillmentPanel({
   initialCustomerId = "",
   onCancel,
   ownsActionBar = false,
+  commandsActive = true,
 }: {
   token: string;
   sales?: boolean;
@@ -39,6 +40,8 @@ export function StandaloneFulfillmentPanel({
   onCancel?: () => void;
   /** The panel is the whole screen: it registers the action bar's Yeni (a fresh draft). */
   ownsActionBar?: boolean;
+  /** False while the panel is mounted but hidden (a document over its list): its form registers no bar commands. */
+  commandsActive?: boolean;
 }) {
   type Row = {
     id: string;
@@ -469,6 +472,7 @@ export function StandaloneFulfillmentPanel({
       )}
       <RecordFormPage
         variant={sales ? "page" : "dialog"}
+        commandsActive={commandsActive}
         className={sales ? "sales-rf" : "sales-rf sales-rf-embedded"}
         document={
           sales

@@ -37,11 +37,11 @@ export function OrderSelectionPanel({
       hint="İrsaliye siparişe bağlanır; mal kabul stok girişinin tek kaynağıdır."
       bodyClassName="rf-identity doc-form-fields purchase-note-order-fields"
     >
-      <label className="rf-span-2">
-        Satın alma siparişlerinde ara
-        <span className="purchase-note-order-search">
+      {/* The label holds only the input; Ara and Yenile sit beside it. */}
+      <div className="rf-span-2 purchase-note-order-search">
+        <label>
+          Satın alma siparişlerinde ara
           <input
-            aria-label="Satın alma siparişlerinde ara"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => {
@@ -52,14 +52,14 @@ export function OrderSelectionPanel({
             }}
             placeholder="Sipariş no veya tedarikçi ara"
           />
-          <button type="button" className="secondary" disabled={loading} onClick={onSearch}>
-            {loading ? "Yükleniyor…" : "Ara"}
-          </button>
-          <button type="button" className="secondary" onClick={onRefresh} disabled={loading}>
-            <RefreshCw size={15} aria-hidden="true" /> Yenile
-          </button>
-        </span>
-      </label>
+        </label>
+        <button type="button" className="secondary" disabled={loading} onClick={onSearch}>
+          {loading ? "Yükleniyor…" : "Ara"}
+        </button>
+        <button type="button" className="secondary" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} aria-hidden="true" /> Yenile
+        </button>
+      </div>
       <label className="rf-span-2">
         Sipariş
         <select value={orderId} onChange={(event) => onSelect(event.target.value)}>

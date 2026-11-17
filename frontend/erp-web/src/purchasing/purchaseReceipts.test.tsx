@@ -51,8 +51,13 @@ const note = (id: string, number: string, receiptId: string | null, receiptCode:
 });
 const notes = [note('n1', 'IRS-1', 'r1', 'MK-1'), note('n2', 'IRS-2', null, null)];
 
+/** Overrides per test (e.g. a tenant layout). */
+const overrides = new Map<string, () => unknown>();
+
 function respond(url: string): unknown {
   const path = url.split('?')[0];
+  const override = overrides.get(path);
+  if (override) return override();
   if (path === '/api/warehouses/') return [{ id: 'w1', code: 'D1', name: 'Ana depo', isActive: true }];
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   if (path.endsWith('/custom-fields') || path === '/api/finance/accounts') return [];
@@ -88,6 +93,7 @@ afterEach(() => {
   cleanup();
   apiMock.mockClear();
   fetchMock.mockClear();
+  overrides.clear();
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -204,6 +210,32 @@ describe('Mal kabulleri list', () => {
     await waitFor(() => expect(apiCalls('/api/purchasing/invoices/pi1')).toBeGreaterThan(0));
   });
 
+  it('while a receipt is open, the hidden order-less form gives the bar no Kaydet / Temizle and Ctrl+S sends nothing; its draft stays', async () => {
+    renderScreen(receiptsScreen());
+    await settle();
+    // The order-less form owns Kaydet while the list shows.
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    expect(menuItems()).toContain('Temizle');
+    fireEvent.change(screen.getByPlaceholderText('MK-2026-001'), { target: { value: 'MK-TASLAK' } });
+    fireEvent.doubleClick(row('MK-1'));
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    expect(enabled('save')).toBe(false);
+    expect(menuItems()).not.toContain('Temizle');
+    expect(menuItems()).not.toContain('Kaydet ve Yeni');
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    });
+    await settle();
+    expect(apiMock.mock.calls.some(([, , init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Listeye dön' }));
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).toBeNull());
+    expect((screen.getByPlaceholderText('MK-2026-001') as HTMLInputElement).value).toBe('MK-TASLAK');
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    expect(menuItems()).toContain('Temizle');
+  });
+
   it('a voided receipt has İptal as its end state and no invoice command', async () => {
     renderScreen(receiptsScreen());
     await settle();
@@ -229,6 +261,22 @@ describe('Satınalma İrsaliyeleri', () => {
     expect(grid().textContent).not.toMatch(/TRY|Tutar/);
     // The order workspace is not on the list any more; it opens with Yeni.
     expect(screen.queryByLabelText('Satın alma siparişlerinde ara')).toBeNull();
+  });
+
+  it('a tenant layout without the receipt column keeps the derived tag (its own Durum column)', async () => {
+    overrides.set('/api/screen-views/purchase-delivery-notes/active', () => ({
+      fields: [
+        { key: 'documentNumber', label: 'Tedarikçi irsaliye no', visible: true, position: 0 },
+        { key: 'supplierName', label: 'Tedarikçi', visible: true, position: 1 },
+        { key: 'purchaseReceiptCode', label: 'Mal kabul', visible: false, position: 2 },
+      ],
+    }));
+    renderScreen(<PurchaseDeliveryNotesPage token="t" />);
+    await settle();
+    await waitFor(() => expect(within(grid()).queryByText('Mal kabul')).toBeNull());
+    expect(tagOf(row('IRS-1'))?.textContent).toBe('Mal kabul eşleşti');
+    expect(tagOf(row('IRS-2'))?.className).toContain('is-warn');
+    expect(within(grid()).getByText('Durum')).toBeTruthy();
   });
 
   it('the panel and the document: chain from the row, lines from the note detail, no status flow', async () => {

@@ -74,7 +74,7 @@ export function PurchaseDeliveryNoteListPanel({
       openDisabled={openDisabled}
       onClose={onClose}
       takeFocus={takeFocus}
-      loading={tab === "lines" && !detail}
+      loading={tab === "lines" && !detail && !error}
       error={error}
     >
       {tab === "lines" ? (

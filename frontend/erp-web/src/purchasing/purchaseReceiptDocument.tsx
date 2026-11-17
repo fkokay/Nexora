@@ -113,7 +113,7 @@ export function PurchaseReceiptListPanel({
       openDisabled={openDisabled}
       onClose={onClose}
       takeFocus={takeFocus}
-      loading={!order}
+      loading={!order && !error}
       error={error}
     >
       {order &&

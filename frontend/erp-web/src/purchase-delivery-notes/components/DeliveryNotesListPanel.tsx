@@ -8,15 +8,18 @@ import { DeliveryNoteLinkTag } from "../../purchasing/purchaseDeliveryNotePanel"
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
 
 const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount"]);
-const CODE_FIELDS: ReadonlySet<string> = new Set(["documentNumber", "purchaseOrderCode"]);
+const CODE_FIELDS: ReadonlySet<string> = new Set(["documentNumber", "purchaseOrderCode", "purchaseReceiptCode"]);
+/** Page column (not in the tenant layout): the state derived from the receipt link. */
+const LINK_STATUS_KEY = "receiptLinkStatus";
 /** Default widths (fields without a tenant width): the list fits beside the menu at 1440 with the panel closed. */
 const COLUMN_WIDTHS: Record<string, number> = {
-  documentNumber: 150, documentDate: 100, purchaseOrderCode: 130, supplierName: 220, lineCount: 60, purchaseReceiptCode: 230,
+  documentNumber: 150, documentDate: 100, purchaseOrderCode: 130, supplierName: 220, lineCount: 60, purchaseReceiptCode: 150,
+  [LINK_STATUS_KEY]: 140,
 };
 
 /**
  * Delivery note list (list type, mockup 07): checkbox column, current row (click, ↑/↓) for the panel and the bar,
- * double-click / Enter / the number link open the note. The receipt column carries the derived tag.
+ * double-click / Enter / the number link open the note. The derived tag has its own Durum column after the tenant's.
  */
 export function DeliveryNotesListPanel({
   fields,
@@ -79,23 +82,25 @@ export function DeliveryNotesListPanel({
       case "lineCount":
         return note.lineCount;
       case "purchaseReceiptCode":
-        return (
-          <span className="purchase-note-link-cell">
-            <DeliveryNoteLinkTag note={note} />
-            {note.purchaseReceiptCode && <span className="nx-code">{note.purchaseReceiptCode}</span>}
-          </span>
-        );
+        return note.purchaseReceiptCode ?? "—";
+      case LINK_STATUS_KEY:
+        return <DeliveryNoteLinkTag note={note} />;
       default:
         return null;
     }
   };
+  // The derived tag is its own column after the tenant's columns, so a layout that hides the receipt column keeps it.
+  const shownFields = [
+    ...(fields as BuiltInScreenLayoutField[]),
+    { key: LINK_STATUS_KEY, label: "Durum", visible: true, position: fields.length, fixed: true },
+  ];
   return (
     <section className="list-v2-list">
       <SalesDocumentGrid
         gridId="purchase-delivery-notes"
         hideExport
         exportActionsRef={exportActionsRef}
-        fields={fields as BuiltInScreenLayoutField[]}
+        fields={shownFields}
         items={rows}
         loading={loading}
         loadingMessage="İrsaliyeler yükleniyor…"

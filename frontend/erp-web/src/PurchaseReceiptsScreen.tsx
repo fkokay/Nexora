@@ -367,6 +367,8 @@ export function PurchaseReceiptsScreen({
           customers={customers}
           stockItems={stockItems}
           warehouses={warehouseOptions}
+          // While a receipt document or its invoice is open, Kaydet / Ctrl+S / Temizle must not act on this hidden form.
+          commandsActive={listActive}
         />
       </section>
       {opened && openedReceipt && (
