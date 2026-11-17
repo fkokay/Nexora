@@ -265,7 +265,9 @@ public static class PlatformPermissionCatalog
             // permission family.
             var publishedQueryRun = normalizedRoute.EndsWith("/{code}/queries/{queryId}/run", StringComparison.OrdinalIgnoreCase);
             explicitReadAction = publishedQueryRun;
-            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun
+            // The ERP operation catalog holds no tenant data and is loaded by published pages at runtime.
+            var erpOperationCatalog = normalizedRoute.Equals("/api/custom-pages/erp-operations", StringComparison.OrdinalIgnoreCase);
+            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun || erpOperationCatalog
                 ? Resources.First(x => x.ResourceType == "erp.custom-menus")
                 : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
         }

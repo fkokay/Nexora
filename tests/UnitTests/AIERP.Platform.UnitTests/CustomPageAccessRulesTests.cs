@@ -111,5 +111,16 @@ public sealed class CustomPageAccessRulesTests
         Assert.Equal("erp.tenant-customizations", previewPermission!.Permission.ResourceType);
     }
 
+    [Fact]
+    public void Erp_operation_catalog_route_resolves_to_custom_page_runtime_read_permission()
+    {
+        // Published pages load the ERP operation catalog at runtime, so reading it is page use like /{code}/published.
+        var resolved = PlatformPermissionCatalog.TryResolve("/api/custom-pages/erp-operations", "GET", "/api/custom-pages/erp-operations",
+            new Dictionary<string, string?>(), Guid.NewGuid(), User, "TenantUser", out var permission);
+        Assert.True(resolved);
+        Assert.Equal("erp.custom-menus", permission!.Permission.ResourceType);
+        Assert.Equal("read", permission.Permission.Action);
+    }
+
     private static TenantCustomPageAccess Access(string mode) => new() { TenantId = Guid.NewGuid(), PageCode = "asset-dashboard", Mode = mode, Revision = 1 };
 }
