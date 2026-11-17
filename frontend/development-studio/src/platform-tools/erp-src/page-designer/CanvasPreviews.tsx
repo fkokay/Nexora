@@ -130,3 +130,23 @@ export function ContextPanelPreview({ title, row, fields, related, style }: {
     </>}
   </aside>;
 }
+
+type ActionBarBound = { new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+
+/** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk, "Yenile" ve "Aç" her zaman etkindir. */
+export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
+  const button = (label: string, key: string, on: boolean, primary = false) =>
+    <span className={`pd-bar-btn${primary ? " is-primary" : ""}${on ? "" : " is-off"}`}>{primary ? "+ " : ""}{label}<span className="pd-bar-key">{key}</span></span>;
+  return <div className="pd-actionbar-wrap" style={style}>
+    <div className="pd-actionbar" role="toolbar" aria-label="İşlem Çubuğu önizlemesi">
+      {button("Yeni", "F2", bound.new, true)}{button("Aç", "Enter", true)}{button("Kaydet", "Ctrl+S", bound.save)}{button("Sil", "Ctrl+Del", bound.remove)}
+      <span className="pd-bar-sep" />
+      {button("Yenile", "F5", true)}{button("Filtre", "Ctrl+F", bound.filter)}
+      <span className="pd-bar-sep" />
+      {button("Yazdır", "Ctrl+P", bound.print)}{button("Excel", "Ctrl+E", bound.excel)}
+      <span className="pd-bar-grow" />
+      <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`}>İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾<span className="pd-bar-key">Alt+İ</span></span>
+    </div>
+    <p className="pd-actionbar-note">Bu çubuk ERP'de sayfanın üstündeki İşlem Çubuğu'nda görünür.</p>
+  </div>;
+}
