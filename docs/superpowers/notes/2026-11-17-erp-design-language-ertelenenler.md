@@ -43,6 +43,7 @@ Faz 0, Faz 1 (Task 1–11), Faz 2 Stok (Task 1–8), Faz 3 Satış (Task 1–5: 
 - PurchaseInvoiceModal açıkken çubukta komutlar var (Yenile belgeyi yeniler, Sil soluk + neden, İşlemler: Ödeme ekle / İade oluştur / Faturayı iptal et).
 - İadeler: "İade, fatura detayından oluşturulur" ipucu başlık satırında geri (Satış ve Satınalma İadeleri).
 - Bağımsız fatura taslakları listesi giriş listesinden ~12px aşağıda duruyordu: Mal kabul faturası girişi de standart liste sayfası oldu.
+- Görsel kabulde düzeltilen tutarsızlıklar: alış faturası belgesinde tarih / "Satırlar" başlığı / # sütunu; belgelerde bölüm ve satır düğmesi boyları; talep / sipariş / giriş listelerinde eş aralıklı belge numarası; tüm listelerde sayı sütunu başlıkları sağa dayalı.
 
 ## Bekleyebilir
 - Kısayol ayrıştırma boşlukları (Alt+Shift+ı, `Ctrl++`, Mac'te Delete), `void run()` işlenmeyen ret, kısayol yardım penceresinde odak tuzağı, İşlemler menüsü konumunun kaydırmada güncellenmemesi.
