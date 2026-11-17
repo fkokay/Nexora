@@ -1,6 +1,5 @@
 import { type ComponentProps, type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
-import { confirmDialog } from "./confirmDialog";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
@@ -11,6 +10,7 @@ import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
+import { runWriteAction } from "./custom-page/writeAction";
 import "./tenant-custom-page.css";
 
 type DynamicField = {
@@ -58,8 +58,6 @@ type PageRuntime = {
   isPreview: boolean;
   writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
 };
-
-const PREVIEW_WRITE_WARNING = "Bu taslak önizlemesinde veriler gerçekten değişecek. Devam edilsin mi?";
 
 const bindProps = (props: Record<string, unknown>, scope: PageScope): Record<string, unknown> => {
   const bound = { ...props };
@@ -277,33 +275,29 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
 
   const click = async () => {
     if (inFlight.current) return;
-    inFlight.current = true;
-    try {
-      setFeedback(null);
-      if (!write) { runtime.rerun([query.id]); return; }
-      // Önizlemede onay her zaman sorulur (düğmede onay kapalı olsa da), çünkü taslak gerçek veriyi değiştirir.
-      if (props.confirmEnabled === true || runtime.isPreview) {
-        const configured = props.confirmEnabled === true ? bound("confirmText") : "";
-        const message = runtime.isPreview ? [configured, PREVIEW_WRITE_WARNING].filter(Boolean).join(" ") : configured;
-        const confirmed = await confirmDialog({
-          title: "Emin misiniz?", message: message || undefined, confirmLabel: "Onayla", cancelLabel: "Vazgeç",
-          tone: query.kind === "delete" || query.kind === "update" || runtime.isPreview ? "danger" : "default",
-        });
-        if (!confirmed) return;
-      }
-      setBusy(true);
-      try {
-        const result = await runtime.writeFor(query, runtime.isPreview);
-        const message = `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)`;
-        if (mounted.current) setFeedback({ tone: "success", text: message });
-        runtime.rerun(refreshIds);
-      } catch (cause) {
-        if (mounted.current) setFeedback({ tone: "error", text: writeErrorText(bound("errorMessage"), cause) });
-      } finally {
-        if (mounted.current) setBusy(false);
-      }
-    } finally {
-      inFlight.current = false;
+    setFeedback(null);
+    if (!write) {
+      inFlight.current = true;
+      try { runtime.rerun([query.id]); } finally { inFlight.current = false; }
+      return;
+    }
+    const result = await runWriteAction({
+      query, kind: query.kind, isPreview: runtime.isPreview, inFlight,
+      confirm: {
+        enabled: props.confirmEnabled === true, text: bound("confirmText"),
+        tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
+      },
+      write: async (target, confirmWrite) => {
+        if (mounted.current) setBusy(true);
+        try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
+      },
+      errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+    });
+    if ("ok" in result && result.ok) {
+      if (mounted.current) setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
+      runtime.rerun(refreshIds);
+    } else if ("error" in result) {
+      if (mounted.current) setFeedback({ tone: "error", text: result.error });
     }
   };
   return <div className="tenant-page-query-action">
