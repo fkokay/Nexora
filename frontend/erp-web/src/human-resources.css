@@ -719,3 +719,58 @@ html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: color
 html[data-theme="dark"] #root .hr-page .hr-status--approved { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
 html[data-theme="dark"] #root .hr-page .hr-status--rejected { border-color: #6a2d33; background: #34171b; color: #f3a6ab; }
 html[data-theme="dark"] #root .hr-page .hr-status--muted { border-color: #34445c; background: #1a2333; color: #9aa7ba; }
+
+/* ---- ERP design language, pass 2 (mockup 10, İK) ---- */
+/* Tabs: underlined text tabs (the detail panel's tab style), no pill buttons. */
+#root .app-shell .hr-page.list-v2 .hr-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nx-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  min-height: 34px;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-muted);
+  font: 400 13px/1 var(--nx-font);
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button:hover { color: var(--nx-text); background: transparent; }
+#root .app-shell .hr-page.list-v2 .hr-tabs > button.active {
+  border-bottom-color: var(--nx-primary);
+  color: var(--nx-text);
+  font-weight: 600;
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .app-shell .hr-page.list-v2 .hr-tabs .hr-tab-count {
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nx-muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+/* List + right panel (Satış panel frame). */
+#root .hr-page.list-v2 .hr-list-body { min-width: 0; }
+#root .hr-page.list-v2 .hr-list-body > .hr-panel { min-width: 0; margin: 0; }
+#root .hr-page.list-v2 .hr-ld:focus { outline: none; }
+#root .hr-page.list-v2 :is(.hr-table) td { white-space: nowrap; }
+#root .hr-page.list-v2 .hr-table th { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; }
+#root .hr-page.list-v2 .hr-table td.hr-col-number,
+#root .hr-page.list-v2 .hr-table th.hr-col-number { text-align: right; font-variant-numeric: tabular-nums; }

@@ -18,6 +18,12 @@ const employees = [employee('e1', 'P-001', 'Ayşe Demir', 'Active'), employee('e
 function respond(url: string): unknown {
   const path = url.split('?')[0];
   if (path === '/api/hr/employees/') return employees;
+  if (path === '/api/hr/leave-requests/')
+    return [
+      { id: 'l1', employeeId: 'e2', employee: 'Mehmet Kaya', leaveType: 'Annual', startDate: '2026-11-16', endDate: '2026-11-20', requestedDays: 5,
+        note: null, status: 'Requested', requestedByUserId: 'other', reviewedByUserId: null, createdAt: '2026-11-10', reviewedAt: null, reviewNote: null,
+        canCancel: true, rowVersion: 'AA==' },
+    ];
   if (path === '/api/hr/payroll/compensation/capabilities') return { canView: false, canChange: false, canApprove: false };
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   return [];
@@ -25,14 +31,18 @@ function respond(url: string): unknown {
 
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
+  // No published screen views: the page keeps its default columns.
   authenticatedFetch: vi.fn(async (url: string) =>
-    new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    url.startsWith('/api/screen-views/')
+      ? new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } })
+      : new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } })),
 }));
 
 beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} });
   if (!HTMLElement.prototype.scrollTo) HTMLElement.prototype.scrollTo = () => {};
+  if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};
   if (!HTMLDialogElement.prototype.showModal)
     HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
       this.setAttribute('open', '');
@@ -79,6 +89,44 @@ describe('İnsan kaynakları frame', () => {
     await screen.findByText('Ayşe Demir');
     await waitFor(() => expect(enabled('refresh')).toBe(true));
     expect(enabled('new')).toBe(false);
+  });
+});
+
+describe('İnsan kaynakları lists (list type)', () => {
+  const menu = () => {
+    fireEvent.click(command('more'));
+    const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
+    fireEvent.click(command('more'));
+    return items;
+  };
+  const reason = (id: string) => command(id).getAttribute('title') ?? '';
+
+  it('Personel: single click selects and shows the panel; no Düzenle buttons; Aç opens the edit form', async () => {
+    renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
+    const cell = await screen.findByText('Ayşe Demir');
+    expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+    await waitFor(() => expect(reason('open')).toBe('Önce bir kayıt seçin'));
+    fireEvent.click(cell);
+    const panel = await screen.findByRole('complementary', { name: 'Personel özeti' });
+    expect(within(panel).getByText('P-001')).toBeTruthy();
+    expect(reason('delete')).toBe('Personel kaydı silinemez; durumunu düzenleme formundan değiştirin.');
+    fireEvent.click(command('open'));
+    expect(await screen.findByText('Personel bilgilerini düzenle')).toBeTruthy();
+  });
+
+  it('İzinler: the row menu actions are in İşlemler; the create form gives way to the panel', async () => {
+    renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
+    await screen.findByText('Ayşe Demir');
+    fireEvent.click(screen.getByRole('tab', { name: /İzinler/ }));
+    const row = (await screen.findAllByText('Mehmet Kaya')).find((node) => node.closest('tr'))!;
+    expect(document.getElementById('hr-leave-create')).toBeTruthy();
+    fireEvent.click(row);
+    expect(await screen.findByRole('complementary', { name: 'İzin talebi özeti' })).toBeTruthy();
+    expect(document.getElementById('hr-leave-create')).toBeNull();
+    await waitFor(() => expect(menu()).toEqual(['Onayla', 'Reddet', 'İptal et', 'CSV olarak dışa aktar']));
+    expect(reason('delete')).toBe("İzin talebi silinemez; İşlemler'den iptal edin.");
+    fireEvent.click(command('new'));
+    await waitFor(() => expect(document.getElementById('hr-leave-create')).toBeTruthy());
   });
 });
 

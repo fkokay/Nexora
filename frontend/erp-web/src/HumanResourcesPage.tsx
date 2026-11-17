@@ -8,7 +8,6 @@ import type {
 } from "./human-resources/components/types";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, Download, RefreshCw } from "lucide-react";
-import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { authenticatedFetch } from "./authApi";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
@@ -19,8 +18,11 @@ import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { RecordFormGroup } from "./record-form/RecordForm";
 import { HrStatusTag, hrStatusLabel } from "./human-resources/hrStatus";
+import { HrListFooter, HrRecordPanel, hrGridSelection, hrRowProps } from "./human-resources/hrList";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { csvExportCommand } from "./commands/gridCommands";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
-import type { PageCommands } from "./commands/types";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { FormSaveCommand } from "./record-form/FormSaveCommand";
 type Leave = {
   id: string;
@@ -908,6 +910,9 @@ export default function HumanResourcesPage({
       document.body.style.overflow = previousOverflow;
     };
   }, [creatingEmployee]);
+  // Current row of the visible list tab (list type); reset when the tab changes.
+  const [hrCurrent, setHrCurrent] = useState<string | null>(null);
+  const hrGridExportRef = useRef<GridExportActions | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null),
     [editingAttendance, setEditingAttendance] = useState<Attendance | null>(
       null,
@@ -2263,7 +2268,7 @@ export default function HumanResourcesPage({
   }
   const tr = (turkish: string, english: string) => (isEn ? english : turkish);
   const employeeVisibleFields = employeeScreenFields
-    .filter((field) => field.visible && (field.key !== "actions" || admin))
+    .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
   const employeeRows = employees.filter((employee) =>
     (!employeeStatusFilter || employee.status === employeeStatusFilter) &&
@@ -2502,7 +2507,7 @@ export default function HumanResourcesPage({
   const leaveVisibleFields = leaveScreenFields
     .filter(
       (field) =>
-        field.key !== "endDate" && (field.key === "actions" || field.visible),
+        field.key !== "endDate" && field.key !== "actions" && field.visible,
     )
     .sort((a, b) => a.position - b.position);
   const employeesById = new Map(employees.map((item) => [item.id, item]));
@@ -2546,8 +2551,8 @@ export default function HumanResourcesPage({
     else if (span && Number(days) > span) setDays(String(span));
   };
   const attendanceVisibleFields: EmployeeScreenField[] = [
-    ...attendanceScreenFields.filter((field) =>
-      field.key === "actions" ? admin : field.visible,
+    ...attendanceScreenFields.filter(
+      (field) => field.key !== "actions" && field.visible,
     ),
     {
       key: "approvalStatus",
@@ -2611,7 +2616,7 @@ export default function HumanResourcesPage({
   };
   const compensationVisibleFields = hrVisibleScreenFields(
     compensationScreenFields,
-  );
+  ).filter((field) => field.key !== "actions");
   const taxDeclarationVisibleFields = hrVisibleScreenFields(
     taxDeclarationScreenFields,
   );
@@ -2668,6 +2673,7 @@ export default function HumanResourcesPage({
     if (next === section) return;
     setError("");
     setMessage("");
+    setHrCurrent(null);
     setSection(next);
   };
   const focusCreateForm = (id: string) => {
@@ -2718,14 +2724,234 @@ export default function HumanResourcesPage({
           setCreatingEmployee(true);
         }
       : section === "leave" && !loading
-        ? () => focusCreateForm("hr-leave-create")
+        ? () => {
+            // The create form takes the panel's place again.
+            setHrCurrent(null);
+            window.setTimeout(() => focusCreateForm("hr-leave-create"), 0);
+          }
         : section === "attendance" && admin && !loading
           ? () => focusCreateForm("hr-attendance-create")
           : null;
+  // List type (pass 2): the current row of the visible tab drives the right panel, Aç and İşlemler. The former
+  // row buttons (Onayla / Reddet / İptal et / Düzelt / Düzenle) are here with their conditions.
+  const currentEmployee = section === "employees" ? employeeRows.find((x) => x.id === hrCurrent) : undefined;
+  const currentLeave = section === "leave" ? leaveRows.find((x) => x.id === hrCurrent) : undefined;
+  const currentAttendance = section === "attendance" ? attendanceRows.find((x) => x.id === hrCurrent) : undefined;
+  const currentCompensation =
+    section === "compensation" && compensationAccess.view ? compensationRows.find((x) => x.id === hrCurrent) : undefined;
+  const pickFirst = tr("Önce bir kayıt seçin", "Select a record first");
+  const adminOnly = tr("Yalnız firma yöneticisi düzenleyebilir", "Only a company administrator can edit");
+  /** Aç / Enter / double click: the record's existing edit form; otherwise the focus moves to its panel. */
+  function openHrRecord(id: string) {
+    setHrCurrent(id);
+    if (section === "employees" && admin) {
+      const employee = employees.find((x) => x.id === id);
+      if (employee) setEditingEmployee(employee);
+      return;
+    }
+    if (section === "attendance" && admin) {
+      const record = attendance.find((x) => x.id === id);
+      if (record) setEditingAttendance(record);
+      return;
+    }
+    window.setTimeout(() => document.querySelector<HTMLElement>(".hr-ld")?.focus(), 0);
+  }
+  const hrMore: MenuCommand[] = [];
+  if (currentLeave) {
+    const canReview = admin && currentLeave.status === "Requested";
+    const own = isOwnLeaveRequest(currentLeave);
+    const reviewReason = own ? tr("Başka bir yönetici onaylamalı", "Another administrator must review this") : busyReason;
+    if (canReview) {
+      hrMore.push({
+        id: "leave-approve",
+        label: tr("Onayla", "Approve"),
+        disabledReason: reviewReason,
+        run: () =>
+          void submit(
+            () =>
+              request(token, `/api/hr/leave-requests/${currentLeave.id}/review`, {
+                method: "POST",
+                body: JSON.stringify({ approve: true, rowVersion: currentLeave.rowVersion }),
+              }),
+            tr("İzin onaylandı.", "Leave approved."),
+          ),
+      });
+      hrMore.push({
+        id: "leave-reject",
+        label: tr("Reddet", "Reject"),
+        disabledReason: reviewReason,
+        run: () =>
+          void submit(
+            () =>
+              request(token, `/api/hr/leave-requests/${currentLeave.id}/review`, {
+                method: "POST",
+                body: JSON.stringify({ approve: false, rowVersion: currentLeave.rowVersion }),
+              }),
+            tr("İzin reddedildi.", "Leave rejected."),
+          ),
+      });
+    }
+    if (currentLeave.canCancel)
+      hrMore.push({
+        id: "leave-cancel",
+        label: tr("İptal et", "Cancel"),
+        disabledReason: busyReason,
+        run: () =>
+          void submit(
+            () =>
+              request(token, `/api/hr/leave-requests/${currentLeave.id}/cancel`, {
+                method: "POST",
+                body: JSON.stringify({ rowVersion: currentLeave.rowVersion }),
+              }),
+            tr("İzin talebi iptal edildi.", "Leave request cancelled."),
+          ),
+      });
+  }
+  if (currentAttendance && admin && currentAttendance.approvalStatus === "PendingApproval")
+    hrMore.push({
+      id: "attendance-approve",
+      label: tr("Onayla", "Approve"),
+      disabledReason: busyReason,
+      run: () =>
+        void submit(
+          () =>
+            request(token, `/api/hr/attendance/${currentAttendance.id}/approve`, {
+              method: "POST",
+              body: JSON.stringify({ rowVersion: currentAttendance.rowVersion }),
+            }),
+          tr("Puantaj onaylandı.", "Attendance approved."),
+        ),
+    });
+  if (currentCompensation && compensationAccess.approve && currentCompensation.canApprove) {
+    hrMore.push({
+      id: "compensation-approve",
+      label: tr("Onayla", "Approve"),
+      disabledReason: busyReason,
+      run: () =>
+        void submit(
+          () =>
+            request(token, `/api/hr/payroll/compensation/${currentCompensation.id}/approve`, {
+              method: "POST",
+              body: JSON.stringify({ rowVersion: currentCompensation.rowVersion }),
+            }),
+          tr("Ücret değişikliği onaylandı.", "Compensation change approved."),
+        ),
+    });
+    hrMore.push({
+      id: "compensation-reject",
+      label: tr("Reddet", "Reject"),
+      disabledReason: busyReason,
+      run: () =>
+        void submit(
+          () =>
+            request(token, `/api/hr/payroll/compensation/${currentCompensation.id}/reject`, {
+              method: "POST",
+              body: JSON.stringify({ rowVersion: currentCompensation.rowVersion }),
+            }),
+          tr("Ücret değişikliği reddedildi.", "Compensation change rejected."),
+        ),
+    });
+  }
+  const listTab = section === "employees" || section === "leave" || section === "attendance" || (section === "compensation" && compensationAccess.view);
+  if (listTab) hrMore.push(csvExportCommand(hrGridExportRef));
+  const hrCurrentRecord = currentEmployee ?? currentLeave ?? currentAttendance ?? currentCompensation;
   const hrCommands: PageCommands = {
     refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
     ...(hrNew ? { new: { primary: true, disabledReason: busyReason, run: hrNew } } : {}),
+    ...(listTab
+      ? {
+          open: {
+            disabledReason: !hrCurrentRecord
+              ? pickFirst
+              : (section === "employees" || section === "attendance") && !admin
+                ? adminOnly
+                : busyReason,
+            run: () => {
+              if (hrCurrentRecord) openHrRecord(hrCurrentRecord.id);
+            },
+          },
+          delete: {
+            disabledReason: !hrCurrentRecord
+              ? pickFirst
+              : section === "employees"
+                ? tr("Personel kaydı silinemez; durumunu düzenleme formundan değiştirin.", "Employee records cannot be deleted; change the status in the edit form.")
+                : section === "leave"
+                  ? tr("İzin talebi silinemez; İşlemler'den iptal edin.", "Leave requests cannot be deleted; cancel from Actions.")
+                  : section === "attendance"
+                    ? tr("Puantaj kaydı silinemez; Aç ile düzeltin.", "Attendance records cannot be deleted; correct them with Open.")
+                    : tr("Ücret kaydı silinemez; yeni sürüm girin.", "Compensation records cannot be deleted; enter a new version."),
+          },
+        }
+      : {}),
+    more: hrMore,
   };
+  const closePanel = () => setHrCurrent(null);
+  const closeLabel = tr("Detay panelini kapat", "Close the detail panel");
+  const hrPanel = currentEmployee ? (
+    <HrRecordPanel
+      label={tr("Personel özeti", "Employee summary")}
+      code={currentEmployee.personnelCode}
+      title={currentEmployee.fullName}
+      tags={<HrStatusTag status={currentEmployee.status} isEn={isEn} />}
+      facts={[
+        { label: tr("Departman", "Department"), value: currentEmployee.department || "—" },
+        { label: tr("Görev", "Job title"), value: currentEmployee.jobTitle || "—" },
+        { label: tr("İşe giriş", "Hire date"), value: formatHrDate(currentEmployee.hireDate) },
+      ]}
+      onClose={closePanel}
+      closeLabel={closeLabel}
+    />
+  ) : currentLeave ? (
+    <HrRecordPanel
+      label={tr("İzin talebi özeti", "Leave request summary")}
+      title={employeesById.get(currentLeave.employeeId)?.fullName ?? currentLeave.employee}
+      tags={<HrStatusTag status={currentLeave.status} isEn={isEn} />}
+      facts={[
+        { label: tr("İzin türü", "Leave type"), value: leaveTypeLabel(currentLeave.leaveType, isEn) },
+        { label: tr("Tarih", "Dates"), value: formatHrDateRange(currentLeave.startDate, currentLeave.endDate) },
+        { label: tr("Talep edilen gün", "Requested days"), value: currentLeave.requestedDays.toLocaleString(isEn ? "en-US" : "tr-TR") },
+        { label: tr("Not", "Note"), value: currentLeave.note || "—" },
+      ]}
+      note={
+        admin && currentLeave.status === "Requested" && isOwnLeaveRequest(currentLeave)
+          ? tr("Başka bir yönetici onaylamalı", "Another administrator must review this")
+          : tr("Yeni talep için Yeni (F2).", "Use New (F2) for a new request.")
+      }
+      onClose={closePanel}
+      closeLabel={closeLabel}
+    />
+  ) : currentAttendance ? (
+    <HrRecordPanel
+      label={tr("Puantaj özeti", "Attendance summary")}
+      title={currentAttendance.employee}
+      tags={<HrStatusTag status={currentAttendance.approvalStatus} isEn={isEn} />}
+      facts={[
+        { label: tr("Tarih", "Date"), value: formatHrDate(currentAttendance.workDate) },
+        { label: tr("Çalışma", "Worked"), value: `${Math.floor(currentAttendance.workedMinutes / 60)}:${String(currentAttendance.workedMinutes % 60).padStart(2, "0")}` },
+        { label: tr("Fazla mesai", "Overtime"), value: `${Math.floor(currentAttendance.overtimeMinutes / 60)}:${String(currentAttendance.overtimeMinutes % 60).padStart(2, "0")}` },
+        { label: tr("Not", "Note"), value: currentAttendance.note || "—" },
+      ]}
+      onClose={closePanel}
+      closeLabel={closeLabel}
+    />
+  ) : currentCompensation ? (
+    <HrRecordPanel
+      label={tr("Ücret kaydı özeti", "Compensation summary")}
+      title={currentCompensation.employee}
+      tags={<HrStatusTag status={currentCompensation.status} isEn={isEn} />}
+      facts={[
+        {
+          label: tr("Tutar", "Amount"),
+          value: `${currentCompensation.amount.toLocaleString(isEn ? "en-US" : "tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${currentCompensation.currencyCode}`,
+        },
+        { label: tr("Tür", "Kind"), value: currentCompensation.targetKind === "Gross" ? tr("Brüt", "Gross") : tr("Net", "Net") },
+        { label: tr("Geçerlilik", "Effective"), value: `${formatHrDate(currentCompensation.effectiveFrom)} · v${currentCompensation.version}` },
+      ]}
+      onClose={closePanel}
+      closeLabel={closeLabel}
+    />
+  ) : null;
+
   return (
     <div className="hr-page list-v2" aria-busy={loading || busy}>
       <PageCommandsSlot commands={hrCommands} />
@@ -2831,7 +3057,7 @@ export default function HumanResourcesPage({
                   onRefresh={refreshList}
                   translate={tr}
                 />
-                <div className="hr-employee-workspace">
+                <div className={`hr-employee-workspace sales-list-body hr-list-body${hrPanel ? " has-detail" : ""}`}>
                   <div
                     className={`hr-panel hr-employee-directory list-v2-list${employees.length === 0 ? " is-empty" : ""}`}
                   >
@@ -2845,13 +3071,16 @@ export default function HumanResourcesPage({
                       search={employeeSearch || employeeStatusFilter}
                       totalCount={employees.length}
                       toolbarContainer={employees.length ? gridToolsSlot : undefined}
-                      onEditEmployee={setEditingEmployee}
                       onImportRows={importEmployeeRows}
                       onEditRows={saveEmployeeGridEdits}
                       translate={tr}
                       statusLabel={hrStatusLabel}
+                      selection={hrGridSelection(hrCurrent, setHrCurrent, hrGridExportRef, isEn)}
+                      onOpen={openHrRecord}
                     />
+                    <HrListFooter shown={employeeRows.length} loaded={employees.length} cap={1000} isEn={isEn} />
                   </div>
+                  {hrPanel}
                 </div>
                 {admin && editingEmployee && (
                   <div className="hr-panel hrp-form-panel">
@@ -3202,6 +3431,7 @@ export default function HumanResourcesPage({
                         hideSearch
                         enableRowSelection={false}
                         toolbarContainer={gridToolsSlot}
+                        {...hrGridSelection(hrCurrent, setHrCurrent, hrGridExportRef, isEn)}
                       >
                         <thead>
                           <tr>
@@ -3223,92 +3453,13 @@ export default function HumanResourcesPage({
                         <tbody>
                           {leaveRows.map((x) => {
                             const person = employeesById.get(x.employeeId);
-                            const own = isOwnLeaveRequest(x);
-                            const canReview = admin && x.status === "Requested";
                             return (
-                              <tr key={x.id}>
+                              <tr key={x.id} {...hrRowProps(x.id, openHrRecord)}>
                                 {leaveVisibleFields.map((field) => {
                                   const label = leaveFieldLabel(field);
                                   const style = field.width
                                     ? { width: field.width, minWidth: field.width }
                                     : undefined;
-                                  if (field.key === "actions")
-                                    return (
-                                      <td key={field.key} className="hr-col-actions" style={style} data-label={label}>
-                                        {(canReview || x.canCancel) && (
-                                          <SalesRowActionsMenu label={person?.fullName ?? x.employee}>
-                                            {canReview && !own && (
-                                              <>
-                                                <button
-                                                  type="button"
-                                                  role="menuitem"
-                                                  className="sales-row-menu-item"
-                                                  disabled={busy}
-                                                  onClick={() =>
-                                                    void submit(
-                                                      () =>
-                                                        request(token, `/api/hr/leave-requests/${x.id}/review`, {
-                                                          method: "POST",
-                                                          body: JSON.stringify({ approve: true, rowVersion: x.rowVersion }),
-                                                        }),
-                                                      tr("İzin onaylandı.", "Leave approved."),
-                                                    )
-                                                  }
-                                                >
-                                                  {tr("Onayla", "Approve")}
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  role="menuitem"
-                                                  className="sales-row-menu-item"
-                                                  disabled={busy}
-                                                  onClick={() =>
-                                                    void submit(
-                                                      () =>
-                                                        request(token, `/api/hr/leave-requests/${x.id}/review`, {
-                                                          method: "POST",
-                                                          body: JSON.stringify({ approve: false, rowVersion: x.rowVersion }),
-                                                        }),
-                                                      tr("İzin reddedildi.", "Leave rejected."),
-                                                    )
-                                                  }
-                                                >
-                                                  {tr("Reddet", "Reject")}
-                                                </button>
-                                              </>
-                                            )}
-                                            {canReview && own && (
-                                              <span className="sales-row-menu-note">
-                                                {tr("Başka bir yönetici onaylamalı", "Another administrator must review this")}
-                                              </span>
-                                            )}
-                                            {x.canCancel && (
-                                              <>
-                                                {canReview && <div role="separator" className="sales-row-menu-separator" />}
-                                                <button
-                                                  type="button"
-                                                  role="menuitem"
-                                                  className="sales-row-menu-item danger-action"
-                                                  disabled={busy}
-                                                  onClick={() =>
-                                                    void submit(
-                                                      () =>
-                                                        request(token, `/api/hr/leave-requests/${x.id}/cancel`, {
-                                                          method: "POST",
-                                                          body: JSON.stringify({ rowVersion: x.rowVersion }),
-                                                        }),
-                                                      tr("İzin talebi iptal edildi.", "Leave request cancelled."),
-                                                    )
-                                                  }
-                                                >
-                                                  {tr("İptal et", "Cancel")}
-                                                </button>
-                                              </>
-                                            )}
-                                          </SalesRowActionsMenu>
-                                        )}
-                                      </td>
-                                    );
                                   const value =
                                     field.key === "employee" ? (
                                       <>
@@ -3354,8 +3505,10 @@ export default function HumanResourcesPage({
                         </tbody>
                       </AdvancedDataGrid>
                     </div>
+                    <HrListFooter shown={leaveRows.length} loaded={leaves.length} cap={500} isEn={isEn} />
                   </div>
                 </div>
+                {hrPanel ?? (
                 <aside
                   id="hr-leave-create"
                   className="hr-side-panel"
@@ -3481,6 +3634,7 @@ export default function HumanResourcesPage({
                     </button>
                   </form>
                 </aside>
+                )}
               </div>
             )}
             {section === "attendance" && (
@@ -3506,9 +3660,10 @@ export default function HumanResourcesPage({
                     }))}
                   />
                 </ListToolbar>
+                <div className={`sales-list-body hr-list-body${hrPanel ? " has-detail" : ""}`}>
                 <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" gridId="hr-attendance" {...screenViewGridDefaults(attendanceVisibleFields)} hideSearch toolbarContainer={gridToolsSlot}>
+                    <AdvancedDataGrid className="hr-table" gridId="hr-attendance" {...screenViewGridDefaults(attendanceVisibleFields)} hideSearch toolbarContainer={gridToolsSlot} {...hrGridSelection(hrCurrent, setHrCurrent, hrGridExportRef, isEn)}>
                       <thead>
                         <tr>
                           {attendanceVisibleFields.map((field) => (
@@ -3530,68 +3685,9 @@ export default function HumanResourcesPage({
                       </thead>
                       <tbody>
                           {attendanceRows.map((x) => (
-                          <tr key={x.id}>
+                          <tr key={x.id} {...hrRowProps(x.id, openHrRecord)}>
                             {attendanceVisibleFields.map((field) => {
                               const label = attendanceFieldLabel(field);
-                              if (field.key === "actions")
-                                return (
-                                  <td
-                                    key={field.key}
-                                    style={
-                                      field.width
-                                        ? {
-                                            width: field.width,
-                                            minWidth: field.width,
-                                          }
-                                        : undefined
-                                    }
-                                    data-label={label}
-                                  >
-                                    <div className="hr-actions">
-                                      {admin &&
-                                        x.approvalStatus ===
-                                          "PendingApproval" && (
-                                          <button
-                                            className="secondary"
-                                            disabled={busy}
-                                            onClick={() =>
-                                              void submit(
-                                                () =>
-                                                  request(
-                                                    token,
-                                                    `/api/hr/attendance/${x.id}/approve`,
-                                                    {
-                                                      method: "POST",
-                                                      body: JSON.stringify({
-                                                        rowVersion:
-                                                          x.rowVersion,
-                                                      }),
-                                                    },
-                                                  ),
-                                                tr(
-                                                  "Puantaj onaylandı.",
-                                                  "Attendance approved.",
-                                                ),
-                                              )
-                                            }
-                                          >
-                                            {tr("Onayla", "Approve")}
-                                          </button>
-                                        )}
-                                      {admin && (
-                                        <button
-                                          className="secondary"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setEditingAttendance(x)
-                                          }
-                                        >
-                                          {tr("Düzelt", "Correct")}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                );
                               const value =
                                 field.key === "employee" ? (
                                   x.employee
@@ -3643,6 +3739,9 @@ export default function HumanResourcesPage({
                       </tbody>
                     </AdvancedDataGrid>
                   </div>
+                  <HrListFooter shown={attendanceRows.length} loaded={attendance.length} cap={500} isEn={isEn} />
+                </div>
+                {hrPanel}
                 </div>
                 {admin && editingAttendance && (
                   <div className="hr-panel hrp-form-panel">
@@ -4046,6 +4145,7 @@ export default function HumanResourcesPage({
                       }))}
                     />
                   </ListToolbar>
+                  <div className={`sales-list-body hr-list-body${hrPanel ? " has-detail" : ""}`}>
                   <div className="hr-panel list-v2-list">
                     <p className="hr-footnote">
                       {tr(
@@ -4060,6 +4160,7 @@ export default function HumanResourcesPage({
                         {...screenViewGridDefaults(compensationVisibleFields)}
                         hideSearch
                         toolbarContainer={gridToolsSlot}
+                        {...hrGridSelection(hrCurrent, setHrCurrent, hrGridExportRef, isEn)}
                       >
                         <thead>
                           <tr>
@@ -4079,7 +4180,7 @@ export default function HumanResourcesPage({
                         </thead>
                         <tbody>
                           {compensationRows.map((x) => (
-                            <tr key={x.id}>
+                            <tr key={x.id} {...hrRowProps(x.id, openHrRecord)}>
                               {compensationVisibleFields.map((field) => (
                               <td
                                 key={field.key}
@@ -4109,62 +4210,6 @@ export default function HumanResourcesPage({
                                   </>
                                 ) : field.key === "status" ? (
                                   <HrStatusTag status={x.status} isEn={isEn} />
-                                ) : field.key === "actions" ? (
-                                compensationAccess.approve && x.canApprove && (
-                                  <div className="hr-actions">
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/compensation/${x.id}/approve`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "Ücret değişikliği onaylandı.",
-                                            "Compensation change approved.",
-                                          ),
-                                        )
-                                      }
-                                    >
-                                      <Check size={15} />
-                                      {tr("Onayla", "Approve")}
-                                    </button>
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/compensation/${x.id}/reject`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "Ücret değişikliği reddedildi.",
-                                            "Compensation change rejected.",
-                                          ),
-                                        )
-                                      }
-                                    >
-                                      {tr("Reddet", "Reject")}
-                                    </button>
-                                  </div>
-                                )
                                 ) : null}
                               </td>
                               ))}
@@ -4188,6 +4233,9 @@ export default function HumanResourcesPage({
                         </tbody>
                       </AdvancedDataGrid>
                     </div>
+                    <HrListFooter shown={compensationRows.length} loaded={compensations.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                  </div>
+                  {hrPanel}
                   </div>
                   </>
                 )}
