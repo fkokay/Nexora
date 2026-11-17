@@ -1,328 +1,532 @@
-/* Ortak kayıt oluşturma / düzenleme ekranı (RecordForm.tsx): komut çubuğu, kimlik şeridi, sekmeli grup kutuları, durum çubuğu. */
+/* Ortak kayıt oluşturma / düzenleme ekranı (RecordForm.tsx), onaylı taslak 01 "Kayıt ekranı":
+   başlık (görsel, başlık, künye satırı, değişiklik sayısı, kayıtlar arası gezinme), İşlem Çubuğu,
+   solda bölüm gezgini, ortada tek katman kartlar, sağda bağlam paneli, altta kısayollar ve durum.
+   Kart 8px, kontrol 6px yarıçap; gri başlık bandı ve iç içe kutu yok. Renkler yalnızca --nx-* token'ları. */
 .record-form {
-  --rf-border: #b9c5d4;
-  --rf-border-soft: #cfd8e4;
-  --rf-surface: #fff;
-  --rf-band: #eef2f7;
-  --rf-text: #0f1b2e;
-  --rf-label: #1f2a3d;
-  --rf-muted: #55647a;
+  /* --rf-* names stay for module stylesheets that use them; the values are design tokens. */
+  --rf-border: color-mix(in srgb, var(--nx-line) 82%, var(--nx-muted));
+  --rf-border-soft: var(--nx-line);
+  --rf-surface: var(--nx-surface);
+  --rf-band: var(--nx-canvas);
+  --rf-text: var(--nx-text);
+  --rf-label: color-mix(in srgb, var(--nx-text) 72%, var(--nx-muted));
+  --rf-muted: var(--nx-muted);
   --rf-accent: var(--nx-primary);
   --rf-accent-edge: var(--nx-primary);
-  --rf-must-bg: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface));
-  display: flex;
-  flex-direction: column;
+  --rf-must-bg: var(--nx-surface);
+  --rf-focus-ring: color-mix(in srgb, var(--nx-primary) 22%, transparent);
+  /* Rows: header, action bar slot, error, navigator (narrow screens), body, context panel (narrow), footer. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto 1fr auto auto;
   min-width: 0;
   min-height: 100%;
   color: var(--rf-text);
+  font-size: 12.5px;
 }
-html[data-theme="dark"] .record-form {
-  --rf-border: #3a4559;
-  --rf-border-soft: #30394d;
-  --rf-surface: #171d2b;
-  --rf-band: #20293a;
-  --rf-text: #edf3fb;
-  --rf-label: #c7d1df;
-  --rf-muted: #9aa9bd;
-  --rf-must-bg: var(--nx-warn-bg);
-}
+.record-form > * { grid-column: 1 / -1; min-width: 0; }
+.record-form > .rf-toolbar { grid-row: 1; }
+.record-form > [data-nx-action-bar-slot] { grid-row: 2; }
+.record-form > .rf-error { grid-row: 3; }
+.record-form > .rf-snav { grid-row: 5; grid-column: 1; }
+.record-form > .rf-form { grid-row: 5; grid-column: 2; }
+.record-form > .rf-aside { grid-row: 5; grid-column: 3; }
+.record-form > .rf-status { grid-row: 7; }
 
-/* Komut çubuğu */
+/* Başlık: görsel kutusu, başlık + künye satırı; sağda değişiklik sayısı, kayıtlar arası gezinme, Vazgeç */
 .record-form .rf-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   margin: 0;
-  padding: 14px 32px;
+  padding: 12px 16px 10px;
   border: 0;
-  border-bottom: 1px solid var(--rf-border-soft);
-  background: var(--rf-surface);
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-surface);
 }
-.record-form .rf-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.record-form .rf-title h1 { margin: 0; color: var(--rf-text); font-size: 20px; font-weight: 700; line-height: 1.3; }
+.record-form .rf-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.record-form .rf-media {
+  display: flex;
+  flex: 0 0 46px;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-canvas);
+  color: var(--nx-muted);
+  font-size: 10px;
+}
+.record-form .rf-media img { width: 100%; height: 100%; object-fit: cover; }
+.record-form .rf-head-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.record-form .rf-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.record-form .rf-title h1 {
+  margin: 0;
+  color: var(--nx-text);
+  /* !important: global-components.css sets every .app-shell h1 with !important. */
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0 !important;
+}
+.record-form .rf-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--nx-muted); font-size: 12px; }
+.record-form .rf-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
 .record-form .rf-badge {
-  padding: 2px 8px;
-  border: 1px solid #9cc3e6;
-  border-radius: 3px;
-  background: #e3f0fb;
-  color: #0b4f8a;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: .04em;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
   white-space: nowrap;
 }
-html[data-theme="dark"] .record-form .rf-badge { border-color: #2f5f8f; background: #16304a; color: #a9d2f5; }
-.record-form .rf-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.record-form .rf-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--nx-muted); }
+.record-form .rf-dirty { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-warn); font-size: 12px; white-space: nowrap; }
+.record-form .rf-dirty i { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-warn); }
+.record-form .rf-rnav {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
+  color: var(--nx-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.record-form .rf-rnav > span { display: flex; align-items: center; padding: 3px 8px; }
+.record-form .rf-rnav > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  cursor: pointer;
+}
+.record-form .rf-rnav > * + * { border-left: 1px solid var(--nx-line); }
+.record-form .rf-rnav > button:hover:not(:disabled) { background: var(--nx-canvas); }
+.record-form .rf-rnav > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.record-form .rf-rnav > button:disabled { opacity: .45; cursor: default; }
+.record-form :is(.rf-rnav, .rf-snav-hint) kbd {
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
 .record-form .rf-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: auto;
-  height: 40px;
-  min-height: 40px;
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
   margin: 0;
-  padding: 0 16px;
+  padding: 0 12px;
   border: 1px solid var(--rf-border);
-  border-radius: 6px;
-  background: var(--rf-surface);
-  color: var(--rf-label);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
   box-shadow: none;
   cursor: pointer;
 }
-.record-form .rf-btn:hover:not(:disabled) { border-color: var(--rf-accent-edge); }
-.record-form .rf-btn:focus-visible { outline: 2px solid var(--rf-accent); outline-offset: 2px; }
+.record-form .rf-btn svg { width: 15px; height: 15px; }
+.record-form .rf-btn:hover:not(:disabled) { border-color: var(--nx-primary); }
+.record-form .rf-btn:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 .record-form .rf-btn:disabled { opacity: .6; cursor: default; }
 .record-form .rf-btn kbd {
   padding: 0 4px;
-  border: 1px solid var(--rf-border-soft);
+  border: 1px solid var(--nx-line);
   border-radius: 3px;
-  background: var(--rf-band);
-  color: var(--rf-muted);
-  font: inherit;
-  font-size: 11px;
+  background: var(--nx-canvas);
+  color: var(--nx-muted);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
 }
-.record-form .rf-btn--primary { border-color: var(--rf-accent-edge); background: var(--rf-accent); color: var(--nx-on-primary); font-weight: 700; }
+.record-form .rf-btn--primary { border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); font-weight: 600; }
 .record-form .rf-btn--primary:hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
 .record-form .rf-btn--primary kbd { border-color: color-mix(in srgb, var(--nx-on-primary) 45%, transparent); background: transparent; color: var(--nx-on-primary); }
 /* Disabled (e.g. while saving): a neutral fill instead of a faded blue keeps the label readable in both themes. */
-.record-form .rf-btn--primary:disabled { opacity: 1; border-color: var(--rf-border); background: var(--rf-band); color: var(--rf-muted); }
-.record-form .rf-btn--primary:disabled kbd { border-color: var(--rf-border-soft); color: var(--rf-muted); }
-.record-form .rf-error { margin: 16px 32px 0; }
+.record-form .rf-btn--primary:disabled { opacity: 1; border-color: var(--rf-border); background: var(--nx-canvas); color: var(--nx-muted); }
+.record-form .rf-btn--primary:disabled kbd { border-color: var(--nx-line); color: var(--nx-muted); }
+.record-form .rf-error { margin: 12px 16px 0; }
 
-/* Form gövdesi */
+/* Gövde: kartlar alt alta */
 .record-form .rf-form {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  min-width: 0;
   margin: 0;
-  padding: 24px 32px;
+  padding: 14px 16px;
 }
 .record-form .rf-group {
   display: flex;
   flex-direction: column;
   min-width: 0;
   margin: 0;
-  padding: 0;
-  border: 1px solid var(--rf-border-soft);
-  border-radius: 6px;
-  background: var(--rf-surface);
+  padding: 12px 14px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  box-shadow: none;
 }
-.record-form .rf-group > h2 {
+.record-form .rf-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+.record-form .rf-group-head > h2 {
   margin: 0;
-  padding: 11px 18px;
-  border-bottom: 1px solid var(--rf-border-soft);
-  border-radius: 6px 6px 0 0;
-  background: var(--rf-band);
-  /* The app-wide heading scale is set with !important; a group title is a label-sized heading. */
-  color: var(--rf-label) !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  letter-spacing: .05em !important;
-  line-height: 1.4 !important;
-  text-transform: uppercase;
+  padding: 0;
+  border: 0;
+  background: none;
+  /* The app-wide heading scale is set with !important; a card title is 13px/650. */
+  color: var(--nx-text) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.35 !important;
+  text-transform: none;
 }
-.record-form .rf-group-body { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
-.record-form .rf-identity {
+.record-form .rf-group-head > small { color: var(--nx-muted); font-size: 11.5px; font-weight: 400; }
+/* Alan ızgarası: üç sütun; etiket dışındaki her şey (tablo, araç satırı, açıklama) tam genişlik. */
+.record-form .rf-group-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 14px 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 14px;
+  padding: 0;
 }
-.record-form .rf-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
-.record-form .rf-columns-wide { grid-column: 1 / -1; min-width: 0; }
-.record-form .rf-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.record-form .rf-custom-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; }
+.record-form .rf-group-body > :not(label, .rf-pair, .rf-changed, .rf-field) { grid-column: 1 / -1; }
+.record-form .rf-group-body > :is(label, .rf-changed):has(textarea) { grid-column: 1 / -1; }
+.record-form .rf-group-body > .rf-pair { display: contents; }
+.record-form .rf-identity { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.record-form .rf-columns { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.record-form .rf-columns-wide { min-width: 0; }
+.record-form .rf-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.record-form .rf-custom-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
 
-/* Alanlar: etiket üstte */
+/* Alanlar: etiket üstte (11,5px/500), kontrol 31px */
 .record-form .rf-form label {
   position: static;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
   margin: 0;
   color: var(--rf-label);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 500;
   line-height: 1.35;
 }
-.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]) {
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  height: 40px;
-  min-height: 40px;
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
   margin: 0;
-  padding: 0 12px;
+  padding: 0 9px;
   border: 1px solid var(--rf-border);
-  border-radius: 6px;
-  background: var(--rf-surface);
-  color: var(--rf-text);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 400;
   box-shadow: none;
 }
-.record-form .rf-form textarea:not([type="checkbox"]) { height: 72px; padding: 10px 12px; resize: vertical; }
-.record-form .rf-form :is(input, select, textarea)::placeholder { color: var(--rf-muted); opacity: 1; }
-.record-form .rf-form :is(input, select, textarea):focus {
-  border-color: var(--rf-accent-edge);
-  outline: 2px solid var(--rf-accent);
-  outline-offset: 0;
-  box-shadow: none;
+.record-form .rf-form textarea:not([type="checkbox"]):not([type="radio"]) { height: 64px; padding: 6px 9px; resize: vertical; }
+.record-form .rf-form :is(input, select, textarea)::placeholder { color: var(--nx-muted); opacity: 1; }
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):focus {
+  border-color: var(--nx-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--rf-focus-ring);
 }
-.record-form .rf-form :is(input, select, textarea):user-invalid { border-color: #dc2626; }
-.record-form .rf-form :is(input, select).rf-must { border-color: var(--rf-accent-edge); background: var(--rf-must-bg); }
+.record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]), textarea):read-only,
+.record-form .rf-form :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):disabled { background: var(--nx-canvas); color: var(--nx-muted); }
+.record-form .rf-form :is(input, select, textarea):is(:user-invalid, [aria-invalid="true"]) {
+  border-color: var(--nx-bad);
+  background: color-mix(in srgb, var(--nx-bad-bg) 35%, var(--nx-surface));
+}
 .record-form .rf-form input.rf-num { text-align: right; font-variant-numeric: tabular-nums; }
-.record-form .rf-form input.rf-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.record-form .rf-form input.rf-mono { font-family: var(--nx-font-mono); font-size: 12px; }
 .record-form .rf-form label.rf-short { max-width: 160px; }
-.record-form .rf-form small { color: var(--rf-muted); font-size: 12px; font-weight: 400; line-height: 1.4; }
-.record-form .rf-form small.rf-field-error { color: #b42318; }
-html[data-theme="dark"] .record-form .rf-form small.rf-field-error { color: #ff8a80; }
-.record-form .rf-req { color: #b42318; font-weight: 700; }
-html[data-theme="dark"] .record-form .rf-req { color: #ff8a80; }
-.record-form .rf-form label.rf-check { flex-direction: row; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; }
-.record-form .rf-form label.rf-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--rf-accent-edge); }
+.record-form .rf-form small { color: var(--nx-muted); font-size: 11px; font-weight: 400; line-height: 1.4; }
+.record-form .rf-form small.rf-field-error { color: var(--nx-bad); }
+.record-form .rf-req { color: var(--nx-bad); font-weight: 700; }
+.record-form .rf-form label.rf-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--nx-control-h);
+  color: var(--nx-text);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.record-form .rf-form label.rf-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--nx-primary); }
 .record-form .rf-form .searchable-record-trigger {
   width: 100%;
-  height: 40px;
-  min-height: 40px;
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
   border: 1px solid var(--rf-border);
-  border-radius: 6px;
-  background: var(--rf-surface);
-  color: var(--rf-text);
-  font-size: 14px;
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 12.5px;
   font-weight: 400;
 }
 
-/* Sekmeler */
-.record-form .rf-tabbed { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+/* Değişen alan (RecordFieldChange): kontrolde 3px sarı sol çizgi, altında "Önceki: …" */
+.record-form .rf-changed, .rf-changed { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.record-form .rf-form .rf-changed :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]),
+.record-form .rf-form .rf-changed .searchable-record-trigger { box-shadow: inset 3px 0 0 var(--nx-changed); }
+.record-form .rf-form .rf-changed :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):focus {
+  box-shadow: inset 3px 0 0 var(--nx-changed), 0 0 0 3px var(--rf-focus-ring);
+}
+.record-form .rf-form .rf-changed small.rf-previous { color: var(--nx-muted); font-size: 11px; }
+
+/* Bölümler (diyalog ve bağlamsız kullanım): alt çizgili yatay sekmeler */
+.record-form .rf-tabbed { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .record-form .rf-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 2px 16px;
   min-height: 0;
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--rf-border);
+  border-bottom: 1px solid var(--nx-line);
   background: transparent;
 }
 .record-form .rf-tabs > button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: auto;
-  height: 44px;
+  height: auto;
+  min-height: 0;
   margin: 0 0 -1px;
-  padding: 0 20px;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 6px 6px 0 0;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
   background: transparent;
-  color: var(--rf-label);
+  color: var(--nx-muted);
   font: inherit;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   box-shadow: none;
   cursor: pointer;
 }
-.record-form .rf-tabs > button:hover { background: var(--rf-band); }
-.record-form .rf-tabs > button:focus-visible { outline: 2px solid var(--rf-accent); outline-offset: -2px; }
-.record-form .rf-tabs > button[aria-current="page"] {
-  border-color: var(--rf-border);
-  border-top: 2px solid var(--rf-accent-edge);
-  background: var(--rf-surface);
-  color: var(--rf-text);
-  font-weight: 700;
-}
-.record-form .rf-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: #b45309; }
-.record-form .rf-tab-panel {
-  flex: 1;
-  padding: 24px;
-  border: 1px solid var(--rf-border);
-  border-top: 0;
-  border-radius: 0 0 6px 6px;
-  background: var(--rf-surface);
-}
+.record-form .rf-tabs > button:hover { color: var(--nx-text); }
+.record-form .rf-tabs > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.record-form .rf-tabs > button[aria-current="page"] { color: var(--nx-primary-strong); font-weight: 600; box-shadow: inset 0 -2px 0 var(--nx-primary); }
+.record-form .rf-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nx-warn); }
+.record-form .rf-tab-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 0; border: 0; background: transparent; }
 
-/* Durum çubuğu */
-.record-form .rf-status {
+/* Bölüm gezgini (sayfada RecordFormTabs): ✓ tamam / ! eksik / ○ boş, sayı, kart doluluğu */
+.record-form > .rf-snav { align-self: start; width: 210px; margin: 14px 0 14px 16px; }
+.record-form > .rf-snav:empty { display: none; }
+.record-form .rf-snav-inner {
+  padding: 8px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+.record-form .rf-snav-list { display: flex; flex-direction: column; gap: 2px; }
+.record-form .rf-snav-item {
   display: flex;
   align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--nx-radius-control);
+  background: transparent;
+  color: var(--rf-label);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+}
+.record-form .rf-snav-item:hover { background: var(--nx-canvas); }
+.record-form .rf-snav-item:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.record-form .rf-snav-item[aria-selected="true"] { background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-weight: 600; }
+.record-form .rf-snav-label { flex: 1 1 auto; min-width: 0; }
+.record-form .rf-snav-item small { color: var(--nx-muted); font-size: 11.5px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.record-form .rf-snav-state {
+  display: inline-flex;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.record-form .rf-snav-state.is-done { background: var(--nx-ok-bg); color: var(--nx-ok); }
+.record-form .rf-snav-state.is-error { background: var(--nx-bad-bg); color: var(--nx-bad); }
+.record-form .rf-snav-state.is-empty { border: 1.5px solid var(--rf-border); }
+.record-form .rf-snav-state.is-none { border: 1.5px dotted var(--nx-line); }
+.record-form .rf-snav-progress { margin: 14px 8px 0; color: var(--nx-muted); font-size: 11.5px; }
+.record-form .rf-snav-bar { height: 5px; margin-top: 5px; overflow: hidden; border-radius: 3px; background: var(--nx-line-soft); }
+.record-form .rf-snav-bar > i { display: block; height: 100%; background: var(--nx-ok); }
+.record-form .rf-snav-hint { margin: 16px 8px 4px; color: var(--nx-muted); font-size: 11.5px; }
+.record-form .rf-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Bağlam paneli: sağda 300px, kartlar alt alta */
+.record-form > .rf-aside { display: flex; flex-direction: column; gap: 12px; align-self: start; width: 300px; margin: 14px 16px 14px 0; }
+.record-form > .rf-aside[hidden] { display: none; }
+.record-form .rf-aside .rf-group-body { grid-template-columns: minmax(0, 1fr); }
+
+/* Alt bilgi: solda kısayollar, sağda durum */
+.record-form > .rf-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 4px 20px;
-  min-height: 30px;
-  padding: 4px 32px;
-  border-top: 1px solid var(--rf-border-soft);
-  background: var(--rf-band);
-  color: var(--rf-label);
-  font-size: 12px;
+  min-height: 0;
+  padding: 7px 16px;
+  border-top: 1px solid var(--nx-line);
+  background: color-mix(in srgb, var(--nx-canvas) 45%, var(--nx-surface));
+  color: var(--nx-muted);
+  font-size: 11.5px;
 }
-.record-form .rf-status-warning { color: #8a4b00; }
-.record-form .rf-status-notice { color: #14653b; font-weight: 600; }
-html[data-theme="dark"] .record-form .rf-status-warning { color: var(--nx-warn); }
-html[data-theme="dark"] .record-form .rf-status-notice { color: #7ddba8; }
+.record-form .rf-keys { min-width: 0; }
+.record-form .rf-keys > span + span::before { content: " · "; }
+.record-form .rf-status-content { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin-left: auto; color: var(--rf-label); }
+.record-form .rf-status-content b { color: var(--nx-text); font-weight: 600; }
+.record-form .rf-status-warning { color: var(--nx-warn); }
+.record-form .rf-status-notice { color: var(--nx-ok); font-weight: 600; }
 .record-form .rf-status-end { margin-left: auto; }
 
 /* Modal içinde kullanım */
 .record-form--dialog { min-height: 0; }
 .record-form--dialog .rf-toolbar { padding: 12px 20px; }
-.record-form--dialog .rf-form { padding: 16px 20px; gap: 16px; }
+.record-form--dialog .rf-form { padding: 16px 20px; }
 .record-form--dialog .rf-error { margin: 12px 20px 0; }
-.record-form--dialog .rf-status { padding-inline: 20px; }
-.record-form--dialog .rf-tab-panel { padding: 16px; }
-.record-form--dialog .rf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.record-form--dialog > .rf-status { padding-inline: 20px; }
 
 @media (max-width: 1100px) {
-  .record-form .rf-columns, .record-form .rf-custom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .record-form .rf-identity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-form :is(.rf-group-body, .rf-custom-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Dar ekranda gezgin formun üstünde yatay bir şerit, açılan bağlam paneli formun altında olur. */
+@media (max-width: 900px) {
+  .record-form > .rf-snav { grid-row: 4; grid-column: 1 / -1; width: auto; margin: 12px 16px 0; }
+  .record-form .rf-snav-list { flex-direction: row; overflow-x: auto; }
+  .record-form .rf-snav-item { width: auto; white-space: nowrap; }
+  .record-form :is(.rf-snav-progress, .rf-snav-hint) { display: none; }
+  .record-form > .rf-aside { grid-row: 6; grid-column: 1 / -1; width: auto; margin: 0 16px 14px; }
 }
 @media (max-width: 700px) {
-  .record-form .rf-toolbar, .record-form .rf-status { padding-inline: 16px; }
-  .record-form .rf-form { padding: 16px; }
+  .record-form .rf-toolbar, .record-form > .rf-status { padding-inline: 16px; }
+  .record-form .rf-form { padding: 14px 16px; }
   .record-form .rf-error { margin-inline: 16px; }
-  .record-form .rf-tab-panel { padding: 16px; }
-  .record-form .rf-columns, .record-form .rf-custom-grid, .record-form .rf-identity { grid-template-columns: minmax(0, 1fr); }
+  .record-form :is(.rf-group-body, .rf-custom-grid, .rf-pair) { grid-template-columns: minmax(0, 1fr); }
   .record-form .rf-btn kbd { display: none; }
 }
 
-/* Full-page forms: the title row and status line sit on the page background (no full-bleed white band
-   above a grey form area); groups stay as the white cards. Dialog and embedded forms keep their bars. */
+/* Full-page forms: the title row and footer sit on the page background (no full-bleed white band above the
+   cards); the cards are the only boxes. Dialog and embedded forms keep their bars. */
 #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) { background: transparent; }
 #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-toolbar {
-  padding: 2px 0 14px;
+  padding: 2px 0 12px;
   border-bottom: 0;
   background: transparent;
 }
-#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-form { padding: 0 0 20px; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-error { margin: 0 0 12px; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-form { padding: 12px 0 0; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-snav { margin: 12px 12px 0 0; }
+#root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-aside { margin: 12px 0 0 12px; }
 #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-status {
+  margin-top: 16px;
   padding-inline: 2px;
-  border-top: 1px solid var(--rf-border-soft);
   background: transparent;
 }
+@media (max-width: 900px) {
+  #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-snav { margin: 12px 0 0; }
+  #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > .rf-aside { margin: 12px 0 0; }
+}
 /* A sticky title row needs an opaque page-coloured background so content doesn't show through it. */
-#root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #f3f5fb; }
-html[data-theme='dark'] #root .app-shell .workspace-content .record-form:not(.record-form--dialog):not(.prf-embedded) > :is(.rf-toolbar, .rf-status) { background: transparent; }
-html[data-theme='dark'] #root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: #0f1828; }
+#root .app-shell .workspace-content .foreign-trade-create.fin-rf-host .record-form > .rf-toolbar { background: var(--nx-canvas); }
 /* Forms rendered inside their own white card keep the card's inner padding (title and fields must not
    touch the card edge); only forms sitting directly on the page background drop it. */
 #root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-toolbar {
-  padding: 14px 32px;
-  border-bottom: 1px solid var(--rf-border-soft);
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--nx-line);
 }
-#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-form { padding: 24px 32px; }
-#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-status { padding-inline: 32px; }
-@media (max-width: 700px) {
-  #root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > :is(.rf-toolbar, .rf-status) { padding-inline: 16px; }
-  #root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-form { padding: 16px; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-error { margin: 12px 16px 0; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-form { padding: 14px 16px; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-snav { margin: 14px 0 14px 16px; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-aside { margin: 14px 16px 14px 0; }
+#root .app-shell .workspace-content :is(.sales-rf-host, .sales-rf-embedded, .inv-rf-embedded, .fin-rf-host) > .record-form:not(.record-form--dialog) > .rf-status { margin-top: 0; padding-inline: 16px; }
+
+/* Legacy global-components.css (and form-design-system.css) style every control, label, small text,
+   [class*='-badge'] / [class*='-panel'] and [aria-selected] in the app shell with !important, and remove every
+   box-shadow. Until that cleanup lands, the record form restates its own values here with enough weight. */
+.app-shell .record-form .rf-form label { color: var(--rf-label) !important; font-size: 11.5px !important; font-weight: 500 !important; }
+.app-shell .record-form .rf-form label.rf-check { color: var(--nx-text) !important; font-size: 12.5px !important; font-weight: 400 !important; }
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea) {
+  min-height: var(--nx-control-h);
+  padding: 0 9px;
+  border: 1px solid var(--rf-border) !important;
+  border-radius: var(--nx-radius-control) !important;
+  background-color: var(--nx-surface) !important;
+  color: var(--nx-text) !important;
+  font-size: 12.5px !important;
 }
+.app-shell .record-form .rf-form textarea { min-height: 64px; padding: 6px 9px; }
+.app-shell .record-form .rf-form input.rf-mono { font-size: 12px !important; }
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):not(select):read-only,
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):disabled { background-color: var(--nx-canvas) !important; color: var(--nx-muted) !important; }
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):is(:user-invalid, [aria-invalid="true"]) {
+  border-color: var(--nx-bad) !important;
+  background-color: color-mix(in srgb, var(--nx-bad-bg) 35%, var(--nx-surface)) !important;
+}
+/* The control selector repeats global-components' own :is(...) so these rules outrank its !important ones. */
+.app-shell .record-form .rf-form :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):focus {
+  border-color: var(--nx-primary) !important;
+  box-shadow: 0 0 0 3px var(--rf-focus-ring) !important;
+}
+.app-shell .record-form .rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea),
+.app-shell .record-form .rf-form .rf-changed .searchable-record-trigger { box-shadow: inset 3px 0 0 var(--nx-changed) !important; }
+.app-shell .record-form .rf-form .rf-changed :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]), select, textarea):focus {
+  box-shadow: inset 3px 0 0 var(--nx-changed), 0 0 0 3px var(--rf-focus-ring) !important;
+}
+.app-shell .record-form .rf-form small { font-size: 11px !important; }
+.app-shell .record-form :is(.rf-group-head, .rf-snav-item) small { font-size: 11.5px !important; }
+.app-shell .record-form .rf-form small.rf-field-error { color: var(--nx-bad) !important; }
+.app-shell .record-form .rf-badge { border-radius: 999px !important; }
+.app-shell .record-form .rf-tab-panel { border-radius: 0 !important; background-color: transparent !important; }
+.app-shell .record-form .rf-snav-item[aria-selected="true"] { background-color: var(--nx-primary-soft) !important; }
 
 /* Default submit button of the form (Enter saves); present for implicit submission, never shown. */
 .record-form .rf-default-submit { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

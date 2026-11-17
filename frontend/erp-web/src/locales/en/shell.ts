@@ -12,6 +12,23 @@ export const english: Record<string, string> = {
   'Tümünü seç': 'Select all',
   'Toplu işlemler': 'Bulk actions',
   'Seçimi temizle': 'Clear selection',
+  // Record screen kit (record-form/RecordForm): header, section navigator, context panel, footer hints.
+  'Kayıtlar arası gezinme': 'Record navigation',
+  'Önceki kayıt': 'Previous record',
+  'Sonraki kayıt': 'Next record',
+  'Bağlam paneli': 'Context panel',
+  'Eksik veya hatalı': 'Incomplete or invalid',
+  'Kart doluluğu': 'Card completeness',
+  'Bölümler arası:': 'Between sections:',
+  'Önceki:': 'Previous:',
+  'Tab sonraki alan': 'Tab next field',
+  'Ctrl+S kaydet': 'Ctrl+S save',
+  'Ctrl+Z geri al': 'Ctrl+Z undo',
+  'PgUp/PgDn önceki/sonraki kayıt': 'PgUp/PgDn previous/next record',
+  'Ctrl+. bağlam paneli': 'Ctrl+. context panel',
 }
 
-export const englishPatterns: Array<[RegExp, string]> = []
+export const englishPatterns: Array<[RegExp, string]> = [
+  [/^(\d+) alan değişti$/, '$1 fields changed'],
+  [/^Kart doluluğu %(\d+)$/, 'Card completeness $1%'],
+]

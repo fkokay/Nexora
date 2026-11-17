@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +8,8 @@ import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider, useViewDialogOwner } from '../commands/CommandProvider';
 import { ConfirmDialogHost, promptDialog } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
-import { RecordFormPage } from './RecordForm';
+import { RecordFieldChange, RecordFormGroup, RecordFormPage, RecordFormTabs } from './RecordForm';
+import type { RecordFormPageProps, RecordFormTab } from './RecordForm';
 
 afterEach(cleanup);
 
@@ -182,5 +184,225 @@ describe('RecordFormPage saving', () => {
     ctrlS();
     expect(onSubmit).toHaveBeenCalledTimes(1);
     closeOpenDialogs();
+  });
+});
+
+// ---- Record screen kit (mockup 01, record part): section navigator, cards, context panel ----
+
+const sectionTabs = (): RecordFormTab[] => [
+  { key: 'general', label: 'Genel', state: 'done' },
+  { key: 'price', label: 'Fiyat ve Vergi', warning: true, count: 1 },
+  { key: 'variants', label: 'Varyantlar', state: 'empty', count: 0 },
+];
+
+function Sectioned({
+  completion,
+  identityRequired = false,
+  failWith,
+  recordNav,
+  aside,
+  dirty,
+}: {
+  completion?: number;
+  identityRequired?: boolean;
+  /** Simulates a container whose own validation sets `error` on submit. */
+  failWith?: string;
+  recordNav?: RecordFormPageProps['recordNav'];
+  aside?: ReactNode;
+  dirty?: boolean | number;
+}) {
+  const [active, setActive] = useState('general');
+  const [error, setError] = useState('');
+  return (
+    <RecordFormPage
+      title="Stok Kartı"
+      mode="edit"
+      busy={false}
+      saveLabel="x"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (failWith) setError(failWith);
+      }}
+      onCancel={() => {}}
+      error={error}
+      recordNav={recordNav}
+      aside={aside}
+      dirty={dirty}
+    >
+      <RecordFormGroup title="Kimlik" hint="* zorunlu alan">
+        <label>Stok kodu<input required={identityRequired} /></label>
+      </RecordFormGroup>
+      <RecordFormTabs tabs={sectionTabs()} active={active} onChange={setActive} label="Stok bölümleri" completion={completion}>
+        {active === 'general' && <label>Stok adı<input /></label>}
+        {active === 'price' && <label>KDV oranı<input required /></label>}
+        {active === 'variants' && <p>Varyant yok</p>}
+      </RecordFormTabs>
+    </RecordFormPage>
+  );
+}
+
+const press = (k: string, init: Partial<KeyboardEventInit> = {}, target: Element = document.body) =>
+  fireEvent.keyDown(target, { key: k, ...init });
+const selectedSection = () => document.querySelector('[role="tablist"] [aria-selected="true"]')?.textContent;
+
+describe('RecordFormTabs as the section navigator', () => {
+  it('lists the sections vertically with ✓ / ! / ○ states, counts and the fill bar', () => {
+    inView(<Sectioned completion={72} />);
+    const nav = screen.getByRole('tablist', { name: 'Stok bölümleri' });
+    expect(nav.getAttribute('aria-orientation')).toBe('vertical');
+    expect(nav.closest('form')).toBeNull();
+    const tabs = within(nav).getAllByRole('tab');
+    expect(tabs.map((tab) => tab.querySelector('.rf-snav-state')?.className)).toEqual([
+      'rf-snav-state is-done', 'rf-snav-state is-error', 'rf-snav-state is-empty',
+    ]);
+    expect(tabs.map((tab) => tab.querySelector('.rf-snav-state')?.textContent)).toEqual(['✓', '!', '']);
+    expect(tabs.map((tab) => tab.querySelector('small')?.textContent ?? null)).toEqual([null, '1', '0']);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Kart doluluğu %72')).toBeTruthy();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('72');
+    expect(screen.getByRole('tabpanel').textContent).toContain('Stok adı');
+  });
+
+  it('Ctrl+↓ / Ctrl+↑ switch sections, also while typing', () => {
+    inView(<Sectioned />);
+    press('ArrowDown', { ctrlKey: true }, screen.getByLabelText('Stok adı'));
+    expect(selectedSection()).toContain('Fiyat ve Vergi');
+    expect(document.activeElement).toBe(screen.getByLabelText('KDV oranı'));
+    press('ArrowDown', { ctrlKey: true });
+    expect(selectedSection()).toContain('Varyantlar');
+    press('ArrowDown', { ctrlKey: true });
+    expect(selectedSection()).toContain('Varyantlar');
+    press('ArrowUp', { ctrlKey: true });
+    expect(selectedSection()).toContain('Fiyat ve Vergi');
+  });
+
+  it('Ctrl+↓ does nothing while a modal is open or in a hidden view', () => {
+    inView(
+      <>
+        <Sectioned />
+        <div role="dialog" aria-modal="true"><input aria-label="Not" /></div>
+      </>,
+    );
+    press('ArrowDown', { ctrlKey: true }, screen.getByLabelText('Not'));
+    expect(selectedSection()).toContain('Genel');
+    cleanup();
+    inView(<div hidden><Sectioned /></div>);
+    press('ArrowDown', { ctrlKey: true });
+    expect(selectedSection()).toContain('Genel');
+  });
+
+  it('a dialog keeps the horizontal tab strip', () => {
+    function DialogTabs() {
+      const [active, setActive] = useState('a');
+      return (
+        <RecordFormPage variant="dialog" title="Profil" mode="create" busy={false} saveLabel="x" onSubmit={(e) => e.preventDefault()} onCancel={() => {}}>
+          <RecordFormTabs tabs={[{ key: 'a', label: 'Vergi' }, { key: 'b', label: 'Parametre', warning: true }]} active={active} onChange={setActive} label="Profil bölümleri">
+            <p>{active}</p>
+          </RecordFormTabs>
+        </RecordFormPage>
+      );
+    }
+    inView(<div className="modal-backdrop"><div className="modal"><DialogTabs /></div></div>);
+    const strip = screen.getByRole('navigation', { name: 'Profil bölümleri' });
+    expect(strip.closest('form')).not.toBeNull();
+    expect(within(strip).getByRole('button', { name: /Vergi/ }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('tablist')).toBeNull();
+  });
+});
+
+describe('RecordFormPage after a failed save', () => {
+  it('focuses the first invalid field that is on screen', () => {
+    inView(<Sectioned identityRequired />);
+    ctrlS();
+    expect(document.activeElement).toBe(screen.getByLabelText('Stok kodu'));
+    expect(selectedSection()).toContain('Genel');
+  });
+
+  it('moves to the first ! section and its invalid field when the container reports an error', () => {
+    inView(<Sectioned failWith="KDV oranı eksik" />);
+    ctrlS();
+    expect(screen.getByRole('alert').textContent).toContain('KDV oranı eksik');
+    expect(selectedSection()).toContain('Fiyat ve Vergi');
+    expect(document.activeElement).toBe(screen.getByLabelText('KDV oranı'));
+  });
+});
+
+describe('RecordFormPage record header', () => {
+  it('PgUp / PgDn step through records, but not while typing', () => {
+    const onPrev = vi.fn();
+    const onNext = vi.fn();
+    inView(<Sectioned recordNav={{ index: 2, total: 23, onPrev, onNext }} />);
+    expect(screen.getByText('2 / 23')).toBeTruthy();
+    press('PageDown', {}, screen.getByLabelText('Stok adı'));
+    expect(onNext).not.toHaveBeenCalled();
+    press('PageDown');
+    expect(onNext).toHaveBeenCalledTimes(1);
+    press('PageUp');
+    expect(onPrev).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('PgUp/PgDn önceki/sonraki kayıt')).toBeTruthy();
+  });
+
+  it('shows how many fields changed', () => {
+    inView(<Sectioned dirty={2} />);
+    expect(screen.getByText('2 alan değişti')).toBeTruthy();
+  });
+
+  it('the footer lists the form shortcuts next to the status', () => {
+    inView(<Sectioned />);
+    const footer = document.querySelector('.rf-status')!;
+    expect(footer.textContent).toContain('Tab sonraki alan');
+    expect(footer.textContent).toContain('Ctrl+S kaydet');
+    expect(footer.textContent).not.toContain('PgUp');
+    expect(footer.textContent).not.toContain('Ctrl+Z');
+  });
+});
+
+describe('RecordFormPage context panel', () => {
+  const stubWidth = (wide: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches: wide, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('is closed below 1280px and Ctrl+. toggles it', () => {
+    stubWidth(false);
+    inView(<Sectioned aside={<p>Stok durumu</p>} />);
+    const aside = screen.getByText('Stok durumu').closest('aside')!;
+    expect(aside.hidden).toBe(true);
+    press('.', { ctrlKey: true }, screen.getByLabelText('Stok adı'));
+    expect(aside.hidden).toBe(false);
+    press('.', { ctrlKey: true });
+    expect(aside.hidden).toBe(true);
+  });
+
+  it('is open from 1280px', () => {
+    stubWidth(true);
+    inView(<Sectioned aside={<p>Stok durumu</p>} />);
+    expect(screen.getByText('Stok durumu').closest('aside')!.hidden).toBe(false);
+  });
+});
+
+describe('RecordFieldChange', () => {
+  it('marks the field and shows the previous value', () => {
+    render(
+      <RecordFieldChange previous="500">
+        <label>Minimum stok<input defaultValue="1000" /></label>
+      </RecordFieldChange>,
+    );
+    const field = screen.getByLabelText('Minimum stok').closest('.rf-changed');
+    expect(field).not.toBeNull();
+    expect(field!.textContent).toContain('Önceki: 500');
+  });
+});
+
+describe('RecordFormGroup', () => {
+  it('renders a titled card with an optional hint', () => {
+    render(<RecordFormGroup title="Kimlik" hint="* zorunlu alan"><label>Kod<input /></label></RecordFormGroup>);
+    const card = screen.getByRole('region', { name: 'Kimlik' });
+    expect(card.querySelector('.rf-group-head small')?.textContent).toBe('* zorunlu alan');
   });
 });
