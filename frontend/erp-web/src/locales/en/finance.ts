@@ -956,6 +956,21 @@ export const english: Record<string, string> = {
   'Hesap bilgileri': 'Account details',
   'hareket': 'transactions',
   'satırı seçin: İşlemler seçili harekete uygulanır': 'select a row: Actions apply to the selected transaction',
+  'Hesap planını firma yöneticisi düzenler': 'The chart of accounts is edited by the tenant administrator',
+  'Alt hesabı olan hesap silinemez; önce alt hesapları kaldırın.': 'An account with sub-accounts cannot be deleted; remove the sub-accounts first.',
+  'Hareketli hesap silinemez; bu hesap zaten pasif.': 'An account with movements cannot be deleted; this account is already inactive.',
+  'Dışa aktarılacak hesap yok': 'No accounts to export',
+  'Hareketleri gör (muavin)': 'View movements (subsidiary ledger)',
+  'Alt hesap ekle': 'Add sub-account',
+  'Pasif hesaba alt hesap eklenemez': 'A sub-account cannot be added to an inactive account',
+  'Yıl başından bugüne': 'Year to date',
+  'TDHP mizanından': 'From the TDHP trial balance',
+  'Bir hesap seçin ya da F2 ile yeni hesap ekleyin.': 'Select an account or add a new one with F2.',
+  'Bilgilerini görmek için bir hesap seçin.': 'Select an account to see its details.',
+  '↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön · F2 yeni hesap': '↑↓ move in the list · Tab go to the form · Ctrl+S save · Esc back to the list · F2 new account',
+  'Hesap kartı': 'Account card',
+  'Yeni alt hesap': 'New sub-account',
+  'Hareketli hesap silinemez; yevmiye kayıtları ve raporlar korunur. Pasife alabilirsiniz: pasif hesaba yeni kayıt yapılamaz, etkinleştirildiğinde yeniden kullanılır.': 'An account with movements cannot be deleted; its journal entries and reports are kept. You can deactivate it: an inactive account takes no new postings and can be used again once activated.',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1044,4 +1059,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^· (\d+) hesap$/, '· $1 accounts'],
   [/^Grup (\d+)$/, 'Group $1'],
   [/^(\d) (Dönen varlıklar|Duran varlıklar|KVYK|UVYK|Özkaynaklar|Gelir tablosu|Maliyet|Serbest|Nazım)$/, '$1 $2'],
+  [/^Üst hesap: (.+)$/, 'Parent account: $1'],
+  [/^Tümü \((\d+)\)$/, 'All ($1)'],
+  [/^(\d) (Dönen varlıklar|Duran varlıklar|KVYK|UVYK|Özkaynaklar|Gelir tablosu|Maliyet|Serbest|Nazım) \((\d+)\)$/, '$1 $2 ($3)'],
 ]

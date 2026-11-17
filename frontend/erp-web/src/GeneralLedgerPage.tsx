@@ -41,6 +41,7 @@ import {
 import "./finance-record-forms.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import { StatusTag } from "./list-page/StatusTag";
 import "./general-ledger/general-ledger-list-v2.css";
 import "./general-ledger/transfer-sources.css";
 
@@ -211,6 +212,8 @@ export default function GeneralLedgerPage({
     [accountCreateOpen, setAccountCreateOpen] = useState(false);
   const [newAccountParentId, setNewAccountParentId] = useState("");
   const stayAfterAccountSave = useRef(false);
+  // Hesap planı (definition screen): the open account card has unsaved input.
+  const [accountFormDirty, setAccountFormDirty] = useState(false);
   const [transferSourceSearch, setTransferSourceSearch] = useState("");
   // list-v2: status chips of the three client-side lists ("" = all).
   const [transferStatus, setTransferStatus] = useState("");
@@ -327,7 +330,7 @@ export default function GeneralLedgerPage({
     setBusy(true);
     setError("");
     try {
-      await api("/api/finance/general-ledger/accounts", token, {
+      const created = await api<LedgerAccount>("/api/finance/general-ledger/accounts", token, {
         method: "POST",
         body: JSON.stringify({
           code: accountCode,
@@ -346,8 +349,11 @@ export default function GeneralLedgerPage({
       setName("");
       const stayForNext = stayAfterAccountSave.current;
       stayAfterAccountSave.current = false;
-      if (!stayForNext) setAccountCreateOpen(false);
       setEditingAccountId("");
+      setAccountFormDirty(false);
+      // Definition screen: the saved account stays open in the card (Kaydet ve Yeni keeps an empty card).
+      if (!stayForNext && created?.id) startEditAccount(created);
+      else if (!stayForNext) setAccountCreateOpen(false);
       setNotice(`${accountCode} hesabı eklendi.`);
       await load();
     } catch (e) {
@@ -408,6 +414,7 @@ export default function GeneralLedgerPage({
   }
   function resetNewAccountForm() {
     setError("");
+    setAccountFormDirty(false);
     setEditingAccountId("");
     setCode("");
     setName("");
@@ -421,6 +428,8 @@ export default function GeneralLedgerPage({
     setIfrsStatementSection("Unclassified");
   }
   function startEditAccount(account: LedgerAccount) {
+    setError("");
+    setAccountFormDirty(false);
     setEditingAccountId(account.id);
     setEditingAccountCode(account.code);
     setEditingAccountName(account.name);
@@ -447,8 +456,8 @@ export default function GeneralLedgerPage({
         method: "PUT",
         body: JSON.stringify({ code, name, isActive, statementSection, accountType, normalBalance, currencyCode: accountCurrency || null, ifrsAccountCode: ifrsAccountCode || null, ifrsAccountName: ifrsAccountName || null, ifrsStatementSection }),
       });
-      setEditingAccountId("");
-      setAccountCreateOpen(false);
+      // Definition screen: the account stays open in the card after the save.
+      setAccountFormDirty(false);
       setNotice("Hesap güncellendi.");
       await load();
     } catch (e) {
@@ -655,9 +664,71 @@ export default function GeneralLedgerPage({
   const newAccountParent = accounts.find(
     (account) => account.id === newAccountParentId && account.isActive,
   );
-  const canDeleteAccount = (account: LedgerAccount) =>
-    !account.hasMovements &&
-    !accounts.some((row) => row.code.startsWith(`${account.code}.`));
+  /**
+   * Hesap planı's account card, the right half of the definition screen (variant "dialog", embedded). A tenant user
+   * sees it read-only. Vazgeç goes through the screen's close, which asks first when the card has unsaved input.
+   */
+  function renderAccountForm(summary: React.ReactNode, requestClose: () => void) {
+    const editing = accounts.find((row) => row.id === editingAccountId);
+    const readOnly = role !== "TenantAdmin";
+    return (
+      <RecordFormPage
+        variant="dialog"
+        title={editing ? "Hesap kartı" : newAccountParent ? "Yeni alt hesap" : "Yeni hesap"}
+        mode={editingAccountId ? "edit" : "create"}
+        busy={busy}
+        saveLabel={editingAccountId ? "Değişiklikleri Kaydet" : "Hesap Kartını Kaydet"}
+        formId="ledger-account-record-form"
+        onSubmit={(event) => void submitAccountForm(event)}
+        onCancel={requestClose}
+        onSaveIntent={editingAccountId ? undefined : (stayForNext) => { stayAfterAccountSave.current = stayForNext; }}
+        onReset={editingAccountId ? undefined : () => { resetNewAccountForm(); setNotice(""); }}
+        saveDisabledReason={readOnly ? "Hesap planını firma yöneticisi düzenler" : editingAccountId && !accountFormDirty ? "Kaydedilecek değişiklik yok" : undefined}
+        dirty={accountFormDirty}
+        subtitle={
+          editing ? (
+            <>
+              <span className="rf-code">{editing.code}</span> <StatusTag tone={editing.isActive ? "ok" : "off"}>{editing.isActive ? "Aktif" : "Pasif"}</StatusTag>
+            </>
+          ) : newAccountParent ? (
+            <span>{`Üst hesap: ${newAccountParent.code} · ${newAccountParent.name}`}</span>
+          ) : undefined
+        }
+        error={error}
+        onDismissError={() => setError("")}
+        status={
+          <>
+            <span>Zorunlu alanlar: <b>{[(editingAccountId ? editingAccountCode : code).trim(), (editingAccountId ? editingAccountName : name).trim()].filter(Boolean).length} / 2</b></span>
+            {notice && <span className="rf-status-notice">{notice}</span>}
+          </>
+        }
+      >
+        <fieldset className="glch-fieldset" disabled={readOnly} onChange={() => setAccountFormDirty(true)}>
+          {summary}
+          <RecordFormGroup title="Hesap Kimliği" bodyClassName="rf-identity">
+            {!editingAccountId && <label>Üst hesap<select value={newAccountParentId} onChange={(e) => { const parentId = e.target.value; setNewAccountParentId(parentId); const parent = accounts.find((account) => account.id === parentId && account.isActive); if (parent) setNewAccountSection(parent.statementSection); }}>
+                <option value="">Ana hesap</option>{accounts.filter((account) => account.isActive).slice().sort((a, b) => a.code.localeCompare(b.code, "tr", { numeric: true })).map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
+              </select></label>}
+            <label><span>{editingAccountId ? "Hesap kodu" : newAccountParent ? "Alt hesap kodu" : "Hesap kodu"}<RequiredMark /></span><input className="rf-must rf-mono" value={editingAccountId ? editingAccountCode : code} onChange={(e) => editingAccountId ? setEditingAccountCode(e.target.value) : setCode(e.target.value)} maxLength={editingAccountId ? 32 : newAccountParent ? Math.max(1, 32 - newAccountParent.code.length - 1) : 32} required placeholder={newAccountParent ? "001" : "Örn. 120"} />{newAccountParent && !editingAccountId && <small>Oluşacak kod: {newAccountParent.code}.{code.trim() || "001"}</small>}</label>
+            <label className="rf-span-2"><span>Hesap adı<RequiredMark /></span><input className="rf-must" value={editingAccountId ? editingAccountName : name} onChange={(e) => editingAccountId ? setEditingAccountName(e.target.value) : setName(e.target.value)} maxLength={160} required placeholder="Hesap adı" /></label>
+          </RecordFormGroup>
+          <RecordFormGroup title="Finansal Sınıflandırma">
+            <label>Finansal tablo sınıfı<select value={editingAccountId ? editingAccountSection : newAccountSection} onChange={(e) => editingAccountId ? setEditingAccountSection(e.target.value as LedgerStatementSection) : setNewAccountSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Hesap tipi<select value={accountType} onChange={(e) => setAccountType(e.target.value)}>{[["Unclassified","Sınıflandırılmamış"],["Asset","Aktif"],["Liability","Pasif"],["Equity","Özkaynak"],["Revenue","Gelir"],["Expense","Gider"],["OffBalanceSheet","Nazım"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Çalışma şekli<select value={normalBalance} onChange={(e) => setNormalBalance(e.target.value)}><option value="Debit">Borç çalışır</option><option value="Credit">Alacak çalışır</option><option value="Both">Çift çalışır</option></select></label>
+            <label>Döviz takibi<input className="rf-mono" value={accountCurrency} onChange={(e) => setAccountCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="TRY, USD, EUR" /></label>
+            <p className="fin-rf-hint">Hesap sınıfı bilanço ve mali raporlarda kullanılır. Hesap koduna göre otomatik tahmin edilmez.</p>
+          </RecordFormGroup>
+          <RecordFormGroup title="IFRS / UFRS Raporlama Eşlemesi">
+            <label>IFRS / UFRS hesap kodu<input className="rf-mono" value={ifrsAccountCode} onChange={(e) => setIfrsAccountCode(e.target.value)} maxLength={32} placeholder="Örn. IFRS-AR" /></label>
+            <label>IFRS / UFRS hesap adı<input value={ifrsAccountName} onChange={(e) => setIfrsAccountName(e.target.value)} maxLength={160} placeholder="Trade receivables" /></label>
+            <label>IFRS / UFRS tablo sınıfı<select value={ifrsStatementSection} onChange={(e) => setIfrsStatementSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <p className="fin-rf-hint">Tekdüzen hesabını uluslararası raporlama hesabına bağlayın. Boş bırakılırsa bu hesap IFRS rapor eşlemesine dahil edilmez.</p>
+          </RecordFormGroup>
+        </fieldset>
+      </RecordFormPage>
+    );
+  }
   const viewTitles: Record<LedgerView, string> = {
     overview: "Muhasebe çalışma alanı",
     accounts: "Hesap planı",
@@ -790,7 +861,7 @@ export default function GeneralLedgerPage({
     view === "mappings" ||
     view === "journal-ledger" ||
     view === "transfer-sources";
-  const showListHeader = isListView && !accountFormOpen;
+  const showListHeader = isListView;
   // The chart of accounts, the mappings and the journal ledger render their own list-v2 header inside the view.
   const ownsHeader = view === "accounts" || view === "mappings" || view === "journal-ledger";
   // Mizan and Bilanço render their own list-v2 header (with report exports) inside the view.
@@ -807,7 +878,7 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`${view === "journal-ledger" || view === "voucher" ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader || isReportView ? " list-v2" : ""}`}>
+    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
       {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
@@ -916,7 +987,7 @@ export default function GeneralLedgerPage({
         </div>
       )}
       {view === "overview" && <AccountingRuleProfilesPanel token={token} />}
-      {view === "accounts" && !accountFormOpen && (
+      {view === "accounts" && (
         <AccountChartView
           token={token}
           role={role}
@@ -937,11 +1008,20 @@ export default function GeneralLedgerPage({
               setAccountCreateOpen(true);
             },
             onEdit: startEditAccount,
+            onClose: () => {
+              setAccountCreateOpen(false);
+              setEditingAccountId("");
+              setAccountFormDirty(false);
+              setError("");
+            },
             onToggle: (account) => void toggleAccount(account),
             onDelete: (account) => void deleteAccount(account),
-            canDelete: canDeleteAccount,
             onPreviewStandardChart: () => void previewStandardChart(),
           }}
+          formOpen={accountFormOpen}
+          editingId={editingAccountId}
+          formDirty={accountFormDirty}
+          renderForm={renderAccountForm}
           standardChartNotice={
             role === "TenantAdmin" && chartPreview ? (
 
@@ -988,55 +1068,6 @@ export default function GeneralLedgerPage({
           }
         />
       )}
-      {accountFormOpen && <div className="ledger-account-record-form">
-        <RecordFormPage
-          variant="dialog"
-          title={editingAccountId ? "Hesap Kartını Düzenle" : "Hesap Kartı Tanımlama"}
-          mode={editingAccountId ? "edit" : "create"}
-          busy={busy}
-          saveLabel={editingAccountId ? "Değişiklikleri Kaydet" : "Hesap Kartını Kaydet"}
-          formId="ledger-account-record-form"
-          onSubmit={(event) => void submitAccountForm(event)}
-          onCancel={() => { setAccountCreateOpen(false); setEditingAccountId(""); setError(""); }}
-          onSaveIntent={(stayForNext) => { stayAfterAccountSave.current = stayForNext; }}
-          onReset={() => { resetNewAccountForm(); setNotice(""); }}
-          error={error}
-          onDismissError={() => setError("")}
-          status={
-            <>
-              <span>Zorunlu alanlar: <b>{[(editingAccountId ? editingAccountCode : code).trim(), (editingAccountId ? editingAccountName : name).trim()].filter(Boolean).length} / 2</b></span>
-              {notice && <span className="rf-status-notice">{notice}</span>}
-              {!editingAccountId && (code.trim() || name.trim()) && <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>}
-            </>
-          }
-        >
-          <p className="fin-rf-hint">{editingAccountId ? "Muhasebe hesabının temel bilgilerini ve finansal sınıflandırmasını güncelleyin." : "Yeni muhasebe hesabının temel bilgilerini ve finansal sınıflandırmasını tanımlayın."}</p>
-          <RecordFormGroup title="Hesap Kimliği" bodyClassName="fin-rf-grid-4">
-            {!editingAccountId && <label>Üst hesap<select value={newAccountParentId} onChange={(e) => { const parentId = e.target.value; setNewAccountParentId(parentId); const parent = accounts.find((account) => account.id === parentId && account.isActive); if (parent) setNewAccountSection(parent.statementSection); }}>
-                <option value="">Ana hesap</option>{accounts.filter((account) => account.isActive).slice().sort((a, b) => a.code.localeCompare(b.code, "tr", { numeric: true })).map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
-              </select></label>}
-            <label><span>{editingAccountId ? "Hesap kodu" : newAccountParent ? "Alt hesap kodu" : "Hesap kodu"}<RequiredMark /></span><input className="rf-must rf-mono" value={editingAccountId ? editingAccountCode : code} onChange={(e) => editingAccountId ? setEditingAccountCode(e.target.value) : setCode(e.target.value)} maxLength={editingAccountId ? 32 : newAccountParent ? Math.max(1, 32 - newAccountParent.code.length - 1) : 32} required placeholder={newAccountParent ? "001" : "Örn. 120"} />{newAccountParent && !editingAccountId && <small>Oluşacak kod: {newAccountParent.code}.{code.trim() || "001"}</small>}</label>
-            <label className="fin-rf-span-2"><span>Hesap adı<RequiredMark /></span><input className="rf-must" value={editingAccountId ? editingAccountName : name} onChange={(e) => editingAccountId ? setEditingAccountName(e.target.value) : setName(e.target.value)} maxLength={160} required placeholder="Hesap adı" /></label>
-          </RecordFormGroup>
-          <div className="rf-columns">
-            <RecordFormGroup title="Finansal Sınıflandırma">
-              <label>Finansal tablo sınıfı<select value={editingAccountId ? editingAccountSection : newAccountSection} onChange={(e) => editingAccountId ? setEditingAccountSection(e.target.value as LedgerStatementSection) : setNewAccountSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>Hesap tipi<select value={accountType} onChange={(e) => setAccountType(e.target.value)}>{[["Unclassified","Sınıflandırılmamış"],["Asset","Aktif"],["Liability","Pasif"],["Equity","Özkaynak"],["Revenue","Gelir"],["Expense","Gider"],["OffBalanceSheet","Nazım"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <div className="rf-pair">
-                <label>Çalışma şekli<select value={normalBalance} onChange={(e) => setNormalBalance(e.target.value)}><option value="Debit">Borç çalışır</option><option value="Credit">Alacak çalışır</option><option value="Both">Çift çalışır</option></select></label>
-                <label>Döviz takibi<input className="rf-mono" value={accountCurrency} onChange={(e) => setAccountCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="TRY, USD, EUR" /></label>
-              </div>
-              <p className="fin-rf-hint">Hesap sınıfı bilanço ve mali raporlarda kullanılır. Hesap koduna göre otomatik tahmin edilmez.</p>
-            </RecordFormGroup>
-            <RecordFormGroup title="IFRS / UFRS Raporlama Eşlemesi">
-              <label>IFRS / UFRS hesap kodu<input className="rf-mono" value={ifrsAccountCode} onChange={(e) => setIfrsAccountCode(e.target.value)} maxLength={32} placeholder="Örn. IFRS-AR" /></label>
-              <label>IFRS / UFRS hesap adı<input value={ifrsAccountName} onChange={(e) => setIfrsAccountName(e.target.value)} maxLength={160} placeholder="Trade receivables" /></label>
-              <label>IFRS / UFRS tablo sınıfı<select value={ifrsStatementSection} onChange={(e) => setIfrsStatementSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <p className="fin-rf-hint">Tekdüzen hesabını uluslararası raporlama hesabına bağlayın. Boş bırakılırsa bu hesap IFRS rapor eşlemesine dahil edilmez.</p>
-            </RecordFormGroup>
-          </div>
-        </RecordFormPage>
-      </div>}
       {view === "mappings" && (
         <LedgerMappingsView
           token={token}

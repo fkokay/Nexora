@@ -85,33 +85,43 @@ async function selectAccount(code: string) {
   fireEvent.click(cell.closest('tr')!);
   await settle(50);
 }
-async function command(label: string) {
-  fireEvent.click(screen.getByRole('button', { name: label }));
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const barCommand = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const barReason = (id: string) => barCommand(id).getAttribute('title') ?? '';
+async function runBar(id: string) {
+  fireEvent.click(barCommand(id));
   await settle(50);
 }
+async function runMenu(id: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(barCommand('more'));
+  fireEvent.click(document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!);
+  await settle(50);
+}
+const menuItem = (id: string) => {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(barCommand('more'));
+  return document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`);
+};
 async function startCreate() {
-  await command('Hesap ekle');
+  await runBar('new');
 }
 async function startChild(code: string) {
   await selectAccount(code);
-  await command('Alt hesap');
+  await runMenu('ledger-account-child');
 }
+/** Selecting a row opens the account in the card (definition screen). */
 async function startEdit(code: string) {
   await selectAccount(code);
-  await command('Düzenle');
 }
 async function toggleStatus(code: string) {
   await selectAccount(code);
-  await command('Pasifleştir');
+  await runMenu('ledger-account-status');
 }
-const enabledDelete = () =>
-  screen.queryAllByRole('button', { name: 'Sil' }).find((b) => !(b as HTMLButtonElement).disabled && b.getAttribute('aria-disabled') !== 'true');
+const enabledDelete = () => (barCommand('delete').getAttribute('aria-disabled') === 'true' ? undefined : barCommand('delete'));
 async function deleteSelected() {
-  fireEvent.click(enabledDelete()!);
-  await settle(50);
+  await runBar('delete');
 }
 async function previewChart() {
-  await command('Tek Düzen Hesap Planı');
+  await runMenu('ledger-standard-chart');
 }
 // ---
 
@@ -197,21 +207,29 @@ describe('Hesap planı (characterization)', () => {
     await toggleStatus('320');
     const put = calls('/api/finance/general-ledger/accounts/a320', 'PUT');
     expect(put).toHaveLength(1);
-    // Base behaviour: the toggle builds the rest of the body from the account form's state, which holds its defaults
-    // (or the last edited account) here, not this account's own type / balance side / IFRS fields.
+    // Same PUT and the same body shape: code, name and section from the account, isActive flipped. The rest of the
+    // body comes from the account card's state, as before; the definition screen loads the selected account into the
+    // card (and Pasifleştir is closed while the card has unsaved changes), so it now carries this account's own type,
+    // balance side and IFRS fields instead of the card's defaults (base: 'Unclassified' / 'Both' / null).
     expect(bodyOf(put[0])).toEqual({
       code: '320', name: 'Satıcılar', isActive: false, statementSection: 'Liability',
-      accountType: 'Unclassified', normalBalance: 'Both', currencyCode: null,
+      accountType: 'Liability', normalBalance: 'Credit', currencyCode: null,
       ifrsAccountCode: null, ifrsAccountName: null, ifrsStatementSection: 'Unclassified',
     });
   });
 
   it('deletes only an account without movements and sub-accounts, after confirmation', async () => {
     await openChart();
+    // An account with movements is never deleted: Sil explains it and offers Pasife al (Vazgeç sends nothing).
     await selectAccount('100');
-    expect(enabledDelete()).toBeUndefined();
+    await deleteSelected();
+    expect(screen.getByText('100 · Kasa silinemez')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
+    await settle(50);
+    expect(calls('/api/finance/general-ledger/accounts/a100', 'DELETE')).toHaveLength(0);
     await selectAccount('102');
     expect(enabledDelete()).toBeUndefined();
+    expect(barReason('delete')).toBe('Alt hesabı olan hesap silinemez; önce alt hesapları kaldırın.');
     await selectAccount('136');
     await deleteSelected();
     expect(screen.getByText('Hesap silinsin mi?')).toBeTruthy();
@@ -234,8 +252,39 @@ describe('Hesap planı (characterization)', () => {
 
   it('shows no create or edit commands to a tenant user', async () => {
     await openChart('TenantUser');
-    expect(screen.queryByRole('button', { name: 'Hesap ekle' })).toBeNull();
+    expect(barCommand('new').getAttribute('aria-disabled')).toBe('true');
+    expect(barReason('new')).toBe('Hesap planını firma yöneticisi düzenler');
     await selectAccount('100');
-    expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+    // The card is read-only: every field is disabled and Kaydet says why.
+    expect(field(/^Hesap adı/).matches(':disabled')).toBe(true);
+    expect(barReason('save')).toBe('Hesap planını firma yöneticisi düzenler');
+    expect(menuItem('ledger-account-status')).toBeNull();
+    expect(menuItem('ledger-account-movements')).not.toBeNull();
+  });
+
+  it('asks before switching away from an account with unsaved changes and keeps it when refused', async () => {
+    await openChart();
+    await selectAccount('100');
+    fireEvent.change(field(/^Hesap adı/), { target: { value: 'Değişti' } });
+    await settle(50);
+    await selectAccount('320');
+    expect(screen.getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
+    await settle(50);
+    expect(field(/^Hesap adı/).value).toBe('Değişti');
+    expect(barReason('delete')).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
+  });
+
+  it('keeps the saved account open in the card after Kaydet', async () => {
+    overrides.set('/api/finance/general-ledger/accounts', (_url, init) =>
+      init?.method === 'POST' ? account('a120', '120', 'Alıcılar') : [...accounts, account('a120', '120', 'Alıcılar')]);
+    await openChart();
+    await startCreate();
+    fireEvent.change(field(/^Hesap kodu/), { target: { value: '120' } });
+    fireEvent.change(field(/^Hesap adı/), { target: { value: 'Alıcılar' } });
+    await submit();
+    expect(calls('/api/finance/general-ledger/accounts', 'POST')).toHaveLength(1);
+    expect(screen.getByText('Hesap kartı')).toBeTruthy();
+    expect(field(/^Hesap kodu/).value).toBe('120');
   });
 });
