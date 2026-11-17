@@ -157,6 +157,7 @@ export function ManualJournalForm({
           createManualEntry(event);
         }}
         confirmCancel
+        dirty={dirty}
         onCancel={() => {
           // Vazgeç (asked first when something was entered, like Esc) drops the entered voucher (the form state
           // outlives this tab), then goes to the ledger.

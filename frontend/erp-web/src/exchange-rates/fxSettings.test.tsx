@@ -163,6 +163,19 @@ describe('Kur ve değerleme (characterization)', () => {
     expect(apiMock.mock.calls.some(([url]) => url === '/api/finance/fx-revaluations/v1')).toBe(true);
   });
 
+  it('asks before Yeni or a row replaces a typed rate', async () => {
+    await openPage();
+    fireEvent.click(barCommand('new'));
+    await settle(50);
+    fireEvent.change(rateField(/^1 .+ = \? TRY$/), { target: { value: '35' } });
+    fireEvent.click(barCommand('new'));
+    await settle(50);
+    expect(screen.getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
+    await settle(50);
+    expect(rateField(/^1 .+ = \? TRY$/).value).toBe('35');
+  });
+
   it('gives a tenant user no rate entry, TCMB import or revaluation', async () => {
     await openPage('TenantUser');
     expect(screen.queryByLabelText(/^Kaynak \/ not$/)).toBeNull();

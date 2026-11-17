@@ -219,6 +219,9 @@ describe('Hesap planı (characterization)', () => {
   });
 
   it('deletes only an account without movements and sub-accounts, after confirmation', async () => {
+    let deleted = false;
+    overrides.set('/api/finance/general-ledger/accounts/a136', () => { deleted = true; return {}; });
+    overrides.set('/api/finance/general-ledger/accounts', (_url, init) => (init?.method ? {} : accounts.filter((row) => !deleted || row.id !== 'a136')));
     await openChart();
     // An account with movements is never deleted: Sil explains it and offers Pasife al (Vazgeç sends nothing).
     await selectAccount('100');
@@ -236,6 +239,8 @@ describe('Hesap planı (characterization)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /^Sil/ }).at(-1)!);
     await settle();
     expect(calls('/api/finance/general-ledger/accounts/a136', 'DELETE')).toHaveLength(1);
+    // The deleted account's card closes.
+    expect(screen.getByText('Bir hesap seçin ya da F2 ile yeni hesap ekleyin.')).toBeTruthy();
   });
 
   it('previews the standard chart and applies it after confirmation', async () => {

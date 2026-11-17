@@ -386,6 +386,15 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
     if (rateDirty && !(await confirmDialog({ title: "Vazgeç", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }))) return;
     closeRate();
   }
+  /** Yeni (F2) and row selection replace the form's values: a typed rate is not dropped without asking. */
+  async function requestRate(from?: ExchangeRate) {
+    if (
+      rateDirty &&
+      !(await confirmDialog({ title: from ? "Vazgeç" : "Yeni kayıt", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" }))
+    )
+      return;
+    startRate(from);
+  }
   function startRate(from?: ExchangeRate) {
     setCode(from?.currencyCode ?? "USD");
     setDate(from?.rateDate ?? localDateString());
@@ -403,7 +412,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
   const commands: PageCommands = ratesTab
     ? {
         new: isAdmin
-          ? { primary: !rateFormOpen, disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => startRate() }
+          ? { primary: !rateFormOpen, disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => void requestRate() }
           : { disabledReason: ADMIN_RATES },
         delete: { disabledReason: "Kurlar silinmez; düzeltme aynı gün için yeni revizyon olarak kaydedilir" },
         more: isAdmin
@@ -468,7 +477,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
               isAdmin
                 ? (key) => {
                     const row = key ? rates.find((item) => item.id === key) : undefined;
-                    if (row) startRate(row);
+                    if (row) void requestRate(row);
                   }
                 : undefined
             }
@@ -706,7 +715,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
         )}
       </ListPageHeader>
 
-      {error && !rateFormOpen && !creatingVoucher && (
+      {error && !(ratesTab ? rateFormOpen : creatingVoucher) && (
         <div className="alert inline-alert">
           {error}
           <button type="button" aria-label="Kapat" onClick={() => setError("")}>
@@ -714,7 +723,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
           </button>
         </div>
       )}
-      {notice && !rateFormOpen && !creatingVoucher && (
+      {notice && !(ratesTab ? rateFormOpen : creatingVoucher) && (
         <div className="notice">
           {notice}
           <button type="button" aria-label="Kapat" onClick={() => setNotice("")}>

@@ -505,6 +505,12 @@ export default function GeneralLedgerPage({
         { method: "DELETE" },
       );
       setNotice(`${account.code} hesabı silindi.`);
+      // The deleted account's card closes (Hesap planı definition screen).
+      if (editingAccountId === account.id) {
+        setAccountCreateOpen(false);
+        setEditingAccountId("");
+        setAccountFormDirty(false);
+      }
       await load();
     } catch (e) {
       setError((e as Error).message);
