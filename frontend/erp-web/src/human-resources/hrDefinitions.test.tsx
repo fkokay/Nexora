@@ -217,19 +217,19 @@ describe('İK Dönem özeti (report 04)', () => {
   });
 });
 
-describe.skip('İK Bordro kural setleri (definition 04-alt)', () => {
+describe('İK Bordro kural setleri (definition 04-alt)', () => {
   it('shows the record read-only and approves from İşlemler', async () => {
     await openTab(/Bordro kural setleri/);
     const row = await rowOf('2026', 'Kural seti kayıtları');
     fireEvent.click(row);
     const record = await screen.findByRole('region', { name: 'Kural seti kaydı' });
-    expect(within(record).getByText('{"parameters":[]}')).toBeTruthy();
+    expect(within(record).getByText(/"parameters": \[\]/)).toBeTruthy();
     await runMore('Onayla');
     await waitFor(() => expect(posts()).toContainEqual(['/api/hr/payroll/rule-sets/r1/approve', { rowVersion: 'Ug==' }]));
   });
 });
 
-describe.skip('İK İşyeri ve takvim (three definitions)', () => {
+describe('İK İşyeri ve takvim (three definitions)', () => {
   it('workplace assignment: approve and reject from İşlemler', async () => {
     await openTab(/İşyeri ve takvim/);
     fireEvent.click(await rowOf('IST-01', 'İşyeri ataması kayıtları'));

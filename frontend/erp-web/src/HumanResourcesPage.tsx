@@ -17,6 +17,7 @@ import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
 import { HR_REPORT_FORM_ID, HrPeriodReport } from "./human-resources/components/HrPeriodReport";
+import { HrDefinitionRecord, HrDefinitionScreen } from "./human-resources/components/HrDefinition";
 import { RecordFormGroup } from "./record-form/RecordForm";
 import { HrStatusTag, hrStatusLabel } from "./human-resources/hrStatus";
 import { HrListFooter, HrRecordPanel, hrGridSelection, hrRowProps } from "./human-resources/hrList";
@@ -228,6 +229,7 @@ type PayrollEmployeeCalendarOverride = {
   canApprove: boolean;
   rowVersion: string;
 };
+type CalendarKind = "assignments" | "calendars" | "overrides";
 type HrSummary = {
   from: string;
   to: string;
@@ -913,6 +915,9 @@ export default function HumanResourcesPage({
   }, [creatingEmployee]);
   // Current row of the visible list tab (list type); reset when the tab changes.
   const [hrCurrent, setHrCurrent] = useState<string | null>(null);
+  // Definition screens (Bordro kural setleri, İşyeri ve takvim): Yeni (F2) opened the create form in the right pane.
+  const [hrCreating, setHrCreating] = useState(false),
+    [calendarKind, setCalendarKind] = useState<CalendarKind>("assignments");
   const hrGridExportRef = useRef<GridExportActions | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null),
     [editingAttendance, setEditingAttendance] = useState<Attendance | null>(
@@ -2596,14 +2601,14 @@ export default function HumanResourcesPage({
       .includes(normalizeHrSearch(payrollRunSearch)),
   );
   const workplaceAssignmentVisibleFields = workplaceAssignmentScreenFields
-    .filter((field) => field.key === "actions" || field.visible)
+    .filter((field) => field.key !== "actions" && field.visible)
     .sort((a, b) => a.position - b.position);
   const workplaceCalendarVisibleFields = workplaceCalendarScreenFields
-    .filter((field) => field.key === "actions" || field.visible)
+    .filter((field) => field.key !== "actions" && field.visible)
     .sort((a, b) => a.position - b.position);
   const employeeCalendarOverrideVisibleFields =
     employeeCalendarOverrideScreenFields
-      .filter((field) => field.key === "actions" || field.visible)
+      .filter((field) => field.key !== "actions" && field.visible)
       .sort((a, b) => a.position - b.position);
   const calendarFieldLabel = (field: EmployeeScreenField) => {
     const defaults: Record<string, [string, string]> = {
@@ -2630,6 +2635,8 @@ export default function HumanResourcesPage({
   const payrollRuleSetVisibleFields = hrVisibleScreenFields(
     payrollRuleSetScreenFields,
   );
+  // Definition screen: Onayla moved to İşlemler, so the grid drops the actions column.
+  const ruleSetGridFields = payrollRuleSetVisibleFields.filter((field) => field.key !== "actions");
   const tabs: [Section, string][] = [
     ["employees", tr("Personel", "Employees")],
     ["leave", tr("İzinler", "Leave")],
@@ -2678,6 +2685,7 @@ export default function HumanResourcesPage({
     setError("");
     setMessage("");
     setHrCurrent(null);
+    setHrCreating(false);
     setSection(next);
   };
   const focusCreateForm = (id: string) => {
@@ -2858,6 +2866,155 @@ export default function HumanResourcesPage({
   }
   const listTab = section === "employees" || section === "leave" || section === "attendance" || (section === "compensation" && compensationAccess.view);
   if (listTab) hrMore.push(csvExportCommand(hrGridExportRef));
+  // Definition screens (mockup 04 "Tanım ekranı"): the current row is shown read-only on the right (no PUT; a change is
+  // a new version sent for approval), Yeni (F2) opens the create form there, Onayla / Reddet are in İşlemler.
+  const definitionSection = admin && (section === "rules" || section === "calendar");
+  const currentRuleSet = section === "rules" && admin ? rules.find((x) => x.id === hrCurrent) : undefined;
+  const currentAssignment =
+    section === "calendar" && admin && calendarKind === "assignments" ? workplaceAssignments.find((x) => x.id === hrCurrent) : undefined;
+  const currentWorkplaceCalendar =
+    section === "calendar" && admin && calendarKind === "calendars" ? workplaceCalendars.find((x) => x.id === hrCurrent) : undefined;
+  const currentCalendarOverride =
+    section === "calendar" && admin && calendarKind === "overrides" ? employeeCalendarOverrides.find((x) => x.id === hrCurrent) : undefined;
+  const definitionCurrent = currentRuleSet ?? currentAssignment ?? currentWorkplaceCalendar ?? currentCalendarOverride;
+  function selectDefinitionRow(id: string | null) {
+    setHrCurrent(id);
+    if (id) setHrCreating(false);
+  }
+  function openDefinitionRecord(id: string) {
+    selectDefinitionRow(id);
+    window.setTimeout(() => document.querySelector<HTMLElement>(".hr-def-record")?.focus(), 0);
+  }
+  function closeDefinition() {
+    setHrCreating(false);
+    setHrCurrent(null);
+  }
+  function changeCalendarKind(kind: CalendarKind) {
+    setCalendarKind(kind);
+    closeDefinition();
+  }
+  const calendarKinds: [CalendarKind, string][] = [
+    ["assignments", tr("İşyeri atamaları", "Workplace assignments")],
+    ["calendars", tr("İşyeri takvimleri", "Workplace calendars")],
+    ["overrides", tr("Personel istisnaları", "Employee overrides")],
+  ];
+  const definitionNote = (row: { canApprove: boolean }) =>
+    row.canApprove
+      ? tr("Onayla / Reddet: İşlemler (Alt+İ).", "Approve / Reject: Actions (Alt+İ).")
+      : tr(
+          "Kayıt değiştirilmez; değişiklik yeni sürüm olarak onaya gönderilir (F2).",
+          "Records are not edited; a change is submitted as a new version (F2).",
+        );
+  const approvedAt = (value: string | null) => (value ? new Date(value).toLocaleString(isEn ? "en-US" : "tr-TR") : "—");
+  const closeRecordLabel = tr("Kaydı kapat", "Close the record");
+  const currentAssignmentRecord = currentAssignment ? (
+    <HrDefinitionRecord
+      label={tr("İşyeri ataması kaydı", "Workplace assignment record")}
+      code={`v${currentAssignment.version}`}
+      title={currentAssignment.employee}
+      status={<HrStatusTag status={currentAssignment.status} isEn={isEn} />}
+      facts={[
+        { label: tr("İşyeri kodu", "Workplace code"), value: currentAssignment.workplaceCode },
+        { label: tr("Yürürlük başlangıcı", "Effective from"), value: formatHrDate(currentAssignment.effectiveFrom) },
+        { label: tr("Onay", "Approved"), value: approvedAt(currentAssignment.approvedAt) },
+      ]}
+      note={definitionNote(currentAssignment)}
+      onClose={closeDefinition}
+      closeLabel={closeRecordLabel}
+    />
+  ) : null;
+  const calendarRecord = (row: PayrollWorkplaceCalendar | PayrollEmployeeCalendarOverride, label: string, title: string) => (
+    <HrDefinitionRecord
+      label={label}
+      code={`v${row.version}`}
+      title={title}
+      status={<HrStatusTag status={row.status} isEn={isEn} />}
+      facts={[
+        { label: tr("Yürürlük başlangıcı", "Effective from"), value: formatHrDate(row.effectiveFrom) },
+        { label: tr("Politika belge/ref.", "Policy document/ref."), value: row.policyReference || "—" },
+        { label: tr("Onay", "Approved"), value: approvedAt(row.approvedAt) },
+      ]}
+      data={[
+        { title: tr("Haftalık beklenen dakika JSON", "Weekly expected minutes JSON"), text: row.weeklyMinutesJson },
+        { title: tr("Tarih istisnaları JSON", "Date exceptions JSON"), text: row.dateOverridesJson },
+      ]}
+      note={definitionNote(row)}
+      onClose={closeDefinition}
+      closeLabel={closeRecordLabel}
+    />
+  );
+  const currentWorkplaceCalendarRecord = currentWorkplaceCalendar
+    ? calendarRecord(currentWorkplaceCalendar, tr("İşyeri takvimi kaydı", "Workplace calendar record"), currentWorkplaceCalendar.workplaceCode)
+    : null;
+  const currentCalendarOverrideRecord = currentCalendarOverride
+    ? calendarRecord(currentCalendarOverride, tr("Personel takvim istisnası kaydı", "Employee calendar override record"), currentCalendarOverride.employee)
+    : null;
+  const definitionMore: MenuCommand[] = [];
+  const reviewCommands = (base: string, id: string, rowVersion: string, approved: string, rejected?: string) => {
+    const review = (action: "approve" | "reject", message: string) => () =>
+      void submit(
+        () => request(token, `${base}${id}/${action}`, { method: "POST", body: JSON.stringify({ rowVersion }) }),
+        message,
+      );
+    definitionMore.push({ id: "definition-approve", label: tr("Onayla", "Approve"), disabledReason: busyReason, run: review("approve", approved) });
+    if (rejected)
+      definitionMore.push({ id: "definition-reject", label: tr("Reddet", "Reject"), disabledReason: busyReason, run: review("reject", rejected) });
+  };
+  // Same conditions as the former row buttons: a rule set has Onayla only (Draft + canApprove), the others both.
+  if (currentRuleSet && currentRuleSet.status === "Draft" && currentRuleSet.canApprove)
+    reviewCommands("/api/hr/payroll/rule-sets/", currentRuleSet.id, currentRuleSet.rowVersion, tr("Kural seti onaylandı.", "Rule set approved."));
+  if (currentAssignment?.canApprove)
+    reviewCommands(
+      "/api/hr/payroll/workplace-assignments/",
+      currentAssignment.id,
+      currentAssignment.rowVersion,
+      tr("İşyeri ataması onaylandı.", "Workplace assignment approved."),
+      tr("İşyeri ataması reddedildi.", "Workplace assignment rejected."),
+    );
+  if (currentWorkplaceCalendar?.canApprove)
+    reviewCommands(
+      "/api/hr/payroll/workplace-calendars/",
+      currentWorkplaceCalendar.id,
+      currentWorkplaceCalendar.rowVersion,
+      tr("Takvim onaylandı.", "Calendar approved."),
+      tr("Takvim reddedildi.", "Calendar rejected."),
+    );
+  if (currentCalendarOverride?.canApprove)
+    reviewCommands(
+      "/api/hr/payroll/employee-calendar-overrides/",
+      currentCalendarOverride.id,
+      currentCalendarOverride.rowVersion,
+      tr("Kişi takvimi onaylandı.", "Employee calendar approved."),
+      tr("Kişi takvimi reddedildi.", "Employee calendar rejected."),
+    );
+  const definitionCommands: PageCommands | null = definitionSection
+    ? {
+        refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
+        new: {
+          primary: true,
+          disabledReason: busyReason,
+          run: () => {
+            setHrCurrent(null);
+            setHrCreating(true);
+          },
+        },
+        open: {
+          disabledReason: definitionCurrent ? busyReason : pickFirst,
+          run: () => {
+            if (definitionCurrent) openDefinitionRecord(definitionCurrent.id);
+          },
+        },
+        delete: {
+          disabledReason: definitionCurrent
+            ? tr(
+                "Tanım kayıtları silinemez; değişiklik yeni sürüm olarak onaya gönderilir.",
+                "Definition records cannot be deleted; a change is submitted as a new version.",
+              )
+            : pickFirst,
+        },
+        more: definitionMore,
+      }
+    : null;
   const hrCurrentRecord = currentEmployee ?? currentLeave ?? currentAttendance ?? currentCompensation;
   // Dönem özeti is a report (mockup 04): record commands are unavailable, Excel downloads the summary CSV.
   const notInReport = tr("Raporda kullanılamaz", "Not available in a report");
@@ -2890,7 +3047,7 @@ export default function HumanResourcesPage({
           ],
         }
       : null;
-  const hrCommands: PageCommands = reportCommands ? {
+  const hrCommands: PageCommands = definitionCommands ?? (reportCommands ? {
     refresh: { disabledReason: loading ? tr("Yükleniyor…", "Loading…") : busyReason, run: () => void reload() },
     ...reportCommands,
   } : {
@@ -2922,7 +3079,7 @@ export default function HumanResourcesPage({
         }
       : {}),
     more: hrMore,
-  };
+  });
   const closePanel = () => setHrCurrent(null);
   const closeLabel = tr("Detay panelini kapat", "Close the detail panel");
   const hrPanel = currentEmployee ? (
@@ -5640,17 +5797,45 @@ export default function HumanResourcesPage({
                       "Turkish payroll rule sets are stored with source links and second-person approval. Parameters carry type, value, unit, profile, effective dates, and sources. Payroll items are employer-specific; each needs a unit-matched formula and explicit tax, social security, accounting, and declaration mappings. Official 2026 4/a references are documented but are not automatically loaded into or approved as company rules. GIB 1003A/1003B schemas are for structural validation; this screen does not perform declaration business validation or file generation.",
                     )}
                   </div>
-                  <div className="hr-panel">
-                    <h3>{tr("Kural seti taslakları", "Rule set drafts")}</h3>
+                  <HrDefinitionScreen
+                    paneLabel={tr("Kural seti kaydı", "Rule set record")}
+                    creating={hrCreating}
+                    onClose={closeDefinition}
+                    emptyText={tr(
+                      "Bir kural seti seçin ya da F2 ile kaynaklı taslak oluşturun.",
+                      "Select a rule set or create a sourced draft with F2.",
+                    )}
+                    record={currentRuleSet ? (
+                      <HrDefinitionRecord
+                        label={tr("Kural seti kaydı", "Rule set record")}
+                        code={`v${currentRuleSet.version}`}
+                        title={`${tr("Vergi yılı", "Tax year")} ${currentRuleSet.taxYear}`}
+                        status={<HrStatusTag status={currentRuleSet.status} isEn={isEn} />}
+                        facts={[
+                          { label: tr("Geçerlilik", "Effective"), value: <>{formatHrDate(currentRuleSet.effectiveFrom)} – {currentRuleSet.effectiveTo ? formatHrDate(currentRuleSet.effectiveTo) : "…"}</> },
+                          { label: tr("Resmî kaynak", "Official source"), value: <a href={currentRuleSet.officialSourceUrl} target="_blank" rel="noreferrer">{currentRuleSet.officialSourceUrl}</a> },
+                          { label: tr("Onay", "Approved"), value: currentRuleSet.approvedAt ? new Date(currentRuleSet.approvedAt).toLocaleString(isEn ? "en-US" : "tr-TR") : "—" },
+                        ]}
+                        data={[{ title: tr("Kural verisi (JSON)", "Rule data (JSON)"), text: currentRuleSet.rulesJson }]}
+                        note={definitionNote(currentRuleSet)}
+                        onClose={closeDefinition}
+                        closeLabel={tr("Kaydı kapat", "Close the record")}
+                      />
+                    ) : null}
+                    list={<>
+                  <div className="hr-panel list-v2-list">
                     <div className="hr-table-wrap">
                       <AdvancedDataGrid
                         className="hr-table"
                         gridId="hr-payroll-rule-sets"
-                        {...screenViewGridDefaults(payrollRuleSetVisibleFields)}
+                        {...screenViewGridDefaults(ruleSetGridFields)}
+                        {...hrGridSelection(hrCurrent, selectDefinitionRow, hrGridExportRef, isEn)}
+                        externalPagination
+                        aria-label={tr("Kural seti kayıtları", "Rule set records")}
                       >
                         <thead>
                           <tr>
-                            {payrollRuleSetVisibleFields.map((field) => (
+                            {ruleSetGridFields.map((field) => (
                               <th
                                 key={field.key}
                                 style={hrScreenFieldStyle(field)}
@@ -5666,8 +5851,8 @@ export default function HumanResourcesPage({
                         </thead>
                         <tbody>
                           {rules.map((x) => (
-                            <tr key={x.id}>
-                              {payrollRuleSetVisibleFields.map((field) => (
+                            <tr key={x.id} {...hrRowProps(x.id, openDefinitionRecord)}>
+                              {ruleSetGridFields.map((field) => (
                               <td
                                 key={field.key}
                                 style={hrScreenFieldStyle(field)}
@@ -5714,35 +5899,6 @@ export default function HumanResourcesPage({
                                 </details>
                                 ) : field.key === "status" ? (
                                 <HrStatusTag status={x.status} isEn={isEn} />
-                                ) : field.key === "actions" ? (
-                                x.status === "Draft" && x.canApprove && (
-                                  <button
-                                    className="secondary"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void submit(
-                                        () =>
-                                          request(
-                                            token,
-                                            `/api/hr/payroll/rule-sets/${x.id}/approve`,
-                                            {
-                                              method: "POST",
-                                              body: JSON.stringify({
-                                                rowVersion: x.rowVersion,
-                                              }),
-                                            },
-                                          ),
-                                        tr(
-                                          "Kural seti onaylandı.",
-                                          "Rule set approved.",
-                                        ),
-                                      )
-                                    }
-                                  >
-                                    <Check size={15} />
-                                    {tr("Onayla", "Approve")}
-                                  </button>
-                                )
                                 ) : null}
                               </td>
                               ))}
@@ -5753,7 +5909,7 @@ export default function HumanResourcesPage({
                               <td
                                 colSpan={Math.max(
                                   1,
-                                  payrollRuleSetVisibleFields.length,
+                                  ruleSetGridFields.length,
                                 )}
                               >
                                 <div className="hr-empty">
@@ -5771,9 +5927,12 @@ export default function HumanResourcesPage({
                       </AdvancedDataGrid>
                     </div>
                   </div>
-                  <div className="hr-panel hrp-form-panel">
+                  <HrListFooter shown={rules.length} loaded={rules.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                    </>}
+                    createForm={
                     <ModuleRecordForm
                       title={tr("Kaynaklı taslak oluştur", "Create sourced draft")}
+                      onCancel={closeDefinition}
                       mode="create"
                       busy={busy}
                       saveLabel={tr("Taslak kaydet", "Save draft")}
@@ -5975,7 +6134,8 @@ className="secondary hrp-group-action"
                         </button>
 </RecordFormGroup>
 </ModuleRecordForm>
-                  </div>
+                    }
+                  />
                   <p className="hr-footnote">
                     {tr(
                       "Firma kapsamındaki gerekli parametre ve eşlemeler tamamlanıp ikinci yetkili tarafından onaylanana kadar hesaplama bloke kalır; resmi dosya üretimi, seçilmiş şirket profili ile beyan iş kuralı doğrulaması tamamlanana kadar kapalıdır.",
@@ -5993,8 +6153,103 @@ className="secondary hrp-group-action"
               ))}
             {section === "calendar" && admin && (
               <>
-                <div className="hr-panel">
+                <div className="hr-def-switch" role="tablist" aria-label={tr("İşyeri ve takvim tanımları", "Workplace and calendar definitions")}>
+                  {calendarKinds.map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      role="tab"
+                      aria-selected={calendarKind === kind}
+                      className={calendarKind === kind ? "active" : ""}
+                      onClick={() => changeCalendarKind(kind)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {calendarKind === "assignments" && (
+                  <HrDefinitionScreen
+                    paneLabel={tr("İşyeri ataması kaydı", "Workplace assignment record")}
+                    creating={hrCreating}
+                    onClose={closeDefinition}
+                    emptyText={tr("Bir atama seçin ya da F2 ile yeni atamayı onaya gönderin.", "Select an assignment or submit a new one with F2.")}
+                    record={currentAssignmentRecord}
+                    list={<>
+                  <div className="hr-panel list-v2-list">
+                  <div className="hr-table-wrap">
+                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-assignments" {...screenViewGridDefaults(workplaceAssignmentVisibleFields)} {...hrGridSelection(hrCurrent, selectDefinitionRow, hrGridExportRef, isEn)} externalPagination aria-label={tr("İşyeri ataması kayıtları", "Workplace assignment records")}>
+                      <thead>
+                        <tr>
+                          {workplaceAssignmentVisibleFields.map((field) => (
+                            <th
+                              key={field.key}
+                              style={
+                                field.width
+                                  ? {
+                                      width: field.width,
+                                      minWidth: field.width,
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {calendarFieldLabel(field)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workplaceAssignments.map((x) => (
+                          <tr key={x.id} {...hrRowProps(x.id, openDefinitionRecord)}>
+                            {workplaceAssignmentVisibleFields.map((field) => (
+                              <td
+                                key={field.key}
+                                style={
+                                  field.width
+                                    ? {
+                                        width: field.width,
+                                        minWidth: field.width,
+                                      }
+                                    : undefined
+                                }
+                                data-label={calendarFieldLabel(field)}
+                              >
+                                {field.key === "employee" ? (
+                                  x.employee
+                                ) : field.key === "workplaceCode" ? (
+                                  x.workplaceCode
+                                ) : field.key === "effectiveFrom" ? (
+                                  formatHrDate(x.effectiveFrom)
+                                ) : field.key === "versionStatus" ? (
+                                  <>
+                                    v{x.version} ·{" "}
+                                    {hrStatusLabel(x.status, isEn)}
+                                  </>
+                                ) : null}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                        {!workplaceAssignments.length && (
+                          <tr>
+                            <td
+                              colSpan={Math.max(
+                                1,
+                                workplaceAssignmentVisibleFields.length,
+                              )}
+                            >
+                              {tr("Atama yok.", "No assignments.")}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </AdvancedDataGrid>
+                  </div>
+                  </div>
+                  <HrListFooter shown={workplaceAssignments.length} loaded={workplaceAssignments.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                    </>}
+                    createForm={
                   <ModuleRecordForm
+                    onCancel={closeDefinition}
                     title={tr(
                       "Yürürlük tarihli işyeri atamaları",
                       "Effective-dated workplace assignments",
@@ -6078,11 +6333,23 @@ className="secondary hrp-group-action"
                     </label>
 </RecordFormGroup>
 </ModuleRecordForm>
+                    }
+                  />
+                )}
+                {calendarKind === "calendars" && (
+                  <HrDefinitionScreen
+                    paneLabel={tr("İşyeri takvimi kaydı", "Workplace calendar record")}
+                    creating={hrCreating}
+                    onClose={closeDefinition}
+                    emptyText={tr("Bir takvim seçin ya da F2 ile yeni takvimi onaya gönderin.", "Select a calendar or submit a new one with F2.")}
+                    record={currentWorkplaceCalendarRecord}
+                    list={<>
+                  <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-assignments" {...screenViewGridDefaults(workplaceAssignmentVisibleFields)}>
+                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-calendars" {...screenViewGridDefaults(workplaceCalendarVisibleFields)} {...hrGridSelection(hrCurrent, selectDefinitionRow, hrGridExportRef, isEn)} externalPagination aria-label={tr("İşyeri takvimi kayıtları", "Workplace calendar records")}>
                       <thead>
                         <tr>
-                          {workplaceAssignmentVisibleFields.map((field) => (
+                          {workplaceCalendarVisibleFields.map((field) => (
                             <th
                               key={field.key}
                               style={
@@ -6100,9 +6367,9 @@ className="secondary hrp-group-action"
                         </tr>
                       </thead>
                       <tbody>
-                        {workplaceAssignments.map((x) => (
-                          <tr key={x.id}>
-                            {workplaceAssignmentVisibleFields.map((field) => (
+                        {workplaceCalendars.map((x) => (
+                          <tr key={x.id} {...hrRowProps(x.id, openDefinitionRecord)}>
+                            {workplaceCalendarVisibleFields.map((field) => (
                               <td
                                 key={field.key}
                                 style={
@@ -6115,9 +6382,7 @@ className="secondary hrp-group-action"
                                 }
                                 data-label={calendarFieldLabel(field)}
                               >
-                                {field.key === "employee" ? (
-                                  x.employee
-                                ) : field.key === "workplaceCode" ? (
+                                {field.key === "workplaceCode" ? (
                                   x.workplaceCode
                                 ) : field.key === "effectiveFrom" ? (
                                   formatHrDate(x.effectiveFrom)
@@ -6126,83 +6391,52 @@ className="secondary hrp-group-action"
                                     v{x.version} ·{" "}
                                     {hrStatusLabel(x.status, isEn)}
                                   </>
-                                ) : field.key === "actions" && x.canApprove ? (
-                                  <>
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/workplace-assignments/${x.id}/approve`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "İşyeri ataması onaylandı.",
-                                            "Workplace assignment approved.",
+                                ) : field.key === "policyReference" ? (
+                                  x.policyReference
+                                ) : field.key === "calendar" ? (
+                                  <details>
+                                    <summary>{tr("Görüntüle", "View")}</summary>
+                                    <pre>
+                                      {JSON.stringify(
+                                        {
+                                          weeklyMinutes: JSON.parse(
+                                            x.weeklyMinutesJson,
                                           ),
-                                        )
-                                      }
-                                    >
-                                      <Check size={15} />
-                                      {tr("Onayla", "Approve")}
-                                    </button>
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/workplace-assignments/${x.id}/reject`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "İşyeri ataması reddedildi.",
-                                            "Workplace assignment rejected.",
+                                          dateOverrides: JSON.parse(
+                                            x.dateOverridesJson,
                                           ),
-                                        )
-                                      }
-                                    >
-                                      {tr("Reddet", "Reject")}
-                                    </button>
-                                  </>
+                                        },
+                                        null,
+                                        2,
+                                      )}
+                                    </pre>
+                                  </details>
                                 ) : null}
                               </td>
                             ))}
                           </tr>
                         ))}
-                        {!workplaceAssignments.length && (
+                        {!workplaceCalendars.length && (
                           <tr>
                             <td
                               colSpan={Math.max(
                                 1,
-                                workplaceAssignmentVisibleFields.length,
+                                workplaceCalendarVisibleFields.length,
                               )}
                             >
-                              {tr("Atama yok.", "No assignments.")}
+                              {tr("Takvim yok.", "No calendars.")}
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </AdvancedDataGrid>
                   </div>
-                </div>
-                <div className="hr-panel">
+                  </div>
+                  <HrListFooter shown={workplaceCalendars.length} loaded={workplaceCalendars.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                    </>}
+                    createForm={
                   <ModuleRecordForm
+                    onCancel={closeDefinition}
                     title={tr(
                       "İşyeri çalışma takvimleri",
                       "Workplace work calendars",
@@ -6306,32 +6540,25 @@ className="secondary hrp-group-action"
 </div>
 </RecordFormGroup>
 </ModuleRecordForm>
+                    }
+                  />
+                )}
+                {calendarKind === "overrides" && (
+                  <HrDefinitionScreen
+                    paneLabel={tr("Personel takvim istisnası kaydı", "Employee calendar override record")}
+                    creating={hrCreating}
+                    onClose={closeDefinition}
+                    emptyText={tr("Bir istisna seçin ya da F2 ile yeni istisnayı onaya gönderin.", "Select an override or submit a new one with F2.")}
+                    record={currentCalendarOverrideRecord}
+                    list={<>
+                  <div className="hr-panel list-v2-list">
                   <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" gridId="hr-workplace-calendars" {...screenViewGridDefaults(workplaceCalendarVisibleFields)}>
+                    <AdvancedDataGrid className="hr-table" gridId="hr-employee-calendar-overrides" {...screenViewGridDefaults(employeeCalendarOverrideVisibleFields)} {...hrGridSelection(hrCurrent, selectDefinitionRow, hrGridExportRef, isEn)} externalPagination aria-label={tr("Personel takvim istisnası kayıtları", "Employee calendar override records")}>
                       <thead>
                         <tr>
-                          {workplaceCalendarVisibleFields.map((field) => (
-                            <th
-                              key={field.key}
-                              style={
-                                field.width
-                                  ? {
-                                      width: field.width,
-                                      minWidth: field.width,
-                                    }
-                                  : undefined
-                              }
-                            >
-                              {calendarFieldLabel(field)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workplaceCalendars.map((x) => (
-                          <tr key={x.id}>
-                            {workplaceCalendarVisibleFields.map((field) => (
-                              <td
+                          {employeeCalendarOverrideVisibleFields.map(
+                            (field) => (
+                              <th
                                 key={field.key}
                                 style={
                                   field.width
@@ -6341,114 +6568,71 @@ className="secondary hrp-group-action"
                                       }
                                     : undefined
                                 }
-                                data-label={calendarFieldLabel(field)}
                               >
-                                {field.key === "workplaceCode" ? (
-                                  x.workplaceCode
-                                ) : field.key === "effectiveFrom" ? (
-                                  formatHrDate(x.effectiveFrom)
-                                ) : field.key === "versionStatus" ? (
-                                  <>
-                                    v{x.version} ·{" "}
-                                    {hrStatusLabel(x.status, isEn)}
-                                  </>
-                                ) : field.key === "policyReference" ? (
-                                  x.policyReference
-                                ) : field.key === "calendar" ? (
-                                  <details>
-                                    <summary>{tr("Görüntüle", "View")}</summary>
-                                    <pre>
-                                      {JSON.stringify(
-                                        {
-                                          weeklyMinutes: JSON.parse(
-                                            x.weeklyMinutesJson,
-                                          ),
-                                          dateOverrides: JSON.parse(
-                                            x.dateOverridesJson,
-                                          ),
-                                        },
-                                        null,
-                                        2,
-                                      )}
-                                    </pre>
-                                  </details>
-                                ) : field.key === "actions" && x.canApprove ? (
-                                  <>
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/workplace-calendars/${x.id}/approve`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "Takvim onaylandı.",
-                                            "Calendar approved.",
-                                          ),
-                                        )
-                                      }
-                                    >
-                                      <Check size={15} />
-                                      {tr("Onayla", "Approve")}
-                                    </button>
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void submit(
-                                          () =>
-                                            request(
-                                              token,
-                                              `/api/hr/payroll/workplace-calendars/${x.id}/reject`,
-                                              {
-                                                method: "POST",
-                                                body: JSON.stringify({
-                                                  rowVersion: x.rowVersion,
-                                                }),
-                                              },
-                                            ),
-                                          tr(
-                                            "Takvim reddedildi.",
-                                            "Calendar rejected.",
-                                          ),
-                                        )
-                                      }
-                                    >
-                                      {tr("Reddet", "Reject")}
-                                    </button>
-                                  </>
-                                ) : null}
-                              </td>
-                            ))}
+                                {calendarFieldLabel(field)}
+                              </th>
+                            ),
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employeeCalendarOverrides.map((x) => (
+                          <tr key={x.id} {...hrRowProps(x.id, openDefinitionRecord)}>
+                            {employeeCalendarOverrideVisibleFields.map(
+                              (field) => (
+                                <td
+                                  key={field.key}
+                                  style={
+                                    field.width
+                                      ? {
+                                          width: field.width,
+                                          minWidth: field.width,
+                                        }
+                                      : undefined
+                                  }
+                                  data-label={calendarFieldLabel(field)}
+                                >
+                                  {field.key === "employee" ? (
+                                    x.employee
+                                  ) : field.key === "effectiveFrom" ? (
+                                    formatHrDate(x.effectiveFrom)
+                                  ) : field.key === "versionStatus" ? (
+                                    <>
+                                      v{x.version} ·{" "}
+                                      {hrStatusLabel(x.status, isEn)}
+                                    </>
+                                  ) : field.key === "policyReference" ? (
+                                    x.policyReference
+                                  ) : null}
+                                </td>
+                              ),
+                            )}
                           </tr>
                         ))}
-                        {!workplaceCalendars.length && (
+                        {!employeeCalendarOverrides.length && (
                           <tr>
                             <td
                               colSpan={Math.max(
                                 1,
-                                workplaceCalendarVisibleFields.length,
+                                employeeCalendarOverrideVisibleFields.length,
                               )}
                             >
-                              {tr("Takvim yok.", "No calendars.")}
+                              {tr(
+                                "Kişi takvimi istisnası yok.",
+                                "No employee calendar overrides.",
+                              )}
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </AdvancedDataGrid>
                   </div>
-                </div>
-                <div className="hr-panel">
+                  </div>
+                  <HrListFooter shown={employeeCalendarOverrides.length} loaded={employeeCalendarOverrides.length} cap={Number.MAX_SAFE_INTEGER} isEn={isEn} />
+                    </>}
+                    createForm={
                   <ModuleRecordForm
+                    onCancel={closeDefinition}
                     title={tr(
                       "Kişi bazlı takvim istisnaları",
                       "Employee calendar overrides",
@@ -6561,137 +6745,9 @@ className="secondary hrp-group-action"
 </div>
 </RecordFormGroup>
 </ModuleRecordForm>
-                  <div className="hr-table-wrap">
-                    <AdvancedDataGrid className="hr-table" gridId="hr-employee-calendar-overrides" {...screenViewGridDefaults(employeeCalendarOverrideVisibleFields)}>
-                      <thead>
-                        <tr>
-                          {employeeCalendarOverrideVisibleFields.map(
-                            (field) => (
-                              <th
-                                key={field.key}
-                                style={
-                                  field.width
-                                    ? {
-                                        width: field.width,
-                                        minWidth: field.width,
-                                      }
-                                    : undefined
-                                }
-                              >
-                                {calendarFieldLabel(field)}
-                              </th>
-                            ),
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {employeeCalendarOverrides.map((x) => (
-                          <tr key={x.id}>
-                            {employeeCalendarOverrideVisibleFields.map(
-                              (field) => (
-                                <td
-                                  key={field.key}
-                                  style={
-                                    field.width
-                                      ? {
-                                          width: field.width,
-                                          minWidth: field.width,
-                                        }
-                                      : undefined
-                                  }
-                                  data-label={calendarFieldLabel(field)}
-                                >
-                                  {field.key === "employee" ? (
-                                    x.employee
-                                  ) : field.key === "effectiveFrom" ? (
-                                    formatHrDate(x.effectiveFrom)
-                                  ) : field.key === "versionStatus" ? (
-                                    <>
-                                      v{x.version} ·{" "}
-                                      {hrStatusLabel(x.status, isEn)}
-                                    </>
-                                  ) : field.key === "policyReference" ? (
-                                    x.policyReference
-                                  ) : field.key === "actions" &&
-                                    x.canApprove ? (
-                                    <>
-                                      <button
-                                        className="secondary"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void submit(
-                                            () =>
-                                              request(
-                                                token,
-                                                `/api/hr/payroll/employee-calendar-overrides/${x.id}/approve`,
-                                                {
-                                                  method: "POST",
-                                                  body: JSON.stringify({
-                                                    rowVersion: x.rowVersion,
-                                                  }),
-                                                },
-                                              ),
-                                            tr(
-                                              "Kişi takvimi onaylandı.",
-                                              "Employee calendar approved.",
-                                            ),
-                                          )
-                                        }
-                                      >
-                                        <Check size={15} />
-                                        {tr("Onayla", "Approve")}
-                                      </button>
-                                      <button
-                                        className="secondary"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void submit(
-                                            () =>
-                                              request(
-                                                token,
-                                                `/api/hr/payroll/employee-calendar-overrides/${x.id}/reject`,
-                                                {
-                                                  method: "POST",
-                                                  body: JSON.stringify({
-                                                    rowVersion: x.rowVersion,
-                                                  }),
-                                                },
-                                              ),
-                                            tr(
-                                              "Kişi takvimi reddedildi.",
-                                              "Employee calendar rejected.",
-                                            ),
-                                          )
-                                        }
-                                      >
-                                        {tr("Reddet", "Reject")}
-                                      </button>
-                                    </>
-                                  ) : null}
-                                </td>
-                              ),
-                            )}
-                          </tr>
-                        ))}
-                        {!employeeCalendarOverrides.length && (
-                          <tr>
-                            <td
-                              colSpan={Math.max(
-                                1,
-                                employeeCalendarOverrideVisibleFields.length,
-                              )}
-                            >
-                              {tr(
-                                "Kişi takvimi istisnası yok.",
-                                "No employee calendar overrides.",
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </AdvancedDataGrid>
-                  </div>
-                </div>
+                    }
+                  />
+                )}
               </>
             )}
           </>
