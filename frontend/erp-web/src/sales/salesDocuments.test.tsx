@@ -340,6 +340,8 @@ describe('Satış faturası detayı', () => {
       { text: 'F-i1 Bu fatura', current: true, opens: false, status: 'Kesildi' },
       { text: 'IADE-r9 Satış iadesi', current: false, opens: false, status: 'İptal' },
     ]);
+    // The open document's mark is its type's initials (Satış faturası → SF), as in mockup 02.
+    expect(aside().querySelector('.dd-chain > li.is-current .dd-chain-mark')!.textContent).toBe('SF');
     expect(aside().textContent).toContain('Tahsil edilen');
     expect(footer().textContent).toContain('2 satır');
     // The Tahsilat ve İadeler tab keeps the collections grid.

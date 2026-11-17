@@ -20,6 +20,7 @@ import {
   DetailLinesFooter,
   DetailLinesHead,
   DetailNotes,
+  DetailSection,
   DetailTabs,
   DetailTiles,
   formatAmount,
@@ -746,7 +747,7 @@ export function SalesInvoiceModal({
                 items={[
                   ...(invoice.orderCode ? [{ key: "order", code: invoice.orderCode, label: "Satış siparişi" }] : []),
                   ...(invoice.deliveryCode ? [{ key: "delivery", code: invoice.deliveryCode, label: "Satış irsaliyesi" }] : []),
-                  { key: "self", code: invoice.code, label: "Bu fatura", current: true, status: salesInvoiceStatus(invoice.status) },
+                  { key: "self", code: invoice.code, label: "Bu fatura", kind: "Satış faturası", current: true, status: salesInvoiceStatus(invoice.status) },
                   ...invoice.returns.map((item) => ({
                     key: `return-${item.id}`,
                     code: item.code,
@@ -1166,17 +1167,18 @@ export function SalesInvoiceModal({
             )}
             </>}
             {detailTab === "transactions" && <>
-            <div className="list-toolbar invoice-collections-heading">
-              <div>
-                <h2>Tahsilatlar</h2>
-                <p>
+            <DetailSection
+              title="Tahsilatlar"
+              count={invoice.collections.length}
+              description={
+                <>
                   {invoice.paidAmount.toLocaleString("tr-TR", {
                     minimumFractionDigits: 2,
                   })}{" "}
                   {invoice.currencyCode} mahsup edildi
-                </p>
-              </div>
-            </div>
+                </>
+              }
+            >
             <div className="ledger-list invoice-collections-wrap">
               <AdvancedDataGrid
                 className="customer-table"
@@ -1252,6 +1254,7 @@ export function SalesInvoiceModal({
                 </tbody>
               </AdvancedDataGrid>
             </div>
+            </DetailSection>
             {invoice.status === "Posted" && invoice.outstandingAmount > 0 && (
               <form
                 onSubmit={createCollection}
@@ -1363,17 +1366,18 @@ export function SalesInvoiceModal({
                 </div>
               </form>
             )}
-            <div className="list-toolbar invoice-returns-heading">
-              <div>
-                <h2>Satış iadeleri</h2>
-                <p>
+            <DetailSection
+              title="Satış iadeleri"
+              count={invoice.returns.length}
+              description={
+                <>
                   {invoice.returnedAmount.toLocaleString("tr-TR", {
                     minimumFractionDigits: 2,
                   })}{" "}
                   {invoice.currencyCode} tutarında aktif iade
-                </p>
-              </div>
-            </div>
+                </>
+              }
+            >
             <div className="ledger-list invoice-returns-wrap">
               <FinanceStudioGrid
                 token={token}
@@ -1440,6 +1444,7 @@ export function SalesInvoiceModal({
                 </table>
               </FinanceStudioGrid>
             </div>
+            </DetailSection>
             {invoice.status === "Posted" && (
               <form
                 onSubmit={createReturn}

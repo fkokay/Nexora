@@ -42,7 +42,7 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
         <DetailContext title="Belge zinciri">
           <DetailChain
             items={[
-              { key: "self", code: detail.code, label: "Bu talep", current: true, status: salesRequestStatus(detail.status) },
+              { key: "self", code: detail.code, label: "Bu talep", kind: "Satış talebi", current: true, status: salesRequestStatus(detail.status) },
               ...detail.quotes.map((quote) => ({
                 key: quote.id,
                 code: quote.code,

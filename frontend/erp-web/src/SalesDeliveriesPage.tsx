@@ -710,7 +710,7 @@ export function SalesDeliveriesScreen({
                 <DetailChain
                   items={[
                     ...(detail.orderCode ? [{ key: "order", code: detail.orderCode, label: "Satış siparişi" }] : []),
-                    { key: "self", code: detail.code, label: "Bu irsaliye", current: true, status: salesDeliveryStatus(detail.status) },
+                    { key: "self", code: detail.code, label: "Bu irsaliye", kind: "Satış irsaliyesi", current: true, status: salesDeliveryStatus(detail.status) },
                     // The delivery gives its invoice's status and id, not its number.
                     ...(detail.invoiceStatus
                       ? [

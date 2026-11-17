@@ -54,7 +54,7 @@ export function ReturnDetailSurface({ detail, config, error, notice, onDismissEr
           <DetailChain
             items={[
               { key: "invoice", code: detail.invoiceCode, label: purchase ? "Alış faturası" : "Satış faturası", onOpen: onOpenInvoice },
-              { key: "self", code: detail.code, label: "Bu iade", current: true, status: returnStatus(detail.status) },
+              { key: "self", code: detail.code, label: "Bu iade", kind: config.singular, current: true, status: returnStatus(detail.status) },
             ]}
           />
         </DetailContext>

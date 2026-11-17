@@ -195,8 +195,10 @@ export type DetailChainItem = {
   key: string;
   /** Belge numarası; numarası bilinmeyen bağlı belge yalnızca türüyle gösterilir. */
   code?: string | null;
-  /** Belge türü ("Satış siparişi"). */
+  /** Belge türü ("Satış siparişi") ya da açık belge için "Bu fatura". */
   label: string;
+  /** İşaret harflerinin alındığı belge türü; `label` "Bu fatura" gibi olduğunda verilir ("Satış faturası" → SF). */
+  kind?: string;
   /** Alt satır: tarih, satır sayısı. */
   meta?: ReactNode;
   status?: { label: string; tone: "neutral" | "info" | "warning" | "success" | "danger" };
@@ -211,7 +213,7 @@ export function DetailChain({ items, label }: { items: DetailChainItem[]; label?
   return (
     <ol className="dd-chain" aria-label={label ?? "Belge zinciri"}>
       {items.map((item) => {
-        const initials = item.label
+        const initials = (item.kind ?? item.label)
           .split(/\s+/)
           .slice(0, 2)
           .map((word) => word.charAt(0).toLocaleUpperCase("tr-TR"))

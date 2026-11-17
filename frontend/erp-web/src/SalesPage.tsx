@@ -3347,7 +3347,7 @@ export function SalesPage({
                   <DetailChain
                     items={[
                       ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi" }] : []),
-                      { key: "self", code: detail.code, label: "Bu teklif", current: true, status: salesQuoteStatus(detail.status) },
+                      { key: "self", code: detail.code, label: "Bu teklif", kind: "Satış teklifi", current: true, status: salesQuoteStatus(detail.status) },
                       ...(detail.salesOrderId && detail.salesOrderCode
                         ? [{ key: "order", code: detail.salesOrderCode, label: "Satış siparişi", onOpen: () => void openOrder(detail.salesOrderId!) }]
                         : []),
@@ -10454,7 +10454,7 @@ function SalesOrderModal({
           <DetailChain
             items={[
               ...(order.quoteCode ? [{ key: "quote", code: order.quoteCode, label: "Satış teklifi" }] : []),
-              { key: "self", code: order.code, label: "Bu sipariş", current: true, status: salesOrderStatus(order.status) },
+              { key: "self", code: order.code, label: "Bu sipariş", kind: "Satış siparişi", current: true, status: salesOrderStatus(order.status) },
               ...deliveries.map((item) => ({
                 key: `delivery-${item.id}`,
                 code: item.code,
@@ -10649,13 +10649,13 @@ function SalesOrderModal({
         )}
         <div className="dd-box">
         <DetailLinesHead title="Satırlar" meta={`${order.lines.length} satır · ${order.currencyCode}`} />
-        <div className="ledger-list sales-quote-lines">
+        <div className="dd-grid">
           <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
               <ScreenViewGroupHeader fields={visibleOrderLineFields} />
               <tr>
                 {visibleOrderLineFields.map((field) => (
-                  <th key={field.key}>{field.label}</th>
+                  <th key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>{field.label}</th>
                 ))}
               </tr>
             </thead>
@@ -10663,7 +10663,7 @@ function SalesOrderModal({
               {order.lines.map((line) => (
                 <tr key={line.lineNumber}>
                   {visibleOrderLineFields.map((field) => (
-                    <td key={field.key}>
+                    <td key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>
                       {field.key === "stockCode" ? (
                         line.stockCode
                       ) : field.key === "stockName" ? (
@@ -10726,8 +10726,11 @@ function SalesOrderModal({
         </div>
         </>}
         {detailTab === "deliveries" && <>
-        <div className="delivery-history-head">
-          <b>İrsaliyeler</b>
+        <DetailSection
+          title="İrsaliyeler"
+          count={deliveries.length}
+          actions={
+            <>
           {order.status === "Open" &&
             activeReservation &&
             role === "TenantAdmin" && (
@@ -10752,7 +10755,9 @@ function SalesOrderModal({
               <Plus size={14} /> İrsaliye oluştur
             </button>
           )}
-        </div>
+            </>
+          }
+        >
         {editor && (
           <RecordFormPage
             variant="dialog"
@@ -10928,10 +10933,14 @@ function SalesOrderModal({
             ))
           )}
         </div>
+        </DetailSection>
         </>}
       </DocumentSurface>
   );
 }
+
+/** Order line grid columns that hold numbers (right-aligned, tabular figures). */
+const ORDER_NUMBER_FIELDS = new Set(["quantity", "deliveredQuantity", "remainingQuantity", "unitPrice", "lineTotal"]);
 
 const noTicks = () => undefined;
 
