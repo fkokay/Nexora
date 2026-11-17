@@ -11,7 +11,8 @@ import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
 import { ActionBarPreview, BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
-import QueriesPanel, { MAX_QUERIES, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryPreview } from "./page-designer/QueriesPanel";
+import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
+import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
@@ -198,6 +199,19 @@ const normalizeDefinition = (raw: unknown): PageDefinition => {
   const value = (raw ?? {}) as { components?: unknown; queries?: unknown };
   return { schemaVersion: 2, queries: Array.isArray(value.queries) ? value.queries as PageQuery[] : [], components: Array.isArray(value.components) ? value.components as PageComponent[] : [] };
 };
+/**
+ * Sunucuya gönderilen tanım: ERP işlemi sorgusunda `sql` yoktur, SQL sorgusunda `operation` yoktur. İşlem katalogda
+ * bulunursa bağlanmamış parametreler atılır; katalog yoksa parametreler olduğu gibi gönderilir. Düzenleyici durumu değişmez.
+ */
+const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDefinition => ({
+  ...definition,
+  queries: definition.queries.map((query) => {
+    const { sql, operation, ...rest } = query;
+    if (!isOperationQuery(query)) return { ...rest, sql: sql ?? "" };
+    const op = findOperation(catalog, operation);
+    return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };
+  }),
+});
 const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
 // erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı.
 const sessionUser = (token: string) => {
@@ -331,6 +345,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ rowActions: true, style: false });
   const [, setUndoTick] = useState(0);
   const [queryPreviews, setQueryPreviews] = useState<Record<string, QueryPreview>>({});
+  const [erpCatalog, setErpCatalog] = useState<ErpCatalog>({ status: "loading" });
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   const [sqlSchema, setSqlSchema] = useState<SqlSchemaTable[]>([]);
   const parameterMemory = useRef(new Map<string, PageQuery["parameters"][number]>());
@@ -414,6 +429,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         setSources([...items.filter((item) => item.code !== "customSql"), ...tenantSources]);
       })
       .catch(() => setSources([]));
+  }, [request]);
+  // ERP işlem kataloğu: alınamazsa ERP işlemi modu kapalı kalır, SQL modu etkilenmez.
+  useEffect(() => {
+    let active = true;
+    void loadErpOperations(request)
+      .then((operations) => { if (active) setErpCatalog({ status: "ready", operations }); })
+      .catch(() => { if (active) setErpCatalog({ status: "failed" }); });
+    return () => { active = false; };
   }, [request]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -619,7 +642,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const table = state.components.find((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
       if (!table) return;
       props.table = table.id;
-      const columns = queryPreviews[String(table.props.query)]?.columns ?? [];
+      const columns = queryColumns(String(table.props.query));
       props.fields = columns.filter((column) => isSafeColumnCode(column.code) && !column.code.includes("=")).slice(0, 6)
         .map((column) => `${column.code}=${sanitizeSafeValue(column.label || column.code).slice(0, 60) || "Alan"}`);
     }
@@ -712,8 +735,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       queries: state.queries.map((query) => {
         if (query.id !== id) return query;
         const next = { ...query, ...patch };
+        // SQL moduna dönüşte `operation` anahtarı tamamen kalkar (anahtarın varlığı ERP işlemi modunu belirler).
+        if ("operation" in patch && patch.operation === undefined) delete next.operation;
+        if (isOperationQuery(next)) return next;
         // Parametre adları SQL'den gelir; var olanların (ve bu oturumda SQL'den geçici düşenlerin) bağlaması ve türü korunur.
-        for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
+        if (!isOperationQuery(query)) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
         if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => parameterMemory.current.get(`${id}:${name.toLowerCase()}`), defaultParameterBinding);
         return next;
       }),
@@ -732,6 +758,25 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }));
     setQueryPreviews((current) => { const next = { ...current }; delete next[id]; return next; });
     setSelectedQueryId(definition.queries.find((item) => item.id !== id)?.id ?? null);
+  };
+  // Güncelleme işleminin kaynak okuma sorgusunu ekler; `id` parametresi ilk adlı ızgaranın seçili satırına bağlanır.
+  const addSourceQuery = (operation: ErpOperation) => {
+    if (!queryEditable || definitionRef.current.queries.length >= MAX_QUERIES) return;
+    const taken = takenNames({});
+    const segment = operation.name.split(".")[1] ?? "";
+    const base = NAME_PATTERN.test(segment) && segment.length <= 56 ? segment : "kaynak";
+    let queryName = base;
+    for (let index = 2; nameProblem(queryName, taken); index++) queryName = `${base}${index}`;
+    const table = definitionRef.current.components.find((component) => component.type === "dataTable" && !!component.name && identifier.test(component.name));
+    const query: PageQuery = {
+      id: `q-${crypto.randomUUID().slice(0, 8)}`, name: queryName, kind: operation.pageKind, operation: operation.name,
+      runOn: operation.kind === "read" ? "load" : "manual",
+      parameters: operation.parameters.map((parameter) => ({
+        name: parameter.name, type: parameter.type as QueryParameterType,
+        binding: parameter.name.toLowerCase() === "id" && table?.name ? `{{${table.name}.seciliSatir.id}}` : "",
+      })),
+    };
+    commit((state) => ({ ...state, queries: [...state.queries, query] }));
   };
   // Önizleme parametreleri tasarım zamanı kapsamından çözülür: oturum, diğer sorguların son önizlemesi,
   // ızgaraların ilk önizleme satırı (seçili satır yerine) ve girişlerin varsayılan değerleri.
@@ -820,12 +865,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           : null;
       if (empty) { setError(empty); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
     }
+    // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
+    for (const query of definition.queries) {
+      if (!isOperationQuery(query)) continue;
+      const op = findOperation(erpCatalog, query.operation);
+      const problem = !query.operation ? `“${query.name}” sorgusu için bir ERP işlemi seçin.`
+        : op ? (() => { const missing = unboundRequiredParameter(op, query.parameters); return missing ? `Zorunlu parametre bağlanmadı: ${missing}` : null; })() : null;
+      if (problem) { setError(problem); setLeftTab("queries"); setSelectedQueryId(query.id); return null; }
+    }
     setSaving(true); setError(""); setNotice("");
     const sentSnapshot = snapshotOf(name, description, definition);
+    const wire = wireDefinition(definition, erpCatalog);
     try {
       const result = current
-        ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition }) })
-        : await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: code.trim(), name, description: description || null, definition }) });
+        ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition: wire }) })
+        : await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: code.trim(), name, description: description || null, definition: wire }) });
       setCurrent(result); setCreating(false); setCode(result.code); setSavedSnapshot(sentSnapshot);
       setNotice("Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
       await refreshHistory(result.id);
@@ -837,6 +891,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
   const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
+    const operationQuery = definitionRef.current.queries.find((item) => item.id === queryId);
+    if (operationQuery && isOperationQuery(operationQuery)) return runOperationPreview(operationQuery);
     if (current?.isPublished) throw new Error("Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun.");
     const saved = dirty || !current ? await saveDraft() : current;
     if (!saved) throw new Error("Taslak kaydedilemedi; üstteki hata mesajına bakın.");
@@ -854,6 +910,23 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }
     const result = await request<QueryPreview>(url, { method: "POST", body: JSON.stringify({ parameters }) });
     setQueryPreviews((value) => ({ ...value, [queryId]: result }));
+    return null;
+  };
+  // ERP okuma işlemi önizlemesi: katalogdaki yol kullanıcının kendi oturumuyla doğrudan çağrılır (taslak kaydı gerekmez).
+  // Yazma işlemleri Studio'da hiçbir koşulda çalıştırılmaz.
+  const runOperationPreview = async (query: PageQuery): Promise<null> => {
+    const op = findOperation(erpCatalog, query.operation);
+    if (!op) throw new Error(query.operation ? `ERP işlemi bulunamadı: ${query.operation}` : "Önce bir ERP işlemi seçin.");
+    if (op.kind === "write" || isWriteKind(query.kind)) throw new Error(ERP_WRITE_PREVIEW_BLOCKED);
+    const scope = designScope();
+    const values = Object.fromEntries(query.parameters.map((parameter) => {
+      const path = bindingPath(parameter.binding);
+      return [parameter.name, path ? coerceParameter(resolvePath(scope, path), parameter.type) : null];
+    }));
+    const built = buildReadRequest(op, values);
+    const json = await request<unknown>(built.url, { method: built.method, ...(built.body !== undefined ? { body: built.body } : {}) });
+    const result: QueryPreview = mapReadResult(op, json);
+    setQueryPreviews((value) => ({ ...value, [query.id]: result }));
     return null;
   };
   const openErpPreview = async () => {
@@ -1119,18 +1192,33 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const selectedSource = selected ? sources.find((source) => source.code === selected.props.source) : undefined;
   const selectedColumns = selected && Array.isArray(selected.props.columns) ? selected.props.columns.filter((column): column is string => typeof column === "string") : [];
   const SelectedIcon = selected ? iconFor(selected.type) : Settings2;
+  // Sorgunun sütunları: son önizleme; önizleme yoksa ERP işlemi sorgusunda katalogdaki sonuç sütunları. Kod tekildir.
+  const queryColumns = (queryId: string): { code: string; label: string; dataType: string }[] => {
+    const preview = queryPreviews[queryId]?.columns ?? [];
+    const query = definition.queries.find((item) => item.id === queryId);
+    const op = query && isOperationQuery(query) ? findOperation(erpCatalog, query.operation) : undefined;
+    const seen = new Set<string>();
+    return [...preview, ...(op?.result.columns ?? [])].filter((column) => !seen.has(column.code) && !!seen.add(column.code));
+  };
   // {{ önerileri: sorgu sonuçları (son önizleme sütunları), adlı girişler, sorguya bağlı adlı ızgaraların seçili satırı ve oturum.
   const bindingSuggestions: BindingSuggestion[] = [];
   for (const query of definition.queries) {
-    if (!identifier.test(query.name) || isWriteKind(query.kind)) continue;
+    if (!identifier.test(query.name)) continue;
+    if (isWriteKind(query.kind)) {
+      // ERP yazma işleminin yanıtı (record) {{sorgu.sonuc.alan}} olarak bağlanabilir.
+      const op = isOperationQuery(query) ? findOperation(erpCatalog, query.operation) : undefined;
+      if (op?.result.shape === "record") for (const column of op.result.columns) if (identifier.test(column.code))
+        bindingSuggestions.push({ path: `${query.name}.sonuc.${column.code}`, detail: `İşlem sonucu · ${column.label || column.dataType}`, group: "Sorgular" });
+      continue;
+    }
     bindingSuggestions.push({ path: `${query.name}.rows`, detail: "Sorgu satırları", group: "Sorgular" }, { path: `${query.name}.rowCount`, detail: "Satır sayısı", group: "Sorgular" });
-    for (const column of queryPreviews[query.id]?.columns ?? []) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}`, group: "Sorgular" });
+    for (const column of queryColumns(query.id)) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}`, group: "Sorgular" });
   }
   for (const component of definition.components) {
     if (!component.name || !identifier.test(component.name)) continue;
     if (component.type === "input") bindingSuggestions.push({ path: `${component.name}.value`, detail: "Giriş değeri", group: "Girişler" });
     if (component.type === "dataTable" && typeof component.props.query === "string")
-      for (const column of queryPreviews[component.props.query]?.columns ?? []) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${component.name}.seciliSatir.${column.code}`, detail: "Izgarada seçili satır", group: "Izgarada seçili satır" });
+      for (const column of queryColumns(component.props.query)) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${component.name}.seciliSatir.${column.code}`, detail: "Izgarada seçili satır", group: "Izgarada seçili satır" });
   }
   bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği", group: "Oturum" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" });
   for (const source of sources) if (isCountableSource(source.code))
@@ -1259,7 +1347,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           editable={queryEditable} readOnlyReason={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir; bu sekmeyi salt okunur görüyorsunuz." : null}
           schema={sqlSchema} suggestions={bindingSuggestions} previews={queryPreviews}
           previewBlockedReason={current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null}
-          takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}/>}
+          takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}
+          catalog={erpCatalog} onAddSourceQuery={addSourceQuery}/>}
         {leftTab === "templates" && <div className="pd-left-body">
           <p className="pd-hint">Şablon, sayfadaki bileşenlerin yerine geçer; Geri al ile dönebilirsiniz.</p>
           {templates.map((template) => <button type="button" key={template.id} className="pd-template" disabled={!canEdit} onClick={() => applyTemplate(template)}><b>{template.label}</b><small>{template.description}</small></button>)}
