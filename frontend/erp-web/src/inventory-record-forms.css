@@ -143,4 +143,5 @@
 .app-shell .inventory-item-record-form .rf-form table.inv-card-units :is(th, td) { height: 30px !important; padding: 4px 8px !important; font-size: 12.5px !important; }
 .app-shell .inventory-item-record-form .rf-form table.inv-card-units th { font-size: 11.5px !important; }
 .app-shell .inventory-item-record-form .rf-form .inv-card-units button.row-action { min-height: 22px; padding: 1px 8px; font-size: 11.5px; }
-.inventory-item-record-form .rf-form .inv-rf-inline-add > button { height: 31px; }
+/* .app-shell .content button.secondary sets min-height 38px; the add button matches the 31px controls. */
+.app-shell .inventory-item-record-form .rf-form .inv-rf-inline-add > button.secondary { height: 31px; min-height: 31px; }

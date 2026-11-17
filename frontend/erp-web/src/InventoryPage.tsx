@@ -3715,7 +3715,6 @@ export function InventoryPage({
                             e.target.value as StockItem["trackingMode"],
                           )
                         }
-                        title="Hareket geçmişi oluşunca takip türü değiştirilemez."
                       >
                         <option value="None">Kapalı</option>
                         <option value="Lot">Lot</option>

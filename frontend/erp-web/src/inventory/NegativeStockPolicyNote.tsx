@@ -4,9 +4,16 @@ import { api } from "../erpApi";
 
 export type NegativeStockPolicy = "blocked" | "allowed" | "unknown";
 
+// Last answer per session token: a remount (section switch, next card) shows it at once instead of "unknown" first.
+const policyCache = new Map<string, NegativeStockPolicy>();
+
 /** The company's negative-stock setting; "unknown" for users who cannot read company settings. */
 export function useNegativeStockPolicy(token: string): NegativeStockPolicy {
-  const [policy, setPolicy] = useState<NegativeStockPolicy>("unknown");
+  const [policy, setPolicyState] = useState<NegativeStockPolicy>(() => policyCache.get(token) ?? "unknown");
+  const setPolicy = (value: NegativeStockPolicy) => {
+    policyCache.set(token, value);
+    setPolicyState(value);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
