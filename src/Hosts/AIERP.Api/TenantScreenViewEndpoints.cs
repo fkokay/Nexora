@@ -911,6 +911,18 @@ internal static class TenantScreenViewEndpoints
         return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
     }
 
+    /// <summary>Read-only view of a catalog entry's static fields; the key must match exactly (ordinal).</summary>
+    internal static bool TryGetCatalogFields(string key, out IReadOnlyList<(string Key, string Label, bool DefaultVisible)> fields)
+    {
+        if (TryGetCatalog(key, out var catalog) && string.Equals(catalog.Key, key, StringComparison.Ordinal))
+        {
+            fields = catalog.Fields.Select(x => (x.Key, x.Label, x.DefaultVisible)).ToArray();
+            return true;
+        }
+        fields = [];
+        return false;
+    }
+
     private static bool TryGetCatalog(string key, out ScreenViewCatalog catalog)
     {
         if (string.Equals(key, "hr-employees", StringComparison.OrdinalIgnoreCase))
