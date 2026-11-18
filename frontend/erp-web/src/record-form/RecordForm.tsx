@@ -67,6 +67,12 @@ export type RecordFormPageProps = {
   saveLabel: string;
   onSubmit: (event: FormEvent) => void;
   onCancel: () => void;
+  /**
+   * The header's Vazgeç asks first, like Esc: with typed or changed values (or `dirty`) it shows "Kaydedilmemiş
+   * değişiklikler kaybolacak. Devam edilsin mi?" and calls `onCancel` only when confirmed. Default: Vazgeç calls
+   * `onCancel` at once (the container decides).
+   */
+  confirmCancel?: boolean;
   /** Why saving is not possible right now (e.g. a required choice is missing); shown on the action bar's Kaydet. */
   saveDisabledReason?: string;
   /** Set a stable id when something outside the form needs to target it. */
@@ -122,6 +128,7 @@ export function RecordFormPage({
   busy,
   onSubmit,
   onCancel,
+  confirmCancel = false,
   formId,
   saveDisabledReason,
   onSaveIntent,
@@ -260,6 +267,11 @@ export function RecordFormPage({
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
     if (isInPopup(event.target) || confirmingRef.current || !ownsKeys()) return;
     event.preventDefault();
+    cancelAfterConfirm();
+  });
+  /** Vazgeç with the unsaved-changes question (Esc on a page form; the header button with `confirmCancel`). */
+  function cancelAfterConfirm() {
+    if (confirmingRef.current) return;
     if (!touchedRef.current && !dirty) {
       onCancel();
       return;
@@ -272,7 +284,7 @@ export function RecordFormPage({
       .finally(() => {
         confirmingRef.current = false;
       });
-  });
+  }
 
   // PgUp / PgDn: previous / next record of the list; not in a text field and not in a scrollable region
   // (a line-item table scrolls with them).
@@ -403,7 +415,7 @@ export function RecordFormPage({
           )}
         </>
       )}
-      <button type="button" className="rf-btn" onClick={onCancel}>
+      <button type="button" className="rf-btn" onClick={confirmCancel ? cancelAfterConfirm : onCancel}>
         <X size={16} aria-hidden="true" />
         Vazgeç
       </button>

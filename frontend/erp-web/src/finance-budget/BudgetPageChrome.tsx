@@ -3,11 +3,7 @@ import type { Plan } from "./types";
 
 type Props = {
   plans: Plan[];
-  admin: boolean;
-  baseCurrency: string;
-  onNew: () => void;
   loading: boolean;
-  controlsLocked: boolean;
   error: string;
   notice: string;
   onRetry: () => void;
@@ -15,11 +11,7 @@ type Props = {
 
 export function BudgetPageChrome({
   plans,
-  admin,
-  baseCurrency,
-  onNew,
   loading,
-  controlsLocked,
   error,
   notice,
   onRetry,
@@ -32,16 +24,6 @@ export function BudgetPageChrome({
         count={loading && plans.length === 0 ? null : plans.length}
         countLabel="bütçe"
       >
-        {admin && (
-          <button
-            type="button"
-            className="primary"
-            onClick={onNew}
-            disabled={controlsLocked || !baseCurrency}
-          >
-            + Yeni bütçe
-          </button>
-        )}
       </ListPageHeader>
       {error && (
         <div className="alert inline-alert budget-alert" role="alert">

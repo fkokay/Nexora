@@ -1,13 +1,31 @@
-import { useEffect, useState } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, CircleDollarSign, RotateCcw, Shuffle } from "lucide-react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
 import { api } from "../../erpApi";
-import type { JournalEntrySummary, JournalEntryView } from "../../erp-types";
+import type { BuiltInScreenLayoutField, JournalEntrySummary, JournalEntryView } from "../../erp-types";
+import { PageCommandsSlot, documentOpenCommands } from "../../commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "../../commands/gridCommands";
+import type { MenuCommand, PageCommands } from "../../commands/types";
+import { ListFooter } from "../../list-page/ListFooter";
+import { ListPageHeader } from "../../list-page/ListPageHeader";
+import { ListPagination } from "../../list-page/ListPagination";
+import { ListSummaryCards } from "../../list-page/ListSummaryCards";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
-import { journalSourceTypeLabel as sourceTypeLabel } from "../sourceTypeLabels";
+import { StatusTag } from "../../list-page/StatusTag";
+import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
+import { SalesListPanelToggle } from "../../sales/components/SalesListDetailPanel";
+import { useStockDetailPanelOpen } from "../../inventory/components/InventoryStockDetailPanel";
+import { journalSourceTone, journalSourceTypeLabel } from "../sourceTypeLabels";
 import { displayDate, formatAmount } from "../ledgerReportUtils";
+import { JournalEntryListPanel, JournalEntryListPanelEmpty } from "./JournalEntryListPanel";
+import { entryCreatedLabel, reversalBlockReason } from "../journalEntries";
+import { JournalEntryDocument } from "./JournalEntryDocument";
+import "../../sales/sales-list-v2.css";
 import "../journal-ledger.css";
 
-/** Source chips of the journal ledger; "other" collects every type not listed. */
+export const JOURNAL_PAGE_SIZE = 50;
+
+/** Source chips of the journal ledger; "other" collects every type not listed. They filter the loaded page only. */
 const sourceChipTypes: Record<string, string[]> = {
   manual: ["Manual"],
   sales: ["SalesInvoice"],
@@ -32,95 +50,164 @@ const matchesChip = (entry: JournalEntrySummary, chip: string) =>
     ? !listedTypes.has(entry.sourceType)
     : (sourceChipTypes[chip] || []).includes(entry.sourceType));
 
-/** ManualReversal is the reversal entry itself (its sourceId is the reversed entry). */
-const entrySourceLabel = (type: string) => (type === "ManualReversal" ? "Ters kayıt" : sourceTypeLabel(type));
-
-/** Long legacy codes keep the prefix and the last 8 characters: "YV-…1a2b3c4d". */
-export const shortenEntryCode = (code: string) => {
-  if (code.length <= 16) return code;
-  const dash = code.indexOf("-");
-  const prefix = dash > 0 && dash <= 4 ? code.slice(0, dash + 1) : code.slice(0, 3);
-  return `${prefix}…${code.slice(-8)}`;
-};
+const FIELDS: BuiltInScreenLayoutField[] = [
+  { key: "code", label: "Fiş", width: 140 },
+  { key: "entryDate", label: "Tarih", width: 90 },
+  { key: "sourceType", label: "Kaynak", width: 175 },
+  { key: "description", label: "Açıklama", width: 250 },
+  { key: "accountingBasis", label: "Standart", width: 78 },
+  { key: "totalDebit", label: "Borç", width: 115 },
+  { key: "totalCredit", label: "Alacak", width: 115 },
+  { key: "createdAt", label: "Kayıt zamanı", width: 100 },
+].map((field, position) => ({ ...field, visible: true, position }) as BuiltInScreenLayoutField);
+const NUMBER_FIELDS = new Set(["totalDebit", "totalCredit"]);
+const CODE_FIELDS = new Set(["code"]);
 
 type Props = {
   token: string;
   role: string;
   entries: JournalEntrySummary[];
   entryTotal: number;
+  loading: boolean;
   entryPage: number;
-  setEntryPage: (update: (page: number) => number) => void;
+  setEntryPage: (page: number) => void;
   entryFrom: string;
   entryTo: string;
   onDateRangeChange: (from: string, to: string) => void;
+  /** Server-side accounting basis filter ("" = all). */
+  basis: string;
+  onBasisChange: (basis: string) => void;
   sourceChip: string;
   setSourceChip: (value: string) => void;
   busy: boolean;
   onReverse: (entry: JournalEntryView) => Promise<void>;
   onRefresh: () => void;
-  toolsSlot: HTMLDivElement | null;
-  setToolsSlot: (element: HTMLDivElement | null) => void;
+  /** Sources waiting for transfer (all of them; TenantAdmin only), null when not shown. */
+  pendingSources: number | null;
+  baseCurrency: string;
+  onNavigate?: (page: string) => void;
 };
 
+/**
+ * Yevmiye Defterleri (mockup 09, list type A): page-scoped summary, server date / basis filters, page-scoped source
+ * chips, checkbox list, detail panel and footer. A single click makes a row current (panel), a double click / Enter /
+ * Aç / the number opens the read-only entry document. Ters kayıt oluştur is in İşlemler with today's condition.
+ */
 export function JournalLedgerView({
   token,
   role,
   entries,
   entryTotal,
+  loading,
   entryPage,
   setEntryPage,
   entryFrom,
   entryTo,
   onDateRangeChange,
+  basis,
+  onBasisChange,
   sourceChip,
   setSourceChip,
   busy,
   onReverse,
   onRefresh,
-  toolsSlot,
-  setToolsSlot,
+  pendingSources,
+  baseCurrency,
+  onNavigate,
 }: Props) {
-  const [selectedId, setSelectedId] = useState("");
-  const [detail, setDetail] = useState<{
-    id: string;
-    data: JournalEntryView | null;
-    error: string;
-  } | null>(null);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [docId, setDocId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, { data: JournalEntryView | null; error: string }>>({});
+  const gridExportRef = useRef<GridExportActions | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listActive = !docId;
+  const panel = useStockDetailPanelOpen(listActive, rootRef);
+
   const visibleEntries = entries.filter((entry) => matchesChip(entry, sourceChip));
-  // Reversals on the same page tell which entries already have one ("Ters kaydı var").
-  const reversedIds = new Set(
-    entries.filter((entry) => entry.sourceType === "ManualReversal").map((entry) => entry.sourceId),
+  const current = visibleEntries.find((entry) => entry.id === currentId) ?? null;
+  // Reversals on the same page tell which entries already have one ("Ters kaydı var", bu sayfa).
+  const reversalBySource = new Map(
+    entries.filter((entry) => entry.sourceType === "ManualReversal").map((entry) => [entry.sourceId, entry]),
   );
-  const codeById = new Map(entries.map((entry) => [entry.id, entry.code]));
-  const selectedEntry =
-    visibleEntries.find((entry) => entry.id === selectedId) || visibleEntries[0] || null;
-  const selectedEntryId = selectedEntry?.id || "";
+  const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+
+  // Detail of the current row and of the open entry. The İşlemler condition (isReversed) needs it even while the
+  // panel is closed, so it loads independently of the panel, a moment after the row settles; reloads refetch it.
+  const wanted = [current?.id, docId].filter((id): id is string => Boolean(id));
+  const wantedKey = wanted.join(",");
   useEffect(() => {
-    if (!selectedEntryId) {
-      setDetail(null);
-      return;
-    }
+    if (!wanted.length) return;
     const controller = new AbortController();
-    const id = selectedEntryId;
-    setDetail((current) => (current?.id === id ? current : { id, data: null, error: "" }));
-    // Short debounce: clicking through rows only loads the row the user stops on.
     const timer = window.setTimeout(() => {
-      api<JournalEntryView>(`/api/finance/general-ledger/entries/${id}`, token, {
-        signal: controller.signal,
-      })
-        .then((data) => {
-          if (!controller.signal.aborted) setDetail({ id, data, error: "" });
-        })
-        .catch((e) => {
-          if (!controller.signal.aborted) setDetail({ id, data: null, error: (e as Error).message });
-        });
+      for (const id of wanted)
+        api<JournalEntryView>(`/api/finance/general-ledger/entries/${id}`, token, { signal: controller.signal })
+          .then((data) => {
+            if (!controller.signal.aborted) setDetails((all) => ({ ...all, [id]: { data, error: "" } }));
+          })
+          .catch((e) => {
+            if (!controller.signal.aborted) setDetails((all) => ({ ...all, [id]: { data: null, error: (e as Error).message } }));
+          });
     }, 150);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-    // entries: the detail is re-read after each reload (e.g. after a reversal).
-  }, [token, selectedEntryId, entries]);
+    // entries: the detail is read again after each reload (e.g. after a reversal).
+  }, [token, wantedKey, entries]);
+  useEffect(() => setDetails({}), [entries]);
+
+  const currentDetail = current ? details[current.id]?.data ?? null : null;
+  const doc = docId ? details[docId] ?? null : null;
+  const docSummary = docId ? entryById.get(docId) ?? null : null;
+  const docSource = doc?.data ?? docSummary;
+
+  function openEntry(id: string) {
+    setCurrentId(id);
+    setDocId(id);
+  }
+  const reverseCommand = (entry: JournalEntryView | null): MenuCommand => {
+    const reason = reversalBlockReason(role, entry, busy);
+    return {
+      id: "journal-reverse",
+      label: "Ters kayıt oluştur",
+      disabledReason: reason ?? undefined,
+      run: () => (entry && !reason ? onReverse(entry) : undefined),
+    };
+  };
+  const transferCommand: MenuCommand = {
+    id: "journal-transfer-sources",
+    label: "Aktarılabilir kaynaklar",
+    disabledReason: onNavigate ? undefined : "Bu ekranda kullanılamaz",
+    run: () => onNavigate?.("finance-transfer-sources"),
+  };
+  const newVoucher = { disabledReason: onNavigate ? undefined : "Bu ekranda kullanılamaz", run: () => onNavigate?.("finance-journal-vouchers") };
+  const notDeletable = "Kaydedilmiş fiş silinemez — İşlemler › Ters kayıt oluştur";
+  const commands: PageCommands = docId
+    ? {
+        ...documentOpenCommands(onRefresh),
+        new: newVoucher,
+        save: { disabledReason: "Kaydedilmiş fiş değiştirilemez" },
+        delete: { disabledReason: notDeletable },
+        more: [reverseCommand(doc?.data ?? null), transferCommand],
+      }
+    : {
+        new: { ...newVoucher, primary: true },
+        open: {
+          disabledReason: current ? undefined : "Önce bir kayıt seçin",
+          run: () => {
+            const id = focusedRecordId() ?? current?.id;
+            if (id) openEntry(id);
+          },
+        },
+        delete: { disabledReason: current ? notDeletable : "Önce bir kayıt seçin" },
+        more: [
+          current ? reverseCommand(currentDetail) : { id: "journal-reverse", label: "Ters kayıt oluştur", disabledReason: "Önce bir kayıt seçin" },
+          transferCommand,
+          csvExportCommand(gridExportRef),
+        ],
+      };
 
   const chipOptions = [
     { value: "", label: "Tümü", count: entries.length },
@@ -130,16 +217,132 @@ export function JournalLedgerView({
       count: entries.filter((entry) => matchesChip(entry, value)).length,
     })),
   ];
-  const selected = detail?.id === selectedEntryId ? detail.data : null;
-  const canReverse =
-    role === "TenantAdmin" && selected != null && selected.sourceType === "Manual" && !selected.isReversed;
-  const pageCount = Math.max(1, Math.ceil(entryTotal / 50));
+  const money = (value: number) => `${formatAmount(value)}${baseCurrency ? ` ${baseCurrency}` : ""}`;
+  const pageDebit = entries.reduce((sum, entry) => sum + entry.totalDebit, 0);
+  const shownDebit = visibleEntries.reduce((sum, entry) => sum + entry.totalDebit, 0);
+  const shownCredit = visibleEntries.reduce((sum, entry) => sum + entry.totalCredit, 0);
+  const reversalsOnPage = entries.filter((entry) => entry.sourceType === "ManualReversal").length;
+  const filtered = Boolean(entryFrom || entryTo || basis);
+
+  const renderCell = (field: BuiltInScreenLayoutField, entry: JournalEntrySummary) => {
+    switch (field.key) {
+      case "code":
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code gljl-code"
+            title={entry.code}
+            aria-label={`${entry.code} fişini aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              openEntry(entry.id);
+            }}
+          >
+            {entry.code}
+          </button>
+        );
+      case "entryDate":
+        return displayDate(entry.entryDate);
+      case "sourceType":
+        return (
+          <span className="gljl-source">
+            <StatusTag tone={journalSourceTone(entry.sourceType)}>{journalSourceTypeLabel(entry.sourceType)}</StatusTag>
+            {reversalBySource.has(entry.id) && <StatusTag tone="warn">Ters kaydı var</StatusTag>}
+          </span>
+        );
+      case "description":
+        return <span title={entry.description}>{entry.description || "—"}</span>;
+      case "accountingBasis":
+        return entry.accountingBasis || "—";
+      case "totalDebit":
+        return formatAmount(entry.totalDebit);
+      case "totalCredit":
+        return formatAmount(entry.totalCredit);
+      case "createdAt": {
+        const created = entryCreatedLabel(entry.createdAt);
+        return <span className="gljl-muted" title={created.full}>{created.short}</span>;
+      }
+      default:
+        return null;
+    }
+  };
+
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <JournalEntryListPanel
+          entry={current}
+          detail={currentDetail}
+          error={details[current.id]?.error ?? ""}
+          reversal={reversalBySource.get(current.id) ?? null}
+          reversedCode={current.sourceType === "ManualReversal" ? entryById.get(current.sourceId)?.code ?? current.sourceId : null}
+          baseCurrency={baseCurrency}
+          onOpen={() => openEntry(current.id)}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <JournalEntryListPanelEmpty />
+      )
+    ) : null;
+
+  // "—" only until the first result: a reload (Yenile, a filter, after a reversal) keeps the last figures meanwhile.
+  const firstLoad = loading && entries.length === 0 && entryTotal === 0;
 
   return (
-    <section className="ledger-subpanel gljl" aria-label="Yevmiye defteri kayıtları">
+    <>
+      <PageCommandsSlot commands={commands} />
+      <ListPageHeader
+        title="Yevmiye Defterleri"
+        description="Kaydedilmiş yevmiye fişlerini tarih aralığına ve standarda göre inceleyin."
+        count={loading && entryTotal === 0 ? null : entryTotal}
+        countLabel="fiş"
+      />
+      <ListSummaryCards
+        cards={[
+          {
+            id: "count",
+            label: "Fiş sayısı",
+            value: firstLoad ? "—" : entryTotal.toLocaleString("tr-TR"),
+            icon: BookOpen,
+            hint: filtered ? <span>seçili filtre</span> : <span>tümü</span>,
+          },
+          {
+            id: "amount",
+            label: "Borç = alacak toplamı",
+            value: firstLoad || entries.length === 0 ? "—" : money(pageDebit),
+            icon: CircleDollarSign,
+            hint: (
+              <>
+                <span>bu sayfa</span> · <span>{entries.length}</span> <span>fiş</span>
+              </>
+            ),
+          },
+          ...(pendingSources !== null
+            ? [
+                {
+                  id: "pending",
+                  label: "Aktarılmayı bekleyen kaynak",
+                  value: pendingSources.toLocaleString("tr-TR"),
+                  icon: Shuffle,
+                  tone: pendingSources > 0 ? ("warn" as const) : ("primary" as const),
+                  hint: <span>tümü · İşlemler › Aktarılabilir kaynaklar</span>,
+                },
+              ]
+            : []),
+          {
+            id: "reversals",
+            label: "Ters kayıt",
+            value: firstLoad ? "—" : reversalsOnPage.toLocaleString("tr-TR"),
+            icon: RotateCcw,
+            hint: <span>bu sayfa</span>,
+          },
+        ]}
+      />
       <ListToolbar toolsSlotRef={setToolsSlot} onRefresh={onRefresh}>
-        <label className="list-v2-filter">
-          <span>Başlangıç</span>
+        {/* One "Tarih" filter (from – to) keeps the toolbar on one line at 1440, as Satış Teklifler. */}
+        <div className="list-v2-filter gljl-date-range" role="group" aria-label="Tarih aralığı">
+          <span>Tarih</span>
           <input
             type="date"
             aria-label="Başlangıç"
@@ -147,9 +350,7 @@ export function JournalLedgerView({
             max={entryTo || undefined}
             onChange={(e) => onDateRangeChange(e.target.value, entryTo)}
           />
-        </label>
-        <label className="list-v2-filter">
-          <span>Bitiş</span>
+          <span aria-hidden="true">–</span>
           <input
             type="date"
             aria-label="Bitiş"
@@ -157,197 +358,95 @@ export function JournalLedgerView({
             min={entryFrom || undefined}
             onChange={(e) => onDateRangeChange(entryFrom, e.target.value)}
           />
-        </label>
-        <ListChipGroup
-          label="Kaynak türü"
-          value={sourceChip}
-          onChange={setSourceChip}
-          options={chipOptions}
-          hideEmpty
-        />
-      </ListToolbar>
-      <div className="gljl-layout">
-        <div className="ledger-list journal-entries-list list-v2-list" id="ledger-journal">
-          <AdvancedDataGrid
-            className="customer-table"
-            gridId="studio-finance-finance-journals-v2"
-            externalPagination
-            enableRowSelection={false}
-            toolbarContainer={toolsSlot}
-            hideSearch
-          >
-            <table className="customer-table">
-              <thead>
-                <tr>
-                  <th>Fiş</th>
-                  <th>Tarih</th>
-                  <th>Kaynak</th>
-                  <th className="gljl-amount">Tutar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleEntries.map((x) => {
-                  const isSelected = x.id === selectedEntryId;
-                  const select = () => setSelectedId(x.id);
-                  return (
-                    <tr
-                      key={x.id}
-                      className={`gljl-row${isSelected ? " is-selected" : ""}`}
-                      tabIndex={0}
-                      aria-current={isSelected || undefined}
-                      onClick={select}
-                      onKeyDown={(event) => {
-                        if (event.target !== event.currentTarget) return;
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          select();
-                        }
-                      }}
-                    >
-                      <td title={x.code}>
-                        {/* The visible code is drawn from data-short; export and assistive tech read the full code. */}
-                        <span className="gljl-code" title={x.code} aria-label={x.code} data-short={shortenEntryCode(x.code)} />
-                      </td>
-                      <td>{displayDate(x.entryDate)}</td>
-                      <td title={x.description}>
-                        <span className="gljl-source">
-                          <span className={`gljl-src-tag${x.sourceType === "Manual" ? " is-manual" : ""}`}>
-                            {entrySourceLabel(x.sourceType)}
-                          </span>
-                          {reversedIds.has(x.id) && <span className="gljl-flag">Ters kaydı var</span>}
-                          {x.accountingBasis === "IFRS" && <span className="gljl-flag">IFRS</span>}
-                          <small>{x.description}</small>
-                        </span>
-                      </td>
-                      <td className="gljl-amount">{formatAmount(x.totalDebit)}</td>
-                    </tr>
-                  );
-                })}
-                {visibleEntries.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="table-empty">
-                      {entries.length ? "Filtreyle eşleşen fiş yok." : "Henüz yevmiye kaydı yok."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </AdvancedDataGrid>
-          <div className="modal-foot">
-            <span>{`Sayfa ${entryPage} / ${pageCount}`}</span>
-            <div>
-              <button
-                className="secondary small-button"
-                disabled={entryPage <= 1}
-                onClick={() => setEntryPage((page) => page - 1)}
-              >
-                Önceki
-              </button>
-              <button
-                className="secondary small-button"
-                disabled={entryPage * 50 >= entryTotal}
-                onClick={() => setEntryPage((page) => page + 1)}
-              >
-                Sonraki
-              </button>
-            </div>
-          </div>
         </div>
-        <aside className="gljl-side" aria-label="Seçili fiş" aria-live="polite">
-          {!selectedEntry ? (
-            <p className="gljl-side-empty">
-              {entries.length ? "Ayrıntı için bir fiş seçin." : "Henüz yevmiye kaydı yok."}
-            </p>
-          ) : (
-            <>
-              <div className="list-v2-detail-head">
-                <div>
-                  <span className="list-v2-kind">{`Seçili fiş · ${entrySourceLabel(selectedEntry.sourceType)}`}</span>
-                  <h2 title={selectedEntry.code}>{selectedEntry.code}</h2>
-                  <span className="gljl-side-meta">{displayDate(selectedEntry.entryDate)}</span>
-                </div>
-              </div>
-              {selected ? (
-                <>
-                  <table className="gljl-lines">
-                    <thead>
-                      <tr>
-                        <th scope="col">Hesap</th>
-                        <th scope="col">Borç</th>
-                        <th scope="col">Alacak</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selected.lines.map((line) => (
-                        <tr key={line.lineNumber} title={line.description}>
-                          <td>
-                            <b>{line.accountCode}</b>
-                            <small>{line.accountName}</small>
-                          </td>
-                          <td>{line.debit ? formatAmount(line.debit) : ""}</td>
-                          <td>{line.credit ? formatAmount(line.credit) : ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <th scope="row">Toplam</th>
-                        <td>{formatAmount(selected.totalDebit)}</td>
-                        <td>{formatAmount(selected.totalCredit)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                  <dl className="gljl-facts">
-                    {selected.description && (
-                      <div>
-                        <dt>Açıklama</dt>
-                        <dd>{selected.description}</dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt>Kaynak belge</dt>
-                      <dd>
-                        {selected.sourceType === "ManualReversal"
-                          ? `Ters çevrilen fiş: ${codeById.get(selected.sourceId) || selected.sourceId}`
-                          : selected.sourceType === "Manual"
-                            ? "Manuel fiş (kaynak belge yok)"
-                            : entrySourceLabel(selected.sourceType)}
-                      </dd>
-                    </div>
-                    {selected.isReversed && (
-                      <div>
-                        <dt>Durum</dt>
-                        <dd>Ters kaydı var</dd>
-                      </div>
-                    )}
-                  </dl>
-                  {canReverse && (
-                    <button
-                      type="button"
-                      className="secondary gljl-side-action"
-                      disabled={busy}
-                      onClick={() => void onReverse(selected)}
-                    >
-                      Ters kayıt oluştur
-                    </button>
-                  )}
-                  {selected.sourceType !== "Manual" && selected.sourceType !== "ManualReversal" && (
-                    <p className="gljl-side-note">
-                      Ters kayıt yalnız manuel fişlerde; kaynaklı fişler kaynak belgeden iptal edilir.
-                    </p>
-                  )}
-                </>
-              ) : detail?.id === selectedEntryId && detail.error ? (
-                <p className="error-banner" role="alert">
-                  {detail.error}
-                </p>
-              ) : (
-                <p className="gljl-side-empty">Fiş yükleniyor…</p>
-              )}
-            </>
-          )}
-        </aside>
+        <label className="list-v2-filter">
+          <span>Standart</span>
+          <select aria-label="Standart" value={basis} onChange={(e) => onBasisChange(e.target.value)}>
+            <option value="">Tümü</option>
+            <option value="TDHP">TDHP</option>
+            <option value="IFRS">IFRS</option>
+          </select>
+        </label>
+        <div className="gljl-source-filter">
+          {/* No server-side source filter: the chips narrow the loaded page only, and say so. */}
+          <span className="gljl-source-filter-label" aria-hidden="true">
+            Kaynak (bu sayfa):
+          </span>
+          <ListChipGroup label="Kaynak (bu sayfa)" value={sourceChip} onChange={setSourceChip} options={chipOptions} hideEmpty />
+        </div>
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </ListToolbar>
+      <div ref={rootRef} className={`sales-list-body gljl-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list gljl-list">
+          <SalesDocumentGrid
+            gridId="studio-finance-finance-journals-v3"
+            hideExport
+            exportActionsRef={gridExportRef}
+            fields={FIELDS}
+            items={visibleEntries}
+            loading={loading && entries.length === 0}
+            loadingMessage="Fişler yükleniyor…"
+            emptyMessage={entries.length ? "Filtreyle eşleşen fiş yok." : "Henüz yevmiye kaydı yok."}
+            search=""
+            searchEmptyMessage=""
+            toolbarContainer={toolsSlot}
+            renderCell={renderCell}
+            ariaLabel="Yevmiye defteri kayıtları"
+            selection={{
+              currentId,
+              onCurrentChange: setCurrentId,
+              onTickedChange: setTicked,
+              bulkActions: listActive
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                : undefined,
+              onOpen: openEntry,
+            }}
+            footer={
+              <ListFooter hints="↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli">
+                {ticked.length > 0 && (
+                  <span>
+                    <span>{ticked.length}</span> <span>seçili</span>
+                  </span>
+                )}
+                {visibleEntries.length > 0 && (
+                  <span className="gljl-foot-totals">
+                    <span>{sourceChip ? "Gösterilen fişler" : "Bu sayfa toplamı"}</span>{" "}
+                    <span>Borç</span> <b>{formatAmount(shownDebit)}</b> · <span>Alacak</span> <b>{formatAmount(shownCredit)}</b>
+                  </span>
+                )}
+                <span>
+                  <span>Gösterilen</span>{" "}
+                  <span>
+                    {visibleEntries.length.toLocaleString("tr-TR")} / {entryTotal.toLocaleString("tr-TR")}
+                  </span>
+                </span>
+                <ListPagination
+                  page={entryPage}
+                  total={entryTotal}
+                  pageSize={JOURNAL_PAGE_SIZE}
+                  loading={loading}
+                  onPageChange={setEntryPage}
+                />
+              </ListFooter>
+            }
+            numberFields={NUMBER_FIELDS}
+            codeFields={CODE_FIELDS}
+          />
+        </section>
+        {listPanel}
       </div>
-    </section>
+      {docId && (
+        <JournalEntryDocument
+          summary={docSummary}
+          detail={doc?.data ?? null}
+          error={doc?.error ?? ""}
+          reversal={reversalBySource.get(docId) ?? null}
+          reversedEntry={docSource?.sourceType === "ManualReversal" ? { id: docSource.sourceId, code: entryById.get(docSource.sourceId)?.code ?? null } : null}
+          baseCurrency={baseCurrency}
+          onOpenEntry={(id) => openEntry(id)}
+          onClose={() => setDocId(null)}
+        />
+      )}
+    </>
   );
 }

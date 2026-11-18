@@ -42,6 +42,10 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     pencere, açık seçici / liste kutusu (`[role=listbox]`, `[aria-expanded=true]`) ya da Esc'i işlemiş bir alan
     (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir. Seçici, menü ve açılır
     listeler Esc'i kapatırken `preventDefault()` çağırır; böylece arkadaki form Esc ile kapanmaz.
+  - **Vazgeç düğmesi**: varsayılan olarak `onCancel`'ı hemen çağırır (karar kapsayıcınındır; ör. tanım ekranı kendi
+    sorusunu sorar). `confirmCancel` verilirse başlıktaki Vazgeç de Esc gibi davranır: formda bir alana yazıldıysa /
+    değiştirildiyse ya da `dirty` doluysa önce aynı "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?" sorusu
+    çıkar, `onCancel` yalnızca onayda çağrılır. Örnek: Yevmiye Fişi (`general-ledger/components/ManualJournalForm.tsx`).
   - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. Kayıt formunun kendi genişliği (görünüm alanı değil; açık
     widget rayı ve menü düşülür) 1100px olunca açılır, 1060px altına inince kapanır (arada titremesin); `ResizeObserver` ile izlenir. `Ctrl+.` açar /
     kapatır.

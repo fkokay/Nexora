@@ -1,5 +1,4 @@
 import type { Ref } from "react";
-import { ArrowLeftRight, CheckCircle2, XCircle } from "lucide-react";
 import {
   formatAmount,
   formatDate,
@@ -8,13 +7,14 @@ import type {
   FinanceAccount,
   InstrumentEvent,
   Item,
-  RowAction,
 } from "../paymentInstrumentTypes";
 import {
   allowedActions,
   collectLabel,
   statusText,
+  statusTone,
 } from "../paymentInstrumentTypes";
+import { StatusTag } from "../../list-page/StatusTag";
 
 type TimelineEntry = { key: string; label: string; date: string | null; note?: string | null; tone?: "danger" | "muted" };
 
@@ -37,8 +37,8 @@ function eventLabel(event: InstrumentEvent, item: Item) {
   }
 }
 
-/** History from the event log; falls back to the dates on the record while the log is unavailable. */
-function timeline(item: Item, events: InstrumentEvent[] | null): TimelineEntry[] {
+/** History from the event log; falls back to the dates on the record while the log is unavailable (side panel and record). */
+export function instrumentTimeline(item: Item, events: InstrumentEvent[] | null): TimelineEntry[] {
   if (events && events.length)
     return events.map((event) => ({
       key: event.id,
@@ -84,13 +84,11 @@ type Props = {
   eventsLoading: boolean;
   eventsError: string;
   isAdmin: boolean;
-  busy: boolean;
   baseCurrency: string;
   accounts: FinanceAccount[];
   accountId: string;
   onAccountChange: (value: string) => void;
   accountSelectRef?: Ref<HTMLSelectElement>;
-  onAction: (item: Item, kind: RowAction) => void;
 };
 
 export function PaymentInstrumentSidePanel({
@@ -99,13 +97,11 @@ export function PaymentInstrumentSidePanel({
   eventsLoading,
   eventsError,
   isAdmin,
-  busy,
   baseCurrency,
   accounts,
   accountId,
   onAccountChange,
   accountSelectRef,
-  onAction,
 }: Props) {
   if (!item)
     return (
@@ -121,13 +117,12 @@ export function PaymentInstrumentSidePanel({
     baseCurrency && item.currencyCode === baseCurrency
       ? formatAmount(item.amount)
       : formatAmount(item.amount, item.currencyCode);
-  const entries = timeline(item, events);
-  const secondary = actions.filter((action) => action !== "collect");
+  const entries = instrumentTimeline(item, events);
   return (
     <aside className="pi-side fh-box" aria-label="Seçili çek/senet">
       <p className="pi-side-eyebrow">
         <span>{`Seçili ${kind}`}</span>
-        <span className={`pi-state is-${item.status.toLowerCase()}`}>{statusText[item.status]}</span>
+        <StatusTag tone={statusTone[item.status]}>{statusText[item.status]}</StatusTag>
       </p>
       <h2 className="pi-side-title">
         <span>{item.instrumentNumber}</span>
@@ -159,10 +154,8 @@ export function PaymentInstrumentSidePanel({
       )}
       {eventsError && <p className="fh-note">{eventsError}</p>}
       {item.notes && <p className="fh-note pi-side-notes">{item.notes}</p>}
-      {actions.length > 0 && (
+      {canCollect && (
         <div className="pi-side-actions">
-          {canCollect && (
-            <>
               <label className="pi-side-field">
                 <span>{item.direction === "Receivable" ? "Tahsilat hesabı" : "Ödeme hesabı"}</span>
                 <select
@@ -179,29 +172,7 @@ export function PaymentInstrumentSidePanel({
                   ))}
                 </select>
               </label>
-              <button
-                type="button"
-                className="primary"
-                disabled={busy}
-                onClick={() => onAction(item, "collect")}
-              >
-                <CheckCircle2 size={15} aria-hidden="true" /> {collectLabel(item)}
-              </button>
-            </>
-          )}
-          {secondary.map((action) => (
-            <button
-              key={action}
-              type="button"
-              className={`secondary${action === "bounce" || action === "cancel" ? " pi-danger-button" : ""}`}
-              disabled={busy}
-              onClick={() => onAction(item, action)}
-            >
-              {action === "endorse" && <ArrowLeftRight size={15} aria-hidden="true" />}
-              {action === "bounce" && <XCircle size={15} aria-hidden="true" />}
-              {action === "endorse" ? "Ciro et" : action === "bounce" ? "Karşılıksız" : "İptal"}
-            </button>
-          ))}
+              <p className="fh-note">{`İşlemler › ${collectLabel(item)} bu hesabı kullanır.`}</p>
         </div>
       )}
     </aside>

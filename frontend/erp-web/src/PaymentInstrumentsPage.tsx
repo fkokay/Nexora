@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Plus, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CalendarClock, ShieldCheck, Wallet, XCircle } from "lucide-react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import { ListPagination } from "./list-page/ListPagination";
 import { localDateString } from "./dateUtils";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
@@ -14,9 +21,8 @@ import {
   formatAmount,
   formatDate,
 } from "./document-detail/DocumentDetailLayout";
-import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
-  PaymentInstrumentMetrics,
+  portfolioCards,
   type PortfolioTiles,
 } from "./payment-instruments/components/PaymentInstrumentMetrics";
 import { PaymentInstrumentListToolbar } from "./payment-instruments/components/PaymentInstrumentListToolbar";
@@ -25,6 +31,7 @@ import {
   PaymentInstrumentGrid,
 } from "./payment-instruments/components/PaymentInstrumentGrid";
 import { PaymentInstrumentSidePanel } from "./payment-instruments/components/PaymentInstrumentSidePanel";
+import { PaymentInstrumentDocument } from "./payment-instruments/components/PaymentInstrumentDocument";
 import type {
   Counterparty,
   Direction,
@@ -43,7 +50,9 @@ import {
   allowedActions,
   collectLabel,
   statusText,
+  statusTone,
 } from "./payment-instruments/paymentInstrumentTypes";
+import { StatusTag } from "./list-page/StatusTag";
 import { PaymentInstrumentCreateForm } from "./payment-instruments/components/PaymentInstrumentCreateForm";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
@@ -79,8 +88,6 @@ function redesignedColumns(fields: ScreenField[] | null): ScreenField[] {
   return PAYMENT_INSTRUMENT_COLUMNS.map((column) => {
     const saved = byKey.get(column.key);
     if (!saved) return column;
-    // The ⋯ column keeps its own width and pin: the old view sized it for four inline buttons.
-    if (column.key === "actions") return { ...column, position: saved.position };
     return {
       ...column,
       visible: saved.visible,
@@ -117,6 +124,9 @@ export default function PaymentInstrumentsPage({
     [collectAccount, setCollectAccount] = useState<Record<string, string>>({});
   const [savedFields, setSavedFields] = useState<ScreenField[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Aç / Enter / double click open the record on its own surface (the list stays mounted, hidden).
+  const [openedId, setOpenedId] = useState<string | null>(null),
+    [openedCopy, setOpenedCopy] = useState<Item | null>(null);
   const [events, setEvents] = useState<InstrumentEvent[] | null>(null),
     [eventsLoading, setEventsLoading] = useState(false),
     [eventsError, setEventsError] = useState("");
@@ -131,6 +141,7 @@ export default function PaymentInstrumentsPage({
   const accountSelectRef = useRef<HTMLSelectElement>(null);
   // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
   const isAdmin = role === "TenantAdmin";
 
   const fetchJson = useCallback(
@@ -309,8 +320,16 @@ export default function PaymentInstrumentsPage({
   }, [fetchJson]);
 
   const selected =
-    items.find((item) => item.id === selectedId) ?? items[0] ?? null;
-  const selectedKey = selected?.id ?? "";
+    items.find((item) => item.id === selectedId) ?? null;
+  // The open record: the list's row while it is on the page, else the last copy the API returned for it (an action can
+  // move it out of the filtered page). Never another row.
+  const opened = openedId
+    ? (items.find((item) => item.id === openedId) ?? (openedCopy?.id === openedId ? openedCopy : null))
+    : null;
+  useEffect(() => {
+    if (openedId && !opened) setOpenedId(null);
+  }, [openedId, opened]);
+  const selectedKey = opened?.id ?? selected?.id ?? "";
   useEffect(() => {
     if (!selectedKey) {
       setEvents(null);
@@ -366,7 +385,6 @@ export default function PaymentInstrumentsPage({
   const columns = redesignedColumns(savedFields)
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
-  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   // Runs while typing and on Enter. The API needs at least 2 characters, so a single
   // character is not applied; clearing the box clears the search.
@@ -519,7 +537,7 @@ export default function PaymentInstrumentsPage({
     setError("");
     setNotice("");
     try {
-      await request(
+      const result = await request<Item | undefined>(
         `/api/finance/payment-instruments/${item.id}/${kind}`,
         "POST",
         {
@@ -533,6 +551,9 @@ export default function PaymentInstrumentsPage({
       );
       setNotice(`${item.code}: ${eventType}.`);
       setSelectedId(item.id);
+      // The open record keeps the API's updated copy (status, row version) in case it leaves the filtered page; without
+      // one it is shown only while the reloaded list still has it.
+      if (openedId === item.id) setOpenedCopy(result?.id === item.id ? result : null);
       setRevision((value) => value + 1);
       await load();
     } catch (cause) {
@@ -542,17 +563,47 @@ export default function PaymentInstrumentsPage({
     }
   }
 
+  function openDocument(item: Item) {
+    setSelectedId(item.id);
+    setOpenedCopy(item);
+    setOpenedId(item.id);
+    setError("");
+    setNotice("");
+  }
+  function closeDocument() {
+    setOpenedId(null);
+    setOpenedCopy(null);
+  }
+  function refresh() {
+    if (loading || busy) return;
+    setRevision((value) => value + 1);
+    void load();
+  }
+
   function renderCell(field: ScreenField, item: Item) {
     switch (field.key) {
       case "instrumentNumber":
         return (
           <span className="pi-two">
             <span className="pi-number">
-              <b>{item.instrumentNumber}</b>
+              {/* The keyboard path to a row: a click selects the record for the side panel and İşlemler; Enter or a
+                  double click opens it. */}
+              <button
+                type="button"
+                className="erp-link-button pi-number-link"
+                aria-pressed={item.id === selected?.id}
+                onClick={() => setSelectedId(item.id)}
+                onDoubleClick={() => openDocument(item)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.defaultPrevented) return;
+                  event.preventDefault();
+                  openDocument(item);
+                }}
+              >
+                {item.instrumentNumber}
+              </button>
               {item.status !== "Portfolio" && (
-                <span className={`pi-state is-${item.status.toLowerCase()}`}>
-                  {statusText[item.status]}
-                </span>
+                <StatusTag tone={statusTone[item.status]}>{statusText[item.status]}</StatusTag>
               )}
             </span>
             <small>
@@ -583,65 +634,99 @@ export default function PaymentInstrumentsPage({
       }
       case "amount":
         return (
-          <b className="pi-amount">
+          <span className="pi-amount">
             {baseCurrency && item.currencyCode === baseCurrency
               ? formatAmount(item.amount)
               : formatAmount(item.amount, item.currencyCode)}
-          </b>
+          </span>
         );
-      case "actions": {
-        const actions = isAdmin ? allowedActions(item) : [];
-        return (
-          <SalesRowActionsMenu label={item.instrumentNumber}>
-            <button
-              type="button"
-              role="menuitem"
-              className="sales-row-menu-item"
-              onClick={() => setSelectedId(item.id)}
-            >
-              Ayrıntılar
-            </button>
-            {actions.length > 0 && <div role="separator" className="sales-row-menu-separator" />}
-            {actions.map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                role="menuitem"
-                className={`sales-row-menu-item${kind === "bounce" || kind === "cancel" ? " danger-action" : ""}`}
-                disabled={busy}
-                onClick={() => void action(item, kind)}
-              >
-                {kind === "collect"
-                  ? collectLabel(item)
-                  : kind === "endorse"
-                    ? "Ciro et"
-                    : kind === "bounce"
-                      ? "Karşılıksız"
-                      : "İptal"}
-              </button>
-            ))}
-          </SalesRowActionsMenu>
-        );
-      }
       default:
         return "—";
     }
   }
 
+  // İşlemler: today's side-panel / row-menu actions for the selected record (or the open record), with the same
+  // conditions (allowedActions, firma yöneticisi, not busy); a disabled item says why.
+  function actionCommands(target: Item | null): MenuCommand[] {
+    const targetActions = target && isAdmin ? allowedActions(target) : [];
+    const actionReason = (kind: RowAction): string | undefined => {
+      if (!isAdmin) return "Çek/senet işlemlerini yalnız firma yöneticisi yapar";
+      if (!target) return "Önce bir kayıt seçin";
+      if (busy) return "İşlem sürüyor…";
+      if (targetActions.includes(kind)) return undefined;
+      switch (kind) {
+        case "collect":
+          return "Yalnız portföydeki veya karşılıksız kayıt tahsil / ödenir";
+        case "endorse":
+          return "Yalnız portföydeki alınan çek ciro edilir";
+        case "bounce":
+          return "Karşılıksız veya iptal edilmiş kayıtta kullanılamaz";
+        default:
+          return "Yalnız portföydeki kayıt iptal edilir";
+      }
+    };
+    const actionItem = (kind: RowAction, label: string): MenuCommand => ({
+      id: `pi-${kind}`,
+      label,
+      disabledReason: actionReason(kind),
+      run: () => {
+        if (target) void action(target, kind);
+      },
+    });
+    return [
+      actionItem("collect", target ? collectLabel(target) : "Tahsil et"),
+      actionItem("endorse", "Ciro et"),
+      actionItem("bounce", "Karşılıksız"),
+      actionItem("cancel", "İptal"),
+    ];
+  }
+  const newCommand: PageCommands["new"] = isAdmin
+    ? {
+        primary: !opened,
+        disabledReason: busy ? "İşlem sürüyor…" : undefined,
+        run: () => {
+          // The create drawer belongs to the list: an open record goes back to it first.
+          closeDocument();
+          openCreate();
+        },
+      }
+    : { disabledReason: "Çek/senet kaydını yalnız firma yöneticisi ekler" };
+  const deleteCommand = { disabledReason: "Çek/senet silinmez; İşlemler › İptal" };
+  const commands: PageCommands = {
+    new: newCommand,
+    open: {
+      disabledReason: selected ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        // Enter on a focused row runs Aç before the row selects itself: open the focused row.
+        const id = focusedRecordId() ?? selected?.id;
+        const target = items.find((row) => row.id === id);
+        if (target) openDocument(target);
+      },
+    },
+    delete: deleteCommand,
+    more: [...actionCommands(selected), csvExportCommand(gridExportRef)],
+  };
+  // The open record owns the bar (the hidden list does not): Yenile reloads it, Excel / Filtre are closed.
+  const documentCommands: PageCommands = {
+    ...documentOpenCommands(refresh),
+    new: newCommand,
+    save: { disabledReason: "Çek/senet kaydı düzenlenmez; işlemler İşlemler menüsünde" },
+    delete: deleteCommand,
+    more: actionCommands(opened),
+  };
+  const pageRange = items.length
+    ? `${((page - 1) * PAGE_SIZE + 1).toLocaleString("tr-TR")}–${((page - 1) * PAGE_SIZE + items.length).toLocaleString("tr-TR")}`
+    : "0";
+
   return (
     <div className="page-content payment-instruments-page pi-page fh-page list-v2">
+      {!showCreate && !opened && <PageCommandsSlot commands={commands} />}
       <ListPageHeader
         title="Çek ve senet"
         description="Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin."
         count={loading && totalCount === 0 ? null : (tabCounts.Receivable ?? 0) + (tabCounts.Payable ?? 0) || totalCount}
-      >
-        {isAdmin && (
-          <button className="primary" type="button" onClick={openCreate}>
-            <Plus size={16} aria-hidden="true" /> Portföye ekle
-          </button>
-        )}
-      </ListPageHeader>
-      {error && (
+      />
+      {error && !opened && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button onClick={() => setError("")} aria-label="Uyarıyı kapat">
@@ -649,7 +734,7 @@ export default function PaymentInstrumentsPage({
           </button>
         </div>
       )}
-      {notice && (
+      {notice && !opened && (
         <div className="notice" role="status">
           {notice}
           <button onClick={() => setNotice("")} aria-label="Bildirimi kapat">
@@ -657,7 +742,30 @@ export default function PaymentInstrumentsPage({
           </button>
         </div>
       )}
-      <PaymentInstrumentMetrics tiles={tiles} loading={tilesLoading} />
+      <ListSummaryCards
+        cards={portfolioCards(tiles, tilesLoading, {
+          icons: { open: Wallet, payable: Wallet, dueSoon: CalendarClock, bounced: tiles?.bouncedCount ? XCircle : AlertTriangle },
+          // Portföyde / Verilen filter the list with today's filters (direction tab + Portföyde status chip); the type
+          // chip and the search are cleared so the list shows what the card counts.
+          portfolioFilter: {
+            active: (side) => direction === side && filter === "Portfolio" && kindFilter === "All" && !searchTerm,
+            toggle: (side) => {
+              const on = direction === side && filter === "Portfolio" && kindFilter === "All" && !searchTerm;
+              setPage(1);
+              setSelectedId(null);
+              if (on) {
+                setFilter("All");
+                return;
+              }
+              setDirection(side);
+              setFilter("Portfolio");
+              setKindFilter("All");
+              setSearchDraft("");
+              setSearchTerm("");
+            },
+          },
+        })}
+      />
       <DetailTabs<Direction>
         label="Yön"
         value={direction}
@@ -693,11 +801,7 @@ export default function PaymentInstrumentsPage({
               setSelectedId(null);
               setKindFilter(value);
             }}
-            onRefresh={() => {
-              if (loading || busy) return;
-              setRevision((value) => value + 1);
-              void load();
-            }}
+            onRefresh={refresh}
             toolsSlotRef={setToolsSlot}
           />
           <section className="pi-list list-v2-list" aria-label="Çek ve senet listesi">
@@ -708,29 +812,21 @@ export default function PaymentInstrumentsPage({
               loading={loading}
               selectedId={selected?.id ?? null}
               onSelect={(item) => setSelectedId(item.id)}
+              onOpen={openDocument}
               renderCell={renderCell}
+              exportActionsRef={gridExportRef}
             />
-            {totalCount > PAGE_SIZE && (
-              <div className="pi-pagination">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                  disabled={page <= 1 || loading}
-                >
-                  Önceki
-                </button>
-                <span>{`Sayfa ${page} / ${pageCount}`}</span>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPage((value) => value + 1)}
-                  disabled={page >= pageCount || loading}
-                >
-                  Sonraki
-                </button>
-              </div>
-            )}
+            <ListFooter hints="Tık seçer · Çift tık / Enter açar · İşlemler seçili kayda uygulanır">
+              {totalCount > PAGE_SIZE ? (
+                <span className="pi-pagination">
+                  <ListPagination page={page} total={totalCount} pageSize={PAGE_SIZE} loading={loading} onPageChange={setPage} />
+                </span>
+              ) : (
+                <span>
+                  <span>Gösterilen</span> <span>{`${pageRange} / ${totalCount.toLocaleString("tr-TR")}`}</span>
+                </span>
+              )}
+            </ListFooter>
           </section>
           <p className="fh-note pi-boundary">
             <ShieldCheck size={14} aria-hidden="true" />
@@ -741,13 +837,13 @@ export default function PaymentInstrumentsPage({
             </span>
           </p>
         </div>
+        {/* While a record is open its surface has the history and the account list; the hidden panel stays empty. */}
         <PaymentInstrumentSidePanel
-          item={selected}
+          item={opened ? null : selected}
           events={events}
           eventsLoading={eventsLoading}
           eventsError={eventsError}
           isAdmin={isAdmin}
-          busy={busy}
           baseCurrency={baseCurrency}
           accounts={accounts}
           accountId={selected ? collectAccount[selected.id] || "" : ""}
@@ -755,10 +851,30 @@ export default function PaymentInstrumentsPage({
             if (!selected) return;
             setCollectAccount((current) => ({ ...current, [selected.id]: value }));
           }}
-          accountSelectRef={accountSelectRef}
-          onAction={(item, kind) => void action(item, kind)}
+          accountSelectRef={opened ? undefined : accountSelectRef}
         />
       </div>
+      {opened && (
+        <PaymentInstrumentDocument
+          key={opened.id}
+          item={opened}
+          events={events}
+          eventsLoading={eventsLoading}
+          eventsError={eventsError}
+          isAdmin={isAdmin}
+          baseCurrency={baseCurrency}
+          accounts={accounts}
+          accountId={collectAccount[opened.id] || ""}
+          onAccountChange={(value) => setCollectAccount((current) => ({ ...current, [opened.id]: value }))}
+          accountSelectRef={accountSelectRef}
+          commands={documentCommands}
+          error={error}
+          notice={notice}
+          onDismissError={() => setError("")}
+          onDismissNotice={() => setNotice("")}
+          onClose={closeDocument}
+        />
+      )}
       <DetailDrawer
         open={showCreate}
         label="Portföye ekle"

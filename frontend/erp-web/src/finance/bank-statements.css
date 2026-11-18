@@ -1,100 +1,11 @@
 /*
- * Banka Ekstreleri (master–detail): statement list on the left, the selected statement inline on
- * the right. Reuses the credit page layout (#root .cf-page in credit-facilities.css) and the
- * finance hub tokens (--fh-* in finance-hub.css); only bank-statement specifics live here.
- * Class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog" (global-components.css
- * restyles every class containing them).
+ * Banka Ekstreleri (list type A) and the opened statement on the detail surface (reconciliation). Shares the
+ * Kasalar / Bankalar list and statement rules in finance-accounts.css; colours are --nx-* tokens. Class names avoid
+ * "-panel", "-card", "-badge", "-chip" and "-dialog" (global-components.css restyles every class containing them).
  */
-#root .cf-page.bank-statements-page { gap: 14px; }
-#root .cf-page.bank-statements-page .cf-layout { grid-template-columns: 280px minmax(0, 1fr); }
-@media (max-width: 1099px) {
-  #root .cf-page.bank-statements-page .cf-layout { grid-template-columns: minmax(0, 1fr); }
-}
+#root .list-v2 .bst-open-lines { color: var(--nx-warn); }
 
-/* Status: Bekliyor = warning, Mutabık = success (.cf-state.is-active). */
-#root .cf-page .cf-state.is-warning {
-  border-color: var(--fh-warn-line);
-  background: var(--fh-warn-bg);
-  color: var(--fh-warn);
-}
-#root .cf-page .bst-item .cf-bar.is-warning > i { background: var(--nx-warn); }
-html[data-theme="dark"] #root .cf-page .bst-item .cf-bar.is-warning > i { background: var(--nx-warn); }
-
-/* Selected statement header */
-#root .cf-page .bst-balance { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; }
-#root .cf-page .bst-balance b { color: var(--fh-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-#root .app-shell .cf-page .bst-detail .cf-detail-actions .primary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
-
-/* Page error inside the selected statement, right under the header. */
-#root .cf-page .bst-error,
-#root .cf-page .bst-notice {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 16px 10px;
-  padding: 9px 12px;
-  border: 1px solid;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-#root .cf-page .bst-error {
-  --bst-danger-bg: #fdecec;
-  --bst-danger-line: #f3b8b8;
-  border-color: var(--bst-danger-line);
-  background: var(--bst-danger-bg);
-  color: var(--fh-danger);
-}
-html[data-theme="dark"] #root .cf-page .bst-error {
-  --bst-danger-bg: #3a1d20;
-  --bst-danger-line: #7a3036;
-  color: #fca5a5;
-}
-#root .cf-page .bst-notice {
-  border-color: #bfe3cf;
-  background: var(--fh-success-bg);
-  color: var(--fh-success);
-}
-html[data-theme="dark"] #root .cf-page .bst-notice { border-color: #2a5a43; }
-#root .app-shell .cf-page .bst-dismiss {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  min-height: 0;
-  padding: 0;
-  border: 0 !important;
-  border-radius: 4px;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: inherit !important;
-  cursor: pointer;
-}
-#root .app-shell .cf-page .bst-dismiss:hover { background: rgba(0, 0, 0, 0.06) !important; }
-html[data-theme="dark"] #root .app-shell .cf-page .bst-dismiss:hover { background: rgba(255, 255, 255, 0.08) !important; }
-
-/* Tab bodies: hint line and the existing grids framed once. */
-#root .cf-page .bst-hint { margin: 0; color: var(--fh-muted); font-size: 12.5px; line-height: 1.45; }
-#root .cf-page .bst-grid {
-  min-width: 0;
-  max-width: 100%;
-  border: 1px solid var(--fh-line) !important;
-  border-radius: 8px !important;
-  background: var(--fh-paper);
-}
-#root .app-shell .cf-page .bst-grid :is(.advanced-grid, .advanced-grid-scroll) {
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-#root .app-shell .cf-page .bst-grid .advanced-grid-scroll { max-height: none !important; overflow-x: auto; }
-#root .app-shell .cf-page .bst-grid .advanced-grid-toolbar:not(.is-external) {
-  border: 0 !important;
-  border-bottom: 1px solid var(--fh-line-soft) !important;
-  border-radius: 0 !important;
-}
-#root .app-shell .cf-page .bst-grid select { max-width: 260px; }
+/* Statement surface: the tabs sit at the top of the lines card, the grids reach its edges. */
+#root .bst-detail .dd-box > .dd-tabs { padding: 0 12px; border-bottom: 1px solid var(--nx-line); }
+#root .bst-detail .dd-box > .dd-lines-head + .dd-grid { border-top: 1px solid var(--nx-line); }
+#root .app-shell .fin-acc-statement.bst-detail .dd-grid td select { width: 100%; max-width: 220px; min-width: 0; height: 26px; }

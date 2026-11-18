@@ -1,8 +1,45 @@
-import { useId, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent, RefObject } from "react";
 import type { LedgerAccount } from "../../erp-types";
+import "../ledger-account-combobox.css";
 
 const MAX_OPTIONS = 40;
+const LIST_HEIGHT = 260;
+
+/**
+ * The open list is placed from the input's position (fixed), so a line grid or a card that clips or scrolls its
+ * content (the voucher's line card) does not cut it off; it opens upwards when there is no room below.
+ */
+function useFloatingList(open: boolean, inputRef: RefObject<HTMLInputElement | null>) {
+  const [style, setStyle] = useState<CSSProperties | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!open) {
+      setStyle(undefined);
+      return;
+    }
+    const place = () => {
+      const rect = inputRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const below = window.innerHeight - rect.bottom;
+      const up = below < LIST_HEIGHT + 8 && rect.top > below;
+      setStyle({
+        position: "fixed",
+        left: rect.left,
+        right: "auto",
+        width: Math.max(rect.width, 260),
+        ...(up ? { top: "auto", bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4, bottom: "auto" }),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, inputRef]);
+  return style;
+}
 
 export const ledgerAccountLabel = (account: Pick<LedgerAccount, "code" | "name">) =>
   `${account.code} · ${account.name}`;
@@ -40,6 +77,7 @@ export function LedgerAccountCombobox({
   const [query, setQuery] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const listStyle = useFloatingList(open, inputRef);
   const selected = accounts.find((account) => account.id === value);
   const normalized = (query ?? "").trim().toLocaleLowerCase("tr-TR");
   const options = useMemo(() => {
@@ -152,7 +190,7 @@ export function LedgerAccountCombobox({
         onKeyDown={onKeyDown}
       />
       {open && (
-        <ul className="gl-account-options" id={listId} role="listbox" aria-label={ariaLabel}>
+        <ul className="gl-account-options" id={listId} role="listbox" aria-label={ariaLabel} style={listStyle}>
           {options.map((account, index) => (
             <li
               key={account.id}

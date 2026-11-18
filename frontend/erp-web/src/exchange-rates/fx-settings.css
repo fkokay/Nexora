@@ -1,0 +1,53 @@
+/*
+ * Kur & Değerleme (finance-fx) as a definition screen (mockup 04-alt, mapping in mockup 09): summary cards, two tabs,
+ * and in each tab the list on the left with its form (rate entry / period-end revaluation) or the voucher on the
+ * right. Colours come from the --nx-* tokens only. Class names avoid "-panel/-card/-badge/-chip/-dialog".
+ */
+#root .fx-settings-page.list-v2 { display: grid; gap: 12px; min-width: 0; }
+#root .fx-settings-page.list-v2 > :is(.alert, .notice) { margin: 0; }
+#root .fx-settings-page .fh-meta { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-muted); font-size: 12.5px; }
+#root .fx-settings-page .fh-meta b { color: var(--nx-text); font-weight: 600; }
+#root .fx-settings-page .fh-base-form input { width: 64px; height: var(--nx-control-h); border-radius: var(--nx-radius-control); }
+
+/* Tabs: an underline strip on the canvas (no box). */
+#root .fx-settings-page .fh-tabs { display: flex; gap: 4px; margin: 0; padding: 0; border-bottom: 1px solid var(--nx-line); }
+#root .app-shell .fx-settings-page .fh-tabs > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  margin: 0 0 -1px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nx-muted);
+  font: 500 13px/1 var(--nx-font);
+  box-shadow: none;
+  cursor: pointer;
+}
+#root .app-shell .fx-settings-page .fh-tabs > button.is-active { border-bottom-color: var(--nx-primary); color: var(--nx-text); font-weight: 600; }
+#root .fx-settings-page .fh-tabs > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+
+@media (min-width: 1280px) {
+  #root .list-v2 .nx-def.fh-def { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+}
+#root .list-v2 .fh-def .list-v2-search { flex: 1 1 150px; min-width: 140px; }
+
+/* The list card: the grid and its footer in one frame (the grid itself draws no second box). */
+#root .fx-settings-page .fh-def-grid {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  box-shadow: none;
+  overflow: hidden;
+}
+#root .fx-settings-page .fh-def-grid :is(.customer-table-wrap, .ledger-list) { min-width: 0; overflow: auto; }
+#root .fx-settings-page .fh-def-grid :is(.customer-table-wrap, .ledger-list) .advanced-grid { border: 0; border-radius: 0; box-shadow: none; }
+#root .fx-settings-page .fh-def-grid :is(td, th).nx-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; }
+#root .fx-settings-page .fh-def-grid th.nx-num .advanced-grid-heading { justify-content: flex-end; }
+#root .fx-settings-page .nx-def-pane > .fh-reval-detail { min-width: 0; }

@@ -1,0 +1,46 @@
+/*
+ * Kasalar / Bankalar (list type A) and the account statement (mockup 03 shape, without the carried-forward row and
+ * the running balance the API does not give). Colours are --nx-* tokens. Class names avoid "-panel/-card/-tag/-chip".
+ */
+
+/* Header → bar → cards → toolbar → list: the kit's 12px rhythm. */
+#root .finance-page.fin-acc-page.list-v2 { display: grid; gap: 12px; min-width: 0; }
+#root .finance-page.fin-acc-page.list-v2 > :is(.alert, .notice) { margin: 0; }
+
+#root .list-v2 .fin-acc-negative { color: var(--nx-bad); }
+
+/* Statement: movements grid inside the lines card; the selected movement (İşlemler acts on it) is marked. */
+#root .fin-acc-statement .dd-grid tbody tr { cursor: pointer; }
+#root .fin-acc-statement .dd-grid tbody tr.is-current > td { background: var(--nx-primary-soft) !important; }
+#root .fin-acc-statement .dd-grid tbody tr.is-current > td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
+#root .fin-acc-statement .fin-acc-inflow { color: var(--nx-ok); }
+#root .fin-acc-statement .fin-acc-outflow { color: var(--nx-bad); }
+/* Lines card head: title + summary on the left, the grid's own tools (filters, columns, pivot) on the right. */
+#root .fin-acc-statement .fin-acc-lines-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#root .fin-acc-statement .fin-acc-lines-head > .dd-lines-head { flex: 1 1 320px; border-bottom: 0; }
+#root .fin-acc-statement .fin-acc-lines-head > .fin-acc-tools { display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+#root .fin-acc-statement .fin-acc-lines-head + .dd-grid { border-top: 1px solid var(--nx-line); }
+/* The grid's tools sit inside the card: flat text buttons (as in the list toolbars), not a second row of boxes. */
+#root .app-shell .fin-acc-statement .fin-acc-tools :is(button, summary, .advanced-grid-popover) {
+  min-height: 28px;
+  border: 0 !important;
+  border-radius: var(--nx-radius-control) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--nx-text);
+  font-size: 12.5px !important;
+}
+#root .app-shell .fin-acc-statement .fin-acc-tools :is(button, summary):hover { background: var(--nx-primary-soft) !important; }
+/* The cash-flow class select stays compact so the movements fit the card. */
+#root .app-shell .fin-acc-statement .dd-grid td select { width: 140px; min-width: 0; height: 26px; }
+#root .fin-acc-statement .fin-acc-pager .table-pagination { margin: 0; padding: 0; border: 0; }
+#root .fin-acc-statement .fin-acc-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--nx-line);
+  color: var(--nx-muted);
+  font-size: 12px;
+}

@@ -5,11 +5,12 @@ import {
   useEffect,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type ReactElement,
   type ReactNode,
 } from "react";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { api } from "./erpApi";
 import type { BuiltInScreenLayoutField, FinanceGridColumn } from "./erp-types";
@@ -35,6 +36,7 @@ export function FinanceStudioGrid({
   onSelectionChange,
   toolbarContainer,
   hideExport = false,
+  exportActionsRef,
   children,
 }: {
   token: string;
@@ -47,6 +49,8 @@ export function FinanceStudioGrid({
   /** Page toolbar element (list-v2) that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
   hideExport?: boolean;
+  /** Receives the grid's export actions (XLSX / CSV of the shown rows) for the page's own commands. */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
   children: ReactNode;
 }) {
   const [fields, setFields] = useState<BuiltInScreenLayoutField[]>(
@@ -227,6 +231,7 @@ export function FinanceStudioGrid({
       onSelectionChange={onSelectionChange}
       toolbarContainer={toolbarContainer}
       hideExport={hideExport}
+      exportActionsRef={exportActionsRef}
     >
       {nextTable}
     </AdvancedDataGrid>

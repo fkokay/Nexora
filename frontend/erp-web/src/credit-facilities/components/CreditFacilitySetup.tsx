@@ -47,6 +47,9 @@ type Props = {
   onInterestChange: (value: string) => void;
   onFeeChange: (value: string) => void;
   onScheduleNotesChange: (value: string) => void;
+  /** The page's save error, shown on the form (the first invalid field gets the focus). */
+  error?: string;
+  onDismissError?: () => void;
 };
 
 export function CreditFacilitySetup(props: Props) {
@@ -58,17 +61,18 @@ export function CreditFacilitySetup(props: Props) {
   const backToList = () =>
     props.onNavigate?.("finance-credit-facilities", "Krediler & Finansman");
   return (
-    <div className="credit-setup-grid">
+    <>
       {showFacility && (
-        <section className="panel credit-operation-page fin-rf-host">
           <RecordFormPage
-            variant="dialog"
             title="Yeni kredi / limit"
             mode="create"
             busy={busy}
             saveLabel="Krediyi oluştur"
             onSubmit={props.onSubmitFacility as (event: React.FormEvent) => void}
             onCancel={backToList}
+            confirmCancel
+            error={props.error}
+            onDismissError={props.onDismissError}
             status={
               <span>Limit bilgisi; kullandırım/bakiye mutabakatı değildir.</span>
             }
@@ -215,12 +219,9 @@ export function CreditFacilitySetup(props: Props) {
               </div>
             </div>
           </RecordFormPage>
-        </section>
       )}
       {showSchedule && (
-        <section className="panel credit-operation-page fin-rf-host">
           <RecordFormPage
-            variant="dialog"
             title="Ödeme planına taksit ekle"
             mode="create"
             busy={busy}
@@ -233,6 +234,9 @@ export function CreditFacilitySetup(props: Props) {
               props.onSubmitSchedule(event as React.FormEvent<HTMLFormElement>);
             }}
             onCancel={backToList}
+            confirmCancel
+            error={props.error}
+            onDismissError={props.onDismissError}
             status={<span>Plan satırı muhasebe kaydı oluşturmaz.</span>}
           >
             <p className="fin-rf-hint">
@@ -331,8 +335,7 @@ export function CreditFacilitySetup(props: Props) {
               </label>
             </RecordFormGroup>
           </RecordFormPage>
-        </section>
       )}
-    </div>
+    </>
   );
 }

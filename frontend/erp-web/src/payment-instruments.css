@@ -6,31 +6,16 @@
  * "-dialog": global-components.css forces a background and radius on every class containing them.
  */
 #root .pi-page {
-  --pi-select: #eef5fc;
-  --pi-select-line: #315f8b;
-  --pi-dot: #94a3b8;
+  --pi-select: var(--nx-primary-soft);
+  --pi-select-line: var(--nx-primary);
+  --pi-dot: var(--nx-muted);
   max-width: none;
   margin: 0;
 }
-html[data-theme="dark"] #root .pi-page {
-  --pi-select: #1c2a3d;
-  --pi-select-line: #93c5fd;
-  --pi-dot: #64748b;
-}
-#root .app-shell .pi-page .heading-actions .primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  white-space: nowrap;
-}
 
-/* Tiles: several currencies stack inside one value. */
-#root .pi-page .fh-tile-value { flex-direction: column; align-items: flex-start; gap: 2px; }
-#root .pi-page .fh-tile-value.is-muted-value { color: var(--fh-muted); font-weight: 600; }
-#root .pi-page .pi-tile-lines small { margin-right: 4px; }
-#root .pi-page .fh-tile.is-danger-tile .fh-tile-value { color: var(--fh-danger); }
+/* Summary cards: several currencies stack inside one value (never added together). */
+#root .pi-page .pi-card-amounts { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+#root .pi-page .pi-card-amounts small { margin-right: 4px; color: var(--nx-muted); font-size: 11px; font-weight: 400; }
 
 /* List + selected record column (240px from 1100px; stacked below). */
 #root .pi-page .pi-layout {
@@ -57,6 +42,7 @@ html[data-theme="dark"] #root .pi-page {
 #root .app-shell .pi-page table.pi-table { width: 100%; }
 #root .app-shell .pi-page table.pi-table :is(th, td) { vertical-align: middle; }
 #root .app-shell .pi-page table.pi-table tbody tr { cursor: pointer; }
+#root .app-shell .pi-page table.pi-table tbody tr:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 #root .app-shell .pi-page table.pi-table tbody tr.is-selected td {
   background: var(--pi-select) !important;
 }
@@ -64,7 +50,6 @@ html[data-theme="dark"] #root .pi-page {
   box-shadow: inset 3px 0 0 var(--pi-select-line);
 }
 #root .app-shell .pi-page table.pi-table :is(th, td).pi-col-num { text-align: right; white-space: nowrap; }
-#root .app-shell .pi-page table.pi-table :is(th, td).pi-col-menu { width: 56px; text-align: right; }
 #root .pi-page .pi-two { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 #root .app-shell .pi-page .pi-two small {
   display: block;
@@ -74,41 +59,11 @@ html[data-theme="dark"] #root .pi-page {
 }
 #root .app-shell .pi-page .pi-two small.pi-overdue { color: var(--fh-danger) !important; font-weight: 600; }
 #root .pi-page .pi-number { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+#root .app-shell .pi-page .pi-number .pi-number-link { padding: 0; border: 0; background: none; color: var(--fh-ink); font: inherit; font-weight: 700; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+#root .app-shell .pi-page .pi-number .pi-number-link:hover { color: var(--nx-primary); text-decoration: underline; }
 #root .pi-page .pi-number b,
 #root .pi-page .pi-strong { color: var(--fh-ink); font-weight: 700; overflow-wrap: anywhere; }
-#root .pi-page .pi-amount { color: var(--fh-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* Status tags */
-#root .pi-page .pi-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--fh-band);
-  border: 1px solid var(--fh-line);
-  color: var(--fh-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-#root .pi-page .pi-state.is-portfolio { border-color: #bfd6ec; background: #edf4fb; color: #1f4f7d; }
-#root .pi-page .pi-state.is-endorsed { border-color: color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface)); color: var(--nx-primary-strong); }
-#root .pi-page .pi-state.is-collected { border-color: #bfe3cf; background: var(--fh-success-bg); color: var(--fh-success); }
-#root .pi-page .pi-state.is-bounced { border-color: #f2c9c6; background: #fdf0ef; color: var(--fh-danger); }
-#root .pi-page .pi-state.is-cancelled { text-decoration: line-through; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-portfolio { border-color: #2c4a6b; background: #1b2d44; color: #a6ccff; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-endorsed { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
-html[data-theme="dark"] #root .pi-page .pi-state.is-collected { border-color: #2a5a43; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3236; background: #3a2226; color: #ffaaa7; }
-
-/* ⋯ trigger inside the grid */
-#root .app-shell .pi-page table.pi-table .sales-row-actions-trigger {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-}
+#root .pi-page .pi-amount { color: var(--nx-text); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 #root .pi-page .pi-empty {
   display: flex;
@@ -123,17 +78,10 @@ html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3
   text-align: center;
 }
 #root .pi-page .pi-empty b { color: var(--fh-ink); }
-#root .pi-page .pi-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--fh-line-soft);
-  color: var(--fh-muted);
-  font-size: 13px;
-}
-#root .app-shell .pi-page .pi-pagination button { min-height: 32px; padding: 0 12px; }
+/* The pager sits in the list footer (right side). */
+#root .pi-page .pi-pagination .nx-list-pagination { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; }
+#root .pi-page .pi-pagination .nx-list-pagination > div { display: flex; gap: 6px; }
+#root .app-shell .pi-page .pi-pagination button { min-height: 28px; padding: 0 10px; border-radius: var(--nx-radius-control) !important; }
 #root .pi-page .pi-boundary { display: flex; align-items: flex-start; gap: 6px; }
 #root .pi-page .pi-boundary svg { flex: none; margin-top: 2px; }
 
@@ -266,3 +214,60 @@ html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3
   #root .pi-page .dd-drawer,
   #root .pi-page .dd-drawer-scrim { display: none; }
 }
+
+/* Çek / senet kaydı (DocumentSurface, portalled out of .pi-page): info and history cards side by side, one column when narrow. */
+#root .pi-surface .pi-surface-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .pi-surface .pi-surface-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+#root .pi-surface .pi-surface-box { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#root .app-shell .pi-surface .pi-surface-box h3 { margin: 0; color: var(--nx-text); font-size: 13px; font-weight: 650; }
+#root .pi-surface .fh-note { margin: 0; color: var(--nx-muted); font-size: 12px; line-height: 1.5; }
+#root .pi-surface .pi-surface-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+#root .pi-surface .pi-surface-collect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--nx-line-soft);
+}
+#root .pi-surface .pi-side-field { display: grid; gap: 4px; max-width: 360px; margin: 0; color: var(--nx-muted); font-size: 12px; font-weight: 600; }
+#root .app-shell .pi-surface .pi-side-field select {
+  width: 100%;
+  min-width: 0;
+  height: var(--nx-control-h);
+  padding: 0 8px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 13px;
+}
+#root .pi-surface .pi-timeline { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+#root .pi-surface .pi-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 0 10px;
+}
+#root .pi-surface .pi-timeline li:not(:last-child)::before {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: var(--nx-line);
+  content: "";
+}
+#root .pi-surface .pi-timeline-dot { width: 9px; height: 9px; margin: 4px 0 0 2px; border-radius: 50%; background: var(--nx-muted); }
+#root .pi-surface .pi-timeline li:last-child .pi-timeline-dot { background: var(--nx-primary); }
+#root .pi-surface .pi-timeline li.is-danger .pi-timeline-dot { background: var(--nx-bad); }
+#root .pi-surface .pi-timeline-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+#root .pi-surface .pi-timeline-text b { color: var(--nx-text); font-weight: 600; }
+#root .pi-surface .pi-timeline li.is-danger .pi-timeline-text b { color: var(--nx-bad); }
+#root .pi-surface .pi-timeline li.is-muted .pi-timeline-text b { color: var(--nx-muted); }
+#root .pi-surface .pi-timeline-text small { color: var(--nx-muted); font-size: 12px; overflow-wrap: anywhere; }

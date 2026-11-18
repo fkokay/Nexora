@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { csvExportCommand } from "./commands/gridCommands";
 import { api, localDateString } from "./erpApi";
 import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  CircleDollarSign,
   FileText,
   Landmark,
   ListTree,
@@ -41,6 +44,11 @@ import {
 import "./finance-record-forms.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import { StatusTag } from "./list-page/StatusTag";
+import { ListSummaryCards, type SummaryCard } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { PageCommands } from "./commands/types";
 import "./general-ledger/general-ledger-list-v2.css";
 import "./general-ledger/transfer-sources.css";
 
@@ -144,6 +152,10 @@ export default function GeneralLedgerPage({
     [entryFrom, setEntryFrom] = useState(""),
     [entryTo, setEntryTo] = useState("");
   const [journalSourceChip, setJournalSourceChip] = useState("");
+  // Server-side accounting basis filter of the journal ledger ("" = all; the endpoint already takes it).
+  const [entryBasis, setEntryBasis] = useState("");
+  // The journal ledger shows "—" (not 0 / "no entries") until its first load answers.
+  const [entriesLoading, setEntriesLoading] = useState(view === "journal-ledger");
   const [manualDate, setManualDate] = useState(localDateString()),
     [manualAccountingBasis, setManualAccountingBasis] = useState<"TDHP" | "IFRS">("TDHP"),
     [manualDescription, setManualDescription] = useState(""),
@@ -185,6 +197,10 @@ export default function GeneralLedgerPage({
     () => new Set(),
   );
   const handleTransferSelection = useCallback(
+    // Known bug, kept on purpose (controller ruling): FinanceStudioGrid reports ticked rows by its internal React keys
+    // (".0:$SalesInvoice-s1"), which never equal the page's row keys ("SalesInvoice-s1"), so "Seçilenleri aktar" stays
+    // at (0) and no bulk POST is sent. Matching the keys would enable a GL-posting path that has no closed-period
+    // preview check, so it is not fixed here. Pinned by transferSources.test.tsx.
     (keys: string[]) => setSelectedTransferKeys(new Set(keys)),
     [],
   );
@@ -207,6 +223,8 @@ export default function GeneralLedgerPage({
     [accountCreateOpen, setAccountCreateOpen] = useState(false);
   const [newAccountParentId, setNewAccountParentId] = useState("");
   const stayAfterAccountSave = useRef(false);
+  // Hesap planı (definition screen): the open account card has unsaved input.
+  const [accountFormDirty, setAccountFormDirty] = useState(false);
   const [transferSourceSearch, setTransferSourceSearch] = useState("");
   // list-v2: status chips of the three client-side lists ("" = all).
   const [transferStatus, setTransferStatus] = useState("");
@@ -274,6 +292,8 @@ export default function GeneralLedgerPage({
         });
         if (entryFrom) entryParams.set("from", entryFrom);
         if (entryTo) entryParams.set("to", entryTo);
+        if (entryBasis) entryParams.set("accountingBasis", entryBasis);
+        setEntriesLoading(true);
         const [e, s] = await Promise.all([
           api<{
             items: JournalEntrySummary[];
@@ -286,6 +306,7 @@ export default function GeneralLedgerPage({
         setEntries(e.items);
         setEntryTotal(e.total);
         setSources(s);
+        setEntriesLoading(false);
       }
       if (view === "transfer-sources") {
         const s = await api<typeof sources>(
@@ -296,11 +317,12 @@ export default function GeneralLedgerPage({
       }
     } catch (e) {
       setError((e as Error).message);
+      setEntriesLoading(false);
     }
   }
   useEffect(() => {
     void load();
-  }, [token, entryPage, view, entryFrom, entryTo]);
+  }, [token, entryPage, view, entryFrom, entryTo, entryBasis]);
   async function createAccount(e: React.FormEvent) {
     e.preventDefault();
     const parent = accounts.find(
@@ -319,7 +341,7 @@ export default function GeneralLedgerPage({
     setBusy(true);
     setError("");
     try {
-      await api("/api/finance/general-ledger/accounts", token, {
+      const created = await api<LedgerAccount>("/api/finance/general-ledger/accounts", token, {
         method: "POST",
         body: JSON.stringify({
           code: accountCode,
@@ -338,8 +360,11 @@ export default function GeneralLedgerPage({
       setName("");
       const stayForNext = stayAfterAccountSave.current;
       stayAfterAccountSave.current = false;
-      if (!stayForNext) setAccountCreateOpen(false);
       setEditingAccountId("");
+      setAccountFormDirty(false);
+      // Definition screen: the saved account stays open in the card (Kaydet ve Yeni keeps an empty card).
+      if (!stayForNext && created?.id) startEditAccount(created);
+      else if (!stayForNext) setAccountCreateOpen(false);
       setNotice(`${accountCode} hesabı eklendi.`);
       await load();
     } catch (e) {
@@ -400,6 +425,7 @@ export default function GeneralLedgerPage({
   }
   function resetNewAccountForm() {
     setError("");
+    setAccountFormDirty(false);
     setEditingAccountId("");
     setCode("");
     setName("");
@@ -413,6 +439,8 @@ export default function GeneralLedgerPage({
     setIfrsStatementSection("Unclassified");
   }
   function startEditAccount(account: LedgerAccount) {
+    setError("");
+    setAccountFormDirty(false);
     setEditingAccountId(account.id);
     setEditingAccountCode(account.code);
     setEditingAccountName(account.name);
@@ -439,8 +467,8 @@ export default function GeneralLedgerPage({
         method: "PUT",
         body: JSON.stringify({ code, name, isActive, statementSection, accountType, normalBalance, currencyCode: accountCurrency || null, ifrsAccountCode: ifrsAccountCode || null, ifrsAccountName: ifrsAccountName || null, ifrsStatementSection }),
       });
-      setEditingAccountId("");
-      setAccountCreateOpen(false);
+      // Definition screen: the account stays open in the card after the save.
+      setAccountFormDirty(false);
       setNotice("Hesap güncellendi.");
       await load();
     } catch (e) {
@@ -488,6 +516,12 @@ export default function GeneralLedgerPage({
         { method: "DELETE" },
       );
       setNotice(`${account.code} hesabı silindi.`);
+      // The deleted account's card closes (Hesap planı definition screen).
+      if (editingAccountId === account.id) {
+        setAccountCreateOpen(false);
+        setEditingAccountId("");
+        setAccountFormDirty(false);
+      }
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -647,9 +681,71 @@ export default function GeneralLedgerPage({
   const newAccountParent = accounts.find(
     (account) => account.id === newAccountParentId && account.isActive,
   );
-  const canDeleteAccount = (account: LedgerAccount) =>
-    !account.hasMovements &&
-    !accounts.some((row) => row.code.startsWith(`${account.code}.`));
+  /**
+   * Hesap planı's account card, the right half of the definition screen (variant "dialog", embedded). A tenant user
+   * sees it read-only. Vazgeç goes through the screen's close, which asks first when the card has unsaved input.
+   */
+  function renderAccountForm(summary: React.ReactNode, requestClose: () => void) {
+    const editing = accounts.find((row) => row.id === editingAccountId);
+    const readOnly = role !== "TenantAdmin";
+    return (
+      <RecordFormPage
+        variant="dialog"
+        title={editing ? "Hesap kartı" : newAccountParent ? "Yeni alt hesap" : "Yeni hesap"}
+        mode={editingAccountId ? "edit" : "create"}
+        busy={busy}
+        saveLabel={editingAccountId ? "Değişiklikleri Kaydet" : "Hesap Kartını Kaydet"}
+        formId="ledger-account-record-form"
+        onSubmit={(event) => void submitAccountForm(event)}
+        onCancel={requestClose}
+        onSaveIntent={editingAccountId ? undefined : (stayForNext) => { stayAfterAccountSave.current = stayForNext; }}
+        onReset={editingAccountId ? undefined : () => { resetNewAccountForm(); setNotice(""); }}
+        saveDisabledReason={readOnly ? "Hesap planını firma yöneticisi düzenler" : editingAccountId && !accountFormDirty ? "Kaydedilecek değişiklik yok" : undefined}
+        dirty={accountFormDirty}
+        subtitle={
+          editing ? (
+            <>
+              <span className="rf-code">{editing.code}</span> <StatusTag tone={editing.isActive ? "ok" : "off"}>{editing.isActive ? "Aktif" : "Pasif"}</StatusTag>
+            </>
+          ) : newAccountParent ? (
+            <span>{`Üst hesap: ${newAccountParent.code} · ${newAccountParent.name}`}</span>
+          ) : undefined
+        }
+        error={error}
+        onDismissError={() => setError("")}
+        status={
+          <>
+            <span>Zorunlu alanlar: <b>{[(editingAccountId ? editingAccountCode : code).trim(), (editingAccountId ? editingAccountName : name).trim()].filter(Boolean).length} / 2</b></span>
+            {notice && <span className="rf-status-notice">{notice}</span>}
+          </>
+        }
+      >
+        <fieldset className="glch-fieldset" disabled={readOnly} onChange={() => setAccountFormDirty(true)}>
+          {summary}
+          <RecordFormGroup title="Hesap Kimliği" bodyClassName="rf-identity">
+            {!editingAccountId && <label>Üst hesap<select value={newAccountParentId} onChange={(e) => { const parentId = e.target.value; setNewAccountParentId(parentId); const parent = accounts.find((account) => account.id === parentId && account.isActive); if (parent) setNewAccountSection(parent.statementSection); }}>
+                <option value="">Ana hesap</option>{accounts.filter((account) => account.isActive).slice().sort((a, b) => a.code.localeCompare(b.code, "tr", { numeric: true })).map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
+              </select></label>}
+            <label><span>{editingAccountId ? "Hesap kodu" : newAccountParent ? "Alt hesap kodu" : "Hesap kodu"}<RequiredMark /></span><input className="rf-must rf-mono" value={editingAccountId ? editingAccountCode : code} onChange={(e) => editingAccountId ? setEditingAccountCode(e.target.value) : setCode(e.target.value)} maxLength={editingAccountId ? 32 : newAccountParent ? Math.max(1, 32 - newAccountParent.code.length - 1) : 32} required placeholder={newAccountParent ? "001" : "Örn. 120"} />{newAccountParent && !editingAccountId && <small>Oluşacak kod: {newAccountParent.code}.{code.trim() || "001"}</small>}</label>
+            <label className="rf-span-2"><span>Hesap adı<RequiredMark /></span><input className="rf-must" value={editingAccountId ? editingAccountName : name} onChange={(e) => editingAccountId ? setEditingAccountName(e.target.value) : setName(e.target.value)} maxLength={160} required placeholder="Hesap adı" /></label>
+          </RecordFormGroup>
+          <RecordFormGroup title="Finansal Sınıflandırma">
+            <label>Finansal tablo sınıfı<select value={editingAccountId ? editingAccountSection : newAccountSection} onChange={(e) => editingAccountId ? setEditingAccountSection(e.target.value as LedgerStatementSection) : setNewAccountSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Hesap tipi<select value={accountType} onChange={(e) => setAccountType(e.target.value)}>{[["Unclassified","Sınıflandırılmamış"],["Asset","Aktif"],["Liability","Pasif"],["Equity","Özkaynak"],["Revenue","Gelir"],["Expense","Gider"],["OffBalanceSheet","Nazım"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Çalışma şekli<select value={normalBalance} onChange={(e) => setNormalBalance(e.target.value)}><option value="Debit">Borç çalışır</option><option value="Credit">Alacak çalışır</option><option value="Both">Çift çalışır</option></select></label>
+            <label>Döviz takibi<input className="rf-mono" value={accountCurrency} onChange={(e) => setAccountCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="TRY, USD, EUR" /></label>
+            <p className="fin-rf-hint">Hesap sınıfı bilanço ve mali raporlarda kullanılır. Hesap koduna göre otomatik tahmin edilmez.</p>
+          </RecordFormGroup>
+          <RecordFormGroup title="IFRS / UFRS Raporlama Eşlemesi">
+            <label>IFRS / UFRS hesap kodu<input className="rf-mono" value={ifrsAccountCode} onChange={(e) => setIfrsAccountCode(e.target.value)} maxLength={32} placeholder="Örn. IFRS-AR" /></label>
+            <label>IFRS / UFRS hesap adı<input value={ifrsAccountName} onChange={(e) => setIfrsAccountName(e.target.value)} maxLength={160} placeholder="Trade receivables" /></label>
+            <label>IFRS / UFRS tablo sınıfı<select value={ifrsStatementSection} onChange={(e) => setIfrsStatementSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <p className="fin-rf-hint">Tekdüzen hesabını uluslararası raporlama hesabına bağlayın. Boş bırakılırsa bu hesap IFRS rapor eşlemesine dahil edilmez.</p>
+          </RecordFormGroup>
+        </fieldset>
+      </RecordFormPage>
+    );
+  }
   const viewTitles: Record<LedgerView, string> = {
     overview: "Muhasebe çalışma alanı",
     accounts: "Hesap planı",
@@ -710,9 +806,6 @@ export default function GeneralLedgerPage({
       label: transferSourceTypeTitles[type],
       count: searchedTransferSourceRows.filter((row) => row.sourceType === type).length,
     }));
-  const transferMissingCount = searchedTransferSourceRows.filter(({ source }) =>
-    isTransferMappingMissing(source),
-  ).length;
   const visibleTransferSourceRows = transferStatus === "missing"
     ? searchedTransferSourceRows.filter(({ source }) => isTransferMappingMissing(source))
     : transferStatus
@@ -774,6 +867,56 @@ export default function GeneralLedgerPage({
     if (index < 0) return "";
     return (visibleTransferSourceRows[index + 1] || visibleTransferSourceRows[index - 1])?.key || "";
   };
+  const transferExportRef = useRef<GridExportActions | null>(null);
+  const previewData = previewRow && transferPreview?.key === previewRow.key ? transferPreview.data : null;
+  const transferBusyReason = busy ? "İşlem sürüyor…" : undefined;
+  const transferCommands: PageCommands = {
+    new: { disabledReason: "Kaynaklar satış, satınalma, tahsilat ve stok belgelerinden gelir" },
+    open: { disabledReason: "Kaynak belge kendi ekranında açılır; önizleme sağdaki panelde" },
+    delete: { disabledReason: "Aktarılmayı bekleyen kaynak buradan silinemez" },
+    more: [
+      {
+        id: "transfer-one",
+        label: "Bu kaynağı aktar",
+        disabledReason: !previewRow
+          ? "Önce bir kaynak seçin"
+          : !previewData
+            ? "Önizleme hazırlanıyor…"
+            : !previewData.canTransfer
+              ? previewData.blockingReason || "Bu kaynak aktarılamaz"
+              : transferBusyReason,
+        run: () => setConfirmingTransfer(true),
+      },
+      {
+        id: "transfer-selected",
+        label: `Seçilenleri aktar (${readyTransferRows.length})`,
+        disabledReason: readyTransferRows.length === 0 ? "Aktarıma hazır kaynakları işaretleyin" : transferBusyReason,
+        run: () => void transferSelectedSources(readyTransferRows),
+      },
+      { id: "transfer-mappings", label: "Hesap eşleştirmeleri", run: () => onNavigate?.("finance-ledger-mappings") },
+      csvExportCommand(transferExportRef),
+    ],
+  };
+  const allMissingCount = transferSourceRows.filter(({ source }) => isTransferMappingMissing(source)).length;
+  const transferCards: SummaryCard[] = [
+    {
+      id: "waiting",
+      label: "Aktarılmayı bekleyen",
+      value: transferSourceRows.length.toLocaleString("tr-TR"),
+      icon: CircleDollarSign,
+      hint: <span>{transferTotalsLabel || "kaynak yok"}</span>,
+    },
+    {
+      id: "missing",
+      label: "Eşleştirme eksik",
+      value: allMissingCount.toLocaleString("tr-TR"),
+      icon: AlertTriangle,
+      tone: allMissingCount > 0 ? "warn" : "primary",
+      hint: <span>tüm kaynaklar</span>,
+      filterActive: transferStatus === "missing",
+      onFilter: () => setTransferStatus(transferStatus === "missing" ? "" : "missing"),
+    },
+  ];
   const accountFormOpen = accountCreateOpen && view === "accounts";
   // The record lists follow the list-v2 structure (see list-page/README.md); the account
   // card form keeps the classic heading because it hides everything else on the page.
@@ -782,14 +925,11 @@ export default function GeneralLedgerPage({
     view === "mappings" ||
     view === "journal-ledger" ||
     view === "transfer-sources";
-  const showListHeader = isListView && !accountFormOpen;
-  // The chart of accounts and the mappings render their own list-v2 header inside the view.
-  const ownsHeader = view === "accounts" || view === "mappings";
+  const showListHeader = isListView;
+  // The chart of accounts, the mappings and the journal ledger render their own list-v2 header inside the view.
+  const ownsHeader = view === "accounts" || view === "mappings" || view === "journal-ledger";
   // Mizan and Bilanço render their own list-v2 header (with report exports) inside the view.
   const isReportView = view === "trial-balance" || view === "balance-sheet";
-  // Journal ledger header meta: amount of the loaded page (entries are balanced, so debit = amount).
-  const journalPageAmount = entries.reduce((total, entry) => total + entry.totalDebit, 0);
-  const journalCountLabel = `fiş · ${fmt(journalPageAmount)} ${sources.baseCurrencyCode || ""}${entryTotal > entries.length ? " (bu sayfa)" : ""}`.replace(/\s+\(/, " (").trimEnd();
   const isTenantAdmin = role === "TenantAdmin";
   const listCount =
     view === "accounts"
@@ -802,42 +942,14 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`panel general-ledger-panel finance-workbench general-ledger-view-${view}${accountFormOpen ? " general-ledger-record-form-open" : ""}${showListHeader || isReportView ? " list-v2" : ""}`}>
+    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" || view === "mappings" || view === "transfer-sources" || isReportView ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
       {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
           description={viewDescriptions[view]}
           count={listCount}
-          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : view === "journal-ledger" ? journalCountLabel : undefined}
+          countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : undefined}
         >
-          {view === "journal-ledger" && (
-            <>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => onNavigate?.("finance-transfer-sources")}
-              >
-                Aktarılabilir kaynaklar
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={() => onNavigate?.("finance-journal-vouchers")}
-              >
-                Yeni fiş
-              </button>
-            </>
-          )}
-          {view === "transfer-sources" && isTenantAdmin && (
-            <button
-              type="button"
-              className="primary"
-              disabled={busy || readyTransferRows.length === 0}
-              onClick={() => void transferSelectedSources(readyTransferRows)}
-            >
-              {busy ? "Aktarılıyor…" : `Seçilenleri aktar (${readyTransferRows.length})`}
-            </button>
-          )}
         </ListPageHeader>
       ) : accountFormOpen || view === "voucher" || isReportView || ownsHeader ? null : (
         <div className="panel-heading">
@@ -929,7 +1041,7 @@ export default function GeneralLedgerPage({
         </div>
       )}
       {view === "overview" && <AccountingRuleProfilesPanel token={token} />}
-      {view === "accounts" && !accountFormOpen && (
+      {view === "accounts" && (
         <AccountChartView
           token={token}
           role={role}
@@ -950,11 +1062,20 @@ export default function GeneralLedgerPage({
               setAccountCreateOpen(true);
             },
             onEdit: startEditAccount,
+            onClose: () => {
+              setAccountCreateOpen(false);
+              setEditingAccountId("");
+              setAccountFormDirty(false);
+              setError("");
+            },
             onToggle: (account) => void toggleAccount(account),
             onDelete: (account) => void deleteAccount(account),
-            canDelete: canDeleteAccount,
             onPreviewStandardChart: () => void previewStandardChart(),
           }}
+          formOpen={accountFormOpen}
+          editingId={editingAccountId}
+          formDirty={accountFormDirty}
+          renderForm={renderAccountForm}
           standardChartNotice={
             role === "TenantAdmin" && chartPreview ? (
 
@@ -1001,55 +1122,6 @@ export default function GeneralLedgerPage({
           }
         />
       )}
-      {accountFormOpen && <div className="ledger-account-record-form">
-        <RecordFormPage
-          variant="dialog"
-          title={editingAccountId ? "Hesap Kartını Düzenle" : "Hesap Kartı Tanımlama"}
-          mode={editingAccountId ? "edit" : "create"}
-          busy={busy}
-          saveLabel={editingAccountId ? "Değişiklikleri Kaydet" : "Hesap Kartını Kaydet"}
-          formId="ledger-account-record-form"
-          onSubmit={(event) => void submitAccountForm(event)}
-          onCancel={() => { setAccountCreateOpen(false); setEditingAccountId(""); setError(""); }}
-          onSaveIntent={(stayForNext) => { stayAfterAccountSave.current = stayForNext; }}
-          onReset={() => { resetNewAccountForm(); setNotice(""); }}
-          error={error}
-          onDismissError={() => setError("")}
-          status={
-            <>
-              <span>Zorunlu alanlar: <b>{[(editingAccountId ? editingAccountCode : code).trim(), (editingAccountId ? editingAccountName : name).trim()].filter(Boolean).length} / 2</b></span>
-              {notice && <span className="rf-status-notice">{notice}</span>}
-              {!editingAccountId && (code.trim() || name.trim()) && <span className="rf-status-end">Kaydedilmemiş değişiklik var</span>}
-            </>
-          }
-        >
-          <p className="fin-rf-hint">{editingAccountId ? "Muhasebe hesabının temel bilgilerini ve finansal sınıflandırmasını güncelleyin." : "Yeni muhasebe hesabının temel bilgilerini ve finansal sınıflandırmasını tanımlayın."}</p>
-          <RecordFormGroup title="Hesap Kimliği" bodyClassName="fin-rf-grid-4">
-            {!editingAccountId && <label>Üst hesap<select value={newAccountParentId} onChange={(e) => { const parentId = e.target.value; setNewAccountParentId(parentId); const parent = accounts.find((account) => account.id === parentId && account.isActive); if (parent) setNewAccountSection(parent.statementSection); }}>
-                <option value="">Ana hesap</option>{accounts.filter((account) => account.isActive).slice().sort((a, b) => a.code.localeCompare(b.code, "tr", { numeric: true })).map((account) => <option key={account.id} value={account.id}>{account.code} · {account.name}</option>)}
-              </select></label>}
-            <label><span>{editingAccountId ? "Hesap kodu" : newAccountParent ? "Alt hesap kodu" : "Hesap kodu"}<RequiredMark /></span><input className="rf-must rf-mono" value={editingAccountId ? editingAccountCode : code} onChange={(e) => editingAccountId ? setEditingAccountCode(e.target.value) : setCode(e.target.value)} maxLength={editingAccountId ? 32 : newAccountParent ? Math.max(1, 32 - newAccountParent.code.length - 1) : 32} required placeholder={newAccountParent ? "001" : "Örn. 120"} />{newAccountParent && !editingAccountId && <small>Oluşacak kod: {newAccountParent.code}.{code.trim() || "001"}</small>}</label>
-            <label className="fin-rf-span-2"><span>Hesap adı<RequiredMark /></span><input className="rf-must" value={editingAccountId ? editingAccountName : name} onChange={(e) => editingAccountId ? setEditingAccountName(e.target.value) : setName(e.target.value)} maxLength={160} required placeholder="Hesap adı" /></label>
-          </RecordFormGroup>
-          <div className="rf-columns">
-            <RecordFormGroup title="Finansal Sınıflandırma">
-              <label>Finansal tablo sınıfı<select value={editingAccountId ? editingAccountSection : newAccountSection} onChange={(e) => editingAccountId ? setEditingAccountSection(e.target.value as LedgerStatementSection) : setNewAccountSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>Hesap tipi<select value={accountType} onChange={(e) => setAccountType(e.target.value)}>{[["Unclassified","Sınıflandırılmamış"],["Asset","Aktif"],["Liability","Pasif"],["Equity","Özkaynak"],["Revenue","Gelir"],["Expense","Gider"],["OffBalanceSheet","Nazım"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <div className="rf-pair">
-                <label>Çalışma şekli<select value={normalBalance} onChange={(e) => setNormalBalance(e.target.value)}><option value="Debit">Borç çalışır</option><option value="Credit">Alacak çalışır</option><option value="Both">Çift çalışır</option></select></label>
-                <label>Döviz takibi<input className="rf-mono" value={accountCurrency} onChange={(e) => setAccountCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="TRY, USD, EUR" /></label>
-              </div>
-              <p className="fin-rf-hint">Hesap sınıfı bilanço ve mali raporlarda kullanılır. Hesap koduna göre otomatik tahmin edilmez.</p>
-            </RecordFormGroup>
-            <RecordFormGroup title="IFRS / UFRS Raporlama Eşlemesi">
-              <label>IFRS / UFRS hesap kodu<input className="rf-mono" value={ifrsAccountCode} onChange={(e) => setIfrsAccountCode(e.target.value)} maxLength={32} placeholder="Örn. IFRS-AR" /></label>
-              <label>IFRS / UFRS hesap adı<input value={ifrsAccountName} onChange={(e) => setIfrsAccountName(e.target.value)} maxLength={160} placeholder="Trade receivables" /></label>
-              <label>IFRS / UFRS tablo sınıfı<select value={ifrsStatementSection} onChange={(e) => setIfrsStatementSection(e.target.value as LedgerStatementSection)}>{Object.entries(ledgerStatementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <p className="fin-rf-hint">Tekdüzen hesabını uluslararası raporlama hesabına bağlayın. Boş bırakılırsa bu hesap IFRS rapor eşlemesine dahil edilmez.</p>
-            </RecordFormGroup>
-          </div>
-        </RecordFormPage>
-      </div>}
       {view === "mappings" && (
         <LedgerMappingsView
           token={token}
@@ -1082,12 +1154,20 @@ export default function GeneralLedgerPage({
           notice={notice}
           onDismissNotice={() => setNotice("")}
           onOpenRecentEntries={onNavigate ? () => onNavigate("finance-journal-ledger") : undefined}
+          onReset={() => {
+            setManualDescription("");
+            setManualLines([emptyManualJournalLine(), emptyManualJournalLine(), emptyManualJournalLine()]);
+            setError("");
+            setNotice("");
+          }}
         />
       )}
       {view === "trial-balance" && <TrialBalanceView token={token} />}
       {view === "balance-sheet" && <BalanceSheetView token={token} />}
       {view === "transfer-sources" && role === "TenantAdmin" && (
         <section className="ledger-subpanel ledger-transfer-sources" aria-label="Muhasebeye aktarım">
+          <PageCommandsSlot commands={transferCommands} />
+          <ListSummaryCards cards={transferCards} />
           <ListToolbar
             search={transferSourceSearch}
             onSearchChange={setTransferSourceSearch}
@@ -1105,18 +1185,6 @@ export default function GeneralLedgerPage({
                 ...transferTypeChips,
               ]}
             />
-            {(transferMissingCount > 0 || transferStatus === "missing") && (
-              <button
-                type="button"
-                className={`list-v2-chip ledger-transfer-missing-chip${transferStatus === "missing" ? " is-active" : ""}`}
-                aria-pressed={transferStatus === "missing"}
-                onClick={() => setTransferStatus(transferStatus === "missing" ? "" : "missing")}
-              >
-                <AlertTriangle size={13} aria-hidden="true" />
-                <span>Eşleştirme eksik</span>
-                <span className="list-v2-chip-count">{transferMissingCount.toLocaleString("tr-TR")}</span>
-              </button>
-            )}
           </ListToolbar>
           <div className="ledger-transfer-layout">
             <div className="ledger-list list-v2-list">
@@ -1126,6 +1194,8 @@ export default function GeneralLedgerPage({
                 defaults={financeGridDefaults["finance-transfer-sources"]}
                 onSelectionChange={handleTransferSelection}
                 hideSearch
+                hideExport
+                exportActionsRef={transferExportRef}
                 toolbarContainer={listToolsSlot}
               >
                 <table className="customer-table">
@@ -1176,7 +1246,7 @@ export default function GeneralLedgerPage({
                           </td>
                           <td>
                             {x.amount <= 0 ? (
-                              <span className="ledger-transfer-status is-muted">Sıfır tutar · aktarılamaz</span>
+                              <StatusTag tone="off">Sıfır tutar · aktarılamaz</StatusTag>
                             ) : missing.length > 0 ? (
                               <button
                                 type="button"
@@ -1188,10 +1258,7 @@ export default function GeneralLedgerPage({
                                 Hesap eşleştir
                               </button>
                             ) : (
-                              <span className="ledger-transfer-status is-ready">
-                                <CheckCircle2 size={13} aria-hidden="true" />
-                                Hazır
-                              </span>
+                              <StatusTag tone="ok">Hazır</StatusTag>
                             )}
                           </td>
                         </tr>
@@ -1214,6 +1281,20 @@ export default function GeneralLedgerPage({
                   </tbody>
                 </table>
               </FinanceStudioGrid>
+              <ListFooter hints="Satır önizler · Boşluk işaretle · İşlemler › Bu kaynağı aktar / Seçilenleri aktar">
+                {selectedTransferRows.length > 0 && (
+                  <span>
+                    <span>{selectedTransferRows.length}</span> <span>seçili</span> ·{" "}
+                    <span>{readyTransferRows.length}</span> <span>aktarıma hazır</span>
+                  </span>
+                )}
+                <span>
+                  <span>Gösterilen</span>{" "}
+                  <span>
+                    {visibleTransferSourceRows.length.toLocaleString("tr-TR")} / {transferSourceRows.length.toLocaleString("tr-TR")}
+                  </span>
+                </span>
+              </ListFooter>
             </div>
             <aside className="ledger-transfer-preview" aria-label="Oluşacak yevmiye fişi" aria-live="polite">
               {previewRow ? (
@@ -1272,15 +1353,6 @@ export default function GeneralLedgerPage({
                           <span>{transferPreview.data.blockingReason}</span>
                         </p>
                       )}
-                      {!transferPreview.data.canTransfer && missingFor(previewRow.source).length > 0 && (
-                        <button
-                          type="button"
-                          className="secondary ledger-transfer-preview-action"
-                          onClick={() => onNavigate?.("finance-ledger-mappings")}
-                        >
-                          Hesap eşleştirmelerine git
-                        </button>
-                      )}
                       {confirmingTransfer ? (
                         <div className="ledger-transfer-confirm" role="group" aria-label="Aktarımı onayla">
                           <p>{previewRow.source.code} değiştirilemez yevmiye fişi olarak aktarılsın mı?</p>
@@ -1298,17 +1370,8 @@ export default function GeneralLedgerPage({
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="primary ledger-transfer-preview-action"
-                          disabled={busy || !transferPreview.data.canTransfer}
-                          onClick={() => setConfirmingTransfer(true)}
-                        >
-                          Bu kaynağı aktar
-                        </button>
-                      )}
-                      <p className="ledger-transfer-preview-note">Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p>
+                      ) : null}
+                      <p className="ledger-transfer-preview-note">İşlemler › Bu kaynağı aktar. Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p>
                     </>
                   ) : transferPreview?.key === previewRow.key && transferPreview.error ? (
                     <p className="ledger-transfer-preview-balance is-blocked" role="alert">
@@ -1334,6 +1397,7 @@ export default function GeneralLedgerPage({
           role={role}
           entries={entries}
           entryTotal={entryTotal}
+          loading={entriesLoading}
           entryPage={entryPage}
           setEntryPage={setEntryPage}
           entryFrom={entryFrom}
@@ -1343,13 +1407,19 @@ export default function GeneralLedgerPage({
             setEntryFrom(from);
             setEntryTo(to);
           }}
+          basis={entryBasis}
+          onBasisChange={(next) => {
+            setEntryPage(1);
+            setEntryBasis(next);
+          }}
           sourceChip={journalSourceChip}
           setSourceChip={setJournalSourceChip}
           busy={busy}
           onReverse={reverseJournalEntry}
           onRefresh={() => void load()}
-          toolsSlot={listToolsSlot}
-          setToolsSlot={setListToolsSlot}
+          pendingSources={isTenantAdmin ? transferSourceRows.length : null}
+          baseCurrency={sources.baseCurrencyCode || ""}
+          onNavigate={onNavigate}
         />
       )}
     </section>
