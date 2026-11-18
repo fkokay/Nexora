@@ -58,6 +58,7 @@ export function PurchaseQuoteListPanel({ row, detail, error, onOpen, onClose, ta
       tab={tab}
       onTabChange={setTab}
       onOpen={onOpen}
+      openDisabled={!row.purchaseRequestId}
       onClose={onClose}
       takeFocus={takeFocus}
       loading={!detail}
@@ -78,7 +79,7 @@ export function PurchaseQuoteListPanel({ row, detail, error, onOpen, onClose, ta
             />
             <SalesPanelChain
               items={[
-                { key: "request", code: row.requestCode, label: "Satınalma talebi" },
+                ...(row.requestCode ? [{ key: "request", code: row.requestCode, label: "Satınalma talebi" }] : []),
                 { key: "self", code: row.code, label: "Bu teklif", current: true, status: tag },
               ]}
             />

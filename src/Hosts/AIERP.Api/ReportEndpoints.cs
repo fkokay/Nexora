@@ -4324,7 +4324,7 @@ public static class ReportEndpoints
             case "code":
                 query = filter.Operator == "contains" ? query.Where(x => x.Code.Contains(value)) : query.Where(x => x.Code == value); return true;
             case "requestCode":
-                query = filter.Operator == "contains" ? query.Where(x => x.PurchaseRequest.Code.Contains(value)) : query.Where(x => x.PurchaseRequest.Code == value); return true;
+                query = filter.Operator == "contains" ? query.Where(x => x.PurchaseRequest != null && x.PurchaseRequest.Code.Contains(value)) : query.Where(x => x.PurchaseRequest != null && x.PurchaseRequest.Code == value); return true;
             case "supplierCode":
                 query = filter.Operator == "contains" ? query.Where(x => x.Supplier.Code.Contains(value)) : query.Where(x => x.Supplier.Code == value); return true;
             case "supplierName":
@@ -4817,7 +4817,7 @@ public static class ReportEndpoints
     private static IQueryable<PurchaseSupplierQuote> ApplyPurchaseSupplierQuoteSort(IQueryable<PurchaseSupplierQuote> query, string field, bool descending) => (field, descending) switch
     {
         ("code", false) => query.OrderBy(x => x.Code).ThenBy(x => x.Id), ("code", true) => query.OrderByDescending(x => x.Code).ThenBy(x => x.Id),
-        ("requestCode", false) => query.OrderBy(x => x.PurchaseRequest.Code).ThenBy(x => x.Id), ("requestCode", true) => query.OrderByDescending(x => x.PurchaseRequest.Code).ThenBy(x => x.Id),
+        ("requestCode", false) => query.OrderBy(x => x.PurchaseRequest!.Code).ThenBy(x => x.Id), ("requestCode", true) => query.OrderByDescending(x => x.PurchaseRequest!.Code).ThenBy(x => x.Id),
         ("supplierCode", false) => query.OrderBy(x => x.Supplier.Code).ThenBy(x => x.Id), ("supplierCode", true) => query.OrderByDescending(x => x.Supplier.Code).ThenBy(x => x.Id),
         ("supplierName", false) => query.OrderBy(x => x.Supplier.Name).ThenBy(x => x.Id), ("supplierName", true) => query.OrderByDescending(x => x.Supplier.Name).ThenBy(x => x.Id),
         ("quoteDate", false) => query.OrderBy(x => x.QuoteDate).ThenBy(x => x.Id), ("quoteDate", true) => query.OrderByDescending(x => x.QuoteDate).ThenBy(x => x.Id),
@@ -4842,7 +4842,7 @@ public static class ReportEndpoints
 
     private static object? ReadPurchaseSupplierQuoteValue(PurchaseSupplierQuote x, string code) => code switch
     {
-        "code" => x.Code, "requestCode" => x.PurchaseRequest.Code, "supplierCode" => x.Supplier.Code, "supplierName" => x.Supplier.Name,
+        "code" => x.Code, "requestCode" => x.PurchaseRequest?.Code, "supplierCode" => x.Supplier.Code, "supplierName" => x.Supplier.Name,
         "quoteDate" => x.QuoteDate, "validUntil" => x.ValidUntil, "currencyCode" => x.CurrencyCode, "status" => x.Status.ToString(),
         "subtotal" => x.Subtotal, "discountTotal" => x.DiscountTotal, "taxTotal" => x.TaxTotal, "grandTotal" => x.GrandTotal,
         "createdAt" => x.CreatedAt, _ => null

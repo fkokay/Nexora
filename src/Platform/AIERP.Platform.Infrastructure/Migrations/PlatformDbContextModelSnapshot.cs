@@ -14831,10 +14831,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "OrderDate", "CreatedAt");
 
-                    b.HasIndex("TenantId", "SourceSupplierQuoteId", "SourcePurchaseRequestId")
-                        .IsUnique()
-                        .HasFilter("[SourceSupplierQuoteId] IS NOT NULL AND [SourcePurchaseRequestId] IS NOT NULL");
-
                     b.HasIndex("TenantId", "TargetWarehouseId", "ExpectedReceiptDate");
 
                     b.ToTable("PurchaseOrders");
@@ -15689,7 +15685,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<Guid>("PurchaseRequestId")
+                    b.Property<Guid?>("PurchaseRequestId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly>("QuoteDate")
@@ -15931,7 +15927,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid>("PurchaseRequestId")
+                    b.Property<Guid?>("PurchaseRequestId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Quantity")
@@ -15942,6 +15938,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("StockName")
                         .IsRequired()
@@ -15967,9 +15966,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasKey("TenantId", "QuoteId", "RequestLineNumber");
 
-                    b.HasIndex("TenantId", "PurchaseRequestId", "RequestLineNumber");
+                    b.HasIndex("TenantId", "StockItemId");
 
-                    b.HasIndex("TenantId", "QuoteId", "PurchaseRequestId");
+                    b.HasIndex("TenantId", "PurchaseRequestId", "RequestLineNumber");
 
                     b.ToTable("PurchaseSupplierQuoteLines", t =>
                         {
@@ -22249,6 +22248,12 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrincipalKey("AIERP.Platform.Domain.PurchaseRequest", "TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "SourceSupplierQuote")
+                        .WithOne("PurchaseOrder")
+                        .HasForeignKey("AIERP.Platform.Domain.PurchaseOrder", "TenantId", "SourceSupplierQuoteId")
+                        .HasPrincipalKey("AIERP.Platform.Domain.PurchaseSupplierQuote", "TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Supplier")
                         .WithMany()
                         .HasForeignKey("TenantId", "SupplierId")
@@ -22260,12 +22265,6 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "TargetWarehouseId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "SourceSupplierQuote")
-                        .WithOne("PurchaseOrder")
-                        .HasForeignKey("AIERP.Platform.Domain.PurchaseOrder", "TenantId", "SourceSupplierQuoteId", "SourcePurchaseRequestId")
-                        .HasPrincipalKey("AIERP.Platform.Domain.PurchaseSupplierQuote", "TenantId", "Id", "PurchaseRequestId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("SourcePurchaseRequest");
@@ -22611,8 +22610,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany("SupplierQuotes")
                         .HasForeignKey("TenantId", "PurchaseRequestId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("AIERP.Platform.Domain.CustomerAccount", "Supplier")
                         .WithMany()
@@ -22697,22 +22695,29 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("AIERP.Platform.Domain.PurchaseSupplierQuoteLine", b =>
                 {
+                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "Quote")
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "QuoteId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AIERP.Platform.Domain.StockItem", "StockItem")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StockItemId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AIERP.Platform.Domain.PurchaseRequestLine", "RequestLine")
                         .WithMany()
                         .HasForeignKey("TenantId", "PurchaseRequestId", "RequestLineNumber")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AIERP.Platform.Domain.PurchaseSupplierQuote", "Quote")
-                        .WithMany("Lines")
-                        .HasForeignKey("TenantId", "QuoteId", "PurchaseRequestId")
-                        .HasPrincipalKey("TenantId", "Id", "PurchaseRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Quote");
 
                     b.Navigation("RequestLine");
+
+                    b.Navigation("StockItem");
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.ReleaseCandidateRecord", b =>

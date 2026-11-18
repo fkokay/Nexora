@@ -2097,7 +2097,6 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         {
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
-            e.HasAlternateKey(x => new { x.TenantId, x.Id, x.PurchaseRequestId });
             e.HasIndex(x => new { x.TenantId, x.SupplierId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.PurchaseRequestId, x.Status, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(64);
@@ -2109,7 +2108,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.GrandTotal).HasPrecision(18, 2);
             e.Property(x => x.Notes).HasMaxLength(1000);
             e.HasOne(x => x.PurchaseRequest).WithMany(x => x.SupplierQuotes).HasForeignKey(x => new { x.TenantId, x.PurchaseRequestId })
-                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -2161,10 +2160,13 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 t.HasCheckConstraint("CK_PurchaseSupplierQuoteLines_DiscountRange", "[DiscountPercent] >= 0 AND [DiscountPercent] <= 100");
                 t.HasCheckConstraint("CK_PurchaseSupplierQuoteLines_VatRange", "[VatPercent] >= 0 AND [VatPercent] <= 100");
             });
-            e.HasOne(x => x.Quote).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.QuoteId, x.PurchaseRequestId })
-                .HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseRequestId }).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Quote).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.QuoteId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.RequestLine).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseRequestId, x.RequestLineNumber })
-                .HasPrincipalKey(x => new { x.TenantId, x.PurchaseRequestId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
+                .HasPrincipalKey(x => new { x.TenantId, x.PurchaseRequestId, x.LineNumber }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.TenantId, x.StockItemId });
+            e.HasOne(x => x.StockItem).WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<PurchaseOrder>(e =>
         {
@@ -2189,8 +2191,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 .HasPrincipalKey<PurchaseRequest>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.TenantId, x.SourcePurchaseRequestId }).IsUnique().HasFilter("[SourcePurchaseRequestId] IS NOT NULL");
             e.HasOne(x => x.SourceSupplierQuote).WithOne(x => x.PurchaseOrder)
-                .HasForeignKey<PurchaseOrder>(x => new { x.TenantId, x.SourceSupplierQuoteId, x.SourcePurchaseRequestId })
-                .HasPrincipalKey<PurchaseSupplierQuote>(x => new { x.TenantId, x.Id, x.PurchaseRequestId }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+                .HasForeignKey<PurchaseOrder>(x => new { x.TenantId, x.SourceSupplierQuoteId })
+                .HasPrincipalKey<PurchaseSupplierQuote>(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.TenantId, x.SourceSupplierQuoteId }).IsUnique().HasFilter("[SourceSupplierQuoteId] IS NOT NULL");
         });
         modelBuilder.Entity<PurchaseOrderCustomFieldDefinition>(e =>
