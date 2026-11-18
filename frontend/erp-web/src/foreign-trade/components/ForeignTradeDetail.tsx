@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { AlertTriangle, Globe2, PackageCheck, X } from "lucide-react";
 import { localizedText } from "../../locale";
-import { advanceCheck, type AdvanceField } from "../advance";
+import { advanceCheck, canLinkInventoryDocument, type AdvanceField } from "../advance";
 import {
   tradeStageFlow,
   type AdvanceInputs,
@@ -22,7 +22,6 @@ type Props = {
   item: TradeCase | null;
   orderMap: Map<string, TradeOrder>;
   documents: InventoryDocument[];
-  documentId: string;
   capabilities: TradeCapabilities;
   busyId: string;
   nextStatus?: TradeStatus;
@@ -33,8 +32,6 @@ type Props = {
   /** Result of the last action on this panel; dismissible. */
   notice: ForeignTradePanelNotice | null;
   onDismissNotice: () => void;
-  onDocumentChange: (id: string) => void;
-  onLinkDocument: (item: TradeCase) => void;
   /**
    * Prerequisite inputs of the next stage, kept by the page: İşlemler's step ("… aşamasına geçir") saves them and
    * moves the case (the panel no longer has its own button).
@@ -85,7 +82,6 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
   item,
   orderMap,
   documents,
-  documentId,
   capabilities,
   busyId,
   nextStatus,
@@ -95,8 +91,6 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
   transportLabel,
   notice,
   onDismissNotice,
-  onDocumentChange,
-  onLinkDocument,
   inputs,
   onInputsChange,
 }: Props, ref) {
@@ -150,13 +144,7 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
   const stageIndex = tradeStageFlow.indexOf(item.status);
   const cancelled = item.status === "Cancelled";
   const linked = Boolean(item.purchaseReceiptId || item.salesDeliveryId);
-  const canLinkNow =
-    (item.direction === "Import" &&
-      ["Arrived", "Closed"].includes(item.status)) ||
-    (item.direction === "Export" &&
-      ["Shipped", "CustomsClearance", "Arrived", "Closed"].includes(
-        item.status,
-      ));
+  const canLinkNow = canLinkInventoryDocument(item);
 
   // Prerequisites of the next stage (advance.ts); the step itself runs from İşlemler with the same conditions.
   const { fields, editableFields, blockers } = advanceCheck(item, nextStatus, capabilities, inputs, busy);
@@ -357,32 +345,12 @@ export const ForeignTradeDetail = forwardRef<HTMLElement, Props>(function Foreig
                   "Post stock in the standard receipt or delivery screen. This only links the existing document; it does not post inventory again.",
                 )}
               </p>
-              {canLinkNow && capabilities.canAdvance && (
-                <div className="foreign-trade-link-controls">
-                  <select
-                    aria-label={tr("Stok belgesi seçin", "Select inventory document")}
-                    value={documentId}
-                    onChange={(event) => onDocumentChange(event.target.value)}
-                  >
-                    <option value="">
-                      {tr("Kayıtlı stok belgesi seçin", "Select a posted inventory document")}
-                    </option>
-                    {documents.map((document) => (
-                      <option key={document.id} value={document.id}>
-                        {document.code} · {document.warehouseName} ·{" "}
-                        {document.lineCount} {tr("satır", "lines")}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={!documentId || busy}
-                    onClick={() => onLinkDocument(item)}
-                  >
-                    {tr("Belgeyi bağla", "Link document")}
-                  </button>
-                </div>
+              {/* The selection list opens from İşlemler (mockup 10 · "Stok belgesi bağla"). */}
+              {canLinkNow && capabilities.canAdvance && !!documents.length && (
+                <p className="foreign-trade-next-hint">
+                  <span>{tr("Stok belgesi bağla", "Link inventory document")}</span>{" "}
+                  <span>{tr("· İşlemler (Alt+İ)", "· Actions (Alt+İ)")}</span>
+                </p>
               )}
               {canLinkNow && !documents.length && (
                 <small>

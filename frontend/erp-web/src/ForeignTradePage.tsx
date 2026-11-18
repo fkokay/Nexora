@@ -42,7 +42,8 @@ import type {
   AdvanceInputs,
 } from "./foreign-trade/types";
 import { problemDetail } from "./erpApi";
-import { advanceCheck } from "./foreign-trade/advance";
+import { advanceCheck, canLinkInventoryDocument } from "./foreign-trade/advance";
+import { ForeignTradeDocumentPicker } from "./foreign-trade/components/ForeignTradeDocumentPicker";
 
 const blankDraft = (): Draft => ({
   direction: "Import",
@@ -157,7 +158,8 @@ export default function ForeignTradePage({
   const [inventoryDocuments, setInventoryDocuments] = useState<
     InventoryDocument[]
   >([]);
-  const [inventoryDocumentId, setInventoryDocumentId] = useState("");
+  const [inventoryDocumentId, setInventoryDocumentId] = useState(""),
+    [linkPickerOpen, setLinkPickerOpen] = useState(false);
   // Prerequisite inputs of the selected case's next stage (entered in the panel, used by İşlemler's step).
   const [advanceInputs, setAdvanceInputs] = useState<AdvanceInputs>({});
   const [screenFields, setScreenFields] = useState<ForeignTradeScreenField[]>(
@@ -505,8 +507,8 @@ export default function ForeignTradePage({
       setBusyId("");
     }
   }
-  async function linkInventoryDocument(item: TradeCase) {
-    if (!inventoryDocumentId || !capabilities.canAdvance) return;
+  async function linkInventoryDocument(item: TradeCase, documentId = inventoryDocumentId) {
+    if (!documentId || !capabilities.canAdvance) return;
     setBusyId(item.id);
     setNotice(null);
     try {
@@ -514,7 +516,7 @@ export default function ForeignTradePage({
         `/api/foreign-trade/cases/${item.id}/inventory-document`,
         {
           method: "POST",
-          body: JSON.stringify({ documentId: inventoryDocumentId }),
+          body: JSON.stringify({ documentId }),
         },
       );
       setNotice({
@@ -558,6 +560,25 @@ export default function ForeignTradePage({
       run: () => void transition(selectedCase, selectedNextStatus, advanceInputs),
     });
   }
+  // "Stok belgesi bağla": the panel's former select + button, as a selection list (same conditions).
+  if (
+    selectedCase &&
+    capabilities.canAdvance &&
+    selectedCase.status !== "Cancelled" &&
+    !selectedCase.purchaseReceiptId &&
+    !selectedCase.salesDeliveryId &&
+    canLinkInventoryDocument(selectedCase)
+  )
+    tradeMore.push({
+      id: "trade-link-document",
+      label: tr("Stok belgesi bağla…", "Link inventory document…"),
+      disabledReason: caseBusy
+        ? tr("İşlem sürüyor…", "An operation is in progress…")
+        : !inventoryDocuments.some((document) => !document.isLinked)
+          ? tr("Uygun kayıtlı stok belgesi yok", "No eligible posted inventory document")
+          : undefined,
+      run: () => setLinkPickerOpen(true),
+    });
   if (selectedCase && caseEditable && capabilities.canAdvance)
     tradeMore.push({
       id: "trade-cancel",
@@ -604,6 +625,21 @@ export default function ForeignTradePage({
   return (
     <div className="page-content foreign-trade-page list-v2">
       {!creating && <PageCommandsSlot commands={tradeCommands} />}
+      {linkPickerOpen && selectedCase && (
+        <ForeignTradeDocumentPicker
+          direction={selectedCase.direction}
+          caseCode={selectedCase.referenceCode}
+          documents={inventoryDocuments}
+          busy={busyId === selectedCase.id}
+          locale={locale()}
+          onClose={() => setLinkPickerOpen(false)}
+          onLink={(documentId) => {
+            setInventoryDocumentId(documentId);
+            setLinkPickerOpen(false);
+            void linkInventoryDocument(selectedCase, documentId);
+          }}
+        />
+      )}
       <ListPageHeader
         title={tr("İthalat ve ihracat dosyaları", "Import and export cases")}
         description={tr(
@@ -1063,7 +1099,6 @@ export default function ForeignTradePage({
           item={selectedCase}
           orderMap={orderMap}
           documents={inventoryDocuments}
-          documentId={inventoryDocumentId}
           capabilities={capabilities}
           busyId={busyId}
           nextStatus={selectedNextStatus}
@@ -1073,8 +1108,6 @@ export default function ForeignTradePage({
           transportLabel={transportLabel}
           notice={notice}
           onDismissNotice={() => setNotice(null)}
-          onDocumentChange={setInventoryDocumentId}
-          onLinkDocument={(item) => void linkInventoryDocument(item)}
           inputs={advanceInputs}
           onInputsChange={setAdvanceInputs}
         />

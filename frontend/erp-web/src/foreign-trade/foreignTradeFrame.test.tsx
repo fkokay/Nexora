@@ -105,7 +105,7 @@ describe('Dış Ticaret frame', () => {
     await screen.findAllByText('IHR-001');
     fireEvent.click(screen.getAllByText('IHR-002').find((node) => node.closest('tr'))!);
     await waitFor(() => expect(reason('open')).toBe('Yalnız Taslak ve Planlandı dosyalar düzenlenebilir'));
-    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası', 'Gümrükte aşamasına geçir', 'CSV olarak dışa aktar']);
+    expect(openMenu()).toEqual(['İthalat dosyası', 'İhracat dosyası', 'Gümrükte aşamasına geçir', 'Stok belgesi bağla…', 'CSV olarak dışa aktar']);
   });
 
   it('İlerle is in İşlemler with the panel conditions: a missing prerequisite disables it until filled in the panel', async () => {
@@ -204,20 +204,15 @@ describe('Dış Ticaret frame', () => {
 
 describe('Dış Ticaret stock document link', () => {
   it('links the chosen posted document with the same body', async () => {
-    renderScreen(<ForeignTradePage token="t" />);
+    renderScreen(<ForeignTradePage token="t" role="TenantAdmin" />);
     fireEvent.click((await screen.findAllByText('IHR-002'))[0].closest('tr')!);
-    const select = await screen.findByRole('combobox', { name: 'Stok belgesi seçin' }).catch(() => null);
-    if (select) {
-      await waitFor(() => expect(within(select).getByText(/IRS-0042/)).toBeTruthy());
-      fireEvent.change(select, { target: { value: 'd1' } });
-      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Belgeyi bağla' })));
-    } else {
-      fireEvent.click(command('more'));
-      await act(async () => fireEvent.click(await screen.findByRole('menuitem', { name: /Stok belgesi bağla/ })));
-      const dialog = await screen.findByRole('dialog', { name: /Stok belgesi seç/ });
-      fireEvent.click(within(dialog).getByText('IRS-0042'));
-      await act(async () => fireEvent.click(within(dialog).getByRole('button', { name: 'Bağla' })));
-    }
+    // The panel's select + button became a selection list opened from İşlemler (once the documents are loaded).
+    await screen.findByText('Stok belgesi bağla');
+    fireEvent.click(command('more'));
+    await act(async () => fireEvent.click(await screen.findByRole('menuitem', { name: /Stok belgesi bağla/ })));
+    const dialog = await screen.findByRole('dialog', { name: /Stok belgesi seç/ });
+    fireEvent.click(within(dialog).getByText('IRS-0042'));
+    await act(async () => fireEvent.click(within(dialog).getByRole('button', { name: 'Bağla' })));
     await waitFor(() =>
       expect(calls).toContainEqual({ url: '/api/foreign-trade/cases/c2/inventory-document', method: 'POST', body: { documentId: 'd1' } }),
     );

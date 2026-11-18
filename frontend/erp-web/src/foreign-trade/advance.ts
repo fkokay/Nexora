@@ -3,6 +3,14 @@ import type { AdvanceInputs, TradeCapabilities, TradeCase, TradeStatus } from ".
 
 const tr = (turkish: string, english: string) => localizedText(turkish, english);
 
+/** The case's stock document can be linked now: import after arrival, export from shipment on (same as the panel). */
+export function canLinkInventoryDocument(item: TradeCase) {
+  return (
+    (item.direction === "Import" && ["Arrived", "Closed"].includes(item.status)) ||
+    (item.direction === "Export" && ["Shipped", "CustomsClearance", "Arrived", "Closed"].includes(item.status))
+  );
+}
+
 export type AdvanceField = "plannedShipDate" | "declaredValue" | "incotermsCode" | "customsReference";
 
 export type AdvanceCheck = {
