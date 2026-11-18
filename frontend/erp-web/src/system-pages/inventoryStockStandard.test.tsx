@@ -149,9 +149,6 @@ const input = (id: string) => document.getElementById(`page-input-${id}`) as HTM
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const listRow = (name: string) => screen.getByText(name, { selector: '.tenant-page-table td' }).closest('tr') as HTMLElement;
-const drawer = () => screen.getByRole('dialog', { name: /^Stok kartı/ });
-const tab = (container: HTMLElement, name: string) => within(container).getByRole('tab', { name: new RegExp(`^${name}`) });
-const ctrlS = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 's', ctrlKey: true });
 const menuItem = async (name: RegExp) => {
   fireEvent.click(command('more'));
   return screen.findByRole('menuitem', { name });
@@ -161,13 +158,6 @@ const selectCard = async (name = 'Kalem', id = S1) => {
   fireEvent.click(await screen.findByText(name, { selector: '.tenant-page-table td' }, T));
   await waitFor(() => expect(gets(`/api/stock/items/${id}`).length).toBeGreaterThan(0), T);
   await ready('open');
-};
-/** Kartı Aç ile açar ve kaynak okumalarının (kart, özel alan değerleri) yüklenmesini bekler. */
-const openCard = async () => {
-  fireEvent.click(command('open'));
-  await screen.findByRole('dialog', { name: 'Stok kartı KLM' }, T);
-  await waitFor(() => expect(input('ad').value).toBe('Kalem'), T);
-  await waitFor(() => expect((within(drawer()).getByLabelText('Renk') as HTMLInputElement).value).toBe('Mavi'), T);
 };
 const chooseWarehouse = async () => {
   await waitFor(() => expect(input('depoSecimi')).toBeTruthy(), T);
