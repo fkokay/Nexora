@@ -27,6 +27,8 @@ function respond(url: string): unknown {
   if (path === '/api/foreign-trade/capabilities') return { canCreate: true, canUpdate: true, canAdvance: true };
   if (path.startsWith('/api/screen-views/')) return { id: null, fields: [] };
   if (path.endsWith('/transition')) return cases[0];
+  if (path.endsWith('/inventory-documents'))
+    return [{ id: 'd1', code: 'IRS-0042', documentDate: '2026-11-09', warehouseName: 'Merkez Depo', lineCount: 3, isLinked: false }];
   return [];
 }
 
@@ -197,5 +199,27 @@ describe('Dış Ticaret frame', () => {
     expect(tradeStatusTone('Closed')).toBe('ok');
     expect(tradeStatusTone('CustomsClearance')).toBe('warn');
     expect(tradeStatusTone('Cancelled')).toBe('off');
+  });
+});
+
+describe('Dış Ticaret stock document link', () => {
+  it('links the chosen posted document with the same body', async () => {
+    renderScreen(<ForeignTradePage token="t" />);
+    fireEvent.click((await screen.findAllByText('IHR-002'))[0].closest('tr')!);
+    const select = await screen.findByRole('combobox', { name: 'Stok belgesi seçin' }).catch(() => null);
+    if (select) {
+      await waitFor(() => expect(within(select).getByText(/IRS-0042/)).toBeTruthy());
+      fireEvent.change(select, { target: { value: 'd1' } });
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Belgeyi bağla' })));
+    } else {
+      fireEvent.click(command('more'));
+      await act(async () => fireEvent.click(await screen.findByRole('menuitem', { name: /Stok belgesi bağla/ })));
+      const dialog = await screen.findByRole('dialog', { name: /Stok belgesi seç/ });
+      fireEvent.click(within(dialog).getByText('IRS-0042'));
+      await act(async () => fireEvent.click(within(dialog).getByRole('button', { name: 'Bağla' })));
+    }
+    await waitFor(() =>
+      expect(calls).toContainEqual({ url: '/api/foreign-trade/cases/c2/inventory-document', method: 'POST', body: { documentId: 'd1' } }),
+    );
   });
 });
