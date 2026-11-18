@@ -14,3 +14,11 @@
 #root .general-ledger-panel.list-v2 .ledger-entry-detail > .list-v2-detail-meta {
   margin: 8px 0 12px;
 }
+
+/* The page root is not a card. Its class name "general-ledger-panel" matches the shell's substring rules
+   ([class*='-panel'] -> surface fill in global-components.css, 12px radius in module-workspace.css), which drew a faint
+   rounded background behind the list-v2 views in the dark theme. Views that still use the old .panel frame keep it. */
+#root .app-shell:not(.standalone-studio) .workspace-page-main .general-ledger-panel.list-v2:not(.panel) {
+  border-radius: 0 !important;
+  background-color: transparent !important;
+}
