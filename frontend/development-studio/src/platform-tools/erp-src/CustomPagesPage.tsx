@@ -26,6 +26,8 @@ import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
 import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields } from "./page-designer/RowActionsFields";
+import { BarCommandFields } from "./page-designer/BarCommandFields";
+import { BAR_COMMAND_PROPS, barBound, barCommandProblem, migrateBarButtons } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
@@ -149,7 +151,7 @@ const managedKeys = new Set(["text", "title", "label", "description", "value", "
   // Proje 4: form kartının tek satır (süzgeç) dizilimi, koşullu genişlik ve değer etiketleri.
   "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
   // İşlem Çubuğu Yeni / Aç / kayıttan sonra düğmeleri ve sayfa başlığı olan başlık.
-  "newButton", "openButton", "afterSaveButton", "pageTitle"]);
+  "newButton", "openButton", "afterSaveButton", "pageTitle", ...BAR_COMMAND_PROPS]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -504,6 +506,13 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       single("newButton", (id) => isButton(id) && !("formDialog" in next));
       single("openButton", (id) => isButton(id) && !("formDialog" in next));
       single("afterSaveButton", isButton);
+      // Düz Yeni / Aç: Aç'ın listesi silinince sayfa grubu da kalkar; temizlenecek girişi ya da penceresi kalmayan seçim kalkar.
+      if ("openTable" in next && !(typeof next.openTable === "string" && (() => { const table = byId.get(next.openTable as string); return table?.type === "dataTable" && !!table.name && typeof table.props.query === "string" && table.props.query !== ""; })())) {
+        for (const key of ["openAction", "openPageCode", "openTarget", "openTable", "openParams"]) delete next[key];
+        touched = true;
+      }
+      if (next.newAction === "clear" && !("newInputs" in next)) { delete next.newAction; touched = true; }
+      for (const key of ["newAction", "openAction"]) if (next[key] === "dialog" && !("formDialog" in next)) { delete next[key]; touched = true; }
       single("saveQuery", (id) => writeKinds.get(id) === "insert" || writeKinds.get(id) === "update");
       single("deleteQuery", (id) => writeKinds.get(id) === "delete");
       if (cleanSequence(next, writeKinds)) touched = true;
@@ -607,6 +616,7 @@ const fazBProblem = (component: PageComponent, label: string): string | null => 
     return component.type === "editableGrid" ? `Düzenlenebilir tablonun adı olmalıdır: ${component.id}` : `Özel alanlar bloğunun adı olmalıdır: ${component.id}`;
   if (component.type === "dialog" && idList(props.contains, MAX_DIALOG_IDS).length === 0) return `${label} için pencerede gösterilecek en az bir bileşen seçin.`;
   if (component.type === "dataTable" && idList(props.rowActions, MAX_ROW_ACTIONS).length > 0 && !component.name) return `Satır işlemleri için veri listesinin adı olmalıdır: ${component.id}`;
+  if (component.type === "actionBar") { const problem = barCommandProblem(props); if (problem) return problem; }
   if (component.type === "button") {
     if (props.actionType === "sequence" && idList(props.saveSequence, MAX_SEQUENCE_STEPS).length === 0) return "Kayıt dizisi düğmesi için 'saveSequence' gerekli.";
     if (props.actionType === "openDialog" && !(typeof props.dialogId === "string" && props.dialogId !== "")) return "Pencere açan düğme için 'dialogId' gerekli.";
@@ -1984,8 +1994,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
-        new: idList(props.newInputs).length > 0 || (typeof props.newButton === "string" && props.newButton !== "") || (typeof props.formDialog === "string" && props.formDialog !== ""),
-        open: (typeof props.openButton === "string" && props.openButton !== "") || (typeof props.formDialog === "string" && props.formDialog !== ""), save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
+        new: barBound(props).new,
+        open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
@@ -2848,28 +2858,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
             {selected.type === "actionBar" && section("layout", "Komutlar", <>
               <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
-              <div className="pd-field">Yeni<span className="pd-action-key" aria-hidden="true">F2</span><small>Temizlenecek girişler (seçilmezse komut kapalı kalır).</small>
-                <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
-                {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
-              </div>
-              <label className="pd-field">Kayıt penceresi<span className="pd-action-key" aria-hidden="true">Enter</span>
-                <select value={typeof selected.props.formDialog === "string" ? selected.props.formDialog : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { formDialog: event.target.value || undefined })}>
-                  <option value="">Yok</option>
-                  {pageDialogs.map((dialog) => <option key={dialog.id} value={dialog.id}>{summaryOf(dialog)}{dialog.name ? ` (${dialog.name})` : ""}</option>)}
-                </select>
-                {pageDialogs.length === 0 && <small>Önce sayfaya bir Pencere bileşeni ekleyin.</small>}
-              </label>
-              {([["newButton", "Yeni düğmesi", "F2", "Yeni, bu düğmenin eylemini çalıştırır (ör. kayıt ekranını açan Sayfa aç düğmesi)."],
-                ["openButton", "Aç düğmesi", "Enter", "Aç (Enter, satıra çift tıklama) bu düğmeyi çalıştırır; düğme gizliyken Aç seçim bekler."],
-                ["afterSaveButton", "Kayıttan sonra", "", "Kayıt tam başarılı olunca kayıt kartları boşalır ve bu düğme çalışır (ör. listeye dön)."]] as const).map(([key, label, shortcut, hint]) =>
-                <label key={key} className="pd-field">{label}{shortcut && <span className="pd-action-key" aria-hidden="true">{shortcut}</span>}<small>{hint}</small>
-                  <select value={typeof selected.props[key] === "string" ? selected.props[key] as string : ""}
-                    disabled={!canEdit || (key !== "afterSaveButton" && typeof selected.props.formDialog === "string" && selected.props.formDialog !== "")}
-                    onChange={(event) => patchComponent(selected.id, { [key]: event.target.value || undefined })}>
-                    <option value="">Yok</option>
-                    {pageButtons.map((button) => <option key={button.id} value={button.id}>{button.label}{button.name ? ` (${button.name})` : ""}</option>)}
-                  </select>
-                </label>)}
+              <BarCommandFields props={selected.props} screens={erpScreens}
+                pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
+                tables={eligibleTables.map((table) => ({ id: table.id, name: table.name!,
+                  columns: (queryPreviews[String(table.props.query)]?.columns ?? []).filter((column) => /^[A-Za-z0-9_.]+$/.test(column.code)) }))}
+                dialogs={pageDialogs.map((dialog) => ({ id: dialog.id, label: `${summaryOf(dialog)}${dialog.name ? ` (${dialog.name})` : ""}` }))}
+                buttonLabel={(id) => pageButtons.find((button) => button.id === id)?.label ?? id}
+                newInputsField={<>
+                  <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
+                  {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
+                </>}
+                suggestions={bindingSuggestions} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}
+                canMigrate={migrateBarButtons(definition).moved.length > 0}
+                onMigrate={() => commit((state) => migrateBarButtons(state).definition)}/>
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {
