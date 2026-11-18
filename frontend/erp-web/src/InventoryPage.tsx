@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { setPageParams, usePageParams } from "./pageNavigation";
 import { createPortal } from "react-dom";
 import * as IconPack from "lucide-react";
 import { X } from "lucide-react";
@@ -1065,17 +1066,34 @@ export function InventoryPage({
       setError((e as Error).message);
     }
   }
+  // "Stok kartını aç" bu ekrana `id` parametresiyle gelebilir (tasarlanmış kart sayfası yayımlı değilken): o kart açılır.
+  const createParamId = usePageParams(section === "inventory-stock-create" ? "inventory-stock-create" : undefined).id ?? "";
+  const openedParamIdRef = useRef("");
   useEffect(() => {
-    if (section === "inventory-stock-create" && !itemModal && !editingItem)
-      void openItemModal();
-  }, [section, itemModal, editingItem]);
+    if (section !== "inventory-stock-create") return;
+    if (createParamId) {
+      if (openedParamIdRef.current === createParamId) return;
+      openedParamIdRef.current = createParamId;
+      void api<StockItem>(`/api/stock/items/${encodeURIComponent(createParamId)}`, token)
+        .then((item) => { if (openedParamIdRef.current === createParamId) void editItem(item); })
+        .catch((e) => { if (openedParamIdRef.current === createParamId) setError((e as Error).message); });
+      return;
+    }
+    openedParamIdRef.current = "";
+    if (!itemModal && !editingItem) void openItemModal();
+  }, [section, itemModal, editingItem, createParamId]);
   function closeItemForm() {
     editRequestRef.current += 1;
     setItemModal(false);
     setEditingItem(null);
     setItemBaseline(null);
     setRecordNavIds(null);
-    if (section === "inventory-stock-create") onNavigate?.("inventory-stock");
+    if (section === "inventory-stock-create") {
+      // Açılan kartın kimliği kalmaz: sonraki "Yeni" boş kartla başlar.
+      openedParamIdRef.current = "";
+      setPageParams("inventory-stock-create", {});
+      onNavigate?.("inventory-stock");
+    }
   }
   async function editItem(item: StockItem) {
     // A later open (PgUp / PgDn) wins: answers for an earlier card are dropped.
@@ -2423,7 +2441,7 @@ export function InventoryPage({
     // no `new` while another dialog of the page is open
   } else if (section === "inventory-stock") {
     // An edited card stays in this tab; the new card opens in its own tab.
-    pageCommands.new = { primary: true, run: () => onNavigate?.("inventory-stock-create") };
+    pageCommands.new = { primary: true, run: () => { setPageParams("inventory-stock-create", {}); onNavigate?.("inventory-stock-create"); } };
     if (!editingItem) Object.assign(pageCommands, stockList.commands);
   } else if (section === "inventory-stock-create") {
     pageCommands.new = { run: () => startNew(!!(code.trim() || name.trim()), openItemModal) };
