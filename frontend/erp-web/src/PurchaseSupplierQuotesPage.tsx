@@ -12,6 +12,7 @@ import type {
   ScreenField,
 } from "./purchase-supplier-quotes/types";
 import { problemDetail } from "./erpApi";
+import SupplierQuoteCreateForm from "./purchase-supplier-quotes/components/SupplierQuoteCreateForm";
 import type { GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
@@ -22,7 +23,8 @@ import { PurchaseQuoteListEmpty, PurchaseQuoteListPanel } from "./purchasing/pur
 import { requestPurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
 import "./sales/sales-list-v2.css";
 
-type Props = { token: string; onOpenRequests: () => void };
+/** `role`: tedarikçi teklifini yalnızca firma yöneticisi kaydedebilir (API TenantAdmin ister). */
+type Props = { token: string; role?: string; onOpenRequests: () => void };
 
 const pageSize = 50;
 
@@ -49,6 +51,7 @@ async function request<T>(url: string, token: string): Promise<T> {
  */
 export default function PurchaseSupplierQuotesPage({
   token,
+  role,
   onOpenRequests,
 }: Props) {
   const [page, setPage] = useState(1);
@@ -63,6 +66,8 @@ export default function PurchaseSupplierQuotesPage({
   const [detail, setDetail] = useState<{ id: string; quote: QuoteDetail | null; error: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [reload, setReload] = useState(0);
+  // Yeni: talepsiz teklif formu listenin yerine açılır.
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [screenFields, setScreenFields] = useState<ScreenField[]>(
     defaultSupplierQuoteFields,
@@ -112,19 +117,16 @@ export default function PurchaseSupplierQuotesPage({
     };
   }, [token, page, filter, status, reload]);
 
-  // The panel's lines come from the request's supplier quotes (the endpoint this screen used before), only while the
+  // The panel's lines come from the quote detail endpoint (requestless quotes have no request to read), only while the
   // panel shows the row.
   const panelVisible = panel.open && !!current;
   useEffect(() => {
     // Runs again on Yenile (`reload`), so the panel's lines follow the refreshed list.
     if (!panelVisible || !current) return;
     let cancelled = false;
-    request<QuoteDetail[]>(
-      `/api/purchasing/requests/${current.purchaseRequestId}/supplier-quotes`,
-      token,
-    )
-      .then((quotes) => {
-        if (!cancelled) setDetail({ id: current.id, quote: quotes.find((item) => item.id === current.id) ?? null, error: "" });
+    request<QuoteDetail>(`/api/purchasing/supplier-quotes/${current.id}`, token)
+      .then((quote) => {
+        if (!cancelled) setDetail({ id: current.id, quote, error: "" });
       })
       .catch((error) => {
         if (!cancelled) setDetail({ id: current.id, quote: null, error: (error as Error).message });
@@ -134,16 +136,21 @@ export default function PurchaseSupplierQuotesPage({
     };
   }, [token, panelVisible, current?.id, reload]);
 
-  /** Aç: the quote is read-only here; its request opens in Satınalma talepleri. */
+  /** Aç: the quote is read-only here; its request opens in Satınalma talepleri. Requestless quotes have nothing to open. */
   function openRequest(quote: Quote) {
+    if (!quote.purchaseRequestId) return;
     requestPurchaseRequestOpen(quote.purchaseRequestId);
     onOpenRequests();
   }
 
   const target = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
   const commands: PageCommands = {
+    new: {
+      disabledReason: role === "TenantAdmin" ? undefined : "Teklifi yalnızca firma yöneticisi kaydedebilir",
+      run: () => setCreating(true),
+    },
     open: {
-      disabledReason: target ? undefined : "Önce bir kayıt seçin",
+      disabledReason: !target ? "Önce bir kayıt seçin" : target.purchaseRequestId ? undefined : "Bu teklif bir talebe bağlı değil",
       run: () => {
         const id = focusedRecordId() ?? target?.id;
         const quote = items.find((item) => item.id === id);
@@ -170,6 +177,23 @@ export default function PurchaseSupplierQuotesPage({
       <PurchaseQuoteListEmpty />
     )
   ) : null;
+
+  if (creating)
+    return (
+      <SupplierQuoteCreateForm
+        token={token}
+        onCancel={() => setCreating(false)}
+        onCreated={(quote) => {
+          setCreating(false);
+          setPage(1);
+          setStatus("");
+          setFilter("");
+          setSearch("");
+          setSelectedId(quote.id);
+          setReload((value) => value + 1);
+        }}
+      />
+    );
 
   return (
     <div className="pq-lv2 sales-lv2-stack list-v2">

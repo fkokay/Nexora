@@ -1540,8 +1540,9 @@ public sealed class PurchaseSupplierQuote
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
-    public Guid PurchaseRequestId { get; set; }
-    public PurchaseRequest PurchaseRequest { get; set; } = null!;
+    /// <summary>Talepten girilen tekliflerde dolu; talep olmadan doğrudan girilen tekliflerde boştur.</summary>
+    public Guid? PurchaseRequestId { get; set; }
+    public PurchaseRequest? PurchaseRequest { get; set; }
     public Guid SupplierId { get; set; }
     public CustomerAccount Supplier { get; set; } = null!;
     public string Code { get; set; } = "";
@@ -1622,9 +1623,12 @@ public sealed class PurchaseSupplierQuoteLine
     public Guid TenantId { get; set; }
     public Guid QuoteId { get; set; }
     public PurchaseSupplierQuote Quote { get; set; } = null!;
-    public Guid PurchaseRequestId { get; set; }
+    public Guid? PurchaseRequestId { get; set; }
+    /// <summary>Talepli teklifte talep satır numarası; talepsiz teklifte teklif içindeki 1..n satır numarası.</summary>
     public int RequestLineNumber { get; set; }
-    public PurchaseRequestLine RequestLine { get; set; } = null!;
+    public PurchaseRequestLine? RequestLine { get; set; }
+    public Guid? StockItemId { get; set; }
+    public StockItem? StockItem { get; set; }
     public string StockCode { get; set; } = "";
     public string StockName { get; set; } = "";
     public string UnitCode { get; set; } = "EA";

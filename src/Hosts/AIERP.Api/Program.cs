@@ -289,6 +289,7 @@ app.MapPurchaseInvoiceEntryEndpoints();
 app.MapPurchaseInvoiceDraftEndpoints();
 app.MapPurchaseDeliveryNoteEndpoints();
 app.MapDocumentListEndpoints();
+app.MapPurchaseSupplierQuoteEndpoints();
 app.MapSalesRequestEndpoints();
 app.MapForeignTradeEndpoints();
 app.MapForeignTradeAssistantEndpoints();
@@ -5798,11 +5799,11 @@ purchaseSupplierQuotes.MapGet("/", async (ClaimsPrincipal principal, TenantDbCon
     }
     var query = db.PurchaseSupplierQuotes.AsNoTracking().Where(x => x.TenantId == tenantId);
     if (statusFilter is not null) query = query.Where(x => x.Status == statusFilter.Value);
-    if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Code.Contains(search) || x.PurchaseRequest.Code.Contains(search) || x.Supplier.Name.Contains(search));
+    if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Code.Contains(search) || (x.PurchaseRequest != null && x.PurchaseRequest.Code.Contains(search)) || x.Supplier.Name.Contains(search));
     var total = await query.CountAsync();
     var items = await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Code)
         .Skip((page - 1) * pageSize).Take(pageSize)
-        .Select(x => new PurchaseSupplierQuoteSummary(x.Id, x.PurchaseRequestId, x.PurchaseRequest.Code, x.Code,
+        .Select(x => new PurchaseSupplierQuoteSummary(x.Id, x.PurchaseRequestId, x.PurchaseRequest != null ? x.PurchaseRequest.Code : null, x.Code,
             x.SupplierId, x.Supplier.Name, x.QuoteDate, x.ValidUntil, x.CurrencyCode, x.Status, x.GrandTotal,
             x.Lines.Count, x.CreatedAt)).ToListAsync();
     return Results.Ok(new { items, page, pageSize, totalCount = total });
@@ -5981,7 +5982,7 @@ purchaseRequests.MapPost("/{id:guid}/supplier-quotes", async (Guid id, PurchaseS
     {
         var line = requestLines[i]; var price = quoteLinesByNumber[line.LineNumber]; var amounts = SalesQuoteValidation.Calculate(pricedLines[i]);
         quote.Lines.Add(new PurchaseSupplierQuoteLine { TenantId = tenantId, Quote = quote, PurchaseRequestId = id,
-            RequestLineNumber = line.LineNumber, StockCode = line.StockCode, StockName = line.StockName,
+            RequestLineNumber = line.LineNumber, StockItemId = line.StockItemId, StockCode = line.StockCode, StockName = line.StockName,
             UnitCode = line.UnitCode, Quantity = line.Quantity, UnitPrice = price.UnitPrice, DiscountPercent = price.DiscountPercent,
             VatPercent = price.VatPercent, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount,
             TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
