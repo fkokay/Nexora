@@ -87,15 +87,16 @@ internal static class SystemPageEndpoints
                 if (!rights.View) return TenantCustomPageEndpoints.ViewForbidden();
                 var forms = await TenantCustomPageEndpoints.LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
                 return Results.Ok(new SystemPagePublished(page.Id, page.Code, page.Name, page.Description, page.Revision,
-                    TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), forms, CustomPageRightsView.From(rights),
+                    TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), forms, RuntimeRights(rights, page.DefinitionJson),
                     standard.ScreenKey, "override", page.StandardVersion));
             }
             if (!EnabledStandards(configuration).Contains(standard.ScreenKey)) return NotFound();
-            // A standard has no SQL and no access row of its own: every member may view it, nobody writes through it.
+            // A standard has no SQL and no access row of its own: every member may view it, and so (RuntimeRights) write
+            // through its ERP operations, which the ERP endpoints authorize.
             var isMember = await platformDb.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.UserId == userId, ct);
             if (!isMember) return TenantCustomPageEndpoints.ViewForbidden();
             return Results.Ok(new SystemPagePublished(SystemPageStandards.SyntheticId(standard.ScreenKey), code, standard.Title, standard.Description,
-                standard.Version, standard.DefinitionJson, [], new CustomPageRightsView(true, false, false, false),
+                standard.Version, standard.DefinitionJson, [], RuntimeRights(new CustomPageRights(true, false, false, false), standard.DefinitionJson),
                 standard.ScreenKey, "standard", standard.Version));
         });
 
@@ -287,6 +288,17 @@ internal static class SystemPageEndpoints
     }
 
     private static IResult NotFound() => Results.NotFound(new { error = NotFoundText });
+
+    /// <summary>
+    /// Runtime page rights of a system page. Without SQL queries the page-level write rights equal the view right: they are
+    /// UX gates only, and every ERP operation is authorized by its own endpoint with the user's token (Proje 1 decision 3).
+    /// A definition with any SQL query (or a malformed query entry, see <see cref="TenantCustomPageQueries.HasSqlQueries"/>)
+    /// keeps the access rules unchanged, because page write rights gate the SQL writes run by the server.
+    /// </summary>
+    internal static CustomPageRightsView RuntimeRights(CustomPageRights rights, string definitionJson) =>
+        TenantCustomPageQueries.HasSqlQueries(definitionJson)
+            ? CustomPageRightsView.From(rights)
+            : new CustomPageRightsView(rights.View, rights.View, rights.View, rights.View);
 
     private static SystemPageDraft DraftView(TenantCustomPage x, IReadOnlyList<string> notes) => new(x.Id, x.Code, x.Name, x.Description, x.Revision,
         x.IsPublished, x.IsArchived, x.DefinitionJson, x.UpdatedAt, x.ScreenKey, x.StandardVersion, notes);

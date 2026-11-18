@@ -23,6 +23,7 @@ public sealed class SystemPageEndpointsIntegrationTests
 {
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Mehmet = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static readonly Guid Outsider = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private const string ScreenKey = "inventory-warehouses";
@@ -128,11 +129,8 @@ public sealed class SystemPageEndpointsIntegrationTests
             Assert.Equal(1, page.GetProperty("standardVersion").GetInt32());
             Assert.Empty(page.GetProperty("forms").EnumerateArray());
             Assert.True(JsonNode.DeepEquals(JsonNode.Parse(StandardV1Json()), JsonNode.Parse(page.GetProperty("definitionJson").GetString()!)));
-            var rights = page.GetProperty("rights");
-            Assert.True(rights.GetProperty("view").GetBoolean());
-            Assert.False(rights.GetProperty("insert").GetBoolean());
-            Assert.False(rights.GetProperty("update").GetBoolean());
-            Assert.False(rights.GetProperty("delete").GetBoolean());
+            // A standard has no SQL: page write rights equal view rights, the ERP endpoints authorize each operation.
+            AssertRights(page, true, true, true, true);
         }
 
         SetIdentity(client, Outsider, "TenantUser");
@@ -156,11 +154,140 @@ public sealed class SystemPageEndpointsIntegrationTests
         Assert.Equal(1, page.GetProperty("standardVersion").GetInt32());
         Assert.Equal(ScreenKey, page.GetProperty("screenKey").GetString());
         Assert.DoesNotContain("\"sql\"", page.GetProperty("definitionJson").GetString());
-        Assert.True(page.GetProperty("rights").GetProperty("view").GetBoolean());
+        // A page with SQL keeps the access row's write flags (AllUsers without write rights).
+        AssertRights(page, true, false, false, false);
 
         // Without the access row the SQL page is admin-only.
         await RemoveAccessAsync(app);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Standard_mode_gives_members_write_rights()
+    {
+        // A test-injected envelope: the v2 warehouse standard, still without SQL.
+        await using var app = await StartApplicationAsync(enabled: [ScreenKey], standards: new VersionTwoStandardSet());
+        using var client = app.GetTestClient();
+
+        foreach (var (user, role) in new[] { (Mehmet, "TenantUser"), (Ayse, "TenantUser"), (Admin, "TenantAdmin") })
+        {
+            SetIdentity(client, user, role);
+            var page = await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published");
+            Assert.Equal("standard", page.GetProperty("source").GetString());
+            Assert.Equal(2, page.GetProperty("standardVersion").GetInt32());
+            AssertRights(page, true, true, true, true);
+        }
+    }
+
+    [Fact]
+    public async Task Non_member_is_forbidden_in_standard_mode()
+    {
+        await using var app = await StartApplicationAsync(enabled: [ScreenKey]);
+        using var client = app.GetTestClient();
+
+        foreach (var role in new[] { "TenantUser", "TenantAdmin" })
+        {
+            SetIdentity(client, Outsider, role);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+        }
+        // Not in override mode either, even with an all-users access row.
+        await SeedRowAsync(app, StandardV1Json(), published: true, standardVersion: 1);
+        await SeedAccessAsync(app, CustomPageAccessModes.AllUsers);
+        SetIdentity(client, Outsider, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Operation_only_override_gives_tenant_user_write_rights()
+    {
+        await using var app = await StartApplicationAsync();
+        Assert.False(TenantCustomPageQueries.HasSqlQueries(StandardV1Json()));
+        Assert.True(TenantCustomPageQueries.HasQueries(StandardV1Json()));
+        await SeedRowAsync(app, StandardV1Json(), published: true, standardVersion: 1);
+        using var client = app.GetTestClient();
+
+        foreach (var (user, role) in new[] { (Mehmet, "TenantUser"), (Admin, "TenantAdmin") })
+        {
+            SetIdentity(client, user, role);
+            var page = await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published");
+            Assert.Equal("override", page.GetProperty("source").GetString());
+            AssertRights(page, true, true, true, true);
+        }
+
+        // An access row that grants view without write flags: writes still follow view, because Studio cannot configure
+        // write flags for an operation-only page and the ERP endpoints authorize every operation.
+        await SeedAccessAsync(app, CustomPageAccessModes.SelectedUsers, (Mehmet, true, false, false, false));
+        SetIdentity(client, Mehmet, "TenantUser");
+        AssertRights(await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published"), true, true, true, true);
+    }
+
+    [Fact]
+    public async Task Override_with_sql_keeps_access_rules()
+    {
+        await using var app = await StartApplicationAsync(enabled: [ScreenKey]);
+        await SeedRowAsync(app, JsonSerializer.Serialize(CustomPageQueryRulesIntegrationTests.QueryDefinition()), published: true, standardVersion: 1);
+        using var client = app.GetTestClient();
+
+        // No access row: the SQL page is admin-only, even with the standard enabled.
+        SetIdentity(client, Mehmet, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+        SetIdentity(client, Admin, "TenantAdmin");
+        AssertRights(await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published"), true, true, true, true);
+
+        // A selected-users row keeps exactly its write flags.
+        await SeedAccessAsync(app, CustomPageAccessModes.SelectedUsers, (Mehmet, true, true, false, false));
+        SetIdentity(client, Mehmet, "TenantUser");
+        AssertRights(await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published"), true, true, false, false);
+    }
+
+    [Fact]
+    public async Task Override_with_access_row_without_view_is_forbidden()
+    {
+        await using var app = await StartApplicationAsync(enabled: [ScreenKey]);
+        await SeedRowAsync(app, StandardV1Json(), published: true, standardVersion: 1);
+        using var client = app.GetTestClient();
+
+        // The row lists Ayşe only, so Mehmet is excluded.
+        await SeedAccessAsync(app, CustomPageAccessModes.SelectedUsers, (Ayse, true, false, false, false));
+        SetIdentity(client, Mehmet, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+        SetIdentity(client, Ayse, "TenantUser");
+        AssertRights(await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published"), true, true, true, true);
+
+        // A listed user without view gets nothing, whatever the write flags say.
+        await RemoveAccessAsync(app);
+        await SeedAccessAsync(app, CustomPageAccessModes.SelectedUsers, (Mehmet, false, true, true, true));
+        SetIdentity(client, Mehmet, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+
+        await RemoveAccessAsync(app);
+        await SeedAccessAsync(app, CustomPageAccessModes.AdminsOnly);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/system-pages/{ScreenKey}/published")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Custom_page_with_operations_keeps_access_rules()
+    {
+        // The operation-only rule is for system pages: a custom page with the same definition keeps the custom-page rules.
+        await using var app = await StartApplicationAsync();
+        const string code = "depo-ozel";
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantCustomPages.Add(new TenantCustomPage
+            {
+                TenantId = TenantA, Code = code, Name = "Depo özel", Description = "", DefinitionJson = StandardV1Json(), Revision = 1,
+                IsPublished = true, CreatedByUserId = Admin, UpdatedByUserId = Admin, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+        using var client = app.GetTestClient();
+        SetIdentity(client, Mehmet, "TenantUser");
+
+        // Without an access row a custom page with queries is admin-only; with one, its write flags apply.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/custom-pages/{code}/published")).StatusCode);
+        await SeedAccessAsync(app, CustomPageAccessModes.AllUsers, pageCode: code);
+        AssertRights(await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{code}/published"), true, false, false, false);
     }
 
     [Fact]
@@ -539,12 +666,26 @@ public sealed class SystemPageEndpointsIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task SeedAccessAsync(WebApplication app, string mode)
+    private static Task SeedAccessAsync(WebApplication app, string mode, params (Guid User, bool View, bool Insert, bool Update, bool Delete)[] users) =>
+        SeedAccessAsync(app, mode, SystemCode, users);
+
+    private static async Task SeedAccessAsync(WebApplication app, string mode, string pageCode,
+        params (Guid User, bool View, bool Insert, bool Update, bool Delete)[] users)
     {
         await using var scope = app.Services.CreateAsyncScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
-        platform.TenantCustomPageAccesses.Add(new TenantCustomPageAccess { TenantId = TenantA, PageCode = SystemCode, Mode = mode, Revision = 1, UpdatedByUserId = Admin });
+        var access = new TenantCustomPageAccess { TenantId = TenantA, PageCode = pageCode, Mode = mode, Revision = 1, UpdatedByUserId = Admin };
+        foreach (var (user, view, insert, update, delete) in users)
+            access.Users.Add(new TenantCustomPageAccessUser { AccessId = access.Id, UserId = user, CanView = view, CanInsert = insert, CanUpdate = update, CanDelete = delete });
+        platform.TenantCustomPageAccesses.Add(access);
         await platform.SaveChangesAsync();
+    }
+
+    private static void AssertRights(JsonElement page, bool view, bool insert, bool update, bool delete)
+    {
+        var rights = page.GetProperty("rights");
+        Assert.Equal((view, insert, update, delete), (rights.GetProperty("view").GetBoolean(), rights.GetProperty("insert").GetBoolean(),
+            rights.GetProperty("update").GetBoolean(), rights.GetProperty("delete").GetBoolean()));
     }
 
     private static async Task RemoveAccessAsync(WebApplication app)

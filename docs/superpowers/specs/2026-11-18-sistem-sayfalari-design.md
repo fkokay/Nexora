@@ -150,7 +150,8 @@ Bir ekranın nasıl çizileceğine şu kural karar verir:
 - Firma tasarımı yokken standart tanım şöyle sunulur:
   - Kimliği, ekran anahtarından türetilmiş sabit bir GUID'dir; revizyon, standart sürümdür. `PageBody` bileşeninin
     `id:revision` anahtarı bu yüzden kararlıdır.
-  - Hakları yalnız görmedir.
+  - Her üye görür. SQL sorgusu olmadığı için sayfa yazma hakları görme hakkına eşittir; yetkiyi ERP uç noktaları
+    verir (bölüm 7). Proje 3'teki "Hakları yalnız görmedir" kararı Proje 4'te bu kuralla değiştirildi.
   - SQL içermediği için sunucuda çalıştırılacak bir sorgusu yoktur; ERP işlemleri doğrudan kendi uç noktalarına gider.
 
 **Geçiş dönemi.**
@@ -231,7 +232,24 @@ hiç satır bulunmamasıdır (arşivlenmiş satırlar da sayılır).
     üye görür.
   - ERP işlemlerinin yetkisini gerçek uç noktalar verir (ana belge, Proje 1 kararı 3). Böylece ERP işlemi içeren bir
     firma tasarımı sıradan kullanıcılar için kaybolmaz.
-  - Yayımlarken erişim satırı yalnız SQL sorgusu varsa istenir. Erişim satırı varsa her zamanki gibi o uygulanır.
+  - Yayımlarken erişim satırı yalnız SQL sorgusu varsa istenir. Erişim satırı varsa görme hakkını her zamanki gibi o
+    belirler.
+- **Çalışma zamanında yazma hakkı (Proje 4).**
+  - SQL sorgusu olmayan sistem sayfasında sayfa yazma hakları görme hakkına eşittir; yetkiyi ERP uç noktaları verir.
+  - Kural, `GET /api/system-pages/{screenKey}/published` yanıtındaki `rights` alanını tek bir yardımcıyla
+    (`SystemPageEndpoints.RuntimeRights`) hesaplar. Bu, hem firma tasarımı hem standart kipinde geçerlidir. Standart
+    hiçbir zaman SQL içermediği için üyeler tam sayfa hakkı alır. Üye olmayan her iki kipte 403 alır.
+  - Sayfa yazma hakları burada yalnız arayüz kapılarıdır. Her istek kullanıcının kendi belirteciyle gerçek uç noktaya
+    gider; izin kataloğu, Allow/Deny kuralları, rol denetimleri ve satır görünürlüğü olduğu gibi uygulanır. Yeni
+    ayrıcalık eklenmez.
+  - Erişim satırının yazma bayrakları SQL sorgusu olmayan sistem sayfasında yok sayılır. Studio erişim panelini zaten
+    yalnız SQL sorgulu sistem tanımlarında gösterdiği için bu bayraklar böyle bir sayfa için ayarlanamaz. Görme hakkı
+    vermeyen erişim satırı (seçili kullanıcılarda olmamak, yalnız yöneticiler) yine 403 verir.
+  - SQL sorgusu olan sistem sayfası, özel sayfalar, `/api/custom-pages/*` hakları, toplu hak sorgusu, SQL sorgu
+    çalıştırma yolu ve tasarım (yazarlık) kuralları değişmez.
+  - Bu, Proje 3'teki "standardın hakları yalnız görmedir" kararını değiştirir; Proje 3 planı kararı açıkça Proje 4'e
+    bırakmıştı. Gerekçe ana belgedeki Proje 1 kararı 3'tür: ERP işlemlerinde yetkiyi ERP uç noktaları verir, sayfa
+    düzeyindeki yazma hakları yalnız SQL yazımlarını kapılamak içindir.
 - **Yeni rotalar** `PlatformPermissionCatalog` içinde eşlenir:
   - `GET /api/system-pages/runtime` ve `GET /api/system-pages/{screenKey}/published`: menü gezintisiyle aynı
     `erp.custom-menus` okuma izni;

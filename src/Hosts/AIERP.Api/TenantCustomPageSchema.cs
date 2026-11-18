@@ -40,10 +40,14 @@ internal static class TenantCustomPageSchema
       "saveSequence", "stopOnError", "sequenceWhen", "rowActions", "emptyText", "limit", "promptLabel", "promptRequired", "dialogId",
       "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
       "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit",
-      "recordKey", "trackChanges" };
+      "recordKey", "trackChanges",
+      // Proje 4: the actionBar's record dialog (Yeni / Aç).
+      "formDialog" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog" };
+    private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
+    private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
     private const int MaxToneMapItems = 20;
@@ -658,7 +662,10 @@ internal static class TenantCustomPageSchema
             // Faz B: a dialog has its own save query.
             foreach (var key in ActionBarProps)
                 if (props.TryGetProperty(key, out _) && !(key == "saveQuery" && typeText == "dialog"))
-                { error = $"'{key}' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir."; return false; }
+                {
+                    error = key == "formDialog" ? FormDialogTypeText : $"'{key}' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir.";
+                    return false;
+                }
             return typeText != "dialog" || ValidateSaveQueries(props, context, out error);
         }
         foreach (var (key, expected) in new[] { ("newInputs", "input"), ("moreButtons", "button") })
@@ -684,6 +691,13 @@ internal static class TenantCustomPageSchema
             if (export.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(export.GetString()))
             { error = "'exportTable' sorguya bağlı bir veri listesi kimliği olmalıdır."; return false; }
             context.PendingActionRefs.Add(("exportTable", export.GetString()!, "queryTable"));
+        }
+        // Proje 4: the record dialog that Yeni and Aç open. It does not own the dialog (buttons may open it too).
+        if (props.TryGetProperty("formDialog", out var formDialog))
+        {
+            if (formDialog.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(formDialog.GetString()))
+            { error = FormDialogTargetText + "?"; return false; }
+            context.PendingActionRefs.Add(("formDialog", formDialog.GetString()!, "dialog"));
         }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
@@ -712,6 +726,12 @@ internal static class TenantCustomPageSchema
         error = null;
         foreach (var (property, id, expected) in context.PendingActionRefs)
         {
+            if (expected == "dialog")
+            {
+                if (!context.ComponentTypesById.TryGetValue(id, out var dialogType) || dialogType != "dialog")
+                { error = FormDialogTargetText + id; return false; }
+                continue;
+            }
             if (!context.ComponentTypesById.TryGetValue(id, out var type))
             { error = $"İşlem Çubuğu '{property}' özelliğindeki bileşen sayfada yok: {id}."; return false; }
             if (expected == "input" && type != "input")
