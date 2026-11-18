@@ -52,10 +52,14 @@ internal static class TenantCustomPageSchema
       // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
       "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
-      "href", "pageKey", "pageCode", "params", "queryText" };
+      "href", "pageKey", "pageCode", "params", "queryText",
+      // actionBar Yeni / Aç / after-save run a page button (e.g. open the record screen) instead of a record dialog.
+      "newButton", "openButton", "afterSaveButton",
+      // A heading that replaces the page header title while it is visible (e.g. "Stok kartı {{kart.rows[0].code}}").
+      "pageTitle" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount" };
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton" };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
@@ -723,6 +727,16 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("titleCount", out var titleCount) && !(titleCount.ValueKind == JsonValueKind.String && titleCount.GetString()!.Length is >= 1 and <= MaxTitleCountLength))
         { error = $"'titleCount' 1–{MaxTitleCountLength} karakterlik bir metin (ör. bir sorgunun toplam kayıt sayısı bağlaması) olmalıdır."; return false; }
+        // Yeni / Aç / kayıttan sonra: sayfadaki bir düğmenin eylemini çalıştırır (ör. kayıt ekranını aç). Aç ve Yeni, kayıt penceresiyle birlikte kullanılamaz.
+        foreach (var key in new[] { "newButton", "openButton", "afterSaveButton" })
+        {
+            if (!props.TryGetProperty(key, out var button)) continue;
+            if (button.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(button.GetString()))
+            { error = $"'{key}' bir düğme bileşeni kimliği olmalıdır."; return false; }
+            if (key != "afterSaveButton" && props.TryGetProperty("formDialog", out _))
+            { error = $"'{key}' ve 'formDialog' birlikte kullanılamaz."; return false; }
+            context.PendingActionRefs.Add((key, button.GetString()!, "actionButton"));
+        }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
         return ValidateSaveQueries(props, context, out error);
@@ -760,8 +774,11 @@ internal static class TenantCustomPageSchema
             { error = $"İşlem Çubuğu '{property}' özelliğindeki bileşen sayfada yok: {id}."; return false; }
             if (expected == "input" && type != "input")
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir giriş bileşeni değil."; return false; }
-            if (expected == "button" && type != "button")
+            if (expected is "button" or "actionButton" && type != "button")
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir düğme bileşeni değil."; return false; }
+            if (expected == "actionButton" && !(context.ButtonActionTypes.TryGetValue(id, out var buttonAction)
+                && buttonAction is "query" or "sequence" or "openDialog" or "workflow" or "link" or "erpPage" or "page"))
+            { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' düğmesinin bir eylemi olmalıdır."; return false; }
             if (expected == "queryTable" && !context.QueryTables.Contains(id))
             { error = $"İşlem Çubuğu 'exportTable' özelliği sorguya bağlı bir veri listesi olmalıdır: {id}."; return false; }
         }
@@ -1283,7 +1300,7 @@ internal static class TenantCustomPageSchema
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
         ["closeInput"] = ["card"],
-        ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"]
+        ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1341,6 +1358,8 @@ internal static class TenantCustomPageSchema
             "image" => ValidateImageProps(props, out error),
             "card" when props.TryGetProperty("closeInput", out var closeInput) && !(closeInput.ValueKind == JsonValueKind.String && closeInput.GetString()!.Length is >= 1 and <= 64) =>
                 Fail("'closeInput' paneli kapatan onay kutusu girişinin kimliği olmalıdır.", out error),
+            "heading" when props.TryGetProperty("pageTitle", out var pageTitle) && !IsBool(pageTitle) =>
+                Fail("'pageTitle' true veya false olmalıdır.", out error),
             "formCard" when props.TryGetProperty("trackChanges", out var track) && !IsBool(track) =>
                 Fail("'trackChanges' true veya false olmalıdır.", out error),
             "formCard" when props.TryGetProperty("layout", out var layout) && !(layout.ValueKind == JsonValueKind.String && layout.GetString() is "grid" or "inline") =>

@@ -141,7 +141,9 @@ const managedKeys = new Set(["text", "title", "label", "description", "value", "
   "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
   "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit", "recordKey", "trackChanges",
   // Proje 4: form kartının tek satır (süzgeç) dizilimi, koşullu genişlik ve değer etiketleri.
-  "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits"]);
+  "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
+  // İşlem Çubuğu Yeni / Aç / kayıttan sonra düğmeleri ve sayfa başlığı olan başlık.
+  "newButton", "openButton", "afterSaveButton", "pageTitle"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -491,6 +493,11 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       single("focusInput", isInput);
       // Kayıt penceresi: pencere silinince bağ da kalkar.
       single("formDialog", (id) => dialogIds.has(id));
+      // Yeni / Aç / kayıttan sonra çalışan düğmeler: düğme silinince bağ kalkar; Yeni ve Aç kayıt penceresiyle birlikte kullanılamaz.
+      const isButton = (id: string) => byId.get(id)?.type === "button";
+      single("newButton", (id) => isButton(id) && !("formDialog" in next));
+      single("openButton", (id) => isButton(id) && !("formDialog" in next));
+      single("afterSaveButton", isButton);
       single("saveQuery", (id) => writeKinds.get(id) === "insert" || writeKinds.get(id) === "update");
       single("deleteQuery", (id) => writeKinds.get(id) === "delete");
       if (cleanSequence(next, writeKinds)) touched = true;
@@ -1957,7 +1964,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
-        new: idList(props.newInputs).length > 0, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
+        new: idList(props.newInputs).length > 0 || (typeof props.newButton === "string" && props.newButton !== "") || (typeof props.formDialog === "string" && props.formDialog !== ""),
+        open: (typeof props.openButton === "string" && props.openButton !== "") || (typeof props.formDialog === "string" && props.formDialog !== ""), save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
@@ -2814,6 +2822,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </select>
                 {pageDialogs.length === 0 && <small>Önce sayfaya bir Pencere bileşeni ekleyin.</small>}
               </label>
+              {([["newButton", "Yeni düğmesi", "F2", "Yeni, bu düğmenin eylemini çalıştırır (ör. kayıt ekranını açan Sayfa aç düğmesi)."],
+                ["openButton", "Aç düğmesi", "Enter", "Aç (Enter, satıra çift tıklama) bu düğmeyi çalıştırır; düğme gizliyken Aç seçim bekler."],
+                ["afterSaveButton", "Kayıttan sonra", "", "Kayıt tam başarılı olunca kayıt kartları boşalır ve bu düğme çalışır (ör. listeye dön)."]] as const).map(([key, label, shortcut, hint]) =>
+                <label key={key} className="pd-field">{label}{shortcut && <span className="pd-action-key" aria-hidden="true">{shortcut}</span>}<small>{hint}</small>
+                  <select value={typeof selected.props[key] === "string" ? selected.props[key] as string : ""}
+                    disabled={!canEdit || (key !== "afterSaveButton" && typeof selected.props.formDialog === "string" && selected.props.formDialog !== "")}
+                    onChange={(event) => patchComponent(selected.id, { [key]: event.target.value || undefined })}>
+                    <option value="">Yok</option>
+                    {pageButtons.map((button) => <option key={button.id} value={button.id}>{button.label}{button.name ? ` (${button.name})` : ""}</option>)}
+                  </select>
+                </label>)}
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {
@@ -2878,6 +2897,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <QueryFieldActions kinds={READ_KINDS} target="İlgili liste" value={typeof selected.props.relatedQuery === "string" ? selected.props.relatedQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ relatedQuery: query.id })}/>
               </label>
               {typeof selected.props.relatedQuery === "string" && <label className="pd-field">İlgili liste başlığı<input value={String(selected.props.relatedTitle ?? "")} maxLength={60} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { relatedTitle: sanitizeSafeValue(event.target.value, false) || undefined })} onBlur={(event) => { const trimmed = event.target.value.trim(); if (trimmed !== event.target.value) patchComponent(selected.id, { relatedTitle: trimmed || undefined }); }}/></label>}
+            </>)}
+            {selected.type === "heading" && section("layout", "Sayfa başlığı", <>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.pageTitle === true} disabled={!canEdit}
+                onChange={(event) => patchComponent(selected.id, { pageTitle: event.target.checked ? true : undefined })}/> Sayfa başlığı olarak göster</label>
+              <small>Görünürken sayfa üst bilgisindeki başlığın yerine geçer (ör. "Stok kartı {"{{kart.rows[0].code}}"}"); gövdede ayrıca çizilmez.</small>
             </>)}
             {selected.type === "tabs" && section("tabs", "Sekmeler", <>
               <TabsFields tabs={parseTabs(selected.props.tabs)} defaultTab={Number(selected.props.defaultTab ?? 0)}

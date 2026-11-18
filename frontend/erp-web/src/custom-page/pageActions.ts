@@ -13,6 +13,8 @@ const NEEDS_SELECTION = "Önce bir kayıt seçin";
 const TABLE_LOADING = "Liste henüz yüklenmedi";
 const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
+const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
 /** Düzleştirilmiş bileşen dizisindeki ilk `actionBar`. */
 export function actionBarOf(components: Component[]): { id: string; props: Record<string, unknown> } | null {
   const bar = components.find((component) => component.type === "actionBar");
@@ -25,8 +27,17 @@ export function movedButtonIds(components: Component[], hasAction: (button: Comp
   if (!bar) return new Set();
   // Kullanılabilir eylemi olmayan düğme (sorgu yok / iş akışı boş) menüye de girmez; sayfada kalır, kaybolmaz.
   const buttons = new Map(components.filter((component) => component.type === "button").map((component) => [component.id, component]));
-  return new Set(idList(bar.props.moreButtons, 10).filter((id) => { const button = buttons.get(id); return !button || hasAction(button); }));
+  const moved = idList(bar.props.moreButtons, 10).filter((id) => { const button = buttons.get(id); return !button || hasAction(button); });
+  // Yeni / Aç / kayıttan sonra çalışan düğmeler komutun kendisidir: sayfada ayrıca çizilmezler.
+  for (const key of BAR_BUTTON_KEYS) {
+    const id = str(bar.props[key]);
+    if (id && buttons.has(id)) moved.push(id);
+  }
+  return new Set(moved);
 }
+
+/** İşlem Çubuğu'nun düğme çalıştıran özellikleri: Yeni, Aç ve başarılı kayıttan sonra. */
+export const BAR_BUTTON_KEYS = ["newButton", "openButton", "afterSaveButton"] as const;
 
 export type PageActionDeps = {
   rights: Record<string, boolean | undefined>;
@@ -62,7 +73,6 @@ export type PageActionDeps = {
 };
 
 const unbound = { disabledReason: UNBOUND };
-const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
 /** `props` `actionBar` özellikleridir; her standart komut bağlıysa etkin, değilse nedenli soluktur. */
 export function buildPageCommands(props: Record<string, unknown>, deps: PageActionDeps): PageCommands {
@@ -86,6 +96,18 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   // Tek sorgulu yazma, sayfa hakkına ek olarak bağlı ERP işleminin katalog iznini de ister (dizi adımları çalışırken denetlenir).
   const gatedQuery = (queryId: string, right: string, run: () => void) => deps.queryAllowed(queryId) ? gated(right, run) : { disabledReason: NO_RIGHT };
   const formDialog = deps.formDialog;
+  // `newButton` / `openButton`: komut, düğmenin eylemini çalıştırır (ör. kayıt ekranını açan "Sayfa aç" düğmesi). Düğme gizliyse
+  // (koşulu yanlış) Yeni bağlanmamış, Aç seçim bekliyor sayılır; pasifse nedeni gösterilir.
+  const buttonCommand = (key: "newButton" | "openButton") => {
+    const id = str(props[key]);
+    if (!id || !deps.buttonLabel(id)) return null;
+    const gate = deps.buttonGate?.(id);
+    if (gate?.hidden) return key === "openButton" ? { disabledReason: NEEDS_SELECTION } : unbound;
+    if (gate?.disabled) return { disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE };
+    return deps.busy ? { disabledReason: BUSY } : { run: () => deps.run.button(id) };
+  };
+  const newButton = formDialog ? null : buttonCommand("newButton");
+  const openButton = formDialog ? null : buttonCommand("openButton");
 
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
@@ -98,10 +120,11 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
 
   return {
     new: formDialog ? { run: () => formDialog.startNew(newIds[0]), primary: !saveBound }
+      : newButton ? { ...newButton, primary: !saveBound }
       : newIds.length > 0
       ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
       : unbound,
-    open: !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
+    open: openButton ? openButton : !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
       : formDialog.recordLoading ? { disabledReason: RECORD_LOADING }
       : formDialog.recordFailed ? { disabledReason: RECORD_UNREADABLE } : { run: () => formDialog.open() },
     save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
