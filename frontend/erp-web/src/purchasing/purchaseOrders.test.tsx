@@ -224,6 +224,30 @@ describe('Satınalma Siparişleri list', () => {
     expect(surface.querySelector('.sales-rf-embedded')).toBeTruthy();
   });
 
+  it('the Mal kabul sub-form saves with its own Kaydet; the bar Kaydet and Ctrl+S do not save it', async () => {
+    await openOrderList();
+    const surface = await openOrderDocument('SA-o1');
+    runMenu('Mal kabul ekle');
+    await settle();
+    const form = surface.querySelector<HTMLElement>('.sales-rf-embedded')!;
+    const own = within(form).getByRole('button', { name: 'Kaydet' });
+    expect(within(form).getByRole('button', { name: 'Vazgeç' })).toBeTruthy();
+    expect(own.querySelector('kbd')).toBeNull();
+    // Without a quantity the own Kaydet is disabled with the reason.
+    expect((own as HTMLButtonElement).disabled).toBe(true);
+    expect(own.getAttribute('title')).toBe('Kaydetmek için en az bir kalemde miktar girin.');
+    fireEvent.change(within(form).getByLabelText('AMB-2040 mal kabul miktarı'), { target: { value: '2' } });
+    const posts = () => calls.filter((call) => call.method === 'POST' && call.url === '/api/purchasing/orders/o1/receipts');
+    // The bar's Kaydet does not belong to the sub-form.
+    if (command('save')) expect(enabled('save')).toBe(false);
+    fireEvent.keyDown(within(form).getByLabelText('AMB-2040 mal kabul miktarı'), { key: 's', ctrlKey: true });
+    await settle();
+    expect(posts()).toHaveLength(0);
+    expect(openMenu()).toEqual(['Mal kabul ekle']);
+    fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+  });
+
   it('Faturala still posts to /receipts/{id}/invoice; a cancelled order is the İptal end state without Mal kabul ekle', async () => {
     await openOrderList();
     const surface = await openOrderDocument('SA-o1');

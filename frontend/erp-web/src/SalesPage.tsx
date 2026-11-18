@@ -8080,6 +8080,9 @@ function PurchasingPanel({
                 mode="create"
                 busy={busy}
                 saveLabel="Mal kabul kaydet"
+                // A sub-form of the order document: its own Kaydet saves it, not the action bar's.
+                ownSave
+                saveDisabledReason={receiptHasQuantity ? undefined : "Kaydetmek için en az bir kalemde miktar girin."}
                 onSubmit={(event) => {
                   // The old save button was disabled until a quantity was entered.
                   if (!receiptHasQuantity) {
@@ -10315,6 +10318,8 @@ function SalesOrderModal({
             mode="create"
             busy={busy}
             saveLabel="İrsaliye oluştur"
+            // A sub-form of the document: its own Kaydet saves it, not the action bar's.
+            ownSave
             saveDisabledReason={warehouseId ? undefined : "Kaydetmek için depo seçin."}
             onSubmit={(event) => {
               // The old save button was disabled until a warehouse was chosen.
