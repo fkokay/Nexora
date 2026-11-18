@@ -1587,7 +1587,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
-        new: idList(props.newInputs).length > 0, save: typeof props.saveQuery === "string" && props.saveQuery !== "", remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
+        new: idList(props.newInputs).length > 0, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
@@ -1954,6 +1954,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   if (pagingOn) for (const component of definition.components) {
     if (component.type !== "tabs") continue;
     for (const tab of parseTabs(component.props.tabs)) for (const id of tab.ids) searchOwners[id] ??= `${summaryOf(component)} · ${tab.label}`;
+  }
+  // Penceredeki giriş de arama girişi olamaz (pencere sahipliği önce gelir).
+  if (pagingOn) for (const component of definition.components) {
+    if (component.type !== "dialog") continue;
+    for (const id of idList(component.props.contains, MAX_DIALOG_IDS)) searchOwners[id] ??= `${summaryOf(component)} · pencere`;
   }
   const pageSizeValue = selected && typeof selected.props.pageSize === "number" ? selected.props.pageSize : DEFAULT_PAGE_SIZE;
   const pageSizeProblem = !Number.isInteger(pageSizeValue) || pageSizeValue < MIN_PAGE_SIZE || pageSizeValue > MAX_PAGE_SIZE ? `Sayfa boyutu ${MIN_PAGE_SIZE} ile ${MAX_PAGE_SIZE} arasında bir tam sayı olmalıdır.` : null;
@@ -2394,8 +2399,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <label className="pd-field">Yükseklik<small>40–400 piksel.</small>
                 <input type="number" min={40} max={400} step={1} value={typeof selected.props.height === "number" ? selected.props.height : 160} onChange={(event) => {
                   const raw = Number(event.target.value);
-                  if (event.target.value !== "" && Number.isFinite(raw)) updateComponent(selected.id, "height", Math.max(40, Math.min(400, Math.round(raw))));
-                }}/></label>
+                  if (event.target.value !== "" && Number.isFinite(raw)) updateComponent(selected.id, "height", Math.round(raw));
+                }} onBlur={() => {
+                  const height = typeof selected.props.height === "number" ? selected.props.height : 160;
+                  const clamped = Math.max(40, Math.min(400, Math.round(height) || 160));
+                  if (clamped !== height) updateComponent(selected.id, "height", clamped);
+                }}/>
+                {typeof selected.props.height === "number" && (selected.props.height < 40 || selected.props.height > 400) && <small className="pd-query-warning">Yükseklik 40 ile 400 arasında olmalıdır.</small>}</label>
               <div className="pd-field">Sığdırma<div className="pd-segment" role="group" aria-label="Sığdırma">{([["contain", "Sığdır"], ["cover", "Doldur"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                 aria-pressed={(selected.props.fit === "cover" ? "cover" : "contain") === value} className={(selected.props.fit === "cover" ? "cover" : "contain") === value ? "active" : ""}
                 onClick={() => patchComponent(selected.id, { fit: value === "contain" ? undefined : value })}>{label}</button>)}</div></div>
