@@ -142,6 +142,28 @@ describe('LookupInput', () => {
     expect(document.querySelector('.tenant-page-input-lookup.is-invalid')).toBeNull();
   });
 
+  it('preset value beyond the 50-option cap keeps its row label and row', async () => {
+    const many = Array.from({ length: 60 }, (_, index) => ({ Kod: `K${index}`, Ad: `Depo ${index}`, Sehir: `Şehir ${index}` }));
+    setup([lookupComponent({ defaultValue: 'K55' }), probe], [optionsQuery()]);
+    const answer = api.getMockImplementation()!;
+    api.mockImplementation(async (endpoint: string, ...rest: unknown[]) => endpoint.includes('/queries/')
+      ? { columns, rows: many, rowCount: many.length, truncated: false } : answer(endpoint, ...rest));
+    await waitFor(() => expect(combobox().value).toBe('Depo 55'));
+    expect(heading()).toBe('V:K55|S:|R:Şehir 55');
+    fireEvent.click(combobox());
+    const shown = optionTexts();
+    expect(shown).toHaveLength(50);
+    expect(shown.at(-1)).toBe('Depo 55');
+  });
+
+  it('required lookup bound through seciliSatir blocks the write', async () => {
+    const insert = { id: 'qi', name: 'Ekle', kind: 'insert', runOn: 'manual', parameters: [{ name: 'sehir', binding: '{{depo.seciliSatir.Sehir}}', type: 'text' }] };
+    setup([lookupComponent({ required: true }), { id: 'b', type: 'button', props: { text: 'Kaydet', actionType: 'query', queryId: 'qi' } }], [optionsQuery(), insert]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(document.querySelector('.tenant-page-input-lookup .tenant-page-input-error')?.textContent).toBe('Bu alan zorunludur.'));
+    expect(runs.some((run) => run.id === 'qi')).toBe(false);
+  });
+
   it('shows searching text while options load', async () => {
     setup([lookupComponent()], [optionsQuery()]);
     const answer = api.getMockImplementation()!;

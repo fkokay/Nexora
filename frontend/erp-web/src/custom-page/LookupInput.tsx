@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { displayText } from "./pageBindings";
 import type { QueryState } from "./usePageQueries";
@@ -34,6 +34,11 @@ const matches = (option: LookupOption, needle: string) => needle === ""
  * Sunucu aramasında (sorgu `{{ad.search}}` bağlıyorsa) satırlar olduğu gibi kullanılır; değilse istemcide süzülür. En fazla 50.
  */
 export function lookupOptions(props: Record<string, unknown>, state: QueryState | undefined, search: string, serverSearch: boolean): LookupOption[] {
+  return lookupCandidates(props, state, search, serverSearch).slice(0, MAX_LOOKUP_OPTIONS);
+}
+
+/** `lookupOptions` ile aynı sıra, sınırsız: dışarıdan gelen değerin etiketi ve satırı 50 sınırının ötesinde de bulunur. */
+export function lookupCandidates(props: Record<string, unknown>, state: QueryState | undefined, search: string, serverSearch: boolean): LookupOption[] {
   const needle = search.trim().toLocaleLowerCase("tr-TR");
   const valueColumn = textOf(props.optionValueColumn) || state?.columns[0]?.code || "";
   const labelColumn = textOf(props.optionLabelColumn) || valueColumn;
@@ -45,7 +50,16 @@ export function lookupOptions(props: Record<string, unknown>, state: QueryState 
     row,
   }));
   const fixed = staticLookupOptions(props.staticOptions).filter((option) => matches(option, needle));
-  return [...fixed, ...(serverSearch ? rows : rows.filter((option) => matches(option, needle)))].slice(0, MAX_LOOKUP_OPTIONS);
+  return [...fixed, ...(serverSearch ? rows : rows.filter((option) => matches(option, needle)))];
+}
+
+/** Arama yokken seçili değerin seçeneği 50 sınırının dışında kaldıysa son öğenin yerine konur (etiketi gösterilebilsin). */
+export function lookupOptionsWithValue(props: Record<string, unknown>, state: QueryState | undefined, search: string, serverSearch: boolean, value: string): LookupOption[] {
+  const all = lookupCandidates(props, state, search, serverSearch);
+  const shown = all.slice(0, MAX_LOOKUP_OPTIONS);
+  if (search !== "" || value === "" || shown.some((option) => option.value === value)) return shown;
+  const own = all.find((option) => option.value === value);
+  return own ? [...shown.slice(0, MAX_LOOKUP_OPTIONS - 1), own] : shown;
 }
 
 /**
@@ -97,6 +111,8 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
     }
   };
   const active = listOpen && !loading && highlight >= 0 && options[highlight] ? `${inputId}-option-${highlight}` : undefined;
+  // Ok tuşlarıyla vurgulanan seçenek görünür alana kaydırılır (jsdom'da scrollIntoView yoktur).
+  useEffect(() => { if (active) document.getElementById(active)?.scrollIntoView?.({ block: "nearest" }); }, [active]);
 
   return <div className="tenant-page-lookup">
     {label && <label htmlFor={inputId}><span>{label}</span></label>}
@@ -108,12 +124,13 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
         onKeyDown={onKeyDown} onBlur={close} />
       {allowClear && raw !== "" && !disabled && <button type="button" className="tenant-page-lookup-clear" aria-label="Temizle"
         onMouseDown={(event) => event.preventDefault()} onClick={clear}><X size={14} aria-hidden="true" /></button>}
-      {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || undefined}>
+      {/* Listeye (kaydırma çubuğu dahil) basmak girişi bulanıklaştırıp listeyi kapatmasın. */}
+      {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || undefined} onMouseDown={(event) => event.preventDefault()}>
         {loading ? <li className="tenant-page-lookup-state" role="status">Aranıyor…</li>
           : options.length === 0 ? <li className="tenant-page-lookup-state" role="status">Sonuç bulunamadı.</li>
             : options.map((option, index) => <li key={`${index}-${option.value}`} id={`${inputId}-option-${index}`} role="option"
               aria-selected={option.value === raw} className={index === highlight ? "is-active" : undefined}
-              onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option)}>
+              onClick={() => choose(option)}>
               <span>{option.label}</span>{option.description && <small>{option.description}</small>}
             </li>)}
       </ul>}

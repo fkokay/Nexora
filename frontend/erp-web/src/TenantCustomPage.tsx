@@ -10,7 +10,7 @@ import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList, parseTabs, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
-import { LookupInput, lookupOptions, type LookupOption } from "./custom-page/LookupInput";
+import { LookupInput, lookupCandidates, lookupOptionsWithValue, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
 import { conditionHolds } from "./custom-page/conditions";
@@ -858,7 +858,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
       // Değer dışarıdan geldi (varsayılan, setInput): eşleşen sorgu satırı; sabit veya bilinmeyen seçenekte null.
       const optionsId = input.props?.optionsQuery;
       const optionsState = typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined;
-      seciliSatir = lookupOptions(input.props ?? {}, optionsState, "", false).find((option) => option.value === text)?.row ?? null;
+      seciliSatir = lookupCandidates(input.props ?? {}, optionsState, "", false).find((option) => option.value === text)?.row ?? null;
     }
     return { value, search: search.length >= minChars ? search : null, seciliSatir };
   };
@@ -1034,6 +1034,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     || conditionHolds(input.props?.disabledWhen, scope, false);
   const validateFor = (query: PageQueryDefinition): string | null => {
     const names = boundInputNames(query);
+    // Arama kutusu `{{ad.seciliSatir…}}` ile de bağlanabilir: o zaman da doğrulanır.
+    for (const parameter of query.parameters) {
+      const root = /^([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir(?:\.|$)/.exec(bindingPath(parameter.binding) ?? "")?.[1];
+      if (root && !names.includes(root) && inputs.some((input) => input.name === root && textValue(input.props?.inputType, "text") === "lookup")) names.push(root);
+    }
     const failures: Record<string, string> = {};
     const cleared: string[] = [];
     for (const input of inputs) {
@@ -1077,7 +1082,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     const serverSearch = !!component.name && !!queryById[optionsId]?.parameters.some((parameter) => bindingPath(parameter.binding) === `${component.name}.search`);
     const id = component.id;
     return {
-      options: lookupOptions(props, optionsState, lookupState[id]?.search ?? "", serverSearch),
+      options: lookupOptionsWithValue(props, optionsState, lookupState[id]?.search ?? "", serverSearch, textValue(inputValues[id])),
       loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined,
       onSearch: (text) => setLookupState((previous) => ({ ...previous, [id]: { ...previous[id], search: text } })),
       onChange: (value, row) => {
