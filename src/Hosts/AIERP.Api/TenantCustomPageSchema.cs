@@ -49,6 +49,8 @@ internal static class TenantCustomPageSchema
       "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
       // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
       "titleCount",
+      // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
+      "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
       "href", "pageKey", "pageCode", "params", "queryText" };
     private const int MaxPropsV1 = 30;
@@ -59,8 +61,6 @@ internal static class TenantCustomPageSchema
     private const int MaxMoreButtons = 10;
     private const int MaxTitleCountLength = 200;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
-    private static readonly HashSet<string> AlertIcons = new(StringComparer.Ordinal) { "shield", "shieldAlert", "check", "alert", "info" };
-    private const int MaxAlertBadgeLength = 40;
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
     private const int MaxTotals = 12;
@@ -578,12 +578,8 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
             && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
         { error = "Gösterge 'icon' değeri box, users, receipt, wallet, chart, clock, check veya alert olmalıdır."; return false; }
-        // An alert with an icon is drawn as a status strip (icon tile, title, text and a `value` badge on the right).
-        if (props.TryGetProperty("icon", out var alertIcon) && typeText == "alert"
-            && (alertIcon.ValueKind != JsonValueKind.String || !AlertIcons.Contains(alertIcon.GetString()!)))
-        { error = "Uyarı 'icon' değeri shield, shieldAlert, check, alert veya info olmalıdır."; return false; }
-        if (props.TryGetProperty("value", out var alertBadge) && typeText == "alert" && !IsStaticTextUpTo(alertBadge, MaxAlertBadgeLength))
-        { error = $"Uyarı rozeti ('value') en fazla {MaxAlertBadgeLength} karakterlik bir metin olmalıdır."; return false; }
+        // An alert's `icon`/`value` were never constrained, so saved pages keep validating: the ERP draws a status strip
+        // only for the known strip icons (shield, shieldAlert, check, alert, info) and Studio offers only those.
         if (props.TryGetProperty("trendQuery", out var trendQuery)
             && (typeText != "metric" || trendQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(trendQuery.GetString())))
         {
@@ -999,13 +995,15 @@ internal static class TenantCustomPageSchema
     private static bool ValidateConditionProps(JsonElement props, string typeText, Context context, out string? error)
     {
         error = null;
-        foreach (var key in new[] { "visibleWhen", "disabledWhen", "requiredWhen" })
+        foreach (var key in new[] { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen" })
         {
             if (!props.TryGetProperty(key, out var condition)) continue;
             if (key == "disabledWhen" && typeText is not ("button" or "input" or "editableGrid" or "customFieldsBlock"))
             { error = "'disabledWhen' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
             if (key == "requiredWhen" && typeText != "input")
             { error = "'requiredWhen' yalnız giriş bileşeninde kullanılabilir."; return false; }
+            if (key == "defaultWhen" && !(typeText == "input" && props.TryGetProperty("inputType", out var defaultType) && defaultType.ValueKind == JsonValueKind.String && defaultType.GetString() == "checkbox"))
+            { error = "'defaultWhen' yalnız onay kutusu girişinde kullanılabilir."; return false; }
             if (condition.ValueKind != JsonValueKind.String)
             { error = $"'{key}' koşulu geçersiz: ifade metin olmalı"; return false; }
             if (!PageConditionExpression.TryParse(condition.GetString()!, out var roots, out var reason))
@@ -1284,6 +1282,7 @@ internal static class TenantCustomPageSchema
         ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
+        ["closeInput"] = ["card"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"]
     };
     private const int MaxColumnMaps = 20;
@@ -1340,6 +1339,8 @@ internal static class TenantCustomPageSchema
             "customFieldsBlock" => ValidateCustomFieldsBlock(props, id, name, context, out error),
             "dialog" => ValidateDialogProps(props, id, context, out error),
             "image" => ValidateImageProps(props, out error),
+            "card" when props.TryGetProperty("closeInput", out var closeInput) && !(closeInput.ValueKind == JsonValueKind.String && closeInput.GetString()!.Length is >= 1 and <= 64) =>
+                Fail("'closeInput' paneli kapatan onay kutusu girişinin kimliği olmalıdır.", out error),
             "formCard" when props.TryGetProperty("trackChanges", out var track) && !IsBool(track) =>
                 Fail("'trackChanges' true veya false olmalıdır.", out error),
             "formCard" when props.TryGetProperty("layout", out var layout) && !(layout.ValueKind == JsonValueKind.String && layout.GetString() is "grid" or "inline") =>

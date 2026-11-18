@@ -458,6 +458,8 @@ public sealed class TenantCustomPageSchemaV2Tests
             new { id = "a1", type = "alert", props = new { title = "Koruma açık", variant = "success", icon = "shield", value = "Etkin" } },
             new { id = "t1", type = "dataTable", props = new { query = "q1", density = "dense", columnFormats = new[] { "Tutar=money", "Durum=status" }, toneMap = new[] { "Pasif=danger" }, totals = new[] { "Tutar" } } });
         Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        // Alert icon/value were never constrained: pages saved before the status strip keep validating.
+        Assert.True(TenantCustomPageSchema.Validate(Page(new { id = "a2", type = "alert", props = new { icon = "rocket", value = new string('a', 300) } }), out error), error);
     }
 
     [Fact]
@@ -484,8 +486,6 @@ public sealed class TenantCustomPageSchemaV2Tests
 
         AssertRejected(Page(Metric(new { query = "q1", variant = "mor" })), "görünüm türü");
         AssertRejected(Page(Metric(new { query = "q1", icon = "rocket" })), "icon");
-        AssertRejected(Page(new { id = "a1", type = "alert", props = new { icon = "box" } }), "icon");
-        AssertRejected(Page(new { id = "a1", type = "alert", props = new { icon = "shield", value = new string('a', 41) } }), "rozeti");
         AssertRejected(Page(Metric(new { query = "q1", trendQuery = "yok" })), "trendQuery");
         AssertRejected(Page(Metric(new { query = "q1", filterInput = "yok" })), "giriş");
         AssertRejected(Page(new { id = "h1", type = "heading" }, Metric(new { query = "q1", filterInput = "h1" })), "giriş");

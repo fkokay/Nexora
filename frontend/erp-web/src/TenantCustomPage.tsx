@@ -1,5 +1,5 @@
-import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, PanelRight, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
+import { createElement, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
@@ -36,12 +36,14 @@ import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomF
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
+import { CompactList, compactCell } from "./custom-page/CompactList";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
 import { usePageParams, type PageParams } from "./pageNavigation";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
+import "./custom-page/detail-panel.css";
 
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
@@ -550,7 +552,7 @@ function writeErrorText(configured: string, cause: unknown): string {
  * kalır ve sonucu bildirir. İstemli yazma ve dizi `runtime.runSequence` ile, düz sorgu Faz A yoluyla çalışır.
  */
 function QueryActionButton({ component, props, label, runtime, disabled: conditionDisabled = false, disabledReason: conditionReason = "" }: {
-  component: ComponentDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
+  component: ComponentDefinition; props: Record<string, unknown>; label: ReactNode; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<ActionStatus | null>(null);
@@ -638,6 +640,44 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   const fixed = staticLookupOptions(props.staticOptions).map(({ value, label }) => ({ value, label, row: {} as Record<string, unknown> }));
   return [...fixed, ...(optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }))];
 };
+
+/** Düğme simgeleri (`icon`): ör. detay panelinin "Aç" düğmesi. */
+const BUTTON_ICONS: Record<string, LucideIcon> = { open: Maximize2 };
+
+/**
+ * Kart `variant: "panel"` — eski liste ekranlarının sağ detay paneli (InventoryStockDetailPanel): üst satırda kod
+ * (`description`), başlıktan önceki düğmeler ve `closeInput` verilmişse ✕ (o onay kutusunu kapatır); başlık (`title`);
+ * rozet alt bileşenleri etiket satırında; diğer alt bileşenler (ör. sekmeler) gövdede; gövdeden sonraki düğmeler altlıkta.
+ */
+function DetailPanel({ component, title, code, style, runtime, render, closeInput }: {
+  component: ComponentDefinition; title: string; code: string; style: CSSProperties; runtime?: PageRuntime;
+  render: (child: ComponentDefinition) => ReactNode; closeInput: string;
+}) {
+  const head: ReactNode[] = [], tags: ReactNode[] = [], body: ReactNode[] = [], foot: ReactNode[] = [];
+  for (const child of component.children ?? []) {
+    if (child.type === "badge") tags.push(render(child));
+    else if (child.type === "button") (body.length > 0 ? foot : head).push(render(child));
+    else body.push(render(child));
+  }
+  const canClose = !!runtime && !!closeInput && closeInput in runtime.inputById;
+  return <aside className="tenant-page-detail" style={style} aria-label={title || undefined}>
+    <div className="tenant-page-detail-head">
+      <div className="tenant-page-detail-top">
+        <span className="nx-code">{code}</span>
+        <span className="tenant-page-detail-actions">
+          {head}
+          {canClose && <button type="button" className="tenant-page-detail-close" aria-label="Detay panelini kapat" onClick={() => runtime!.setInput(closeInput, false)}>
+            <X size={15} aria-hidden="true" />
+          </button>}
+        </span>
+      </div>
+      {title && <h3>{title}</h3>}
+      {tags.some(Boolean) && <div className="tenant-page-detail-labels">{tags}</div>}
+    </div>
+    <div className="tenant-page-detail-body">{body}</div>
+    {foot.some(Boolean) && <div className="tenant-page-detail-foot">{foot}</div>}
+  </aside>;
+}
 
 /** Durum şeridi (simgeli uyarı) simgeleri; sunucudaki AlertIcons ile aynı küme. */
 const ALERT_STRIP_ICONS: Record<string, LucideIcon> = { shield: ShieldCheck, shieldAlert: ShieldAlert, check: CheckCircle2, alert: AlertTriangle, info: Info };
@@ -795,7 +835,13 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const row = table?.name ? runtime.selections[table.name] ?? null : null;
       const formats = parseColumnFormats(table?.props?.columnFormats);
       const labels = parseValueLabels(table?.props?.valueLabels);
-      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? labeledCell(labels, field.code, row[field.code], formats[field.code]) : "" }));
+      // Birim, listenin `columnUnits` eşlemesinden gelir (ör. "0,00 TRY", "0 EA"); listede gösterildiği gibi.
+      const units = pairMap(table?.props?.columnUnits);
+      const fields = parseFieldList(props.fields).map((field) => {
+        const value = row ? labeledCell(labels, field.code, row[field.code], formats[field.code]) : "";
+        const unit = row && units[field.code] ? displayText(row[units[field.code]]) : "";
+        return { ...field, text: unit && value !== "—" ? `${value} ${unit}` : value };
+      });
       const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
       const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
       const related = relatedState ? {
@@ -830,7 +876,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
-    case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
+    case "card": case "section": if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
+      runtime={runtime} render={(child) => renderComponent(child, forms, token, pageCode, runtime)} closeInput={textValue(props.closeInput).trim()} />;
+      return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
     case "divider": return <hr key={component.id} style={style} />;
     case "spacer": return <div className="tenant-page-spacer" style={style} aria-hidden="true" key={component.id} />;
     case "actionBar": {
@@ -845,7 +893,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const action = runtime?.buttonAction(component);
       return <div className="tenant-page-action" style={style} key={component.id}>
         {runtime && action && action.type !== "workflow"
-          ? <QueryActionButton component={component} props={props} label={text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+          ? <QueryActionButton component={component} props={props} label={BUTTON_ICONS[textValue(props.icon)] ? <>{createElement(BUTTON_ICONS[textValue(props.icon)], { size: 13, "aria-hidden": true })}<span>{text || title || "Eylem"}</span></> : text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
           : workflow && !disabled
             ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
             : <>
@@ -878,6 +926,12 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       if (runtime && queryName && runtime.states[queryName]) {
         const tableName = component.name;
+        if (props.variant === "bars" || props.variant === "list") {
+          // Dar panel görünümleri (eski detay panelinin "Depo dağılımı" ve "Son hareketler" satırları); seçim ve sayfalama yok.
+          const cell = compactCell(parseValueLabels(props.valueLabels), parseColumnFormats(props.columnFormats), pairMap(props.columnUnits), displayText);
+          return <CompactList key={component.id} variant={props.variant} state={runtime.states[queryName]} columns={columns} title={title}
+            emptyText={textValue(props.emptyText).trim()} limit={tableLimit(props.limit)} cell={cell} toneMap={parseToneMap(props.toneMap)} style={style} />;
+        }
         const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
         const state = runtime.states[queryName];
         const pager = runtime.tablePaging(component);
@@ -1259,6 +1313,21 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   legacyLink?: ReactNode;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
+  // Sayfa içerik alanının genişliği (`{{sayfa.genislik}}`, px); ölçülemezse 0. Eski liste ekranları detay panelini yalnız
+  // geniş alanda kendiliğinden açar: onay kutusunun `defaultWhen` koşulu buna bağlanır.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageWidth, setPageWidth] = useState(0);
+  useLayoutEffect(() => {
+    const element = contentRef.current;
+    if (!element) return;
+    // Gizli (keep-alive) görünüm 0 ölçer: son genişlik korunur, sekme değişimi varsayılanı sıfırlamaz.
+    const measure = () => { const width = Math.round(element.getBoundingClientRect().width); if (width > 0) setPageWidth(width); };
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const touchedRef = useRef(touched);
   touchedRef.current = touched;
   const [selections, setSelections] = useState<Record<string, Record<string, unknown> | null>>({});
@@ -1412,7 +1481,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
-    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams } };
+    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams, genislik: pageWidth, genis: pageWidth >= WIDE_PAGE } };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
     for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
     // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
@@ -1425,7 +1494,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const defaults: Record<string, InputRaw> = {};
     for (const input of inputs) {
       const inputType = textValue(input.props?.inputType, "text");
-      defaults[input.id] = rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
+      defaults[input.id] = inputType === "checkbox" && typeof input.props?.defaultWhen === "string" && input.props.defaultWhen.trim()
+        // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
+        ? conditionHolds(input.props.defaultWhen, base, false)
+        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
       raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
       if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
     }
@@ -2371,7 +2443,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // İşlem çubuklu sayfa eski liste ekranlarının başlık satırını kullanır: başlık (ve isteğe bağlı kayıt sayısı) işlem çubuğunun
   // üstünde, çubuk başlığın hemen altındaki yuvaya (ActionBarSlot) taşınır; açıklama başlığın ipucudur (eski ekranda satır yok).
   const titleCount = bar ? pageTitleCount(bar.props.titleCount, scope) : null;
-  return <div className="tenant-custom-page-content">
+  return <div className="tenant-custom-page-content" ref={contentRef}>
     {bar && <div className="list-v2 tenant-custom-page-title">
       <ListPageHeader title={page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
     </div>}
@@ -2382,6 +2454,12 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }
+
+/**
+ * `{{sayfa.genis}}`: içerik alanı en az bu kadar (px) geniş. Eski Stok Kartları gibi liste ekranları detay panelini yalnız
+ * bu genişlikte kendiliğinden açar (liste varsayılan sütunlarıyla panelin yanında kaydırmasız sığar).
+ */
+export const WIDE_PAGE = 1440;
 
 /** İşlem çubuğunun `titleCount` bağlaması sayıya çözülürse başlığın yanındaki kayıt sayısı; boş/sayı değilse gösterilmez. */
 export function pageTitleCount(raw: unknown, scope: PageScope): number | null {

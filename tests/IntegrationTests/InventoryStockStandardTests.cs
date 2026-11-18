@@ -119,7 +119,9 @@ public sealed class InventoryStockStandardTests
         Assert.Equal(("checkbox", "archive"), ((string)Props("pasifler")["inputType"]!, (string)Props("pasifler")["icon"]!));
         Assert.Equal("panel", (string)Props("detayPaneli")["icon"]!);
         var detail = Props("detayPaneli");
-        Assert.Equal(("checkbox", "Detay paneli", "true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultValue"]!));
+        // Legacy: the panel opens by itself only on a wide list area (DETAIL_ROOM 1440); the toggle overrides it.
+        Assert.Equal(("checkbox", "Detay paneli", "sayfa.genis == true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultWhen"]!));
+        Assert.Null(detail["defaultValue"]);
         // Legacy order: action bar → metrics → toolbar row → list.
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
         Assert.True(order.IndexOf("maliyetsizGostergesi") < order.IndexOf("suzgecKarti"));
@@ -161,54 +163,61 @@ public sealed class InventoryStockStandardTests
     [Fact]
     public void Detail_tabs_show_summary_warehouses_and_last_movements()
     {
+        // Legacy InventoryStockDetailPanel: a panel card (code, Aç, ×, name, status tags) holding the tabs and "Devre dışı bırak".
+        var card = Props("detayKarti");
+        Assert.Equal(("card", "panel", "detayPaneli", 4), ((string)Component("detayKarti")["type"]!, (string)card["variant"]!, (string)card["closeInput"]!, (int)card["width"]!));
+        Assert.Equal(("{{liste.seciliSatir.balance.name}}", "{{liste.seciliSatir.balance.code}}"), ((string)card["title"]!, (string)card["description"]!));
+        Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)card["visibleWhen"]!);
+        Assert.Equal(new[] { "detayAc", "detayDurum", "detayLot", "detaySeri", "detaySekmeleri", "detayDevreDisi" },
+            Component("detayKarti")["children"]!.AsArray().Select(x => (string)x!["id"]!));
+        Assert.Equal(("openDialog", "kartPenceresi", "open"), ((string)Props("detayAc")["actionType"]!, (string)Props("detayAc")["dialogId"]!, (string)Props("detayAc")["icon"]!));
+        Assert.Equal(("pasifeAl", "Devre dışı bırak"), ((string)Props("detayDevreDisi")["queryId"]!, (string)Props("detayDevreDisi")["text"]!));
         var tabs = Props("detaySekmeleri");
         Assert.Equal(new[]
         {
-            "Özet=ozetBaslik,ozetBakiye,ozetKullanilabilir,ozetRezerve,ozetStokDegeri,ozetPaneli",
+            "Özet=ozetBakiye,ozetKullanilabilir,ozetRezerve,ozetMinimum,ozetPaneli,ozetHareketler",
             "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu"
         }, Strings(tabs["tabs"]));
-        Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)tabs["visibleWhen"]!);
-        // Right-side panel next to the list (list 8 + panel 4); its contents fill the panel.
-        Assert.Equal(4, (int)tabs["width"]!);
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
-        Assert.Equal(order.IndexOf("liste") + 1, order.IndexOf("detaySekmeleri"));
-        foreach (var id in new[] { "ozetBaslik", "ozetPaneli", "kartDepoTablosu", "sonHareketTablosu" }) Assert.Equal(12, (int)Props(id)["width"]!);
+        Assert.Equal(order.IndexOf("liste") + 1, order.IndexOf("detayKarti"));
+        foreach (var id in new[] { "ozetPaneli", "kartDepoTablosu", "sonHareketTablosu", "ozetHareketler" }) Assert.Equal(12, (int)Props(id)["width"]!);
 
-        // Özet is built from separately designable components.
-        Assert.Equal("{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", (string)Props("ozetBaslik")["text"]!);
-        var tiles = new (string Id, string Title, string Value, string Format, string Description)[]
+        // Özet: the four legacy stat tiles, then the facts list and "Hareketler / ekle".
+        var tiles = new (string Id, string Title, string Value)[]
         {
-            ("ozetBakiye", "Bakiye", "{{liste.seciliSatir.balance.quantityOnHand}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetKullanilabilir", "Kullanılabilir", "{{liste.seciliSatir.balance.availableQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetRezerve", "Rezerve", "{{liste.seciliSatir.balance.reservedQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetStokDegeri", "Stok değeri", "{{liste.seciliSatir.balance.valuationAmountBase}}", "money", "{{liste.seciliSatir.balance.baseCurrencyCode}}")
+            ("ozetBakiye", "Depo bakiyesi", "{{liste.seciliSatir.balance.quantityOnHand}}"),
+            ("ozetKullanilabilir", "Kullanılabilir", "{{liste.seciliSatir.balance.availableQuantity}}"),
+            ("ozetRezerve", "Rezerve", "{{liste.seciliSatir.balance.reservedQuantity}}"),
+            ("ozetMinimum", "Minimum", "{{liste.seciliSatir.balance.minimumStock}}")
         };
-        foreach (var (id, title, value, format, description) in tiles)
+        foreach (var (id, title, value) in tiles)
         {
             var tile = Props(id);
-            Assert.Equal((title, value, format, description, 6),
-                ((string)tile["title"]!, (string)tile["value"]!, (string)tile["format"]!, (string)tile["description"]!, (int)tile["width"]!));
+            Assert.Equal((title, value, "number", 6), ((string)tile["title"]!, (string)tile["value"]!, (string)tile["format"]!, (int)tile["width"]!));
         }
 
         var panel = Props("ozetPaneli");
         Assert.Equal("liste", (string)panel["table"]!);
-        Assert.Equal("Kart bilgileri", (string)panel["title"]!);
+        Assert.Null(panel["title"]);
         Assert.Equal(new[]
         {
-            "balance.minimumStock=Minimum", "balance.unvaluedQuantity=Maliyetsiz",
-            "stockItem.category=Kategori", "balance.unitCode=Birim", "stockItem.trackingMode=Lot / seri", "status=Durum"
+            "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz miktar", "stockItem.category=Kategori", "balance.unitCode=Birim"
         }, Strings(panel["fields"]));
+        Assert.Equal(("hareketPenceresi", "depoSecimi.value == null", "Hareket için önce bir depo seçin."),
+            ((string)Props("ozetHareketler")["dialogId"]!, (string)Props("ozetHareketler")["disabledWhen"]!, (string)Props("ozetHareketler")["disabledReason"]!));
 
         var warehouses = Props("kartDepoTablosu");
         Assert.Equal("kartDepolari", (string)warehouses["query"]!);
-        Assert.Equal(new[] { "warehouseCode", "warehouseName", "quantityOnHand", "reservedQuantity", "availableQuantity", "valuationAmountBase", "unvaluedQuantity" },
-            Strings(warehouses["columns"]));
+        Assert.Equal(("bars", "Depo dağılımı"), ((string)warehouses["variant"]!, (string)warehouses["title"]!));
+        Assert.Equal(new[] { "warehouseName", "quantityOnHand" }, Strings(warehouses["columns"]));
         Assert.Equal("{{liste.seciliSatir.stockItem.id}}", Binding("kartDepolari", "id"));
 
         var movements = Props("sonHareketTablosu");
         Assert.Equal("sonHareketler", (string)movements["query"]!);
         Assert.Equal(5, (int)movements["limit"]!);
-        Assert.Equal(new[] { "entryDate", "warehouseCode", "direction", "quantity", "description" }, Strings(movements["columns"]));
+        Assert.Equal(("list", "Son hareketler"), ((string)movements["variant"]!, (string)movements["title"]!));
+        Assert.Equal(new[] { "description", "entryDate", "warehouseCode", "direction", "quantity" }, Strings(movements["columns"]));
+        Assert.Equal(new[] { "Giriş=success", "Çıkış=danger" }, Strings(movements["toneMap"]));
         Assert.Equal("stok.kart.hareketleri", (string)Query("sonHareketler")["operation"]!);
         var parameter = Assert.Single(Query("sonHareketler")["parameters"]!.AsArray());
         Assert.Equal("stockItemId", (string)parameter!["name"]!);
@@ -287,11 +296,13 @@ public sealed class InventoryStockStandardTests
         var standard = SystemPageStandards.All[Key];
         var components = AllComponents().ToArray();
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
-        Assert.True(components.Length <= 90, $"Bileşen sayısı {components.Length} > 90");
+        Assert.True(components.Length <= 100, $"Bileşen sayısı {components.Length} > 100");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
         // Pilot numbers after Task 6 (82 components, 25 queries) plus the legacy-look fixes: two negative-stock strips,
         // the "Detay paneli" toggle and the designable summary (heading + four tiles).
-        Assert.Equal(90, components.Length);
+        // Legacy detail panel: panel card with Aç, three tags and Devre dışı bırak; Minimum tile and Hareketler / ekle
+        // (heading and Stok değeri tile dropped).
+        Assert.Equal(96, components.Length);
         Assert.Equal(25, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");

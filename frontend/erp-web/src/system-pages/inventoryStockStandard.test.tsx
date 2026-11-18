@@ -265,19 +265,37 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(screen.queryByText('Negatif stoka izin veriliyor')).toBeNull();
 
     await selectCard();
-    await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
-    const panel = container.querySelector('.tenant-page-tabs:not(.tenant-page-dialog .tenant-page-tabs)') as HTMLElement;
-    expect(panel.style.gridColumn).toBe('span 4');
-    expect(screen.getByRole('heading', { name: 'KLM · Kalem' })).toBeTruthy();
-    const summary = screen.getByText('Kart bilgileri').closest('.tenant-page-block') as HTMLElement;
-    expect(summary.textContent).toContain('Lot / seri');
-    expect(summary.textContent).toContain('Yok');
-    expect(summary.textContent).not.toContain('None');
-
-    // Turning the panel off gives the list its full width back.
+    // Legacy: on a narrow list area (here unmeasured) the panel stays closed until the toggle opens it, so the list keeps
+    // its full width and never scrolls sideways.
+    expect(list.style.gridColumn).toBe('span 12');
+    expect((input('detayPaneli') as HTMLInputElement).checked).toBe(false);
     fireEvent.click(input('detayPaneli'));
+    await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
+    // Legacy InventoryStockDetailPanel: code, Aç and ×, the card name, status tag, then Özet / Depolar / Hareketler.
+    const panel = screen.getByRole('complementary', { name: 'Kalem' });
+    expect(panel.classList.contains('tenant-page-detail')).toBe(true);
+    expect(panel.style.gridColumn).toBe('span 4');
+    expect(panel.querySelector('.tenant-page-detail-top .nx-code')?.textContent).toBe('KLM');
+    expect(within(panel).getByRole('heading', { level: 3, name: 'Kalem' })).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Aç' })).toBeTruthy();
+    expect(panel.querySelector('.tenant-page-detail-labels')?.textContent).toBe('Minimum altı');
+    expect(within(panel).getAllByRole('tab').map((item) => item.textContent)).toEqual(['Özet', 'Depolar', 'Hareketler']);
+    const stats = Array.from(panel.querySelectorAll('.tenant-page-metric')).map((tile) => tile.querySelector('.tenant-metric-label')?.textContent);
+    expect(stats).toEqual(['Depo bakiyesi', 'Kullanılabilir', 'Rezerve', 'Minimum']);
+    const facts = Array.from(panel.querySelectorAll('.tenant-page-context-field')).map((field) => field.textContent);
+    expect(facts).toEqual(['Stok değeri25,00 TRY', 'Maliyetsiz miktar0 ADET', 'KategoriKırtasiye', 'BirimADET']);
+    expect(within(panel).getByRole('button', { name: 'Hareketler / ekle' })).toBeTruthy();
+    expect(panel.querySelector('.tenant-page-detail-foot')?.textContent).toContain('Devre dışı bırak');
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Hareketler' }));
+    await waitFor(() => expect(panel.querySelector('.tenant-page-compact-items li')).toBeTruthy(), T);
+    const movementRow = panel.querySelector('.tenant-page-compact-items li') as HTMLElement;
+    expect(movementRow.querySelector('b')?.textContent).toBe('+5');
+    expect(movementRow.querySelector('b')?.className).toBe('tone-success');
+
+    // × (like turning the toggle off) gives the list its full width back.
+    fireEvent.click(within(panel).getByRole('button', { name: 'Detay panelini kapat' }));
     await waitFor(() => expect(list.style.gridColumn).toBe('span 12'), T);
-    expect(screen.queryByRole('heading', { name: 'KLM · Kalem' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Kalem' })).toBeNull();
   });
 
   it('yeni then save posts exactly one card', async () => {
