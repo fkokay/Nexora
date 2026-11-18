@@ -151,8 +151,18 @@ type PageRuntime = {
   requestCloseDialog: (id: string) => void;
   /** Sayfada kaydedilmemiş değişiklik var mı (İşlem Çubuğu Yeni). */
   isDirty: () => boolean;
-  /** İşlem Çubuğu Yeni: tablolar, bloklar ve kayıt yolunun yazma sonuçları sıfırlanır. */
+  /** İşlem Çubuğu Yeni: tablolar, bloklar, kayıt tablolarının seçimi ve kayıt yolunun yazma sonuçları sıfırlanır. */
   startNew: () => void;
+  /** Sorgunun bağlı ERP işlemine katalog izni var mı (`allowed`); SQL sorgusu ve katalog yüklenmeden önce true. */
+  queryAllowed: (queryId: string) => boolean;
+  /** İşlem Çubuğu `formDialog` (kayıt penceresi); yoksa null. */
+  formDialog: {
+    id: string; hasRecord: boolean; recordLoading: boolean; open: (opener: HTMLElement | null) => void;
+    /** Pencerenin girişlerini sıfırlar, kapalıysa açar ve boyamadan sonra `focusId` girişine (sekmesini etkinleştirerek) odaklanır. */
+    startNew: (focusId: string | undefined, opener: HTMLElement | null) => void;
+  } | null;
+  /** İşlem Çubuğu'nun Yeni komutu (onay ve sıfırlama dahil); kayıt penceresinde F2 bununla çalışır. */
+  newCommand: { current: (() => void | Promise<void>) | null };
 };
 type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
@@ -217,6 +227,10 @@ function buttonActionOf(props: Record<string, unknown>, queryById: Record<string
   return null;
 }
 const actionAllowed = (action: ButtonAction | null, rights: Record<string, boolean | undefined>) => !!action && action.rights.every((right) => rights[right] === true);
+const NO_OPERATION_RIGHT = "Bu işlem için yetkiniz yok";
+/** Sorgu eylemi, bağlı ERP işleminin katalog izni (`allowed === false`) yüzünden çalışamaz: düğme nedenli pasif çizilir. */
+const operationBlocked = (action: ButtonAction | null | undefined, runtime: Pick<PageRuntime, "queryAllowed">) =>
+  action?.type === "query" && !!action.query && !runtime.queryAllowed(action.query.id);
 /** İstemli (promptLabel) yazma ya da dizi düğmesi `runSaveSequence` ile çalışır; düz sorgu düğmesi Faz A yolunu korur. */
 const usesSequence = (action: ButtonAction | null, props: Record<string, unknown>) =>
   !!action && (action.type === "sequence" || (action.type === "query" && action.query!.kind !== "read" && textValue(props.promptLabel).trim() !== ""));
@@ -421,7 +435,11 @@ export function QueryTable({ state, columns, title, description, style, selected
             {drawn.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
-              onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(row); } } : undefined}>
+              onKeyDown={onSelect ? (event) => {
+                // Enter bir sayfa komutunu (Aç) çalıştırdıysa satır seçimi değişmez: açılan kayıt seçili kalır.
+                if (event.defaultPrevented) return;
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(row); }
+              } : undefined}>
               {visible.map((column) => <td key={column.code} className={cellClass(column)}>{renderCell(column, row)}</td>)}
               {actionsShown && actionCell(row)}
             </tr>)}
@@ -466,12 +484,16 @@ function writeErrorText(configured: string, cause: unknown): string {
  * Eylemli düğme (sorgu, kayıt dizisi, pencere): hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif
  * kalır ve sonucu bildirir. İstemli yazma ve dizi `runtime.runSequence` ile, düz sorgu Faz A yoluyla çalışır.
  */
-function QueryActionButton({ component, props, label, runtime, disabled = false, disabledReason = "" }: {
+function QueryActionButton({ component, props, label, runtime, disabled: conditionDisabled = false, disabledReason: conditionReason = "" }: {
   component: ComponentDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<ActionStatus | null>(null);
   const action = runtime.buttonAction(component);
+  // Bağlı ERP işlemine katalog izni yoksa düğme yetki nedeniyle pasiftir.
+  const blocked = operationBlocked(action, runtime);
+  const disabled = conditionDisabled || blocked;
+  const disabledReason = blocked ? NO_OPERATION_RIGHT : conditionReason;
   // ERP işlemi yazmaları da (SQL yazmaları gibi) sayfanın insert/update/delete hakkını ister; sunucu yalnız işlemin kendi iznine bakar, istemci bilerek daha sıkıdır.
   const allowed = actionAllowed(action, runtime.rights);
   const mounted = useRef(true);
@@ -674,9 +696,21 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;
       const filterValue = typeof props.filterValue === "string" ? props.filterValue : "";
       const active = !!runtime && !!filterInput && filterValue !== "" && String(runtime.inputValues[filterInput] ?? "") === filterValue;
-      const onActivate = runtime && filterInput && filterValue !== "" ? () => runtime.setInput(filterInput, active ? "" : filterValue) : undefined;
+      // Onay kutusu süzgeci mantıksal değer alır (true/false); diğer girişler metin.
+      const filterIsCheckbox = !!runtime && !!filterInput && inputIsCheckbox(runtime.inputById[filterInput]);
+      const onActivate = runtime && filterInput && filterValue !== ""
+        ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue) : undefined;
       const card = { tone, icon, trend, active, onActivate };
       if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
+      // Değeri bağlama olan (sorgusuz, kaynaksız) v2 gösterge: çözülen değer `format` ile (number/money; diğerleri metin) yazılır.
+      const rawValue = component.props?.value;
+      if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {
+        const path = bindingPath(rawValue.trim());
+        const resolved = path ? resolvePath(runtime.scope, path) : value;
+        const format = props.format === "number" || props.format === "money" ? props.format : "text";
+        return <MetricCard key={component.id} title={title || text || "Gösterge"} description={description} style={style} {...card}
+          value={<strong>{formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format)}</strong>} />;
+      }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
     case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
@@ -746,10 +780,11 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           const raw = button.props ?? {};
           const rowScope = (row: Record<string, unknown>) => mergeOverlay(runtime.scope, { [tableName]: { seciliSatir: row } });
           const buttonProps = bindProps(raw, runtime.scope);
+          const blocked = operationBlocked(runtime.buttonAction(button), runtime);
           return [{
             id, label: textValue(buttonProps.text ?? buttonProps.label) || textValue(buttonProps.title) || "Eylem",
             visible: (row) => conditionHolds(raw.visibleWhen, rowScope(row), true),
-            disabled: (row) => conditionHolds(raw.disabledWhen, rowScope(row), false)
+            disabled: (row) => blocked ? NO_OPERATION_RIGHT : conditionHolds(raw.disabledWhen, rowScope(row), false)
               ? interpolate(textValue(raw.disabledReason), rowScope(row)).trim() || BUTTON_UNAVAILABLE : null,
             run: (row, opener) => runtime.runRowAction(component, button, row, opener),
           }];
@@ -793,8 +828,10 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         if (!owned || owned.type === "dialog" || owned.type === "actionBar") return null;
         return renderComponent(owned, forms, token, pageCode, runtime);
       };
+      // Kayıt penceresi açıkken (kısayollar pencere içinde çalışmaz) F2 İşlem Çubuğu'nun Yeni komutunu çalıştırır.
+      const onNew = runtime.formDialog?.id === component.id ? () => { void runtime.newCommand.current?.(); } : undefined;
       return <PageDialog key={component.id} id={component.id} title={title || "Pencere"} presentation={props.presentation === "drawer" ? "drawer" : "dialog"}
-        open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids}
+        open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids} onNew={onNew}
         save={canSave ? { label: textValue(props.saveLabel).trim() || "Kaydet", busy: runtime.dialogBusy[component.id] === true, run: () => runtime.saveDialog(component.id) } : undefined}
         status={runtime.dialogStatus[component.id] ?? null} returnFocus={runtime.dialogOpener(component.id)} />;
     }
@@ -954,7 +991,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return;
     }
     const action = latest.current.buttonAction(component);
-    if (!actionAllowed(action, latest.current.rights)) return;
+    if (!actionAllowed(action, latest.current.rights) || operationBlocked(action, latest.current)) return;
     if (action?.type === "openDialog") {
       latest.current.openDialog(props.dialogId as string, document.activeElement instanceof HTMLElement ? document.activeElement : null);
       return;
@@ -1009,6 +1046,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       const component = flat.find((item) => item.id === id && item.type === "button");
       if (!component) return undefined;
       if (!componentVisible(component, runtime)) return { hidden: true };
+      if (operationBlocked(runtime.buttonAction(component), runtime)) return { disabled: true, disabledReason: NO_OPERATION_RIGHT };
       if (!componentDisabled(component, runtime)) return undefined;
       return { disabled: true, disabledReason: textValue(buttonProps(component).disabledReason).trim() || BUTTON_UNAVAILABLE };
     },
@@ -1019,6 +1057,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         return !!table && !runtime.selections[table];
       });
     })(),
+    queryAllowed: (id) => runtime.queryAllowed(id),
+    formDialog: runtime.formDialog ? {
+      hasRecord: runtime.formDialog.hasRecord, recordLoading: runtime.formDialog.recordLoading,
+      open: () => latest.current.formDialog?.open(document.activeElement instanceof HTMLElement ? document.activeElement : null),
+      startNew: (focusId) => latest.current.formDialog?.startNew(focusId, document.activeElement instanceof HTMLElement ? document.activeElement : null),
+    } : undefined,
     run: {
       clearInputs: (ids) => ids.forEach((id) => latest.current.setInput(id, inputIsCheckbox(latest.current.inputById[id]) ? false : "")),
       write: (queryId, kind) => {
@@ -1050,6 +1094,8 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       },
     };
   }
+  // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır.
+  runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
   usePageCommands(commands);
   return null;
 }
@@ -1075,6 +1121,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const buttonById = useMemo(() => Object.fromEntries(flat.filter((component) => component.type === "button").map((button) => [button.id, button])), [flat]);
   // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
   const writeLock = useRef(false);
+  const newCommand = useRef<(() => void | Promise<void>) | null>(null);
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
   // {{sayilar.x}}: yalnız sayfada geçen rapor kaynaklarının kayıt sayısı getirilir.
@@ -1249,7 +1296,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
   const [codeWantsOperations, setCodeWantsOperations] = useState(false);
   const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
-  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults } = usePageQueries({
+  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads } = usePageQueries({
     queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
     operations: erpOperations.operations,
   });
@@ -1753,25 +1800,91 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     };
     const all = new Set<string>();
     const tracked = new Set<string>();
+    const byCard: Record<string, Set<string>> = {};
     for (const card of formCards) {
       const tables = tablesOf(textValue(card.props?.recordKey));
+      byCard[card.id] = tables;
       tables.forEach((name) => { all.add(name); if (card.props?.trackChanges === true) tracked.add(name); });
     }
-    return { all, tracked };
+    return { all, tracked, byCard };
   }, [tableById, queryDefinitions, formCards]);
-  /** İşlem Çubuğu'nun kayıt yolundaki (saveQuery/saveSequence) yazma sorgularının adları. */
+  /** İşlem Çubuğu'nun kayıt penceresi (`formDialog`): sayfada bir pencerenin kimliğiyse. */
+  const formDialogId = useMemo(() => {
+    const id = bar ? textValue(bar.props.formDialog).trim() : "";
+    return id && dialogById[id] ? id : "";
+  }, [bar, dialogById]);
+  /** Kayıt yolunun (İşlem Çubuğu ve kayıt penceresinin saveQuery/saveSequence) yazma sorgularının adları. */
   const saveQueryNames = useMemo(() => {
     if (!bar) return [];
-    const ids = [textValue(bar.props.saveQuery).trim(), ...idList(bar.props.saveSequence, 8)].filter(Boolean);
-    return ids.map((id) => queryById[id]).filter((query) => query && query.kind !== "read").map((query) => query.name);
-  }, [bar, queryById]);
+    const savePath = (props: Record<string, unknown> | undefined) => [textValue(props?.saveQuery).trim(), ...idList(props?.saveSequence, 8)];
+    const ids = [...savePath(bar.props), ...(formDialogId ? savePath(dialogById[formDialogId].props) : [])].filter(Boolean);
+    return [...new Set(ids.map((id) => queryById[id]).filter((query) => query && query.kind !== "read").map((query) => query.name))];
+  }, [bar, queryById, formDialogId, dialogById]);
   const startNew = () => {
     setGrids({});
     setGridShown({});
     setCustomTyped({});
     setBlockShown({});
     clearResults(saveQueryNames);
+    // Kayıt tablolarının seçimi kalkar: kayıt yolu seçili kaydı güncellemez, yeni kayıt oluşturur.
+    const cleared = [...recordTableSets.all].filter((name) => (selections[name] ?? null) !== null);
+    if (cleared.length === 0) return;
+    setSelections((current) => ({ ...current, ...Object.fromEntries(cleared.map((name) => [name, null])) }));
+    for (const name of cleared) events.emit("select", { table: name, row: null });
+    // Seçili satıra bağlı okumalar (ör. `kart`) hemen boşalır ve gecikmesiz yeniden çalışır: kayıt koşulları (`kart.rows[0].id
+    // == null`) ve kayıt anahtarları okuma gecikmesi boyunca eski kaydı göstermez; yazılmaya başlanan değerler sonradan sıfırlanmaz.
+    const selectionRef = new RegExp(String.raw`\{\{\s*(?:${cleared.join("|")})\.seciliSatir\b`);
+    resetReads(queryDefinitions.filter((query) => query.kind === "read" && query.parameters.some((parameter) => selectionRef.test(parameter.binding)))
+      .map((query) => query.name));
   };
+  /** Kayıt penceresinin bir formCard'ının kayıt tablosunda seçim var mı (Aç). */
+  const formDialogCards = formDialogId ? dialogContent(formDialogId).filter((id) => recordTableSets.byCard[id]) : [];
+  const formDialogHasRecord = formDialogCards.some((id) => [...recordTableSets.byCard[id]].some((name) => !!selections[name]));
+  // Kayıt anahtarının okuması (ör. `kart`) yükleniyorken Aç beklenir: boş satırlarla açılan pencere seçili kaydı yeni kayıt sanmasın.
+  const formDialogRecordLoading = formDialogCards.some((id) => [...textValue(flatById[id]?.props?.recordKey).matchAll(PLACEHOLDER_ROOT)]
+    .some((match) => states[match[1]]?.loading === true));
+  const pendingNewFocus = useRef<string | null>(null);
+  const [newFocusSignal, setNewFocusSignal] = useState(0);
+  const startNewInDialog = (focusId: string | undefined, opener: HTMLElement | null) => {
+    if (!formDialogId) return;
+    // resetOnOpen ile aynı sıfırlama: sahip olunan girişlerin yazılan değeri, doğrulama iletisi ve arama durumu.
+    const owned = dialogInputIds(formDialogId);
+    setTouched((previous) => without(previous, owned));
+    setValidationErrors((previous) => without(previous, owned));
+    setLookupState((previous) => without(previous, owned));
+    setDialogStatus((previous) => ({ ...previous, [formDialogId]: null }));
+    if (!dialogs[formDialogId]) {
+      dialogOpeners.current[formDialogId] = opener;
+      setDialogs((previous) => ({ ...previous, [formDialogId]: true }));
+    }
+    if (!focusId || !inputById[focusId]) return;
+    // Girişin sekmesi etkinleşir (sekme atlama sinyali); odak boyamadan sonra verilir.
+    const targets: Record<string, number> = {};
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      const index = parseTabs(component.props?.tabs).findIndex((tab) => ancestorsOf(focusId).some((owner) => tab.ids.includes(owner)));
+      if (index >= 0) targets[component.id] = index;
+    }
+    if (Object.keys(targets).length > 0) setErrorJump((current) => ({ signal: (current?.signal ?? 0) + 1, targets }));
+    pendingNewFocus.current = focusId;
+    setNewFocusSignal((value) => value + 1);
+  };
+  useEffect(() => {
+    const focusId = pendingNewFocus.current;
+    if (!focusId) return;
+    pendingNewFocus.current = null;
+    // Pencere açılışı ilk alana, sekme atlaması geçersiz alana odaklanır: Yeni'nin odağı onlardan sonra verilir.
+    let frame = 0;
+    let tries = 0;
+    const focus = () => {
+      const element = document.getElementById(`page-input-${focusId}`);
+      element?.focus();
+      if ((!element || document.activeElement !== element || element.closest("[hidden]")) && tries++ < 5) frame = schedule(focus);
+    };
+    const schedule = (run: () => void) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(run) : window.setTimeout(run, 0));
+    frame = schedule(focus);
+    return () => { if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame); window.clearTimeout(frame); };
+  }, [newFocusSignal]);
 
   const applySelect = (tableName: string, row: Record<string, unknown> | null) => {
     setSelections((current) => ({ ...current, [tableName]: row }));
@@ -1796,10 +1909,15 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     if (options?.user) userSelect(tableName, row);
     else applySelect(tableName, row);
   };
+  /** Sorgunun bağlı ERP işlemine katalog izni var mı; SQL sorgusu ve katalog yüklenmeden önce true. */
+  const runtimeQueryAllowed = (queryId: string) => {
+    const query = queryById[queryId];
+    return !query?.operation || erpOperations.operations?.get(query.operation)?.allowed !== false;
+  };
   const runRowAction = (table: ComponentDefinition, button: ComponentDefinition, row: Record<string, unknown>, opener: HTMLElement | null) => {
     const tableName = table.name;
     const action = buttonActionOf(button.props ?? {}, queryById, dialogIds);
-    if (!tableName || !actionAllowed(action, rights) || !action) return;
+    if (!tableName || !actionAllowed(action, rights) || !action || operationBlocked(action, { queryAllowed: runtimeQueryAllowed })) return;
     const overlay = { [tableName]: { seciliSatir: row } };
     // Koşullar satırın bindirmesiyle yeniden denetlenir (çizimden sonra değişmiş olabilir).
     const rowScope = mergeOverlay(currentScope(), overlay);
@@ -1964,6 +2082,13 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds),
     runRowAction, tableStatus,
     gridFor, blockFor, cardChanges, componentErrorIds, requestCloseDialog, isDirty, startNew,
+    queryAllowed: runtimeQueryAllowed,
+    formDialog: formDialogId ? {
+      id: formDialogId, hasRecord: formDialogHasRecord, recordLoading: formDialogRecordLoading,
+      open: (opener) => openDialog(formDialogId, opener),
+      startNew: startNewInDialog,
+    } : null,
+    newCommand,
   } : undefined;
 
   return <div className="tenant-custom-page-content">

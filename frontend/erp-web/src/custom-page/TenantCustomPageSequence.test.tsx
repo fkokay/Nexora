@@ -32,6 +32,11 @@ const operations = [
   op('stok.hareket.ekle', 'Stok hareketi ekle', 'write', 'insert', 'POST', '/api/stock/movements', [{ name: 'quantity', in: 'body', type: 'decimal' }]),
   op('stok.hareket.ters', 'Hareketi ters kaydet', 'write', 'insert', 'POST', '/api/stock/movements/{id}/reverse',
     [{ name: 'id', in: 'route', type: 'guid', required: true }, { name: 'reason', in: 'body', type: 'text' }]),
+  op('stok.kart.sil', 'Stok kartı sil', 'write', 'delete', 'DELETE', '/api/stock/items/{id}', [{ name: 'id', in: 'route', type: 'guid', required: true }], { allowed: false }),
+  op('stok.bakiye.sayfa', 'Bakiye', 'read', 'read', 'GET', '/api/stock/balances', [{ name: 'belowMinimumOnly', in: 'query', type: 'bool' }], {
+    result: { shape: 'list', rowsPath: 'items', columns: [{ code: 'id', label: 'Kimlik', dataType: 'guid' }], flatten: [],
+      metaPaths: ['totalCount', 'belowMinimumCount', 'pageValuationAmountBase', 'pageUnitCode'] },
+  }),
 ];
 
 const q = (id: string, name: string, kind: string, operation: string, parameters: [string, string, string][] = [], runOn = 'manual') =>
@@ -62,6 +67,7 @@ function setup(components: unknown[], queries: unknown[]) {
     if (endpoint === '/api/stock/items' && method === 'GET') return [{ id: G2, name: 'Var olan' }];
     if (endpoint === `/api/stock/items/${G2}` && method === 'GET') return { id: G2, name: 'Var olan', rowVersion: `v${calls.length}` };
     if (endpoint === '/api/stock/summary') return [{ id: G1, name: 'özet' }];
+    if (endpoint.startsWith('/api/stock/balances')) return { items: [], totalCount: 0, belowMinimumCount: 3, pageValuationAmountBase: 1234.5, pageUnitCode: null };
     if (endpoint === '/api/stock/items' && method === 'POST') return { id: G1 };
     if (endpoint.endsWith('/units')) {
       if (failUnits > 0) { failUnits -= 1; throw Object.assign(new Error('Birim kodu geçersiz'), { status: 400, serverError: 'Birim kodu geçersiz' }); }
@@ -317,5 +323,91 @@ describe('İstem ve onay', () => {
     await waitFor(() => expect(writes()).toHaveLength(2));
     expect(screen.queryByRole('alertdialog')).toBeNull();
     await waitFor(() => expect(document.querySelector('.tenant-page-action-feedback.is-success')?.textContent).toBe('İşlem tamamlandı. (2 işlem)'));
+  });
+});
+
+describe('Yeni ve kayıt tablosu seçimi', () => {
+  it('yeni clears record table selection so the sequence creates', async () => {
+    const guncelle = q('qg', 'guncelle', 'update', 'stok.kart.guncelle', [['id', '{{kart.rows[0].id}}', 'guid'], ['name', '{{ad.value}}', 'text']]);
+    setup([
+      adInput,
+      { id: 't', type: 'dataTable', name: 'liste', props: { query: 'ql', title: 'Kartlar', columns: ['name'] } },
+      { id: 'kartKarti', type: 'formCard', props: { title: 'Kart', inputs: ['in-ad'], recordKey: '{{kart.rows[0].id}}' } },
+      { id: 'bar', type: 'actionBar', props: { newInputs: ['in-ad'], saveSequence: ['qo', 'qg'], sequenceWhen: ['qo=kart.rows[0].id == null', 'qg=kart.rows[0].id != null'] } },
+    ], [q('ql', 'liste', 'read', 'stok.kart.liste', [], 'load'), q('qk', 'kart', 'read', 'stok.kart.getir', [['id', '{{liste.seciliSatir.id}}', 'guid']], 'load'), olustur, guncelle]);
+    fireEvent.click(await screen.findByText('Var olan'));
+    await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/items/${G2}`)).toBe(true));
+    const row = () => document.querySelector('.tenant-page-table tbody tr')!;
+    await waitFor(() => expect(row().getAttribute('aria-selected')).toBe('true'));
+    await ready('new');
+    fireEvent.click(command('new'));
+    await waitFor(() => expect(row().getAttribute('aria-selected')).toBe('false'));
+    // Yeni seçime bağlı kart okumasını hemen boşaltır: hemen yazılan değer sonradan sıfırlanmaz, hemen kaydetmek de oluşturur.
+    type('Ad', 'Yeni kart');
+    await ready('save');
+    fireEvent.click(command('save'));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()).toEqual([{ url: '/api/stock/items', method: 'POST', body: '{"name":"Yeni kart"}' }]);
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+  });
+});
+
+describe('Bağlı gösterge', () => {
+  const bakiye = q('qbk', 'bakiye', 'read', 'stok.bakiye.sayfa', [['belowMinimumOnly', '{{minimumAlti.value}}', 'bool']], 'load');
+  const metric = (props: Record<string, unknown>) => ({ id: `m-${String(props.title).length}`, type: 'metric', props });
+  const card = (title: string) => screen.getByText(title).closest('.tenant-page-metric') as HTMLElement;
+
+  it('bound metric value is formatted as money', async () => {
+    setup([metric({ title: 'Stok değeri', value: '{{bakiye.meta.pageValuationAmountBase}}', format: 'money' }),
+      metric({ title: 'Minimum altı', value: '{{bakiye.meta.belowMinimumCount}}', format: 'number' })], [bakiye]);
+    await waitFor(() => expect(card('Stok değeri').querySelector('strong')?.textContent).toBe('1.234,50'));
+    expect(card('Minimum altı').querySelector('strong')?.textContent).toBe('3');
+    expect(card('Stok değeri').querySelector('.tenant-report-unbound')).toBeNull();
+  });
+
+  it('empty bound metric shows dash', async () => {
+    setup([metric({ title: 'Birim', value: '{{bakiye.meta.pageUnitCode}}' })], [bakiye]);
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/stock/balances'))).toBe(true));
+    await waitFor(() => expect(card('Birim').querySelector('strong')?.textContent).toBe('—'));
+    expect(card('Birim').querySelector('.tenant-report-unbound')).toBeNull();
+  });
+
+  it('metric filter toggles checkbox input', async () => {
+    const checkbox = { id: 'in-min', type: 'input', name: 'minimumAlti', props: { inputType: 'checkbox', label: 'Minimum altı seçimi' } };
+    setup([checkbox, metric({ title: 'Minimum altı', value: '{{bakiye.meta.belowMinimumCount}}', format: 'number', filterInput: 'in-min', filterValue: 'true' })], [bakiye]);
+    await waitFor(() => expect(card('Minimum altı').querySelector('strong')?.textContent).toBe('3'));
+    const box = screen.getByLabelText('Minimum altı seçimi') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(card('Minimum altı'));
+    await waitFor(() => expect(box.checked).toBe(true));
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/stock/balances?belowMinimumOnly=true')).toBe(true));
+    expect(card('Minimum altı').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(card('Minimum altı'));
+    await waitFor(() => expect(box.checked).toBe(false));
+  });
+});
+
+describe('İşlem yetkisi', () => {
+  it('query button and row action disabled when operation not allowed', async () => {
+    const sil = q('qs', 'kartSil', 'delete', 'stok.kart.sil', [['id', '{{liste.seciliSatir.id}}', 'guid']]);
+    setup([
+      { id: 't', type: 'dataTable', name: 'liste', props: { query: 'ql', title: 'Kartlar', columns: ['name'], rowActions: ['b-row'] } },
+      { id: 'b-sil', type: 'button', props: { text: 'Kartı sil', actionType: 'query', queryId: 'qs' } },
+      { id: 'b-row', type: 'button', props: { text: 'Kaldır', actionType: 'query', queryId: 'qs' } },
+      { id: 'bar', type: 'actionBar', props: { deleteQuery: 'qs' } },
+    ], [q('ql', 'liste', 'read', 'stok.kart.liste', [], 'load'), sil]);
+    await screen.findByText('Var olan');
+    const button = await screen.findByRole('button', { name: 'Kartı sil' });
+    expect(button).toHaveProperty('disabled', true);
+    expect(button.getAttribute('title')).toBe('Bu işlem için yetkiniz yok');
+    const rowAction = screen.getByRole('button', { name: 'Kaldır' });
+    expect(rowAction).toHaveProperty('disabled', true);
+    expect(rowAction.getAttribute('title')).toBe('Bu işlem için yetkiniz yok');
+    fireEvent.click(rowAction);
+    fireEvent.click(button);
+    fireEvent.click(screen.getByText('Var olan'));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(command('delete').getAttribute('title')).toBe('Bu işlem için yetkiniz yok');
+    expect(writes()).toHaveLength(0);
   });
 });

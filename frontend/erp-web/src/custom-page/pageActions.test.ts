@@ -13,6 +13,7 @@ function makeDeps(overrides: Partial<PageActionDeps> = {}) {
     tableState: (id) => (id === 't1' ? { loading: false, rowCount: 3 } : undefined),
     buttonLabel: (id) => (id === 'b1' ? 'Onayla' : undefined),
     deleteNeedsSelection: false,
+    queryAllowed: () => true,
     run,
     ...overrides,
   };
@@ -184,5 +185,56 @@ describe('exportRows', () => {
   });
   it('olmayan seçili sütun atlanır; hiçbiri geçerli değilse tüm sütunlar', () => {
     expect(exportRows(columns, [{ a: 1, b: 2, c: 3 }], ['zz'])[0]).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('işlem yetkisi ve kayıt penceresi', () => {
+  it('delete disabled when operation not allowed', () => {
+    const { deps, run } = makeDeps({ queryAllowed: (id) => id !== 'q3' });
+    const commands = buildPageCommands({ deleteQuery: 'q3', saveQuery: 'q1' }, deps);
+    expect(commands.delete?.disabledReason).toBe('Bu işlem için yetkiniz yok');
+    expect(commands.delete?.run).toBeUndefined();
+    expect(commands.save?.run).toBeTypeOf('function');
+    const needs = buildPageCommands({ deleteQuery: 'q3' }, makeDeps({ queryAllowed: () => false, deleteNeedsSelection: true }).deps);
+    expect(needs.delete?.disabledReason).toBe('Bu işlem için yetkiniz yok');
+    expect(run.write).not.toHaveBeenCalled();
+  });
+
+  it('save disabled when its single operation is not allowed; sequences are checked per step at run time', () => {
+    expect(buildPageCommands({ saveQuery: 'q1' }, makeDeps({ queryAllowed: () => false }).deps).save?.disabledReason).toBe('Bu işlem için yetkiniz yok');
+    expect(buildPageCommands({ saveSequence: ['q1', 'q2'] }, makeDeps({ queryAllowed: () => false }).deps).save?.run).toBeTypeOf('function');
+  });
+
+  it('no form dialog: open stays unbound', () => {
+    expect(buildPageCommands({ newInputs: ['i1'] }, makeDeps().deps).open?.disabledReason).toBe(UNBOUND);
+  });
+
+  it('form dialog: aç needs a selection, then opens the dialog', () => {
+    const open = vi.fn();
+    const startNew = vi.fn();
+    const none = buildPageCommands({ newInputs: ['i1'] }, makeDeps({ formDialog: { open, startNew, hasRecord: false } }).deps);
+    expect(none.open?.disabledReason).toBe('Önce bir kayıt seçin');
+    expect(none.open?.run).toBeUndefined();
+    const some = buildPageCommands({ newInputs: ['i1'] }, makeDeps({ formDialog: { open, startNew, hasRecord: true } }).deps);
+    void some.open?.run?.();
+    expect(open).toHaveBeenCalledTimes(1);
+    const loading = buildPageCommands({}, makeDeps({ formDialog: { open, startNew, hasRecord: true, recordLoading: true } }).deps);
+    expect(loading.open?.disabledReason).toBe('Kayıt yükleniyor…');
+  });
+
+  it('form dialog: yeni starts a new record in the dialog and focuses the first new input', () => {
+    const open = vi.fn();
+    const startNew = vi.fn();
+    const { deps, run } = makeDeps({ formDialog: { open, startNew, hasRecord: true } });
+    const commands = buildPageCommands({ newInputs: ['yok', 'i2', 'i1'], saveSequence: ['q1', 'q2'] }, deps);
+    expect(commands.new?.primary).toBeFalsy();
+    void commands.new?.run?.();
+    expect(startNew).toHaveBeenCalledWith('i2');
+    expect(open).not.toHaveBeenCalled();
+    expect(run.clearInputs).not.toHaveBeenCalled();
+    // newInputs olmadan da Yeni pencereyi açar.
+    const bare = buildPageCommands({}, makeDeps({ formDialog: { open, startNew, hasRecord: false } }).deps);
+    void bare.new?.run?.();
+    expect(startNew).toHaveBeenLastCalledWith(undefined);
   });
 });

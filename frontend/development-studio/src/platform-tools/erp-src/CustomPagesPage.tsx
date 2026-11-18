@@ -117,7 +117,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons",
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -467,6 +467,8 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       // Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz (liste sahipliği önce gelir).
       list("moreButtons", 10, (id) => byId.get(id)?.type === "button" && !rowActionOwned.has(id));
       single("focusInput", isInput);
+      // Kayıt penceresi: pencere silinince bağ da kalkar.
+      single("formDialog", (id) => dialogIds.has(id));
       single("saveQuery", (id) => writeKinds.get(id) === "insert" || writeKinds.get(id) === "update");
       single("deleteQuery", (id) => writeKinds.get(id) === "delete");
       if (cleanSequence(next, writeKinds)) touched = true;
@@ -2487,6 +2489,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
                 {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
               </div>
+              <label className="pd-field">Kayıt penceresi<span className="pd-action-key" aria-hidden="true">Enter</span>
+                <select value={typeof selected.props.formDialog === "string" ? selected.props.formDialog : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { formDialog: event.target.value || undefined })}>
+                  <option value="">Yok</option>
+                  {pageDialogs.map((dialog) => <option key={dialog.id} value={dialog.id}>{summaryOf(dialog)}{dialog.name ? ` (${dialog.name})` : ""}</option>)}
+                </select>
+                {pageDialogs.length === 0 && <small>Önce sayfaya bir Pencere bileşeni ekleyin.</small>}
+              </label>
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {
