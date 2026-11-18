@@ -115,8 +115,12 @@ async function formOf(title: string) {
 const set = (form: HTMLElement, label: string, value: string) =>
   fireEvent.change(within(form).getByLabelText(label, { exact: false, selector: 'input,select' }), { target: { value } });
 async function openCard() {
-  // Aç: today the summary panel takes the focus; with the asset card it opens the card.
+  // Aç opens the asset card (record v3).
   if (enabled('open')) await act(async () => fireEvent.click(command('open')));
+}
+/** A section of the asset card (section navigator) or a tab inside it. */
+async function showSection(name: RegExp) {
+  fireEvent.click(await screen.findByRole('tab', { name }));
 }
 
 describe('Duran Varlık workflows (characterization)', () => {
@@ -124,6 +128,8 @@ describe('Duran Varlık workflows (characterization)', () => {
     await selectAsset('Dolum makinesi');
     await runMore('Elden çıkar');
     const form = await formOf('Elden çıkarma kaydı');
+    // The workflow opens as a dialog from İşlemler (no longer a side-panel mode).
+    expect(screen.getByRole('dialog', { name: 'Elden çıkarma kaydı' }).contains(form)).toBe(true);
     set(form, 'Elden çıkarma tarihi', '2026-11-10');
     set(form, 'Tahsilat', '5000');
     set(form, 'Açıklama', 'Satış');
@@ -166,10 +172,12 @@ describe('Duran Varlık workflows (characterization)', () => {
   it('İade al and Edinimi yevmiyeleştir: POST bodies', async () => {
     await selectAsset('Dolum makinesi');
     await openCard();
+    await showSection(/Zimmet geçmişi/);
     fireEvent.click(await screen.findByRole('button', { name: 'İade al' }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0].path).toBe('/api/fixed-assets/a1/assignments/as1/return');
     expect(writes[0].body).toEqual({ returnedDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), rowVersion: 'Rk==' });
+    await showSection(/Edinim muhasebesi/);
     const account = await screen.findByLabelText('Edinim karşı hesabı');
     fireEvent.change(account, { target: { value: 'acc1' } });
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Edinimi yevmiyeleştir' })));
@@ -180,8 +188,30 @@ describe('Duran Varlık workflows (characterization)', () => {
   it('Vergi kaydı oluştur: POST body for the first unposted period', async () => {
     await selectAsset('Kazan');
     await openCard();
+    await showSection(/Amortisman tablosu/);
+    await showSection(/^VUK$/);
     await act(async () => fireEvent.click(await screen.findByRole('button', { name: 'Vergi kaydı oluştur' })));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toEqual({ path: '/api/fixed-assets/a3/tax-depreciation-postings', body: { periodStart: '2025-02-01' } });
+  });
+
+  it('Aç opens the read-only asset card with its sections; Vazgeç returns to the register', async () => {
+    await selectAsset('Dolum makinesi');
+    await openCard();
+    expect(await screen.findByRole('heading', { name: 'Dolum makinesi' })).toBeTruthy();
+    for (const name of [/Genel/, /Amortisman tablosu/, /Edinim muhasebesi/, /Zimmet geçmişi/, /Elden çıkarma/])
+      expect(screen.getByRole('tab', { name })).toBeTruthy();
+    expect(enabled('save')).toBe(false);
+    expect((screen.getByLabelText('Kıymet kodu') as HTMLInputElement).readOnly).toBe(true);
+    await showSection(/Amortisman tablosu/);
+    expect(await screen.findByText('Birikmiş amortisman')).toBeTruthy();
+    expect(screen.getByText('Net defter değeri')).toBeTruthy();
+    // The workflows stay in İşlemler on the card.
+    await runMore('Zimmetle');
+    expect(await screen.findByRole('dialog', { name: 'Zimmet kaydı' })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Zimmet kaydı' }), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Zimmet kaydı' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: /Vazgeç/ }));
+    expect(await screen.findByText('Kazan')).toBeTruthy();
   });
 });

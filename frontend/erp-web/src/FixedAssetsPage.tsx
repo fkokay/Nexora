@@ -14,7 +14,9 @@ import { csvExportCommand } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import "./fixed-assets.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
-import { RecordFormGroup } from "./record-form/RecordForm";
+import { RecordFormGroup, RecordFormPage, RecordFormTabs, type RecordFormTab } from "./record-form/RecordForm";
+import { StatusTag } from "./list-page/StatusTag";
+import { FixedAssetDialog } from "./fixed-assets/components/FixedAssetDialog";
 
 type LedgerAccount = {
   id: string;
@@ -242,6 +244,10 @@ export default function FixedAssetsPage({
     [assetStatus, setAssetStatus] = useState("all"),
     [panelMode, setPanelMode] = useState<PanelMode>("summary"),
     [assetListViewLoaded, setAssetListViewLoaded] = useState(false);
+  // Kıymet kartı (full-page record) of the selected asset, its section and the depreciation table's basis.
+  const [cardOpen, setCardOpen] = useState(false),
+    [cardTab, setCardTab] = useState("general"),
+    [scheduleTab, setScheduleTab] = useState<"ledger" | "vuk">("ledger");
   const showAcquisition = panelMode === "acquire";
   const stayAfterCreate = useRef(false);
   const registerExportRef = useRef<GridExportActions | null>(null);
@@ -555,8 +561,8 @@ export default function FixedAssetsPage({
       setBusy(false);
     }
   }
-  async function postAcquisition(event: React.FormEvent) {
-    event.preventDefault();
+  async function postAcquisition(event?: React.FormEvent) {
+    event?.preventDefault();
     if (!selected || !offsetAccountId) return;
     setBusy(true);
     setError("");
@@ -829,10 +835,12 @@ export default function FixedAssetsPage({
     setSelected(asset);
     openPanel("summary");
   }
-  /** Double click / Enter / Aç: the asset card (the panel's summary) takes the focus. */
+  /** Double click / Enter / Aç: the asset card (record v3, read-only) opens. */
   function openAsset(asset: Asset) {
     selectAsset(asset);
-    window.setTimeout(() => panelRef.current?.focus(), 0);
+    setCardTab("general");
+    setScheduleTab("ledger");
+    setCardOpen(true);
   }
   const actReason = !selected
     ? en
@@ -859,15 +867,29 @@ export default function FixedAssetsPage({
       { id: "asset-assign", label: en ? "Assign custody" : "Zimmetle", disabledReason: actReason, run: () => openPanel("assign") },
       { id: "asset-dispose", label: en ? "Dispose" : "Elden çıkar", disabledReason: actReason, run: () => openPanel("dispose") },
     );
-  assetMore.push(csvExportCommand(registerExportRef));
+  if (!cardOpen) assetMore.push(csvExportCommand(registerExportRef));
+  const cardOpenReason = en ? "Not available while the asset card is open" : "Kıymet kartı açıkken kullanılamaz";
   const assetCommands: PageCommands = {
+    ...(cardOpen && selected
+      ? {
+          refresh: {
+            disabledReason: busy || detailLoading ? actReason : undefined,
+            run: () => {
+              void load();
+              void loadDetails(selected);
+            },
+          },
+          filter: { disabledReason: cardOpenReason },
+          export: { disabledReason: cardOpenReason },
+        }
+      : {}),
     new: {
       primary: panelMode !== "acquire",
       disabledReason: panelMode === "acquire" ? (en ? "The acquisition form is open" : "Edinim formu açık") : undefined,
       run: () => openPanel("acquire"),
     },
     open: {
-      disabledReason: selected ? undefined : en ? "Select a record first" : "Önce bir kayıt seçin",
+      disabledReason: cardOpen ? cardOpenReason : selected ? undefined : en ? "Select a record first" : "Önce bir kayıt seçin",
       run: () => {
         if (selected) openAsset(selected);
       },
@@ -1211,116 +1233,21 @@ export default function FixedAssetsPage({
             </div>
           </ModuleRecordForm>
   );
-  if (panelMode === "acquire")
-    return <div className="fixed-assets-page fixed-asset-acquire-page">{acquireForm}</div>;
-  return (
-    <div className="fixed-assets-page list-v2">
-      <PageCommandsSlot commands={assetCommands} />
-      <ListPageHeader
-        title={en ? "Fixed assets" : "Duran Varlıklar"}
-        description={
-          en
-            ? "Track acquisitions, depreciation, custody, and disposals in one register."
-            : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
-        }
-        count={loading && !assets.length ? null : assets.length}
-        countLabel={en ? "assets" : "kıymet"}
-      />
-      {error && (
-        <div className="alert" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="notice" role="status" aria-live="polite">
-          {notice}
-        </div>
-      )}
-      {/* Figures of the loaded register (the page loads the first 200 assets), in the tenant base currency. */}
-      <ListSummaryCards
-        cards={[
-          {
-            id: "cost",
-            label: en ? "Acquisition cost" : "Edinim maliyeti",
-            value: loading && !assets.length ? "—" : money(totalCost),
-            icon: CircleDollarSign,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "accumulated",
-            label: en ? "Accumulated depreciation" : "Birikmiş amortisman",
-            value: loading && !assets.length ? "—" : money(accumulatedDepreciation),
-            icon: TrendingDown,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "net",
-            label: en ? "Net book value" : "Net defter değeri",
-            value: loading && !assets.length ? "—" : money(totalCost - accumulatedDepreciation),
-            icon: Landmark,
-            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
-          },
-          {
-            id: "month",
-            label: en ? "Depreciation this month" : "Bu ay amortisman",
-            value: loading && !assets.length ? "—" : money(thisMonthDepreciation),
-            icon: CalendarClock,
-            hint: en ? "straight-line estimate · active assets" : "doğrusal tahmin · etkin kıymetler",
-          },
-        ]}
-      />
-      <div
-        className="fixed-asset-workspace"
-      >
-        <div className="fixed-asset-main">
-          <FixedAssetRegister
-            assets={filteredAssets}
-            totalAssetCount={assets.length}
-            activeAssetCount={activeAssets.length}
-            onRefresh={() => {
-              if (loading || detailLoading || busy) return;
-              void load();
-              if (selected) void loadDetails(selected);
-            }}
-            fields={assetFields}
-            layoutReady={assetListViewLoaded}
-            defaultLayout={!assetListView?.id}
-            loading={loading}
-            busy={busy}
-            search={assetSearch}
-            status={assetStatus}
-            selectedId={selected?.id ?? null}
-            locale={locale}
-            onSearchChange={setAssetSearch}
-            onStatusChange={setAssetStatus}
-            onSelect={selectAsset}
-            onOpen={openAsset}
-            exportActionsRef={registerExportRef}
-            footer={
-              <ListFooter hints={en ? "↑↓ move · Space mark · Enter open · Double-click open" : "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"}>
-                {/* The grid paginates the loaded assets itself; the endpoint returns the first 200. */}
-                {assets.length >= 200 && <span>{en ? "first 200 records" : "ilk 200 kayıt"}</span>}
-              </ListFooter>
-            }
-            fieldLabel={assetFieldLabel}
-            formatField={(asset, key) => formatAssetField(asset, key, en)}
-          />
-        </div>
-        <aside
-          ref={panelRef}
-          tabIndex={-1}
-          className="fixed-asset-panel"
-          aria-labelledby={panelMode === "summary" ? panelTitleId : undefined}
-          aria-label={
-            panelMode === "summary"
-              ? undefined
-              : en
-                ? "Asset form"
-                : "Kıymet formu"
-          }
-        >
+  // Workflow forms (Amortismanı kaydet, Elden çıkar, Zimmetle) open from İşlemler as dialogs over the register or the
+  // asset card; their bodies, conditions and save rules are the former side-panel modes'.
+  const workflowLabel =
+    panelMode === "depreciate"
+      ? en ? "Post depreciation" : "Amortismanı kaydet"
+      : panelMode === "dispose"
+        ? en ? "Disposal record" : "Elden çıkarma kaydı"
+        : en ? "Custody assignment" : "Zimmet kaydı";
+  const workflowDialog =
+    selected && (panelMode === "depreciate" || panelMode === "dispose" || panelMode === "assign") ? (
+      <FixedAssetDialog label={workflowLabel} busy={busy} onClose={() => setPanelMode("summary")}>
           {panelMode === "depreciate" && selected && (
             <ModuleRecordForm
+              error={error}
+              onDismissError={() => setError("")}
               title={en ? "Post depreciation" : "Amortismanı kaydet"}
               mode="create"
               busy={busy}
@@ -1355,6 +1282,8 @@ export default function FixedAssetsPage({
           {panelMode === "dispose" && selected && (
             <>
                 <ModuleRecordForm
+              error={error}
+              onDismissError={() => setError("")}
                   title={en ? "Disposal record" : "Elden çıkarma kaydı"}
                   mode="create"
                   onCancel={() => setPanelMode("summary")}
@@ -1416,6 +1345,8 @@ export default function FixedAssetsPage({
           {panelMode === "assign" && selected && (
             <>
             <ModuleRecordForm
+              error={error}
+              onDismissError={() => setError("")}
               title={en ? "Custody assignment" : "Zimmet kaydı"}
               mode="create"
               onCancel={() => setPanelMode("summary")}
@@ -1482,165 +1413,185 @@ export default function FixedAssetsPage({
               )}
             </>
           )}
-          {!selected && (
-            <p className="fixed-asset-panel-empty">
-              {en
-                ? "Select an asset to see its summary."
-                : "Özetini görmek için bir kıymet seçin."}
-            </p>
-          )}
-          {panelMode === "summary" && selected && (
-            <div className="fixed-asset-summary">
-              <header>
-                <span className="fixed-asset-eyebrow">
-                  {en ? "Selected asset" : "Seçili kıymet"}
+
+      </FixedAssetDialog>
+    ) : null;
+  // Kıymet kartı (mockup 10 · record v3, read-only: there is no PUT for an asset). Sections: Genel, Amortisman tablosu
+  // (statement 03: Muhasebe / VUK), Edinim muhasebesi, Zimmet geçmişi, Elden çıkarma.
+  const cardTabs: RecordFormTab[] = selected
+    ? [
+        { key: "general", label: en ? "General" : "Genel", state: "done" },
+        { key: "schedule", label: en ? "Depreciation table" : "Amortisman tablosu", count: schedule?.rows.length },
+        { key: "acquisition", label: en ? "Acquisition accounting" : "Edinim muhasebesi" },
+        { key: "custody", label: en ? "Custody history" : "Zimmet geçmişi", count: detailLoading ? undefined : assignments.length },
+        { key: "disposal", label: en ? "Disposal" : "Elden çıkarma", state: disposal ? "done" : "empty" },
+      ]
+    : [];
+  const readOnlyField = (label: string, value: string, className?: string) => (
+    <label className={className}>
+      {label}
+      <input value={value} readOnly />
+    </label>
+  );
+  const assetCard = selected ? (
+    <RecordFormPage
+      variant="page"
+      className="fixed-asset-card"
+      title={selected.name}
+      mode="edit"
+      busy={busy}
+      subtitle={
+        <>
+          <span className="rf-code">{selected.assetCode}</span>
+          <StatusTag tone={selected.status === "Active" ? "ok" : "off"}>
+            {selected.status === "Active" ? (en ? "Active" : "Etkin") : en ? "Disposed" : "Elden çıkarıldı"}
+          </StatusTag>
+          {selected.category && <span>{selected.category}</span>}
+        </>
+      }
+      saveLabel={en ? "Save" : "Kaydet"}
+      saveDisabledReason={
+        en
+          ? "An asset is not edited after acquisition; use Actions for its workflows."
+          : "Kıymet edinimden sonra düzenlenmez; işlemler İşlemler menüsünde."
+      }
+      onSubmit={(event) => event.preventDefault()}
+      onCancel={() => setCardOpen(false)}
+      error={error}
+      onDismissError={() => setError("")}
+      status={
+        <>
+          <span>{en ? "Amounts in the company base currency." : "Tutarlar firma baz para birimindedir."}</span>
+          {notice && <span className="rf-status-notice">{notice}</span>}
+        </>
+      }
+      aside={
+        <section className="fixed-asset-card-aside" aria-label={en ? "Asset summary" : "Kıymet özeti"}>
+          <div className="fixed-asset-progress">
+            <div>
+              <span>{en ? "Depreciation" : "Amortisman"}</span>
+              <b>
+                {selectedMonthsDone} / {selected.usefulLifeMonths} {en ? "months" : "ay"}
+              </b>
+            </div>
+            <div
+              className="fixed-asset-progress-bar"
+              role="progressbar"
+              aria-label={en ? "Months depreciated" : "Amortismanı ayrılan ay"}
+              aria-valuemin={0}
+              aria-valuemax={selected.usefulLifeMonths}
+              aria-valuenow={selectedMonthsDone}
+            >
+              <span
+                style={{
+                  width: `${selected.usefulLifeMonths ? Math.min(100, (selectedMonthsDone / selected.usefulLifeMonths) * 100) : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+          <dl className="fixed-asset-facts">
+            <div>
+              <dt>{en ? "Net book value" : "Net defter"}</dt>
+              <dd>{money(selected.acquisitionCostBase - selected.accumulatedDepreciationBase)}</dd>
+            </div>
+            <div>
+              <dt>{en ? "Custody" : "Zimmet"}</dt>
+              <dd>{detailLoading ? "…" : currentHolder?.employee || "—"}</dd>
+            </div>
+            <div>
+              <dt>{en ? "Linked invoice" : "Bağlı fatura"}</dt>
+              <dd>{linkedInvoice}</dd>
+            </div>
+          </dl>
+        </section>
+      }
+    >
+      {detailError && (
+        <p className="fixed-asset-panel-status is-error" role="alert">
+          {en
+            ? "Could not load the selected asset details. Use Refresh to try again."
+            : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."}
+        </p>
+      )}
+      <RecordFormTabs tabs={cardTabs} active={cardTab} onChange={setCardTab} label={en ? "Asset card sections" : "Kıymet kartı bölümleri"}>
+        {cardTab === "general" && (
+          <div className="rf-columns">
+            <RecordFormGroup title={en ? "Identity" : "Kimlik"} bodyClassName="rf-identity">
+              {readOnlyField(en ? "Asset code" : "Kıymet kodu", selected.assetCode, "rf-mono")}
+              {readOnlyField(en ? "Name" : "Ad", selected.name)}
+              {readOnlyField(en ? "Category" : "Kategori", selected.category || "—")}
+            </RecordFormGroup>
+            <RecordFormGroup title={en ? "Cost and depreciation" : "Maliyet ve amortisman"}>
+              {readOnlyField(en ? "Acquisition date" : "Edinim tarihi", formatDate(selected.acquisitionDate, en))}
+              {readOnlyField(en ? "In service" : "Kullanıma giriş", formatDate(selected.inServiceDate, en))}
+              {readOnlyField(en ? "Useful life (months)" : "Faydalı ömür (ay)", String(selected.usefulLifeMonths), "rf-num")}
+              {readOnlyField(en ? "Acquisition cost" : "Edinim maliyeti", money(selected.acquisitionCostBase), "rf-num")}
+              {readOnlyField(en ? "Residual value" : "Hurda değeri", money(selected.residualValueBase), "rf-num")}
+              {readOnlyField(en ? "Monthly depreciation" : "Aylık amortisman", money(selectedMonthly), "rf-num")}
+              {readOnlyField(en ? "Accumulated depreciation" : "Birikmiş amortisman", money(selected.accumulatedDepreciationBase), "rf-num")}
+              {readOnlyField(en ? "Source reference" : "Kaynak referansı", selected.sourceReference || "—")}
+            </RecordFormGroup>
+            {selected.vukUsefulLifeCode && (
+              <RecordFormGroup title={en ? "VUK profile" : "VUK profili"}>
+                {readOnlyField(en ? "Useful life code" : "Faydalı ömür kodu", selected.vukUsefulLifeCode, "rf-mono")}
+                {readOnlyField(en ? "Description" : "Açıklama", selected.vukUsefulLifeDescription || "—")}
+                {readOnlyField(en ? "Useful life (months)" : "Faydalı ömür (ay)", selected.vukUsefulLifeMonths != null ? String(selected.vukUsefulLifeMonths) : "—", "rf-num")}
+              </RecordFormGroup>
+            )}
+          </div>
+        )}
+        {cardTab === "schedule" && (
+          <div className="rf-columns">
+            <section className="fixed-asset-statement" aria-label={en ? "Depreciation table" : "Amortisman tablosu"}>
+              <div className="fixed-asset-statement-head">
+                <div className="fixed-asset-statement-tabs" role="tablist" aria-label={en ? "Depreciation basis" : "Amortisman esası"}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={scheduleTab === "ledger"}
+                    className={scheduleTab === "ledger" ? "active" : ""}
+                    onClick={() => setScheduleTab("ledger")}
+                  >
+                    {en ? "Accounting" : "Muhasebe"}
+                  </button>
+                  {selected.vukUsefulLifeCode && (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={scheduleTab === "vuk"}
+                      className={scheduleTab === "vuk" ? "active" : ""}
+                      onClick={() => setScheduleTab("vuk")}
+                    >
+                      VUK
+                    </button>
+                  )}
+                </div>
+                <span className="fixed-asset-statement-hint">
+                  {en ? "Post depreciation: Actions (Alt+İ)" : "Amortismanı kaydet: İşlemler (Alt+İ)"}
                 </span>
-                <h2 id={panelTitleId}>{selected.name}</h2>
-                <p>
-                  {[selected.assetCode, selected.category]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </header>
-              {detailLoading && (
-                <p className="fixed-asset-panel-status" role="status">
-                  {en ? "Loading details…" : "Ayrıntılar yükleniyor…"}
-                </p>
-              )}
-              {detailError && (
-                <p className="fixed-asset-panel-status is-error" role="alert">
-                  {en
-                    ? "Could not load the selected asset details. Use Refresh to try again."
-                    : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."}
-                </p>
-              )}
-              <div className="fixed-asset-progress">
-                <div>
-                  <span>{en ? "Depreciation" : "Amortisman"}</span>
-                  <b>
-                    {en
-                      ? `${selectedMonthsDone} / ${selected.usefulLifeMonths} months`
-                      : `${selectedMonthsDone} / ${selected.usefulLifeMonths} ay`}
-                  </b>
-                </div>
-                <div
-                  className="fixed-asset-progress-bar"
-                  role="progressbar"
-                  aria-label={en ? "Months depreciated" : "Amortismanı ayrılan ay"}
-                  aria-valuemin={0}
-                  aria-valuemax={selected.usefulLifeMonths}
-                  aria-valuenow={selectedMonthsDone}
-                >
-                  <span
-                    style={{
-                      width: `${selected.usefulLifeMonths ? Math.min(100, (selectedMonthsDone / selected.usefulLifeMonths) * 100) : 0}%`,
-                    }}
-                  />
-                </div>
               </div>
-              <dl className="fixed-asset-facts">
-                <div>
-                  <dt>{en ? "Cost" : "Maliyet"}</dt>
-                  <dd>{money(selected.acquisitionCostBase)}</dd>
-                </div>
-                <div>
-                  <dt>{en ? "Monthly depreciation" : "Aylık amortisman"}</dt>
-                  <dd>{money(selectedMonthly)}</dd>
-                </div>
-                <div>
-                  <dt>{en ? "Net book value" : "Net defter"}</dt>
-                  <dd>
-                    {money(
-                      selected.acquisitionCostBase -
-                        selected.accumulatedDepreciationBase,
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{en ? "Custody" : "Zimmet"}</dt>
-                  <dd>{detailLoading ? "…" : currentHolder?.employee || "—"}</dd>
-                </div>
-                <div>
-                  <dt>{en ? "Linked invoice" : "Bağlı fatura"}</dt>
-                  <dd>{linkedInvoice}</dd>
-                </div>
-              </dl>
-              {disposal && (
-                <details className="fixed-asset-section" open>
-                  <summary>{en ? "Disposal" : "Elden çıkarma"}</summary>
-              <div className="fixed-asset-disposal-summary">
-                <b>
-                  {en ? "Disposed" : "Elden çıkarıldı"} ·{" "}
-                  {formatDate(disposal.disposalDate, en)}
-                </b>
-                <span>
-                  {en ? "Reason" : "Açıklama"}: {disposal.reason}
-                </span>
-                <span>
-                  {en ? "Proceeds" : "Tahsilat"}:{" "}
-                  {disposal.proceedsBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <span>
-                  {en ? "Book value" : "Defter değeri"}:{" "}
-                  {disposal.bookValueBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <span>
-                  {en ? "Gain / loss" : "Kâr / zarar"}:{" "}
-                  {disposal.gainLossBase.toLocaleString(
-                    en ? "en-US" : "tr-TR",
-                    { minimumFractionDigits: 2 },
-                  )}
-                </span>
-                <small>
-                  {disposal.journalEntryId
-                    ? en
-                      ? `General ledger entry: ${disposal.journalEntryId}`
-                      : `Yevmiye fişi: ${disposal.journalEntryId}`
-                    : en
-                      ? "No general ledger entry is linked."
-                      : "Yevmiye fişi bağlı değil."}
-                </small>
-              </div>
-                </details>
-              )}
-              <details className="fixed-asset-section">
-                <summary>
-                  {en ? "Depreciation history" : "Amortisman geçmişi"}
-                  {schedule && <small>{schedule.rows.length}</small>}
-                </summary>
-                <div
-                  className="fixed-asset-mini-table"
-                  role="region"
-                  aria-label={en ? "Depreciation schedule" : "Amortisman planı"}
-                  tabIndex={0}
-                >
+              {scheduleTab === "ledger" || !selected.vukUsefulLifeCode ? (
+                <div className="fixed-asset-statement-table" role="region" aria-label={en ? "Depreciation schedule" : "Amortisman planı"} tabIndex={0}>
                   <table>
                     <thead>
                       <tr>
                         {depreciationFields.map((field) => (
-                          <th key={field.key} scope="col">
-                            {en
-                              ? depreciationFieldEnglish[field.key] || field.label
-                              : field.label}
+                          <th key={field.key} scope="col" className={field.key === "amountBase" ? "nx-num" : undefined}>
+                            {en ? depreciationFieldEnglish[field.key] || field.label : field.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {schedule?.rows.map((row) => (
-                        <tr key={row.periodStart}>
+                        <tr key={row.periodStart} className={row.isPosted ? "is-posted" : "is-planned"}>
                           {depreciationFields.map((field) => (
-                            <td
-                              key={field.key}
-                              className={field.key === "amountBase" ? "fixed-asset-col-number" : undefined}
-                            >
-                              {formatDepreciationField(row, field.key, en)}
+                            <td key={field.key} className={field.key === "amountBase" ? "nx-num" : undefined}>
+                              {field.key === "isPosted" ? (
+                                <StatusTag tone={row.isPosted ? "ok" : "info"}>{formatDepreciationField(row, field.key, en)}</StatusTag>
+                              ) : (
+                                formatDepreciationField(row, field.key, en)
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -1648,9 +1599,7 @@ export default function FixedAssetsPage({
                       {!detailLoading && !detailError && schedule && !schedule.rows.length && (
                         <tr>
                           <td colSpan={Math.max(depreciationFields.length, 1)} className="table-empty">
-                            {en
-                              ? "No remaining periods in this range."
-                              : "Bu aralıkta kalan dönem yok."}
+                            {en ? "No remaining periods in this range." : "Bu aralıkta kalan dönem yok."}
                           </td>
                         </tr>
                       )}
@@ -1662,160 +1611,33 @@ export default function FixedAssetsPage({
                         </tr>
                       )}
                     </tbody>
+                    {schedule && (
+                      <tfoot>
+                        {[
+                          [en ? "Accumulated depreciation" : "Birikmiş amortisman", schedule.accumulatedDepreciationBase],
+                          [en ? "Net book value" : "Net defter değeri", schedule.acquisitionCostBase - schedule.accumulatedDepreciationBase],
+                        ].map(([label, value]) => {
+                          // The closing figures sit under the amount column when the layout shows it.
+                          const amountIndex = depreciationFields.findIndex((field) => field.key === "amountBase");
+                          const labelSpan = amountIndex >= 1 ? amountIndex : Math.max(depreciationFields.length - 1, 1);
+                          const rest = amountIndex >= 1 ? depreciationFields.length - amountIndex - 1 : 0;
+                          return (
+                            <tr key={String(label)}>
+                              <th scope="row" colSpan={labelSpan}>
+                                {label}
+                              </th>
+                              <td className="nx-num">{money(Number(value))}</td>
+                              {rest > 0 && <td colSpan={rest} />}
+                            </tr>
+                          );
+                        })}
+                      </tfoot>
+                    )}
                   </table>
                 </div>
-              </details>
-              <details className="fixed-asset-section">
-                <summary>
-                  {en ? "Custody history" : "Zimmet geçmişi"}
-                  {!detailLoading && <small>{assignments.length}</small>}
-                </summary>
-                {assignments.length ? (
-                  <ul className="fixed-asset-history">
-                    {assignments.map((row) => (
-                      <li key={row.id}>
-                        <div>
-                          {assignmentFields.map((field, index) =>
-                            index === 0 ? (
-                              <b key={field.key}>{formatAssignmentField(row, field.key, en)}</b>
-                            ) : (
-                              <span key={field.key}>
-                                {en
-                                  ? assignmentFieldEnglish[field.key] || field.label
-                                  : field.label}
-                                : {formatAssignmentField(row, field.key, en)}
-                              </span>
-                            ),
-                          )}
-                        </div>
-                        {!row.returnedDate && (
-                          <button
-                            type="button"
-                            className="row-action"
-                            disabled={busy || detailLoading || !!detailError}
-                            onClick={() => void returnAssignment(row)}
-                          >
-                            {en ? "Return" : "İade al"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="fixed-asset-panel-status">
-                    {detailLoading
-                      ? en
-                        ? "Loading custody history…"
-                        : "Zimmet geçmişi yükleniyor…"
-                      : en
-                        ? "No custody history yet."
-                        : "Henüz zimmet geçmişi yok."}
-                  </p>
-                )}
-              </details>
-              <details className="fixed-asset-section">
-                <summary>{en ? "Acquisition accounting" : "Edinim muhasebesi"}</summary>
-                <p className="fixed-asset-panel-status">
-                  {en
-                    ? "Posts debit to the company fixed-asset cost mapping and credit to the active offset account you select."
-                    : "Firma sabit kıymet maliyet hesabına borç, seçtiğiniz etkin karşı hesaba alacak kaydeder."}
-                </p>
-            {acquisitionPosting?.journalEntryId ? (
-              <div className="fixed-asset-disposal-summary">
-                <b>
-                  {en ? "Journal entry" : "Yevmiye fişi"} ·{" "}
-                  {acquisitionPosting.journalEntryId}
-                </b>
-                <span>
-                  {en ? "Entry date" : "Kayıt tarihi"}:{" "}
-                  {formatDate(acquisitionPosting.entryDate, en)}
-                </span>
-                {acquisitionPosting.lines.map((line, index) => (
-                  <span key={`${line.accountId}-${index}`}>
-                    {line.accountCode} · {line.accountName} —{" "}
-                    {line.debit > 0
-                      ? en
-                        ? "Debit"
-                        : "Borç"
-                      : `${line.credit > 0 ? (en ? "Credit" : "Alacak") : ""}`}{" "}
-                    {line.debit > 0
-                      ? line.debit.toLocaleString(en ? "en-US" : "tr-TR", {
-                          minimumFractionDigits: 2,
-                        })
-                      : line.credit.toLocaleString(en ? "en-US" : "tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                  </span>
-                ))}
-              </div>
-            ) : selected.purchaseInvoiceId ? (
-              <div className="fixed-asset-disposal-summary">
-                <b>
-                  {en
-                    ? "Purchase invoice is the accounting source"
-                    : "Muhasebe kaynağı alış faturası"}
-                </b>
-                <span>
-                  {en ? "Invoice" : "Fatura"}:{" "}
-                  {acquisitionPosting?.purchaseInvoiceCode ||
-                    selected.purchaseInvoiceId}
-                </span>
-                <span>
-                  {en
-                    ? "Separate acquisition posting is disabled to avoid a duplicate journal."
-                    : "Aynı tutarın ikinci kez kaydedilmemesi için ayrıca edinim fişi oluşturulmaz."}
-                </span>
-              </div>
-            ) : (
-              <>
-                <form className="heading-actions" onSubmit={postAcquisition}>
-                  <label>
-                    {en ? "Offset account" : "Edinim karşı hesabı"}
-                    <select
-                      value={offsetAccountId}
-                      onChange={(e) => setOffsetAccountId(e.target.value)}
-                      required
-                    >
-                      <option value="">
-                        {en ? "Select active account" : "Etkin hesap seçin"}
-                      </option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.code} · {account.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    className="primary"
-                    disabled={
-                      busy || detailLoading || !!detailError || !accounts.length
-                    }
-                  >
-                    {busy
-                      ? en
-                        ? "Posting…"
-                        : "Kaydediliyor…"
-                      : en
-                        ? "Post acquisition"
-                        : "Edinimi yevmiyeleştir"}
-                  </button>
-                </form>
-                {!detailLoading && !accounts.length && (
-                  <p className="fixed-asset-inline-note">
-                    {en
-                      ? "No active ledger accounts are available."
-                      : "Kullanılabilir etkin defter hesabı bulunamadı."}
-                  </p>
-                )}
-              </>
-            )}
-              </details>
-              {selected.vukUsefulLifeCode && (
-                <details className="fixed-asset-section">
-                  <summary>
-                    {en ? "VUK tax depreciation estimate" : "VUK vergi amortisman tahmini"}
-                  </summary>
+              ) : (
+                <div className="fixed-asset-statement-vuk">
+
             {taxSchedule ? (
               <>
                 <div className="fixed-asset-tax-profile">
@@ -1931,8 +1753,443 @@ export default function FixedAssetsPage({
                 {en ? "Loading the tax estimate…" : "Vergi tahmini yükleniyor…"}
               </p>
             )}
-                </details>
+                
+                </div>
               )}
+            </section>
+          </div>
+        )}
+        {cardTab === "acquisition" && (
+          <div className="rf-columns">
+            <RecordFormGroup title={en ? "Acquisition accounting" : "Edinim muhasebesi"}>
+
+                <p className="fixed-asset-panel-status">
+                  {en
+                    ? "Posts debit to the company fixed-asset cost mapping and credit to the active offset account you select."
+                    : "Firma sabit kıymet maliyet hesabına borç, seçtiğiniz etkin karşı hesaba alacak kaydeder."}
+                </p>
+            {acquisitionPosting?.journalEntryId ? (
+              <div className="fixed-asset-disposal-summary">
+                <b>
+                  {en ? "Journal entry" : "Yevmiye fişi"} ·{" "}
+                  {acquisitionPosting.journalEntryId}
+                </b>
+                <span>
+                  {en ? "Entry date" : "Kayıt tarihi"}:{" "}
+                  {formatDate(acquisitionPosting.entryDate, en)}
+                </span>
+                {acquisitionPosting.lines.map((line, index) => (
+                  <span key={`${line.accountId}-${index}`}>
+                    {line.accountCode} · {line.accountName} —{" "}
+                    {line.debit > 0
+                      ? en
+                        ? "Debit"
+                        : "Borç"
+                      : `${line.credit > 0 ? (en ? "Credit" : "Alacak") : ""}`}{" "}
+                    {line.debit > 0
+                      ? line.debit.toLocaleString(en ? "en-US" : "tr-TR", {
+                          minimumFractionDigits: 2,
+                        })
+                      : line.credit.toLocaleString(en ? "en-US" : "tr-TR", {
+                          minimumFractionDigits: 2,
+                        })}
+                  </span>
+                ))}
+              </div>
+            ) : selected.purchaseInvoiceId ? (
+              <div className="fixed-asset-disposal-summary">
+                <b>
+                  {en
+                    ? "Purchase invoice is the accounting source"
+                    : "Muhasebe kaynağı alış faturası"}
+                </b>
+                <span>
+                  {en ? "Invoice" : "Fatura"}:{" "}
+                  {acquisitionPosting?.purchaseInvoiceCode ||
+                    selected.purchaseInvoiceId}
+                </span>
+                <span>
+                  {en
+                    ? "Separate acquisition posting is disabled to avoid a duplicate journal."
+                    : "Aynı tutarın ikinci kez kaydedilmemesi için ayrıca edinim fişi oluşturulmaz."}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="heading-actions fixed-asset-acq-row">
+                  <label>
+                    {en ? "Offset account" : "Edinim karşı hesabı"}
+                    <select
+                      id="fixed-asset-offset-account"
+                      value={offsetAccountId}
+                      onChange={(e) => setOffsetAccountId(e.target.value)}
+                      required
+                    >
+                      <option value="">
+                        {en ? "Select active account" : "Etkin hesap seçin"}
+                      </option>
+                      {accounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.code} · {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => {
+                      // Same guard as the former inner form: the account is required.
+                      const select = document.getElementById("fixed-asset-offset-account") as HTMLSelectElement | null;
+                      if (!offsetAccountId) {
+                        select?.reportValidity();
+                        return;
+                      }
+                      void postAcquisition();
+                    }}
+                    disabled={
+                      busy || detailLoading || !!detailError || !accounts.length
+                    }
+                  >
+                    {busy
+                      ? en
+                        ? "Posting…"
+                        : "Kaydediliyor…"
+                      : en
+                        ? "Post acquisition"
+                        : "Edinimi yevmiyeleştir"}
+                  </button>
+                </div>
+                {!detailLoading && !accounts.length && (
+                  <p className="fixed-asset-inline-note">
+                    {en
+                      ? "No active ledger accounts are available."
+                      : "Kullanılabilir etkin defter hesabı bulunamadı."}
+                  </p>
+                )}
+              </>
+            )}
+              
+            </RecordFormGroup>
+          </div>
+        )}
+        {cardTab === "custody" && (
+          <div className="rf-columns">
+            <RecordFormGroup title={en ? "Custody history" : "Zimmet geçmişi"} hint={en ? "Assign: Actions (Alt+İ)" : "Zimmetle: İşlemler (Alt+İ)"}>
+
+                {assignments.length ? (
+                  <ul className="fixed-asset-history">
+                    {assignments.map((row) => (
+                      <li key={row.id}>
+                        <div>
+                          {assignmentFields.map((field, index) =>
+                            index === 0 ? (
+                              <b key={field.key}>{formatAssignmentField(row, field.key, en)}</b>
+                            ) : (
+                              <span key={field.key}>
+                                {en
+                                  ? assignmentFieldEnglish[field.key] || field.label
+                                  : field.label}
+                                : {formatAssignmentField(row, field.key, en)}
+                              </span>
+                            ),
+                          )}
+                        </div>
+                        {!row.returnedDate && (
+                          <button
+                            type="button"
+                            className="row-action"
+                            disabled={busy || detailLoading || !!detailError}
+                            onClick={() => void returnAssignment(row)}
+                          >
+                            {en ? "Return" : "İade al"}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="fixed-asset-panel-status">
+                    {detailLoading
+                      ? en
+                        ? "Loading custody history…"
+                        : "Zimmet geçmişi yükleniyor…"
+                      : en
+                        ? "No custody history yet."
+                        : "Henüz zimmet geçmişi yok."}
+                  </p>
+                )}
+              
+            </RecordFormGroup>
+          </div>
+        )}
+        {cardTab === "disposal" && (
+          <div className="rf-columns">
+            <RecordFormGroup title={en ? "Disposal" : "Elden çıkarma"}>
+              {disposal ? (
+
+              <div className="fixed-asset-disposal-summary">
+                <b>
+                  {en ? "Disposed" : "Elden çıkarıldı"} ·{" "}
+                  {formatDate(disposal.disposalDate, en)}
+                </b>
+                <span>
+                  {en ? "Reason" : "Açıklama"}: {disposal.reason}
+                </span>
+                <span>
+                  {en ? "Proceeds" : "Tahsilat"}:{" "}
+                  {disposal.proceedsBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <span>
+                  {en ? "Book value" : "Defter değeri"}:{" "}
+                  {disposal.bookValueBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <span>
+                  {en ? "Gain / loss" : "Kâr / zarar"}:{" "}
+                  {disposal.gainLossBase.toLocaleString(
+                    en ? "en-US" : "tr-TR",
+                    { minimumFractionDigits: 2 },
+                  )}
+                </span>
+                <small>
+                  {disposal.journalEntryId
+                    ? en
+                      ? `General ledger entry: ${disposal.journalEntryId}`
+                      : `Yevmiye fişi: ${disposal.journalEntryId}`
+                    : en
+                      ? "No general ledger entry is linked."
+                      : "Yevmiye fişi bağlı değil."}
+                </small>
+              </div>
+                
+              ) : (
+                <p className="fixed-asset-panel-status">
+                  {selectedActive
+                    ? en
+                      ? "Not disposed. Dispose is in Actions (Alt+İ)."
+                      : "Elden çıkarılmadı. Elden çıkar: İşlemler (Alt+İ)."
+                    : en
+                      ? "No disposal record is loaded."
+                      : "Elden çıkarma kaydı yüklenmedi."}
+                </p>
+              )}
+            </RecordFormGroup>
+          </div>
+        )}
+      </RecordFormTabs>
+    </RecordFormPage>
+  ) : null;
+  if (cardOpen && assetCard && panelMode !== "acquire")
+    return (
+      <div className="fixed-assets-page fixed-asset-card-page">
+        <PageCommandsSlot commands={assetCommands} />
+        {workflowDialog}
+        {assetCard}
+      </div>
+    );
+  if (panelMode === "acquire")
+    return <div className="fixed-assets-page fixed-asset-acquire-page">{acquireForm}</div>;
+  return (
+    <div className="fixed-assets-page list-v2">
+      <PageCommandsSlot commands={assetCommands} />
+      {workflowDialog}
+      <ListPageHeader
+        title={en ? "Fixed assets" : "Duran Varlıklar"}
+        description={
+          en
+            ? "Track acquisitions, depreciation, custody, and disposals in one register."
+            : "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin."
+        }
+        count={loading && !assets.length ? null : assets.length}
+        countLabel={en ? "assets" : "kıymet"}
+      />
+      {/* While a workflow dialog is open its form shows the error (the page alert would be behind the overlay). */}
+      {error && !workflowDialog && (
+        <div className="alert" role="alert">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="notice" role="status" aria-live="polite">
+          {notice}
+        </div>
+      )}
+      {/* Figures of the loaded register (the page loads the first 200 assets), in the tenant base currency. */}
+      <ListSummaryCards
+        cards={[
+          {
+            id: "cost",
+            label: en ? "Acquisition cost" : "Edinim maliyeti",
+            value: loading && !assets.length ? "—" : money(totalCost),
+            icon: CircleDollarSign,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "accumulated",
+            label: en ? "Accumulated depreciation" : "Birikmiş amortisman",
+            value: loading && !assets.length ? "—" : money(accumulatedDepreciation),
+            icon: TrendingDown,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "net",
+            label: en ? "Net book value" : "Net defter değeri",
+            value: loading && !assets.length ? "—" : money(totalCost - accumulatedDepreciation),
+            icon: Landmark,
+            hint: en ? "loaded assets (first 200)" : "yüklenen kıymetler (ilk 200)",
+          },
+          {
+            id: "month",
+            label: en ? "Depreciation this month" : "Bu ay amortisman",
+            value: loading && !assets.length ? "—" : money(thisMonthDepreciation),
+            icon: CalendarClock,
+            hint: en ? "straight-line estimate · active assets" : "doğrusal tahmin · etkin kıymetler",
+          },
+        ]}
+      />
+      <div
+        className="fixed-asset-workspace"
+      >
+        <div className="fixed-asset-main">
+          <FixedAssetRegister
+            assets={filteredAssets}
+            totalAssetCount={assets.length}
+            activeAssetCount={activeAssets.length}
+            onRefresh={() => {
+              if (loading || detailLoading || busy) return;
+              void load();
+              if (selected) void loadDetails(selected);
+            }}
+            fields={assetFields}
+            layoutReady={assetListViewLoaded}
+            defaultLayout={!assetListView?.id}
+            loading={loading}
+            busy={busy}
+            search={assetSearch}
+            status={assetStatus}
+            selectedId={selected?.id ?? null}
+            locale={locale}
+            onSearchChange={setAssetSearch}
+            onStatusChange={setAssetStatus}
+            onSelect={selectAsset}
+            onOpen={openAsset}
+            exportActionsRef={registerExportRef}
+            footer={
+              <ListFooter hints={en ? "↑↓ move · Space mark · Enter open · Double-click open" : "↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"}>
+                {/* The grid paginates the loaded assets itself; the endpoint returns the first 200. */}
+                {assets.length >= 200 && <span>{en ? "first 200 records" : "ilk 200 kayıt"}</span>}
+              </ListFooter>
+            }
+            fieldLabel={assetFieldLabel}
+            formatField={(asset, key) => formatAssetField(asset, key, en)}
+          />
+        </div>
+        <aside
+          ref={panelRef}
+          tabIndex={-1}
+          className="fixed-asset-panel"
+          aria-labelledby={selected ? panelTitleId : undefined}
+          aria-label={selected ? undefined : en ? "Asset summary" : "Kıymet özeti"}
+        >
+          {!selected && (
+            <p className="fixed-asset-panel-empty">
+              {en
+                ? "Select an asset to see its summary."
+                : "Özetini görmek için bir kıymet seçin."}
+            </p>
+          )}
+          {selected && (
+            <div className="fixed-asset-summary">
+              <header>
+                <span className="fixed-asset-eyebrow">
+                  {en ? "Selected asset" : "Seçili kıymet"}
+                </span>
+                <h2 id={panelTitleId}>{selected.name}</h2>
+                <p>
+                  {[selected.assetCode, selected.category]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </header>
+              {detailLoading && (
+                <p className="fixed-asset-panel-status" role="status">
+                  {en ? "Loading details…" : "Ayrıntılar yükleniyor…"}
+                </p>
+              )}
+              {detailError && (
+                <p className="fixed-asset-panel-status is-error" role="alert">
+                  {en
+                    ? "Could not load the selected asset details. Use Refresh to try again."
+                    : "Seçili kıymetin ayrıntıları yüklenemedi. Yenile ile tekrar deneyin."}
+                </p>
+              )}
+              <div className="fixed-asset-progress">
+                <div>
+                  <span>{en ? "Depreciation" : "Amortisman"}</span>
+                  <b>
+                    {en
+                      ? `${selectedMonthsDone} / ${selected.usefulLifeMonths} months`
+                      : `${selectedMonthsDone} / ${selected.usefulLifeMonths} ay`}
+                  </b>
+                </div>
+                <div
+                  className="fixed-asset-progress-bar"
+                  role="progressbar"
+                  aria-label={en ? "Months depreciated" : "Amortismanı ayrılan ay"}
+                  aria-valuemin={0}
+                  aria-valuemax={selected.usefulLifeMonths}
+                  aria-valuenow={selectedMonthsDone}
+                >
+                  <span
+                    style={{
+                      width: `${selected.usefulLifeMonths ? Math.min(100, (selectedMonthsDone / selected.usefulLifeMonths) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <dl className="fixed-asset-facts">
+                <div>
+                  <dt>{en ? "Cost" : "Maliyet"}</dt>
+                  <dd>{money(selected.acquisitionCostBase)}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Monthly depreciation" : "Aylık amortisman"}</dt>
+                  <dd>{money(selectedMonthly)}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Net book value" : "Net defter"}</dt>
+                  <dd>
+                    {money(
+                      selected.acquisitionCostBase -
+                        selected.accumulatedDepreciationBase,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{en ? "Custody" : "Zimmet"}</dt>
+                  <dd>{detailLoading ? "…" : currentHolder?.employee || "—"}</dd>
+                </div>
+                <div>
+                  <dt>{en ? "Linked invoice" : "Bağlı fatura"}</dt>
+                  <dd>{linkedInvoice}</dd>
+                </div>
+              </dl>
+              <p className="fixed-asset-panel-status">
+                {en
+                  ? "Enter opens the asset card · workflows are in Actions (Alt+İ)."
+                  : "Enter kıymet kartını açar · işlemler İşlemler'de (Alt+İ)."}
+              </p>
+              
+              
+              
+              
+              
             </div>
           )}
         </aside>
