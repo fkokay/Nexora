@@ -120,3 +120,11 @@ test("sayfadaki Sekmeler'in aldığı bileşen kart sekmesinden kalkar (tek sahi
   assert.deepEqual(findComponent(pruned, "sekmeler").props.tabs, ["Özet=", "Depolar="]);
   assert.equal(pruned[3], components[3]);
 });
+
+test("iki kart sekmesi aynı bileşeni alamaz (ilk sahip kazanır)", () => {
+  const copy = { id: "sekmeler2", type: "tabs", props: { tabs: ["Özet=bakiye"] } };
+  const withCopy = insertCardChild(page(), "kart", copy, 99);
+  const pruned = pruneCardTabs(withCopy);
+  assert.deepEqual(findComponent(pruned, "sekmeler").props.tabs, ["Özet=bakiye", "Depolar="]);
+  assert.deepEqual(findComponent(pruned, "sekmeler2").props.tabs, ["Özet="]);
+});

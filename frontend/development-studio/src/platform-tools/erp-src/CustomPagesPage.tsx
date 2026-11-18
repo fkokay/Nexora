@@ -970,10 +970,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       .catch(() => setWorkflows([]));
   }, [request]);
   // Only data bindings drive the sample-data requests, so typing a title does not refetch every grid.
-  const bindingKey = JSON.stringify(definition.components
+  // Kartın içindeki gösterge ve listeler de örnek veri alır.
+  const allComponents = useMemo(() => cardTree.flattenComponents(definition.components), [definition]);
+  const bindingKey = JSON.stringify(allComponents
     .filter((item) => (item.type === "metric" || item.type === "dataTable") && typeof item.props.query !== "string" && typeof item.props.source === "string" && item.props.source)
     .map((item) => [item.id, item.type, item.props.source, item.props.columns]));
-  const countKey = referencedCountCodes(collectTexts([definition.components.map((component) => component.props), definition.queries.map((query) => query.parameters)])).join(",");
+  const countKey = referencedCountCodes(collectTexts([allComponents.map((component) => component.props), definition.queries.map((query) => query.parameters)])).join(",");
   useEffect(() => {
     let active = true;
     const codes = countKey ? countKey.split(",") : [];
@@ -1974,7 +1976,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   });
   // Tuvalde otomatik örnek veri (yalnız okuma; taslakta; SQL için tenant yöneticisi ve kayıtlı taslak).
   const samples = useCanvasSamples({
-    pageId: current?.id ?? null, queries: definition.queries, components: definition.components, previews: queryPreviews, setPreviews: setQueryPreviews,
+    pageId: current?.id ?? null, queries: definition.queries, components: allComponents, previews: queryPreviews, setPreviews: setQueryPreviews,
     enabled: !current?.isPublished, sqlAllowed: isAdmin && !!current && !current.isPublished,
     storedDefinitionJson: current?.definitionJson ?? null, catalog: erpCatalog, scope: designScope, fetchJson: request,
     manualRun: (queryId) => runQueryPreview(queryId, false),

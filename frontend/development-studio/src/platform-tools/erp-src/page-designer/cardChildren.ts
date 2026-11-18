@@ -246,6 +246,8 @@ export function pruneCardTabs<C extends TreeComponent>(components: C[]): C[] {
       const rest = entry.slice(at + 1);
       const ids = rest ? rest.split(",") : [];
       const kept = ids.filter((id) => ok(id.trim()));
+      // İlk sahip kazanır: aynı bileşeni ikinci bir kart sekmesi (ör. kopya Sekmeler) alamaz.
+      for (const id of kept) claimed.add(id.trim());
       if (kept.length === ids.length) return entry;
       changed = true;
       return `${entry.slice(0, at)}=${kept.join(",")}`;
