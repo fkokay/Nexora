@@ -99,6 +99,7 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
     var deploymentSucceeded = false;
     var projectName = $"aierp-staging-{body.ProjectId:N}";
     Guid? currentDeploymentId = null;
+    var timer = new DeploymentStepTimer();
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -197,14 +198,14 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
         }
 
         var commandPrefix = new[] { "compose", "--project-name", projectName, "--file", composeFile, "--env-file", envFile };
-        var config = await RunDockerAsync(commandPrefix.Concat(["config", "-q"]), TimeSpan.FromMinutes(1), cancellationToken);
+        var config = await timer.TimeAsync("config", () => RunDockerAsync(commandPrefix.Concat(["config", "-q"]), TimeSpan.FromMinutes(1), cancellationToken));
         if (config.ExitCode != 0) return Results.Problem("Staging Compose yapılandırması doğrulanamadı.", statusCode: StatusCodes.Status422UnprocessableEntity);
-        var up = await RunDockerAsync(commandPrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken);
+        var up = await timer.TimeAsync("build+up", () => RunDockerAsync(commandPrefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken));
         if (up.ExitCode != 0) return Results.Problem("Staging servisleri başlatılamadı. Deployer hata çıktısını gizlilik için saklamadı.", statusCode: StatusCodes.Status502BadGateway);
-        var healthy = await WaitForHealthyAsync(commandPrefix, configuration, cancellationToken);
+        var healthy = await timer.TimeAsync("health", () => WaitForHealthyAsync(commandPrefix, configuration, cancellationToken));
         if (!healthy) return Results.Problem("Staging servisleri başlatıldı ancak health check süresi içinde sağlıklı olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
-        var tenantProvisioned = await WaitForStagingProvisioningAsync(commandPrefix, secrets.SqlPassword,
-            syntheticStagingTenantId, configuration, cancellationToken);
+        var tenantProvisioned = await timer.TimeAsync("provisioning", () => WaitForStagingProvisioningAsync(commandPrefix, secrets.SqlPassword,
+            syntheticStagingTenantId, configuration, cancellationToken));
         if (!tenantProvisioned)
             return Results.Problem("Staging servisleri sağlıklı ancak sentetik firmanın ERP/AI Studio veritabanları ve Worker işi hazır olmadı.",
                 statusCode: StatusCodes.Status504GatewayTimeout, title: "Staging tenant hazırlığı tamamlanmadı");
@@ -264,6 +265,8 @@ app.MapPost("/internal/deployments/staging", async (CreateStagingDeployment body
             if (currentDeploymentId is not null && restored) try { Directory.Delete(deploymentDirectory, recursive: true); } catch (IOException) { }
         }
         if (temporaryEnvFile is not null && File.Exists(temporaryEnvFile)) File.Delete(temporaryEnvFile);
+        if (timer.Steps.Count > 0)
+            app.Logger.LogInformation("Staging deployment {DeploymentId} timing (succeeded: {Succeeded}): {Timing}", body.DeploymentId, deploymentSucceeded, timer.Summary());
         DeployerState.Gate.Release();
     }
 }).RequireAuthorization();
@@ -336,6 +339,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
     var attemptStarted = false;
     var migrationMayHaveRun = false;
     var migrationStatus = "not_started";
+    var timer = new DeploymentStepTimer();
     await DeployerState.Gate.WaitAsync(cancellationToken);
     try
     {
@@ -401,7 +405,7 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         if (OperatingSystem.IsLinux()) File.SetUnixFileMode(envPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         var composeFile = ReleaseDeployerPath.SafeChild(sourceDirectory, ".aierp-deploy/compose.yml");
         var prefix = new[] { "compose", "--project-name", projectName, "--file", composeFile, "--env-file", envPath };
-        if ((await RunDockerAsync(prefix.Concat(["config", "-q"]), TimeSpan.FromMinutes(1), cancellationToken)).ExitCode != 0)
+        if ((await timer.TimeAsync("config", () => RunDockerAsync(prefix.Concat(["config", "-q"]), TimeSpan.FromMinutes(1), cancellationToken))).ExitCode != 0)
             return Results.Problem("Production Compose yapılandırması doğrulanamadı.", statusCode: StatusCodes.Status422UnprocessableEntity);
         if (previousDeploymentId is Guid activeId)
         {
@@ -414,12 +418,12 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
                 await File.WriteAllTextAsync(backupEnv, backupEnvironment, new UTF8Encoding(false), cancellationToken);
                 if (OperatingSystem.IsLinux()) File.SetUnixFileMode(backupEnv, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 var backupPrefix = new[] { "compose", "--project-name", projectName, "--file", activeCompose, "--env-file", backupEnv };
-                var quiesced = await RunDockerAsync(backupPrefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken);
+                var quiesced = await timer.TimeAsync("stop", () => RunDockerAsync(backupPrefix.Concat(["stop", "platform-api", "ai-service", "platform-migrator"]), TimeSpan.FromMinutes(2), cancellationToken));
                 if (quiesced.ExitCode != 0)
                     return Results.Problem("Production servisleri yedek için durdurulamadı; dağıtım başlatılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
                 var sqlcmd = new[] { "exec", "-T", "sqlserver", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", secrets.SqlPassword, "-C", "-b", "-d", "master", "-Q" };
                 var backupNames = await ListAierpDatabasesAsync(backupPrefix, sqlcmd, cancellationToken);
-                if (backupNames.Count == 0 || !await BackupDatabaseSetAsync(backupPrefix, sqlcmd, backupNames, body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration), cancellationToken))
+                if (backupNames.Count == 0 || !await timer.TimeAsync("backup", () => BackupDatabaseSetAsync(backupPrefix, sqlcmd, backupNames, body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration), cancellationToken)))
                     return Results.Problem("Production veritabanı yedeği alınamadı veya doğrulanamadı; yeni sürüm başlatılmadı.", statusCode: StatusCodes.Status503ServiceUnavailable);
                 await File.WriteAllTextAsync(BackupManifestPath(body.ProjectId, body.DeploymentId, ProductionBackupRoot(configuration)), JsonSerializer.Serialize(backupNames, JsonConfig.Options), cancellationToken);
             }
@@ -430,12 +434,12 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
         migrationStatus = "may_have_run";
         await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
             new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "pending_operator_review", null, DateTimeOffset.UtcNow), cancellationToken);
-        if ((await RunDockerAsync(prefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken)).ExitCode != 0)
+        if ((await timer.TimeAsync("build+up", () => RunDockerAsync(prefix.Concat(["up", "--detach", "--build", "--remove-orphans"]), TimeSpan.FromMinutes(20), cancellationToken))).ExitCode != 0)
             return Results.Problem("Production Compose servisleri başlatılamadı.", statusCode: StatusCodes.Status502BadGateway);
         migrationStatus = "completed"; // Compose waits for platform-migrator to complete successfully before starting platform-api.
         await WriteProductionMigrationRollbackStateAsync(migrationRollbackPath,
             new ProductionMigrationRollbackState(body.DeploymentId, previousDeploymentId, migrationStatus, "pending_operator_review", null, DateTimeOffset.UtcNow), cancellationToken);
-        if (!await WaitForHealthyAsync(prefix, configuration, cancellationToken))
+        if (!await timer.TimeAsync("health", () => WaitForHealthyAsync(prefix, configuration, cancellationToken)))
             return Results.Problem("Production servisleri health check süresinde hazır olmadı.", statusCode: StatusCodes.Status504GatewayTimeout);
         var result = new StagingDeploymentResult(body.DeploymentId, body.IdempotencyKey, body.PackageId, body.PackageSha256.ToUpperInvariant(), body.CommitSha,
             $"http://localhost:{secrets.Port}", projectName, secrets.BootstrapEmail, secrets.BootstrapPassword, DateTimeOffset.UtcNow, body.Version);
@@ -520,6 +524,8 @@ app.MapPost("/internal/deployments/production", async (CreateStagingDeployment b
             catch { }
         }
         if (File.Exists(envPath)) File.Delete(envPath);
+        if (timer.Steps.Count > 0)
+            app.Logger.LogInformation("Production deployment {DeploymentId} timing (succeeded: {Succeeded}): {Timing}", body.DeploymentId, succeeded, timer.Summary());
         DeployerState.Gate.Release();
     }
 }).RequireAuthorization();
