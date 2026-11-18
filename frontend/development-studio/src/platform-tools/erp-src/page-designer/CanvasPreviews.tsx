@@ -325,7 +325,7 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
   </section>;
 }
 
-type ActionBarBound ={ new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
 export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
@@ -336,7 +336,7 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
   const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
   return <div className="pd-actionbar-wrap" style={style}>
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
-      {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", false)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
+      {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", bound.open === true)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
       <span className="pd-bar-sep" />
       {button("refresh", "Yenile", "F5", true)}{button("filter", "Filtre", "Ctrl+F", bound.filter)}
       <span className="pd-bar-sep" />

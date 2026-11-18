@@ -25,7 +25,7 @@ public sealed class SystemPageStandardsTests
         Assert.Same(standard, same);
         Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.Equal(new[] { "inventory-stock", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(new[] { "inventory-stock", "inventory-stock-create", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var each in SystemPageStandards.All.Values)
             Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");
     }
@@ -44,7 +44,8 @@ public sealed class SystemPageStandardsTests
     {
         var path = Path.Combine(AppContext.BaseDirectory, "SystemPageStandards.versions.txt");
         var lines = File.ReadAllLines(path).Select(x => x.Trim()).Where(x => x.Length > 0).ToArray();
-        Assert.Equal(lines.OrderBy(x => x, StringComparer.Ordinal), lines);
+        // Sorted by screen key ("inventory-stock" before "inventory-stock-create").
+        Assert.Equal(lines.OrderBy(x => x.Split('=')[0], StringComparer.Ordinal), lines);
         foreach (var line in lines)
         {
             var parts = line.Split('=');

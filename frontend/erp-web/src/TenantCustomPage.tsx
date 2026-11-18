@@ -38,7 +38,7 @@ import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { usePageParams, type PageParams } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 
@@ -168,6 +168,14 @@ type PageRuntime = {
   } | null;
   /** İşlem Çubuğu'nun Yeni komutu (onay ve sıfırlama dahil); kayıt penceresinde F2 bununla çalışır. */
   newCommand: { current: (() => void | Promise<void>) | null };
+  /** İşlem Çubuğu'nun etkin Aç komutu (yoksa null); satıra çift tıklama bununla çalışır. */
+  openCommand: { current: (() => void | Promise<void>) | null };
+  /** Aç komutunun kaydını seçen tablolar (`openButton` bağlamalarının `<tablo>.seciliSatir` kökleri, kayıt penceresinin kayıt tabloları). */
+  openTables: Set<string>;
+  /** Satıra çift tıklama: satırı seçer, çizimden sonra Aç komutunu çalıştırır. */
+  openRow: (tableName: string, row: Record<string, unknown>) => void;
+  /** Kayıt kartlarının (`recordKey` taşıyan formCard) girişlerini kaynak değerlerine döndürür (yazılan, ileti, arama durumu). */
+  clearRecordInputs: () => void;
 };
 type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
@@ -423,13 +431,15 @@ function QueryMetric({ state, title, description, style, ...card }: { state: Que
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
-export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
   /** Kolon başına ham değer → gösterilen etiket (`valueLabels`). */
   valueLabels?: Record<string, Record<string, string>>;
   /** Kolon → başlık (`columnLabels`) ve kolon → aynı satırdaki birim kolonu (`columnUnits`). */
   columnLabels?: Record<string, string>; columnUnits?: Record<string, string>;
   selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
+  /** Satıra çift tıklama (Aç); verilmezse çift tıklama yalnız seçimi değiştirir. */
+  onOpenRow?: (row: Record<string, unknown>) => void;
   formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
   /** Sunucu sayfalı liste: sonuç her zaman "kesilmiş"tir; uyarı yerine sayfa alt satırı gösterilir. */
   paging?: TablePaging;
@@ -499,6 +509,7 @@ export function QueryTable({ state, columns, title, description, style, selected
             {drawn.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
+              onDoubleClick={onOpenRow ? () => onOpenRow(row) : undefined}
               onKeyDown={onSelect ? (event) => {
                 // Enter bir sayfa komutunu (Aç) çalıştırdıysa satır seçimi değişmez: açılan kayıt seçili kalır.
                 if (event.defaultPrevented) return;
@@ -717,7 +728,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   const children = (component.children ?? []).map((child) => renderComponent(child, forms, token, pageCode, runtime));
 
   switch (component.type) {
-    case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
+    // `pageTitle`: başlık sayfa üst bilgisinde (h1) çizilir, gövdede tekrarlanmaz.
+    case "heading": return runtime && component.props?.pageTitle === true ? null : <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
     case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
     case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
@@ -883,7 +895,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} />;
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)}
+          onOpenRow={tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
@@ -1051,13 +1064,21 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     if (!actionAllowed(runtime.buttonAction(component), runtime.rights)) return undefined;
     return label || "Eylem";
   };
-  const sequenceSource = (props: Record<string, unknown>, name?: string): SequenceSource => ({
-    props, name,
+  const sequenceSource = (props: Record<string, unknown>, name?: string, onSuccess?: () => void): SequenceSource => ({
+    props, name, onSuccess,
     onStatus: (status) => { if (mounted.current) onStatus(status); },
     onBusy: (next) => { if (mounted.current) onBusy(next); },
   });
+  // `afterSaveButton`: kayıt yolu tam başarılı olunca kayıt kartları kaynak değerlerine döner (aynı değerlerle ikinci bir oluşturma
+  // gitmez) ve düğmenin eylemi çalışır (ör. listeye dön); gezinilen sayfa açılış sorgularını yeniler.
+  const afterSaveId = typeof barProps.afterSaveButton === "string" ? barProps.afterSaveButton.trim() : "";
+  const afterSave = afterSaveId ? () => {
+    if (!mounted.current) return;
+    latest.current.clearRecordInputs();
+    runButton(afterSaveId, { refreshTarget: true });
+  } : undefined;
 
-  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = []) => {
+  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void) => {
     onStatus(null);
     const result = await runWriteAction({
       query, isPreview: latest.current.isPreview, inFlight, confirm,
@@ -1073,10 +1094,11 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     if (result.ok) {
       onStatus({ tone: "success", text: `${successText} (${result.affectedRows} kayıt)` });
       latest.current.rerun([...new Set([...loadIds, ...extraRefresh])]);
+      onSuccess?.();
     } else if ("error" in result) onStatus({ tone: "error", text: result.error });
   };
 
-  const runButton = (id: string) => {
+  const runButton = (id: string, options?: { refreshTarget?: boolean }) => {
     const component = flat.find((item) => item.id === id && item.type === "button");
     if (!component) return;
     // Menü komutu oluşturulduktan sonra koşul değişmiş olabilir: gizli veya pasif düğme çalışmaz.
@@ -1102,7 +1124,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     }
     if (action?.type === "navigate") {
       onStatus(null);
-      void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey)
+      void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey, options)
         .then((failure) => { if (failure && mounted.current) onStatus({ tone: "error", text: failure }); });
       return;
     }
@@ -1178,12 +1200,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       write: (queryId, kind) => {
         const query = latest.current.queryById[queryId];
         if (!query) return;
-        if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "");
+        if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
         else void writeThroughBar(query, { enabled: true, title: "Kayıt silinsin mi?", confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
       },
       saveSequence: () => {
         onStatus(null);
-        void latest.current.runSequence(sequenceSource(barProps));
+        void latest.current.runSequence(sequenceSource(barProps, undefined, afterSave));
       },
       refresh: () => latest.current.rerun(loadIds),
       focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
@@ -1200,21 +1222,26 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       run: async () => {
         if (!(await confirmStartNew(latest.current.isDirty()))) return;
         latest.current.startNew();
+        // Yeni bir düğmeyi çalıştırıyorsa (ör. aynı kayıt ekranını parametresiz açar) kayıt kartları da boşalır.
+        if (typeof barProps.newButton === "string" && barProps.newButton.trim()) latest.current.clearRecordInputs();
         await clearAndFocus();
       },
     };
   }
   // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır.
   runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
+  runtime.openCommand.current = commands.open?.run && !commands.open.disabledReason ? commands.open.run : null;
   usePageCommands(commands);
   return null;
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams }: {
+function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams, onTitle }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
   /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
   tabKey?: string; pageParams: PageParams;
+  /** Görünen ilk `pageTitle` başlığının metni (yoksa null): sayfa üst bilgisinin başlığı olur. */
+  onTitle?: (title: string | null) => void;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   const touchedRef = useRef(touched);
@@ -1238,6 +1265,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
   const writeLock = useRef(false);
   const newCommand = useRef<(() => void | Promise<void>) | null>(null);
+  const openCommand = useRef<(() => void | Promise<void>) | null>(null);
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
   // {{sayilar.x}}: yalnız sayfada geçen rapor kaynaklarının kayıt sayısı getirilir.
@@ -2301,6 +2329,59 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     setLookupState((previous) => without(previous, reset));
   }, [cardKeySignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const openTables = useMemo(() => {
+    const tables = new Set<string>();
+    const openId = bar ? textValue(bar.props.openButton).trim() : "";
+    const button = openId ? buttonById[openId] : undefined;
+    for (const match of JSON.stringify(button?.props ?? {}).matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir\b/g)) tables.add(match[1]);
+    if (formDialogId) recordTableSets.all.forEach((name) => tables.add(name));
+    return tables;
+  }, [bar, buttonById, formDialogId, recordTableSets]);
+  const pendingOpen = useRef(false);
+  const [openSignal, setOpenSignal] = useState(0);
+  const openRow = (tableName: string, row: Record<string, unknown>) => {
+    if ((selections[tableName] ?? null) !== row) select(tableName, row, { user: true });
+    pendingOpen.current = true;
+    setOpenSignal((value) => value + 1);
+  };
+  // Seçim çizildikten sonra (Aç komutu yeni seçimle kaydedildi) çalışır.
+  useEffect(() => {
+    if (!pendingOpen.current) return;
+    pendingOpen.current = false;
+    void openCommand.current?.();
+  }, [openSignal]);
+  /** Kayıt kartlarının girişleri kaynak değerlerine döner (İşlem Çubuğu Yeni düğmesi ve `afterSaveButton`). */
+  const clearRecordInputs = () => {
+    const owned = formCards.filter((card) => textValue(card.props?.recordKey).trim() !== "").flatMap((card) => idList(card.props?.inputs));
+    if (owned.length === 0) return;
+    setTouched((previous) => without(previous, owned));
+    setValidationErrors((previous) => without(previous, owned));
+    setLookupState((previous) => without(previous, owned));
+  };
+  // Başka bir sayfanın `afterSaveButton` gezinmesi bu sekmeyi hedefliyorsa açılış sorguları yenilenir (ör. kayıttan sonra liste).
+  const rerunRef = useRef(rerun);
+  rerunRef.current = rerun;
+  const loadIdsRef = useRef(loadIds);
+  loadIdsRef.current = loadIds;
+  useEffect(() => {
+    if (!tabKey) return;
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
+      if (request?.refresh && request.page === tabKey && request.from !== tabKey) rerunRef.current(loadIdsRef.current);
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, [tabKey]);
+
+  const pageTitleComponent = isV2 ? flat.find((component) => component.type === "heading" && component.props?.pageTitle === true
+    && conditionHolds(component.props?.visibleWhen, scope, true)) : undefined;
+  const pageTitle = pageTitleComponent
+    ? interpolate(textValue(pageTitleComponent.props?.title) || textValue(pageTitleComponent.props?.text), scope).trim() || null : null;
+  const onTitleRef = useRef(onTitle);
+  onTitleRef.current = onTitle;
+  useEffect(() => { onTitleRef.current?.(pageTitle); }, [pageTitle]);
+  useEffect(() => () => onTitleRef.current?.(null), []);
+
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
@@ -2323,7 +2404,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       open: (opener) => openDialog(formDialogId, opener),
       startNew: startNewInDialog,
     } : null,
-    newCommand,
+    newCommand, openCommand, clearRecordInputs, openTables, openRow,
   } : undefined;
 
   return <div className="tenant-custom-page-content">
@@ -2364,11 +2445,17 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [titleOverride, setTitleOverride] = useState<string | null>(null);
   // The router passes inline callbacks; keep them out of the load effect's dependencies.
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
   const tabKey = previewId ? `custom-page-preview:${previewId}` : systemScreenKey ?? (code ? `custom-page:${code}` : undefined);
   const pageParams = usePageParams(tabKey);
+  // Sekme başka parametrelerle yeniden açıldı (ör. başka bir kayıt): sayfa gövdesi baştan kurulur, yazılanlar ve sonuçlar taşınmaz.
+  const paramKeys = useRef(new WeakMap<object, number>());
+  const paramCounter = useRef(0);
+  let paramKey = paramKeys.current.get(pageParams);
+  if (paramKey === undefined) { paramKey = ++paramCounter.current; paramKeys.current.set(pageParams, paramKey); }
 
   useEffect(() => {
     let active = true;
@@ -2421,7 +2508,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
-    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} />
+    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} onTitle={setTitleOverride} />
   </main>;
 }
