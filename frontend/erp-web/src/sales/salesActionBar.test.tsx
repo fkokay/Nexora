@@ -367,6 +367,11 @@ describe('Satış İrsaliyeleri', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Faturalaştır' }));
     });
     await waitFor(() => expect(screen.getByText('Fatura bilgileri')).toBeTruthy());
+    // The invoice sub-form saves with its own Kaydet next to Vazgeç; the bar's Kaydet is not its.
+    const invoiceForm = screen.getByRole('heading', { name: 'Fatura bilgileri' }).closest<HTMLElement>('.record-form')!;
+    expect(within(invoiceForm).getByRole('button', { name: 'Kaydet' })).toBeTruthy();
+    expect(within(invoiceForm).getByRole('button', { name: 'Vazgeç' })).toBeTruthy();
+    if (bar().querySelector('[data-command="save"]')) expect(enabled('save')).toBe(false);
     expect(apiMock).not.toHaveBeenCalledWith('/api/sales/deliveries/d1/invoice', 't', expect.anything());
     // While the editor is open the item is gone, as the detail's own button is.
     expect(openMenu()).toEqual(['İptal et']);

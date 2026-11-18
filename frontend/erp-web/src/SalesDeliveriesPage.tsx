@@ -822,6 +822,8 @@ export function SalesDeliveriesScreen({
                 mode="create"
                 busy={busy}
                 saveLabel="Faturayı oluştur"
+                // A sub-form of the document: its own Kaydet saves it, not the action bar's.
+                ownSave
                 saveDisabledReason={detail.orderId === null && !invoiceCustomerId ? "Kaydetmek için müşteri seçin." : undefined}
                 onCancel={() => {
                   if (!busy) setInvoiceEditing(false);

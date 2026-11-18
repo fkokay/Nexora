@@ -321,6 +321,21 @@ describe('Satış siparişi detayı', () => {
     });
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith('/api/sales/invoices/i1', 't'));
   });
+
+  it('the İrsaliye sub-form saves with its own Kaydet next to Vazgeç, not with the bar Kaydet', async () => {
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('S-o1');
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'İrsaliye oluştur' }));
+    });
+    const form = await waitFor(() => screen.getByRole('heading', { name: 'Satış irsaliyesi' }).closest<HTMLElement>('.record-form')!);
+    const own = within(form).getByRole('button', { name: 'Kaydet' });
+    expect(own.querySelector('kbd')).toBeNull();
+    expect(within(form).getByRole('button', { name: 'Vazgeç' })).toBeTruthy();
+    const save = bar().querySelector<HTMLElement>('[data-command="save"]');
+    if (save) expect(save.getAttribute('aria-disabled')).toBe('true');
+  });
 });
 
 describe('Satış faturası detayı', () => {

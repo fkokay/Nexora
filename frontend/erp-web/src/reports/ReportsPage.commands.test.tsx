@@ -102,7 +102,8 @@ describe('ReportsPage action bar', () => {
   it('runs the report from Yenile, the İşlemler menu and F9; Excel needs a result', async () => {
     setup();
     await loaded();
-    expect(commandReason(button('export'))).toBe('Önce raporu çalıştırın');
+    // The page may still be loading ("Yükleniyor…") right after the saved-report count shows.
+    await waitFor(() => expect(commandReason(button('export'))).toBe('Önce raporu çalıştırın'));
     fireEvent.click(button('refresh'));
     await waitFor(() => expect(calls.filter((c) => c.url === '/api/reports/run')).toHaveLength(1));
     await waitFor(() => expect(isDisabled(button('export'))).toBe(false));
