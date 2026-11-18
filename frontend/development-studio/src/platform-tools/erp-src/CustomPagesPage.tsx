@@ -25,6 +25,7 @@ import { chipText, idList, ownedInputIds, parseFieldList, parseTabs, tabOwnedIds
 import { conditionProblem } from "./page-designer/conditions";
 import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, tabsValue, type TabEntry } from "./page-designer/TabsFields";
+import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import "./custom-pages.css";
 
@@ -498,6 +499,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const systemMode = !!systemScreenKey;
   const [systemInfo, setSystemInfo] = useState<SystemPageInfo | null>(null);
   const [importNotesOpen, setImportNotesOpen] = useState(() => (importNotes?.length ?? 0) > 0);
+  // "Yeni" şeridi: standart tanımda firma tasarımında olmayan öğeler; `addedIds` eklenen öğenin tanımdaki kimliğidir
+  // (kimlik çakışmasında yeni kimlik verilir), geri alınınca öğe yeniden önerilir.
+  const [newItems, setNewItems] = useState<StandardNewItems | null>(null);
+  const [addedIds, setAddedIds] = useState<Record<string, string>>({});
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [history, setHistory] = useState<PageRevision[]>([]);
   const [formEditorOpen, setFormEditorOpen] = useState(false);
@@ -560,6 +565,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Sistem kipinde erişim paneli yalnız SQL sorgusu varken anlamlıdır (ERP işlemlerinin yetkisini uç noktalar verir).
   const hasSqlQueries = definition.queries.some((query) => !isOperationQuery(query));
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
+  const designIds = useMemo(() => new Set([...definition.components.map((component) => component.id), ...definition.queries.map((query) => query.id)]), [definition]);
+  const itemPresent = useCallback((key: string) => {
+    const id = key.slice(key.indexOf(":") + 1);
+    return designIds.has(id) || (!!addedIds[key] && designIds.has(addedIds[key]));
+  }, [designIds, addedIds]);
+  const pendingNewItems = useMemo(() => newItems?.items.filter((item) => !itemPresent(item.key)) ?? [], [newItems, itemPresent]);
+  // Önerilen öğelerin hepsi eklendiyse sonraki kayıt tabanı güncel standart sürüme çeker.
+  const allNewItemsAdded = !!newItems && newItems.items.length > 0 && pendingNewItems.length === 0 && newItems.standardVersion > newItems.baseVersion;
   const selected = definition.components.find((component) => component.id === selectedComponentId) ?? null;
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
@@ -597,6 +610,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (requestId === systemInfoRequest.current) setSystemInfo(info);
   }, [request, systemScreenKey]);
   useEffect(() => { void refreshSystemInfo(); return () => { systemInfoRequest.current++; }; }, [refreshSystemInfo]);
+  // Taslak her yüklendiğinde ya da kaydedildiğinde (kimlik, revizyon veya yayın durumu değişince) öneriler yeniden alınır.
+  const currentId = current?.id; const currentRevision = current?.revision; const currentPublished = current?.isPublished;
+  useEffect(() => {
+    if (!systemScreenKey || !currentId) { setNewItems(null); setAddedIds({}); return; }
+    let active = true;
+    void request<StandardNewItems>(`/api/system-pages/${encodeURIComponent(systemScreenKey)}/new-items`)
+      .then((result) => {
+        if (!active) return;
+        setNewItems(result && Array.isArray(result.items) ? result : null);
+        setAddedIds({});
+      })
+      .catch(() => { if (active) { setNewItems(null); setAddedIds({}); } });
+    return () => { active = false; };
+  }, [request, systemScreenKey, currentId, currentRevision, currentPublished]);
   useEffect(() => {
     if (initialActionDone.current || loading) return;
     if (initialCreate) {
@@ -833,6 +860,34 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       onBack?.();
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
+  };
+  /** "Yeni" şeridinde "Ekle": öğe ve eksik bağımlılıkları tek adımda (geri alınabilir) tanımın sonuna eklenir. */
+  const addNewItem = (item: StandardNewItem) => {
+    if (!canEdit || !newItems) return;
+    const { bundle, missing } = standardItemBundle(item, newItems.items, itemPresent);
+    if (missing.length > 0) {
+      const labels = missing.map((key) => `“${key.slice(key.indexOf(":") + 1)}”`).join(", ");
+      setError(`“${item.label}” eklenemedi: gerektirdiği ${labels} öğesi tasarımda yok ve standart öneriler arasında değil.`);
+      return;
+    }
+    let ids: Record<string, string> = {};
+    commit((value) => {
+      const added = addStandardItems(value, bundle, (type) => newId(type as ComponentType), () => `q-${crypto.randomUUID().slice(0, 8)}`);
+      ids = added.ids;
+      return normalizeDefinition(added.definition);
+    });
+    if (Object.keys(ids).length === 0) return;
+    setAddedIds((value) => ({ ...value, ...ids }));
+    setError("");
+    const addedId = ids[item.key] ?? standardItemId(item);
+    if (item.kind === "component") { setSelectedComponentId(addedId); setRightMode("inspector"); }
+    else { setLeftTab("queries"); setSelectedQueryId(addedId); }
+    setNotice(`“${item.label}” eklendi. Değişikliği kaydedip yayımlayana kadar ERP'deki ekran değişmez.`);
+  };
+  /** "Tümünü yok say": taslak (kaydedilmemiş değişiklikleriyle birlikte) tabanı güncel standart sürüme çekilerek kaydedilir. */
+  const ignoreAllNewItems = async () => {
+    if (!canEdit || !newItems) return;
+    await saveDraft({ standardVersion: newItems.standardVersion, notice: "Yeni öğeler yok sayıldı; taslak standart tasarımın güncel sürümüne göre kaydedildi." });
   };
   // Yayımlı firma tasarımının kimliği: açık sayfa yayımlıysa kendisi, değilse sistem sayfası özetindeki satır.
   const publishedFirmDesignId = !systemMode ? null : current?.isPublished ? current.id : systemInfo?.publishedId ?? null;
@@ -1140,7 +1195,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     window.addEventListener("pointerup", stop);
     window.addEventListener("pointercancel", stop);
   };
-  const saveDraft = async () => {
+  const saveDraft = async (options?: { standardVersion?: number; notice?: string }) => {
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
     const reconciled = reconcileLayoutRefs(definitionRef.current, { catalog: erpCatalog, queryEditable });
@@ -1175,10 +1230,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const wire = wireDefinition(definition, erpCatalog);
     try {
       const result = current
-        ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition: wire }) })
+        ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition: wire, ...(systemMode ? { standardVersion: options?.standardVersion ?? (allNewItemsAdded ? newItems.standardVersion : null) } : {}) }) })
         : await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: code.trim(), name, description: description || null, definition: wire }) });
       setCurrent(result); setCreating(false); setCode(result.code); setSavedSnapshot(sentSnapshot);
-      setNotice("Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
+      setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
       await refreshHistory(result.id);
       await refresh();
       return result;
@@ -1799,6 +1854,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {error && <div className="pd-message error" role="alert"><span>{error}</span><button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={14}/></button></div>}
       {notice && !error && <div className="pd-message success" role="status"><span>{notice}{previewHref && notice === blockedPreviewNotice && <> <a href={previewHref} target="_blank" rel="noopener noreferrer" onClick={() => { setPreviewHref(null); setNotice(""); }}>ERP önizlemesini aç</a></>}</span><button type="button" aria-label="Kapat" onClick={() => { setNotice(""); setPreviewHref(null); }}><X size={14}/></button></div>}
     </div>}
+    {systemMode && current && <SystemPageNewItems items={pendingNewItems} disabled={!canEdit} busy={saving} onAdd={addNewItem} onIgnoreAll={() => void ignoreAllNewItems()}/>}
 
     <div className={`pd-workspace${leftTab === "queries" ? " pd-query-wide" : ""}`}>
       <aside className="pd-left" aria-label="Bileşenler ve katmanlar">
