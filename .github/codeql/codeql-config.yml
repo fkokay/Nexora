@@ -1,0 +1,7 @@
+name: Nexora CodeQL
+# Only EF Core generated model files are skipped: they hold no hand-written logic
+# (ModelBuilder calls only) and make up ~110 MB of the C# sources. Migration Up/Down
+# files, which may contain raw SQL, are still analyzed.
+paths-ignore:
+  - "src/**/Migrations/**/*.Designer.cs"
+  - "src/**/Migrations/**/*ModelSnapshot.cs"
