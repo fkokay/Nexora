@@ -282,6 +282,38 @@ describe('usePageQueries Faz A işlem alanları', () => {
   });
 });
 
+describe('zorunlu okuma parametreleri', () => {
+  const bomOp: ErpOperation = { ...base, name: 'uretim.recete.listele', label: 'Reçeteler', kind: 'read', pageKind: 'read', method: 'GET', route: '/api/manufacturing/boms',
+    parameters: [{ name: 'productStockItemId', in: 'query', type: 'guid', required: true }], result: { shape: 'list', rowsPath: null, columns } };
+  const bomCatalog = new Map([listOp, bomOp].map((op) => [op.name, op]));
+  const bomQuery = (binding: string): PageQueryDefinition => ({ id: 'r1', name: 'receteler', kind: 'read', runOn: 'load', operation: 'uretim.recete.listele',
+    parameters: [{ name: 'productStockItemId', binding, type: 'guid' }] });
+
+  it('read with empty required query parameter is not sent', async () => {
+    apiMock.mockResolvedValue([{ id: guid }]);
+    const { result } = setup([bomQuery('{{kart.rows[0].id}}')], bomCatalog);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await waitFor(() => expect(result.current.states.receteler.loading).toBe(false));
+    expect(apiMock).not.toHaveBeenCalled();
+    expect(result.current.states.receteler).toMatchObject({ rows: [], loading: false, error: '', ran: false });
+  });
+
+  it('read with bound required query parameter is sent', async () => {
+    apiMock.mockResolvedValue([{ id: guid }]);
+    const { result } = setup([bomQuery('{{secim.value}}')], bomCatalog);
+    await waitFor(() => expect(result.current.states.receteler.ran).toBe(true));
+    expect(apiMock).toHaveBeenCalledWith(`/api/manufacturing/boms?productStockItemId=${guid}`, 't', { method: 'GET' });
+    expect(result.current.states.receteler.rows).toEqual([{ id: guid }]);
+  });
+
+  it('optional empty query parameter still sends', async () => {
+    apiMock.mockResolvedValue({ items: [], totalCount: 0 });
+    const { result } = setup([{ ...listQuery, parameters: [{ name: 'q', binding: '{{yok.value}}', type: 'text' }] }], bomCatalog);
+    await waitFor(() => expect(result.current.states.kartlar.ran).toBe(true));
+    expect(apiMock).toHaveBeenCalledWith('/api/stock/items', 't', { method: 'GET' });
+  });
+});
+
 describe('useErpOperations', () => {
   it('fetches the catalog once per token, only when enabled', async () => {
     apiMock.mockResolvedValue({ operations: [listOp, getOp] });

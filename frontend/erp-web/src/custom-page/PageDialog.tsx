@@ -17,7 +17,7 @@ function DialogSaveCommands({ save, root }: { save?: DialogSave; root: RefObject
   return null;
 }
 
-function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, status, returnFocus }: Omit<PageDialogProps, "open">) {
+function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, status, returnFocus, onNew }:Omit<PageDialogProps, "open">) {
   const ref = useRef<HTMLDivElement>(null);
   const focusBack = useRef(returnFocus);
   focusBack.current = returnFocus;
@@ -29,6 +29,13 @@ function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, 
   }, []);
   // Esc yalnız pencerenin kendi öğelerinden gelirse kapatır (üstte açılan onay/istem kutusu sayfa dışındadır).
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Kayıt penceresi (`actionBar.formDialog`): F2 sayfanın Yeni komutudur (kısayol kaydı açık pencerede çalışmaz).
+    if (onNew && event.key === "F2" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      event.stopPropagation();
+      event.preventDefault();
+      onNew();
+      return;
+    }
     if (event.key !== "Escape") return;
     event.stopPropagation();
     event.preventDefault();
@@ -55,6 +62,8 @@ type PageDialogProps = {
   id: string; title: string; presentation: "dialog" | "drawer"; open: boolean;
   onClose: () => void; renderOwned: (id: string) => ReactNode; ids: string[];
   save?: DialogSave; status: ActionStatus | null; returnFocus: HTMLElement | null;
+  /** Kayıt penceresinde F2 (Yeni). */
+  onNew?: () => void;
 };
 
 /** Sayfa penceresi (`dialog`): görünüm içinde çizilir (portal yok); sahiplendiği bileşenler yalnız açıkken çizilir. */

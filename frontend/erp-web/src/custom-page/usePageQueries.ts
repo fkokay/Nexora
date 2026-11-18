@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRequiredValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
@@ -82,6 +82,11 @@ export function usePageQueries(options: {
   callOperation: (op: ErpOperation, values: Record<string, unknown>) => Promise<unknown>;
   /** Verilen yazma sorgularının (ad) `sonuc` ve `fieldErrors` değerlerini temizler (sonraki kayıt yeni oluşturma ile başlar). */
   clearResults: (queryNames: string[]) => void;
+  /**
+   * Verilen okuma sorgularının (ad) satırlarını hemen boşaltır, süren çalıştırmalarını geçersiz kılar ve sonraki parametre
+   * değişiminde gecikmesiz yeniden çalışmalarını sağlar (Yeni: seçimi kalkan kaydın ayrıntısı okuma gecikmesini beklemez).
+   */
+  resetReads: (queryNames: string[]) => void;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
@@ -162,8 +167,8 @@ export function usePageQueries(options: {
       const op = operationOf(query);
       if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
       const source = sourceRow(op);
-      // Yol parametresi henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
-      if (missingRouteValue(op, values, source)) {
+      // Yol parametresi ya da zorunlu süzgeç henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
+      if (missingRequiredValue(op, values, source)) {
         if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
         const idle = emptyState(false);
         setStates((current) => ({ ...current, [query.name]: idle }));
@@ -295,6 +300,22 @@ export function usePageQueries(options: {
     });
   };
 
+  const resetReads = (queryNames: string[]) => {
+    const reads = queries.filter((query) => query.kind === "read" && queryNames.includes(query.name)).map((query) => query.name);
+    if (reads.length === 0) return;
+    for (const name of reads) {
+      sequences.current.set(name, (sequences.current.get(name) ?? 0) + 1);
+      const pending = timers.current.get(name);
+      if (pending !== undefined) { clearTimeout(pending); timers.current.delete(name); }
+      lastKeys.current.delete(name);
+    }
+    setStates((current) => {
+      const next = { ...current };
+      for (const name of reads) if (current[name]) next[name] = emptyState(false);
+      return next;
+    });
+  };
+
   useEffect(() => {
     for (const plan of plans) {
       const { query } = plan;
@@ -318,5 +339,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults };
+  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads };
 }

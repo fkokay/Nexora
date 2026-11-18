@@ -150,6 +150,15 @@ export function missingRouteValue(op: ErpOperation, values: Record<string, unkno
 }
 
 /**
+ * Okuma isteği gönderilmemeli mi: bir yol parametresi eksik (`missingRouteValue`) ya da işlemin `required` bildirdiği bir
+ * sorgu/gövde parametresinin çözülen değeri boş. Böylece zorunlu süzgeci boş okuma (ör. reçeteler) süzgeçsiz gönderilmez.
+ */
+export function missingRequiredValue(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): boolean {
+  if (missingRouteValue(op, values, source)) return true;
+  return op.parameters.some((parameter) => parameter.required && parameter.in !== "route" && isEmpty(values[parameter.name]));
+}
+
+/**
  * Kaynak kayıttan başlayan (sourceOperation) yazma işlemi için ön denetim: kaynak satır yoksa ya da bağlı bir yol
  * değeri kaynak satırın aynı adlı alanından (büyük/küçük harf duyarsız metin karşılaştırması) farklıysa hata metni döner.
  * Böylece başka bir kaydın gizli alanları ve rowVersion'ı seçili kayda yazılmaz. Kaynaksız işlemde null.
