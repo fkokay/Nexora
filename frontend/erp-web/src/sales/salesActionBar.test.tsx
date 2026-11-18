@@ -143,7 +143,7 @@ describe('PageCommandsSlot', () => {
     const view = renderScreen(<Screen detail={false} />);
     await settle();
     expect(enabled('new')).toBe(true);
-    expect(enabled('print')).toBe(false);
+    expect(command('print')).toBeNull();
     view.rerender(
       <CommandProvider>
         <ActionBar locale="tr" />
@@ -152,7 +152,7 @@ describe('PageCommandsSlot', () => {
     );
     await settle();
     expect(enabled('print')).toBe(true);
-    expect(enabled('new')).toBe(false);
+    expect(command('new')).toBeNull();
   });
 });
 
@@ -226,7 +226,7 @@ describe('Satış Teklifleri', () => {
   it('non-admins get no delete and no field catalog', async () => {
     renderScreen(<SalesQuotesPage token="t" role="TenantUser" onNavigate={vi.fn()} />);
     await settle();
-    expect(enabled('delete')).toBe(false);
+    expect(command('delete')).toBeNull();
     expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
   });
 });

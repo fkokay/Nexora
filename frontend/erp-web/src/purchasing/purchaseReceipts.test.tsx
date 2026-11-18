@@ -219,7 +219,8 @@ describe('Mal kabulleri list', () => {
     fireEvent.change(screen.getByPlaceholderText('MK-2026-001'), { target: { value: 'MK-TASLAK' } });
     fireEvent.doubleClick(row('MK-1'));
     await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
-    expect(enabled('save')).toBe(false);
+    // No source registers save any more, so the bar draws no Kaydet at all.
+    expect(command('save')).toBeNull();
     expect(menuItems()).not.toContain('Temizle');
     expect(menuItems()).not.toContain('Kaydet ve Yeni');
     await act(async () => {

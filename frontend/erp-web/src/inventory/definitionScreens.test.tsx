@@ -889,7 +889,7 @@ describe('Raf ve Konumlar definition screen', () => {
     await selectLocation('A-01');
     expect(within(pane()).queryByRole('textbox')).toBeNull();
     expect(within(pane()).getByText('Konum bakiyesi')).toBeTruthy();
-    expect(enabled('new')).toBe(false);
-    expect(enabled('delete')).toBe(false);
+    expect(command('new')).toBeNull();
+    expect(command('delete')).toBeNull();
   });
 });

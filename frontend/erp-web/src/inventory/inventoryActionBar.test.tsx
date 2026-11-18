@@ -135,7 +135,7 @@ describe('F2 with forms and dialogs', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Özel alanlar' }));
     });
-    await waitFor(() => expect(enabled('new')).toBe(false));
+    await waitFor(() => expect(command('new')).toBeNull());
     fireEvent.keyDown(window, { key: 'F2' });
     expect(onNavigate).not.toHaveBeenCalled();
   });

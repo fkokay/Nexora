@@ -109,6 +109,12 @@ export type RecordFormPageProps = {
    * nothing, so they cannot act on the hidden form. The form and its input are kept. Default true.
    */
   commandsActive?: boolean;
+  /**
+   * The form sits on a list screen (under or beside the list) rather than being the screen: the action bar stays a
+   * list bar (Aç, Filtre, Excel remain) while still offering this form's Kaydet. A form inside a definition screen's
+   * pane (`.nx-def-pane`) counts as beside its list without this prop.
+   */
+  besideList?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -144,6 +150,7 @@ export function RecordFormPage({
   variant = "page",
   document: documentChrome,
   commandsActive = true,
+  besideList = false,
   className,
   children,
 }: RecordFormPageProps) {
@@ -155,8 +162,11 @@ export function RecordFormPage({
   const canReset = mode === "create" && !!onReset;
   // A form inside a modal keeps its own buttons: the modal backdrop covers the action bar.
   const [inDialog, setInDialog] = useState(false);
+  // A form in a definition screen's pane (DefinitionLayout) sits beside its list: the bar stays a list bar.
+  const [inListPane, setInListPane] = useState(false);
   useLayoutEffect(() => {
     setInDialog(Boolean(rootRef.current?.parentElement?.closest(DIALOG_SELECTOR)));
+    setInListPane(Boolean(rootRef.current?.closest(".nx-def-pane")));
   }, []);
 
   const { slotRef, breadcrumb } = useSlotBreadcrumb();
@@ -180,7 +190,7 @@ export function RecordFormPage({
     more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
   // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
   const markActive = usePageCommands(
-    commandsActive ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more } : {},
+    commandsActive ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more, ...(besideList || inListPane ? { besideList: true } : {}) } : {},
     "form",
     rootRef,
   );

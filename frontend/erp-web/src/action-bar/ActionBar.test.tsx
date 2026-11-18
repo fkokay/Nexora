@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider, usePageCommands } from '../commands/CommandProvider';
-import { ACTION_BAR_ORDER, type PageCommands } from '../commands/types';
+import { ACTION_BAR_ORDER, type CommandSource, type PageCommands } from '../commands/types';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ActionBar, pickCompaction } from './ActionBar';
 
@@ -9,6 +9,11 @@ afterEach(cleanup);
 
 function Page({ commands }: { commands: PageCommands }) {
   usePageCommands(commands);
+  return null;
+}
+
+function Source({ source, commands }: { source: CommandSource; commands: PageCommands }) {
+  usePageCommands(commands, source);
   return null;
 }
 
@@ -21,24 +26,91 @@ function setup(commands: PageCommands | null) {
   );
 }
 
+const all = (): PageCommands => Object.fromEntries(ACTION_BAR_ORDER.map((id) => [id, { run: vi.fn() }]));
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const button = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const isDisabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
 
 describe('ActionBar', () => {
+  const commandIds = () => Array.from(bar().querySelectorAll('[data-command]')).map((el) => el.getAttribute('data-command'));
+  const layout = () => Array.from(bar().querySelectorAll('.nx-action-bar__commands > *')).map((el) =>
+    el.classList.contains('nx-action-bar__sep') ? '|' : el.getAttribute('data-command'));
+
   it('renders the eight standard buttons in fixed order plus the actions menu', () => {
-    setup({});
-    const ids = Array.from(bar().querySelectorAll('[data-command]')).map((el) => el.getAttribute('data-command'));
-    expect(ids).toEqual([...ACTION_BAR_ORDER, 'more']);
+    setup(all());
+    expect(commandIds()).toEqual([...ACTION_BAR_ORDER, 'more']);
+    expect(layout()).toEqual(['new', 'open', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
   });
 
-  it('renders a button for every command even when the page registered nothing', () => {
+  it('hides every command no source registered; only İşlemler stays when the page registered nothing', () => {
     setup(null);
-    for (const id of ACTION_BAR_ORDER) {
-      expect(button(id)).toBeTruthy();
-      expect(isDisabled(button(id))).toBe(true);
-      expect(button(id).title).toBe('Bu ekranda kullanılamaz');
+    for (const id of ACTION_BAR_ORDER) expect(button(id)).toBeNull();
+    expect(commandIds()).toEqual(['more']);
+    expect(bar().querySelector('.nx-action-bar__sep')).toBeNull();
+  });
+
+  it('a list screen (no save registered) shows no Kaydet, keeps the separators, and Ctrl+S does nothing', () => {
+    const open = vi.fn();
+    const { save: _save, ...list } = all();
+    setup({ ...list, open: { run: open }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
+    expect(button('save')).toBeNull();
+    expect(layout()).toEqual(['new', 'open', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(isDisabled(button('delete'))).toBe(true);
+    const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('drops a separator whose group has no button left', () => {
+    setup({ new: { run: () => undefined }, print: { run: () => undefined } });
+    expect(layout()).toEqual(['new', '|', 'print']);
+  });
+
+  it('a record form screen (form owns the primary Kaydet) hides Aç, Filtre, Excel and their shortcuts do nothing', () => {
+    const page = all();
+    const save = vi.fn();
+    render(
+      <CommandProvider>
+        <ActionBar locale="tr" />
+        <KeepAliveViews activeKey="v" openKeys={['v']}>
+          <Page commands={page} />
+          <Source source="form" commands={{ save: { run: save, primary: true } }} />
+        </KeepAliveViews>
+      </CommandProvider>,
+    );
+    expect(layout()).toEqual(['new', 'save', 'delete', '|', 'refresh', '|', 'print']);
+    expect(button('save').getAttribute('data-primary')).toBe('true');
+    fireEvent.keyDown(document.body, { key: 'f', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'e', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(page.filter!.run).not.toHaveBeenCalled();
+    expect(page.export!.run).not.toHaveBeenCalled();
+    expect(page.open!.run).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('a form beside the list (non-primary Kaydet, or besideList) leaves the list bar with its Kaydet', () => {
+    for (const form of [{ save: { run: () => undefined } }, { save: { run: () => undefined, primary: true }, besideList: true }] as PageCommands[]) {
+      const { unmount } = render(
+        <CommandProvider>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="v" openKeys={['v']}>
+            <Page commands={all()} />
+            <Source source="form" commands={form} />
+          </KeepAliveViews>
+        </CommandProvider>,
+      );
+      expect(commandIds()).toEqual([...ACTION_BAR_ORDER, 'more']);
+      unmount();
     }
+  });
+
+  it('a read-only record that registers save with a reason keeps Kaydet dimmed', () => {
+    setup({ save: { disabledReason: 'Banka ekstresi salt okunurdur' } });
+    expect(isDisabled(button('save'))).toBe(true);
+    expect(button('save').title).toBe('Banka ekstresi salt okunurdur');
   });
 
   it('disabled button shows its reason as title and is not hidden', () => {
@@ -60,7 +132,7 @@ describe('ActionBar', () => {
   });
 
   it('shows the formatted shortcut on each button', () => {
-    setup({});
+    setup(all());
     expect(within(button('delete')).getByText('Ctrl+Del')).toBeTruthy();
     expect(within(button('new')).getByText('F2')).toBeTruthy();
     expect(within(button('more')).getByText('Alt+İ')).toBeTruthy();
@@ -169,7 +241,7 @@ describe('ActionBar compaction (narrow bar)', () => {
   }
 
   it('keeps İşlemler (and Geri Al) outside the scrolling button area', () => {
-    setup({ undo: { run: () => undefined } });
+    setup({ ...all(), undo: { run: () => undefined } });
     const area = bar().querySelector<HTMLElement>('.nx-action-bar__commands')!;
     expect(area.contains(button('more'))).toBe(false);
     expect(area.contains(button('undo'))).toBe(false);

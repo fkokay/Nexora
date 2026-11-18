@@ -308,7 +308,7 @@ describe('Satınalma Teklifleri list', () => {
     expect(tagOf(row('TKL-a'))?.className).toContain('is-warn');
     expect(tagOf(row('TKL-b'))?.className).toContain('is-ok');
     expect(tagOf(row('TKL-c'))?.className).toContain('is-off');
-    expect(enabled('new')).toBe(false);
+    expect(command('new')).toBeNull();
     expect(enabled('open')).toBe(false);
     expect(openMenu()).toEqual(['Talep üzerinden teklif gir', 'CSV olarak dışa aktar']);
     fireEvent.click(row('TKL-a').querySelectorAll('td')[3]);
