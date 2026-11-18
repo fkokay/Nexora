@@ -280,3 +280,115 @@ describe('Sunucu sayfalı liste', () => {
     await waitFor(() => expect(document.querySelector('.tenant-page-action-status.is-warning')?.textContent).toBe('Yalnız görünen sayfa aktarıldı (25 satır).'));
   });
 });
+
+describe('QueryTable satır işlemleri, limit ve boş metin', () => {
+  const rows = [{ id: 'a', ad: 'A' }, { id: 'b', ad: 'B' }, { id: 'c', ad: 'C' }];
+  const cols = [{ code: 'id', label: 'Kimlik' }, { code: 'ad', label: 'Ad' }];
+
+  it('limit draws first rows', () => {
+    const { container } = render(<QueryTable state={state(rows, cols)} columns={[]} title="T" description="" style={{}} limit={2} totals={['ad']} />);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(container.querySelector('tfoot td')?.textContent).toBe('Toplam · 2 kayıt');
+  });
+
+  it('emptyText replaces idle and empty texts', () => {
+    const idle: QueryState = { ...state([], cols), ran: false };
+    const { container, rerender } = render(<QueryTable state={idle} columns={[]} title="T" description="" style={{}} emptyText="Önce bir kart seçin." />);
+    expect(container.textContent).toContain('Önce bir kart seçin.');
+    expect(container.textContent).not.toContain('Bu sorgu elle çalıştırılır.');
+    rerender(<QueryTable state={state([], cols)} columns={[]} title="T" description="" style={{}} emptyText="Önce bir kart seçin." />);
+    expect(container.textContent).toContain('Önce bir kart seçin.');
+    expect(container.textContent).not.toContain('Gösterilecek kayıt bulunamadı.');
+  });
+
+  it('row action click does not toggle row', () => {
+    const s = state(rows, cols);
+    const onSelect = vi.fn();
+    const run = vi.fn();
+    const { container } = render(<QueryTable state={s} columns={[]} title="T" description="" style={{}} selected={s.rows[0]} onSelect={onSelect}
+      rowActions={[{ id: 'x', label: 'Ters kayıt', visible: (row) => row.id !== 'c', disabled: () => null, run }]} />);
+    expect(container.querySelector('thead')?.textContent).toContain('İşlemler');
+    const buttons = screen.getAllByRole('button', { name: 'Ters kayıt' });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]);
+    fireEvent.keyDown(buttons[0], { key: 'Enter' });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledWith(s.rows[0], buttons[0]);
+    // Hiçbir çizilen satırda görünür işlem yoksa sütun eklenmez.
+    cleanup();
+    const { container: none } = render(<QueryTable state={s} columns={[]} title="T" description="" style={{}}
+      rowActions={[{ id: 'x', label: 'Ters kayıt', visible: () => false, disabled: () => null, run }]} />);
+    expect(none.querySelector('thead')?.textContent).not.toContain('İşlemler');
+  });
+});
+
+const G1 = '11111111-1111-1111-1111-111111111111';
+const G2 = '22222222-2222-2222-2222-222222222222';
+const G3 = '33333333-3333-3333-3333-333333333333';
+const movementListOp = {
+  name: 'stok.hareket.liste', label: 'Hareketler', module: 'Stok', kind: 'read', pageKind: 'read', method: 'GET', route: '/api/stock/movements',
+  parameters: [], result: { shape: 'list', rowsPath: null, columns: [{ code: 'id', label: 'Kimlik', dataType: 'guid' }, { code: 'belge', label: 'Belge', dataType: 'text' }, { code: 'hasReversal', label: 'Ters', dataType: 'bool' }], flatten: [], metaPaths: [] },
+  sourceOperation: null, fixedBody: null, since: '2026-11-18', deprecated: false, allowed: true, routeVariants: [], bodyMap: null,
+};
+const reverseOp = {
+  name: 'stok.hareket.ters', label: 'Hareketi ters kaydet', module: 'Stok', kind: 'write', pageKind: 'insert', method: 'POST', route: '/api/stock/movements/{id}/reverse',
+  parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }], result: { shape: 'record', rowsPath: null, columns: [] },
+  sourceOperation: null, fixedBody: null, since: '2026-11-18', deprecated: false, allowed: true, routeVariants: [], bodyMap: null,
+};
+const movementRows = [{ id: G1, belge: 'B1', hasReversal: false }, { id: G2, belge: 'B2', hasReversal: true }, { id: G3, belge: 'B3', hasReversal: false }];
+
+function setupRowActions(buttonProps: Record<string, unknown> = {}) {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
+    if (endpoint.endsWith('/published')) {
+      return {
+        id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
+        definitionJson: JSON.stringify({
+          schemaVersion: 2,
+          components: [
+            { id: 't', type: 'dataTable', name: 'hareketler', props: { query: 'ql', title: 'Hareketler', columns: ['belge'], rowActions: ['ters'] } },
+            { id: 'ters', type: 'button', name: 'tersBtn', props: { text: 'Ters kayıt', actionType: 'query', queryId: 'qt', ...buttonProps } },
+          ],
+          queries: [
+            { id: 'ql', name: 'liste', kind: 'read', runOn: 'load', operation: 'stok.hareket.liste', parameters: [] },
+            { id: 'qt', name: 'ters', kind: 'insert', runOn: 'manual', operation: 'stok.hareket.ters', parameters: [{ name: 'id', binding: '{{hareketler.seciliSatir.id}}', type: 'guid' }] },
+          ],
+        }),
+      };
+    }
+    if (endpoint === '/api/custom-pages/erp-operations') return { operations: [movementListOp, reverseOp] };
+    calls.push({ url: endpoint, init });
+    if (endpoint === '/api/stock/movements') return movementRows;
+    return { id: 'r1' };
+  });
+  render(<TenantCustomPage code="p" token="t" />);
+  return calls;
+}
+
+describe('Satır işlemleri (sayfa)', () => {
+  beforeEach(() => { api.mockReset(); });
+
+  it('row action resolves against its row', async () => {
+    const calls = setupRowActions();
+    await screen.findByText('B3');
+    const rowsEl = () => Array.from(document.querySelectorAll<HTMLElement>('.tenant-page-table tbody tr'));
+    fireEvent.click(rowsEl()[2]);
+    await waitFor(() => expect(rowsEl()[2].getAttribute('aria-selected')).toBe('true'));
+    fireEvent.click(within(rowsEl()[0]).getByRole('button', { name: 'Ters kayıt' }));
+    await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/movements/${G1}/reverse`)).toBe(true));
+    expect(calls.filter((call) => call.url.endsWith('/reverse'))).toHaveLength(1);
+    await waitFor(() => expect(rowsEl()[0].getAttribute('aria-selected')).toBe('true'));
+    expect(rowsEl()[2].getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('row action disabledWhen per row', async () => {
+    const calls = setupRowActions({ disabledWhen: 'hareketler.seciliSatir.hasReversal', disabledReason: '{{hareketler.seciliSatir.belge}} zaten ters kaydedildi' });
+    await screen.findByText('B3');
+    const buttons = screen.getAllByRole('button', { name: 'Ters kayıt' }) as HTMLButtonElement[];
+    expect(buttons.map((button) => button.disabled)).toEqual([false, true, false]);
+    expect(buttons[1].getAttribute('title')).toBe('B2 zaten ters kaydedildi');
+    fireEvent.click(buttons[1]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls.some((call) => call.url.endsWith('/reverse'))).toBe(false);
+  });
+});

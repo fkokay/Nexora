@@ -255,6 +255,30 @@
 .tenant-page-pager-nav .tenant-page-button { min-height: 26px; padding: 2px 10px; font-size: 12px; }
 @media (max-width: 560px) { .tenant-page-pager-nav { margin-left: 0; } .tenant-page-table-search { max-width: none; } }
 
+/* Kayıt dizisi uyarısı, satır işlemleri, pencere ve görsel (Faz B). Pencere görünüm içinde çizilir; onay kutusu (z 20000) üstte kalır. */
+.tenant-page-action-feedback.is-warning { color: var(--nx-warn); }
+.tenant-page-table th.tenant-page-row-actions, .tenant-page-table td.tenant-page-row-actions { width: 1%; white-space: nowrap; text-align: right; }
+.tenant-page-row-action { min-height: 24px; margin-left: 4px; padding: 0 8px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); color: var(--nx-text); background: var(--nx-surface); font: 600 11.5px var(--nx-font); cursor: pointer; }
+.tenant-page-row-action:hover:not(:disabled) { border-color: var(--nx-primary); color: var(--nx-primary-strong); }
+.tenant-page-row-action:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+.tenant-page-row-action:disabled { opacity: .45; cursor: not-allowed; }
+.tenant-page-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--nx-text) 38%, transparent); }
+.tenant-page-dialog { display: flex; flex-direction: column; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: hidden; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); box-shadow: 0 18px 48px color-mix(in srgb, var(--nx-text) 24%, transparent); }
+.tenant-page-dialog-backdrop:has(.tenant-page-dialog.is-drawer) { place-items: stretch end; padding: 0; }
+.tenant-page-dialog.is-drawer { width: min(560px, 100%); max-height: none; height: 100vh; border-radius: 0; }
+.tenant-page-dialog-header { padding: 12px 16px; border-bottom: 1px solid var(--nx-line); }
+.tenant-page-dialog-header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.tenant-page-dialog-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap, 12px); padding: 14px 16px; overflow-y: auto; }
+.tenant-page-dialog-body > * { grid-column: span 12; min-width: 0; }
+.tenant-page-dialog > .tenant-page-action-status { margin: 0 16px 10px; }
+.tenant-page-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--nx-line); }
+.tenant-page-dialog-footer .tenant-page-button.is-secondary { border-color: var(--nx-line); color: var(--nx-text); background: var(--nx-surface); }
+.tenant-page-dialog-footer .tenant-page-button.is-secondary:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-surface); }
+.tenant-page-image { box-sizing: border-box; margin: 0; overflow: hidden; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-image img { display: block; width: 100%; height: 100%; }
+.tenant-page-image-placeholder { display: grid; place-items: center; height: 100%; color: var(--nx-muted); font-size: 12px; }
+@media (max-width: 560px) { .tenant-page-dialog-backdrop { padding: 0; place-items: stretch; } .tenant-page-dialog { width: 100%; max-height: none; border-radius: 0; } .tenant-page-dialog-body > * { grid-column: span 12 !important; } }
+
 /* ERP kabuğunun eski `.app-shell :is([class*="-card"], [class*="-panel"], [class*="-tag"], [class*="-chip"], …)` köşe kuralı
    (!important) özel sayfada etiketleri/çipleri köşeli, kartları 12px yapıyordu. Etiket ve çip tam yuvarlak; bloklar
    tasarımcıda seçilen köşeyi (--tp-radius, satır içi stilden) korur.
