@@ -10,7 +10,7 @@ import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { ActionBarPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -1940,8 +1940,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       }
       case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
       case "code": return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
-      case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info"; return <article key={component.id} className={`custom-page-preview-alert tone-${variant}`} style={style}><b>{String(props.title || "Bilgilendirme")}</b><p>{String(props.text || "")}</p></article>; }
-      case "badge": return <BadgePreview key={component.id} text={String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
+      case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info";
+        return <AlertPreview key={component.id} variant={variant} title={String(props.title || "")} text={String(props.text || "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
+      // Etiket metni bağlama içerebilir ({{liste.seciliSatir.status}}): örnek veriyle çözülür, çözülemezse "Durum".
+      case "badge": return <BadgePreview key={component.id} text={interpolate(String(props.text || props.label || ""), designScope()) || String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
       case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
       case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
       case "formCard": {

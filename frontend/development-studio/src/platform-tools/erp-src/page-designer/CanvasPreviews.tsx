@@ -1,6 +1,6 @@
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useFlip } from "./useFlip";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, ChevronDown, Clock, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, Box, CheckCircle2, ChevronDown, Clock, Info, ShieldAlert, ShieldCheck, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
 
@@ -457,4 +457,17 @@ export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned
       </div>
     </>}
   </section>;
+}
+
+const ALERT_STRIP_ICONS: Record<string, LucideIcon> = { shield: ShieldCheck, shieldAlert: ShieldAlert, check: CheckCircle2, alert: AlertTriangle, info: Info };
+
+/** Bildirim kutusu: ERP ile aynı. `icon` verilmişse durum şeridi (beyaz kart, tonlu simge kutusu, sağda `value` rozeti). */
+export function AlertPreview({ variant, title, text, icon, value, style }: { variant: string; title: string; text: string; icon: string; value: string; style: CSSProperties }) {
+  const StripIcon = ALERT_STRIP_ICONS[icon];
+  if (!StripIcon) return <article className={`custom-page-preview-alert tone-${variant}`} style={style}><b>{title || "Bilgilendirme"}</b><p>{text}</p></article>;
+  return <aside className={`pd-status-strip tone-${variant}`} style={style}>
+    <span className="pd-status-strip-mark" aria-hidden="true"><StripIcon size={17}/></span>
+    <span className="pd-status-strip-text"><b>{title || "Bilgilendirme"}</b>{text && <small>{text}</small>}</span>
+    {value && <span className="pd-status-strip-badge">{value}</span>}
+  </aside>;
 }

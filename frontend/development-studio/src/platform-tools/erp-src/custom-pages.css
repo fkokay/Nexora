@@ -683,3 +683,14 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-dialog-toggle{margin-left:auto;border:1px solid var(--page-border);border-radius:7px;background:#fff;padding:4px 10px;font:inherit;font-size:12px;font-weight:600;color:#344054;cursor:pointer}
 .pd-dialog-preview .pd-tabs-preview-panel{padding:10px 12px}
 .pd-dialog-preview>.custom-page-preview-card-head{justify-content:flex-end;gap:6px;padding:0 12px 10px}
+
+/* Durum şeridi (ERP .tenant-page-status-strip, eski NegativeStockPolicyNote görünümü). */
+.pd-status-strip{display:flex;align-items:center;gap:12px;box-sizing:border-box;min-width:0;padding:10px 14px;border:1px solid #dfe5ee;border-radius:10px;background:#fff;color:#17263a}
+.pd-status-strip-mark{display:grid;flex:none;place-items:center;width:30px;height:30px;border-radius:7px;background:#e8f6ee;color:#1c7a4a}
+.pd-status-strip-text{display:grid;flex:1;gap:2px;min-width:0}
+.pd-status-strip-text b{font-size:13px;font-weight:650}
+.pd-status-strip-text small{color:#5b6b80;font-size:12px;line-height:1.45}
+.pd-status-strip-badge{flex:none;padding:3px 9px;border-radius:7px;background:#e8f6ee;color:#1c7a4a;font-size:11px;font-weight:650}
+.pd-status-strip.tone-info :is(.pd-status-strip-mark,.pd-status-strip-badge){background:#eef2f7;color:#45566d}
+.pd-status-strip.tone-warning :is(.pd-status-strip-mark,.pd-status-strip-badge){background:#e8f0fd;color:#1f5fd1}
+.pd-status-strip.tone-danger :is(.pd-status-strip-mark,.pd-status-strip-badge){background:#fee4e2;color:#b42318}
