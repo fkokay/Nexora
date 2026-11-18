@@ -31,6 +31,7 @@ import type { Tenant, Theme } from "./erp-types";
 import { workbenchRailItems, type WorkbenchRailItem } from "./shell/railItems";
 import { moduleForPage } from "./shell/moduleMenus";
 import { WorkspaceSubNav } from "./shell/WorkspaceSubNav";
+import { ShellNoticeToast } from "./shell/ShellNoticeToast";
 type ApiRequest = typeof import("./erpApi").api;
 
 const standardListPages = new Set([
@@ -506,14 +507,7 @@ export function WorkspaceShellPage(props: Props) {
               </button>
             </div>
           )}
-          {notice && (
-            <div className="notice">
-              {notice}
-              <button onClick={onDismissNotice}>
-                <X size={15} />
-              </button>
-            </div>
-          )}
+          <ShellNoticeToast notice={notice} locale={locale} onDismiss={onDismissNotice} />
           {/* Standalone Studio has no ERP commands; its forms keep their own buttons. */}
           {!standaloneStudio && page !== "launcher" && page !== "dashboard" && <ActionBar locale={locale} />}
           <KeepAliveViews
