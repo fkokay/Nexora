@@ -317,7 +317,7 @@ export default function FinanceBudgetPage({
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
   return (
-    <div className="finance-page finance-budget-page list-v2 fin-budget-page">
+    <div className="finance-page finance-budget-page list-v2 fh-page cf-page fin-budget-page">
       <BudgetPageChrome
         plans={plans}
         loading={loading}

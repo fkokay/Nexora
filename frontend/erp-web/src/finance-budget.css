@@ -26,6 +26,11 @@
   box-shadow: none !important;
 }
 #root .app-shell .budget-detail .budget-detail-box .advanced-grid-search { border-radius: var(--nx-radius-control, 6px) !important; }
+#root .budget-detail .budget-surface-body { gap: 12px; }
+#root .budget-detail .budget-detail-box :is(td, th).nx-num { font-variant-numeric: tabular-nums; }
+#root .app-shell .budget-detail .budget-detail-box td.positive { color: var(--nx-ok) !important; }
+#root .app-shell .budget-detail .budget-detail-box td.negative { color: var(--nx-bad) !important; }
+#root .budget-detail .budget-detail-box .budget-account-summary { margin: 0; border: 0; border-radius: 0; }
 #root .budget-detail .budget-detail-box .budget-currency-warning,
 #root .budget-detail .budget-detail-box .budget-state { margin: 12px; }
 

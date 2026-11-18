@@ -10,6 +10,9 @@ import type { BudgetLayoutField, Line, PlanView } from "./types";
 
 type BudgetTab = "monthly" | "accounts";
 
+/** Amount columns of the monthly grid (right-aligned, tabular). */
+const BUDGET_NUMBER_FIELDS = new Set(["plannedAmount", "actualAmount", "variance"]);
+
 type Props = {
   selected: PlanView;
   draft: boolean;
@@ -103,6 +106,7 @@ export default function BudgetDetail({
         </span>
       }
     >
+      <div className="fh-page cf-page budget-surface-body">
       {messages}
       <DetailTiles
         label="Bütçe özeti"
@@ -177,7 +181,7 @@ export default function BudgetDetail({
             <thead>
               <tr>
                 {visibleFields.map((field) => (
-                  <th key={field.key} scope="col">
+                  <th key={field.key} scope="col" className={BUDGET_NUMBER_FIELDS.has(field.key) ? "nx-num" : undefined}>
                     {field.key === "plannedAmount"
                       ? `${field.label} (${selected.plan.currencyCode})`
                       : field.key === "actualAmount"
@@ -218,11 +222,12 @@ export default function BudgetDetail({
                           key={field.key}
                           data-label={field.label}
                           className={
-                            field.key === "variance" && variance != null
-                              ? favorable
-                                ? "positive"
-                                : "negative"
-                              : undefined
+                            [
+                              BUDGET_NUMBER_FIELDS.has(field.key) ? "nx-num" : "",
+                              field.key === "variance" && variance != null ? (favorable ? "positive" : "negative") : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ") || undefined
                           }
                         >
                           {value}
@@ -236,6 +241,7 @@ export default function BudgetDetail({
           </AdvancedDataGrid>
         </div>
       )}
+      </div>
       </div>
       </div>
     </DocumentSurface>
