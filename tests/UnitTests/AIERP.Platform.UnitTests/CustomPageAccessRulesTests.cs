@@ -122,5 +122,22 @@ public sealed class CustomPageAccessRulesTests
         Assert.Equal("read", permission.Permission.Action);
     }
 
+    [Fact]
+    public void Stock_item_balances_route_resolves_to_warehouses_permission()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        var balances = PlatformPermissionCatalog.TryResolve($"/api/stock/items/{id}/balances", "GET", "/api/stock/items/{id:guid}/balances",
+            new Dictionary<string, string?> { ["id"] = id }, Guid.NewGuid(), User, "TenantUser", out var permission);
+        Assert.True(balances);
+        Assert.Equal("erp.warehouses", permission!.Permission.ResourceType);
+        Assert.Equal("read", permission.Permission.Action);
+
+        // Other card sub-routes stay under stock cards.
+        var units = PlatformPermissionCatalog.TryResolve($"/api/stock/items/{id}/units", "GET", "/api/stock/items/{id:guid}/units",
+            new Dictionary<string, string?> { ["id"] = id }, Guid.NewGuid(), User, "TenantUser", out var unitsPermission);
+        Assert.True(units);
+        Assert.Equal("erp.stock-items", unitsPermission!.Permission.ResourceType);
+    }
+
     private static TenantCustomPageAccess Access(string mode) => new() { TenantId = Guid.NewGuid(), PageCode = "asset-dashboard", Mode = mode, Revision = 1 };
 }

@@ -145,7 +145,7 @@ internal static class TenantCustomPageSchema
         { error = $"Sayfada en fazla {MaxQueries} sorgu tanımlanabilir."; return false; }
         // Ids are compared ordinally at runtime but must not differ only by casing.
         var queryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var pendingSources = new List<(string Name, string Operation, string Source)>();
+        var pendingSources = new List<(string Name, string Operation, string Source, IReadOnlyList<string>? BodyMapRoute)>();
         foreach (var query in queries.EnumerateArray())
         {
             if (query.ValueKind != JsonValueKind.Object)
@@ -194,10 +194,14 @@ internal static class TenantCustomPageSchema
             context.QueryKinds.Add(id, kind);
             result.Add(new PageQuery(id, name!, kind, sql, parameters, runOn));
         }
-        // An update that starts from a source record needs that read on the same page.
-        foreach (var (name, operation, source) in pendingSources)
+        // An update that starts from a source record (or a body map built from a source read) needs that read on the same page.
+        foreach (var (name, operation, source, bodyMapRoute) in pendingSources)
+        {
             if (!result.Any(x => string.Equals(x.Operation, source, StringComparison.Ordinal)))
             { error = $"'{name}' sorgusu: '{operation}' işlemi için sayfada '{source}' okuma sorgusu olmalıdır."; return false; }
+            if (bodyMapRoute is not null && BodyMapBindingError(name, source, bodyMapRoute, result) is { } bindingError)
+            { error = bindingError; return false; }
+        }
         return true;
     }
 
@@ -238,7 +242,7 @@ internal static class TenantCustomPageSchema
     /// parameter must be bound (route parameters of an operation with a source read come from that read's record).
     /// </summary>
     private static bool ValidateOperationQuery(JsonElement query, string id, string name, string kind, Context context,
-        List<PageQuery> result, List<(string Name, string Operation, string Source)> pendingSources, out string? error)
+        List<PageQuery> result, List<(string Name, string Operation, string Source, IReadOnlyList<string>? BodyMapRoute)> pendingSources, out string? error)
     {
         var operationName = StringOf(query, "operation");
         if (operationName is null || !context.Lookup(operationName, out var operation))
@@ -252,7 +256,14 @@ internal static class TenantCustomPageSchema
         {
             var declared = operation.Parameters.FirstOrDefault(x => string.Equals(x.Name, parameter.Name, StringComparison.Ordinal));
             if (declared is null)
-            { error = $"'{name}' sorgusu: '{parameter.Name}' parametresi '{operationName}' işleminde tanımlı değil."; return false; }
+            {
+                // A body-map operation also takes map values by custom field code; anything else stays undeclared.
+                if (!IsBodyMapParameter(operation, parameter.Name))
+                { error = $"'{name}' sorgusu: '{parameter.Name}' parametresi '{operationName}' işleminde tanımlı değil."; return false; }
+                if (parameter.Type != "text")
+                { error = $"'{name}' sorgusundaki '{parameter.Name}' parametresinin türü text olmalıdır."; return false; }
+                continue;
+            }
             if (declared.Type != parameter.Type)
             { error = $"'{name}' sorgusundaki '{parameter.Name}' parametresinin türü {declared.Type} olmalıdır."; return false; }
         }
@@ -261,11 +272,47 @@ internal static class TenantCustomPageSchema
             && !parameters.Any(p => string.Equals(p.Name, x.Name, StringComparison.Ordinal)));
         if (missing is not null)
         { error = $"'{name}' sorgusu: '{operationName}' işleminin '{missing.Name}' parametresi bağlanmalıdır."; return false; }
-        if (operation.SourceOperation is { } source) pendingSources.Add((name, operationName, source));
+        if (operation.SourceOperation is { } source) pendingSources.Add((name, operationName, source, null));
+        // The map starts from the source read's rows, so that read must be on the page and read the same record.
+        if (operation.BodyMap is { } bodyMap)
+        {
+            var sourceRoute = context.Lookup(bodyMap.SourceOperation, out var sourceOperation)
+                ? sourceOperation.Parameters.Where(x => x.In == "route").Select(x => x.Name).ToHashSet(StringComparer.Ordinal) : [];
+            pendingSources.Add((name, operationName, bodyMap.SourceOperation,
+                operation.Parameters.Where(x => x.In == "route" && sourceRoute.Contains(x.Name)).Select(x => x.Name).ToArray()));
+        }
         context.QueryKinds.Add(id, kind);
         result.Add(new PageQuery(id, name, kind, "", parameters, StringOf(query, "runOn")!, operationName));
         error = null;
         return true;
+    }
+
+    private static readonly Regex BodyMapParameterName = new("^[A-Z][A-Z0-9_]{0,39}$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// An undeclared parameter of a body-map operation: a custom field code (<c>^[A-Z][A-Z0-9_]{0,39}$</c>) that does not
+    /// collide case-insensitively with a declared parameter.
+    /// </summary>
+    private static bool IsBodyMapParameter(ErpOperation operation, string parameterName) =>
+        operation.BodyMap is not null && BodyMapParameterName.IsMatch(parameterName)
+        && !operation.Parameters.Any(x => string.Equals(x.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Every read query of <paramref name="source"/> must bind each shared route parameter exactly as the write does:
+    /// otherwise the map could be built from another record's values (fails closed when several reads exist).
+    /// </summary>
+    private static string? BodyMapBindingError(string name, string source, IReadOnlyList<string> sharedRouteParameters, List<PageQuery> queries)
+    {
+        var write = queries.First(x => x.Name == name);
+        foreach (var read in queries.Where(x => string.Equals(x.Operation, source, StringComparison.Ordinal)))
+            foreach (var parameter in sharedRouteParameters)
+            {
+                var writeBinding = write.Parameters.FirstOrDefault(x => x.Name == parameter)?.Binding;
+                var readBinding = read.Parameters.FirstOrDefault(x => x.Name == parameter)?.Binding;
+                if (writeBinding is null || !string.Equals(writeBinding, readBinding, StringComparison.Ordinal))
+                    return $"'{name}' sorgusu: '{parameter}' bağlaması '{source}' sorgusununkiyle aynı olmalıdır.";
+            }
+        return null;
     }
 
     private static bool ValidName(string? name, Context context, out string? error)

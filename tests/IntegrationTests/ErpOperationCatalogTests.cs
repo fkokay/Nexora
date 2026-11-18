@@ -38,11 +38,253 @@ public sealed class ErpOperationCatalogTests
     {
         await using var factory = new ErpOperationApiFactory();
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>().ToArray();
-        var missing = ErpOperationCatalog.All.Where(op => !endpoints.Any(endpoint =>
-                endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains(op.Method, StringComparer.OrdinalIgnoreCase) == true
-                && ErpOperationCatalog.NormalizeRoutePattern(endpoint.RoutePattern.RawText) == op.Route))
-            .Select(op => $"{op.Name}: {op.Method} {op.Route}").ToArray();
+        var missing = ErpOperationCatalog.All
+            .SelectMany(op => op.RouteVariants.Select(x => x.Route).Prepend(op.Route).Select(route => (op, route)))
+            .Where(x => !endpoints.Any(endpoint =>
+                endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains(x.op.Method, StringComparer.OrdinalIgnoreCase) == true
+                && ErpOperationCatalog.NormalizeRoutePattern(endpoint.RoutePattern.RawText) == x.route))
+            .Select(x => $"{x.op.Name}: {x.op.Method} {x.route}").ToArray();
         Assert.Empty(missing);
+        foreach (var op in ErpOperationCatalog.All)
+            foreach (var variant in op.RouteVariants)
+            {
+                var selector = Assert.Single(op.Parameters, x => x.In == "route" && x.Name == variant.When);
+                Assert.False(selector.Required, $"{op.Name}.{variant.When}");
+                Assert.Contains("{" + variant.When + "}", variant.Route);
+                Assert.DoesNotContain("{" + variant.When + "}", op.Route);
+            }
+    }
+
+    private static readonly string[] Proje2FazAOperations =
+    [
+        "depo.konumlari", "depo.listele", "stok.bakiye.sayfa", "stok.hareket.ekle", "stok.hareket.listele", "stok.hareket.tersKayit",
+        "stok.kart.birimEkle", "stok.kart.birimSil", "stok.kart.birimleri", "stok.kart.depoBakiyeleri", "stok.kart.ozelAlanKaydet"
+    ];
+
+    [Fact]
+    public void Depo_operations_use_depo_module()
+    {
+        var depo = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("depo.", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, depo.Length);
+        Assert.All(depo, x => Assert.Equal("Depo", x.Module));
+        Assert.All(Proje2FazAOperations, name => Assert.True(ErpOperationCatalog.TryGet(name, out _), name));
+    }
+
+    [Fact]
+    public void Flatten_and_meta_are_consistent()
+    {
+        foreach (var op in ErpOperationCatalog.All)
+        {
+            foreach (var name in op.Result.Flatten)
+                Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
+            if (Proje2FazAOperations.Contains(op.Name)) continue;
+            // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
+            Assert.Empty(op.Result.Flatten);
+            Assert.Empty(op.Result.MetaPaths);
+            Assert.Empty(op.RouteVariants);
+            Assert.Null(op.BodyMap);
+        }
+        Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.sayfa", out var page));
+        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount" }, page.Result.MetaPaths);
+        var codes = page.Result.Columns.Select(x => x.Code).ToArray();
+        Assert.Contains("balance.code", codes);
+        Assert.Contains("stockItem.barcode", codes);
+        foreach (var hidden in new[] { "stockItem.code", "stockItem.name", "stockItem.unitCode", "stockItem.minimumStock" })
+            Assert.DoesNotContain(hidden, codes);
+        // A prefixed column keeps the label of its inner code.
+        Assert.Equal("Kod", page.Result.Columns.Single(x => x.Code == "balance.code").Label);
+        Assert.Equal("Eldeki miktar", page.Result.Columns.Single(x => x.Code == "balance.quantityOnHand").Label);
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.ekle", out var add));
+        Assert.DoesNotContain(add.Parameters, x => x.Name == "tracking");
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverse));
+        Assert.True(reverse.Parameters.Single(x => x.Name == "reason").Required);
+    }
+
+    [Fact]
+    public void Body_map_source_is_a_read_operation()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("stok.kart.ozelAlanKaydet", out var save));
+        var map = Assert.IsType<ErpOperationBodyMap>(save.BodyMap);
+        Assert.Equal("values", map.Property);
+        Assert.True(ErpOperationCatalog.TryGet(map.SourceOperation, out var source), map.SourceOperation);
+        Assert.Equal("read", source.Kind);
+        Assert.Contains(source.Result.Columns, x => x.Code == map.KeyColumn);
+        Assert.Contains(source.Result.Columns, x => x.Code == map.ValueColumn);
+        Assert.Null(save.SourceOperation);
+        var id = Assert.Single(save.Parameters);
+        Assert.Equal("id", id.Name);
+        Assert.True(id.Required);
+        Assert.All(ErpOperationCatalog.All.Where(x => x.BodyMap is not null), x => Assert.Equal("write", x.Kind));
+    }
+
+    [Fact]
+    public async Task Catalog_endpoint_returns_new_fields()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var ops = await GetOperationsAsync(client);
+
+        var page = ops["stok.bakiye.sayfa"];
+        var variant = Assert.Single(page.GetProperty("routeVariants").EnumerateArray());
+        Assert.Equal("warehouseId", variant.GetProperty("when").GetString());
+        Assert.Equal("/api/warehouses/{warehouseId}/balances/page", variant.GetProperty("route").GetString());
+        Assert.Equal(new[] { "balance", "stockItem" }, page.GetProperty("result").GetProperty("flatten").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount" },
+            page.GetProperty("result").GetProperty("metaPaths").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal(JsonValueKind.Null, page.GetProperty("bodyMap").ValueKind);
+        Assert.True(page.GetProperty("allowed").GetBoolean());
+
+        var list = ops["stok.kart.listele"];
+        Assert.Empty(list.GetProperty("routeVariants").EnumerateArray());
+        Assert.Empty(list.GetProperty("result").GetProperty("metaPaths").EnumerateArray());
+        Assert.Empty(list.GetProperty("result").GetProperty("flatten").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, list.GetProperty("bodyMap").ValueKind);
+
+        var bodyMap = ops["stok.kart.ozelAlanKaydet"].GetProperty("bodyMap");
+        Assert.Equal("values", bodyMap.GetProperty("property").GetString());
+        Assert.Equal("stok.kart.ozelAlanDegerleri", bodyMap.GetProperty("sourceOperation").GetString());
+        Assert.Equal("code", bodyMap.GetProperty("keyColumn").GetString());
+        Assert.Equal("value", bodyMap.GetProperty("valueColumn").GetString());
+        Assert.Equal("Depo", ops["depo.listele"].GetProperty("module").GetString());
+        // Every new operation resolves to a registered endpoint and permission for an admin.
+        Assert.All(Proje2FazAOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
+    }
+
+    [Fact]
+    public async Task Unit_writes_require_tenant_admin()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, platformDb =>
+        {
+            foreach (var code in new[] { "erp.custom-menus.read", "erp.stock-items.read", "erp.stock-items.create", "erp.stock-items.delete" })
+                platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
+        });
+        using var client = factory.CreateClient();
+        SetIdentity(client, Writer, "TenantUser");
+        var userOps = await GetOperationsAsync(client);
+        Assert.True(userOps["stok.kart.birimleri"].GetProperty("allowed").GetBoolean());
+        // The rules allow create and delete, but the unit handlers themselves only accept TenantAdmin.
+        Assert.True(userOps["stok.kart.olustur"].GetProperty("allowed").GetBoolean());
+        Assert.False(userOps["stok.kart.birimEkle"].GetProperty("allowed").GetBoolean());
+        Assert.False(userOps["stok.kart.birimSil"].GetProperty("allowed").GetBoolean());
+
+        SetIdentity(client, Admin, "TenantAdmin");
+        var adminOps = await GetOperationsAsync(client);
+        Assert.True(adminOps["stok.kart.birimEkle"].GetProperty("allowed").GetBoolean());
+        Assert.True(adminOps["stok.kart.birimSil"].GetProperty("allowed").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Stock_item_balances_return_active_warehouses()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        var item = new StockItem { TenantId = TenantA, Code = "STK-1", Name = "Vida", UnitCode = "EA", IsActive = true };
+        var foreign = new StockItem { TenantId = TenantB, Code = "STK-B", Name = "Başka firma", UnitCode = "EA", IsActive = true };
+        var warehouseA = new Warehouse { TenantId = TenantA, Code = "A", Name = "Ana depo", IsActive = true };
+        var warehouseB = new Warehouse { TenantId = TenantA, Code = "B", Name = "Yan depo", IsActive = true };
+        var inactive = new Warehouse { TenantId = TenantA, Code = "C", Name = "Kapalı depo", IsActive = false };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.AddRange(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" }, new Tenant { Id = TenantB, Name = "B", Slug = "tenant-b" });
+            db.StockItems.AddRange(item, foreign);
+            // Listed out of code order to prove the ordering.
+            db.Warehouses.AddRange(warehouseB, inactive, warehouseA);
+            db.InventoryTransactions.AddRange(
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouseA.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 1),
+                    Direction = InventoryDirection.Receipt, Quantity = 5m, Description = "Giriş" },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouseA.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 2),
+                    Direction = InventoryDirection.Issue, Quantity = 2m, Description = "Çıkış" },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = inactive.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 2),
+                    Direction = InventoryDirection.Receipt, Quantity = 7m, Description = "Kapalı depoda" });
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        using var response = await client.GetAsync($"/api/stock/items/{item.Id:D}/balances");
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var rows = (await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToArray();
+        Assert.Equal(2, rows.Length);
+        Assert.Equal(warehouseA.Id, rows[0].GetProperty("warehouseId").GetGuid());
+        Assert.Equal("A", rows[0].GetProperty("warehouseCode").GetString());
+        Assert.Equal(3m, rows[0].GetProperty("quantityOnHand").GetDecimal());
+        Assert.Equal(3m, rows[0].GetProperty("availableQuantity").GetDecimal());
+        Assert.Equal(warehouseB.Id, rows[1].GetProperty("warehouseId").GetGuid());
+        Assert.Equal(0m, rows[1].GetProperty("quantityOnHand").GetDecimal());
+        Assert.False(string.IsNullOrWhiteSpace(rows[1].GetProperty("baseCurrencyCode").GetString()));
+        // Every catalog column is a property of the response row.
+        Assert.True(ErpOperationCatalog.TryGet("stok.kart.depoBakiyeleri", out var op));
+        Assert.All(op.Result.Columns, column => Assert.True(rows[0].TryGetProperty(column.Code, out _), column.Code));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/stock/items/{foreign.Id:D}/balances")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Stock_item_balances_follow_warehouse_permission()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, platformDb =>
+        {
+            foreach (var code in new[] { "erp.custom-menus.read", "erp.stock-items.read", "erp.warehouses.read" })
+                platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
+            platformDb.TenantPermissionRules.Add(Rule("erp.warehouses.read", TenantPermissionEffect.Deny, Reader));
+        });
+        var item = new StockItem { TenantId = TenantA, Code = "STK-1", Name = "Vida", UnitCode = "EA", IsActive = true };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            db.StockItems.Add(item);
+            db.Warehouses.Add(new Warehouse { TenantId = TenantA, Code = "A", Name = "Ana depo", IsActive = true });
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+
+        SetIdentity(client, Reader, "TenantUser");
+        // The reader may read stock cards, but warehouse balances are denied, also through /api/stock.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/stock/items/{item.Id:D}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances")).StatusCode);
+        var readerOps = await GetOperationsAsync(client);
+        Assert.True(readerOps["stok.kart.getir"].GetProperty("allowed").GetBoolean());
+        Assert.False(readerOps["stok.kart.depoBakiyeleri"].GetProperty("allowed").GetBoolean());
+        Assert.False(readerOps["stok.bakiye.sayfa"].GetProperty("allowed").GetBoolean());
+
+        // Positive control: a user with the warehouses Allow reads them.
+        SetIdentity(client, Writer, "TenantUser");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances")).StatusCode);
+        var writerOps = await GetOperationsAsync(client);
+        Assert.True(writerOps["stok.kart.depoBakiyeleri"].GetProperty("allowed").GetBoolean());
+        Assert.True(writerOps["stok.bakiye.sayfa"].GetProperty("allowed").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Balance_page_defaults_when_query_omitted()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        var warehouse = new Warehouse { TenantId = TenantA, Code = "A", Name = "Ana depo", IsActive = true };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            db.Warehouses.Add(warehouse);
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        foreach (var route in new[] { "/api/warehouses/balances/page", $"/api/warehouses/{warehouse.Id:D}/balances/page" })
+        {
+            using var response = await client.GetAsync(route);
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{route} {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(1, body.GetProperty("page").GetInt32());
+            Assert.Equal(25, body.GetProperty("pageSize").GetInt32());
+        }
     }
 
     [Fact]
@@ -138,14 +380,23 @@ public sealed class ErpOperationCatalogTests
             {
                 Assert.Contains(parameter.In, new[] { "route", "query", "body" });
                 Assert.Contains(parameter.Type, types);
-                if (parameter.In == "route")
+                if (parameter.In != "route") continue;
+                var variants = op.RouteVariants.Where(x => x.When == parameter.Name).ToArray();
+                if (variants.Length > 0)
+                {
+                    // A variant's selector is optional and appears in that variant's route.
+                    Assert.False(parameter.Required, $"{op.Name}.{parameter.Name}");
+                    foreach (var variant in variants) Assert.Contains("{" + parameter.Name + "}", variant.Route);
+                }
+                else
                 {
                     Assert.True(parameter.Required, $"{op.Name}.{parameter.Name}");
                     Assert.Contains("{" + parameter.Name + "}", op.Route);
                 }
             }
-            foreach (Match match in Regex.Matches(op.Route, "\\{([A-Za-z]+)\\}"))
-                Assert.Contains(op.Parameters, x => x.In == "route" && x.Name == match.Groups[1].Value);
+            foreach (var route in op.RouteVariants.Select(x => x.Route).Prepend(op.Route))
+                foreach (Match match in Regex.Matches(route, "\\{([A-Za-z]+)\\}"))
+                    Assert.Contains(op.Parameters, x => x.In == "route" && x.Name == match.Groups[1].Value);
             if (op.SourceOperation is not null)
             {
                 Assert.True(ErpOperationCatalog.TryGet(op.SourceOperation, out var source), op.SourceOperation);

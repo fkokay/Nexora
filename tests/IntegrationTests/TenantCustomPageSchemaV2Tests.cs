@@ -132,6 +132,68 @@ public sealed class TenantCustomPageSchemaV2Tests
         Assert.True(TenantCustomPageSchema.Validate(json, out error), error);
     }
 
+    private static readonly object[] BodyMapComponents =
+    [
+        SearchInput,
+        new { id = "t1", type = "dataTable", name = "liste", props = new { query = "liste" } },
+        new { id = "c2", type = "input", name = "renk", props = new { inputType = "text" } }
+    ];
+
+    private static object CustomFieldRead(string idBinding = "{{liste.seciliSatir.id}}") =>
+        OpQuery("degerOku", "degerler", "read", "stok.kart.ozelAlanDegerleri", "load", Param("id", idBinding, "guid"));
+
+    private static object CustomFieldSave(string idBinding = "{{liste.seciliSatir.id}}", string fieldName = "RENK", string fieldType = "text") =>
+        OpQuery("alanKaydet", "alanlar", "update", "stok.kart.ozelAlanKaydet", "manual", Param("id", idBinding, "guid"),
+            Param(fieldName, "{{renk.value}}", fieldType));
+
+    [Fact]
+    public void Accepts_body_map_write_with_custom_field_parameters()
+    {
+        var json = V2([StockList(), CustomFieldRead(), CustomFieldSave()], BodyMapComponents);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
+
+    [Fact]
+    public void Rejects_body_map_parameter_with_lowercase_name()
+    {
+        AssertRejected(V2([StockList(), CustomFieldRead(), CustomFieldSave(fieldName: "renk")], BodyMapComponents),
+            "'renk' parametresi 'stok.kart.ozelAlanKaydet' işleminde tanımlı değil");
+        // A code colliding case-insensitively with a declared parameter is not a map value either.
+        AssertRejected(V2([StockList(), CustomFieldRead(),
+                OpQuery("alanKaydet", "alanlar", "update", "stok.kart.ozelAlanKaydet", "manual", Param("ID", "{{liste.seciliSatir.id}}"))], BodyMapComponents),
+            "'ID' parametresi 'stok.kart.ozelAlanKaydet' işleminde tanımlı değil");
+        // An operation without a body map still rejects undeclared parameters.
+        AssertRejected(V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "guid"), Param("RENK", "{{bugun}}"))]),
+            "'RENK' parametresi 'stok.kart.sil' işleminde tanımlı değil");
+    }
+
+    [Fact]
+    public void Rejects_body_map_parameter_of_non_text_type()
+    {
+        AssertRejected(V2([StockList(), CustomFieldRead(), CustomFieldSave(fieldType: "int")], BodyMapComponents), "türü text olmalıdır");
+    }
+
+    [Fact]
+    public void Rejects_body_map_write_without_source_read()
+    {
+        AssertRejected(V2([StockList(), CustomFieldSave()], BodyMapComponents), "'stok.kart.ozelAlanDegerleri' okuma sorgusu olmalıdır");
+    }
+
+    [Fact]
+    public void Rejects_body_map_write_with_different_id_binding()
+    {
+        AssertRejected(V2([StockList(), CustomFieldRead(), CustomFieldSave("{{kart.rows[0].id}}")], BodyMapComponents),
+            "'alanlar' sorgusu: 'id' bağlaması 'stok.kart.ozelAlanDegerleri' sorgusununkiyle aynı olmalıdır.");
+    }
+
+    [Fact]
+    public void Accepts_balance_page_without_warehouse_binding()
+    {
+        var json = V2([OpQuery("bakiye", "bakiyeler", "read", "stok.bakiye.sayfa", "load", Param("q", "{{arama.value}}"))],
+            [SearchInput, new { id = "t1", type = "dataTable", props = new { query = "bakiye" } }]);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
+
     [Fact]
     public void Operation_names_are_collected_from_saved_definitions()
     {
