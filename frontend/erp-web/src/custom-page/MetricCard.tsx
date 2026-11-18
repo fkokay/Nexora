@@ -1,10 +1,6 @@
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Users, Wallet, type LucideIcon } from "lucide-react";
+import { METRIC_ICONS as ICONS } from "./metricIcons";
 import { sparklinePath, type Tone } from "./cellFormat";
-
-const ICONS: Record<string, LucideIcon> = {
-  box: Box, users: Users, receipt: Receipt, wallet: Wallet, chart: BarChart3, clock: Clock, check: CheckCircle2, alert: AlertTriangle,
-};
 
 const TREND_WIDTH = 70;
 const TREND_HEIGHT = 26;

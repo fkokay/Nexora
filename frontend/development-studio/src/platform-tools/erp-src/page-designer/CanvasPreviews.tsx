@@ -1,13 +1,11 @@
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useFlip } from "./useFlip";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, ChevronDown, Clock, Info, ShieldAlert, ShieldCheck, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ImageIcon, Info, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
+import { METRIC_ICONS as ICONS } from "./metricIcons";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
 
 // Tuval önizlemeleri: ERP (MetricCard / QueryTable / PageBadge) görünümünü, sorgu önizleme verisiyle yansıtır.
-const ICONS: Record<string, LucideIcon> = {
-  box: Box, users: Users, receipt: Receipt, wallet: Wallet, chart: BarChart3, clock: Clock, check: CheckCircle2, alert: AlertTriangle,
-};
 const TREND_WIDTH = 70;
 const TREND_HEIGHT = 26;
 const TONE_NAMES: readonly string[] = ["info", "success", "warning", "danger"];

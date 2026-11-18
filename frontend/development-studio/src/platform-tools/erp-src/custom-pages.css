@@ -439,6 +439,21 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-icon-grid button{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:#55647c;font-size:12px;font-weight:600}
 .pd-icon-grid button:hover:not(:disabled){background:#fff}
 .pd-icon-grid button.active{background:#fff;color:#5132c7;box-shadow:0 1px 3px #18244720}
+.pd-icon-picker{position:relative}
+.pd-icon-picker-trigger{display:flex;align-items:center;gap:7px;width:100%;min-height:30px;padding:0 8px;border:1px solid var(--pd-line);border-radius:8px;background:#fff;color:#2b3850;font-size:12px;font-weight:600;text-align:left}
+.pd-icon-picker-trigger>svg:first-child{color:#5132c7}
+.pd-icon-picker-trigger>span:not(.pd-icon-picker-none){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-icon-picker-trigger>svg:last-child{color:#7a879c}
+.pd-icon-picker-none{width:15px;height:15px;border:1.5px dashed #a3aec0;border-radius:4px;flex:none}
+.pd-icon-picker-panel{margin-top:4px;display:grid;gap:6px;padding:6px;border:1px solid var(--pd-line);border-radius:10px;background:#fff;box-shadow:0 2px 8px #1824471a}
+.pd-icon-picker-search{position:relative;display:block}
+.pd-icon-picker-search>svg{position:absolute;top:50%;left:9px;transform:translateY(-50%);color:#7a879c;pointer-events:none}
+.pd-icon-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:3px;max-height:208px;overflow-y:auto}
+.pd-icon-picker-grid button{display:inline-flex;align-items:center;justify-content:center;min-height:30px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-icon-picker-grid button:hover{background:var(--pd-soft)}
+.pd-icon-picker-grid button.active{background:#efeafe;color:#5132c7;box-shadow:inset 0 0 0 1px #c9bcf7}
+.pd-icon-picker-grid .pd-icon-picker-clear{grid-column:1/-1;font-size:12px;font-weight:600}
+.pd-icon-picker-empty{grid-column:1/-1;padding:8px;color:#7a879c;text-align:center}
 .pd-tonemap{display:grid;gap:6px}
 .pd-tonemap-row{display:grid;gap:4px;padding:6px;border:1px solid var(--pd-line);border-radius:8px;position:relative}
 .pd-tonemap-row .pd-icon-button{position:absolute;top:4px;right:4px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}

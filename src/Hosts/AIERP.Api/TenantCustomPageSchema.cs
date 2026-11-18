@@ -67,7 +67,18 @@ internal static class TenantCustomPageSchema
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
     private const int MaxTitleCountLength = 200;
-    private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
+    // Gösterge simgeleri; Studio (page-designer/metricIcons.ts) ve ERP (custom-page/metricIcons.ts) aynı anahtarları çizer,
+    // erp-web metricIcons.test.ts üçünü karşılaştırır. İlk sekiz anahtar kayıtlı sayfalar için korunur.
+    private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal)
+    {
+        "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert",
+        "package", "boxes", "warehouse", "truck", "factory", "layers", "barcode", "scan", "tag", "shopping-cart", "shopping-bag",
+        "store", "building", "building-2", "landmark", "banknote", "credit-card", "coins", "piggy-bank", "calculator", "percent",
+        "trending-up", "trending-down", "line-chart", "pie-chart", "activity", "target", "calendar", "calendar-clock", "hourglass",
+        "timer", "file-text", "files", "clipboard-list", "inbox", "archive", "mail", "phone", "user", "user-check", "briefcase",
+        "handshake", "globe", "map-pin", "settings", "wrench", "shield", "lock", "bell", "star", "flag", "info", "x-circle", "ban",
+        "refresh-cw",
+    };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
     private const int MaxTotals = 12;
@@ -584,7 +595,7 @@ internal static class TenantCustomPageSchema
         error = null;
         if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
             && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
-        { error = "Gösterge 'icon' değeri box, users, receipt, wallet, chart, clock, check veya alert olmalıdır."; return false; }
+        { error = "Gösterge 'icon' değeri tanımlı simgelerden biri olmalıdır (ör. box, users, wallet, warehouse, truck)."; return false; }
         // An alert's `icon`/`value` were never constrained, so saved pages keep validating: the ERP draws a status strip
         // only for the known strip icons (shield, shieldAlert, check, alert, info) and Studio offers only those.
         if (props.TryGetProperty("trendQuery", out var trendQuery)
