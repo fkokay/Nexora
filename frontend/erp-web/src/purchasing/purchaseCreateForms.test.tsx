@@ -117,11 +117,15 @@ async function settle(ms = 300) {
 }
 const ctrlS = () => fireEvent.keyDown(window, { key: 's', ctrlKey: true });
 const sent = (path: string, method = 'POST') => calls.find((call) => call.url === path && call.method === method)?.body;
-/** Picks `option` in the SearchableRecordPicker whose trigger currently reads `trigger`. */
+/**
+ * Picks `option` in the SearchableRecordPicker whose trigger currently reads `trigger`.
+ * The picker opens at once, but its options come from an async (on the draft page debounced) supplier
+ * request that may still be in flight, so wait for the option rather than expecting it synchronously.
+ */
 async function pick(trigger: string, option: RegExp, nth = 0) {
   fireEvent.click(screen.getAllByText(trigger, { selector: 'button > span' })[nth].closest('button')!);
   const dialog = await screen.findByRole('dialog', { name: /seçin/ });
-  fireEvent.click(within(dialog).getByRole('option', { name: option }));
+  fireEvent.click(await within(dialog).findByRole('option', { name: option }));
   await waitFor(() => expect(screen.queryByRole('dialog', { name: /seçin/ })).toBeNull());
 }
 async function pickStock() {
