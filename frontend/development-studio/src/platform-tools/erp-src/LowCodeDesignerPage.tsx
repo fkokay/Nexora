@@ -17,6 +17,7 @@ type SystemPageItem = { screenKey: string; title: string; description?: string |
 type SystemPageDraft = { id: string; importNotes?: string[] };
 type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
+const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
 const systemStatus = (page: SystemPageItem) => page.draftId ? { label: "Taslak var", tone: "draft" } : page.publishedId ? { label: "Firma tasarımı yayında", tone: "published" } : { label: "Standart", tone: "standard" };
 type CatalogFilter = "all" | "builtIn" | "custom";
 type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string };
@@ -96,6 +97,20 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     } catch (e) { setPageCatalogError((e as Error).message); }
     finally { setDeletingId(null); }
   };
+  const removeSystemFirmDesign = async (page: SystemPageItem) => {
+    if (!page.publishedId || !page.canEdit) return;
+    if (!window.confirm(SYSTEM_PAGE_REMOVE_CONFIRM)) return;
+    setDeletingId(page.publishedId); setPageCatalogError("");
+    try {
+      const response = await authenticatedFetch(`/api/custom-pages/${page.publishedId}`, token, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string } | null;
+        throw new Error(body?.error || body?.detail || body?.title || `Firma tasarımı kaldırılamadı (${response.status}).`);
+      }
+      setCatalogVersion((value) => value + 1);
+    } catch (e) { setPageCatalogError((e as Error).message); }
+    finally { setDeletingId(null); }
+  };
   const openSystemPage = async (page: SystemPageItem) => {
     if (!page.canEdit) return;
     setOpeningSystemKey(page.screenKey); setPageCatalogError("");
@@ -129,7 +144,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
       <small>{system.module} · @{system.screenKey}</small>
       <div className="lcp-tags"><span className={`lcp-status ${status.tone}`}>{status.label}</span>{system.stage === "preview" && <span className="lcp-status preview">Önizleme</span>}{system.newItemCount > 0 && <span className="lcp-new-tag">{system.newItemCount} yeni</span>}</div>
       {system.description && <p>{system.description}</p>}
-      <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={!system.canEdit || openingSystemKey !== null} title={system.canEdit ? undefined : SYSTEM_PAGE_ADMIN_ONLY} onClick={() => void openSystemPage(system)}>{openingSystemKey === system.screenKey ? "Açılıyor…" : "Tasarımcıda aç"}</button></div>
+      <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={!system.canEdit || openingSystemKey !== null} title={system.canEdit ? undefined : SYSTEM_PAGE_ADMIN_ONLY} onClick={() => void openSystemPage(system)}>{openingSystemKey === system.screenKey ? "Açılıyor…" : "Tasarımcıda aç"}</button>{system.publishedId && system.canEdit && canDeletePages && <button type="button" className="lcp-delete" aria-label={`${title} için firma tasarımını kaldır`} title="Firma tasarımını kaldır" disabled={deletingId === system.publishedId} onClick={() => void removeSystemFirmDesign(system)}><Trash2 size={14}/></button>}</div>
     </article>;
   };
   return (

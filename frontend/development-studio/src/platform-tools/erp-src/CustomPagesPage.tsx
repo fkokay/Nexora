@@ -31,7 +31,7 @@ import "./custom-pages.css";
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string; screenKey?: string | null };
 type PageDetail = PageSummary & { definitionJson: string; standardVersion?: number | null };
 /** `/api/system-pages` listesindeki bir standart (yalnız sistem kipinin kullandığı alanlar). */
-type SystemPageInfo = { screenKey: string; title: string; stage: "preview" | "ready"; version: number; canEdit: boolean };
+type SystemPageInfo = { screenKey: string; title: string; stage: "preview" | "ready"; version: number; canEdit: boolean; draftId?: string | null; publishedId?: string | null };
 type PageRevision = { id: string; revision: number; name: string; description: string | null; changeKind: string; changedByUserId: string; createdAt: string; definitionJson: string; customPageId?: string };
 type CustomFormSummary = { id: string; code: string; name: string; status: string };
 type WorkflowOption = { id: string; code: string; name: string; status: string };
@@ -586,14 +586,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setHistory(await request<PageRevision[]>(url).catch(() => []));
   }, [request, systemScreenKey]);
   useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => {
+  // Sistem sayfası özeti (yönetici bilgisi, aşama, yayımlı firma tasarımının kimliği); yayın ve kaldırmadan sonra yenilenir.
+  const systemInfoRequest = useRef(0);
+  const refreshSystemInfo = useCallback(async () => {
     if (!systemScreenKey) return;
-    let active = true;
-    void request<SystemPageInfo[]>("/api/system-pages")
-      .then((items) => { if (active) setSystemInfo(Array.isArray(items) ? items.find((item) => item.screenKey === systemScreenKey) ?? null : null); })
-      .catch(() => { if (active) setSystemInfo(null); });
-    return () => { active = false; };
+    const requestId = ++systemInfoRequest.current;
+    const info = await request<SystemPageInfo[]>("/api/system-pages")
+      .then((items) => Array.isArray(items) ? items.find((item) => item.screenKey === systemScreenKey) ?? null : null)
+      .catch(() => null);
+    if (requestId === systemInfoRequest.current) setSystemInfo(info);
   }, [request, systemScreenKey]);
+  useEffect(() => { void refreshSystemInfo(); return () => { systemInfoRequest.current++; }; }, [refreshSystemInfo]);
   useEffect(() => {
     if (initialActionDone.current || loading) return;
     if (initialCreate) {
@@ -828,6 +831,29 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       await request<void>(`/api/custom-pages/${current.id}`, { method: "DELETE" });
       setSavedSnapshot(snapshotOf(name, description, definition));
       onBack?.();
+    } catch (e) { setError((e as Error).message); }
+    finally { setSaving(false); }
+  };
+  // Yayımlı firma tasarımının kimliği: açık sayfa yayımlıysa kendisi, değilse sistem sayfası özetindeki satır.
+  const publishedFirmDesignId = !systemMode ? null : current?.isPublished ? current.id : systemInfo?.publishedId ?? null;
+  /** Yayımlı firma tasarımını kaldırır; açık taslak (varsa) korunur ve tasarımcıda kalınır. */
+  const removeFirmDesign = async () => {
+    if (!systemMode || !publishedFirmDesignId) return;
+    if (!capabilities?.canDelete) { setError("Sayfa silme yetkiniz yok."); return; }
+    if (!systemAdmin) { setError(SYSTEM_PAGE_ADMIN_ONLY); return; }
+    if (!window.confirm(SYSTEM_PAGE_REMOVE_CONFIRM)) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      await request<void>(`/api/custom-pages/${publishedFirmDesignId}`, { method: "DELETE" });
+      if (current?.id === publishedFirmDesignId) {
+        // Açık olan yayımlı satırdı; düzenlenecek bir şey kalmadı.
+        setSavedSnapshot(snapshotOf(name, description, definition));
+        onBack?.();
+        return;
+      }
+      setNotice("Firma tasarımı kaldırıldı. ERP'de Nexora'nın standart ekranı gösterilir; açık taslağınız korundu.");
+      await refreshSystemInfo();
+      if (current) await refreshHistory(current.id);
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
   };
@@ -1200,6 +1226,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setQueryPreviews((value) => ({ ...value, [query.id]: result }));
     return null;
   };
+  // Yayımlı sayfanın ERP adresi. Sistem sayfası `@kod` ile değil, kendi yerleşik ekranının sayfa anahtarıyla açılır:
+  // ERP o ekranı yönlendiricide firma tasarımıyla (ya da standartla) çizer. Taslak önizlemesi kimlikle yapılır.
+  const setPublishedTarget = (destination: URL, page: PageDetail) => {
+    if (systemScreenKey) destination.searchParams.set("page", systemScreenKey);
+    else destination.searchParams.set("customPage", page.code);
+  };
   const openErpPreview = async () => {
     if (!platformOrigin) { setError("ERP adresi bulunamadı. Studio'yu ERP ekranındaki bağlantıdan açın."); return; }
     setPreviewHref(null);
@@ -1209,7 +1241,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // if needed) and offer a normal link, which popup blockers do not stop.
       try {
         const destination = new URL("/", platformOrigin);
-        if (current?.isPublished) destination.searchParams.set("customPage", current.code);
+        if (current?.isPublished) setPublishedTarget(destination, current);
         else {
           const saved = dirty || !current ? await saveDraft() : current;
           if (!saved) return;
@@ -1227,7 +1259,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     try {
       if (current?.isPublished) {
         const destination = new URL("/", platformOrigin);
-        destination.searchParams.set("customPage", current.code);
+        setPublishedTarget(destination, current);
         previewWindow.location.replace(destination.toString());
         return;
       }
@@ -1250,6 +1282,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const result = await request<PageDetail>(`/api/custom-pages/${target.id}/publish`, { method: "POST", body: JSON.stringify({ expectedRevision: target.revision }) });
       setCurrent(result); setNotice("Sayfa yayımlandı ve tenant çalışma alanında kullanılabilir.");
       await refreshHistory(result.id);
+      await refreshSystemInfo();
       await refresh();
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
@@ -1755,6 +1788,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         {(current ? capabilities?.canUpdate : capabilities?.canCreate) && !current?.isPublished && <button type="button" className="pd-button" onClick={() => void saveDraft()} disabled={saving || !canEdit || (!dirty && !!current)} title="Kaydet (Ctrl+S)"><Save size={15}/>{saving ? "Kaydediliyor…" : "Kaydet"}</button>}
         {!current?.isPublished && capabilities?.canPublish && <button type="button" className="pd-button primary" onClick={() => void publish()} disabled={saving || !canEdit}><Send size={15}/>{dirty || !current ? "Kaydet ve yayımla" : "Yayımla"}</button>}
         {systemMode && current && systemAdmin && capabilities?.canUpdate && <button type="button" className="pd-button" onClick={() => void resetToStandard()} disabled={saving}><RotateCcw size={15}/>Standarda dön</button>}
+        {publishedFirmDesignId && capabilities?.canDelete && systemAdmin && <button type="button" className="pd-button danger" onClick={() => void removeFirmDesign()} disabled={saving} title="Yayımlı firma tasarımını kaldırır; ekran Nexora'nın standart ekranına döner."><Trash2 size={15}/>Firma tasarımını kaldır</button>}
         {current?.isPublished && capabilities?.canCreate && !queryPageLocked && systemAdmin && <button type="button" className="pd-button primary" onClick={() => void createFromPublished(current)} disabled={saving}><FilePlus2 size={15}/>Yeni taslakta düzenle</button>}
       </div>
     </header>
@@ -2167,7 +2201,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className="pd-shortcuts"><b>Kısayollar</b><span><kbd>Ctrl</kbd>+<kbd>S</kbd> Kaydet</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> Geri al / yinele</span><span><kbd>Ctrl</kbd>+<kbd>D</kbd> Kopyala</span><span><kbd>Delete</kbd> Sil · <kbd>Alt</kbd>+<kbd>↑↓</kbd> Taşı</span></div>
           {current && role === "TenantAdmin" && (!systemMode || hasSqlQueries) && <CustomPageAccessPanel key={current.code} token={token} pageCode={current.code} hasQueries={definition.queries.length > 0}/>}
           {systemMode
-            ? current?.isPublished && capabilities?.canDelete && systemAdmin && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Firma tasarımını kaldır</button>
+            ? publishedFirmDesignId && capabilities?.canDelete && systemAdmin && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void removeFirmDesign()} disabled={saving}><Trash2 size={13}/>Firma tasarımını kaldır</button>
             : current && capabilities?.canDelete && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
         </div>}
       </aside>
