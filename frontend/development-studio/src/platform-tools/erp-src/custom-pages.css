@@ -695,3 +695,7 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-status-strip.tone-warning :is(.pd-status-strip-mark,.pd-status-strip-badge){background:#e8f0fd;color:#1f5fd1}
 .pd-status-strip.tone-danger :is(.pd-status-strip-mark,.pd-status-strip-badge){background:#fee4e2;color:#b42318}
 .pd-dialog-toggle{position:relative;z-index:2;pointer-events:auto}
+/* Gösterge metinleri dar kartta (ör. detay panelindeki 6/12 göstergeler) taşmaz: uzun bağlama metni kırılır. */
+.custom-page-preview-metric{min-width:0;overflow:hidden}
+.custom-page-preview-metric>*{min-width:0}
+.custom-page-preview-metric span,.custom-page-preview-metric small,.custom-page-preview-metric b{overflow-wrap:anywhere}
