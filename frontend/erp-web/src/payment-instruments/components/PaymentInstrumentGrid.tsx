@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { Banknote } from "lucide-react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Item, ScreenField } from "../paymentInstrumentTypes";
 
@@ -37,6 +37,8 @@ type Props = {
   /** Page-level toolbar element that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
   renderCell: (field: ScreenField, item: Item) => ReactNode;
+  /** Receives the grid's export functions (the action bar's Excel and İşlemler › CSV); the grid's own buttons hide. */
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
 
 export function PaymentInstrumentGrid({
@@ -47,6 +49,7 @@ export function PaymentInstrumentGrid({
   onSelect,
   toolbarContainer,
   renderCell,
+  exportActionsRef,
 }: Props) {
   if (loading && items.length === 0)
     return <div className="pi-empty" role="status">Kayıtlar yükleniyor…</div>;
@@ -61,7 +64,7 @@ export function PaymentInstrumentGrid({
       </div>
     );
   const columnClass = (key: string) =>
-    key === "amount" ? "pi-col-num" : key === "actions" ? "pi-col-menu" : undefined;
+    key === "amount" ? "pi-col-num nx-num" : key === "actions" ? "pi-col-menu" : undefined;
   return (
     <div className="pi-table-wrap">
       <AdvancedDataGrid
@@ -69,6 +72,8 @@ export function PaymentInstrumentGrid({
         externalPagination
         enableRowSelection={false}
         toolbarContainer={toolbarContainer}
+        hideExport={!!exportActionsRef}
+        exportActionsRef={exportActionsRef}
         gridId={PAYMENT_INSTRUMENT_GRID_ID}
         {...screenViewGridDefaults(
           // Keep the ⋯ menu visible when the grid scrolls sideways.

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Plus, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CalendarClock, ShieldCheck, Wallet, XCircle } from "lucide-react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import { ListPagination } from "./list-page/ListPagination";
 import { localDateString } from "./dateUtils";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
@@ -16,7 +23,7 @@ import {
 } from "./document-detail/DocumentDetailLayout";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
-  PaymentInstrumentMetrics,
+  portfolioCards,
   type PortfolioTiles,
 } from "./payment-instruments/components/PaymentInstrumentMetrics";
 import { PaymentInstrumentListToolbar } from "./payment-instruments/components/PaymentInstrumentListToolbar";
@@ -43,7 +50,9 @@ import {
   allowedActions,
   collectLabel,
   statusText,
+  statusTone,
 } from "./payment-instruments/paymentInstrumentTypes";
+import { StatusTag } from "./list-page/StatusTag";
 import { PaymentInstrumentCreateForm } from "./payment-instruments/components/PaymentInstrumentCreateForm";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
@@ -131,6 +140,7 @@ export default function PaymentInstrumentsPage({
   const accountSelectRef = useRef<HTMLSelectElement>(null);
   // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const gridExportRef = useRef<GridExportActions | null>(null);
   const isAdmin = role === "TenantAdmin";
 
   const fetchJson = useCallback(
@@ -366,7 +376,6 @@ export default function PaymentInstrumentsPage({
   const columns = redesignedColumns(savedFields)
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
-  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   // Runs while typing and on Enter. The API needs at least 2 characters, so a single
   // character is not applied; clearing the box clears the search.
@@ -550,9 +559,7 @@ export default function PaymentInstrumentsPage({
             <span className="pi-number">
               <b>{item.instrumentNumber}</b>
               {item.status !== "Portfolio" && (
-                <span className={`pi-state is-${item.status.toLowerCase()}`}>
-                  {statusText[item.status]}
-                </span>
+                <StatusTag tone={statusTone[item.status]}>{statusText[item.status]}</StatusTag>
               )}
             </span>
             <small>
@@ -583,11 +590,11 @@ export default function PaymentInstrumentsPage({
       }
       case "amount":
         return (
-          <b className="pi-amount">
+          <span className="pi-amount">
             {baseCurrency && item.currencyCode === baseCurrency
               ? formatAmount(item.amount)
               : formatAmount(item.amount, item.currencyCode)}
-          </b>
+          </span>
         );
       case "actions": {
         const actions = isAdmin ? allowedActions(item) : [];
@@ -628,19 +635,59 @@ export default function PaymentInstrumentsPage({
     }
   }
 
+  // İşlemler: today's side-panel / row-menu actions for the selected record, with the same conditions (allowedActions,
+  // firma yöneticisi, not busy); a disabled item says why.
+  const selectedActions = selected && isAdmin ? allowedActions(selected) : [];
+  const actionReason = (kind: RowAction): string | undefined => {
+    if (!isAdmin) return "Çek/senet işlemlerini yalnız firma yöneticisi yapar";
+    if (!selected) return "Önce bir kayıt seçin";
+    if (busy) return "İşlem sürüyor…";
+    if (selectedActions.includes(kind)) return undefined;
+    switch (kind) {
+      case "collect":
+        return "Yalnız portföydeki veya karşılıksız kayıt tahsil / ödenir";
+      case "endorse":
+        return "Yalnız portföydeki alınan çek ciro edilir";
+      case "bounce":
+        return "Karşılıksız veya iptal edilmiş kayıtta kullanılamaz";
+      default:
+        return "Yalnız portföydeki kayıt iptal edilir";
+    }
+  };
+  const actionItem = (kind: RowAction, label: string): MenuCommand => ({
+    id: `pi-${kind}`,
+    label,
+    disabledReason: actionReason(kind),
+    run: () => {
+      if (selected) void action(selected, kind);
+    },
+  });
+  const commands: PageCommands = {
+    new: isAdmin
+      ? { primary: true, disabledReason: busy ? "İşlem sürüyor…" : undefined, run: openCreate }
+      : { disabledReason: "Çek/senet kaydını yalnız firma yöneticisi ekler" },
+    open: { disabledReason: "Çek/senet ayrıntısı ve geçmişi sağdaki panelde" },
+    delete: { disabledReason: "Çek/senet silinmez; İşlemler › İptal" },
+    more: [
+      actionItem("collect", selected ? collectLabel(selected) : "Tahsil et"),
+      actionItem("endorse", "Ciro et"),
+      actionItem("bounce", "Karşılıksız"),
+      actionItem("cancel", "İptal"),
+      csvExportCommand(gridExportRef),
+    ],
+  };
+  const pageRange = items.length
+    ? `${((page - 1) * PAGE_SIZE + 1).toLocaleString("tr-TR")}–${((page - 1) * PAGE_SIZE + items.length).toLocaleString("tr-TR")}`
+    : "0";
+
   return (
     <div className="page-content payment-instruments-page pi-page fh-page list-v2">
+      {!showCreate && <PageCommandsSlot commands={commands} />}
       <ListPageHeader
         title="Çek ve senet"
         description="Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin."
         count={loading && totalCount === 0 ? null : (tabCounts.Receivable ?? 0) + (tabCounts.Payable ?? 0) || totalCount}
-      >
-        {isAdmin && (
-          <button className="primary" type="button" onClick={openCreate}>
-            <Plus size={16} aria-hidden="true" /> Portföye ekle
-          </button>
-        )}
-      </ListPageHeader>
+      />
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
@@ -657,7 +704,11 @@ export default function PaymentInstrumentsPage({
           </button>
         </div>
       )}
-      <PaymentInstrumentMetrics tiles={tiles} loading={tilesLoading} />
+      <ListSummaryCards
+        cards={portfolioCards(tiles, tilesLoading, {
+          icons: { open: Wallet, payable: Wallet, dueSoon: CalendarClock, bounced: tiles?.bouncedCount ? XCircle : AlertTriangle },
+        })}
+      />
       <DetailTabs<Direction>
         label="Yön"
         value={direction}
@@ -709,28 +760,19 @@ export default function PaymentInstrumentsPage({
               selectedId={selected?.id ?? null}
               onSelect={(item) => setSelectedId(item.id)}
               renderCell={renderCell}
+              exportActionsRef={gridExportRef}
             />
-            {totalCount > PAGE_SIZE && (
-              <div className="pi-pagination">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                  disabled={page <= 1 || loading}
-                >
-                  Önceki
-                </button>
-                <span>{`Sayfa ${page} / ${pageCount}`}</span>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setPage((value) => value + 1)}
-                  disabled={page >= pageCount || loading}
-                >
-                  Sonraki
-                </button>
-              </div>
-            )}
+            <ListFooter hints="Satır seçer · İşlemler seçili kayda uygulanır">
+              {totalCount > PAGE_SIZE ? (
+                <span className="pi-pagination">
+                  <ListPagination page={page} total={totalCount} pageSize={PAGE_SIZE} loading={loading} onPageChange={setPage} />
+                </span>
+              ) : (
+                <span>
+                  <span>Gösterilen</span> <span>{`${pageRange} / ${totalCount.toLocaleString("tr-TR")}`}</span>
+                </span>
+              )}
+            </ListFooter>
           </section>
           <p className="fh-note pi-boundary">
             <ShieldCheck size={14} aria-hidden="true" />
@@ -747,7 +789,6 @@ export default function PaymentInstrumentsPage({
           eventsLoading={eventsLoading}
           eventsError={eventsError}
           isAdmin={isAdmin}
-          busy={busy}
           baseCurrency={baseCurrency}
           accounts={accounts}
           accountId={selected ? collectAccount[selected.id] || "" : ""}
@@ -756,7 +797,6 @@ export default function PaymentInstrumentsPage({
             setCollectAccount((current) => ({ ...current, [selected.id]: value }));
           }}
           accountSelectRef={accountSelectRef}
-          onAction={(item, kind) => void action(item, kind)}
         />
       </div>
       <DetailDrawer

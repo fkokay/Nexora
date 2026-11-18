@@ -1126,6 +1126,18 @@ export const english: Record<string, string> = {
   'Nakit bütçesi özeti': 'Cash budget summary',
   'Planlanan tahsilat': 'Planned collections',
   'plan': 'plans',
+  // Çek ve Senet (list type A, İşlemler)
+  'Çek/senet işlemlerini yalnız firma yöneticisi yapar': 'Only a company administrator processes cheques and notes',
+  'Yalnız portföydeki veya karşılıksız kayıt tahsil / ödenir': 'Only a record in portfolio or bounced can be collected / paid',
+  'Yalnız portföydeki alınan çek ciro edilir': 'Only a received cheque in portfolio can be endorsed',
+  'Karşılıksız veya iptal edilmiş kayıtta kullanılamaz': 'Not available for a bounced or cancelled record',
+  'Yalnız portföydeki kayıt iptal edilir': 'Only a record in portfolio can be cancelled',
+  'Çek/senet kaydını yalnız firma yöneticisi ekler': 'Only a company administrator adds a cheque or note',
+  'Çek/senet ayrıntısı ve geçmişi sağdaki panelde': 'Cheque / note details and history are in the right-hand panel',
+  'Çek/senet silinmez; İşlemler › İptal': 'A cheque / note is not deleted; use Actions › Cancel',
+  'Satır seçer · İşlemler seçili kayda uygulanır': 'Click selects a row · Actions apply to the selected record',
+  'İşlemler › Tahsil et bu hesabı kullanır.': 'Actions › Collect uses this account.',
+  'İşlemler › Ödendi olarak işle bu hesabı kullanır.': 'Actions › Mark as paid uses this account.',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

@@ -19,6 +19,8 @@ export type Counterparty = { id:string; code:string; name:string; type:string; i
 export type RowAction = 'endorse' | 'collect' | 'bounce' | 'cancel'
 
 export const statusText:Record<Status,string>={Portfolio:'Portföyde',Endorsed:'Ciro edildi',Collected:'Tahsil/ödeme edildi',Bounced:'Karşılıksız',Cancelled:'İptal'}
+/** StatusTag tone per status (Portföyde info, Ciro edildi / Tahsil edildi ok, Karşılıksız bad, İptal off). */
+export const statusTone:Record<Status,'ok'|'warn'|'bad'|'off'|'info'>={Portfolio:'info',Endorsed:'ok',Collected:'ok',Bounced:'bad',Cancelled:'off'}
 
 /** Actions the API accepts for the instrument's current status (see PaymentInstrumentEndpoints). */
 export function allowedActions(item: Item): RowAction[] {

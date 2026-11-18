@@ -102,13 +102,22 @@ async function answerDialog(text: string | null, confirmLabel: string) {
 }
 
 // --- Interaction steps (the only part that follows the UI) ---
-const side = () => screen.getByRole('complementary', { name: 'Seçili çek/senet' });
+// Yeni is the İşlem Çubuğu command; the record actions are in İşlemler and apply to the selected row.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+function menuItems() {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  return [...document.querySelectorAll<HTMLElement>('[role="menuitem"][data-item^="pi-"]')];
+}
+const closeMenu = () => {
+  if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+};
+const ACTION_IDS: Record<string, string> = { 'Tahsil et': 'pi-collect', 'Ciro et': 'pi-endorse', 'Karşılıksız': 'pi-bounce', 'İptal': 'pi-cancel' };
 async function selectRow(instrumentNumber: string) {
   fireEvent.click(screen.getAllByText(instrumentNumber)[0].closest('tr')!);
   await settle(100);
 }
 async function runAction(label: string) {
-  fireEvent.click(within(side()).getByRole('button', { name: label }));
+  fireEvent.click(menuItems().find((node) => node.dataset.item === ACTION_IDS[label])!);
   await settle(50);
 }
 function chooseAccount(code: string, accountId: string) {
@@ -134,7 +143,7 @@ async function nextPage() {
   await settle();
 }
 async function startCreate() {
-  fireEvent.click(screen.getByRole('button', { name: /Portföye ekle/ }));
+  fireEvent.click(bar().querySelector<HTMLElement>('[data-command="new"]')!);
   await settle(100);
 }
 async function submitCreate() {
@@ -142,8 +151,14 @@ async function submitCreate() {
   await settle();
 }
 const formField = (label: RegExp) => screen.getAllByLabelText(label).find((node) => node.closest('form') && node.tagName === 'INPUT')!;
-const createAvailable = () => !!screen.queryByRole('button', { name: /Portföye ekle/ });
-const actionLabels = () => within(side()).queryAllByRole('button').map((button) => button.textContent?.trim());
+const createAvailable = () => bar().querySelector<HTMLElement>('[data-command="new"]')?.getAttribute('aria-disabled') !== 'true';
+const actionLabels = () => {
+  const labels = menuItems()
+    .filter((node) => node.getAttribute('aria-disabled') !== 'true')
+    .map((node) => Object.keys(ACTION_IDS).find((label) => ACTION_IDS[label] === node.dataset.item));
+  closeMenu();
+  return labels;
+};
 // ---
 
 describe('Çek ve Senet (characterization)', () => {

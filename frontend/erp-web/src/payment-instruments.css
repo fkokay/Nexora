@@ -6,31 +6,16 @@
  * "-dialog": global-components.css forces a background and radius on every class containing them.
  */
 #root .pi-page {
-  --pi-select: #eef5fc;
-  --pi-select-line: #315f8b;
-  --pi-dot: #94a3b8;
+  --pi-select: var(--nx-primary-soft);
+  --pi-select-line: var(--nx-primary);
+  --pi-dot: var(--nx-muted);
   max-width: none;
   margin: 0;
 }
-html[data-theme="dark"] #root .pi-page {
-  --pi-select: #1c2a3d;
-  --pi-select-line: #93c5fd;
-  --pi-dot: #64748b;
-}
-#root .app-shell .pi-page .heading-actions .primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  white-space: nowrap;
-}
 
-/* Tiles: several currencies stack inside one value. */
-#root .pi-page .fh-tile-value { flex-direction: column; align-items: flex-start; gap: 2px; }
-#root .pi-page .fh-tile-value.is-muted-value { color: var(--fh-muted); font-weight: 600; }
-#root .pi-page .pi-tile-lines small { margin-right: 4px; }
-#root .pi-page .fh-tile.is-danger-tile .fh-tile-value { color: var(--fh-danger); }
+/* Summary cards: several currencies stack inside one value (never added together). */
+#root .pi-page .pi-card-amounts { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+#root .pi-page .pi-card-amounts small { margin-right: 4px; color: var(--nx-muted); font-size: 11px; font-weight: 400; }
 
 /* List + selected record column (240px from 1100px; stacked below). */
 #root .pi-page .pi-layout {
@@ -76,30 +61,7 @@ html[data-theme="dark"] #root .pi-page {
 #root .pi-page .pi-number { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 #root .pi-page .pi-number b,
 #root .pi-page .pi-strong { color: var(--fh-ink); font-weight: 700; overflow-wrap: anywhere; }
-#root .pi-page .pi-amount { color: var(--fh-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* Status tags */
-#root .pi-page .pi-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--fh-band);
-  border: 1px solid var(--fh-line);
-  color: var(--fh-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-#root .pi-page .pi-state.is-portfolio { border-color: #bfd6ec; background: #edf4fb; color: #1f4f7d; }
-#root .pi-page .pi-state.is-endorsed { border-color: color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 8%, var(--nx-surface)); color: var(--nx-primary-strong); }
-#root .pi-page .pi-state.is-collected { border-color: #bfe3cf; background: var(--fh-success-bg); color: var(--fh-success); }
-#root .pi-page .pi-state.is-bounced { border-color: #f2c9c6; background: #fdf0ef; color: var(--fh-danger); }
-#root .pi-page .pi-state.is-cancelled { text-decoration: line-through; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-portfolio { border-color: #2c4a6b; background: #1b2d44; color: #a6ccff; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-endorsed { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
-html[data-theme="dark"] #root .pi-page .pi-state.is-collected { border-color: #2a5a43; }
-html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3236; background: #3a2226; color: #ffaaa7; }
+#root .pi-page .pi-amount { color: var(--nx-text); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 /* ⋯ trigger inside the grid */
 #root .app-shell .pi-page table.pi-table .sales-row-actions-trigger {
@@ -123,17 +85,10 @@ html[data-theme="dark"] #root .pi-page .pi-state.is-bounced { border-color: #6b3
   text-align: center;
 }
 #root .pi-page .pi-empty b { color: var(--fh-ink); }
-#root .pi-page .pi-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--fh-line-soft);
-  color: var(--fh-muted);
-  font-size: 13px;
-}
-#root .app-shell .pi-page .pi-pagination button { min-height: 32px; padding: 0 12px; }
+/* The pager sits in the list footer (right side). */
+#root .pi-page .pi-pagination .nx-list-pagination { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; }
+#root .pi-page .pi-pagination .nx-list-pagination > div { display: flex; gap: 6px; }
+#root .app-shell .pi-page .pi-pagination button { min-height: 28px; padding: 0 10px; border-radius: var(--nx-radius-control) !important; }
 #root .pi-page .pi-boundary { display: flex; align-items: flex-start; gap: 6px; }
 #root .pi-page .pi-boundary svg { flex: none; margin-top: 2px; }
 
