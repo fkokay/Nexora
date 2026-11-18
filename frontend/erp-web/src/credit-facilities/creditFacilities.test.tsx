@@ -165,3 +165,17 @@ describe('Krediler & Finansman (characterization)', () => {
     expect(enabled(command('Krediyi kapat'))).toBe(false);
   });
 });
+
+describe('Krediler listesi', () => {
+  it('the per-currency footer totals follow the status chip like "Gösterilen n / N"', async () => {
+    renderScreen(<CreditFacilitiesPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    const footer = () => document.querySelector<HTMLElement>('.cf-footer-currency')!.textContent!.replace(/\s+/g, ' ');
+    expect(footer()).toContain('Limit 3.000.000,00');
+    expect(footer()).toContain('Açık anapara 250.000,00');
+    fireEvent.click(screen.getAllByRole('button', { name: /^Kapalı/ }).find((node) => node.closest('.list-v2-toolbar'))!);
+    await settle(200);
+    expect(footer()).toContain('Limit 1.000.000,00');
+    expect(footer()).toContain('Açık anapara 0,00');
+  });
+});

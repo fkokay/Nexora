@@ -289,6 +289,7 @@ export function CreditFacilityDetail({
                 <div className="dd-grid credit-table-wrap" role="region" aria-label={`${f.code} ödeme planı tablosu`} tabIndex={0}>
                   <AdvancedDataGrid
                     hideSearch
+                    enableRowSelection={false}
                     className="customer-table credit-table"
                     gridId="finance-credit-schedules"
                     {...screenViewGridDefaults(visibleScheduleFields)}
@@ -327,6 +328,7 @@ export function CreditFacilityDetail({
                   <div className="dd-grid credit-table-wrap" role="region" aria-label={`${f.code} hareket tablosu`} tabIndex={0}>
                     <AdvancedDataGrid
                       hideSearch
+                      enableRowSelection={false}
                       className="customer-table credit-table credit-movement-table"
                       gridId="finance-credit-movements"
                       {...screenViewGridDefaults(visibleMovementFields)}

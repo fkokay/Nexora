@@ -190,7 +190,7 @@ export const english: Record<string, string> = {
   'Vade uyarısı 30 gün kala gösterilir.': 'The maturity warning is shown 30 days before.',
   'Teminatı kaydet': 'Save collateral',
   'Henüz teminat veya garanti kaydı yok.': 'No collateral or guarantee records yet.',
-  'Bir kredi seçerek kayıt ekleyebilirsiniz.': 'You can add a record by selecting a loan.',
+  'İşlemler › Teminat ekle ile kayıt ekleyebilirsiniz.': 'You can add a record with Actions › Add collateral.',
   'Kayıt eklendiğinde burada görünür.': 'Appears here once a record is added.',
   'Teminat ve garanti listesi': 'Collateral and guarantee list',
   'teminat/garanti kaydı · yaklaşan vade uyarıları': 'collateral/guarantee records · upcoming maturity warnings',
@@ -1180,7 +1180,6 @@ export const english: Record<string, string> = {
   'Önce bir kredi seçin': 'Select a credit first',
   'Kapalı kredide kullanılamaz': 'Not available for a closed credit',
   'Kredi kaydını yalnız firma yöneticisi oluşturur': 'Only a company administrator creates a credit',
-  'Kredi ayrıntısı sağdaki panelde': 'Credit details are in the right-hand panel',
   'Kredi silinmez; İşlemler › Krediyi kapat': 'A credit is not deleted; use Actions › Close credit',
   'Listelenecek kredi yok': 'No credits to list',
   // Krediler & Finansman: list type A, credit surface (modul-finans-6)

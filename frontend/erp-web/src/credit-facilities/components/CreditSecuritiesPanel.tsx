@@ -157,7 +157,6 @@ export function CreditSecuritiesPanel(props: Props) {
   if (props.showCreateForm)
     return props.isAdmin ? (
         <RecordFormPage
-          className="cf-rf"
           confirmCancel
           error={props.error}
           onDismissError={props.onDismissError}
@@ -364,7 +363,7 @@ export function CreditSecuritiesPanel(props: Props) {
             <strong>Henüz teminat veya garanti kaydı yok.</strong>
             <span>
               {props.isAdmin
-                ? "Bir kredi seçerek kayıt ekleyebilirsiniz."
+                ? "İşlemler › Teminat ekle ile kayıt ekleyebilirsiniz."
                 : "Kayıt eklendiğinde burada görünür."}
             </span>
           </div>

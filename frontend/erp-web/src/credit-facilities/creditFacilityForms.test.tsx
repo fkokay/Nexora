@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -283,6 +283,31 @@ describe('Krediler & Finansman: create screens (characterization)', () => {
       fireEvent.click(screen.getByRole('button', { name: /Vazgeç/ }));
       await settle(100);
       expect(onNavigate).toHaveBeenLastCalledWith(...BACK);
+      cleanup();
+    }
+    expect(writes()).toEqual([]);
+  });
+
+  it('after a field changed, Vazgeç and Esc ask first; staying keeps the form, Devam returns to the list', async () => {
+    for (const view of ['facility-create', 'schedule-create', 'movement-create', 'repayment-create', 'security-create'] as const) {
+      const onNavigate = vi.fn();
+      renderScreen(<CreditFacilitiesPage token="t" role="TenantAdmin" view={view} onNavigate={onNavigate} />);
+      await settle(300);
+      const field = document.querySelector<HTMLInputElement>('form textarea, form input[type="text"], form input:not([type])')!;
+      fireEvent.change(field, { target: { value: 'Değişti' } });
+      fireEvent.click(screen.getByRole('button', { name: /Vazgeç/ }));
+      await settle(100);
+      const dialog = () => screen.getByRole('alertdialog');
+      expect(within(dialog()).getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+      fireEvent.click(within(dialog()).getAllByRole('button').find((button) => !/Devam/.test(button.textContent ?? ''))!);
+      await settle(100);
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(onNavigate, view).not.toHaveBeenCalled();
+      fireEvent.keyDown(window, { key: 'Escape' });
+      await settle(100);
+      fireEvent.click(within(dialog()).getByRole('button', { name: /Devam/ }));
+      await settle(100);
+      expect(onNavigate, view).toHaveBeenLastCalledWith(...BACK);
       cleanup();
     }
     expect(writes()).toEqual([]);

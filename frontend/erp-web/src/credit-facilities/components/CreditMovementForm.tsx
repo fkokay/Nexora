@@ -56,7 +56,6 @@ export function CreditMovementForm(props: Props) {
 
   return (
       <RecordFormPage
-        className="cf-rf"
         formId="credit-movement-form"
         title={
           movementType === "Drawdown"

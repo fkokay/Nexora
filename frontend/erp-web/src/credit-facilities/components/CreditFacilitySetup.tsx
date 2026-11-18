@@ -64,7 +64,6 @@ export function CreditFacilitySetup(props: Props) {
     <>
       {showFacility && (
           <RecordFormPage
-            className="cf-rf"
             title="Yeni kredi / limit"
             mode="create"
             busy={busy}
@@ -223,7 +222,6 @@ export function CreditFacilitySetup(props: Props) {
       )}
       {showSchedule && (
           <RecordFormPage
-            className="cf-rf"
             title="Ödeme planına taksit ekle"
             mode="create"
             busy={busy}

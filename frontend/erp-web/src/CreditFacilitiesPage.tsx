@@ -853,9 +853,10 @@ export default function CreditFacilitiesPage({
           ? -1
           : a.position - b.position,
     );
+  // Footer totals per currency of the listed credits (status, currency and search filters), next to "Gösterilen n / N".
   const currencySummaries = currencies
     .map((code) => {
-      const rows = facilities.filter((f) => f.currencyCode === code);
+      const rows = visibleFacilities.filter((f) => f.currencyCode === code);
       return {
         code,
         count: rows.length,
@@ -865,9 +866,7 @@ export default function CreditFacilitiesPage({
         scheduled: rows.reduce((sum, f) => sum + f.openScheduleTotal, 0),
       };
     })
-    .filter(
-      (summary) => currencyFilter === "All" || summary.code === currencyFilter,
-    );
+    .filter((summary) => summary.count > 0);
   const isList = view === "list";
   // The current row the user chose (the grid never picks one by itself); the opened credit is shown on its own surface.
   const selectedFacility =
@@ -1093,7 +1092,7 @@ export default function CreditFacilitiesPage({
   };
   return (
     <div
-      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " cf-create"}`}
+      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : ""}`}
     >
       {isList && !openedFacility && <PageCommandsSlot commands={listCommands} />}
       {isList ? (
@@ -1250,7 +1249,14 @@ export default function CreditFacilitiesPage({
             onCurrentChange={(id) => {
               const f = facilities.find((row) => row.id === id);
               if (f) selectFacility(f);
-              else setSelectedFacilityId(null);
+              else {
+                setSelectedFacilityId(null);
+                try {
+                  sessionStorage.removeItem(SELECTED_KEY);
+                } catch {
+                  /* storage unavailable */
+                }
+              }
             }}
             onOpen={openFacility}
             exportActionsRef={exportRef}
@@ -1342,11 +1348,17 @@ export default function CreditFacilitiesPage({
                   {error && (
                     <div className="alert inline-alert" role="alert">
                       <span>{error}</span>
+                      <button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat">
+                        ×
+                      </button>
                     </div>
                   )}
                   {notice && !error && (
                     <div className="notice" role="status">
                       {notice}
+                      <button type="button" onClick={() => setNotice("")} aria-label="Bildirimi kapat">
+                        ×
+                      </button>
                     </div>
                   )}
                 </>
