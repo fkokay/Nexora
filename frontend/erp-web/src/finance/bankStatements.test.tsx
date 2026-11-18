@@ -80,27 +80,37 @@ const calls = (path: string) =>
     .map(({ init }) => ({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : undefined }));
 
 // --- Interaction steps (the only part that follows the UI) ---
+// The list opens a statement on the detail surface; its commands are in İşlemler (the line ones act on the selected line).
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+async function runMenu(id: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  fireEvent.click(document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!);
+  await settle();
+}
 async function openStatement(code: string) {
+  const back = screen.queryByRole('button', { name: 'Listeye dön' });
+  if (back) {
+    fireEvent.click(back);
+    await settle(50);
+  }
   fireEvent.click(screen.getByRole('button', { name: new RegExp(code) }));
   await settle();
 }
 async function autoMatch() {
-  fireEvent.click(screen.getByRole('button', { name: 'Otomatik eşleştir' }));
-  await settle();
+  await runMenu('statement-auto-match');
 }
 async function matchLine(lineNumber: number, movementId: string) {
   fireEvent.change(screen.getByLabelText(`${lineNumber}. satır için defter hareketi`), { target: { value: movementId } });
   await settle(50);
-  fireEvent.click(screen.getByRole('button', { name: 'Eşleştir' }));
-  await settle();
+  await runMenu('statement-line-match');
 }
 async function postLine() {
-  fireEvent.click(screen.getByRole('button', { name: 'Deftere ekle' }));
-  await settle();
+  fireEvent.click(screen.getByText('Satır 2').closest('tr')!);
+  await settle(50);
+  await runMenu('statement-line-book');
 }
 async function reconcile() {
-  fireEvent.click(screen.getByRole('button', { name: 'Mutabakatı tamamla' }));
-  await settle();
+  await runMenu('statement-reconcile');
 }
 // ---
 
@@ -147,5 +157,27 @@ describe('Banka Ekstreleri (characterization)', () => {
     await openStatement('BE-2026-0002');
     await reconcile();
     expect(calls('/api/finance/statements/s2/reconcile')).toEqual([{ method: 'POST', body: undefined }]);
+  });
+});
+
+describe('Banka Ekstreleri (list and statement surface)', () => {
+  const item = (id: string) => document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!;
+  const toggleMenu = () => fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  it('lists the statements without opening one; line commands follow the selected line', async () => {
+    renderScreen(<BankStatementsPage token="t" role="TenantAdmin" />);
+    await settle();
+    expect(calls('/api/finance/statements/s1')).toEqual([]);
+    const rows = Array.from(document.querySelectorAll('.list-v2-list tbody tr')).map((tr) => tr.textContent ?? '');
+    expect(rows.some((text) => text.includes('BE-2026-0001') && text.includes('0 / 2') && text.includes('Bekliyor'))).toBe(true);
+    await openStatement('BE-2026-0001');
+    toggleMenu();
+    expect(item('statement-line-match').getAttribute('aria-disabled')).toBe('true');
+    expect(item('statement-reconcile').getAttribute('title')).toBe('Mutabakat için tüm ekstre satırları eşleşmiş olmalıdır.');
+    toggleMenu();
+    fireEvent.click(screen.getByText('Satır 1').closest('tr')!);
+    await settle(50);
+    toggleMenu();
+    expect(item('statement-line-book').getAttribute('aria-disabled')).toBe('true');
+    expect(item('statement-line-match').getAttribute('title')).toBe('Satırda bir defter hareketi seçin');
   });
 });

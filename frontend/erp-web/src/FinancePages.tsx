@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Download, Info, Landmark, X } from "lucide-react";
+import { Info, Landmark, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
@@ -192,8 +192,6 @@ function FinancePage({
     statementSearch,
     statementStatus,
   );
-  // The first listed statement opens once per visit when nothing is selected yet.
-  const statementAutoSelected = useRef(false);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -251,22 +249,6 @@ function FinancePage({
       }),
     );
   }, [accountCreateOpen, editingAccount, section]);
-  useEffect(() => {
-    statementAutoSelected.current = false;
-  }, [section]);
-  useEffect(() => {
-    if (
-      section !== "finance-statements" ||
-      loading ||
-      statementDetail ||
-      statementAutoSelected.current
-    )
-      return;
-    const first = visibleStatements[0];
-    if (!first) return;
-    statementAutoSelected.current = true;
-    void loadStatement(first.id);
-  });
   useEffect(() => {
     const dialog = statementImportDialog.current;
     if (!statementImportOpen || !dialog) return;
@@ -815,7 +797,7 @@ function FinancePage({
   const showListHeader = isListSection && !(accountCreateOpen && isAccountsPage);
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}${isReportSection ? " list-v2 fh-page ledger-report-host maturity-report-page" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fin-acc-page bank-statements-page" : ""}${isReportSection ? " list-v2 fh-page ledger-report-host maturity-report-page" : ""}`}
     >
       {showListHeader && (
         <ListPageHeader
@@ -829,39 +811,6 @@ function FinancePage({
                 : null
           }
         >
-          {section === "finance-statements" && (
-            <>
-              <button
-                type="button"
-                className="secondary"
-                disabled={visibleStatements.length === 0}
-                title="Listelenen ekstreleri XLSX olarak indir"
-                onClick={() =>
-                  void exportBankStatements(visibleStatements, "xlsx", localDateString()).catch(() =>
-                    setError("XLSX dosyası oluşturulamadı."),
-                  )
-                }
-              >
-                <Download size={15} aria-hidden="true" /> XLSX
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={visibleStatements.length === 0}
-                title="Listelenen ekstreleri CSV olarak indir"
-                onClick={() =>
-                  void exportBankStatements(visibleStatements, "csv", localDateString()).catch(() =>
-                    setError("CSV dosyası oluşturulamadı."),
-                  )
-                }
-              >
-                <Download size={15} aria-hidden="true" /> CSV
-              </button>
-              <button type="button" className="primary" onClick={() => setStatementImportOpen(true)}>
-                Banka ekstresi içe aktar
-              </button>
-            </>
-          )}
         </ListPageHeader>
       )}
       {!ledgerViews[section] && !showListHeader && !accountFormOpen && !isReportSection && (
@@ -954,7 +903,7 @@ function FinancePage({
           </button>
         </div>
       )}
-      {notice && !accountFormOpen && (
+      {notice && !accountFormOpen && !(section === "finance-statements" && statementDetail) && (
         <div className="notice">
           {notice}
           <button onClick={() => setNotice("")}>
@@ -1221,57 +1170,56 @@ function FinancePage({
         />
       )}
       {section === "finance-statements" && (
-        <div className="cf-layout bst-layout">
-          <BankStatementList
-            statements={statements}
-            visibleStatements={visibleStatements}
-            selectedId={statementDetail?.id ?? null}
-            loading={loading}
-            search={statementSearch}
-            status={statementStatus}
-            onSearchChange={setStatementSearch}
-            onStatusChange={setStatementStatus}
-            onRefresh={() => void load()}
-            onSelect={(statement) => void loadStatement(statement.id)}
-            onClearFilters={() => {
-              setStatementSearch("");
-              setStatementStatus("");
-            }}
-            onImport={() => setStatementImportOpen(true)}
-          />
-          {statementDetail ? (
-            <BankStatementDetailPanel
-              key={statementDetail.id}
-              token={token}
-              statement={statementDetail}
-              unmatchedBook={unmatchedBook}
-              lineMatches={lineMatches}
-              busy={busy}
-              error={statementImportOpen ? "" : error}
-              onDismissError={() => setError("")}
-              onAutoMatch={() => void autoMatch()}
-              onReconcile={() => void reconcileStatement()}
-              onMatchLine={(line) => void matchStatementLine(line)}
-              onPostLine={(line) => void postStatementLine(line)}
-              onLineMatchChange={(lineId, transactionId) =>
-                setLineMatches((current) => ({
-                  ...current,
-                  [lineId]: transactionId,
-                }))
-              }
-            />
-          ) : (
-            <section className="cf-detail">
-              <p className="fh-empty">
-                {loading
-                  ? "Ekstreler yükleniyor…"
-                  : statements.length
-                    ? "Ayrıntıları görmek için soldan bir banka ekstresi seçin."
-                    : "İçe aktarılan banka ekstresi burada satırlarıyla açılır."}
-              </p>
-            </section>
-          )}
-        </div>
+        <BankStatementList
+          active={!statementDetail && !statementImportOpen}
+          loading={loading}
+          busy={busy}
+          statements={statements}
+          visibleStatements={visibleStatements}
+          search={statementSearch}
+          status={statementStatus}
+          onSearchChange={setStatementSearch}
+          onStatusChange={setStatementStatus}
+          onRefresh={() => void load()}
+          onOpen={(statement) => void loadStatement(statement.id)}
+          onImport={() => setStatementImportOpen(true)}
+          onExport={(format) =>
+            void exportBankStatements(visibleStatements, format, localDateString()).catch(() =>
+              setError(format === "xlsx" ? "XLSX dosyası oluşturulamadı." : "CSV dosyası oluşturulamadı."),
+            )
+          }
+        />
+      )}
+      {section === "finance-statements" && statementDetail && (
+        <BankStatementDetailPanel
+          key={statementDetail.id}
+          token={token}
+          statement={statementDetail}
+          unmatchedBook={unmatchedBook}
+          lineMatches={lineMatches}
+          busy={busy}
+          error={statementImportOpen ? "" : error}
+          onDismissError={() => setError("")}
+          notice={notice}
+          onDismissNotice={() => setNotice("")}
+          onClose={() => {
+            setStatementDetail(null);
+            setUnmatchedBook([]);
+            setLineMatches({});
+          }}
+          onRefresh={() => void loadStatement(statementDetail.id)}
+          onImport={() => setStatementImportOpen(true)}
+          onAutoMatch={() => void autoMatch()}
+          onReconcile={() => void reconcileStatement()}
+          onMatchLine={(line) => void matchStatementLine(line)}
+          onPostLine={(line) => void postStatementLine(line)}
+          onLineMatchChange={(lineId, transactionId) =>
+            setLineMatches((current) => ({
+              ...current,
+              [lineId]: transactionId,
+            }))
+          }
+        />
       )}
       <dialog
         ref={statementImportDialog}
