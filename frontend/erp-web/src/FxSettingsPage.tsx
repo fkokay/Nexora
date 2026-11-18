@@ -134,6 +134,8 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
     [rateFormOpen, setRateFormOpen] = useState(false),
     // The rate row the form was filled from (a same-day correction becomes a new revision).
     [rateFrom, setRateFrom] = useState<string | null>(null),
+    // The form's four values as it was opened (or last saved): the form is dirty when any of them differs.
+    [rateBase, setRateBase] = useState<{ code: string; date: string; rate: string; source: string } | null>(null),
     [creatingVoucher, setCreatingVoucher] = useState(false);
 
   const [exposure, setExposure] = useState<FxExposureReport | null>(null),
@@ -210,6 +212,10 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
       });
       setNotice("Döviz kuru eklendi. Düzeltmeler yeni revizyon olarak kaydedilir.");
       setRate("");
+      // The form stays open for the next rate: the saved values are its new baseline (nothing unsaved), and it is no
+      // longer a correction of the row it was filled from.
+      setRateFrom(null);
+      setRateBase({ code, date, rate: "", source });
       await load();
       void loadExposure();
     } catch (e) {
@@ -368,8 +374,10 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
   );
 
   const ratesTab = tab === "rates";
-  const rateRow = rateFrom ? rates.find((row) => row.id === rateFrom) : undefined;
-  const rateDirty = rateFormOpen && rate !== (rateRow ? String(rateRow.rate) : "");
+  const rateDirty =
+    rateFormOpen &&
+    !!rateBase &&
+    (code !== rateBase.code || date !== rateBase.date || rate !== rateBase.rate || source !== rateBase.source);
   // Esc = Vazgeç for the open form / voucher (asks first when a rate was typed); not while a dialog or picker owns it.
   const pageRef = useRef<HTMLDivElement | null>(null);
   useWindowKeyDown(rateFormOpen || creatingVoucher || Boolean(selectedVoucher), (event) => {
@@ -396,10 +404,17 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
     startRate(from);
   }
   function startRate(from?: ExchangeRate) {
-    setCode(from?.currencyCode ?? "USD");
-    setDate(from?.rateDate ?? localDateString());
-    setRate(from ? String(from.rate) : "");
-    setSource(from?.source && !isTcmb(from) ? from.source : "");
+    const values = {
+      code: from?.currencyCode ?? "USD",
+      date: from?.rateDate ?? localDateString(),
+      rate: from ? String(from.rate) : "",
+      source: from?.source && !isTcmb(from) ? from.source : "",
+    };
+    setCode(values.code);
+    setDate(values.date);
+    setRate(values.rate);
+    setSource(values.source);
+    setRateBase(values);
     setRateFrom(from?.id ?? null);
     setRateFormOpen(true);
     setError("");
@@ -408,6 +423,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
   function closeRate() {
     setRateFormOpen(false);
     setRateFrom(null);
+    setRateBase(null);
   }
   const commands: PageCommands = ratesTab
     ? {

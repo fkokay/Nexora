@@ -94,6 +94,14 @@ async function enterRate(code: string, date: string, value: string, source: stri
   fireEvent.submit(rateField(/^Kaynak \/ not$/).closest('form')!);
   await settle();
 }
+async function pickRate(text: string) {
+  fireEvent.click([...document.querySelectorAll<HTMLElement>('tbody tr')].find((row) => row.textContent?.includes(text))!);
+  await settle(50);
+}
+async function escape() {
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await settle(50);
+}
 async function importTcmb() {
   await runMenu('fx-import-tcmb');
 }
@@ -174,6 +182,40 @@ describe('Kur ve değerleme (characterization)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
     await settle(50);
     expect(rateField(/^1 .+ = \? TRY$/).value).toBe('35');
+  });
+
+  it('a row does not replace a typed rate without asking', async () => {
+    await openPage();
+    await pickRate('Banka satış kuru');
+    expect(rateField(/^1 .+ = \? TRY$/).value).toBe('37.5');
+    fireEvent.change(rateField(/^1 .+ = \? TRY$/), { target: { value: '38' } });
+    await pickRate('USD');
+    expect(screen.getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
+    await settle(50);
+    expect(rateField(/^1 .+ = \? TRY$/).value).toBe('38');
+  });
+
+  it('after a saved correction Esc closes without asking; a changed currency, date or source asks first', async () => {
+    await openPage();
+    await pickRate('Banka satış kuru');
+    fireEvent.change(rateField(/^1 .+ = \? TRY$/), { target: { value: '37.75' } });
+    fireEvent.submit(rateForm());
+    await settle();
+    expect(bodyOf(calls('/api/finance/exchange-rates', 'POST')[0])).toEqual({ currencyCode: 'EUR', rateDate: '2026-11-17', rate: 37.75, source: 'Banka satış kuru' });
+    expect(screen.getByLabelText(/^Kaynak \/ not$/)).toBeTruthy();
+    await escape();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByLabelText(/^Kaynak \/ not$/)).toBeNull();
+    for (const [label, value] of [[/^Döviz/, 'GBP'], [/^Tarih/, '2026-11-16'], [/^Kaynak \/ not$/, 'Başka kaynak']] as const) {
+      await pickRate('Banka satış kuru');
+      fireEvent.change(rateField(label), { target: { value } });
+      await escape();
+      expect(screen.getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+      fireEvent.click(screen.getAllByRole('button', { name: /^Devam/ }).at(-1)!);
+      await settle(50);
+      expect(screen.queryByLabelText(/^Kaynak \/ not$/)).toBeNull();
+    }
   });
 
   it('gives a tenant user no rate entry, TCMB import or revaluation', async () => {
