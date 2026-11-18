@@ -46,7 +46,9 @@ internal static class TenantCustomPageSchema
       // Proje 4: conditional required input (e.g. only while an existing record is edited).
       "requiredWhen",
       // Proje 4: compact one-row formCard (e.g. the filter row above a list), conditional width and per-value cell labels.
-      "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits" };
+      "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
+      // Navigation actions (link, erpPage, page): they never write data.
+      "href", "pageKey", "pageCode", "params", "queryText" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog" };
@@ -70,10 +72,11 @@ internal static class TenantCustomPageSchema
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey" };
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
-        ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200 };
+        ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200,
+        ["href"] = 1000, ["queryText"] = 200 };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -94,7 +97,9 @@ internal static class TenantCustomPageSchema
     /// Names reserved for the page runtime beyond <see cref="TenantCustomPageQueries.ReservedNames"/>: <c>onceki</c> is the
     /// previous save-sequence step's result. Not added to ReservedNames, which also overwrites SQL parameter values.
     /// </summary>
-    private static readonly HashSet<string> RuntimeReservedNames = new(StringComparer.OrdinalIgnoreCase) { "onceki" };
+    private static readonly HashSet<string> RuntimeReservedNames = new(StringComparer.OrdinalIgnoreCase) { "onceki", PageRoot };
+    /// <summary><c>{{sayfa.parametre.x}}</c>: the parameters a "page" (Sayfa aç) action opened this page with.</summary>
+    private const string PageRoot = "sayfa";
 
     private sealed class Context(int version)
     {
@@ -454,6 +459,11 @@ internal static class TenantCustomPageSchema
             { error = "Bileşen özellikleri izin verilen statik alanlarla sınırlıdır."; return false; }
             foreach (var prop in props.EnumerateObject())
             {
+                if (prop.Name == "params")
+                {
+                    if (!context.V2 || !ValidatePageParams(prop.Value, typeText, out error)) { error ??= "'params' geçersiz."; return false; }
+                    continue;
+                }
                 if (prop.Name is "css" or "javascript")
                 {
                     var maxCodeLength = prop.Name == "javascript" && context.V2 ? 20000 : 4000;
@@ -493,9 +503,9 @@ internal static class TenantCustomPageSchema
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
             if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String
-                || actionType.GetString() is not ("workflow" or "query" or "sequence" or "openDialog") || actionType.GetString() != "workflow" && !context.V2))
+                || actionType.GetString() is not ("workflow" or "query" or "sequence" or "openDialog" or "link" or "erpPage" or "page") || actionType.GetString() != "workflow" && !context.V2))
             {
-                error = context.V2 ? "Düğme eylem türü iş akışı (workflow), sorgu (query), kayıt dizisi (sequence) veya pencere (openDialog) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
+                error = context.V2 ? "Düğme eylem türü iş akışı (workflow), sorgu (query), kayıt dizisi (sequence), pencere (openDialog), bağlantı (link), ERP ekranı (erpPage) veya sayfa (page) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
                 return false;
             }
             if (props.TryGetProperty("workflowId", out var workflowId) && (typeText != "button" || workflowId.ValueKind != JsonValueKind.String || !string.IsNullOrEmpty(workflowId.GetString()) && !Guid.TryParse(workflowId.GetString(), out _)))
@@ -552,7 +562,8 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty(key, out var column)
                 && (typeText != "input" || column.ValueKind != JsonValueKind.String || column.GetString()!.Length is < 1 or > 128))
             { error = $"'{key}' yalnızca giriş bileşeninde 1–128 karakterlik sütun adı olabilir."; return false; }
-        return ValidateDesignLanguageProps(props, typeText, context, out error) && ValidateButtonQueryAction(props, typeText, context, out error);
+        return ValidateDesignLanguageProps(props, typeText, context, out error) && ValidateButtonQueryAction(props, typeText, context, out error)
+            && ValidateNavigationAction(props, typeText, out error);
     }
 
     /// <summary>Metric, badge and dataTable presentation props (design language step 2a).</summary>
@@ -834,6 +845,109 @@ internal static class TenantCustomPageSchema
         return true;
     }
 
+    // ---- Navigation actions: link (Bağlantıya git), erpPage (ERP ekranı aç), page (Sayfa aç) ----
+
+    private const int MaxPageParams = 6;
+    private static readonly string[] NavigationProps = ["href", "pageKey", "queryText", "pageCode", "params"];
+    private static readonly Regex PageParamItem = new(@"^([a-z][a-zA-Z0-9]{0,31})=(.{0,200})\z", RegexOptions.CultureInvariant, RegexTimeout);
+    /// <summary>
+    /// The literal start of a link: http(s), a host of DNS labels and an optional port, then the end of the text or one of
+    /// <c>/ ? #</c>. No user info, backslash or bound host is possible, so interpolated values can never change the target host.
+    /// </summary>
+    private static readonly Regex LinkPrefix = new(
+        @"^https?://[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*(?::[0-9]{1,5})?(?<end>[/?#]|\z)",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase, RegexTimeout);
+
+    private static string? NavigationTypeOf(string prop) => prop switch
+    {
+        "href" => "link",
+        "pageKey" or "queryText" => "erpPage",
+        "pageCode" or "params" => "page",
+        _ => null
+    };
+
+    private static string NavigationLabel(string? actionType) => actionType switch
+    {
+        "link" => "bağlantı (link)",
+        "erpPage" => "ERP ekranı (erpPage)",
+        _ => "sayfa açan (page)"
+    };
+
+    /// <summary>
+    /// A link template is safe when its literal prefix (up to the first <c>{{</c>) is an absolute http/https address with a
+    /// complete host, and its literal text has no whitespace, control character or backslash. The runtime re-checks the
+    /// interpolated address and encodes every bound value.
+    /// </summary>
+    internal static bool SafeLinkTemplate(string href)
+    {
+        var first = href.IndexOf("{{", StringComparison.Ordinal);
+        var prefix = first < 0 ? href : href[..first];
+        Match match;
+        try { match = LinkPrefix.Match(prefix); }
+        catch (RegexMatchTimeoutException) { return false; }
+        if (!match.Success || first >= 0 && match.Groups["end"].Length == 0) return false;
+        var literal = TenantCustomPageQueries.EmbeddedBinding().Replace(href, "");
+        return !literal.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c == '\\');
+    }
+
+    /// <summary><c>params</c> of a page action: up to 6 unique <c>ad=değer</c> items whose value may contain bindings.</summary>
+    private static bool ValidatePageParams(JsonElement value, string typeText, out string? error)
+    {
+        error = null;
+        const string format = "'params' en fazla 6 adet ad=değer öğesi içermelidir; ad küçük harfle başlar, en fazla 32 harf/rakamdır ve benzersizdir.";
+        if (typeText != "button") return Fail("'params' yalnız sayfa açan (page) eylemli düğmede kullanılabilir.", out error);
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaxPageParams) return Fail(format, out error);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in value.EnumerateArray())
+        {
+            Match match;
+            try { match = item.ValueKind == JsonValueKind.String ? PageParamItem.Match(item.GetString()!) : Match.Empty; }
+            catch (RegexMatchTimeoutException) { match = Match.Empty; }
+            if (!match.Success || !seen.Add(match.Groups[1].Value) || !SafeBindableText(match.Groups[2].Value)) return Fail(format, out error);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Navigation buttons open an address, an ERP screen or a page; they never write data, so the write-only props are refused.
+    /// Each navigation prop belongs to exactly one action type.
+    /// </summary>
+    private static bool ValidateNavigationAction(JsonElement props, string typeText, out string? error)
+    {
+        error = null;
+        var actionType = typeText == "button" ? StringOf(props, "actionType") : null;
+        foreach (var key in NavigationProps)
+            if (props.TryGetProperty(key, out _) && NavigationTypeOf(key) != actionType)
+                return Fail($"'{key}' yalnız {NavigationLabel(NavigationTypeOf(key))} eylemli düğmede kullanılabilir.", out error);
+        if (actionType is not ("link" or "erpPage" or "page")) return true;
+        foreach (var key in new[] { "queryId", "refreshQueries" })
+            if (props.TryGetProperty(key, out _)) return Fail($"'{key}' gezinme eylemli düğmede kullanılamaz; bu eylemler veri yazmaz.", out error);
+        if (props.TryGetProperty("target", out _) && StringOf(props, "target") is not ("newTab" or "sameTab"))
+            return Fail("'target' newTab veya sameTab olmalıdır.", out error);
+        switch (actionType)
+        {
+            case "link":
+                var href = StringOf(props, "href");
+                if (string.IsNullOrEmpty(href)) return Fail("Bağlantı düğmesi için 'href' gerekli.", out error);
+                if (!SafeLinkTemplate(href))
+                    return Fail("'href' http:// veya https:// ile başlayan, sunucu adı sabit yazılmış bir adres olmalıdır; {{…}} ifadeleri yalnız sunucu adından sonra (/, ? veya # ardından) kullanılabilir.", out error);
+                break;
+            case "erpPage":
+                var pageKey = StringOf(props, "pageKey");
+                if (string.IsNullOrEmpty(pageKey)) return Fail("ERP ekranı düğmesi için 'pageKey' gerekli.", out error);
+                if (!StandardMenuEndpoints.PageKeys.Contains(pageKey)) return Fail($"ERP ekranı bulunamadı: {pageKey}", out error);
+                break;
+            default:
+                var pageCode = StringOf(props, "pageCode");
+                if (string.IsNullOrEmpty(pageCode)) return Fail("Sayfa düğmesi için 'pageCode' gerekli.", out error);
+                var known = TenantCustomPageEndpoints.ValidCode(pageCode)
+                    || SystemPageCodes.ScreenKeyOf(pageCode) is { } screenKey && StandardMenuEndpoints.PageKeys.Contains(screenKey);
+                if (!known) return Fail($"'pageCode' bir özel sayfa kodu ya da @ekran-anahtarı olmalıdır: {pageCode}", out error);
+                break;
+        }
+        return true;
+    }
+
     // ---- Proje 2 Faz A: conditions, tabs, lookup, server paging and input validation ----
 
     private const int MaxTabs = 8;
@@ -847,7 +961,7 @@ internal static class TenantCustomPageSchema
     private static readonly Regex IsoDate = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly string[] LookupProps = ["optionDescriptionColumn", "minChars", "staticOptions", "allowClear"];
     private static readonly string[] PagingProps = ["pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta"];
-    private static readonly HashSet<string> ConditionRoots = new(TenantCustomPageQueries.ReservedNames, StringComparer.Ordinal);
+    private static readonly HashSet<string> ConditionRoots = new(TenantCustomPageQueries.ReservedNames, StringComparer.Ordinal) { PageRoot };
 
     private static bool IsBool(JsonElement value) => value.ValueKind is JsonValueKind.True or JsonValueKind.False;
     private static bool IsIntIn(JsonElement value, int min, int max) =>
@@ -1265,7 +1379,7 @@ internal static class TenantCustomPageSchema
                 if (!PageConditionExpression.TryParse(match.Groups[2].Value, out var roots, out var reason))
                     return Fail($"'sequenceWhen' koşulu geçersiz: {reason}", out error);
                 // Conditions are evaluated once, before the first step: there is no previous step result yet.
-                if (roots.Any(RuntimeReservedNames.Contains))
+                if (roots.Any(root => string.Equals(root, "onceki", StringComparison.OrdinalIgnoreCase)))
                     return Fail("'sequenceWhen' koşulu 'onceki' kullanamaz; adımlar başlamadan değerlendirilir.", out error);
                 context.PendingConditionRoots.Add(("sequenceWhen", roots));
             }
@@ -1309,7 +1423,7 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("rowActions", out var rowActions))
         {
             if (!TryReadIds(rowActions, MaxRowActions, out var ids))
-                return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.", out error);
+                return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
             if (name is null) return Fail($"Satır işlemleri için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır işlemleri yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowActions.Add((id, ids));
@@ -1450,8 +1564,8 @@ internal static class TenantCustomPageSchema
         foreach (var (tableId, ids) in context.PendingRowActions)
             foreach (var buttonId in ids)
             {
-                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog"))
-                    return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.", out error);
+                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page"))
+                    return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
                 if (menuButtons.Contains(buttonId)) return Fail($"Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
                 if (!owners.TryAdd(buttonId, tableId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
             }

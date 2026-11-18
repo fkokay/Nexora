@@ -631,3 +631,4 @@ html.pd-fullscreen-active{overflow:hidden}
 /* Sekmedeki bileşenin etiketi yalnız o blok üzerindeyken ya da seçiliyken görünür (kabın üzerine gelmek hepsini yakmaz) */
 .pd-tabs-canvas .pd-tab-block .pd-block-label{display:none}
 .pd-tabs-canvas .pd-tab-block:hover>.pd-block-label,.pd-tabs-canvas .pd-tab-block.is-selected>.pd-block-label{display:block}
+.pd-inline{display:grid;grid-template-columns:90px 1fr auto;gap:4px;align-items:center;margin-bottom:4px}

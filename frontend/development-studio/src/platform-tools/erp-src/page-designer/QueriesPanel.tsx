@@ -25,7 +25,7 @@ export { MAX_QUERY_PARAMETERS } from "./queryDraft";
 import { MAX_QUERY_PARAMETERS } from "./queryDraft";
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 // "onceki" kayıt dizisinde bir önceki adımın sonucudur (sunucuda yalnız ValidName'de ayrılmış; koşul kökü değildir).
-export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki"];
+export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki", "sayfa"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
 const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";

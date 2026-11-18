@@ -299,9 +299,9 @@ public sealed class TenantCustomPageComponentsFazBTests
         AssertRejected(V2(MovementQueries(), MovementComponents(C("t2", "dataTable", new { query = "hareketler", rowActions = new[] { "b1" } }))),
             "Satır işlemleri için veri listesinin adı olmalıdır: t2");
         AssertRejected(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo", new { query = "hareketler", rowActions = new[] { "i1" } }))),
-            "'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.");
+            "'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
         AssertRejected(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo", new { query = "hareketler", rowActions = new[] { "b1", "b1" } }))),
-            "'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.");
+            "'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
     }
 
     [Fact]

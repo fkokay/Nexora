@@ -25,6 +25,7 @@ import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
 import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields } from "./page-designer/RowActionsFields";
+import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
@@ -158,7 +159,8 @@ const parseStaticOptions = (value: unknown) => (Array.isArray(value) ? value : [
   .filter((entry): entry is string => typeof entry === "string" && STATIC_OPTION.test(entry))
   .map((entry) => ({ value: entry.slice(0, entry.indexOf("=")), label: entry.slice(entry.indexOf("=") + 1) }));
 const MAX_REFRESH_QUERIES = 10;
-const buttonActionTypes: [string, string][] = [["workflow", "İş akışı"], ["query", "Sorgu"], ["sequence", "Kayıt dizisi"], ["openDialog", "Pencere aç"]];
+const buttonActionTypes: [string, string][] = [["workflow", "İş akışı"], ["query", "Sorgu"], ["sequence", "Kayıt dizisi"], ["openDialog", "Pencere aç"],
+  ["link", "Bağlantıya git"], ["erpPage", "ERP ekranı aç"], ["page", "Sayfa aç"]];
 const bindingNote = "Değerler SQL'e her zaman parametre olarak gider.";
 const variantOptions = [{ value: "info", label: "Bilgi" }, { value: "success", label: "Olumlu" }, { value: "warning", label: "Dikkat" }, { value: "danger", label: "Hata" }];
 const numericKeys = ["width", "margin", "padding", "borderRadius"];
@@ -236,7 +238,7 @@ type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; query
 /** `disabledWhen` / `disabledReason` alabilen türler (sunucu kuralı). */
 const DISABLEABLE_TYPES: ComponentType[] = ["button", "input", "editableGrid", "customFieldsBlock"];
 /** Satır işlemi olabilen düğme eylem türleri. */
-const ROW_ACTION_TYPES = ["query", "sequence", "openDialog"];
+const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
 /**
  * Kayıt dizisi özelliklerini yerinde temizler (İşlem Çubuğu, Pencere, dizi düğmesi): adımlar var olan tekil yazma sorguları
  * (en çok 8), koşullar yalnız dizideki adımlar için; dizi yoksa `stopOnError` ve `sequenceWhen` kalkar, dizi varsa `saveQuery`
@@ -333,6 +335,10 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     if (next.actionType === "sequence") { drop("queryId"); if (cleanSequence(next, writeKinds)) touched = true; }
     else drop("saveSequence", "sequenceWhen", "stopOnError");
     if (next.actionType !== "query" && next.actionType !== "sequence") drop("promptLabel", "promptRequired");
+    // Gezinme özellikleri yalnız kendi eylem türünde; gezinme düğmesi sorgu çalıştırmaz ve yenilemez.
+    const navigation = NAVIGATION_ACTION_TYPES.includes(String(next.actionType));
+    for (const [type, keys] of Object.entries(NAVIGATION_PROPS)) if (next.actionType !== type) drop(...keys);
+    if (navigation) drop("queryId", "refreshQueries", "successMessage", "errorMessage"); else drop("target");
     if (!(typeof next.promptLabel === "string" && next.promptLabel !== "")) drop("promptRequired");
     if (!touched) return component;
     changed = true;
@@ -591,6 +597,9 @@ const fazBProblem = (component: PageComponent, label: string): string | null => 
   if (component.type === "button") {
     if (props.actionType === "sequence" && idList(props.saveSequence, MAX_SEQUENCE_STEPS).length === 0) return "Kayıt dizisi düğmesi için 'saveSequence' gerekli.";
     if (props.actionType === "openDialog" && !(typeof props.dialogId === "string" && props.dialogId !== "")) return "Pencere açan düğme için 'dialogId' gerekli.";
+    if (props.actionType === "link") { const problem = linkProblem(props.href); if (problem) return problem; }
+    if (props.actionType === "erpPage" && !(typeof props.pageKey === "string" && props.pageKey !== "")) return "ERP ekranı düğmesi için 'pageKey' gerekli.";
+    if (props.actionType === "page" && !(typeof props.pageCode === "string" && props.pageCode !== "")) return "Sayfa düğmesi için 'pageCode' gerekli.";
     if (typeof props.promptLabel === "string" && props.promptLabel !== "" && !component.name) return `Gerekçe soran düğmenin adı olmalıdır: ${component.id}`;
   }
   return null;
@@ -816,6 +825,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setHistory(await request<PageRevision[]>(url).catch(() => []));
   }, [request, systemScreenKey]);
   useEffect(() => { void refresh(); }, [refresh]);
+  // "ERP ekranı aç" / "Sayfa aç" için standart menü ekranları (yetki yoksa liste boş kalır).
+  const [erpScreens, setErpScreens] = useState<ScreenOption[]>([]);
+  useEffect(() => {
+    let active = true;
+    void request<{ items?: { page: string; defaultLabel: string; label?: string | null }[] }>("/api/custom-menus/standard/")
+      .then((result) => { if (active) setErpScreens((result?.items ?? []).map((item) => ({ key: item.page, label: item.label || item.defaultLabel }))); })
+      .catch(() => { if (active) setErpScreens([]); });
+    return () => { active = false; };
+  }, [request]);
   // Sistem sayfası özeti (yönetici bilgisi, aşama, yayımlı firma tasarımının kimliği); yayın ve kaldırmadan sonra yenilenir.
   const systemInfoRequest = useRef(0);
   const refreshSystemInfo = useCallback(async () => {
@@ -2150,6 +2168,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   }
   bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği", group: "Oturum" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı", group: "Oturum" },
     { path: "kullanici.rol", detail: "Oturumdaki kullanıcının rolü", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" });
+  // {{sayfa.parametre.x}}: bu sayfa "Sayfa aç" eylemiyle açılınca verilen parametreler; tanımda geçen adlar önerilir.
+  for (const name of new Set([...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1])))
+    bindingSuggestions.push({ path: `sayfa.parametre.${name}`, detail: "Sayfa aç eyleminin verdiği parametre", group: "Sayfa" });
   for (const source of sources) if (isCountableSource(source.code))
     bindingSuggestions.push({ path: `${COUNTS_ROOT}.${source.code}`, detail: `${source.label} · kayıt sayısı${typeof counts[source.code] === "number" ? ` (şu an ${counts[source.code].toLocaleString("tr-TR")})` : ""}`, group: "Sayılar" });
   // Aynı yol birden çok kaynaktan gelebilir (ör. ızgara sütunu hem eklenen hem kaynak); ilk geçen kalır.
@@ -2181,7 +2202,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   })();
   suggestionsRef.current = bindingSuggestions;
   const readQueries = definition.queries.filter((query) => !isWriteKind(query.kind));
-  const buttonAction = selected?.type === "button" && ["query", "sequence", "openDialog"].includes(String(selected.props.actionType)) ? String(selected.props.actionType) : "workflow";
+  const buttonAction = selected?.type === "button" && ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES].includes(String(selected.props.actionType)) ? String(selected.props.actionType) : "workflow";
   const writeQueries = definition.queries.filter((query) => isWriteKind(query.kind));
   const pageDialogs = definition.components.filter((component) => component.type === "dialog");
   const actionQuery = selected && typeof selected.props.queryId === "string" ? definition.queries.find((query) => query.id === selected.props.queryId) : undefined;
@@ -2655,6 +2676,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {buttonAction === "openDialog" && <label className="pd-field">Açılacak pencere<select value={typeof selected.props.dialogId === "string" ? selected.props.dialogId : ""} onChange={(event) => patchComponent(selected.id, { dialogId: event.target.value || undefined })}>
                 <option value="">Pencere seçin</option>{pageDialogs.map((dialog) => <option key={dialog.id} value={dialog.id}>{summaryOf(dialog)}{dialog.name ? ` (${dialog.name})` : ""}</option>)}</select>
                 {pageDialogs.length === 0 ? <small>Önce sayfaya bir Pencere bileşeni ekleyin.</small> : !selected.props.dialogId && <small className="pd-query-warning">Pencere açan düğme için 'dialogId' gerekli.</small>}</label>}
+              {NAVIGATION_ACTION_TYPES.includes(buttonAction) && <NavigationFields actionType={buttonAction} props={selected.props} screens={erpScreens}
+                pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
+                suggestions={bindingSuggestions} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>}
               {buttonAction === "query" && <>
                 <label className="pd-field">Çalıştırılacak sorgu<select value={actionQuery?.id ?? ""} onChange={(event) => {
                   const chosen = definition.queries.find((query) => query.id === event.target.value);

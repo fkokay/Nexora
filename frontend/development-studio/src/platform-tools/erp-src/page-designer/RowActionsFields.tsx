@@ -4,7 +4,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, idList, parseTabs } from "./layoutRefs
 
 type RowActionComponent = { id: string; type: string; name?: string; props: Record<string, unknown> };
 
-export const ROW_ACTION_TYPES = ["query", "sequence", "openDialog"];
+export const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", "link", "erpPage", "page"];
 export const MAX_EMPTY_TEXT = 120;
 export const MAX_ROW_LIMIT = 100;
 const defaultLabel = (component: RowActionComponent) => String(component.props.label || component.props.title || component.name || component.id);
@@ -52,8 +52,8 @@ export function RowActionsFields({ table, components, labelOf = defaultLabel, se
       {!queryBound && <small className="pd-query-warning">Satır işlemleri yalnız bir sorguya bağlı listede kullanılabilir.</small>}
       <InputPicker inputs={buttons} value={value} owned={owners} filter={eligible} max={MAX_ROW_ACTIONS} takenLabel="Başka yerde" disabled={disabled || !named || !queryBound}
         onChange={(next) => onPatch({ rowActions: next.length > 0 ? next : undefined })}/>
-      {buttons.filter(eligible).length === 0 && <small>Önce eylem türü sorgu, kayıt dizisi ya da pencere aç olan bir düğme ekleyin.</small>}
-      {ineligibleSelected.length > 0 && <small className="pd-query-warning">Satır işlemi düğmesinin eylem türü sorgu, kayıt dizisi ya da pencere aç olmalıdır.</small>}
+      {buttons.filter(eligible).length === 0 && <small>Önce eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olan bir düğme ekleyin.</small>}
+      {ineligibleSelected.length > 0 && <small className="pd-query-warning">Satır işlemi düğmesinin eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olmalıdır.</small>}
     </div>
     <label className="pd-field">Boş liste metni<small>Boşsa ERP'nin standart “kayıt yok” metni gösterilir; sorgu çalışmadan önce de bu metin görünür.</small>
       <input value={emptyText} maxLength={MAX_EMPTY_TEXT} disabled={disabled} placeholder="Henüz hareket yok."
