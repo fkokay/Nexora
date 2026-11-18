@@ -29,6 +29,13 @@ export const defaultCostVarianceFields: CostVarianceScreenViewField[] = [
   { key: "actualLabor", label: "Fiilî işçilik", visible: false, position: 12 },
 ];
 
+/** Right-aligned tabular columns (`nx-num`): quantities and amounts. */
+const NUMBER_KEYS = new Set([
+  "plannedQuantity", "plannedMaterial", "actualMaterial", "plannedConversion", "actualConversion",
+  "conversionVariance", "actualTotalCost", "totalVariance", "plannedLabor", "actualLabor",
+]);
+const numberClass = (key: string) => (NUMBER_KEYS.has(key) ? "nx-num" : undefined);
+
 const amount = (value: number | null | undefined, currency: string) => {
   if (value == null) return "—";
   try {
@@ -131,7 +138,7 @@ export function ManufacturingCostVarianceResults({
           <thead>
             <tr>
               {visibleFields.map((field) => (
-                <th key={field.key}>{field.label}</th>
+                <th key={field.key} className={numberClass(field.key)}>{field.label}</th>
               ))}
             </tr>
           </thead>
@@ -139,7 +146,7 @@ export function ManufacturingCostVarianceResults({
             {report.orders.map((order) => (
               <tr key={`${order.orderCode}-${order.plannedDate}`}>
                 {visibleFields.map((field) => (
-                  <td key={field.key}>
+                  <td key={field.key} className={numberClass(field.key)}>
                     {renderCell(order, field.key, currency)}
                   </td>
                 ))}

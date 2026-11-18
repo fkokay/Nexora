@@ -375,7 +375,7 @@ html[data-theme="dark"] .fixed-assets-page .heading-actions label { color: var(-
 .fixed-assets-page > section.panel {
   padding: 18px;
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgb(28 39 60 / 4%);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--nx-ink) 4%, transparent);
 }
 .fixed-assets-page .panel-heading {
   padding-bottom: 12px;
@@ -424,7 +424,7 @@ html[data-theme="dark"] .fixed-assets-page .fixed-asset-inline-note {
   background: var(--erp-surface);
 }
 html[data-theme="dark"] .fixed-assets-page .customer-table th {
-  background: #202638;
+  background: var(--nx-table-head);
 }
 
 @container fixed-assets (max-width: 560px) {
@@ -567,7 +567,7 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   font-size: 12px;
   line-height: 1.5;
 }
-#root .fixed-assets-page .fixed-asset-panel-status.is-error { color: #b42318; }
+#root .fixed-assets-page .fixed-asset-panel-status.is-error { color: var(--nx-bad); }
 #root .fixed-assets-page .fixed-asset-summary { display: grid; gap: 14px; min-width: 0; }
 #root .fixed-assets-page .fixed-asset-summary > header { display: grid; gap: 3px; min-width: 0; }
 #root .fixed-assets-page .fixed-asset-eyebrow {
@@ -628,8 +628,8 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
 #root .fixed-assets-page .fixed-asset-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 #root .fixed-assets-page .fixed-asset-panel-actions > .primary { grid-column: 1 / -1; }
 #root .fixed-assets-page .fixed-asset-panel-actions > button { justify-content: center; min-height: 36px; }
-#root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: #f1c2c4; color: #b42318; }
-#root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: #fff0f1; }
+#root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); color: var(--nx-bad); }
+#root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: var(--nx-bad-bg); }
 #root .fixed-assets-page .fixed-asset-section {
   min-width: 0;
   padding-top: 10px;
@@ -714,14 +714,75 @@ html[data-theme="dark"] .fixed-assets-page .customer-table th {
   font-size: 11px;
   white-space: nowrap;
 }
-#root .fixed-assets-page .fixed-asset-status.is-active { border-color: #b7e0c8; background: #eaf7ef; color: #17643a; }
+#root .fixed-assets-page .fixed-asset-status.is-active { border-color: color-mix(in srgb, var(--nx-ok) 35%, var(--nx-surface)); background: var(--nx-ok-bg); color: var(--nx-ok); }
 
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-panel { border-color: #34445c; background: #151f2f; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-mini-table th { background: #1a263a; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status { border-color: #34445c; background: #1a2333; color: #9aa7ba; }
-html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status.is-active { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
-html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: #6a2d33; color: #f3a6ab; }
-html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: #34171b; }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-panel { border-color: var(--nx-line); background: var(--nx-surface); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-mini-table th { background: var(--nx-table-head); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status { border-color: var(--nx-line); background: var(--nx-surface); color: var(--nx-muted); }
+html[data-theme="dark"] #root .fixed-assets-page .fixed-asset-status.is-active { border-color: color-mix(in srgb, var(--nx-ok) 35%, var(--nx-surface)); background: var(--nx-ok-bg); color: var(--nx-ok); }
+html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger { border-color: color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); color: var(--nx-bad); }
+html[data-theme="dark"] #root .app-shell .fixed-assets-page .fixed-asset-danger:hover:not(:disabled) { background: var(--nx-bad-bg); }
 @container fixed-assets (max-width: 620px) {
   #root .fixed-assets-page .fixed-asset-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---- ERP design language (mockup 10, Duran Varlık): register as list type, single-layer cards ---- */
+#root .fixed-assets-page.list-v2 .fixed-asset-workspace { gap: 12px; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+#root .fixed-assets-page.list-v2 .fixed-asset-register-wrap { min-width: 0; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table { min-width: 0; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table :is(th, td) { white-space: nowrap; }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel { border-radius: var(--nx-radius-card); }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel:focus { outline: none; }
+#root .fixed-assets-page.list-v2 .fixed-asset-panel:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .fixed-assets-page.list-v2 .fixed-asset-register-table th.nx-num { text-align: right; }
+
+/* Edinim kaydı as a full-page record form (record v3): the form is not a frame around its cards (single layer). */
+#root .app-shell .fixed-asset-acquire-page .record-form.fixed-asset-acquire-rf {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ---- İşlemler workflows as dialogs (mockup 10: "İşlemler'den açılan diyalog formları") ---- */
+#root .fixed-asset-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--nx-ink) 42%, transparent);
+}
+#root .fixed-asset-sheet {
+  width: min(100%, 640px); max-height: calc(100vh - 32px); overflow: auto; padding: 0;
+  border: 0; border-radius: var(--nx-radius-card); background: transparent;
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--nx-ink) 24%, transparent);
+}
+#root .fixed-asset-sheet .fixed-asset-inline-note { margin: 8px 0 0; }
+
+/* ---- Kıymet kartı (record v3, read-only) and its depreciation statement (03) ---- */
+#root .fixed-asset-card-page .fixed-asset-card-aside { display: grid; gap: 12px; padding: 12px 14px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+#root .fixed-asset-card-page .fixed-asset-card input[readonly] { background: var(--nx-canvas); color: var(--nx-text); }
+#root .fixed-asset-card-page .fixed-asset-statement { display: grid; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+#root .fixed-asset-card-page .fixed-asset-statement-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+#root .fixed-asset-card-page .fixed-asset-statement-hint { color: var(--nx-muted); font-size: 12px; }
+#root .fixed-asset-card-page .fixed-asset-statement-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-canvas); }
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-tabs > button {
+  min-height: 26px; margin: 0; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+  color: var(--nx-muted); font: 400 12.5px/1 var(--nx-font); box-shadow: none;
+}
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-tabs > button.active { background: var(--nx-surface); color: var(--nx-text); font-weight: 600; }
+#root .fixed-asset-card-page .fixed-asset-statement-table { min-width: 0; overflow-x: auto; }
+#root .fixed-asset-card-page .fixed-asset-statement-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-table :is(th, td) { height: 30px; padding: 0 10px; text-align: left; vertical-align: middle; font-size: 13px; text-transform: none; letter-spacing: 0; }
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-table thead th { background: var(--nx-table-head); color: var(--nx-muted); font-size: 11.5px; font-weight: 600; }
+#root .fixed-asset-card-page .fixed-asset-statement-table td { border-top: 1px solid var(--nx-line-soft); color: var(--nx-text); }
+#root .fixed-asset-card-page .fixed-asset-statement-table tr.is-planned td { color: var(--nx-muted); }
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-table .nx-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; white-space: nowrap; }
+#root .app-shell .fixed-asset-card-page .fixed-asset-statement-table tfoot :is(th, td) { border-top: 1px solid var(--nx-line); background: var(--nx-table-head); color: var(--nx-text); font-weight: 600; }
+#root .fixed-asset-card-page .fixed-asset-acq-row { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }

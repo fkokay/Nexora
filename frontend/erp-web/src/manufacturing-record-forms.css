@@ -69,6 +69,6 @@
 .manufacturing-modal--record-form .rf-status { border-radius: 0 0 18px 18px; }
 .manufacturing-modal--record-form .rf-form textarea { min-height: 96px; }
 html[data-theme="dark"] .manufacturing-modal.manufacturing-modal--record-form {
-  background: #171d2b;
-  border-color: #30394d;
+  background: var(--nx-surface);
+  border-color: var(--nx-line);
 }
