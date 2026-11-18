@@ -17,6 +17,8 @@ import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
+import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
+import { MAX_JAVASCRIPT_LENGTH, type StubHostData } from "./page-designer/codeBridgeStub";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
 import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
 import { chipText, idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
@@ -92,7 +94,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons"]);
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage"]);
@@ -263,7 +265,6 @@ const componentStyle = (type: ComponentType, props: PageComponent["props"]): CSS
     borderRadius: `${bounded(props.borderRadius, DEFAULT_RADIUS, 0, 32)}px`,
   };
 };
-const codePreview = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 
 const block = (type: ComponentType, props: PageComponent["props"]): PageComponent => ({ id: newId(type), type, props });
 type Template = { id: string; label: string; description: string; build: () => { name: string; code: string; description: string; components: PageComponent[] } };
@@ -802,6 +803,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }
     return scope;
   };
+  // Tuvaldeki kod bileşenlerinin taklit köprüsü: yalnız tasarım zamanı kapsamını ve sorgu önizlemelerini okur.
+  const bridgeHost = useRef<StubHostData>({ get: () => null, query: () => ({ kind: "unknown" }), operation: () => undefined });
+  bridgeHost.current = {
+    get: (path) => { const value = resolvePath(designScope(), path); return value === undefined ? null : value; },
+    query: (queryName) => {
+      const query = definitionRef.current.queries.find((item) => item.name === queryName);
+      if (!query) return { kind: "unknown" };
+      if (isWriteKind(query.kind)) return { kind: "write" };
+      const preview = queryPreviews[query.id];
+      return preview ? { kind: "read", rows: preview.rows, rowCount: preview.rowCount } : { kind: "noPreview" };
+    },
+    operation: (operationName) => findOperation(erpCatalog, operationName)?.kind,
+  };
   const removeComponent = (id: string) => { commit((state) => ({ ...state, components: state.components.filter((component) => component.id !== id).map((component) => { if (component.props.filterInput !== id) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = definitionRef.current.components.find((component) => component.id === id);
@@ -1105,7 +1119,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
       }
       case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
-      case "code": return <iframe key={component.id} className="custom-page-code-preview" title={String(props.title || "Yalıtılmış kod önizlemesi")} sandbox="allow-scripts" referrerPolicy="no-referrer" style={style} srcDoc={codePreview(String(props.css || ""), String(props.javascript || ""))} />;
+      case "code": return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
       case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info"; return <article key={component.id} className={`custom-page-preview-alert tone-${variant}`} style={style}><b>{String(props.title || "Bilgilendirme")}</b><p>{String(props.text || "")}</p></article>; }
       case "badge": return <BadgePreview key={component.id} text={String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
       case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
@@ -1520,7 +1534,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
             {selected.type === "code" && section("code", "Kod", <>
               <label className="pd-field">CSS<small>Yalnızca iframe içeriğine uygulanır; dış ağ kaynaklarına izin verilmez.</small><textarea className="pd-code" rows={6} maxLength={4000} value={String(selected.props.css || "")} onChange={(event) => updateComponent(selected.id, "css", event.target.value)} placeholder=".panel { display: grid; gap: 1rem; }"/></label>
-              <label className="pd-field">JavaScript<small>Yalıtılmış iframe içinde çalışır; ERP oturumuna ve API'lere erişemez.</small><textarea className="pd-code" rows={8} maxLength={4000} value={String(selected.props.javascript || "")} onChange={(event) => updateComponent(selected.id, "javascript", event.target.value)} placeholder="document.body.textContent = 'Merhaba';"/></label>
+              <label className="pd-field">JavaScript<small>Yalıtılmış iframe içinde çalışır; ERP oturumuna ve API'lere doğrudan erişemez, yalnız kod köprüsünü (nexora) kullanır. En fazla {MAX_JAVASCRIPT_LENGTH.toLocaleString("tr-TR")} karakter ({String(selected.props.javascript || "").length.toLocaleString("tr-TR")} kullanıldı).</small><textarea className="pd-code" rows={8} maxLength={MAX_JAVASCRIPT_LENGTH} value={String(selected.props.javascript || "")} onChange={(event) => updateComponent(selected.id, "javascript", event.target.value)} placeholder="document.body.textContent = 'Merhaba';"/></label>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.hidden === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { hidden: event.target.checked ? true : undefined })}/> Görünmez (yalnız mantık çalıştırır)</label>
+              <details className="pd-shortcuts">
+                <summary>Kod köprüsü (nexora)</summary>
+                <small>Kod, sayfayla <code>window.nexora</code> (sürüm 1) üzerinden konuşur. Çağrılar Promise döner; hata olursa Error ile reddedilir.</small>
+                <small><b>nexora.get(yol)</b>: bağlama yolunu okur. <code>{"await nexora.get(\"liste.seciliSatir.code\")"}</code></small>
+                <small><b>nexora.setInput(ad, değer)</b>: giriş kutusuna değer yazar. <code>{"await nexora.setInput(\"gunEsigi\", 30)"}</code></small>
+                <small><b>nexora.runQuery(ad)</b>: sayfa sorgusunu çalıştırır; okuma {"{ rows, rowCount }"}, yazma {"{ affectedRows, sonuc }"} döner. <code>{"const { rows } = await nexora.runQuery(\"musteriler\")"}</code></small>
+                <small><b>nexora.callOperation(ad, değerler)</b>: ERP işlem kataloğundan bir işlemi çağırır. <code>{"await nexora.callOperation(\"stok.kategoriler\", {})"}</code></small>
+                <small><b>nexora.setHeight(px)</b>: çerçeve yüksekliğini ayarlar (0–2000). <code>{"nexora.setHeight(document.body.scrollHeight)"}</code></small>
+                <small><b>nexora.on(olay, işleyici)</b>: load, select, beforeSave, afterSave olaylarını dinler. beforeSave içinde false ya da {"{ cancel: true, message }"} döndürmek kaydı durdurur. <code>{"nexora.on(\"select\", ({ table, row }) => console.log(table, row))"}</code></small>
+                <small>Tasarımcıda yalnız okuma önizlenir: get ve okuma sorguları önizleme verisinden yanıtlanır; setInput ve yazma çağrıları reddedilir.</small>
+              </details>
             </>)}
             {selected.type === "formCard" && section("layout", "Form kartı", <>
               <div className="pd-field">Giriş kutuları<small>Seçilen girişler yalnız bu kartta çizilir; sayfadaki kendi yerlerinden kalkar.</small>
