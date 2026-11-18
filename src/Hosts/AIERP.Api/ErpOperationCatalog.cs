@@ -8,7 +8,20 @@ namespace AIERP.Api;
 
 internal sealed record ErpOperationParameter(string Name, string In, string Type, bool Required);
 internal sealed record ErpOperationColumn(string Code, string Label, string DataType);
-internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns);
+internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns)
+{
+    /// <summary>Row properties whose scalar fields the runtime copies to dotted keys (<c>balance.code</c>).</summary>
+    public IReadOnlyList<string> Flatten { get; init; } = [];
+    /// <summary>Top-level response properties copied into the query's <c>meta</c> (paging totals).</summary>
+    public IReadOnlyList<string> MetaPaths { get; init; } = [];
+}
+/// <summary>An alternative route used when the <c>When</c> route parameter has a value.</summary>
+internal sealed record ErpOperationRouteVariant(string Route, string When);
+/// <summary>
+/// The request body carries a map property built from a source read's rows (<c>KeyColumn</c> → <c>ValueColumn</c>)
+/// plus page-bound values for parameters the operation does not declare.
+/// </summary>
+internal sealed record ErpOperationBodyMap(string Property, string SourceOperation, string KeyColumn, string ValueColumn);
 internal sealed record ErpOperation(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
     IReadOnlyList<ErpOperationParameter> Parameters, ErpOperationResult Result, string? SourceOperation,
     IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated = false, bool RequiresTenantAdmin = false)
@@ -18,6 +31,9 @@ internal sealed record ErpOperation(string Name, string Label, string Module, st
     /// it is folded into <c>allowed</c> and is not part of the wire contract.
     /// </summary>
     public bool RequiresTenantAdmin { get; init; } = RequiresTenantAdmin;
+    /// <summary>Alternative routes; the runtime uses the first whose <c>When</c> parameter is set, else <see cref="Route"/>.</summary>
+    public IReadOnlyList<ErpOperationRouteVariant> RouteVariants { get; init; } = [];
+    public ErpOperationBodyMap? BodyMap { get; init; }
 }
 
 /// <summary>Resolves an operation by name; <see cref="ErpOperationCatalog.TryGet"/> in production.</summary>
@@ -26,7 +42,8 @@ internal delegate bool ErpOperationLookup(string name, out ErpOperation operatio
 /// <summary>Wire form of a catalog entry: the operation plus whether the caller may run it.</summary>
 internal sealed record ErpOperationView(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
     IReadOnlyList<ErpOperationParameter> Parameters, ErpOperationResult Result, string? SourceOperation,
-    IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated, bool Allowed);
+    IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated, bool Allowed,
+    IReadOnlyList<ErpOperationRouteVariant> RouteVariants, ErpOperationBodyMap? BodyMap);
 
 /// <summary>
 /// Named ERP operations that custom pages may bind to instead of SQL. Each entry describes an existing API endpoint; the
@@ -38,6 +55,7 @@ internal static class ErpOperationCatalog
 {
     private const string Since = "2026-11-18";
     private const string StockModule = "Stok";
+    private const string WarehouseModule = "Depo";
     private const string ReportModule = "Raporlar";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
@@ -64,7 +82,11 @@ internal static class ErpOperationCatalog
         ["warehouseId"] = "Depo kimliği", ["warehouseCode"] = "Depo kodu", ["warehouseName"] = "Depo adı",
         ["definitionId"] = "Tanım kimliği", ["label"] = "Etiket", ["dataType"] = "Veri türü", ["maxLength"] = "En fazla uzunluk",
         ["definitionVersion"] = "Tanım sürümü", ["isRequired"] = "Zorunlu", ["value"] = "Değer", ["version"] = "Sürüm",
-        ["q"] = "Arama", ["page"] = "Sayfa", ["pageSize"] = "Sayfa boyutu"
+        ["q"] = "Arama", ["page"] = "Sayfa", ["pageSize"] = "Sayfa boyutu",
+        ["stockItemId"] = "Stok kartı kimliği", ["quantityOnHand"] = "Eldeki miktar", ["belowMinimum"] = "Minimum altında",
+        ["reservedQuantity"] = "Rezerve miktar", ["availableQuantity"] = "Kullanılabilir miktar", ["valuationAmountBase"] = "Stok değeri",
+        ["unvaluedQuantity"] = "Maliyetsiz miktar", ["baseCurrencyCode"] = "Ana para birimi", ["factorToBase"] = "Ana birim katsayısı",
+        ["parentLocationId"] = "Üst konum"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -93,33 +115,34 @@ internal static class ErpOperationCatalog
         var stateChangeBody = new Dictionary<string, object?>(StringComparer.Ordinal) { ["confirmation"] = true };
         var operations = new List<ErpOperation>
         {
-            Read("stok.kart.listele", "Stok kartlarını listele", "/api/stock/items", [Query("q", "text"), .. paging],
+            Read(StockModule, "stok.kart.listele", "Stok kartlarını listele", "/api/stock/items", [Query("q", "text"), .. paging],
                 List(stockItemColumns, "items")),
-            Read(StockItemRead, "Stok kartı getir", StockItemRoute, [id], new ErpOperationResult("record", null, stockItemColumns)),
-            Write("stok.kart.olustur", "Stok kartı oluştur", "insert", "POST", "/api/stock/items",
+            Read(StockModule, StockItemRead, "Stok kartı getir", StockItemRoute, [id], new ErpOperationResult("record", null, stockItemColumns)),
+            Write(StockModule, "stok.kart.olustur", "Stok kartı oluştur", "insert", "POST", "/api/stock/items",
                 BodyParameters<StockItemWriteRequest>(sourceBacked: false), Record(stockItemColumns), null, null),
             // Update and state changes return the updated StockItemView; unbound body fields come from the source read.
-            Write("stok.kart.guncelle", "Stok kartı güncelle", "update", "PUT", StockItemRoute,
+            Write(StockModule, "stok.kart.guncelle", "Stok kartı güncelle", "update", "PUT", StockItemRoute,
                 [id, .. BodyParameters<StockItemUpdateRequest>(sourceBacked: true)], Record(stockItemColumns), StockItemRead, null),
             // The DELETE handler itself only accepts TenantAdmin, whatever the permission rules say.
-            Write("stok.kart.sil", "Stok kartı sil", "delete", "DELETE", StockItemRoute, [id], None, null, null, requiresTenantAdmin: true),
+            Write(StockModule, "stok.kart.sil", "Stok kartı sil", "delete", "DELETE", StockItemRoute, [id], None, null, null, requiresTenantAdmin: true),
             // confirmation is fixed: a page cannot bind it to false, and it is not offered as a parameter.
-            Write("stok.kart.pasifeAl", "Stok kartını pasife al", "update", "POST", StockItemRoute + "/deactivate",
+            Write(StockModule, "stok.kart.pasifeAl", "Stok kartını pasife al", "update", "POST", StockItemRoute + "/deactivate",
                 [id, .. BodyParameters<StockItemStateChangeRequest>(sourceBacked: true, exclude: "confirmation")],
                 Record(stockItemColumns), StockItemRead, stateChangeBody),
-            Write("stok.kart.aktifEt", "Stok kartını etkinleştir", "update", "POST", StockItemRoute + "/activate",
+            Write(StockModule, "stok.kart.aktifEt", "Stok kartını etkinleştir", "update", "POST", StockItemRoute + "/activate",
                 [id, .. BodyParameters<StockItemStateChangeRequest>(sourceBacked: true, exclude: "confirmation")],
                 Record(stockItemColumns), StockItemRead, stateChangeBody),
-            Read("stok.kart.hareketleri", "Stok kartı hareketleri", "/api/stock/items/{stockItemId}/transactions",
+            Read(StockModule, "stok.kart.hareketleri", "Stok kartı hareketleri", "/api/stock/items/{stockItemId}/transactions",
                 [Route("stockItemId"), .. paging], List(Columns<InventoryTransactionView>(), "items")),
-            Read("stok.kart.varyantlari", "Stok kartı varyantları", StockItemRoute + "/variants", [id],
+            Read(StockModule, "stok.kart.varyantlari", "Stok kartı varyantları", StockItemRoute + "/variants", [id],
                 List(Columns<StockItemVariantView>(), null)),
-            Read("stok.kart.ozelAlanDegerleri", "Stok kartı özel alan değerleri", StockItemRoute + "/custom-fields", [id],
+            Read(StockModule, "stok.kart.ozelAlanDegerleri", "Stok kartı özel alan değerleri", StockItemRoute + "/custom-fields", [id],
                 List(Columns<StockCustomFieldValueView>(), null)),
-            Read("stok.ozelAlanTanimlari", "Stok özel alan tanımları", "/api/stock/items/custom-fields", [],
+            Read(StockModule, "stok.ozelAlanTanimlari", "Stok özel alan tanımları", "/api/stock/items/custom-fields", [],
                 List(Columns<StockCustomFieldDefinitionView>(), null)),
-            Read("stok.kategoriler", "Stok kategorileri", "/api/stock/categories", [], List(Columns<StockItemCategoryView>(), null)),
+            Read(StockModule, "stok.kategoriler", "Stok kategorileri", "/api/stock/categories", [], List(Columns<StockItemCategoryView>(), null)),
         };
+        operations.AddRange(BuildStockPilot(id, paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -131,6 +154,49 @@ internal static class ErpOperationCatalog
                 null, ReportBody(source, report), Since));
         }
         return operations;
+    }
+
+    /// <summary>Proje 2 Faz A stock pilot: balances, warehouses, units, custom field save and warehouse movements.</summary>
+    private static IEnumerable<ErpOperation> BuildStockPilot(ErpOperationParameter id, IReadOnlyList<ErpOperationParameter> paging)
+    {
+        var warehouseId = Route("warehouseId");
+        var stockItemId = Route("stockItemId");
+        var transactionColumns = Columns<InventoryTransactionView>();
+        var unitColumns = Columns<StockItemUnitConversionView>();
+        const string transactionsRoute = "/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions";
+        string[] hiddenStockColumns = ["stockItem.code", "stockItem.name", "stockItem.unitCode", "stockItem.minimumStock"];
+        var balanceColumns = Columns<InventoryBalanceView>("balance")
+            .Concat(Columns<StockItemView>("stockItem").Where(x => !hiddenStockColumns.Contains(x.Code, StringComparer.Ordinal))).ToArray();
+
+        // warehouseId is optional: when it is set the per-warehouse route is used, otherwise all active warehouses.
+        yield return Read(StockModule, "stok.bakiye.sayfa", "Stok bakiyeleri (sayfalı)", "/api/warehouses/balances/page",
+            [new ErpOperationParameter("warehouseId", "route", "guid", false), Query("q", "text"), Query("belowMinimumOnly", "bool"), .. paging],
+            List(balanceColumns, "items") with { Flatten = ["balance", "stockItem"], MetaPaths = ["page", "pageSize", "totalCount", "belowMinimumCount"] })
+            with { RouteVariants = [new ErpOperationRouteVariant("/api/warehouses/{warehouseId}/balances/page", "warehouseId")] };
+        yield return Read(WarehouseModule, "depo.listele", "Depoları listele", "/api/warehouses", [], List(Columns<WarehouseView>(), null));
+        yield return Read(WarehouseModule, "depo.konumlari", "Depo konumları", "/api/warehouses/{warehouseId}/locations", [warehouseId],
+            List(Columns<WarehouseLocationView>(), null));
+        yield return Read(StockModule, "stok.kart.birimleri", "Stok kartı birimleri", StockItemRoute + "/units", [id],
+            List(unitColumns, "conversions") with { MetaPaths = ["baseUnitCode"] });
+        // The unit handlers themselves only accept TenantAdmin, whatever the permission rules say.
+        yield return Write(StockModule, "stok.kart.birimEkle", "Stok kartına birim ekle", "insert", "POST", StockItemRoute + "/units",
+            [id, .. BodyParameters<StockItemUnitConversionWriteRequest>(sourceBacked: false)], Record(unitColumns), null, null, requiresTenantAdmin: true);
+        yield return Write(StockModule, "stok.kart.birimSil", "Stok kartından birim sil", "delete", "DELETE", StockItemRoute + "/units/{conversionId}",
+            [id, Route("conversionId")], None, null, null, requiresTenantAdmin: true);
+        // values is a code → value map: codes the page does not bind keep the values read by stok.kart.ozelAlanDegerleri.
+        yield return Write(StockModule, "stok.kart.ozelAlanKaydet", "Stok kartı özel alanlarını kaydet", "update", "PUT", StockItemRoute + "/custom-fields",
+            [id], List(Columns<StockCustomFieldValueView>(), null), null, null)
+            with { BodyMap = new ErpOperationBodyMap("values", "stok.kart.ozelAlanDegerleri", "code", "value") };
+        yield return Read(StockModule, "stok.hareket.listele", "Depo stok hareketleri", transactionsRoute, [warehouseId, stockItemId, .. paging],
+            List(transactionColumns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
+        // Lot/serial tracking allocations are a list and stay out of the catalog.
+        yield return Write(StockModule, "stok.hareket.ekle", "Stok hareketi ekle", "insert", "POST", transactionsRoute,
+            [warehouseId, stockItemId, .. BodyParameters<InventoryTransactionWriteRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
+        // A reversal writes a new linked entry; the original movement is never changed.
+        yield return Write(StockModule, "stok.hareket.tersKayit", "Stok hareketini ters kayıtla düzelt", "insert", "POST", transactionsRoute + "/{entryId}/reverse",
+            [warehouseId, stockItemId, Route("entryId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
+        yield return Read(StockModule, "stok.kart.depoBakiyeleri", "Stok kartı depo bakiyeleri", StockItemRoute + "/balances", [id],
+            List(Columns<StockItemWarehouseBalanceView>(), null));
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
@@ -158,17 +224,19 @@ internal static class ErpOperationCatalog
     private static ErpOperationParameter Route(string name) => new(name, "route", "guid", true);
     private static ErpOperationParameter Query(string name, string type) => new(name, "query", type, false);
 
-    private static ErpOperation Read(string name, string label, string route, IReadOnlyList<ErpOperationParameter> parameters, ErpOperationResult result) =>
-        new(name, label, StockModule, "read", "read", "GET", route, parameters, result, null, null, Since);
+    private static ErpOperation Read(string module, string name, string label, string route, IReadOnlyList<ErpOperationParameter> parameters,
+        ErpOperationResult result) =>
+        new(name, label, module, "read", "read", "GET", route, parameters, result, null, null, Since);
 
-    private static ErpOperation Write(string name, string label, string pageKind, string method, string route,
+    private static ErpOperation Write(string module, string name, string label, string pageKind, string method, string route,
         IReadOnlyList<ErpOperationParameter> parameters, ErpOperationResult result, string? sourceOperation, IReadOnlyDictionary<string, object?>? fixedBody,
         bool requiresTenantAdmin = false) =>
-        new(name, label, StockModule, "write", pageKind, method, route, parameters, result, sourceOperation, fixedBody, Since,
+        new(name, label, module, "write", pageKind, method, route, parameters, result, sourceOperation, fixedBody, Since,
             RequiresTenantAdmin: requiresTenantAdmin);
 
-    private static IReadOnlyList<ErpOperationColumn> Columns<T>() =>
-        ScalarMembers<T>().Select(x => new ErpOperationColumn(x.Name, Label(x.Name), x.Type)).ToArray();
+    /// <summary>Scalar fields of a view; with <paramref name="prefix"/> the codes are dotted (<c>balance.code</c>) and keep the inner code's label.</summary>
+    private static IReadOnlyList<ErpOperationColumn> Columns<T>(string? prefix = null) =>
+        ScalarMembers<T>().Select(x => new ErpOperationColumn(prefix is null ? x.Name : prefix + "." + x.Name, Label(x.Name), x.Type)).ToArray();
 
     /// <summary>
     /// Every scalar field of a request record. Required means non-nullable without a default; for an operation whose
@@ -252,7 +320,7 @@ internal static class ErpOperationCatalog
                     // Deprecated operations still report the caller's rights; Studio hides them by the deprecated flag.
                     var allowed = needs[index].All(position => position >= 0 && decisions[position]);
                     views.Add(new ErpOperationView(op.Name, op.Label, op.Module, op.Kind, op.PageKind, op.Method, op.Route, op.Parameters,
-                        op.Result, op.SourceOperation, op.FixedBody, op.Since, op.Deprecated, allowed));
+                        op.Result, op.SourceOperation, op.FixedBody, op.Since, op.Deprecated, allowed, op.RouteVariants, op.BodyMap));
                 }
                 return Results.Ok(new { operations = views });
             });
@@ -280,22 +348,28 @@ internal static class ErpOperationCatalog
     {
         var isTenantAdmin = role == "TenantAdmin";
         if (op.RequiresTenantAdmin && !isTenantAdmin) return null;
-        if (!patterns.TryGetValue($"{op.Method} {op.Route}", out var rawPattern)) return null;
-        var routeValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        var path = Regex.Replace(op.Route, @"\{([A-Za-z]+)\}", match =>
+        // The base route and every variant must resolve; the caller needs the permissions of all of them.
+        var routePermissions = new List<ResolvedPlatformPermission>();
+        foreach (var route in op.RouteVariants.Select(x => x.Route).Prepend(op.Route))
         {
-            var parameter = op.Parameters.First(x => x.In == "route" && x.Name == match.Groups[1].Value);
-            var value = parameter.Type == "guid" ? Guid.Empty.ToString("D") : "0";
-            routeValues[parameter.Name] = value;
-            return value;
-        });
-        if (!PlatformPermissionCatalog.TryResolve(path, op.Method, rawPattern, routeValues, tenantId, userId, role, out var resolved)
-            || resolved is null) return null;
-        if (op.Route != "/api/reports/run" || op.FixedBody?["source"] is not string source) return [resolved];
+            if (!patterns.TryGetValue($"{op.Method} {route}", out var rawPattern)) return null;
+            var routeValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var path = Regex.Replace(route, @"\{([A-Za-z]+)\}", match =>
+            {
+                var parameter = op.Parameters.First(x => x.In == "route" && x.Name == match.Groups[1].Value);
+                var value = parameter.Type == "guid" ? Guid.Empty.ToString("D") : "0";
+                routeValues[parameter.Name] = value;
+                return value;
+            });
+            if (!PlatformPermissionCatalog.TryResolve(path, op.Method, rawPattern, routeValues, tenantId, userId, role, out var resolved)
+                || resolved is null) return null;
+            routePermissions.Add(resolved);
+        }
+        if (op.Route != "/api/reports/run" || op.FixedBody?["source"] is not string source) return routePermissions;
         // Same order as RunAsync: workflowInstances is admin-only, then the source's own read permission.
         if (source == "workflowInstances" && !isTenantAdmin) return null;
         return ReportEndpoints.TryReportSourcePermission(source, tenantId, userId, role, out var sourcePermission)
-            ? [resolved, sourcePermission] : null;
+            ? [routePermissions[0], sourcePermission] : null;
     }
 
     private static string PermissionKey(ResolvedPlatformPermission permission) =>

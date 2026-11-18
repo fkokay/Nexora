@@ -1,4 +1,4 @@
-import { type ComponentProps, type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -9,8 +9,13 @@ import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQuery
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
-import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
+import { idList, ownedInputIds, parseFieldList, parseTabs, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { LookupInput, lookupCandidates, lookupOptionsWithValue, type LookupOption } from "./custom-page/LookupInput";
+import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
+import { conditionHolds } from "./custom-page/conditions";
+import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED } from "./custom-page/inputValidation";
+import { PageTabs } from "./custom-page/PageTabs";
 import type { BridgeHost } from "./custom-page/codeBridge";
 import { CodeFrame } from "./custom-page/CodeFrame";
 import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
@@ -44,7 +49,7 @@ type PublishedPage = {
 const textValue = (value: unknown, fallback = "") =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 
-const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue"];
+const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue", "disabledReason"];
 type InputRaw = string | boolean;
 /** v2 sayfaların çalışma zamanı: bağlama kapsamı, sorgu durumları, giriş değerleri ve ızgara seçimleri. */
 type PageRuntime = {
@@ -77,7 +82,34 @@ type PageRuntime = {
   writeLock: { current: boolean };
   /** İşlem Çubuğu eylemlerinin sonucu (sayfadaki durum satırı). */
   actionStatus: ActionStatus | null;
+  /** Gösterilen istemci doğrulama iletileri, giriş kimliğine göre (bulanıklaşınca veya engellenen yazmada). */
+  validationErrors: Record<string, string>;
+  /** Yazmadan önce sorgunun bağladığı görünür, etkin girişleri doğrular; geçersizse VALIDATION_BLOCKED döner. */
+  validateFor: (query: PageQueryDefinition) => string | null;
+  /** Giriş doğrulanmıyor mu (kendisi veya bir sahibi gizli, ya da kendisi pasif). */
+  skipsValidation: (inputId: string) => boolean;
+  /** Engellenen yazmada hangi sekmeler bileşeninin hangi sekmesine atlanacağı (kimliğe göre); `signal` her engelde artar. */
+  errorJump: { signal: number; targets: Record<string, number> } | null;
+  /** Giriş bulanıklaştı: iletisi gösterilir veya kaldırılır. */
+  blurInput: (componentId: string) => void;
+  /** Sekmelerin sahiplendiği bileşenler (üst düzeyde ayrıca çizilmez) ve kimliğe göre üst düzey bileşenler. */
+  tabOwned: Set<string>;
+  topLevelById: Record<string, ComponentDefinition>;
+  /** Sekme başına hata sayısı için: bileşenin sahip zinciri (giriş → formCard → sekmeler…). */
+  ancestorsOf: (componentId: string) => string[];
+  /** Arama kutusu (inputType: lookup) girişinin seçenekleri ve seçim/arama geri çağrıları. */
+  lookupFor: (component: ComponentDefinition, props: Record<string, unknown>) => LookupBinding;
+  /** Sunucu sayfalı veri listesinin geçerli sayfası ve sayfa değiştirme (sayfalı değilse undefined). */
+  tablePaging: (table: ComponentDefinition) => { page: number; pageSize: number; onPage: (page: number) => void } | undefined;
 };
+type LookupBinding = {
+  options: LookupOption[]; loading: boolean; error?: string;
+  onChange: (value: string, row: Record<string, unknown> | null, label: string) => void; onSearch: (text: string) => void;
+  /** Son seçimin değeri ve etiketi (çalışma zamanında saklanır; giriş yeniden bağlanınca etiket korunur). */
+  selected: { value: string; label: string } | null;
+};
+/** Sayfalı listenin alt satırı ve başlıktaki arama girişi. */
+export type TablePaging = { page: number; pageSize: number; meta: { label: string; value: string }[]; onPage: (page: number) => void; search?: ReactNode };
 type ActionStatus = { tone: "success" | "error" | "warning"; text: string };
 
 const bindProps = (props: Record<string, unknown>, scope: PageScope): Record<string, unknown> => {
@@ -100,14 +132,26 @@ const localToday = () => {
 
 const sessionUser = (token: string) => {
   let id = "";
+  let rol = "";
   try {
     const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
-    id = String((JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown }).sub ?? "");
-  } catch { /* geçersiz belirteç: kimlik boş kalır */ }
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown; role?: unknown };
+    id = String(claims.sub ?? "");
+    // `role` talebi dizi olabilir: ilk öğe kullanılır; yoksa boş.
+    const role = Array.isArray(claims.role) ? claims.role[0] : claims.role;
+    rol = typeof role === "string" ? role : "";
+  } catch { /* geçersiz belirteç: kimlik ve rol boş kalır */ }
   let name = "";
   try { name = localStorage.getItem("aierp.user") ?? ""; } catch { /* depolama kapalı */ }
-  return { id, ad: name };
+  return { id, ad: name, rol };
 };
+
+/** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
+const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !runtime || conditionHolds(component.props?.visibleWhen, runtime.scope, true);
+const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !!runtime && (component.type === "button" || component.type === "input") && conditionHolds(component.props?.disabledWhen, runtime.scope, false);
+const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 const flattenComponents = (components: ComponentDefinition[]): ComponentDefinition[] =>
   components.flatMap((component) => [component, ...flattenComponents(component.children ?? [])]);
@@ -132,13 +176,13 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "filterChips" || type === "actionBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
@@ -208,10 +252,12 @@ function QueryMetric({ state, title, description, style, ...card }: { state: Que
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
-export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense" }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
   selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null) => void;
   formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
+  /** Sunucu sayfalı liste: sonuç her zaman "kesilmiş"tir; uyarı yerine sayfa alt satırı gösterilir. */
+  paging?: TablePaging;
 }) {
   const chosen = columns.length > 0 ? state.columns.filter((column) => columns.includes(column.code)) : [];
   const visible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
@@ -229,10 +275,13 @@ export function QueryTable({ state, columns, title, description, style, selected
     const tone = toneFor(text, toneMap);
     return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
   };
-  const totalLabel = state.truncated ? `Toplam · ilk ${state.rows.length} satır` : `Toplam · ${state.rows.length} kayıt`;
+  const totalLabel = paging ? `Sayfa toplamı · ${state.rows.length} kayıt`
+    : state.truncated ? `Toplam · ilk ${state.rows.length} satır` : `Toplam · ${state.rows.length} kayıt`;
   return <section className={`tenant-page-block tenant-page-table tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
     {title && <h3>{title}</h3>}
     {description && <p>{description}</p>}
+    {/* Arama girişi yükleme sırasında da yerinde kalır (yazarken odak kaybolmasın). */}
+    {paging?.search && <div className="tenant-page-table-search">{paging.search}</div>}
     {state.loading ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
       : state.error ? <QueryError message={state.error} />
         : neverRan(state) ? <div className="tenant-report-state" role="status">{MANUAL_QUERY_IDLE}</div>
@@ -257,7 +306,9 @@ export function QueryTable({ state, columns, title, description, style, selected
             })}
           </tr></tfoot>}
         </table></div>}
-    {!state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
+    {!paging && !state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
+    {paging && !state.error && !neverRan(state) && <PagedTableFooter page={paging.page} pageSize={paging.pageSize} total={state.rowCount}
+      meta={paging.meta} onPage={paging.onPage} loading={state.loading} />}
   </section>;
 }
 
@@ -280,7 +331,9 @@ function writeErrorText(configured: string, cause: unknown): string {
 }
 
 /** Sorgu eylemli düğme: hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif kalır ve sonucu bildirir. */
-function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
+function QueryActionButton({ query, props, label, runtime, disabled = false, disabledReason = "" }: {
+  query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   // ERP işlemi yazmaları da (SQL yazmaları gibi) sayfanın insert/update/delete hakkını ister; sunucu yalnız işlemin kendi iznine bakar, istemci bilerek daha sıkıdır.
@@ -295,6 +348,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
 
   const click = async () => {
+    if (disabled) return;
     setFeedback(null);
     if (!write) {
       if (inFlight.current) return;
@@ -313,6 +367,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
         try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
       },
       errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+      validate: () => runtime.validateFor(query),
       ...codeWriteHooks(runtime.events),
     });
     if ("ok" in result && result.ok) {
@@ -323,7 +378,9 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
     }
   };
   return <div className="tenant-page-query-action">
-    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button" disabled={busy} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button"
+      disabled={busy || disabled} title={disabled && disabledReason ? disabledReason : undefined} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    {disabled && disabledReason && <small className="tenant-page-disabled-reason">{disabledReason}</small>}
     {feedback && <p className={`tenant-page-action-feedback is-${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p>}
   </div>;
 }
@@ -335,27 +392,45 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
 };
 
-export function PageInput({ component, props, raw, onChange, optionsState, style, error }: {
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
-  optionsState?: QueryState; style: CSSProperties; error?: string;
+  optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void; lookup?: LookupBinding;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
   const inputId = `page-input-${component.id}`;
+  if (inputType === "lookup") {
+    // Arama kutusu yalnız `required` kuralını destekler; bulanıklaşma sarmalayıcıda yakalanır (doğrulama iletisi için).
+    return <div className={`tenant-page-input tenant-page-input-lookup${error ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
+      <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
+        allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
+        error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
+        onSearch={(text) => lookup?.onSearch(text)} />
+      {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
+    </div>;
+  }
+  const rules = inputRules(props);
+  const invalid = !!error;
+  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, onBlur };
+  const limit = (value: number | string | undefined) =>
+    value === undefined ? undefined : inputType === "number" ? (typeof value === "number" ? value : undefined) : inputType === "date" ? (typeof value === "string" ? value : undefined) : undefined;
   let control;
   if (inputType === "checkbox") {
-    control = <input id={inputId} type="checkbox" checked={raw === true} onChange={(event) => onChange(event.target.checked)} />;
+    control = <input {...common} type="checkbox" checked={raw === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
     const options = selectOptions(props, optionsState);
-    control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
+    control = <select {...common} value={typeof raw === "string" ? raw : ""} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
     </select>;
   } else {
-    control = <input id={inputId} type={inputType === "number" || inputType === "date" ? inputType : "text"} step={inputType === "number" ? "any" : undefined}
-      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(event.target.value)} />;
+    const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
+    control = <input {...common} type={htmlType} disabled={disabled}
+      step={inputType === "number" ? rules.step ?? "any" : undefined} min={limit(rules.min)} max={limit(rules.max)}
+      maxLength={htmlType === "text" ? rules.maxLength : undefined}
+      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
-  return <div className={`tenant-page-input tenant-page-input-${inputType}`} style={style}>
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${invalid ? " is-invalid" : ""}`} style={style}>
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
@@ -363,13 +438,19 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
 }
 
 function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+  if (!componentVisible(component, runtime)) return null;
+  // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
+  const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
   return <PageInput key={component.id} component={component} props={props} style={style}
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
-    error={runtime && component.name ? runtime.inputErrors[component.name] : undefined}
-    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
+    error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
+    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
+    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} />;
 }
 
-function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime) {
+function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
+  // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
+  if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
   const style = visualStyle(component.type, props);
   const title = textValue(props.title);
@@ -394,7 +475,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (!runtime) return null;
       const chips = idList(props.inputs).flatMap((id) => {
         const input = runtime.inputById[id];
-        if (!input) return [];
+        if (!input || !componentVisible(input, runtime)) return [];
         const inputProps = bindProps(input.props ?? {}, runtime.scope);
         const inputType = textValue(inputProps.inputType, "text");
         const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
@@ -409,7 +490,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const counts = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
       const groups = idList(props.inputs).flatMap((id): FacetGroup[] => {
         const input = runtime.inputById[id];
-        if (!input) return [];
+        if (!input || !componentVisible(input, runtime)) return [];
         const inputProps = bindProps(input.props ?? {}, runtime.scope);
         if (textValue(inputProps.inputType, "text") !== "select") return [];
         const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
@@ -418,7 +499,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           return { value, label, count: countColumn ? facetCount(row[countColumn]) : undefined };
         });
         const raw = runtime.inputValues[id];
-        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined }];
+        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined, disabled: componentDisabled(input, runtime) }];
       });
       return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
     }
@@ -457,22 +538,60 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const status = runtime?.actionStatus;
       return status ? <div key={component.id} className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"} style={{ gridColumn: style.gridColumn, margin: style.margin }}>{status.text}</div> : null;
     }
-    case "button": if (runtime?.movedButtons.has(component.id)) return null; return <div className="tenant-page-action" style={style} key={component.id}>
-      {props.actionType === "workflow" && typeof props.workflowId === "string"
-        ? <TenantWorkflowAction token={token} workflowId={props.workflowId} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
-        : props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
-          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} />
-        : <button className="tenant-page-button" type="button" disabled>{text || title || "Eylem"}</button>}
-    </div>;
+    case "button": {
+      if (runtime?.movedButtons.has(component.id)) return null;
+      const disabled = componentDisabled(component, runtime);
+      const reason = disabled ? textValue(props.disabledReason).trim() : "";
+      const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
+      return <div className="tenant-page-action" style={style} key={component.id}>
+        {props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
+          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+          : workflow && !disabled
+            ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+            : <>
+              <button className="tenant-page-button" type="button" disabled title={reason || undefined}>{text || title || (workflow ? "İş akışını başlat" : "Eylem")}</button>
+              {reason && <small className="tenant-page-disabled-reason">{reason}</small>}
+            </>}
+      </div>;
+    }
+    case "tabs": {
+      if (!runtime) return null;
+      const tabs = parseTabs(props.tabs);
+      const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
+      // Doğrulanmayan (gizli veya pasif) girişlerin kalan iletileri sayılmaz.
+      const errorCounts = tabs.map((tab) => Object.keys(runtime.validationErrors)
+        .filter((inputId) => !runtime.skipsValidation(inputId) && runtime.ancestorsOf(inputId).some((id) => tab.ids.includes(id))).length);
+      const target = runtime.errorJump?.targets[component.id];
+      const jumpTo = runtime.errorJump && target !== undefined ? { tab: target, signal: runtime.errorJump.signal } : null;
+      const renderOwned = (id: string) => {
+        const owned = runtime.topLevelById[id];
+        // Sekme yalnız üst düzey bileşen sahiplenir; sekme içinde sekme ve İşlem Çubuğu çizilmez.
+        if (!owned || owned.type === "tabs" || owned.type === "actionBar") return null;
+        return renderComponent(owned, forms, token, pageCode, runtime);
+      };
+      return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={defaultTab} renderOwned={renderOwned}
+        errorCounts={errorCounts} jumpTo={jumpTo} style={style} />;
+    }
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       if (runtime && queryName && runtime.states[queryName]) {
         const tableName = component.name;
         const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
-        return <QueryTable key={component.id} state={runtime.states[queryName]} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
+        const state = runtime.states[queryName];
+        const pager = runtime.tablePaging(component);
+        let paging: TablePaging | undefined;
+        if (pager) {
+          const searchInput = typeof props.searchInput === "string" ? runtime.inputById[props.searchInput.trim()] : undefined;
+          paging = {
+            ...pager,
+            meta: parseFieldList(props.footerMeta).map((item) => ({ label: item.label, value: cellText(state.meta?.[item.code]) })),
+            search: searchInput ? renderPageInput(searchInput, bindProps(searchInput.props ?? {}, runtime.scope), {}, runtime) : undefined,
+          };
+        }
+        return <QueryTable key={component.id} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
-          selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row) => runtime.select(tableName, row) : undefined} />;
+          selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row) => runtime.select(tableName, row) : undefined} paging={paging} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
@@ -560,6 +679,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
       },
       errorText: (cause) => writeErrorText(errorPrefix, cause),
+      validate: () => latest.current.validateFor(query),
       ...codeWriteHooks(latest.current.events),
     });
     if (!mounted.current || !("ok" in result)) return;
@@ -572,6 +692,8 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   const runButton = (id: string) => {
     const component = flat.find((item) => item.id === id && item.type === "button");
     if (!component) return;
+    // Menü komutu oluşturulduktan sonra koşul değişmiş olabilir: gizli veya pasif düğme çalışmaz.
+    if (!componentVisible(component, latest.current) || componentDisabled(component, latest.current)) return;
     const props = buttonProps(component);
     const bound = (key: string) => interpolate(textValue(props[key]), latest.current.scope).trim();
     if (props.actionType === "workflow" && typeof props.workflowId === "string") {
@@ -605,7 +727,9 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     onStatus(null);
     try {
       await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, state.rows, chosen));
-      if (mounted.current && state.truncated) onStatus({ tone: "warning", text: `Liste ilk ${state.rows.length} satırla sınırlı` });
+      // Sunucu sayfalı liste her zaman "kesilmiş"tir: yalnız görünen sayfa aktarılır ve bu bildirilir.
+      if (mounted.current && table.props?.paging === "server") onStatus({ tone: "warning", text: `Yalnız görünen sayfa aktarıldı (${state.rows.length} satır).` });
+      else if (mounted.current && state.truncated) onStatus({ tone: "warning", text: `Liste ilk ${state.rows.length} satırla sınırlı` });
     } catch (cause) {
       if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "Excel dosyası oluşturulamadı." });
     }
@@ -621,6 +745,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
     },
     buttonLabel,
+    buttonGate: (id) => {
+      const component = flat.find((item) => item.id === id && item.type === "button");
+      if (!component) return undefined;
+      if (!componentVisible(component, runtime)) return { hidden: true };
+      if (!componentDisabled(component, runtime)) return undefined;
+      return { disabled: true, disabledReason: textValue(buttonProps(component).disabledReason).trim() || BUTTON_UNAVAILABLE };
+    },
     deleteNeedsSelection: (() => {
       const deleteQuery = latest.current.queryById[typeof barProps.deleteQuery === "string" ? barProps.deleteQuery.trim() : ""];
       return !!deleteQuery && deleteQuery.parameters.some((parameter) => {
@@ -673,26 +804,108 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     : [], [isV2, components, queryDefinitions]);
   const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
-  const ownedInputs = useMemo(() => ownedInputIds(flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }))), [components]);
+  // formCard/facetPanel girişleri ve sayfalı listelerin arama girişleri üst düzeyde ayrıca çizilmez.
+  const ownedInputs = useMemo(() => {
+    const layout = flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }));
+    return new Set([...ownedInputIds(layout), ...(isV2 ? tableSearchInputIds(layout) : [])]);
+  }, [components, isV2]);
+  const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
   const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
+  const flatById = useMemo(() => Object.fromEntries(flat.map((component) => [component.id, component])), [flat]);
+  const topLevelById = useMemo(() => Object.fromEntries(components.map((component) => [component.id, component])), [components]);
+  const tabOwned = useMemo(() => (isV2 ? tabOwnedIds(flat) : new Set<string>()), [isV2, flat]);
+  // Sahip zinciri: iç içe çocuk → üst bileşen, formCard/facetPanel girişi → kart, sekmenin bileşeni → sekmeler.
+  const parentOf = useMemo(() => {
+    const map: Record<string, string> = {};
+    const walk = (list: ComponentDefinition[], parent?: string) => list.forEach((component) => {
+      if (parent) map[component.id] = parent;
+      walk(component.children ?? [], component.id);
+    });
+    walk(components);
+    for (const component of flat) {
+      if (component.type === "formCard" || component.type === "facetPanel") for (const id of idList(component.props?.inputs)) map[id] = component.id;
+      // Sayfalı listenin arama girişi liste başlığında çizilir: görünürlüğü ve sekme hata zinciri listeyi izler.
+      if (component.type === "dataTable" && component.props?.paging === "server" && typeof component.props.searchInput === "string") {
+        const searchId = component.props.searchInput.trim();
+        if (searchId && !(searchId in map)) map[searchId] = component.id;
+      }
+    }
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      for (const tab of parseTabs(component.props?.tabs)) for (const id of tab.ids) if (!(id in map)) map[id] = component.id;
+    }
+    return map;
+  }, [components, flat]);
+  const ancestorsOf = (componentId: string): string[] => {
+    const chain: string[] = [];
+    for (let id: string | undefined = componentId; id !== undefined && !chain.includes(id); id = parentOf[id]) chain.push(id);
+    return chain;
+  };
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [errorJump, setErrorJump] = useState<PageRuntime["errorJump"]>(null);
+  // Arama kutuları: yazılan metin ve seçim anında saklanan satır (yalnız değer hâlâ aynıyken geçerli).
+  const [lookupState, setLookupState] = useState<Record<string, { search: string; value?: string; row?: Record<string, unknown> | null; label?: string }>>({});
+  // Sayfalı listeler: sayfa, hangi sorgu değerleri (sayfa parametreleri hariç) ve arama metniyle seçildiyse o anahtarla saklanır.
+  const [tablePages, setTablePages] = useState<Record<string, { page: number; key: string }>>({});
+
+  /** Girişin kapsamdaki nesnesi; arama kutusunda `search` (minChars altında null) ve `seciliSatir` da vardır. */
+  const inputScope = (input: ComponentDefinition, raw: InputRaw, states: Record<string, QueryState>): Record<string, unknown> => {
+    const inputType = textValue(input.props?.inputType, "text");
+    const value = scopeInputValue(inputType, raw);
+    if (inputType !== "lookup") return { value };
+    const stored = lookupState[input.id];
+    const search = stored?.search ?? "";
+    const minChars = typeof input.props?.minChars === "number" ? input.props.minChars : 1;
+    const text = typeof raw === "string" ? raw : "";
+    let seciliSatir: Record<string, unknown> | null = null;
+    if (stored && "value" in stored && stored.value === text) seciliSatir = stored.row ?? null;
+    else if (text !== "") {
+      // Değer dışarıdan geldi (varsayılan, setInput): eşleşen sorgu satırı; sabit veya bilinmeyen seçenekte null.
+      const optionsId = input.props?.optionsQuery;
+      const optionsState = typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined;
+      seciliSatir = lookupCandidates(input.props ?? {}, optionsState, "", false).find((option) => option.value === text)?.row ?? null;
+    }
+    return { value, search: search.length >= minChars ? search : null, seciliSatir };
+  };
+  /** Sayfalı listenin sayfası: saklanan anahtar güncel sorgu değerleriyle (sayfa parametreleri hariç) ve arama metniyle eşleşmezse 1. */
+  const tablePageInfo = (table: ComponentDefinition, scope: PageScope, raw: Record<string, InputRaw>) => {
+    const props = table.props ?? {};
+    const pageSize = typeof props.pageSize === "number" && Number.isInteger(props.pageSize) && props.pageSize >= 5 && props.pageSize <= 100 ? props.pageSize : 25;
+    const pageParam = textValue(props.pageParam) || "page";
+    const pageSizeParam = textValue(props.pageSizeParam) || "pageSize";
+    const query = typeof props.query === "string" ? queryById[props.query] : undefined;
+    const values = query ? resolveQueryParameters({ ...query, parameters: query.parameters.filter((parameter) => parameter.name !== pageParam && parameter.name !== pageSizeParam) }, scope) : null;
+    const searchId = typeof props.searchInput === "string" ? props.searchInput.trim() : "";
+    const key = JSON.stringify([values, searchId ? raw[searchId] ?? "" : null]);
+    const stored = tablePages[table.name!];
+    return { page: stored && stored.key === key ? stored.page : 1, pageSize, key };
+  };
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
     const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
+    // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
+    for (const table of pagedTables) base[table.name!] = { seciliSatir: selections[table.name!] ?? null, sayfa: tablePages[table.name!]?.page ?? 1, sayfaBoyutu: 25 };
     for (const input of inputs) {
-      if (input.name && input.id in touched) base[input.name] = { value: scopeInputValue(textValue(input.props?.inputType, "text"), touched[input.id]) };
+      if (input.name && input.id in touched) base[input.name] = inputScope(input, touched[input.id], states);
     }
     const scope: PageScope = { ...base };
     const raw: Record<string, InputRaw> = {};
     for (const input of inputs) {
       const inputType = textValue(input.props?.inputType, "text");
       raw[input.id] = input.id in touched ? touched[input.id] : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
-      if (input.name) scope[input.name] = { value: scopeInputValue(inputType, raw[input.id]) };
+      if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
     }
-    return { scope, raw };
+    const pages: Record<string, { page: number; pageSize: number; key: string }> = {};
+    for (const table of pagedTables) {
+      const info = tablePageInfo(table, scope, raw);
+      pages[table.name!] = info;
+      scope[table.name!] = { seciliSatir: selections[table.name!] ?? null, sayfa: info.page, sayfaBoyutu: info.pageSize };
+    }
+    return { scope, raw, pages };
   };
 
   // ERP işlem kataloğu yalnız işlem kullanan sayfalarda getirilir; SQL sorgulu sayfalar ek istek yapmaz.
@@ -720,6 +933,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   // Köprü (BridgeHost) bir kez kurulur ve sayfanın en güncel durumunu okur; çerçeve her girdiye güvenilmez gözle bakar.
   const codeLatest = useRef({ scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations });
   codeLatest.current = { scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations };
+  // İstemci giriş doğrulaması (aşağıda tanımlanır); köprünün yazma yolu da diğer yazma yolları gibi önce doğrular.
+  const codeValidate = useRef<(query: PageQueryDefinition) => string | null>(() => null);
   const catalogWaiters = useRef(new Set<() => void>());
   useEffect(() => {
     if (!erpOperations.operations && !erpOperations.error) return;
@@ -764,6 +979,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
         const outcome = await runWriteAction({
           query, isPreview: current.isPreview, inFlight: writeLock, confirm: { enabled: false },
           write: (target, confirmWrite) => codeLatest.current.writeFor(target, confirmWrite),
+          validate: () => codeValidate.current(query),
           errorText: (cause) => writeErrorText("", cause),
           ...codeWriteHooks(events),
         });
@@ -793,9 +1009,113 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     };
   }, [events]);
 
+  const current = effective(states);
+  const inputValues = current.raw;
+  // Arama metni veya listenin sorgu değerleri değişti: sayfa 1'e döner ve öyle saklanır (eski anahtara dönülse de 1 kalır).
+  const stalePages = Object.entries(current.pages).filter(([name, info]) => tablePages[name] && tablePages[name].key !== info.key);
+  const stalePageSignature = JSON.stringify(stalePages.map(([name, info]) => [name, info.key]));
+  useEffect(() => {
+    if (stalePages.length === 0) return;
+    setTablePages((previous) => {
+      const next = { ...previous };
+      for (const [name, info] of stalePages) next[name] = { page: 1, key: info.key };
+      return next;
+    });
+  }, [stalePageSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Girişin istemci doğrulama iletisi (yoksa null); kurallar girişin kendi özelliklerinden okunur. */
+  const inputMessage = (componentId: string, raw: InputRaw | undefined): string | null => {
+    const input = inputById[componentId];
+    if (!input) return null;
+    return validateInputValue(textValue(input.props?.inputType, "text"), inputRules(input.props ?? {}), raw ?? "");
+  };
+  const storeMessage = (componentId: string, message: string | null) => setValidationErrors((current) => {
+    if (message === null) {
+      if (!(componentId in current)) return current;
+      const next = { ...current };
+      delete next[componentId];
+      return next;
+    }
+    return current[componentId] === message ? current : { ...current, [componentId]: message };
+  });
+  // Doğrulanmayan girişler: kendisi veya bir sahibi `visibleWhen` ile gizli, ya da kendisi `disabledWhen` ile pasif.
+  const skipsValidation = (input: ComponentDefinition) =>
+    ancestorsOf(input.id).some((id) => flatById[id] && !conditionHolds(flatById[id].props?.visibleWhen, scope, true))
+    || conditionHolds(input.props?.disabledWhen, scope, false);
+  const validateFor = (query: PageQueryDefinition): string | null => {
+    const names = boundInputNames(query);
+    // Arama kutusu `{{ad.seciliSatir…}}` ile de bağlanabilir: o zaman da doğrulanır.
+    for (const parameter of query.parameters) {
+      const root = /^([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir(?:\.|$)/.exec(bindingPath(parameter.binding) ?? "")?.[1];
+      if (root && !names.includes(root) && inputs.some((input) => input.name === root && textValue(input.props?.inputType, "text") === "lookup")) names.push(root);
+    }
+    const failures: Record<string, string> = {};
+    const cleared: string[] = [];
+    for (const input of inputs) {
+      if (!input.name || !names.includes(input.name)) continue;
+      const message = skipsValidation(input) ? null : inputMessage(input.id, inputValues[input.id]);
+      if (message) failures[input.id] = message; else cleared.push(input.id);
+    }
+    setValidationErrors((current) => {
+      const next = { ...current, ...failures };
+      for (const id of cleared) delete next[id];
+      return next;
+    });
+    const failing = Object.keys(failures);
+    if (failing.length === 0) return null;
+    // Her sekmeler bileşeninde (sekme sırasıyla) geçersiz girişi doğrudan veya bir sahip üzerinden içeren ilk sekme.
+    const targets: Record<string, number> = {};
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      const index = parseTabs(component.props?.tabs).findIndex((tab) => failing.some((id) => ancestorsOf(id).some((owner) => tab.ids.includes(owner))));
+      if (index >= 0) targets[component.id] = index;
+    }
+    setErrorJump((current) => ({ signal: (current?.signal ?? 0) + 1, targets }));
+    return VALIDATION_BLOCKED;
+  };
+
+  codeValidate.current = validateFor;
+
+  const setInput = (componentId: string, value: InputRaw) => {
+    setTouched((previous) => ({ ...previous, [componentId]: value }));
+    // Gösterilen ileti, değer geçerli olunca kalkar (geçersiz kaldıkça güncel iletiyle kalır).
+    const message = inputMessage(componentId, value);
+    setValidationErrors((previous) => {
+      if (!(componentId in previous)) return previous;
+      const next = { ...previous };
+      if (message) next[componentId] = message; else delete next[componentId];
+      return next;
+    });
+  };
+  const lookupFor = (component: ComponentDefinition, props: Record<string, unknown>): LookupBinding => {
+    const optionsId = typeof props.optionsQuery === "string" ? props.optionsQuery : "";
+    const optionsState = optionsId ? states[queryNames[optionsId]] : undefined;
+    // Sunucu araması: seçenek sorgusunun bir parametresi `{{<ad>.search}}` bağlıyor; değilse satırlar istemcide süzülür.
+    const serverSearch = !!component.name && !!queryById[optionsId]?.parameters.some((parameter) => bindingPath(parameter.binding) === `${component.name}.search`);
+    const id = component.id;
+    return {
+      options: lookupOptionsWithValue(props, optionsState, lookupState[id]?.search ?? "", serverSearch, textValue(inputValues[id])),
+      loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined,
+      onSearch: (text) => setLookupState((previous) => ({ ...previous, [id]: { ...previous[id], search: text } })),
+      selected: lookupState[id] && "value" in lookupState[id] ? { value: lookupState[id].value ?? "", label: lookupState[id].label ?? "" } : null,
+      onChange: (value, row, label) => {
+        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value, row, label } }));
+        setInput(id, value);
+      },
+    };
+  };
+  const tablePaging = (table: ComponentDefinition) => {
+    const name = table.name;
+    const info = name && table.props?.paging === "server" ? current.pages[name] : undefined;
+    if (!name || !info) return undefined;
+    return { page: info.page, pageSize: info.pageSize, onPage: (page: number) => setTablePages((previous) => ({ ...previous, [name]: { page: Math.max(1, page), key: info.key } })) };
+  };
+
   const runtime: PageRuntime | undefined = isV2 ? {
-    scope, states, queryNames, inputValues: effective(states).raw,
-    setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
+    scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
+    validationErrors, validateFor, errorJump,
+    skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
+    blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),
+    tabOwned, topLevelById, ancestorsOf,
     selections,
     select: (tableName, row) => {
       setSelections((current) => ({ ...current, [tableName]: row }));
@@ -808,10 +1128,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   } : undefined;
 
   return <div className="tenant-custom-page-content">
-    {runtime && bar && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
+    {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id)} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-    {components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
+    {components.filter((component) => !tabOwned.has(component.id)).map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }
 

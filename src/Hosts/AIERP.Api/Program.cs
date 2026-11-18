@@ -2414,6 +2414,7 @@ stockItems.MapDelete("/{id:guid}/units/{conversionId:guid}", async (Guid id, Gui
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
+stockItems.MapStockItemBalanceEndpoints();
 
 var warehouses = app.MapGroup("/api/warehouses").RequireAuthorization();
 warehouses.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
@@ -2893,7 +2894,7 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
-warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2961,7 +2962,7 @@ warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int
     return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
 });
 
-warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();

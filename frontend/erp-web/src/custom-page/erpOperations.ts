@@ -6,14 +6,38 @@ export type ErpOperationParameter = { name: string; in: "route" | "query" | "bod
 export type ErpOperation = {
   name: string; label: string; module: string; kind: "read" | "write"; pageKind: "read" | "insert" | "update" | "delete";
   method: string; route: string; parameters: ErpOperationParameter[];
-  result: { shape: "list" | "record" | "none"; rowsPath: string | null; columns: { code: string; label: string; dataType: string }[] };
+  result: {
+    shape: "list" | "record" | "none"; rowsPath: string | null; columns: { code: string; label: string; dataType: string }[];
+    /** Satırdaki bu iç nesnelerin skaler alanları `ad.alan` anahtarlarına kopyalanır (eski sunucuda yok: []). */
+    flatten?: string[] | null;
+    /** Yanıt nesnesinin üst düzey alanları; `QueryState.meta`ya kopyalanır (eski sunucuda yok: []). */
+    metaPaths?: string[] | null;
+  };
   sourceOperation: string | null; fixedBody: Record<string, unknown> | null; since: string; deprecated: boolean; allowed: boolean;
+  /** Seçmeli yol parametresi doluyken kullanılan yollar; ilk eşleşen kazanır (eski sunucuda yok: []). */
+  routeVariants?: { route: string; when: string }[] | null;
+  /** Bildirilmemiş sayfa parametrelerini gövdedeki bir eşlem alanına yazar (özel alan değerleri; eski sunucuda yok: null). */
+  bodyMap?: ErpBodyMap | null;
 };
+export type ErpBodyMap = { property: string; sourceOperation: string; keyColumn: string; valueColumn: string };
 export type OperationRequest = { url: string; method: string; body?: string };
 
 const ROUTE_PLACEHOLDER = /\{([A-Za-z_][A-Za-z0-9_]*)(?::[^}]*)?\}/g;
 const GUID = /^[0-9a-fA-F-]{36}$/;
 const INTEGER = /^-?\d+$/;
+
+const MAP_KEY = /^[A-Z][A-Z0-9_]{0,39}$/;
+export const MAP_SOURCE_MISSING = "Kaynak kayıt yüklenmedi; önce bir kayıt seçin.";
+
+export const SOURCE_MISMATCH = "Kaynak kayıt seçili kayıtla eşleşmiyor.";
+/** Nesne prototipini değiştirebilecek anahtarlar gövdeye hiçbir zaman yazılmaz. */
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const safeKey = (key: string) => !UNSAFE_KEYS.has(key);
+function safeCopy(source: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const copy: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source ?? {})) if (safeKey(key)) copy[key] = value;
+  return copy;
+}
 
 const isEmpty = (value: unknown) => value === null || value === undefined || value === "";
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -36,14 +60,25 @@ function routeValue(parameter: ErpOperationParameter, value: unknown): string {
   return encodeURIComponent(text);
 }
 
+/** Değeri dolu olan ilk `routeVariants` yolunu, yoksa temel `route`u döner. */
+export function chooseRoute(op: ErpOperation, values: Record<string, unknown>): string {
+  for (const variant of op.routeVariants ?? []) {
+    if (variant && typeof variant.route === "string" && !isEmpty(values[variant.when])) return variant.route;
+  }
+  return op.route;
+}
+
 /**
  * İşlem isteğini kurar. Gövde `{...kaynak, ...fixedBody}` ile başlar, bağlı gövde parametreleri üzerine yazılır.
  * Yol parametresi bağlı değerden, yoksa kaynak kaydın aynı adlı alanından (büyük/küçük harf duyarsız) gelir;
  * geçersiz ya da eksik yol parametresi "Geçersiz parametre: <ad>" ile reddedilir. GET ve DELETE gövde göndermez.
  */
-export function buildOperationRequest(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): OperationRequest {
+export function buildOperationRequest(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null,
+  mapSourceRows?: Record<string, unknown>[] | null): OperationRequest {
+  // Gövde eşlemesi kaynak satırlar olmadan kurulmaz: başka bir kaydın değerleri ya da boş eşlem yazılmasın.
+  if (op.bodyMap && !mapSourceRows) throw new Error(MAP_SOURCE_MISSING);
   const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter]));
-  const url = op.route.replace(ROUTE_PLACEHOLDER, (_match, name: string) => {
+  const url = chooseRoute(op, values).replace(ROUTE_PLACEHOLDER, (_match, name: string) => {
     const parameter = byName.get(name.toLowerCase()) ?? { name, in: "route" as const, type: "text", required: true };
     const bound = values[parameter.name];
     return routeValue(parameter, isEmpty(bound) ? propertyCaseInsensitive(source, parameter.name) : bound);
@@ -61,9 +96,22 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   const request: OperationRequest = { url: search ? `${url}?${search}` : url, method };
   if (method === "GET" || method === "DELETE") return request;
 
-  const body: Record<string, unknown> = { ...(source ?? {}), ...(op.fixedBody ?? {}) };
+  const body: Record<string, unknown> = { ...safeCopy(source), ...safeCopy(op.fixedBody) };
+  if (op.bodyMap && mapSourceRows) {
+    const map: Record<string, unknown> = {};
+    for (const row of mapSourceRows) {
+      const key = row[op.bodyMap.keyColumn];
+      if (typeof key === "string" && key !== "" && safeKey(key)) map[key] = row[op.bodyMap.valueColumn];
+    }
+    // Bildirilmemiş, özel alan kodu biçimindeki değerler eşleme yazılır; null/undefined kaynak değeri korur, "" temizler.
+    for (const [name, value] of Object.entries(values)) {
+      if (!MAP_KEY.test(name) || byName.has(name.toLowerCase()) || value === null || value === undefined) continue;
+      map[name] = value;
+    }
+    body[op.bodyMap.property] = map;
+  }
   for (const parameter of op.parameters) {
-    if (parameter.in !== "body" || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
+    if (parameter.in !== "body" || !safeKey(parameter.name) || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
     const lower = parameter.name.toLowerCase();
     const value = values[parameter.name];
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
@@ -78,7 +126,7 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
 /** Bir yol parametresinin ne bağlı değeri ne de kaynak kayıtta karşılığı varsa true (henüz seçim yapılmamış ayrıntı okuması). */
 export function missingRouteValue(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): boolean {
   const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
-  for (const match of op.route.matchAll(ROUTE_PLACEHOLDER)) {
+  for (const match of chooseRoute(op, values).matchAll(ROUTE_PLACEHOLDER)) {
     const name = byName.get(match[1].toLowerCase()) ?? match[1];
     if (isEmpty(values[name]) && isEmpty(propertyCaseInsensitive(source, name))) return true;
   }
@@ -92,30 +140,75 @@ export function missingRouteValue(op: ErpOperation, values: Record<string, unkno
  */
 export function sourceRecordError(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): string | null {
   if (!op.sourceOperation) return null;
-  if (!source) return "Kaynak kayıt yüklenmedi; önce bir kayıt seçin.";
+  if (!source) return MAP_SOURCE_MISSING;
   const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
-  for (const match of op.route.matchAll(ROUTE_PLACEHOLDER)) {
+  for (const match of chooseRoute(op, values).matchAll(ROUTE_PLACEHOLDER)) {
     const name = byName.get(match[1].toLowerCase()) ?? match[1];
     const bound = values[name];
     if (isEmpty(bound)) continue;
     const own = propertyCaseInsensitive(source, name);
-    if (isEmpty(own) || String(bound).toLowerCase() !== String(own).toLowerCase()) return "Kaynak kayıt seçili kayıtla eşleşmiyor.";
+    if (isEmpty(own) || String(bound).toLowerCase() !== String(own).toLowerCase()) return SOURCE_MISMATCH;
   }
   return null;
 }
 
-/** İşlem yanıtını sayfa sorgu durumu biçimine çevirir; `rowCount` sayısal `totalCount` varsa odur, yoksa satır sayısı. */
-export function mapOperationResult(op: ErpOperation, json: unknown): { rows: Record<string, unknown>[]; rowCount: number; columns: { code: string; label: string; dataType?: string }[] } {
+/**
+ * Kaynak sorgunun en son hangi parametrelerle çalıştığını (`ranWith`) yazma işleminin bağlı yol değerleriyle karşılaştırır.
+ * Elle çalışan kaynak A kaydı için yüklüyken seçim B'ye geçtiyse (büyük/küçük harf duyarsız) uyuşmazlık metni döner.
+ * Kaynakta karşılığı olmayan ya da boş değerler karşılaştırılmaz.
+ */
+export function staleSourceError(op: ErpOperation, values: Record<string, unknown>, ranWith: Record<string, unknown> | null | undefined): string | null {
+  if (!ranWith) return null;
+  const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
+  for (const match of chooseRoute(op, values).matchAll(ROUTE_PLACEHOLDER)) {
+    const name = byName.get(match[1].toLowerCase()) ?? match[1];
+    const bound = values[name];
+    const ran = propertyCaseInsensitive(ranWith, name);
+    if (isEmpty(bound) || isEmpty(ran)) continue;
+    if (String(bound).toLowerCase() !== String(ran).toLowerCase()) return SOURCE_MISMATCH;
+  }
+  return null;
+}
+
+/** `flatten` adlarındaki iç nesnelerin skaler alanlarını `ad.alan` anahtarlarına kopyalar; satır kopyalanır, değiştirilmez. */
+function flattenRow(row: Record<string, unknown>, names: string[]): Record<string, unknown> {
+  if (names.length === 0) return row;
+  const copy: Record<string, unknown> = { ...row };
+  for (const name of names) {
+    const nested = row[name];
+    if (!isRecord(nested)) continue;
+    for (const [key, value] of Object.entries(nested)) {
+      if (value !== null && typeof value === "object") continue;
+      copy[`${name}.${key}`] = value;
+    }
+  }
+  return copy;
+}
+
+/**
+ * İşlem yanıtını sayfa sorgu durumu biçimine çevirir; `rowCount` sayısal `totalCount` varsa odur, yoksa satır sayısı.
+ * `meta`, yanıt nesnesinin `metaPaths` adlı üst düzey alanlarıdır (nesne olmayan yanıtta {}).
+ */
+export function mapOperationResult(op: ErpOperation, json: unknown): {
+  rows: Record<string, unknown>[]; rowCount: number; columns: { code: string; label: string; dataType?: string }[]; meta: Record<string, unknown>;
+} {
   const columns = op.result.columns ?? [];
   let rows: Record<string, unknown>[] = [];
+  const flatten = (op.result.flatten ?? []).filter((name): name is string => typeof name === "string");
   if (op.result.shape === "list") {
     const raw = op.result.rowsPath ? (isRecord(json) ? json[op.result.rowsPath] : undefined) : json;
-    rows = Array.isArray(raw) ? raw.filter(isRecord) : [];
+    rows = Array.isArray(raw) ? raw.filter(isRecord).map((row) => flattenRow(row, flatten)) : [];
   } else if (op.result.shape === "record") {
-    rows = isRecord(json) ? [json] : [];
+    rows = isRecord(json) ? [flattenRow(json, flatten)] : [];
+  }
+  const meta: Record<string, unknown> = {};
+  if (isRecord(json)) {
+    for (const path of op.result.metaPaths ?? []) {
+      if (typeof path === "string" && Object.prototype.hasOwnProperty.call(json, path)) meta[path] = json[path];
+    }
   }
   const totalCount = isRecord(json) ? json.totalCount : undefined;
-  return { rows, rowCount: op.result.shape === "list" && typeof totalCount === "number" ? totalCount : rows.length, columns };
+  return { rows, rowCount: op.result.shape === "list" && typeof totalCount === "number" ? totalCount : rows.length, columns, meta };
 }
 
 /** Sunucu doğrulama hatalarını (`errors: { Alan: [...] }`) işlem parametre adlarına eşler (büyük/küçük harf duyarsız). */

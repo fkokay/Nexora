@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, type ErpOperation } from './erpOperations';
+import { buildOperationRequest, chooseRoute, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation } from './erpOperations';
 
 const guid = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const columns = [{ code: 'id', label: 'Kimlik', dataType: 'guid' }];
@@ -95,20 +95,20 @@ describe('buildOperationRequest', () => {
 
 describe('mapOperationResult', () => {
   it('maps list rows', () => {
-    expect(mapOperationResult(list, { items: [{ a: 1 }], totalCount: 7 })).toEqual({ rows: [{ a: 1 }], rowCount: 7, columns });
+    expect(mapOperationResult(list, { items: [{ a: 1 }], totalCount: 7 })).toEqual({ rows: [{ a: 1 }], rowCount: 7, columns, meta: {} });
   });
 
   it('maps a root array', () => {
     const rootList = op({ result: { shape: 'list', rowsPath: null, columns } });
-    expect(mapOperationResult(rootList, [{ a: 1 }, { a: 2 }])).toEqual({ rows: [{ a: 1 }, { a: 2 }], rowCount: 2, columns });
+    expect(mapOperationResult(rootList, [{ a: 1 }, { a: 2 }])).toEqual({ rows: [{ a: 1 }, { a: 2 }], rowCount: 2, columns, meta: {} });
   });
 
   it('maps a record', () => {
-    expect(mapOperationResult(update, { id: guid, name: 'A' })).toEqual({ rows: [{ id: guid, name: 'A' }], rowCount: 1, columns });
+    expect(mapOperationResult(update, { id: guid, name: 'A' })).toEqual({ rows: [{ id: guid, name: 'A' }], rowCount: 1, columns, meta: {} });
   });
 
   it('maps shape none', () => {
-    expect(mapOperationResult(deactivate, { ok: true })).toEqual({ rows: [], rowCount: 0, columns: [] });
+    expect(mapOperationResult(deactivate, { ok: true })).toEqual({ rows: [], rowCount: 0, columns: [], meta: {} });
   });
 });
 
@@ -117,5 +117,129 @@ describe('fieldErrorsByParameter', () => {
     const create = op({ parameters: [{ name: 'code', in: 'body', type: 'text', required: true }] });
     expect(fieldErrorsByParameter(create, { Code: ['Zorunlu.'] })).toEqual({ code: 'Zorunlu.' });
     expect(fieldErrorsByParameter(create, undefined)).toEqual({});
+  });
+});
+
+const balances = op({
+  name: 'stok.bakiye.sayfa', route: '/api/warehouses/balances/page',
+  routeVariants: [{ route: '/api/warehouses/{warehouseId}/balances/page', when: 'warehouseId' }],
+  parameters: [
+    { name: 'warehouseId', in: 'route', type: 'guid', required: false },
+    { name: 'q', in: 'query', type: 'text', required: false },
+  ],
+  result: { shape: 'list', rowsPath: 'items', columns: [{ code: 'balance.code', label: 'Kod', dataType: 'text' }],
+    flatten: ['balance', 'stockItem'], metaPaths: ['page', 'pageSize', 'totalCount', 'belowMinimumCount'] },
+});
+const saveFields = op({
+  name: 'stok.kart.ozelAlanKaydet', kind: 'write', pageKind: 'update', method: 'PUT', route: '/api/stock/items/{id}/custom-fields',
+  parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }], result: { shape: 'none', rowsPath: null, columns: [] },
+  bodyMap: { property: 'values', sourceOperation: 'stok.kart.ozelAlanDegerleri', keyColumn: 'code', valueColumn: 'value' },
+});
+
+describe('route variants', () => {
+  it('chooses variant route when warehouseId set', () => {
+    expect(chooseRoute(balances, { warehouseId: guid })).toBe('/api/warehouses/{warehouseId}/balances/page');
+    const request = buildOperationRequest(balances, { warehouseId: guid, q: 'a' }, null);
+    expect(request).toEqual({ url: `/api/warehouses/${guid}/balances/page?q=a`, method: 'GET' });
+    expect(request.url.split('?')[1]).not.toContain(guid);
+  });
+
+  it('chooses base route for empty warehouseId', () => {
+    expect(chooseRoute(balances, { warehouseId: '' })).toBe('/api/warehouses/balances/page');
+    expect(buildOperationRequest(balances, { warehouseId: '' }, null)).toEqual({ url: '/api/warehouses/balances/page', method: 'GET' });
+    expect(buildOperationRequest(balances, { warehouseId: null }, null).url).toBe('/api/warehouses/balances/page');
+  });
+
+  it('missingRouteValue is false for unset optional variant param', () => {
+    expect(missingRouteValue(balances, { warehouseId: '' }, null)).toBe(false);
+    expect(missingRouteValue(balances, {}, null)).toBe(false);
+  });
+
+  it('sourceRecordError checks the chosen route', () => {
+    const sourced = op({ ...balances, kind: 'write', sourceOperation: 'x' });
+    expect(sourceRecordError(sourced, { warehouseId: guid }, { warehouseId: guid.replace('1', '2') })).toBe('Kaynak kayıt seçili kayıtla eşleşmiyor.');
+    expect(sourceRecordError(sourced, { warehouseId: '' }, { warehouseId: 'other' })).toBeNull();
+  });
+});
+
+describe('flatten and meta', () => {
+  it('flattens nested rows and keeps nested objects', () => {
+    const json = { items: [{ balance: { code: 'A', quantityOnHand: 3 }, stockItem: { id: 'x', tags: ['t'] } }] };
+    const before = JSON.stringify(json);
+    const { rows } = mapOperationResult(balances, json);
+    expect(rows[0]['balance.code']).toBe('A');
+    expect(rows[0]['balance.quantityOnHand']).toBe(3);
+    expect(rows[0]['stockItem.id']).toBe('x');
+    expect('stockItem.tags' in rows[0]).toBe(false);
+    expect((rows[0].balance as { code: string }).code).toBe('A');
+    expect(JSON.stringify(json)).toBe(before);
+    expect(rows[0]).not.toBe(json.items[0]);
+  });
+
+  it('flattens a record row too', () => {
+    const record = op({ ...balances, result: { ...balances.result, shape: 'record', rowsPath: null } });
+    expect(mapOperationResult(record, { balance: { code: 'A' } }).rows[0]['balance.code']).toBe('A');
+  });
+
+  it('copies metaPaths into meta', () => {
+    const mapped = mapOperationResult(balances, { items: [], totalCount: 7, belowMinimumCount: 2, extra: 1 });
+    expect(mapped.meta).toEqual({ totalCount: 7, belowMinimumCount: 2 });
+    expect(mapped.rowCount).toBe(7);
+    expect(mapOperationResult(balances, [1, 2]).meta).toEqual({});
+    expect(mapOperationResult(balances, 'x').meta).toEqual({});
+  });
+
+  it('ops without new fields still map', () => {
+    const legacy = { ...list, result: { shape: 'list' as const, rowsPath: 'items', columns } };
+    expect(mapOperationResult(legacy, { items: [{ a: { b: 1 } }], totalCount: 1 })).toEqual({ rows: [{ a: { b: 1 } }], rowCount: 1, columns, meta: {} });
+    const nulls = { ...legacy, routeVariants: null, bodyMap: null, result: { ...legacy.result, flatten: null, metaPaths: null } } as unknown as ErpOperation;
+    expect(mapOperationResult(nulls, { items: [] }).meta).toEqual({});
+    expect(buildOperationRequest(nulls, { q: 'a', extra: 'x' }, null)).toEqual({ url: '/api/stock/items?q=a', method: 'GET' });
+  });
+});
+
+describe('body map', () => {
+  it('bodyMap merges source rows and bound values', () => {
+    const source = [{ code: 'RENK', value: 'Mavi' }, { code: 'BOY', value: '10' }];
+    const request = buildOperationRequest(saveFields, { id: guid, RENK: 'Kırmızı', BOY: null }, null, source);
+    expect(request.url).toBe(`/api/stock/items/${guid}/custom-fields`);
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(request.body!)).toEqual({ values: { RENK: 'Kırmızı', BOY: '10' } });
+  });
+
+  it('empty string clears a mapped value and unknown codes are added', () => {
+    const request = buildOperationRequest(saveFields, { id: guid, BOY: '', YENI: 'v' }, null, [{ code: 'BOY', value: '10' }]);
+    expect(JSON.parse(request.body!)).toEqual({ values: { BOY: '', YENI: 'v' } });
+  });
+
+  it('bodyMap without loaded source throws', () => {
+    expect(() => buildOperationRequest(saveFields, { id: guid, RENK: 'x' }, null, null)).toThrow('Kaynak kayıt yüklenmedi; önce bir kayıt seçin.');
+    expect(() => buildOperationRequest(saveFields, { id: guid, RENK: 'x' }, null)).toThrow('Kaynak kayıt yüklenmedi; önce bir kayıt seçin.');
+  });
+
+  it('undeclared values are ignored without a bodyMap', () => {
+    const request = buildOperationRequest(update, { name: 'B', RENK: 'x' }, { Id: guid });
+    expect(JSON.parse(request.body!)).toEqual({ Id: guid, name: 'B' });
+  });
+});
+
+describe('Faz A inceleme düzeltmeleri', () => {
+  it('staleSourceError compares bound route values with the source run values', () => {
+    const other = '3f2504e0-4f89-11d3-9a0c-0305e82c3302';
+    expect(staleSourceError(saveFields, { id: other }, { id: guid })).toBe('Kaynak kayıt seçili kayıtla eşleşmiyor.');
+    expect(staleSourceError(saveFields, { id: guid.toUpperCase() }, { ID: guid })).toBeNull();
+    expect(staleSourceError(saveFields, { id: other }, undefined)).toBeNull();
+    expect(staleSourceError(saveFields, { id: other }, { q: 'x' })).toBeNull();
+  });
+
+  it('never writes prototype keys into the body', () => {
+    const source = JSON.parse('{"__proto__":{"polluted":true},"constructor":"x","Id":"' + guid + '","name":"A"}');
+    const request = buildOperationRequest(update, { name: 'B' }, source);
+    const body = JSON.parse(request.body!);
+    expect(Object.keys(body).sort()).toEqual(['Id', 'name']);
+    const rows = JSON.parse('[{"code":"__proto__","value":"x"},{"code":"prototype","value":"y"},{"code":"RENK","value":"Mavi"}]');
+    const mapped = JSON.parse(buildOperationRequest(saveFields, { id: guid }, null, rows).body!);
+    expect(mapped).toEqual({ values: { RENK: 'Mavi' } });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });

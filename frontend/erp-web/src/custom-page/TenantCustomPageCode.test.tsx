@@ -29,10 +29,10 @@ const definition = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-async function open(options: { rights?: Record<string, boolean>; previewId?: string } = {}) {
+async function open(options: { rights?: Record<string, boolean>; previewId?: string; definition?: Record<string, unknown> } = {}) {
   api.mockImplementation(async (endpoint: string, _token: string, init?: { body?: string }) => {
     if (endpoint.endsWith('/published') || endpoint.endsWith('/preview')) {
-      return { id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: options.rights ?? { view: true, insert: true }, definitionJson: JSON.stringify(definition()) };
+      return { id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: options.rights ?? { view: true, insert: true }, definitionJson: JSON.stringify(options.definition ?? definition()) };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations: [readOp, writeOp, deniedOp] };
     if (endpoint === '/api/stock/items') return init?.body ? { id: 'yeni' } : [{ code: 'S1' }];
@@ -120,6 +120,16 @@ describe('TenantCustomPage kod köprüsü', () => {
     const { send, reply } = await open();
     send({ nx: 1, id: 1, type: 'runQuery', name: 'kaydet' });
     expect(await reply(1)).toEqual({ nx: 1, replyTo: 1, ok: true, result: { affectedRows: 1, sonuc: null } });
+  });
+
+  it('runQuery yazma sorgusu önce istemci doğrulamasını çalıştırır', async () => {
+    const base = definition();
+    const required = { ...base, components: [{ id: 'in1', type: 'input', name: 'ad', props: { inputType: 'text', label: 'Ad', required: true } }, ...base.components.slice(1)] };
+    const { send, reply } = await open({ definition: required });
+    send({ nx: 1, id: 1, type: 'runQuery', name: 'kaydet' });
+    expect(await reply(1)).toEqual({ nx: 1, replyTo: 1, ok: false, error: 'Formda düzeltilmesi gereken alanlar var.' });
+    expect(api.mock.calls.some(([endpoint]) => String(endpoint).includes('/queries/qw/'))).toBe(false);
+    await waitFor(() => expect(screen.getByText('Bu alan zorunludur.')).toBeTruthy());
   });
 
   it('callOperation: katalog istek üzerine gelir; izinsiz işlem ve önizlemede yazma reddedilir', async () => {

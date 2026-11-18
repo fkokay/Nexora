@@ -214,6 +214,10 @@ A prefixed column takes the label of its inner code.
 
 - [ ] **Step 1: Write failing tests:**
   - **In `ErpOperationCatalogTests`:**
+    - `Names_are_unique_and_well_formed` (amend). Today it asserts every `route` parameter is `Required` and appears in `op.Route`, which `stok.bakiye.sayfa` would fail. The new rule:
+      - a route parameter named by some `RouteVariants[i].When` must be **not** required and must appear in that variant's route;
+      - every other route parameter keeps the old assertion;
+      - the placeholder loop also covers variant routes.
     - `Every_operation_matches_a_registered_endpoint` (extend): every `RouteVariants[i].Route` is also a registered endpoint for `op.Method`; each `When` names a non-required `route` parameter of the op, and that parameter appears in the variant route but not in the base route.
     - `Names_are_append_only`: passes once the 11 names are added to the file.
     - `Depo_operations_use_depo_module`: every `depo.*` op has `Module == "Depo"`.
@@ -253,6 +257,7 @@ A prefixed column takes the label of its inner code.
   - `disabledReason` goes into `BindableProps` and into `MessageLimits` with limit 200;
   - `lookup` goes into `InputTypes`;
   - the v2 props cap is 40;
+  - the v2 query limit `MaxQueries` rises from 20 to 30. The stock pilot needs about 21 queries, and the 80-component cap applies to the whole page because tabs own components by id;
   - `Context` gains `TopLevelIds`, pending tab refs, pending condition roots, pending paged tables and `QueryById` (from `ValidateQueries`' result list).
 - Modify: `tests/IntegrationTests/AIERP.Api.IntegrationTests.csproj` (next to the existing `names.txt` item): `<None Include="..\..\frontend\erp-web\src\custom-page\conditions.vectors.json" Link="PageConditionVectors.json" CopyToOutputDirectory="PreserveNewest" />`
 - Create: `tests/IntegrationTests/PageConditionExpressionTests.cs`, `tests/IntegrationTests/TenantCustomPageComponentsFazATests.cs` (a new file, so it does not collide with Task 1's edits in `TenantCustomPageSchemaV2Tests.cs`)
@@ -347,6 +352,8 @@ Errors:
     - `Rejects_invalid_pattern` (`"("`).
     - `Rejects_min_greater_than_max`.
     - `Accepts_40_props_in_v2`.
+    - `Accepts_30_queries_in_v2`.
+    - `Rejects_31_queries_in_v2` (error contains "en fazla 30 sorgu").
     - `Keeps_30_props_limit_in_v1`.
 - [ ] **Step 2: Run** `dotnet test tests/IntegrationTests --filter "FullyQualifiedName~PageConditionExpressionTests|FullyQualifiedName~TenantCustomPageComponentsFazATests"`. Expected: FAIL.
 - [ ] **Step 3: Implement** `PageConditionExpression` as a hand-written recursive-descent parser; regex alone is not enough for the nesting limit. Then add the prop rules and the post-loop resolutions above.
@@ -513,6 +520,7 @@ export function PageTabs(props: { id: string; tabs: { label: string; ids: string
 ```
 
 **Tabs behavior.**
+- **Width.** `visualStyle` gives `tabs` a default span of 12, the same as `formCard`.
 - **Markup.** `role="tablist"`; each tab is a `button` with `role="tab"`, `aria-selected` and `aria-controls`. Panels have `role="tabpanel"`.
 - **All panels mounted.** Every panel is rendered; inactive panels get the `hidden` attribute, so inputs keep their state and validation sees them.
 - **Keyboard.** ArrowLeft/ArrowRight cycle the tabs, Home/End jump to the ends, and focus moves with the selection.
@@ -562,7 +570,6 @@ export function PageTabs(props: { id: string; tabs: { label: string; ids: string
   - `PageBody` holds `lookupState` and `tablePages`;
   - `QueryTable` gains `paging`.
 - Modify: `frontend/erp-web/src/custom-page/layoutRefs.ts`: `tableSearchInputIds` (these ids are not drawn at top level).
-- Modify: `frontend/erp-web/src/custom-page/pageActions.ts`: an export of a paged table reports a warning.
 - Modify: `frontend/erp-web/src/tenant-custom-page.css`
 - Test: `frontend/erp-web/src/custom-page/CustomPageTable.test.tsx` (extend), `LookupInput.test.tsx`
 
@@ -609,7 +616,7 @@ export function PagedTableFooter(props: { page: number; pageSize: number; total:
   - Each `footerMeta` item is shown as `"Etiket: değer"` from `state.meta`.
 - **Truncation.** The "İlk 5.000 satır…" notice is never shown for a paged table.
 - **Totals.** The column totals label becomes `"Sayfa toplamı · {n} kayıt"`.
-- **Export.** `exportTable` on a paged table exports the visible page and reports the warning `"Yalnız görünen sayfa aktarıldı ({n} satır)."`
+- **Export.** In `PageActionCommands.exportTable` (`TenantCustomPage.tsx`, not `pageActions.ts`), the `state.truncated` warning is **replaced** for a paged table, because a paged result is always "truncated". The table exports the visible page and reports `"Yalnız görünen sayfa aktarıldı ({n} satır)."`
 
 - [ ] **Step 1: Write failing tests:**
   - **`LookupInput.test.tsx`:**
@@ -644,7 +651,8 @@ export function PagedTableFooter(props: { page: number; pageSize: number; total:
 - Modify: `frontend/development-studio/src/platform-tools/erp-src/CustomPagesPage.tsx`:
   - **Types.** `ComponentType` gains `"tabs"`.
   - **Palette.** New item `{ type: "tabs", label: "Sekmeler", group: "Tasarım dili", sample: { tabs: ["Genel=", "Ayrıntı="], defaultTab: 0 } }`.
-  - **Keys.** `managedKeys` gains every new prop name from Task 2.
+  - **Keys.** `managedKeys` gains every new prop name from Task 2, and `bindableKeys` gains `disabledReason`.
+  - **Width.** The canvas default span for `tabs` is 12.
   - **`reconcileLayoutRefs`.** For tabs it drops ids that are deleted, ineligible (Task 2 tab rule) or already owned; it clamps `defaultTab`; and it drops `disabledReason` when there is no `disabledWhen`.
   - **Session.** `sessionUser` adds `rol` from the `role` prop.
   - **Binding suggestions.** Add `kullanici.rol` ("Oturumdaki kullanıcının rolü", group "Oturum"). For operation queries, add `{{<q>.meta.<key>}}` for each `metaPaths` key; flattened column codes appear under `seciliSatir`/`rows` like other columns.
@@ -656,6 +664,11 @@ export function PagedTableFooter(props: { page: number; pageSize: number; total:
     - Tab-owned components are not drawn at top level. They render inside `TabsPreview` under the default or clicked tab.
     - A component with `visibleWhen` shows a small "Koşullu" chip on the canvas; it is never hidden in the designer.
   - **Save.** Operation queries keep undeclared `bodyMap` parameters (names `^[A-Z][A-Z0-9_]{0,39}$`) instead of dropping them in `wireParameters`.
+- Modify: `page-designer/erpOperations.ts`:
+  - `wireParameters` keeps a non-empty-bound parameter not declared by the op when `op.bodyMap` is set and the name matches `^[A-Z][A-Z0-9_]{0,39}$`;
+  - `mergedParameters` appends those rows after the catalog rows, typed `text`, so the panel does not drop them.
+
+  Today both functions drop undeclared parameters.
 - Modify: `page-designer/QueriesPanel.tsx`: for an op with `bodyMap`, show an "Özel alan ekle" row that adds a `text` parameter (uppercase code) with an empty binding, and the note "Bağlanmayan özel alanlar “<kaynak etiketi>” sorgusundaki değerleriyle korunur."
 
 **Interfaces:** Consumes the Wire contract and Task 2's prop rules. Produces the Studio `parseTabs`/`tabOwnedIds`, with the same signatures as Task 5.
@@ -695,10 +708,10 @@ Run by the controller after merge and deploy, in the QA tenant only. Create the 
 - **Depo lookup `depo`:** `optionsQuery` = `depo.listele` (client filter) and `staticOptions ["=Tüm depolar"]`.
 - **Search input `ara`.**
 - **Paged table `liste`:** on `stok.bakiye.sayfa`, with `warehouseId` = `{{depo.value}}`, `q` = `{{ara.value}}`, `searchInput: ara`, and `footerMeta ["belowMinimumCount=Minimum altı"]`.
-- **Metric:** with the text `{{liste_q.meta.totalCount}}`.
+- **Metric:** with the text `{{bakiye.meta.totalCount}}` (`bakiye` is the table's read query, `stok.bakiye.sayfa`).
 - **Tabs `Özet` / `Depolar`.** "Depolar" holds a table on `stok.kart.depoBakiyeleri` with `id` = `{{liste.seciliSatir.stockItem.id}}`.
-- **Delete button:** with `disabledWhen: "kullanici.rol != 'TenantAdmin'"` and the reason "Yalnız yönetici silebilir.".
-- **Form:** a required `kod` input with `upperCase` and `maxLength 64` on tab Özet; save is on a write query.
+- **Delete button:** `actionType: "query"` on a write query `sil` = `stok.kart.sil` with `id` = `{{liste.seciliSatir.stockItem.id}}`, and `disabledWhen: "kullanici.rol != 'TenantAdmin'"` and the reason "Yalnız yönetici silebilir.".
+- **Form:** a required `kod` input with `upperCase` and `maxLength 64` on tab Özet. The actionBar `saveQuery` is `guncelle` = `stok.kart.guncelle`, with `code` = `{{kod.value}}`. Its source read is `kart` = `stok.kart.getir`, with `id` = `{{liste.seciliSatir.stockItem.id}}`.
 
 Verify each of these:
 - Changing the depot switches the route (network tab).

@@ -1,5 +1,5 @@
-import { Children, type CSSProperties, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Users, Wallet, type LucideIcon } from "lucide-react";
+import { Children, useState, type CSSProperties, type ReactNode } from "react";
+import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 
 // Tuval önizlemeleri: ERP (MetricCard / QueryTable / PageBadge) görünümünü, sorgu önizleme verisiyle yansıtır.
@@ -36,16 +36,22 @@ export function BadgePreview({ text, variant, toneMap, style }: { text: string; 
 type PreviewColumn = { code: string; label?: string; dataType?: string };
 
 // Toplam satırı yalnız sorgu bağlı ızgarada (ERP QueryTable gibi) gösterilir; tuvalde toplam yalnız önizleme satırları üzerinden hesaplanır.
-export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, showTotals, style }: {
+/** Sunucu sayfalı listenin tuval altbilgisi (ERP PagedTableFooter görünümü; düğmeler tuvalde kapalıdır). */
+export type GridPaging = { pageSize: number; total: number; meta: { label: string; value: string }[]; search?: ReactNode };
+
+export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, showTotals, paging, style }: {
   title: string; subtitle: string; columns: PreviewColumn[]; rows: Record<string, unknown>[]; truncated: boolean;
-  props: Record<string, unknown>; emptyText: string; rowAction?: string; showTotals?: boolean; style: CSSProperties;
+  props: Record<string, unknown>; emptyText: string; rowAction?: string; showTotals?: boolean; paging?: GridPaging; style: CSSProperties;
 }) {
   const formats = parseColumnFormats(props.columnFormats);
   const toneMap = parseToneMap(props.toneMap);
   const totals = Array.isArray(props.totals) ? props.totals.filter((item): item is string => typeof item === "string") : [];
   const comfort = props.density === "comfort";
   const hasTotals = showTotals === true && columns.some((column) => totals.includes(column.code)) && rows.length > 0;
-  const totalLabel = truncated ? `Toplam · ilk ${rows.length} satır` : `Toplam · ${rows.length} kayıt`;
+  const totalLabel = paging ? `Sayfa toplamı · ${rows.length} kayıt` : truncated ? `Toplam · ilk ${rows.length} satır` : `Toplam · ${rows.length} kayıt`;
+  const number = (value: number) => value.toLocaleString("tr-TR");
+  const pages = paging ? Math.max(1, Math.ceil(paging.total / paging.pageSize)) : 1;
+  const range = paging ? paging.total <= 0 ? "0 / 0" : `1–${number(Math.min(paging.pageSize, paging.total))} / ${number(paging.total)}` : "";
   const cellClass = (column: PreviewColumn) => [isRightAligned(formats[column.code], column.dataType) ? "num" : "", formats[column.code] === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
   const cell = (column: PreviewColumn, row: Record<string, unknown>) => {
     const text = formatCell(row[column.code], formats[column.code], column.dataType);
@@ -56,6 +62,7 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
   const colCount = columns.length + (rowAction ? 1 : 0);
   return <article className="custom-page-preview-card" style={style}>
     <div className="custom-page-preview-card-head"><b>{title}</b><small>{subtitle}</small></div>
+    {paging?.search && <div className="pd-grid-search">{paging.search}</div>}
     <div className="custom-page-preview-grid-scroll"><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}`}>
       <thead><tr>{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{rowAction && <th scope="col">İşlemler</th>}</tr></thead>
       <tbody>{rows.length === 0 ? <tr><td colSpan={Math.max(1, colCount)}>{emptyText}</td></tr>
@@ -71,7 +78,28 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
         {rowAction && <td />}
       </tr></tfoot>}
     </table></div>
+    {paging && <div className="pd-pager">
+      <span className="pd-pager-range">{range}</span>
+      {paging.meta.map((item) => <span key={item.label} className="pd-pager-meta">{item.label}: {item.value}</span>)}
+      <span className="pd-pager-grow" />
+      <button type="button" tabIndex={-1} disabled>Önceki</button>
+      <span className="pd-pager-page">Sayfa 1 / {number(pages)}</span>
+      <button type="button" tabIndex={-1} disabled>Sonraki</button>
+    </div>}
   </article>;
+}
+
+/** Arama kutusu (lookup) önizlemesi: arama simgeli metin kutusu ve ilk üç seçenek. */
+export function LookupPreview({ placeholder, value, options, ready }: {
+  placeholder: string; value: string; options: { label: string; description: string }[]; ready: boolean;
+}) {
+  return <div className="pd-lookup">
+    <span className="pd-lookup-box"><Search size={13} aria-hidden="true" /><input tabIndex={-1} readOnly placeholder={placeholder || "Ara…"} value={value}/></span>
+    <ul className="pd-lookup-list" aria-hidden="true">
+      {options.length === 0 ? <li className="pd-lookup-empty">{ready ? "Sonuç bulunamadı." : "Seçenekler için sorguyu önizleyin"}</li>
+        : options.slice(0, 3).map((option, index) => <li key={index}><span>{option.label}</span>{option.description && <small>{option.description}</small>}</li>)}
+    </ul>
+  </div>;
 }
 
 // Düzen bileşenleri önizlemeleri: ERP LayoutComponents.tsx (FormCard / FilterChips / FacetPanel / ContextPanel) ile aynı yapı; etkileşimsizdir.
@@ -131,7 +159,32 @@ export function ContextPanelPreview({ title, row, fields, related, style }: {
   </aside>;
 }
 
-type ActionBarBound = { new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+/**
+ * ERP PageTabs önizlemesi: varsayılan sekme açık başlar, sekme başlığına tıklayınca o sekme gösterilir (yalnız tuvalde).
+ * Sekmenin bileşenleri sahibin içinde çizilir; tıklanan bileşen müfettişte seçilir.
+ */
+export function TabsPreview({ tabs, defaultTab, renderOwned, spanFor, onSelect, style }: {
+  tabs: { label: string; ids: string[] }[]; defaultTab: number; renderOwned: (id: string) => ReactNode; spanFor: (id: string) => number;
+  onSelect: (id: string) => void; style: CSSProperties;
+}) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const fallback = Number.isInteger(defaultTab) && defaultTab >= 0 && defaultTab < tabs.length ? defaultTab : 0;
+  const active = picked !== null && picked < tabs.length ? picked : fallback;
+  if (tabs.length === 0) return <section className="pd-layout-block pd-tabs-preview" style={style}><p className="pd-tabs-empty">Sekme ekleyin</p></section>;
+  return <section className="pd-layout-block pd-tabs-preview" style={style}>
+    <div className="pd-tabs-preview-list" role="tablist" aria-label="Sekmeler">
+      {tabs.map((tab, index) => <button type="button" role="tab" key={index} tabIndex={-1} aria-selected={index === active}
+        className={index === active ? "is-active" : undefined} onClick={(event) => { event.stopPropagation(); setPicked(index); }}>{tab.label}</button>)}
+    </div>
+    <div className="pd-tabs-preview-panel" role="tabpanel">
+      {tabs[active].ids.length === 0 ? <p className="pd-tabs-empty">Bu sekmeye bileşen seçin</p>
+        : tabs[active].ids.map((id) => <div key={id} className="pd-tabs-preview-item" style={{ gridColumn: `span ${spanFor(id)}` }}
+          title="Düzenlemek için tıklayın" onClick={(event) => { event.stopPropagation(); onSelect(id); }}>{renderOwned(id)}</div>)}
+    </div>
+  </section>;
+}
+
+type ActionBarBound ={ new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
 export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
