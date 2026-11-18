@@ -26,10 +26,11 @@ type Props = {
   showCreateForm?: boolean;
   visibleFields?: ScreenField[];
   onNavigate?: (page: string, label?: string) => void;
-  /** Replaces the default "Teminat ekle" navigation (e.g. to preselect the credit). */
-  onCreate?: () => void;
-  /** Rendered inside the selected credit's "Teminatlar" tab: no outer box. */
+  /** Rendered inside the opened credit's "Teminatlar" tab. */
   embedded?: boolean;
+  /** The page's save error, shown on the record form. */
+  error?: string;
+  onDismissError?: () => void;
   facilities: Facility[];
   securities: Security[];
   expiringCount: number;
@@ -152,74 +153,14 @@ export function CreditSecuritiesPanel(props: Props) {
         return null;
     }
   };
-  return (
-    <section
-      className={
-        props.embedded
-          ? "dd-box cf-box cf-securities"
-          : `panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`
-      }
-      aria-labelledby="credit-securities-title"
-    >
-      {props.embedded ? (
-        <header className="cf-box-head">
-          <h3 id="credit-securities-title">Teminat ve garantiler</h3>
-          <span>
-            Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına veya muhasebeye otomatik tutar eklemez.
-          </span>
-          <span className="cf-box-tags">
-            <StatusTag tone={props.expiredCount ? "bad" : "off"}>{`${props.expiredCount} vadesi geçmiş`}</StatusTag>
-            <StatusTag tone={props.expiringCount ? "warn" : "off"}>{`${props.expiringCount} 30 gün içinde`}</StatusTag>
-          </span>
-        </header>
-      ) : (
-      <div className={props.embedded ? "cf-pane-head" : "credit-records-heading"}>
-        <div>
-          {!props.embedded && (
-            <h2 id="credit-securities-title">Teminat ve garantiler</h2>
-          )}
-          <p id={props.embedded ? "credit-securities-title" : undefined}>
-            Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına
-            veya muhasebeye otomatik tutar eklemez.
-          </p>
-        </div>
-        <div className="credit-row-actions">
-          <span
-            className={
-              props.expiredCount ? "status-badge danger" : "status-badge"
-            }
-          >
-            {props.expiredCount} vadesi geçmiş
-          </span>
-          <span
-            className={
-              props.expiringCount ? "status-badge warning" : "status-badge"
-            }
-          >
-            {props.expiringCount} 30 gün içinde
-          </span>
-          {props.isAdmin && !props.showCreateForm && (
-            <button
-              type="button"
-              className="primary small-button"
-              onClick={() =>
-                props.onCreate
-                  ? props.onCreate()
-                  : props.onNavigate?.(
-                      "finance-credit-security-create",
-                      "Teminat kaydı",
-                    )
-              }
-            >
-              Teminat ekle
-            </button>
-          )}
-        </div>
-      </div>
-      )}
-      {props.isAdmin && props.showCreateForm && (
+  // The create route (finance-credit-security-create) is a full-page record form; the credit surface embeds the list.
+  if (props.showCreateForm)
+    return props.isAdmin ? (
         <RecordFormPage
-          variant="dialog"
+          className="cf-rf"
+          confirmCancel
+          error={props.error}
+          onDismissError={props.onDismissError}
           title="Teminat kaydı"
           mode="create"
           busy={props.busy}
@@ -405,9 +346,20 @@ export function CreditSecuritiesPanel(props: Props) {
             </div>
           </div>
         </RecordFormPage>
-      )}
-      {!props.showCreateForm &&
-        (props.securities.length === 0 ? (
+    ) : null;
+  return (
+    <section className="dd-box cf-box cf-securities" aria-labelledby="credit-securities-title">
+      <header className="cf-box-head">
+        <h3 id="credit-securities-title">Teminat ve garantiler</h3>
+        <span>
+          Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına veya muhasebeye otomatik tutar eklemez.
+        </span>
+        <span className="cf-box-tags">
+          <StatusTag tone={props.expiredCount ? "bad" : "off"}>{`${props.expiredCount} vadesi geçmiş`}</StatusTag>
+          <StatusTag tone={props.expiringCount ? "warn" : "off"}>{`${props.expiringCount} 30 gün içinde`}</StatusTag>
+        </span>
+      </header>
+      {props.securities.length === 0 ? (
           <div className="credit-state credit-empty">
             <strong>Henüz teminat veya garanti kaydı yok.</strong>
             <span>
@@ -457,7 +409,7 @@ export function CreditSecuritiesPanel(props: Props) {
               </tbody>
             </AdvancedDataGrid>
           </div>
-        ))}
+        )}
     </section>
   );
 }

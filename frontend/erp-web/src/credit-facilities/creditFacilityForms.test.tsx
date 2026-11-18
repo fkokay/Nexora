@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -273,6 +273,19 @@ describe('Krediler & Finansman: create screens (characterization)', () => {
     ]);
     expect(gets('/api/finance/credit-facilities/')).toBe(2);
     expect(onNavigate).toHaveBeenLastCalledWith(...BACK);
+  });
+
+  it('Vazgeç on an untouched form returns to the list without a request (full-page record form)', async () => {
+    for (const view of ['facility-create', 'schedule-create', 'movement-create', 'repayment-create', 'security-create'] as const) {
+      const onNavigate = vi.fn();
+      renderScreen(<CreditFacilitiesPage token="t" role="TenantAdmin" view={view} onNavigate={onNavigate} />);
+      await settle(300);
+      fireEvent.click(screen.getByRole('button', { name: /Vazgeç/ }));
+      await settle(100);
+      expect(onNavigate).toHaveBeenLastCalledWith(...BACK);
+      cleanup();
+    }
+    expect(writes()).toEqual([]);
   });
 
   it('a company user sees none of the create forms', async () => {

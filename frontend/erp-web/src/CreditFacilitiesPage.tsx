@@ -1091,19 +1091,9 @@ export default function CreditFacilitiesPage({
     delete: { disabledReason: "Kredi silinmez; İşlemler › Krediyi kapat" },
     more: creditCommands(openedFacility, true),
   };
-  const pageTitle =
-    view === "facility-create"
-      ? "Yeni kredi / limit"
-      : view === "schedule-create"
-        ? "Ödeme planına taksit ekle"
-        : view === "repayment-create"
-          ? "Kredi geri ödemesi kaydet"
-          : view === "security-create"
-            ? "Teminat / garanti tanımla"
-            : "Kredi kullandırımı kaydet";
   return (
     <div
-      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " credit-operation-screen"}`}
+      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " cf-create"}`}
     >
       {isList && !openedFacility && <PageCommandsSlot commands={listCommands} />}
       {isList ? (
@@ -1115,40 +1105,7 @@ export default function CreditFacilitiesPage({
           onRefresh={() => void load()}
           onDismissNotice={() => setNotice("")}
         />
-      ) : (
-        <div className="credit-operation-page-heading">
-          <div>
-            <button
-              type="button"
-              className="secondary small-button"
-              onClick={() =>
-                onNavigate?.(
-                  "finance-credit-facilities",
-                  "Krediler & Finansman",
-                )
-              }
-            >
-              ← Krediler & Finansman
-            </button>
-            <p className="eyebrow">FİNANS YÖNETİMİ · KREDİLER & FİNANSMAN</p>
-            <h1>{pageTitle}</h1>
-            <p className="muted">
-              İşlemi ayrı ekranda tamamlayın; kaydedince kredi listesine
-              dönersiniz.
-            </p>
-          </div>
-        </div>
-      )}
-      {!isList && error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-        </div>
-      )}
-      {!isList && notice && (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      )}
+      ) : null}
       <CreditFacilitySetup
         isAdmin={admin}
         view={
@@ -1194,6 +1151,8 @@ export default function CreditFacilitiesPage({
         onInterestChange={setInterest}
         onFeeChange={setFee}
         onScheduleNotesChange={setScheduleNotes}
+        error={error}
+        onDismissError={() => setError("")}
       />
       {view === "movement-create" || view === "repayment-create" ? (
         <CreditMovementForm
@@ -1215,6 +1174,8 @@ export default function CreditFacilitiesPage({
           busy={busy}
           formatMoney={money}
           onSubmit={submitMovement}
+          error={error}
+          onDismissError={() => setError("")}
           onFacilityChange={(value) => {
             setMovementFacilityId(value);
             setAccountId("");
@@ -1252,6 +1213,8 @@ export default function CreditFacilitiesPage({
           expiredCount={expiredSecurities}
           busy={busy}
           showCreateForm={view === "security-create"}
+          error={error}
+          onDismissError={() => setError("")}
           onNavigate={onNavigate}
           facilityId={securityFacilityId}
           type={securityType}
