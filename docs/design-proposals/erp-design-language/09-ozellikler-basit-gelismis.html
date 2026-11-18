@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Özellikler paneli · Basit/Gelişmiş ve yerinde sorgu</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--ok:#13804b;--ok-bg:#e5f5ec}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1050px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.panel{width:330px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 4px 18px rgba(15,27,45,.08);font-size:12.5px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ph b{font-size:14px}.ph small{display:block;color:var(--mut)}
+.seg{display:flex;margin:10px 14px 4px;background:#f3f2fa;border-radius:8px;padding:3px}
+.seg span{flex:1;text-align:center;padding:5px 0;border-radius:6px;color:var(--mut);font-weight:600}
+.seg span.on{background:#fff;color:var(--st);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.sec{padding:10px 14px;border-bottom:1px solid #f0eff6}
+.sec h5{margin:0 0 8px;font-size:12.5px}
+.f{margin-bottom:9px}.f label{display:block;font-weight:600;margin-bottom:4px}
+.in{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff;display:flex;align-items:center;gap:6px}
+.in .grow{flex:1}.in em{color:var(--mut);font-style:normal;font-size:11.5px}
+.btn{display:inline-flex;align-items:center;gap:4px;border:1px solid #d8d0fb;background:#fff;color:var(--st);border-radius:7px;padding:5px 9px;font-weight:600;font-size:12px}
+.btn.pri{background:var(--st);color:#fff;border-color:var(--st)}
+.cols{display:flex;flex-wrap:wrap;gap:5px}.cols span{padding:3px 8px;border-radius:999px;background:#f3f2fa;font-size:11.5px}
+.collapsed{display:flex;justify-content:space-between;color:var(--mut);padding:9px 14px;border-bottom:1px solid #f0eff6}
+.hint{color:var(--mut);font-size:11.5px;margin-top:4px}
+.modal-wrap{flex:1;min-width:560px;background:rgba(15,27,45,.35);border-radius:12px;padding:26px;display:flex;justify-content:center}
+.modal{width:620px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px;overflow:hidden}
+.mh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}.mh b{font-size:14px;flex:1}
+.mb{padding:14px 16px}
+.tabs2{display:flex;gap:6px;margin-bottom:10px}.tabs2 span{padding:5px 10px;border:1px solid var(--line);border-radius:7px;color:var(--mut);font-weight:600}.tabs2 span.on{border-color:var(--st);color:var(--st);background:var(--st-soft)}
+.code{font-family:Consolas,monospace;font-size:12px;background:#0f1b2d;color:#d8e1f0;border-radius:8px;padding:10px;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prev{border:1px solid var(--line);border-radius:8px;margin-top:10px}
+.prev table{width:100%;border-collapse:collapse;font-size:12px}.prev th{background:#f7f7fb;text-align:left;padding:6px 8px;color:var(--mut)}.prev td{padding:6px 8px;border-top:1px solid #f0eff6}
+.mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+</style></head><body>
+<h1>Özellikler paneli: Basit / Gelişmiş ve yerinde sorgu tanımı</h1>
+<p class="sub">Taslak · 2026-11-18 · Sağdaki özellikler paneli iki kipte açılır. <b>Basit</b> kipte yalnız sık kullanılan ayarlar görünür; <b>Gelişmiş</b> kipte bugünkü bütün bölümler açılır. Sorgu seçilen her alanda "Yeni sorgu" ve "Düzenle" düğmeleri bulunur; sorgu, Sorgular sekmesine gitmeden açılan pencerede tanımlanır ve kaydedilince bu alana otomatik bağlanır.</p>
+
+<div class="lbl">1 · Izgara seçili — Basit kip</div>
+<div class="row">
+  <div class="panel">
+    <div class="ph"><span>▦</span><div><b>Izgara</b><small>liste</small></div></div>
+    <div class="seg"><span class="on">Basit</span><span>Gelişmiş</span></div>
+    <div class="sec"><div class="f"><label>Başlık</label><div class="in"><span class="grow">Stok kartları</span></div></div>
+      <div class="f"><label>Veri</label><div class="in"><span class="grow">bakiye</span><em>ERP işlemi</em>▾</div>
+        <div style="display:flex;gap:6px;margin-top:6px"><span class="btn">＋ Yeni sorgu</span><span class="btn">✎ Düzenle</span></div></div>
+      <div class="f"><label>Sütunlar</label><div class="cols"><span>Stok kodu</span><span>Stok adı</span><span>Kategori</span><span>Depo bakiyesi</span><span>Durum</span><span>+ 5</span></div><div class="hint">Sırayı sürükleyerek değiştirin; gizlemek için çarpıya basın.</div></div>
+      <div class="f"><label>Genişlik</label><div class="in"><span class="grow">12 / 12</span>▾</div></div></div>
+    <div class="collapsed"><span>Daha fazla ayar: Sayfalama, Satır eylemleri, Koşullar, Görünüm…</span><b style="color:var(--st)">Gelişmiş ›</b></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span>▦</span><div><b>Izgara</b><small>liste</small></div></div>
+    <div class="seg"><span>Basit</span><span class="on">Gelişmiş</span></div>
+    <div class="collapsed"><span>› İçerik</span></div><div class="collapsed"><span>› Veri</span></div><div class="collapsed"><span>› Sayfalama</span></div><div class="collapsed"><span>› Satır eylemleri</span></div><div class="collapsed"><span>› Satır işlemi</span></div><div class="collapsed"><span>› Koşullar</span></div><div class="collapsed"><span>› Görünüm</span></div><div class="collapsed"><span>› Kullanılabilir değişkenler</span><em style="font-style:normal">664</em></div>
+  </div>
+</div>
+<p class="note">Kip seçimi bileşen türü başına hatırlanır. Basit kipte gösterilen alanlar her bileşen için ayrı belirlenir: örneğin göstergede Başlık, Değer, Simge ve Ton; giriş kutusunda Etiket, Tür ve Zorunlu.</p>
+
+<div class="lbl">2 · "Yeni sorgu" — açılan pencerede tanım, önizleme ve otomatik bağlama</div>
+<div class="row">
+  <div class="modal-wrap"><div class="modal">
+    <div class="mh"><b>Yeni sorgu · Izgara (liste) için</b><span>✕</span></div>
+    <div class="mb">
+      <div class="tabs2"><span class="on">ERP işlemi</span><span>SQL sorgusu</span></div>
+      <div class="grid2"><div class="f"><label>Sorgu adı</label><div class="in"><span class="grow">stokListesi</span></div></div>
+        <div class="f"><label>ERP işlemi</label><div class="in"><span class="grow">Stok › Bakiye sayfası</span><em>stok.bakiye.sayfa</em>▾</div></div></div>
+      <div class="f"><label>Parametreler</label>
+        <div class="grid2"><div class="in"><span class="grow">q</span><em>{{ara.value}}</em></div><div class="in"><span class="grow">warehouseId</span><em>{{depoSecimi.value}}</em></div></div>
+        <div class="hint">Sayfalama parametreleri (sayfa, sayfaBoyutu) tabloya otomatik bağlanır.</div></div>
+      <div class="prev"><table><tr><th>Stok kodu</th><th>Stok adı</th><th>Depo bakiyesi</th><th>Durum</th></tr><tr><td>STK-0001</td><td>TEST ÜRÜN 1</td><td>0 EA</td><td>Yeterli</td></tr><tr><td>TEST</td><td>TEST</td><td>0 EA</td><td>Yeterli</td></tr></table></div>
+      <div class="hint">Önizleme okuma sorgularında çalışır; yazma işlemleri önizlenmez.</div>
+    </div>
+    <div class="mf"><span class="btn">Vazgeç</span><span class="btn">Çalıştır ve önizle</span><span class="btn pri">Kaydet ve bağla</span></div>
+  </div></div>
+</div>
+<div class="lbl">3 · Tuvalde otomatik örnek veri</div>
+<div class="row"><div class="modal" style="width:700px;box-shadow:0 4px 18px rgba(15,27,45,.08)">
+  <div class="mh"><b>Stok kartları</b><span style="color:var(--mut);font-size:11.5px">Sorgu · bakiye · örnek veri (ilk 5 satır) ⟳</span></div>
+  <div class="mb"><div class="prev" style="margin-top:0"><table><tr><th>Stok kodu</th><th>Stok adı</th><th>Kategori</th><th>Depo bakiyesi</th><th>Durum</th></tr>
+  <tr><td>TEST</td><td>TEST</td><td>—</td><td>0 EA</td><td><span style="background:var(--ok-bg);color:var(--ok);padding:1px 8px;border-radius:999px;font-size:11px">Yeterli</span></td></tr>
+  <tr><td>STK-0001</td><td>TEST ÜRÜN 1</td><td>—</td><td>0 EA</td><td><span style="background:var(--ok-bg);color:var(--ok);padding:1px 8px;border-radius:999px;font-size:11px">Yeterli</span></td></tr></table></div></div>
+</div></div>
+<p class="note">Okuma sorgusuna bağlı ızgara, gösterge ve listeler tasarımcı açılınca ve sorgu ya da bağlama değişince örnek veriyle kendiliğinden dolar (ilk 5 satır, firmanın gerçek verisi). "Çalıştır ve önizle"ye gitmek gerekmez. Sağ üstteki ⟳ ile yenilenir. Yazma işlemleri ve satır eylemleri tuvalde asla çalışmaz. Parametresi boş olan sorgular (ör. seçili satıra bağlı) "Bir satır seçin" gösterir.</p>
+
+<p class="note">"Kaydet ve bağla" sorguyu sayfaya ekler, alanı ona bağlar ve tablonun sütunlarını sorgunun sonuç sütunlarından önerir. SQL sekmesi bugünkü SQL düzenleyicisinin aynısıdır; parametreleri SQL metninden otomatik çıkarır. "Düzenle" aynı pencereyi seçili sorguyla açar. Sorgular sekmesi kalır; orada da aynı düzenleyici kullanılır. Kaydedilen tanım değişmez.</p>
+</body></html>

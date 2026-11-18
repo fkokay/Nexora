@@ -14,6 +14,7 @@ const GROUPS: { key: string; title: string; empty: string }[] = [
   { key: "Özel alanlar", title: "Özel alanlar", empty: "Sayfaya bir özel alanlar bloğu ekleyin; değerleri burada {{ad.degerler}} olarak görünür." },
   { key: "Pencereler", title: "Pencereler", empty: "Bir Pencere bileşenine Ad verin; açık olup olmadığı burada {{ad.acik}} olarak görünür." },
   { key: "Düğmeler", title: "Düğmeler", empty: "Adlı bir düğmede gerekçe sorusu tanımlayın; yanıtı burada {{ad.yanit}} olarak görünür." },
+  { key: "Sayfa", title: "Sayfa parametreleri", empty: "Bu sayfa başka bir sayfanın “Sayfa aç” düğmesiyle açılınca parametreleri {{sayfa.parametre.<ad>}} ile okunur." },
   { key: "Kayıt dizisi", title: "Kayıt dizisi", empty: "Bir kayıt dizisi adımının parametresinde {{onceki.sonuc.X}} bir önceki adımın sonucudur." },
 ];
 

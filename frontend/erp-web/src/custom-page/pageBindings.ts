@@ -38,6 +38,15 @@ export function interpolate(template: string, scope: PageScope): string {
   return template.replace(EMBEDDED, (_match, path: string) => displayText(resolvePath(scope, path)));
 }
 
+/** `interpolate` gibi; her çözülen değer `map` ile dönüştürülür (ör. bağlantıda encodeURIComponent). */
+export function interpolateWith(template: string, scope: PageScope, map: (text: string) => string): string {
+  if (!template.includes("{{")) return template;
+  return template.replace(EMBEDDED, (_match, path: string) => map(displayText(resolvePath(scope, path))));
+}
+
+/** Şablonun bağlama dışındaki (sabit) metni. */
+export const literalText = (template: string): string => template.replace(EMBEDDED, "");
+
 /** Tek bir "{{ x.y }}" ifadesinin yolunu verir; ifade başka metin içeriyorsa null. */
 export function bindingPath(expression: string): string | null {
   const match = SINGLE.exec(expression);

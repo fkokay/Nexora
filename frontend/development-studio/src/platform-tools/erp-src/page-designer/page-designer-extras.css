@@ -1,0 +1,55 @@
+/* Özellikler paneli Basit/Gelişmiş, sorgu penceresi, tuvalde örnek veri ve "Tüm ayarlar" penceresi. */
+.pd-mode-toggle{display:flex;margin:0 0 10px;padding:3px;border-radius:8px;background:#f3f2fa}
+.pd-mode-toggle button{flex:1;min-height:28px;border:0;border-radius:6px;background:transparent;color:#667085;font-size:12.5px;font-weight:600}
+.pd-mode-toggle button.active{background:#fff;color:#5132c7;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pd-basic{display:grid;gap:10px}
+.pd-basic-more{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0 2px;border-top:1px solid #f0eff6;color:#667085;font-size:12px}
+.pd-basic-more button{flex:none;border:0;background:transparent;color:#5132c7;font-weight:600;font-size:12px;cursor:pointer}
+.pd-qfa{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.pd-chips{display:flex;flex-wrap:wrap;gap:5px}
+.pd-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;border-radius:999px;background:#f3f2fa;font-size:11.5px;cursor:grab}
+.pd-chip.is-drop{outline:2px solid #b9a9f5}
+.pd-chip button{display:grid;place-items:center;width:16px;height:16px;border:0;border-radius:50%;background:transparent;color:#667085;padding:0;cursor:pointer}
+.pd-chip button:hover:not(:disabled){background:#e4defc;color:#5132c7}
+.pd-chip-more{border:1px dashed #c9bdf7;background:#fff;color:#5132c7;cursor:pointer;padding:3px 9px}
+.pd-sample-badge{position:absolute;top:6px;right:8px;z-index:3;display:inline-flex;align-items:center;gap:4px;max-width:60%;padding:2px 4px 2px 8px;border:1px solid #e3e1ee;border-radius:999px;background:#fffffff2;color:#667085;font-size:10.5px}
+.pd-sample-badge .pd-sample-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-sample-badge button{display:grid;place-items:center;width:18px;height:18px;border:0;border-radius:50%;background:transparent;color:#5132c7;padding:0}
+.pd-sample-badge button:hover:not(:disabled){background:#f1edff}
+.pd-sample-badge.is-blocked,.pd-sample-badge.is-stale{color:#8a5a00;border-color:#f3d9a4;background:#fffaf0f2}
+.pd-sample-badge.is-error{color:#b42318;border-color:#f1c4c8}
+.pd-modal-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,27,45,.35)}
+.pd-modal{display:flex;flex-direction:column;width:min(680px,100%);max-height:calc(100vh - 48px);border-radius:12px;background:#fff;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px;color:#1b2430;outline:none}
+.pd-modal-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #e3e1ee}
+.pd-modal-head b{flex:1;font-size:14px}
+.pd-modal-body{flex:1;min-height:0;overflow:auto;padding:14px 16px}
+.pd-modal-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid #e3e1ee}
+.pd-modal-foot-note{flex:1;min-width:180px}
+.pd-settings-modal{width:min(1180px,100%);height:calc(100vh - 48px)}
+.pd-settings-layout{display:grid;grid-template-columns:190px 1fr;flex:1;min-height:0}
+.pd-settings-nav{overflow:auto;padding:10px;border-right:1px solid #e3e1ee;background:#fafafe}
+.pd-settings-nav button{display:block;width:100%;margin-bottom:2px;padding:6px 9px;border:0;border-radius:6px;background:transparent;color:#3b4a63;font-size:12.5px;text-align:left;cursor:pointer}
+.pd-settings-nav button:hover{background:#f1edff;color:#5132c7}
+.pd-settings-content{min-height:0;overflow:auto;padding:14px 16px}
+.pd-settings-content .pd-fieldset{display:block;column-count:2;column-gap:18px}
+.pd-settings-content .pd-fieldset>*{break-inside:avoid}
+.pd-settings-content .pd-settings-wide{column-span:all;margin-bottom:12px}
+.pd-settings-inline-note{padding:10px;border:1px dashed #d8d0fb;border-radius:8px;color:#667085;font-size:12px}
+@media (max-width:820px){.pd-settings-layout{grid-template-columns:1fr}.pd-settings-nav{display:none}.pd-settings-content .pd-fieldset{column-count:1}}
+.pd-coled{display:grid;gap:8px}
+.pd-coled-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pd-coled-tools input[type=search]{flex:1;min-width:180px;min-height:30px;padding:0 9px;border:1px solid #e3e1ee;border-radius:8px}
+.pd-coled-scroll{position:relative;overflow:auto;max-height:420px;border:1px solid #e3e1ee;border-radius:8px}
+.pd-coled-row{display:grid;grid-template-columns:22px 24px 56px minmax(140px,1.6fr) 110px 76px 64px 52px 112px;align-items:center;gap:6px;height:36px;padding:0 8px;border-bottom:1px solid #f0eff6;font-size:12px}
+.pd-coled-row.is-head{position:sticky;top:0;z-index:2;background:#f7f7fb;color:#667085;font-weight:600}
+.pd-coled-row.is-picked{background:#f6f3ff}
+.pd-coled-row.is-hidden .pd-coled-name{color:#98a2b3}
+.pd-coled-row.is-drop{box-shadow:inset 0 2px 0 #7c5cf0}
+.pd-coled-row select{min-height:26px;font-size:12px}
+.pd-coled-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-coled-name small{display:block;color:#98a2b3;font-size:10.5px}
+.pd-coled-handle{cursor:grab;color:#98a2b3;user-select:none}
+.pd-coled-moves{display:flex;gap:2px}
+.pd-coled-moves button{display:grid;place-items:center;width:24px;height:24px;border:1px solid #e3e1ee;border-radius:6px;background:#fff;color:#3b4a63;padding:0;font-size:11px}
+.pd-coled-moves button:disabled{opacity:.35}
+.pd-block-toolbar button.pd-block-edit{width:auto;padding:0 7px;font-size:11.5px;font-weight:600;white-space:nowrap}

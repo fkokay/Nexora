@@ -490,6 +490,10 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-form-card-grid.is-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .pd-frame .pd-form-card-grid.is-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .pd-frame .pd-form-card-cell{min-width:0}
+.pd-frame .pd-form-card.is-inline{min-height:0;padding:8px 12px}
+.pd-frame .pd-form-card-grid.is-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.pd-frame .pd-form-card-grid.is-inline>.pd-form-card-cell{flex:0 1 auto}
+.pd-frame .pd-form-card-grid.is-inline label{display:flex;align-items:center;gap:6px}
 .pd-frame .pd-form-card-cell .pd-binding-preview-input{margin:0;padding:0}
 .pd-frame .pd-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .pd-frame .pd-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--dl-primary) 30%,var(--dl-surface));border-radius:999px;color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-size:12px;line-height:1.6}
@@ -587,3 +591,44 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-new-items li{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--pd-line);border-radius:8px;background:#fff}
 .pd-new-items-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#22223a}
 .pd-new-items-kind{padding:2px 7px;border-radius:999px;background:#eef1f7;color:#55647c;font-size:10.5px;font-weight:700}
+
+/* Sekmeler tuvalde kap (taslak 08): açık sekmenin gövdesi 12 sütunlu bırakma alanı; bloklar sürüklenirken canlı kayar */
+.pd-block.is-container::after{display:none}
+.pd-tabs-canvas .pd-tabs-preview-list button,.pd-tabs-canvas .pd-tab-rename,.pd-tabs-canvas-panel,.pd-tabs-canvas .pd-tab-block{pointer-events:auto}
+.pd-frame .pd-tabs-canvas .pd-tabs-preview-list{align-items:center}
+.pd-frame .pd-tabs-canvas .pd-tabs-preview-list .pd-tab-add{margin:0 0 4px 6px;padding:3px 8px;border:1px dashed var(--pd-accent-line);border-radius:6px;color:var(--pd-accent);font-size:12px;font-weight:700}
+.pd-frame .pd-tabs-canvas .pd-tabs-preview-list .pd-tab-add:disabled{opacity:.4;cursor:not-allowed}
+.pd-tab-rename-hint{display:none;margin-left:auto;color:var(--dl-muted);font-size:11px}
+.pd-block.is-selected .pd-tab-rename-hint,.pd-tabs-canvas:hover .pd-tab-rename-hint{display:inline}
+.pd-tab-rename{width:140px;margin-bottom:2px;padding:4px 8px;border:1px solid var(--pd-accent);border-radius:6px;font-size:12.5px;font-weight:600}
+.pd-frame .pd-tabs-canvas-panel{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));align-items:start;gap:10px;min-height:64px;padding:12px 4px 4px;border-radius:8px}
+.device-tablet .pd-tabs-canvas-panel,.device-mobile .pd-tabs-canvas-panel{gap:8px}
+.pd-tabs-canvas-panel.is-accepting{background:repeating-linear-gradient(90deg,transparent 0 calc(100%/12 - 1px),#f1effa calc(100%/12 - 1px) calc(100%/12))}
+.pd-frame .pd-tabs-empty.is-drop{padding:22px 8px;border:2px dashed var(--pd-accent-line);border-radius:10px}
+.pd-tab-block{min-width:0}
+.pd-drop-placeholder{display:flex;align-items:center;justify-content:center;min-width:0;min-height:62px;padding:8px;border:2px dashed var(--pd-accent);border-radius:10px;background:var(--pd-accent-soft);color:var(--pd-accent);font-size:12.5px;font-weight:600;text-align:center}
+.pd-grid>.pd-drop-placeholder{position:relative;z-index:1}
+@media (prefers-reduced-motion: reduce){.pd-grid>[data-flip],.pd-tabs-canvas-panel>[data-flip]{transition:none!important}}
+/* Müfettiş: sıralanabilir sekme listesi ve sekmedeki bileşenin konumu */
+.pd-tab-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.pd-tab-row{display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--pd-line);border-radius:8px;background:#fff}
+.pd-tab-row[draggable=true]{cursor:grab}
+.pd-tab-row.is-dragging{opacity:.4}
+.pd-tab-row.drop-before{box-shadow:inset 0 2px 0 var(--pd-accent)}
+.pd-tab-row.drop-after{box-shadow:inset 0 -2px 0 var(--pd-accent)}
+.pd-tab-row-grip{display:inline-flex;color:#98a2b3}
+.pd-tab-row-label{flex:1;min-width:0;padding:2px 4px;border:1px solid transparent;border-radius:5px;background:transparent;font:inherit;font-size:12.5px}
+.pd-tab-row-label:hover,.pd-tab-row-label:focus{border-color:var(--pd-line);background:#fff}
+.pd-tab-row-default{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.pd-tab-row-default em{color:#667085;font-size:11px;font-style:normal}
+.pd-tab-row-actions{display:inline-flex}
+.pd-tab-row-actions .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-tab-row-actions .pd-icon-button:disabled{opacity:.3}
+.pd-tab-row-actions .pd-icon-button.danger{color:var(--pd-danger)}
+.pd-tab-list-hint{color:#667085;font-size:11.5px}
+.pd-tab-location{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:0 0 8px;padding:6px 8px;border:1px solid var(--pd-accent-line);border-radius:8px;background:var(--pd-accent-soft)}
+.pd-link-button{padding:0;border:0;background:transparent;color:#5132c7;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+/* Sekmedeki bileşenin etiketi yalnız o blok üzerindeyken ya da seçiliyken görünür (kabın üzerine gelmek hepsini yakmaz) */
+.pd-tabs-canvas .pd-tab-block .pd-block-label{display:none}
+.pd-tabs-canvas .pd-tab-block:hover>.pd-block-label,.pd-tabs-canvas .pd-tab-block.is-selected>.pd-block-label{display:block}
+.pd-inline{display:grid;grid-template-columns:90px 1fr auto;gap:4px;align-items:center;margin-bottom:4px}

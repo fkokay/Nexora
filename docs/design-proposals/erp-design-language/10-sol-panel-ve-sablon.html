@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Sol panel bölümleri ve şablonla başlama</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1050px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.left{width:260px;height:640px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 4px 18px rgba(15,27,45,.08);font-size:12.5px;display:flex;flex-direction:column;overflow:hidden}
+.srch{margin:10px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--mut)}
+.sec{border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sec.grow{flex:1}
+.sh{display:flex;align-items:center;gap:6px;padding:9px 12px;font-weight:700;font-size:12px;cursor:pointer;background:#fbfbfe}
+.sh .n{margin-left:auto;background:#eef1f7;color:#55647c;border-radius:999px;padding:0 7px;font-size:11px}
+.sh .add{color:var(--st);font-weight:700;margin-left:6px}
+.sb{overflow:auto;padding:4px 10px 8px}
+.g{font-size:10.5px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:8px 0 4px}
+.it{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:7px}
+.it.sel{background:var(--st-soft);color:var(--st);font-weight:600}
+.lay{padding-left:14px}
+.q{display:flex;justify-content:space-between;padding:5px 6px;border-radius:7px}.q em{font-style:normal;color:var(--mut);font-size:11px}
+.modal-wrap{flex:1;min-width:640px;background:rgba(15,27,45,.35);border-radius:12px;padding:26px;display:flex;justify-content:center}
+.modal{width:720px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px;overflow:hidden}
+.mh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}.mh b{font-size:14px;flex:1}
+.mb{padding:14px 16px}
+.f{margin-bottom:10px}.f label{display:block;font-weight:600;margin-bottom:4px}
+.in{border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tpl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.t{border:1px solid var(--line);border-radius:10px;padding:10px}.t.on{border-color:var(--st);box-shadow:0 0 0 2px var(--st-soft)}
+.t .pv{height:56px;border-radius:6px;background:repeating-linear-gradient(0deg,#f3f2fa 0 8px,#fff 8px 14px);margin-bottom:6px}
+.t b{display:block}.t small{color:var(--mut)}
+.mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.btn{border:1px solid #d8d0fb;background:#fff;color:var(--st);border-radius:7px;padding:6px 10px;font-weight:600}.btn.pri{background:var(--st);color:#fff;border-color:var(--st)}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+</style></head><body>
+<h1>Sol panel alt alta bölümler · şablon sayfa oluşturulurken seçilir</h1>
+<p class="sub">Taslak · 2026-11-18 · Sekmeler (Bileşenler / Katmanlar / Sorgular / Şablon) kalkar. Bileşenler, Katmanlar ve Sorgular tek panelde alt alta, açılır kapanır bölümler olur; panelin yüksekliği aralarında paylaşılır. Şablon, tasarlanan sayfanın içinden değil, "Yeni özel sayfa" penceresinde seçilir.</p>
+
+<div class="lbl">1 · Sol panel — alt alta bölümler</div>
+<div class="row">
+  <div class="left">
+    <div class="srch">⌕ Bileşen, katman veya sorgu ara</div>
+    <div class="sec grow"><div class="sh">▾ Bileşenler</div>
+      <div class="sb"><div class="g">TASARIM DİLİ</div><div class="it">▦ İşlem Çubuğu</div><div class="it">▤ Form kartı</div><div class="it">◨ Bağlam paneli</div><div class="it">⌕ Filtre çipleri</div><div class="it">▭ Sekmeler</div><div class="it">▢ Pencere</div><div class="g">VERİ</div><div class="it">☰ Izgara</div><div class="it">◔ Veri göstergesi</div></div></div>
+    <div class="sec"><div class="sh">▾ Katmanlar <span class="n">82</span></div>
+      <div class="sb" style="max-height:150px"><div class="it">▦ komutlar</div><div class="it">▭ detaySekmeleri</div><div class="it lay">◔ Bakiye</div><div class="it lay sel">☰ liste</div><div class="it">▢ kartPenceresi</div></div></div>
+    <div class="sec"><div class="sh">▸ Sorgular <span class="n">25</span><span class="add">＋</span></div></div>
+  </div>
+  <div style="max-width:520px">
+    <p class="note" style="margin-top:0">• Her bölüm başlığa tıklanarak açılır/kapanır; açık bölümler alanı paylaşır, bölüm sınırları sürüklenerek boyutlandırılır. Açık/kapalı durumu hatırlanır.</p>
+    <p class="note">• Katmanlar sekmeleri ve pencereleri ağaç olarak gösterir (sekme içindeki bileşenler girintili). Tuvalde seçilen bileşen katmanlarda vurgulanır; katmanda tıklanan bileşen tuvalde seçilir.</p>
+    <p class="note">• Sorgular bölümünde liste ve "＋" ile yeni sorgu; sorguya tıklayınca düzenleme penceresi açılır (özellikler panelindeki "Yeni sorgu / Düzenle" ile aynı pencere).</p>
+    <p class="note">• Üstteki tek arama kutusu üç bölümde birden arar.</p>
+  </div>
+</div>
+
+<div class="lbl">2 · "Yeni özel sayfa" — şablonla başlama</div>
+<div class="row"><div class="modal-wrap"><div class="modal">
+  <div class="mh"><b>Yeni özel sayfa</b><span>✕</span></div>
+  <div class="mb">
+    <div class="grid2"><div class="f"><label>Sayfa adı</label><div class="in">Masraf merkezleri</div></div><div class="f"><label>Sayfa kodu</label><div class="in">masraf-merkezleri</div></div></div>
+    <div class="f"><label>Şablon</label>
+      <div class="tpl">
+        <div class="t"><div class="pv"></div><b>Boş sayfa</b><small>Bileşenleri kendiniz ekleyin.</small></div>
+        <div class="t on"><div class="pv"></div><b>Liste ekranı</b><small>Göstergeler, süzgeç, tablo ve detay.</small></div>
+        <div class="t"><div class="pv"></div><b>Kayıt kartı</b><small>Bölüm gezgini ve form kartları.</small></div>
+        <div class="t"><div class="pv"></div><b>Tanım</b><small>Solda liste, sağda düzenleme formu.</small></div>
+        <div class="t"><div class="pv"></div><b>Rapor</b><small>Parametre paneli ve toplamlı tablo.</small></div>
+        <div class="t"><div class="pv"></div><b>Ana sayfa paneli</b><small>Göstergeler, yapılacaklar, son kayıtlar.</small></div>
+      </div></div>
+  </div>
+  <div class="mf"><span class="btn">Vazgeç</span><span class="btn pri">Oluştur ve tasarla</span></div>
+</div></div></div>
+<p class="note">Tasarım başladıktan sonra şablon değiştirilmez; bu yüzden tasarımcının içindeki Şablon sekmesi kaldırılır. Boş bir sayfada tuvalin ortasında "Şablonla başla" bağlantısı yine görünür (yalnız sayfada hiç bileşen yokken).</p>
+</body></html>

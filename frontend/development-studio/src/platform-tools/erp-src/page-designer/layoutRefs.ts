@@ -97,6 +97,148 @@ export function ownableCandidates<C extends LayoutComponent>(components: C[], ow
     && !rowActions.has(component.id));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Yalnız Studio: tuvalde sekmeleri kap olarak düzenleme yardımcıları. Kayıt biçimi değişmez: `tabs` özelliği
+// "Etiket=kimlik,kimlik" girdileridir; bu yardımcılar yalnız o diziyi (ve `defaultTab`ı) yeniden yazar.
+// ---------------------------------------------------------------------------------------------------------------------
+
+export type TabEntry = { label: string; ids: string[] };
+export const MAX_TAB_LABEL = 40;
+
+/** Sekme listesinin kayıt biçimi: "Etiket=kimlik,kimlik". */
+export const tabsValue = (tabs: TabEntry[]) => tabs.map((tab) => `${tab.label}=${tab.ids.join(",")}`);
+
+/** Bileşenin sekmedeki yeri: ilk sahiplenen Sekmeler bileşeni (uzlaştırmadaki sırayla aynı). */
+export function tabLocation(components: LayoutComponent[], id: string): { tabsId: string; tabIndex: number; position: number } | null {
+  for (const component of components) {
+    if (component.type !== "tabs") continue;
+    const tabs = parseTabs(component.props?.tabs);
+    for (let tabIndex = 0; tabIndex < tabs.length; tabIndex++) {
+      const position = tabs[tabIndex].ids.indexOf(id);
+      if (position >= 0) return { tabsId: component.id, tabIndex, position };
+    }
+  }
+  return null;
+}
+
+/** Sekmeye alınamayan türler (sunucudaki sekme kuralı): Sekmeler, İşlem Çubuğu ve Pencere. */
+export const TAB_FORBIDDEN_TYPES = ["tabs", "actionBar", "dialog"];
+
+/**
+ * Bir bileşen (var olan: `id` ile; paletten yeni: yalnız `type` ile) verilen sekmeye bırakılabilir mi? Uygunsa `null`,
+ * değilse kullanıcıya gösterilecek neden. Kurallar `ownableCandidates` ve uzlaştırmadakiyle aynıdır.
+ */
+export function tabPlacementProblem(components: LayoutComponent[], tabsId: string, tabIndex: number, moving: { id?: string; type: string }): string | null {
+  const owner = components.find((component) => component.id === tabsId && component.type === "tabs");
+  if (!owner) return "Sekmeler bileşeni bulunamadı.";
+  const tabs = parseTabs(owner.props?.tabs);
+  if (!Number.isInteger(tabIndex) || tabIndex < 0 || tabIndex >= tabs.length) return "Sekme bulunamadı.";
+  if (TAB_FORBIDDEN_TYPES.includes(moving.type)) return "Sekmeler, İşlem Çubuğu ve Pencere bir sekmeye konamaz.";
+  if (moving.id !== undefined) {
+    if (moving.id === tabsId) return "Sekmeler kendi içine konamaz.";
+    if (!ownableCandidates(components, { id: tabsId, type: "tabs" }).some((component) => component.id === moving.id)) {
+      return "Bu bileşen sekmeye alınamaz (form kartı, yan filtre paneli, liste araması ya da satır işlemine bağlı).";
+    }
+  }
+  const ids = tabs[tabIndex].ids;
+  if (ids.length >= MAX_TAB_IDS && !(moving.id !== undefined && ids.includes(moving.id))) return `Bir sekmede en fazla ${MAX_TAB_IDS} bileşen olabilir.`;
+  return null;
+}
+
+/** Kimliği bütün Sekmeler bileşenlerinden çıkarır (bileşen sayfadaki kendi yerine döner). Değişmeyen bileşenler aynı kalır. */
+export function removeFromTabs<C extends LayoutComponent>(components: C[], id: string): C[] {
+  let changed = false;
+  const next = components.map((component) => {
+    if (component.type !== "tabs") return component;
+    const tabs = parseTabs(component.props?.tabs);
+    if (!tabs.some((tab) => tab.ids.includes(id))) return component;
+    changed = true;
+    return { ...component, props: { ...component.props, tabs: tabsValue(tabs.map((tab) => ({ ...tab, ids: tab.ids.filter((item) => item !== id) }))) } } as C;
+  });
+  return changed ? next : components;
+}
+
+/**
+ * Var olan bileşeni sekmenin `position` sırasına yerleştirir: önce bütün sekmelerden çıkarılır (bir bileşen tek sekmede
+ * olur), sonra hedef sekmeye eklenir. Aynı sekmede ileri taşımada çıkarılan yer hesaba katılır. Kural ihlalinde `null`.
+ */
+export function placeInTab<C extends LayoutComponent>(components: C[], tabsId: string, tabIndex: number, id: string, position: number): C[] | null {
+  const moving = components.find((component) => component.id === id);
+  if (!moving || tabPlacementProblem(components, tabsId, tabIndex, { id, type: moving.type })) return null;
+  const from = tabLocation(components, id);
+  let at = Math.max(0, Math.floor(Number.isFinite(position) ? position : Number.MAX_SAFE_INTEGER));
+  if (from && from.tabsId === tabsId && from.tabIndex === tabIndex && from.position < at) at -= 1;
+  const next = removeFromTabs(components, id).map((component) => {
+    if (component.id !== tabsId) return component;
+    const tabs = parseTabs(component.props?.tabs).map((tab, index) => {
+      if (index !== tabIndex) return tab;
+      const ids = [...tab.ids];
+      ids.splice(Math.min(at, ids.length), 0, id);
+      return { ...tab, ids };
+    });
+    return { ...component, props: { ...component.props, tabs: tabsValue(tabs) } } as C;
+  });
+  // Aynı yere bırakmak değişiklik sayılmaz (geri alma yığınına boş adım düşmesin).
+  const unchanged = next.every((component, index) => component === components[index] || sameStrings(component.props?.tabs, components[index].props?.tabs));
+  return unchanged ? components : next;
+}
+
+/** Sekmedeki bileşeni kendi sekmesinde bir öne (-1) ya da bir sonraya (+1) taşır; sekmede değilse ya da uçtaysa `null`. */
+export function moveWithinTab<C extends LayoutComponent>(components: C[], id: string, delta: -1 | 1): C[] | null {
+  const from = tabLocation(components, id);
+  if (!from) return null;
+  const owner = components.find((component) => component.id === from.tabsId);
+  const tabs = parseTabs(owner?.props?.tabs);
+  const ids = [...tabs[from.tabIndex].ids];
+  const target = from.position + delta;
+  if (target < 0 || target >= ids.length) return null;
+  [ids[from.position], ids[target]] = [ids[target], ids[from.position]];
+  tabs[from.tabIndex] = { ...tabs[from.tabIndex], ids };
+  return components.map((component) => component.id === from.tabsId ? { ...component, props: { ...component.props, tabs: tabsValue(tabs) } } as C : component);
+}
+
+/** Varsayılan sekme sınırlar içinde tutulur (sekmesiz listede 0). */
+export const clampDefaultTab = (defaultTab: number, count: number) =>
+  count === 0 ? 0 : Number.isInteger(defaultTab) ? Math.max(0, Math.min(defaultTab, count - 1)) : 0;
+
+/** Sekmeyi `from` sırasından `to` sırasına taşır (sürükle-bırak sıralaması); varsayılan sekme taşınan sekmeyle birlikte gider. */
+export function moveTab(tabs: TabEntry[], defaultTab: number, from: number, to: number): { tabs: TabEntry[]; defaultTab: number } {
+  const current = clampDefaultTab(defaultTab, tabs.length);
+  if (from < 0 || from >= tabs.length || to < 0 || to >= tabs.length || from === to) return { tabs, defaultTab: current };
+  const next = [...tabs];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  const defaultLabelHolder = tabs[current];
+  return { tabs: next, defaultTab: next.indexOf(defaultLabelHolder) };
+}
+
+/** Sekmeyi siler; içindeki bileşenler sayfaya döner. Varsayılan sekme silinen sekmeden sonra geliyorsa bir geri kayar. */
+export function removeTab(tabs: TabEntry[], defaultTab: number, index: number): { tabs: TabEntry[]; defaultTab: number } {
+  const current = clampDefaultTab(defaultTab, tabs.length);
+  if (index < 0 || index >= tabs.length) return { tabs, defaultTab: current };
+  const next = tabs.filter((_, i) => i !== index);
+  return { tabs: next, defaultTab: clampDefaultTab(current > index ? current - 1 : current === index ? 0 : current, next.length) };
+}
+
+/** Sona boş bir sekme ekler ("Yeni sekme", "Yeni sekme 2"…); en çok 8 sekme dolduysa `null`. */
+export function addTab(tabs: TabEntry[]): TabEntry[] | null {
+  if (tabs.length >= MAX_TABS) return null;
+  let label = "Yeni sekme";
+  for (let number = 2; tabs.some((tab) => tab.label === label); number++) label = `Yeni sekme ${number}`;
+  return [...tabs, { label, ids: [] }];
+}
+
+/** Sekmeyi yeniden adlandırır; etiket sunucu kuralına (`^[^=,]{1,40}`) uymuyorsa ya da değişmiyorsa `null`. */
+export function renameTab(tabs: TabEntry[], index: number, label: string): TabEntry[] | null {
+  if (index < 0 || index >= tabs.length || !label || label.length > MAX_TAB_LABEL || /[=,]/.test(label) || tabs[index].label === label) return null;
+  return tabs.map((tab, i) => i === index ? { ...tab, label } : tab);
+}
+
+function sameStrings(left: unknown, right: unknown): boolean {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+  return left.every((item, index) => item === right[index]);
+}
+
 /** "sütun=Etiket" girdileri; bozuk (ayraçsız veya boş kısımlı) girdiler atlanır. */
 export function parseFieldList(value: unknown): { code: string; label: string }[] {
   if (!Array.isArray(value)) return [];

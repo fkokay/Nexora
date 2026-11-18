@@ -5,7 +5,8 @@ Bu liste, Proje 4'ün canlı QA betiğidir. Her satır, eski ekranın bir öğes
 `2026-11-18-stok-esdegerlik-envanteri.md` belgesinin 1–4. ve 6. bölümlerini izler.
 
 Kaynaklar:
-- Standart tanım: `inventory-stock.json` (82 bileşen, 25 sorgu).
+- Standart tanım: `inventory-stock.json` (90 bileşen, 25 sorgu). Görünüm düzeltmeleri (2026-11-18, `fix/stok-gorunum`)
+  sürüm 1'de yapıldı: standart `preview` aşamasındadır ve hiçbir firma yayımlamadı.
 - Çizim testleri: `frontend/erp-web/src/system-pages/inventoryStockStandard.test.tsx`. Bu testler tanımı gerçek çalışma
   zamanıyla, sahte API yanıtlarıyla çizer. Katalog, `inventoryStockOperations.fixture.json` dosyasındaki
   `ErpOperationCatalog` anlık görüntüsünden gelir.
@@ -27,16 +28,19 @@ Kaynaklar:
 |---|---|---|---|
 | Satırlar bakiye sayfasından gelir (tüm depolar ya da tek depo) | `liste` ← `bakiye` (`stok.bakiye.sayfa`). Depo seçilince `routeVariants` ile `/api/warehouses/{id}/balances/page` yoluna geçer. (test: `list requests balances page with filters and paging`) | karşılandı | |
 | Yalnız aktif kartlar listelenir; "devre dışı kartlar" paneline erişilemez | `pasifler` onay kutusu ("Pasif kartları da göster") → `includeInactive=true` (test: aynı). Panel taşınmadı (envanter 6, "Taşınmayacaklar"). | fark | |
-| Arama: kod, ad, barkod, kategori; 250 ms gecikme; sayfa 1'e döner | `aramaKutusu`, `liste.searchInput` üzerinden `q` parametresine bağlıdır. Gecikmeyi çalışma zamanının sorgu gecikmesi (300 ms) belirler. Sayfanın 1'e dönmesi canlıda kontrol edilecek. | karşılandı | |
+| Arama: kod, ad, barkod, kategori; 250 ms gecikme; sayfa 1'e döner | `aramaKutusu` araç satırının (`suzgecKarti`) ilk girişidir ve `q` parametresine bağlıdır; `q` değişince sayfa anahtarı değiştiğinden liste 1. sayfaya döner. Gecikmeyi çalışma zamanının sorgu gecikmesi (300 ms) belirler. Sayfanın 1'e dönmesi canlıda kontrol edilecek. | karşılandı | |
 | Sayfa başına 25 kayıt | `liste.paging: server`, `pageSize: 25` → `page=1&pageSize=25` (test: aynı) | karşılandı | |
 
 ### Sütunlar
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Liste sütunları: Stok kodu, Stok adı, Kategori, Depo bakiyesi, Rezerve, Kullanılabilir, Minimum, Stok değeri, Maliyetsiz miktar, Durum | `liste.columns`: `balance.code`, `balance.name`, `stockItem.category`, `balance.quantityOnHand`, `balance.reservedQuantity`, `balance.availableQuantity`, `balance.minimumStock`, `balance.valuationAmountBase`, `balance.unvaluedQuantity`, `status`. Biçimler `columnFormats` ile verilir (kod, sayı, para, durum). | karşılandı | |
-| Sütun başlıkları ekran görünümünden gelir ("Depo bakiyesi") | Başlıklar katalog etiketlerinden gelir: "Eldeki miktar", "Rezerve miktar", "Kullanılabilir miktar", "Maliyetsiz miktar", "Minimum stok". `screenViews` yalnız görünürlüğü alır. | fark | |
-| Miktar ve birim tek hücrede ("12 ADET") | Birim ayrı gösterilir: detay panelindeki "Birim" alanı ve "Kullanılabilir" göstergesinin açıklaması ("Bu sayfa · ADET"). | fark | |
+| Liste sütunları: Stok kodu, Stok adı, Kategori, Depo bakiyesi, Rezerve, Kullanılabilir, Minimum, Stok değeri, Maliyetsiz miktar, Durum | `liste.columns`: `balance.code`, `balance.name`, `stockItem.category`, `balance.quantityOnHand`, `balance.reservedQuantity`, `balance.availableQuantity`, `balance.minimumStock`, `balance.valuationAmountBase`, `balance.unvaluedQuantity`, `status`. Biçimler `columnFormats` ile verilir (kod, sayı, para, durum). Sütunlar `columns` sırasıyla çizilir (çalışma zamanı artık sorgunun sütun sırasını değil seçim sırasını izler). | karşılandı | |
+| Liste tam genişlikte, 1440 px'te yatay kaydırma yok | `liste.width: 12`; yalnız detay paneli açıkken `widthWhen: "8=…"` ile 8'e iner. Kod hücresi tek satır (en az 100 px), metin hücresi sözcük sınırında kırılır (en az 160 px); dar tabloda harf harf kırılma olmaz. | karşılandı | |
+| Sütun başlıkları ekran görünümünden gelir ("Depo bakiyesi") | `liste.columnLabels`: "Stok kodu", "Stok adı", "Kategori", "Depo bakiyesi", "Rezerve", "Kullanılabilir", "Minimum", "Stok değeri", "Maliyetsiz miktar", "Durum". `screenViews` yalnız görünürlüğü alır. | karşılandı | |
+| Miktar ve birim tek hücrede ("12 ADET"); değer "0,00 TRY" | `liste.columnUnits`: miktar sütunlarına `balance.unitCode`, stok değerine `balance.baseCurrencyCode` eklenir. | karşılandı | |
+| Satır onay kutuları, geçerli satır, yoğunluk; "Sütun filtreleri", "Sütunlar", "Pivot görünümü" | Çalışma zamanı tablosu bunları sunmaz. Eski `AdvancedDataGrid`'in veri listesine bağlanması ayrı iş olarak planlandı (rapor: "AdvancedDataGrid planı"). | kapsam dışı | |
+| Klavye ipuçları satırı ("↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+Del sil · Ctrl+. detay paneli") | Yok; alt satırda yalnız sayfalayıcı ve `footerMeta` vardır. | kapsam dışı | |
 | Kullanılabilir sütununda seviye çubuğu (kullanılabilir/minimum oranı: %50 altı kötü, %100 altı uyarı) | Çubuk yok. Yerine `Durum` sütunu gelir: sunucunun hesapladığı durum, `toneMap` tonuyla gösterilir ("Minimum altı" kırmızı, "Maliyetsiz" sarı, "Yeterli" yeşil, "Pasif" mavi). | fark | |
 | Durum önceliği: Pasif > Minimum altı > Maliyetsiz > Yeterli | `InventoryBalancePageItem.Status` sunucuda aynı öncelikle hesaplanır (`InventoryBalancePageSummary`). | karşılandı | |
 
@@ -45,15 +49,20 @@ Kaynaklar:
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
 | Depo seçici: aranabilir, "Tüm depolar" seçeneği | `depoSecimi`: lookup, `optionsQuery: depolar`, `staticOptions: ["=Tüm depolar"]`, `allowClear` (test: `list requests balances page with filters and paging`) | karşılandı | |
-| "Minimum altı" çipi, sayısıyla | `minimumAlti` onay kutusu; etiketi "Minimum altı ({{bakiye.meta.belowMinimumCount}})" (test: `metrics show formatted page meta and minimum filter toggles`) | karşılandı | |
+| Tek araç satırı: arama, Depo, "Minimum altı N" çipi, "Detay paneli" | `suzgecKarti` (`layout: "inline"`): kartsız, başlıksız tek satır; `aramaKutusu` (etiket görsel olarak gizli), `depoSecimi` (~220 px), `minimumAlti` ve `pasifler` çip görünümlü onay kutuları, `detayPaneli` sağa yaslı. Göstergelerden sonra, listeden önce gelir. | karşılandı | |
+| "Minimum altı" çipi, sayısıyla | `minimumAlti` onay kutusu (çip); etiketi "Minimum altı {{bakiye.meta.belowMinimumCount}}" (test: `metrics show formatted page meta and minimum filter toggles`) | karşılandı | |
+| Başlıkta "N kayıt" sayısı | Sayfa başlığı çalışma zamanından gelir ve bağlama almaz; kayıt sayısı listenin alt satırındadır ("1–2 / 2"). | fark | |
+| Sağ "Widgetler" rayı (Kritik stoklar, Stoksuz ve rezerve, Depo dağılımı, En çok hareket görenler, Hareketsiz stoklar, Yaklaşan SKT'ler) | Ray sayfanın değil kabuğun parçasıdır (`CustomerReferenceSidebar`, `page === "inventory-stock"`). Yayımlanan sistem sayfası aynı sayfa anahtarında çizildiği için ray aynen görünür; tanıma ayrıca eklenmedi (iki kez çizilirdi). "Kritik stokları listede göster" bağlantısı yalnız eski ekranı süzer (`inventory-stock-widget-filter` olayı). | fark | |
 | Yenile düğmesi | İşlem Çubuğu'nun standart Yenile komutu (F5) | karşılandı | |
-| Özet kartı: Stok değeri (sayfa toplamı) | `stokDegeriGostergesi`: `pageValuationAmountBase`, para biçimi, "Bu sayfa · TRY" (test: aynı) | karşılandı | |
+| Özet kartı: Stok değeri (sayfa toplamı) | `stokDegeriGostergesi`: `pageValuationAmountBase`, para biçimi, "bu sayfa · TRY" (test: aynı) | karşılandı | |
 | Özet kartı: Kullanılabilir | `kullanilabilirGostergesi`: sayfa tek birimliyse `pageAvailableQuantity` ve birim. Birimler karışıksa yerine `kullanilabilirKartGostergesi` ("Kullanılabilir stoklu kart", kart sayısı) çıkar. (test: aynı) | fark | |
 | Özet kartı: Minimum altı (tıklayınca süzer) | `minimumAltiGostergesi`: `filterInput: minimumAlti`. Tıklama onay kutusunu açıp kapatır ve `belowMinimumOnly=true` gönderir. (test: aynı) | karşılandı | |
 | Özet kartı: Maliyetsiz | `maliyetsizGostergesi`: `pageUnvaluedCount` (test: aynı) | karşılandı | |
 | Alt bilgi: "N / toplam" ve sayfalayıcı | Sunucu sayfalı tablonun alt satırı ("1–2 / 2", Önceki/Sonraki) ve `footerMeta` ("Minimum altı") | karşılandı | |
 | Alt bilgi: seçili kayıt sayısı ve değeri | Liste tek seçimlidir; seçili sayısı ve değeri gösterilmez. Toplu seçim yoktur. | fark | |
-| Detay paneli aç/kapat: Ctrl+. | Kısayol yok. Detay sekmeleri bir satır seçiliyken görünür (`visibleWhen`). | kapsam dışı | |
+| Detay paneli aç/kapat | `detayPaneli` anahtarı (varsayılan açık). Açıkken ve satır seçiliyken `detaySekmeleri` listenin sağında 4 sütunluk panel olur, liste 8'e iner. | karşılandı | |
+| Detay paneli kısayolu: Ctrl+. | Kısayol yok. | kapsam dışı | |
+| Negatif stok koruması bilgi şeridi (liste altında, "Etkin" rozeti) | `negatifStokKorumaAcik` / `negatifStokKorumaKapali` uyarıları (`alert`, tam genişlik, `ayar.negatifStok`'a göre); herkese görünür. Ayar okunamazsa şerit çıkmaz. Sağdaki "Etkin" rozeti yok. | fark | |
 
 ### Komutlar
 
@@ -77,10 +86,11 @@ Kaynaklar:
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Başlık: stok kodu ve adı | `ozetPaneli.title`: "{{kod}} · {{ad}}" | karşılandı | |
-| Başlık: durum etiketi ve Lot/Seri etiketi | Etiket yerine panel alanları gelir: "Durum" ve "Lot / seri" | fark | |
-| Başlıkta Aç ve Kapat düğmeleri | Aç, İşlem Çubuğu'ndadır. Kapat düğmesi yok; satır seçimi kaldırılınca panel gizlenir. | fark | |
-| Özet sekmesi: bakiye, kullanılabilir, rezerve, minimum, değer, maliyetsiz, kategori, birim | `ozetPaneli` (10 alan; ek olarak Lot / seri ve Durum) | karşılandı | |
+| Panel yeri: listenin sağında | `detaySekmeleri.width: 4`, listeden hemen sonra; liste `widthWhen` ile 8'e iner. İçerikleri paneli doldurur (`width: 12`). | karşılandı | |
+| Başlık: stok kodu ve adı | `ozetBaslik` (başlık bileşeni): "{{kod}} · {{ad}}" | karşılandı | |
+| Başlık: durum etiketi ve Lot/Seri etiketi | Etiket yerine panel alanları gelir: "Durum" ve "Lot / seri"; takip türü `liste.valueLabels` ile "Yok / Lot / Seri" yazılır (ham "None" değil). | fark | |
+| Başlıkta Aç ve Kapat düğmeleri | Aç, İşlem Çubuğu'ndadır. Kapat yerine "Detay paneli" anahtarı ya da seçimin kaldırılması paneli gizler. | fark | |
+| Özet sekmesi: bakiye, kullanılabilir, rezerve, minimum, değer, maliyetsiz, kategori, birim | Tasarımcıda tek tek seçilebilen bileşenler: `ozetBakiye`, `ozetKullanilabilir`, `ozetRezerve` (miktar + birim), `ozetStokDegeri` (para + birim) göstergeleri ve `ozetPaneli` ("Kart bilgileri": Minimum, Maliyetsiz, Kategori, Birim, Lot / seri, Durum). "Hareketler / ekle" düğmesi İşlem Çubuğu'nun menüsünde kalır (taşınan düğme sekmede çizilmez). | karşılandı | |
 | Depolar sekmesi (bugün her depo için ayrı çağrı) | `kartDepoTablosu` ← `kartDepolari` (`GET /api/stock/items/{id}/balances`, tek çağrı) | karşılandı | |
 | Hareketler sekmesi: son 5 hareket | `sonHareketTablosu` ← `sonHareketler` (`stok.kart.hareketleri`), `limit: 5`. Uç noktanın varsayılan sayfası okunur, ilk 5 satır çizilir. | karşılandı | |
 | Yalnız açık sekme yüklenir; seçimden 150 ms sonra; eski yanıtlar atılır | Üç detay sorgusu sekme açılmadan, seçimle birlikte yüklenir (300 ms gecikme). Eski yanıtları çalışma zamanı atar. | fark | |
@@ -129,7 +139,8 @@ Kaynaklar:
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Kimlik: `code` * (≤ 64, büyük harf), `name` * (≤ 200), `barcode` (≤ 64), `category`, `trackingMode`, `unitCode` * (≤ 8) | `kimlikKarti`: `kod`, `ad`, `barkod`, `kategori` (lookup), `takipTuru` (None/Lot/Serial), `anaBirim` | karşılandı | |
+| Kimlik: `code` * (≤ 64, büyük harf), `name` * (≤ 200), `barcode` (≤ 64), `category`, `trackingMode`, `unitCode` * (≤ 8) | `kimlikKarti`: `kod` *, `ad` *, `barkod`, `kategori` (açılır liste, `kategoriler` + listede olmayan geçerli değer), `takipTuru` (açılır liste: Yok / Lot / Seri), `anaBirim` * (metin). Zorunlu girişlerin etiketinde "*" görünür. | karşılandı | |
+| Pencere arkası | Çekmece/pencere arkası yarı saydam karartmadır (`rgba(15,27,45,.35)`); sayfa görünür kalır. | karşılandı | |
 | Stok yönetimi: minimum, maksimum, yeniden sipariş, emniyet; tedarik ve üretim süresi (0–3650) | `stokKarti`: altı sayı girişi (`min 0`; süreler `max 3650`, `step 1`) | karşılandı | |
 | Fiyat: alış ve satış liste fiyatı (≥ 0); `priceCurrencyCode` (3 harf) | `fiyatKarti`: `alisFiyati`, `satisFiyati`, `fiyatParaBirimi` (`^[A-Z]{3}$`) | karşılandı | |
 | İndirim: alış ve satış (0–100) | `fiyatKarti`: `alisIndirimi`, `satisIndirimi` | karşılandı | |
