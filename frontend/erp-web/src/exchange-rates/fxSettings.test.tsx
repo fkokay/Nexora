@@ -223,5 +223,8 @@ describe('Kur ve değerleme (characterization)', () => {
     expect(screen.queryByLabelText(/^Kaynak \/ not$/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'TCMB’den çek' })).toBeNull();
     expect(screen.queryByLabelText(/^Dönem sonu tarihi/)).toBeNull();
+    // The rate list's CSV is in İşlemler (its XLSX is the bar's Excel).
+    fireEvent.click(barCommand('more'));
+    expect(document.querySelector('[role="menuitem"][data-item="export-csv"]')).not.toBeNull();
   });
 });

@@ -82,8 +82,10 @@
 #root .ledger-report-host .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; }
 #root .ledger-report-host .cf-code { color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 12px; }
 #root .ledger-report-host .glrp-table { width: 100%; border-collapse: collapse; }
-#root .ledger-report-host .glrp-table :is(th, td) { border-bottom: 1px solid var(--nx-line-soft); text-align: left; }
-#root .ledger-report-host .glrp-table :is(th, td).num { text-align: right; }
+/* TMS 7 sınıflandırması: two text columns (account, class picker), left aligned; no report-table minimum width, so it
+   fits a phone without sideways scrolling. */
+#root .ledger-report-host .glrp-card .glrp-table.cf-class-table { min-width: 0; }
+#root .ledger-report-host .glrp-card .glrp-table.cf-class-table :is(th, td) { text-align: left; white-space: normal; }
 #root .ledger-report-host .glrp-group-row th small { margin-left: 6px; color: var(--nx-muted); font-weight: 400; }
 #root .ledger-report-host .cf-class-table select { height: 26px; border-radius: var(--nx-radius-control); }
 

@@ -418,7 +418,7 @@ export function TrialBalanceView({ token }: { token: string }) {
                 </span>
               )}
               <span>
-                <span>{levelRows.length}</span> <span>hesap</span> · <span>Borç</span> <span>{formatAmount(visibleTotals.debit)}</span> · <span>Alacak</span>{" "}
+                <span>{visibleRows.length}</span> <span>hesap</span> · <span>Borç</span> <span>{formatAmount(visibleTotals.debit)}</span> · <span>Alacak</span>{" "}
                 <span>{formatAmount(visibleTotals.credit)}</span> · <span>Bakiye farkı</span> <span>{formatAmount(Math.abs(difference))}</span>
               </span>
             </ListFooter>

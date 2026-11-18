@@ -53,7 +53,6 @@
 #root .general-ledger-panel.list-v2 .glch-group-row.is-selected td { background: var(--nx-primary-soft); }
 #root .general-ledger-panel.list-v2 .glch-code { font-variant-numeric: tabular-nums; white-space: nowrap; }
 #root .general-ledger-panel.list-v2 .glch-name { overflow-wrap: anywhere; }
-#root .general-ledger-panel.list-v2 .glch-type { color: var(--nx-muted); font-size: 12.5px; white-space: nowrap; }
 #root .general-ledger-panel.list-v2 tr.glch-row { cursor: pointer; }
 #root .general-ledger-panel.list-v2 tr.glch-row:hover > td { background: var(--nx-table-head); }
 #root .general-ledger-panel.list-v2 tr.glch-row:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }

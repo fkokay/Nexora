@@ -1151,6 +1151,19 @@ export const english: Record<string, string> = {
   'Tahsil tarihi': 'Collection date',
   'Olay geçmişi': 'Event history',
   'Çek/senet kaydı düzenlenmez; işlemler İşlemler menüsünde': 'A cheque / note is not edited; its operations are in the Actions menu',
+  // Finans review fixes (modul-finans-7): titles, aria labels and texts moved to the new surfaces
+  'Parametreleri gizle (Ctrl+.)': 'Hide parameters (Ctrl+.)',
+  'Parametreleri göster (Ctrl+.)': 'Show parameters (Ctrl+.)',
+  'Döviz kuru listesi': 'Exchange rate list',
+  'Gecikme (gün)': 'Overdue (days)',
+  'Etkin faiz gideri': 'Effective interest expense',
+  'Ters kaydı oluştur': 'Post reversal',
+  'Çağrılmış işaretle': 'Mark as called',
+  'Para birimleri farklı; fark hesaplanmaz': 'Currencies differ; no variance is calculated',
+  'Satır bazında yön için tabloya bakın': 'See the table for the direction per line',
+  'Aylık karşılaştırma': 'Monthly comparison',
+  'Hesap bazında': 'By account',
+  'Onay için taslağı oluşturan dışında bir firma yöneticisi gerekir': 'Approval needs a company administrator other than the one who created the draft',
   'İşlemler › Tahsil et bu hesabı kullanır.': 'Actions › Collect uses this account.',
   'İşlemler › Ödendi olarak işle bu hesabı kullanır.': 'Actions › Mark as paid uses this account.',
   // Krediler & Finansman (İşlem Çubuğu, İşlemler)
@@ -1286,4 +1299,6 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+) hareket tablosu$/, '$1 movement table'],
   [/^(\d+) vadesi geçmiş$/, '$1 expired'],
   [/^(\d+) 30 gün içinde$/, '$1 within 30 days'],
+  [/^Planın %(\d+) gerçekleşti$/, '$1% of the plan realised'],
+  [/^(.+) aylık faiz tahakkuku$/, '$1 monthly interest accrual'],
 ]

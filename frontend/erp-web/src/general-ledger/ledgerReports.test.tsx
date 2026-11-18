@@ -143,6 +143,39 @@ describe('Mizan (characterization)', () => {
   });
 });
 
+describe('Rapor çerçevesi (LedgerReportFrame)', () => {
+  it('F9 runs the same request again, Ctrl+. hides / shows the parameters; Excel and CSV are disabled until a result exists', async () => {
+    let release: (() => void) | undefined;
+    apiMock.mockImplementationOnce(
+      (url: string) => new Promise((resolve) => (release = () => resolve(respond(url)))),
+    );
+    renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="trial-balance" />);
+    await settle();
+    const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+    const excel = () => bar().querySelector<HTMLElement>('[data-command="export"]')!;
+    expect(excel().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+    const csv = document.querySelector<HTMLElement>('[role="menuitem"][data-item="report-csv"]')!;
+    expect(csv.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+    release?.();
+    await settle();
+    expect(excel().getAttribute('aria-disabled')).not.toBe('true');
+    const before = requests(TB).length;
+    fireEvent.keyDown(window, { key: 'F9' });
+    await settle();
+    expect(requests(TB).length).toBe(before + 1);
+    expect(requests(TB).at(-1)).toEqual(requests(TB).at(-2));
+    expect(screen.getByRole('complementary', { name: 'Parametreler' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    await settle(50);
+    expect(screen.queryByRole('complementary', { name: 'Parametreler' })).toBeNull();
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    await settle(50);
+    expect(screen.getByRole('complementary', { name: 'Parametreler' })).toBeTruthy();
+  });
+});
+
 describe('Bilanço (characterization)', () => {
   it('requests the balance sheet as of today, a chosen date, a basis, and a comparison date', async () => {
     renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="balance-sheet" />);

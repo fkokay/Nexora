@@ -287,7 +287,10 @@ export default function FxExposurePage({
         description="Açık dövizli alacak ve borç faturalarını güncel kurla inceleyin."
         count={report ? foreign.length : null}
         countLabel="dövizli fatura"
-        onRun={() => void load()}
+        onRun={() => {
+          // Not again while the same GET is still running (the old Yenile button was disabled while loading).
+          if (!loading) void load();
+        }}
         onExportXlsx={() => void downloadXlsx(`${fileBase}.xlsx`, "Döviz pozisyonu", exportRows())}
         onExportCsv={() => downloadCsv(`${fileBase}.csv`, exportRows())}
         exportDisabledReason={foreign.length ? undefined : report ? "Dövizli açık fatura yok" : "Rapor henüz hazır değil"}

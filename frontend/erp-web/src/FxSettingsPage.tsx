@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CalendarDays, Coins, Globe2, Lock, X } from "lucide-react";
 import { api, localDateString } from "./erpApi";
-import AdvancedDataGrid from "./AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
@@ -10,6 +10,7 @@ import { ListFooter } from "./list-page/ListFooter";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListSummaryCards, type SummaryCard } from "./list-page/ListSummaryCards";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
 import type { PageCommands } from "./commands/types";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import { isInPopup, openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
@@ -425,22 +426,27 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
     setRateFrom(null);
     setRateBase(null);
   }
+  const rateExportRef = useRef<GridExportActions | null>(null);
   const commands: PageCommands = ratesTab
     ? {
         new: isAdmin
           ? { primary: !rateFormOpen, disabledReason: busy ? "İşlem sürüyor…" : undefined, run: () => void requestRate() }
           : { disabledReason: ADMIN_RATES },
         delete: { disabledReason: "Kurlar silinmez; düzeltme aynı gün için yeni revizyon olarak kaydedilir" },
-        more: isAdmin
-          ? [
-              {
-                id: "fx-import-tcmb",
-                label: busy ? "TCMB kurları alınıyor…" : "TCMB’den çek",
-                disabledReason: busy ? "İşlem sürüyor…" : undefined,
-                run: () => void importTcmb(),
-              },
-            ]
-          : [],
+        // The rate grid's CSV (its XLSX is the bar's Excel), as the old grid header offered both.
+        more: [
+          ...(isAdmin
+            ? [
+                {
+                  id: "fx-import-tcmb",
+                  label: busy ? "TCMB kurları alınıyor…" : "TCMB’den çek",
+                  disabledReason: busy ? "İşlem sürüyor…" : undefined,
+                  run: () => void importTcmb(),
+                },
+              ]
+            : []),
+          csvExportCommand(rateExportRef),
+        ],
       }
     : {
         new: isAdmin
@@ -488,6 +494,7 @@ export default function FxSettingsPage({ token, role }: { token: string; role: s
             enableRowSelection={false}
             selectable
             hideExport
+            exportActionsRef={rateExportRef}
             currentRowKey={isAdmin ? rateFrom : undefined}
             onCurrentRowChange={
               isAdmin
