@@ -19,7 +19,8 @@ export type QueryState = {
   /** ERP işleminin sunucu doğrulama hataları (işlem parametre adına göre). */
   fieldErrors?: Record<string, string>;
 };
-export type WriteResult = { affectedRows: number };
+/** ERP yazma işleminde `sonuc` sunucunun JSON yanıtıdır (SQL yazmalarında yoktur). */
+export type WriteResult = { affectedRows: number; sonuc?: unknown };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
 
 export const QUERY_DEBOUNCE_MS = 300;
@@ -69,6 +70,10 @@ export function usePageQueries(options: {
   rerun: (queryIds: string[]) => void;
   /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. Önizlemede `confirmWrite` açık onayı taşır. */
   runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean) => Promise<WriteResult>;
+  /** Okuma sorgusunu hemen çalıştırır ve sonucunu bekler; çalıştırılamazsa reddeder. */
+  runRead: (queryId: string) => Promise<QueryState>;
+  /** ERP işlemini doğrudan çağırır (yetki ve önizleme denetimi çağıranındır); JSON yanıtını döner. */
+  callOperation: (op: ErpOperation, values: Record<string, unknown>) => Promise<unknown>;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
@@ -131,7 +136,7 @@ export function usePageQueries(options: {
     ? { method: request.method, headers: { "Content-Type": "application/json" }, body: request.body }
     : { method: request.method };
 
-  const executeOperation = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+  const executeOperation = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState | undefined> => {
     const sequence = (sequences.current.get(query.name) ?? 0) + 1;
     sequences.current.set(query.name, sequence);
     const currentGeneration = generation.current;
@@ -142,20 +147,24 @@ export function usePageQueries(options: {
       const source = sourceRow(op);
       // Yol parametresi henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
       if (missingRouteValue(op, values, source)) {
-        if (sequences.current.get(query.name) === sequence && generation.current === currentGeneration) {
-          setStates((current) => ({ ...current, [query.name]: emptyState(false) }));
-        }
-        return;
+        if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
+        const idle = emptyState(false);
+        setStates((current) => ({ ...current, [query.name]: idle }));
+        return idle;
       }
       const request = buildOperationRequest(op, values, source);
       const json = await api<unknown>(request.url, token, operationInit(request));
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const mapped = mapOperationResult(op, json);
-      setStates((current) => ({ ...current, [query.name]: { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true } }));
+      const next: QueryState = { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     } catch (cause) {
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const failure = operationFailure(cause) as Error & { serverError?: string };
-      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
+      const next: QueryState = { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     }
   };
 
@@ -173,7 +182,7 @@ export function usePageQueries(options: {
     try {
       const json = await api<unknown>(request.url, token, operationInit(request));
       setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, sonuc: json } }));
-      return { affectedRows: 1 };
+      return { affectedRows: 1, sonuc: json };
     } catch (cause) {
       const failure = cause as Error & { fieldErrors?: Record<string, string[]> };
       const fieldErrors = fieldErrorsByParameter(op, failure.fieldErrors);
@@ -182,7 +191,7 @@ export function usePageQueries(options: {
     }
   };
 
-  const execute = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+  const execute = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState | undefined> => {
     if (query.operation !== undefined) return executeOperation(query, values);
     const sequence = (sequences.current.get(query.name) ?? 0) + 1;
     sequences.current.set(query.name, sequence);
@@ -192,16 +201,20 @@ export function usePageQueries(options: {
       const result = await api<RunResult>(endpointFor(query), token, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
       });
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const rows = Array.isArray(result.rows) ? result.rows : [];
-      setStates((current) => ({ ...current, [query.name]: {
+      const next: QueryState = {
         rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length,
         columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "", ran: true,
-      } }));
+      };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     } catch (cause) {
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const failure = cause as Error & { serverError?: string };
-      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
+      const next: QueryState = { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     }
   };
 
@@ -211,6 +224,24 @@ export function usePageQueries(options: {
     for (const plan of latestPlans.current) {
       if (plan.query.kind === "read" && queryIds.includes(plan.query.id) && !plan.waiting) void execute(plan.query, plan.values);
     }
+  };
+  /**
+   * Okuma sorgusunu (id) güncel parametrelerle hemen çalıştırır ve sonuç durumunu döner (kod bileşeni köprüsü).
+   * Bağlı olduğu sorgu yükleniyorsa ya da çalıştırma daha yenisiyle geçersizleşirse reddedilir; hiçbir zaman asılı kalmaz.
+   */
+  const runRead = async (queryId: string): Promise<QueryState> => {
+    const plan = latestPlans.current.find((candidate) => candidate.query.id === queryId && candidate.query.kind === "read");
+    if (!plan) throw new Error("Okuma sorgusu bulunamadı.");
+    if (plan.waiting) throw new Error("Sorgu şu an çalıştırılamaz; bağlı olduğu veri yükleniyor.");
+    const next = await execute(plan.query, plan.values);
+    if (!next) throw new Error("Sorgu daha yeni bir çalıştırmayla geçersizleşti.");
+    if (next.error) throw new Error(next.error);
+    return next;
+  };
+  /** Katalogdaki ERP işlemini doğrudan çağırır ve JSON yanıtını döner (kod bileşeni köprüsü; kaynak kayıt yok). */
+  const callOperation = async (op: ErpOperation, values: Record<string, unknown>): Promise<unknown> => {
+    const request = buildOperationRequest(op, values, null);
+    try { return await api<unknown>(request.url, token, operationInit(request)); } catch (cause) { throw operationFailure(cause); }
   };
   const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false): Promise<WriteResult> => {
     if (query.operation !== undefined) return runOperationWrite(query, values);
@@ -244,5 +275,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite };
+  return { states, scope, rerun, runWrite, runRead, callOperation };
 }
