@@ -4,6 +4,7 @@ import {
   Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
   RotateCcw, Rows3, Save, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, Shapes, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
+  Search,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
@@ -1833,7 +1834,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const show = (value: unknown) => value == null ? "" : String(value);
     return { ready: !!preview, rows: (preview?.rows ?? []).map((row) => ({ value: show(row[valueColumn]), label: show(row[labelColumn]) || show(row[valueColumn]), row })) };
   };
-  const renderInput = (component: PageComponent, style: CSSProperties) => {
+  /** `inline`: tek satırlık süzgeç (FormCard `layout: "inline"`) içinde ERP görünümü: kapalı açılır kutu, düğme gibi onay kutusu. */
+  const renderInput = (component: PageComponent, style: CSSProperties, inline = false) => {
     const props = component.props;
     const inputType = String(props.inputType || "text");
     const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
@@ -1848,9 +1850,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             ...parseStaticOptions(props.staticOptions).map((option) => ({ label: option.label, description: "" })),
             ...rows.map(({ label, row }) => ({ label, description: descriptionColumn && row[descriptionColumn] != null ? String(row[descriptionColumn]) : "" })),
           ];
-          return <LookupPreview placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")} options={options} ready={ready || !optionsQuery}/>;
+          return <LookupPreview placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")} options={options} ready={ready || !optionsQuery} compact={inline}/>;
         })()
         : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
+    if (inline && inputType === "checkbox") return <div key={component.id} className="pd-binding-preview-input is-checkbox is-toggle" style={style}><span className="pd-inline-toggle">{String(props.label || component.name)}</span></div>;
+    if (inline && inputType === "text" && props.placeholder) return <div key={component.id} className="pd-binding-preview-input is-search" style={style}><span className="pd-inline-search"><Search size={13} aria-hidden="true"/><input tabIndex={-1} readOnly placeholder={String(props.placeholder)} value={String(props.defaultValue ?? "")}/></span></div>;
     return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
   };
   const byComponentId = new Map(definition.components.map((item) => [item.id, item]));
@@ -1921,7 +1925,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "formCard": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
-        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}))}</FormCardPreview>;
+        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}, props.layout === "inline"))}</FormCardPreview>;
       }
       case "filterChips": {
         const chips = idList(props.inputs).flatMap((id) => {

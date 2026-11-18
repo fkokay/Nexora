@@ -1,6 +1,6 @@
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useFlip } from "./useFlip";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, Box, CheckCircle2, ChevronDown, Clock, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
 
@@ -97,9 +97,11 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
 }
 
 /** Arama kutusu (lookup) önizlemesi: arama simgeli metin kutusu ve ilk üç seçenek. */
-export function LookupPreview({ placeholder, value, options, ready }: {
-  placeholder: string; value: string; options: { label: string; description: string }[]; ready: boolean;
+/** `compact`: tek satırlık süzgeçte ERP'deki gibi kapalı açılır kutu (seçili değer ya da ilk seçenek, sağda ⌄). */
+export function LookupPreview({ placeholder, value, options, ready, compact = false }: {
+  placeholder: string; value: string; options: { label: string; description: string }[]; ready: boolean; compact?: boolean;
 }) {
+  if (compact) return <span className="pd-lookup-select"><input tabIndex={-1} readOnly placeholder={placeholder || "Seçin"} value={value || options[0]?.label || ""}/><ChevronDown size={14} aria-hidden="true"/></span>;
   return <div className="pd-lookup">
     <span className="pd-lookup-box"><Search size={13} aria-hidden="true" /><input tabIndex={-1} readOnly placeholder={placeholder || "Ara…"} value={value}/></span>
     <ul className="pd-lookup-list" aria-hidden="true">
