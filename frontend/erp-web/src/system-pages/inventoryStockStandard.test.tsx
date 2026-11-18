@@ -347,7 +347,10 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(disabledItem.getAttribute('title') ?? disabledItem.textContent).toContain('Hareket için önce bir depo seçin.');
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     await chooseWarehouse();
-    await selectCard();
+    // Depo süzgeci listeyi yeniden yükler; aynı kart seçili kalır.
+    await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
+    await settle(100);
+    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
     fireEvent.click(await menuItem(/Hareketler \/ ekle/));
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
     await within(dialog).findByText('Hareket 3', {}, T);
@@ -359,8 +362,11 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ direction: 'Receipt', quantity: 3, description: 'Sayım farkı', tracking: [] });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok hareketleri/ })).toBeNull(), T);
 
+    // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır, yeni hareket için yeniden seçmek gerekmez.
+    await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(1), T);
+    await settle(100);
+    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
     calls = [];
-    await selectCard();
     fireEvent.click(await menuItem(/Hareketler \/ ekle/));
     const again = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
     await within(again).findByText('Hareket 3', {}, T);
@@ -498,16 +504,47 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()).toEqual([]);
   });
 
-  it('a step without operation right blocks the whole save', async () => {
+  it('without custom field right a scalar edit still saves', async () => {
     operations = catalog.operations.map((operation) => operation.name === 'stok.kart.ozelAlanKaydet' ? { ...operation, allowed: false } : operation);
-    setup();
+    setup('TenantUser');
     await selectCard();
     await openCard();
     type('ad', 'Kalem 2');
     fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
-    await within(drawer()).findByText(/Bu işlem için yetkiniz yok\. Hiçbir değişiklik kaydedilmedi\.$/, {}, T);
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    await settle(100);
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/stock/items/${S1}`]);
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ name: 'Kalem 2' });
+  });
+
+  it('without custom field right a custom field change is refused before any write', async () => {
+    operations = catalog.operations.map((operation) => operation.name === 'stok.kart.ozelAlanKaydet' ? { ...operation, allowed: false } : operation);
+    setup('TenantUser');
+    await selectCard();
+    await openCard();
+    type('ad', 'Kalem 2');
+    fireEvent.change(within(drawer()).getByLabelText('Renk'), { target: { value: 'Kırmızı' } });
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
+    await within(drawer()).findByText('Stok kartı özel alanlarını kaydet için yetkiniz yok; bu değişiklik kaydedilemez. Hiçbir değişiklik kaydedilmedi.', {}, T);
     await settle(100);
     expect(writes()).toEqual([]);
+  });
+
+  it('refresh with the card open keeps updating the same card', async () => {
+    setup();
+    await selectCard();
+    await openCard();
+    const before = gets('/api/warehouses/balances/page').length;
+    fireEvent.click(command('refresh'));
+    await waitFor(() => expect(gets('/api/warehouses/balances/page').length).toBeGreaterThan(before), T);
+    await settle(400);
+    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
+    expect(input('ad').value).toBe('Kalem');
+    type('ad', 'Kalem (yenilendi)');
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(writes()).toHaveLength(2), T);
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/stock/items/${S1}`, `PUT /api/stock/items/${S1}/custom-fields`]);
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ id: S1, name: 'Kalem (yenilendi)', rowVersion: 'rv-KLM' });
   });
 
   it('values typed right after yeni survive the detail reset', async () => {

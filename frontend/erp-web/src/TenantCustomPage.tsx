@@ -36,7 +36,7 @@ import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomF
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
-import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, STEP_NOT_ALLOWED, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
+import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 
@@ -399,8 +399,14 @@ export function QueryTable({ state, columns, title, description, style, selected
   const hasTotals = visible.some((column) => totals.includes(column.code));
   const drawn = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
   const actionsShown = rowActions.length > 0 && drawn.some((row) => rowActions.some((action) => action.visible(row)));
-  // Yeni sonuç gelince eski satır seçimi geçersizdir.
-  useEffect(() => { if (selected && !state.rows.includes(selected)) onSelect?.(null); }, [state.rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Yeni sonuç gelince eski satır nesnesi geçersizdir: aynı kimlikli satır (ör. Yenile) varsa seçim ona geçer, yoksa kalkar.
+  // Böylece açık kayıt penceresi yenilemeden sonra da aynı kaydı günceller.
+  useEffect(() => {
+    if (!selected || state.rows.includes(selected)) return;
+    const identity = rowIdentity(selected);
+    const same = identity === null ? undefined : state.rows.find((row) => rowIdentity(row) === identity);
+    onSelect?.(same ?? null);
+  }, [state.rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
   const cellClass = (column: { code: string; dataType?: string }) => {
     const format = formats[column.code];
@@ -894,6 +900,20 @@ const gridBindingList = (path: string | null, name: string) => {
 };
 const bindsGrid = (query: PageQueryDefinition, name: string, list?: string) =>
   query.parameters.some((parameter) => { const bound = gridBindingList(bindingPath(parameter.binding), name); return bound !== null && (!list || bound === list); });
+/**
+ * Satırın kimliği (yeniden yüklemede aynı kaydı bulmak için): üst düzey `id`, yoksa iç nesnelerin `id` alanları
+ * (ör. `stockItem.id`) ya da düzleştirilmiş `<ad>.id` anahtarları. Kimliği olmayan satırda null.
+ */
+const rowIdentity = (row: Record<string, unknown>): string | null => {
+  const scalar = (value: unknown) => (typeof value === "string" || typeof value === "number") && value !== "";
+  if (scalar(row.id)) return `id=${String(row.id)}`;
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== null && typeof value === "object" && !Array.isArray(value) && scalar((value as Record<string, unknown>).id)) parts.push(`${key}.id=${String((value as Record<string, unknown>).id)}`);
+    else if (key.endsWith(".id") && scalar(value) && !(key.slice(0, -3) in row)) parts.push(`${key}=${String(value)}`);
+  }
+  return parts.length > 0 ? parts.sort().join("|") : null;
+};
 const bindsBlock = (query: PageQueryDefinition, name: string) => query.parameters.some((parameter) => bindingPath(parameter.binding) === `${name}.degerler`);
 /** Verilen anahtarlar olmadan kayıt (hiçbiri yoksa aynı nesne). */
 const without = <T,>(record: Record<string, T>, ids: string[]) => {
@@ -1695,6 +1715,16 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     // Açılışta çalışan okuma birazdan çalışır; elle çalışan hiç çalışmamış okuma kaynak olarak kullanılamaz.
     return query.runOn === "load" ? "loading" : "failed";
   };
+  /**
+   * Adım yazacak bir şey taşımıyor mu: yalnız özel alan bloklarını (`degerler`) bağlıyor (giriş ve düzenlenebilir tablo yok)
+   * ve bu bloklarda kullanıcının değiştirdiği değer yok.
+   */
+  const writesNothing = (query: PageQueryDefinition): boolean => {
+    const blocks = blockComponents.filter((block) => bindsBlock(query, block.name!));
+    if (blocks.length === 0 || boundInputNames(query).length > 0 || gridComponents.some((grid) => bindsGrid(query, grid.name!))) return false;
+    const current = currentScope() as Record<string, unknown>;
+    return blocks.every((block) => !(isPlainObject(current[block.name!]) && (current[block.name!] as Record<string, unknown>).degisti === true));
+  };
   /** Dizinin girişlerini bağlayan formCard'lar (kayıt anahtarı olanlar). */
   const boundRecordCards = (queries: PageQueryDefinition[]) => {
     const names = new Set(queries.flatMap((query) => boundInputNames(query)));
@@ -1708,7 +1738,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
    */
   const sequenceReadGuard = (queries: PageQueryDefinition[], active: SequenceStep[], when: Record<string, string>): string | null => {
     const denied = active.find((step) => !step.allowed);
-    if (denied) return `${denied.label} başarısız: ${STEP_NOT_ALLOWED} Hiçbir değişiklik kaydedilmedi.`;
+    if (denied) return `${denied.label} için yetkiniz yok; bu değişiklik kaydedilemez. Hiçbir değişiklik kaydedilmedi.`;
     const readByName = new Map(queryDefinitions.filter((query) => query.kind === "read").map((query) => [query.name, query]));
     const reads = new Set(sourceReadIds(active).map((id) => queryById[id]).filter((query): query is PageQueryDefinition => !!query));
     const cards = boundRecordCards(queries);
@@ -1749,6 +1779,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
       if (index > 0) when[entry.slice(0, index).trim()] = entry.slice(index + 1).trim();
     }
     const names = new Set(queries.map((query) => query.name));
+    // İzni olmayan ve yalnız özel alan blokları yazan adım, bloklarda değişiklik yoksa yazacak bir şeyi olmadığından hiç çalışmaz
+    // (sıfır satırlı yinelenen adım gibi); değişiklik varsa ön denetim tüm kaydı ilk yazmadan önce reddeder.
     const steps: SequenceStep[] = queries.filter((query) => !(query.id in when) || conditionHolds(when[query.id], baseScope, true)).map((query) => {
       const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
       const refs = new Set<string>();
@@ -1761,7 +1793,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
         query, label: stepLabel(query, op), allowed: query.operation ? op?.allowed !== false : true, refs: [...refs],
         iterate: iteration ? { ...iteration, rows: gridIteration(iteration.grid, iteration.list) } : null,
       };
-    });
+    }).filter((step) => step.allowed || !writesNothing(step.query));
     // Doğrulama yalnız çalışacak adımları kapsar (yürütücünün süzgeciyle aynı: sıfır satırlı yinelenen adım atlanır).
     const active = steps.filter((step) => !step.iterate || step.iterate.rows.length > 0).map((step) => step.query);
     const promptLabel = text("promptLabel");

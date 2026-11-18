@@ -101,11 +101,11 @@ Kaynaklar:
 | Lot / seri kodu *: takip türü varsa | `izlemeSatirlari` (liste tablosu) yalnız takipli kartta görünür. Kod sütunu zorunlu ve benzersizdir. Takipsiz kartta `tracking: []` gider. (test: aynı) | karşılandı | |
 | Seri girişinde miktar 1; son kullanma tarihi yalnız Lot'ta | Tablonun açıklama metninde yazılıdır; denetimi sunucu yapar | sunucu kuralı | |
 | Kaydet: `POST /api/warehouses/{wid}/stock/{sid}/transactions` | `saveQuery: hareketEkle` (test: aynı) | karşılandı | |
-| Kayıttan sonra pencere açık kalır, liste seçimi korunur | Pencere kayıttan sonra kapanır (`closeOnSave`). `bakiye` yenilendiği için liste seçimi kalkar; yeni hareket için satır yeniden seçilir. | fark | |
+| Kayıttan sonra pencere açık kalır, liste seçimi korunur | Pencere kayıttan sonra kapanır (`closeOnSave`). `bakiye` yenilenir; aynı kimlikli satır seçili kalır, yeni hareket için pencere yeniden açılır (test: `movement dialog posts movement and reversal sends reason`). | fark | |
 | Liste: depo bazında, 50'şer kayıtla sayfalı | `hareketTablosu` ← `hareketler`, `paging: server`, `pageSize 50` | karşılandı | |
 | Ters kayıt: zorunlu gerekçe, `POST …/{entryId}/reverse {reason}` | `tersKayitDugmesi` (satır işlemi). "Ters kayıt gerekçesi" istemi zorunludur ve `{reason}` gönderilir. Ters kaydı olan veya kendisi ters kayıt olan satırda pasiftir. (test: aynı) | karşılandı | |
 | Ters kayıttan sonra liste kullanılabilir kalır | Ters kayıttan sonra `liste` seçimi ve hareket satırları korunur; ikinci ters kayıt kendi `entryId`'siyle gider. (test: `reversal keeps the movement list usable`) | karşılandı | |
-| Ters kayıttan sonra liste bakiyesi hemen güncellenir | Pencere açıkken `bakiye` yenilenmez; yenilenseydi seçim düşerdi. Pencereyi kapatmak da listeyi yenilemez; liste bakiyesi yalnız Yenile (F5) ile güncellenir. Depolar ve son hareketler hemen yenilenir. | fark | |
+| Ters kayıttan sonra liste bakiyesi hemen güncellenir | Pencere açıkken `bakiye` yenilenmez (satır işlemi yalnız `refreshQueries`i yeniler). Pencereyi kapatmak da listeyi yenilemez; liste bakiyesi yalnız Yenile (F5) ile güncellenir. Depolar ve son hareketler hemen yenilenir. | fark | |
 
 ## 4. Stok kartı formu
 
