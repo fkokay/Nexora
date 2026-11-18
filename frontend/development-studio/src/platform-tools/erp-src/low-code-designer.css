@@ -112,3 +112,66 @@
    create action ("Yeni iş akışı", "Yeni form") keep that button visible. */
 .low-code-designer-content .forms-page>.forms-hero:has(>button),.low-code-designer-content .workflow-page>header:first-child:has(>button){display:flex;justify-content:flex-end;min-height:0;padding:0;border:0;background:none;box-shadow:none}
 .low-code-designer-content .forms-page>.forms-hero:has(>button)>:not(button),.low-code-designer-content .workflow-page>header:first-child:has(>button)>:not(button){display:none}
+
+/* Sayfa tasarımcısı girişi (onaylı taslak 15): tek satır başlık, araç çubuğu, liste/kart görünümü. */
+.lcd-top{display:flex;align-items:center;gap:14px;padding:2px 2px 0}
+.lcd-top-title{display:grid;gap:2px;min-width:0;margin-right:auto}
+.lcd-crumb{display:inline-flex;align-items:center;gap:2px;width:max-content;color:var(--lcd-muted);font-size:12px;text-decoration:none}
+.lcd-crumb:hover{color:#5132c7;text-decoration:underline}
+.lcd-top h1{margin:0;font-size:19px;letter-spacing:-.01em}
+.lcd-save-state{display:inline-flex;align-items:center;gap:6px;color:var(--lcd-muted);font-size:12px;white-space:nowrap}
+.lcd-save-state i{width:7px;height:7px;border-radius:50%;background:#13804b}
+.lcp-catalog-v2{gap:10px;padding:0;border:0;background:transparent;box-shadow:none}
+.lcp-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.lcp-toolbar .lcp-search{flex:0 1 320px;min-width:200px;background:#fff}
+.lcp-select{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 4px 0 10px;border:1px solid #dce4f0;border-radius:8px;background:#fff;color:#344054;font-size:12.5px}
+.lcp-select>span{color:var(--lcd-muted)}
+.lcp-select select{height:32px;max-width:180px;border:0;outline:0;background:transparent;color:var(--lcd-ink);font:inherit;cursor:pointer}
+.lcp-select:focus-within{border-color:#cfc4f8;box-shadow:0 0 0 3px #6844df14}
+.lcp-view-toggle{margin-left:auto}
+.lcp-table-wrap{overflow-x:auto;border:1px solid var(--lcd-line);border-radius:12px;background:#fff}
+.lcp-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.lcp-table th{padding:9px 12px;border-bottom:1px solid var(--lcd-line);background:#f8fafc;color:var(--lcd-muted);font-size:11px;font-weight:700;text-align:left;white-space:nowrap}
+.lcp-table td{padding:9px 12px;border-bottom:1px solid #eef1f6;vertical-align:middle;white-space:nowrap}
+.lcp-table tbody tr{cursor:pointer}
+.lcp-table tbody tr.is-locked{cursor:default}
+.lcp-table tbody tr:hover td{background:#fbfaff}
+.lcp-table tbody tr:last-child td{border-bottom:0}
+.lcp-name{display:flex;align-items:center;gap:10px;min-width:0}
+.lcp-name .lcp-card-icon{width:30px;height:30px;flex:none;border-radius:8px}
+.lcp-name>span{display:grid;min-width:0}
+.lcp-name b{overflow:hidden;font-size:13px;text-overflow:ellipsis}
+.lcp-name small{color:var(--lcd-muted);font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px}
+.lcp-muted,.lcp-view-note{color:var(--lcd-muted)}
+.lcp-view-note{font-size:12px}
+.lcp-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.lcp-row-actions .lcp-open{flex:none;min-height:30px}
+.lcp-open.is-secondary{border-color:#dce4f0;background:#fff;color:#344054;font-weight:600}
+.lcp-open.is-secondary:hover{background:#f6f8fc}
+.lcp-row-menu{position:relative}
+.lcp-more{display:grid;place-items:center;width:30px;height:30px;border:1px solid #dce4f0;border-radius:8px;background:#fff;color:#55647c;cursor:pointer}
+.lcp-more:hover,.lcp-more[aria-expanded="true"]{border-color:#d8d0fb;color:#5132c7}
+.lcp-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:30;display:grid;min-width:190px;padding:4px;border:1px solid var(--lcd-line);border-radius:10px;background:#fff;box-shadow:0 10px 28px #18244722}
+.lcp-menu button{display:flex;align-items:center;gap:7px;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:#344054;font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
+.lcp-menu button:hover:not(:disabled){background:#f5f3ff}
+.lcp-menu button.danger{color:#b42318}
+.lcp-menu button.danger:hover:not(:disabled){background:#fff5f6}
+.lcp-menu button:disabled{opacity:.45;cursor:not-allowed}
+.lcp-card .lcp-card-actions{align-items:center}
+.lcp-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 4px;color:var(--lcd-muted);font-size:12px}
+.lcp-pager-nav{display:inline-flex;align-items:center;gap:10px}
+.lcp-pager-nav button{padding:5px 10px;border:1px solid #dce4f0;border-radius:7px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer}
+.lcp-pager-nav button:disabled{opacity:.45;cursor:not-allowed}
+.lcp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(max-width:760px){.lcd-top{flex-wrap:wrap}.lcd-save-state{display:none}.lcp-toolbar .lcp-search{flex:1 1 100%}.lcp-view-toggle{margin-left:0}}
+/* ⋯ menüsü düğmeye göre sabit konumlanır; tablo kaydırma kabı onu kırpmaz. */
+.lcp-menu{position:fixed;top:auto;z-index:1100}
+.lcp-history-backdrop{position:fixed;inset:0;z-index:1150;display:grid;place-items:center;padding:20px;background:#101a2d80}
+.lcp-history{display:grid;gap:10px;width:min(460px,96vw);max-height:80vh;overflow:auto;padding:14px 16px;border:1px solid var(--lcd-line);border-radius:14px;background:#fff;box-shadow:0 24px 60px #0d183440}
+.lcp-history header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.lcp-history header>div{display:grid;gap:2px}.lcp-history header b{font-size:15px}.lcp-history header small{color:var(--lcd-muted);font-size:12px}
+.lcp-history header button{display:grid;place-items:center;width:30px;height:30px;border:1px solid #dce4f0;border-radius:8px;background:#fff;color:#55647c;cursor:pointer}
+.lcp-history ol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.lcp-history li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #eef1f6;border-radius:8px;font-size:12.5px}
+.lcp-history li small{margin-left:auto;color:var(--lcd-muted)}
+.lcp-history-note{margin:0;color:var(--lcd-muted);font-size:11.5px}

@@ -1,4 +1,6 @@
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Info, Plus, Receipt, ShieldAlert, ShieldCheck, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Info, Plus, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
+import { metricIconOptions } from "./metricIcons";
 import { COLUMN_FORMATS, parseColumnFormats, parseToneMap, type ColumnFormat, type Tone } from "./cellFormat";
 
 const MAX_ENTRIES = 20;
@@ -6,16 +8,8 @@ const toneLabels: Record<Tone, string> = { info: "Bilgi", success: "Olumlu", war
 const toneOrder: Tone[] = ["info", "success", "warning", "danger"];
 const formatLabels: Record<ColumnFormat, string> = { text: "Metin", code: "Kod", number: "Sayı", money: "Para", date: "Tarih", status: "Durum etiketi" };
 
-export const iconOptions: { value: string; label: string; icon: LucideIcon }[] = [
-  { value: "box", label: "Kutu", icon: Box },
-  { value: "users", label: "Kişiler", icon: Users },
-  { value: "receipt", label: "Fiş", icon: Receipt },
-  { value: "wallet", label: "Cüzdan", icon: Wallet },
-  { value: "chart", label: "Grafik", icon: BarChart3 },
-  { value: "clock", label: "Saat", icon: Clock },
-  { value: "check", label: "Onay", icon: CheckCircle2 },
-  { value: "alert", label: "Uyarı", icon: AlertTriangle },
-];
+/** Göstergenin simgeleri: tek liste `metricIcons.ts` (sunucu ve ERP ile eşitlenir). */
+export const iconOptions = metricIconOptions;
 
 export function ToneSelect({ value, onChange, disabled, label = "Ton" }: { value: Tone | undefined; onChange: (tone: Tone) => void; disabled?: boolean; label?: string }) {
   return <div className="pd-segment" role="group" aria-label={label}>
@@ -32,11 +26,51 @@ export const alertIconOptions: { value: string; label: string; icon: LucideIcon 
   { value: "info", label: "Bilgi", icon: Info },
 ];
 
+type IconOption = { value: string; label: string; icon: LucideIcon; keywords?: string };
+const INLINE_ICON_LIMIT = 10;
+const fold = (text: string) => text.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+
 export function IconSelect({ value, onChange, disabled, options = iconOptions }: { value: string | undefined; onChange: (icon: string | undefined) => void; disabled?: boolean;
-  options?: { value: string; label: string; icon: LucideIcon }[] }) {
+  options?: IconOption[] }) {
+  if (options.length > INLINE_ICON_LIMIT) return <IconPicker value={value} onChange={onChange} disabled={disabled} options={options}/>;
   return <div className="pd-icon-grid" role="group" aria-label="İkon">
     <button type="button" disabled={disabled} className={!value ? "active" : ""} aria-pressed={!value} onClick={() => onChange(undefined)}>İkon yok</button>
     {options.map(({ value: key, label, icon: Icon }) => <button type="button" key={key} title={label} aria-label={label} disabled={disabled} className={value === key ? "active" : ""} aria-pressed={value === key} onClick={() => onChange(key)}><Icon size={15}/></button>)}
+  </div>;
+}
+
+/** Çok simgeli seçici: tetikleyici seçili simgeyi gösterir; açılır panelde Türkçe adla arama ve simge ızgarası. */
+function IconPicker({ value, onChange, disabled, options }: { value: string | undefined; onChange: (icon: string | undefined) => void; disabled?: boolean; options: IconOption[] }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const selected = options.find((option) => option.value === value);
+  useEffect(() => {
+    if (!open) return;
+    search.current?.focus();
+    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const needle = fold(query.trim());
+  const visible = needle ? options.filter((option) => fold(`${option.label} ${option.keywords ?? ""} ${option.value}`).includes(needle)) : options;
+  const pick = (icon: string | undefined) => { onChange(icon); setOpen(false); setQuery(""); };
+  const SelectedIcon = selected?.icon;
+  return <div className="pd-icon-picker" ref={root} onKeyDown={(event) => { if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); } }}>
+    <button type="button" className="pd-icon-picker-trigger" disabled={disabled} aria-haspopup="dialog" aria-expanded={open} aria-label={`İkon: ${selected?.label ?? (value ? value : "İkon yok")}`} onClick={() => setOpen(!open)}>
+      {SelectedIcon ? <SelectedIcon size={15}/> : <span className="pd-icon-picker-none" aria-hidden="true"/>}
+      <span>{selected?.label ?? (value ? value : "İkon yok")}</span>
+      <ChevronDown size={13}/>
+    </button>
+    {open && <div className="pd-icon-picker-panel" role="dialog" aria-label="İkon seç">
+      <label className="pd-icon-picker-search"><Search size={13}/><input ref={search} value={query} style={{ paddingLeft: 28 }} placeholder="Ara: depo, kamyon…" aria-label="İkon ara" onChange={(event) => setQuery(event.target.value)}/></label>
+      <div className="pd-icon-picker-grid" role="group" aria-label="İkonlar">
+        {!needle && <button type="button" className={`pd-icon-picker-clear ${!value ? "active" : ""}`} aria-pressed={!value} onClick={() => pick(undefined)}>İkon yok</button>}
+        {visible.map(({ value: key, label, icon: Icon }) => <button type="button" key={key} title={label} aria-label={label} className={value === key ? "active" : ""} aria-pressed={value === key} onClick={() => pick(key)}><Icon size={15}/></button>)}
+        {visible.length === 0 && <small className="pd-icon-picker-empty">Eşleşen ikon yok.</small>}
+      </div>
+    </div>}
   </div>;
 }
 

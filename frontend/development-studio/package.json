@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test": "vitest run --dir src && node --test \"tests/*.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -22,7 +23,8 @@
   "devDependencies": {
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0"
+    "@types/react-dom": "^19.3.0",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "dompurify": "^3.4.17"

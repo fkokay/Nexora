@@ -5,6 +5,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import InventoryStockPage from '../InventoryStockPage';
 import { ConfirmDialogHost } from '../confirmDialog';
+import { setPageParams } from '../pageNavigation';
 import type { StockItem } from '../erp-types';
 import {
   STOCK_CARD_DEFAULTS,
@@ -66,6 +67,7 @@ function respond(url: string, init?: RequestInit): unknown {
       page: 1, pageSize: 20, totalCount: 3,
     };
   if (path === '/api/warehouses/balances/page') return listPage;
+  if (!init?.method && path === '/api/stock/items/s2') return rows[1].stockItem;
   return { items: [], page: 1, pageSize: 25, totalCount: 0, belowMinimumCount: 0 };
 }
 
@@ -295,6 +297,18 @@ describe('Stok kartı record screen (mockup 01 record part)', () => {
     await openSecondCard('TenantUser');
     expect(apiMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/audit-events'), 't');
     expect(within(form().querySelector<HTMLElement>('.rf-aside')!).queryByRole('region', { name: 'Geçmiş' })).toBeNull();
+  });
+
+  it('create screen opens the card given by the page id parameter (tasarlanmış kart sayfası yayımlı değilken "Aç")', async () => {
+    setPageParams('inventory-stock-create', { id: 's2' });
+    try {
+      renderStock('TenantAdmin', 'inventory-stock-create');
+      await waitFor(() => expect(screen.getByDisplayValue('AMB-2040')).toBeTruthy());
+      expect(apiMock.mock.calls.some(([url]) => url === '/api/stock/items/s2')).toBe(true);
+      expect(screen.getByDisplayValue('Koli 40×30×30 çift oluklu')).toBeTruthy();
+    } finally {
+      setPageParams('inventory-stock-create', {});
+    }
   });
 
   it('create mode: no change note until something is entered, no record navigation or context panel', async () => {

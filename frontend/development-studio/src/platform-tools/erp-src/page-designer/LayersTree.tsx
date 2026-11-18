@@ -17,13 +17,15 @@ type Props = {
   onDragOver: (index: number, edge: "before" | "after") => void;
   onDrop: (index: number, event: DragEvent) => void;
   onMove: (index: number, delta: number) => void;
+  /** Kök (üst düzey) bileşen sayısı: `items` bunlardan sonra kartların çocuklarını da taşıyabilir. */
+  rootCount?: number;
 };
 
 /**
  * Katman ağacı: sekme ve pencere içindeki bileşenler sahibinin altında girintili. Kök katmanlar sürüklenerek ya da oklarla
  * taşınır; iç katmanların yeri sahibinin ayarlarından değişir. Tuvalde seçilen bileşen burada vurgulanır ve görünür kaydırılır.
  */
-export default function LayersTree({ items, search, canEdit, selectedId, onSelect, dropTarget, onDragStart, onDragEnd, onDragOver, onDrop, onMove }: Props) {
+export default function LayersTree({ items, search, canEdit, selectedId, onSelect, dropTarget, onDragStart, onDragEnd, onDragOver, onDrop, onMove, rootCount }: Props) {
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const tree = useMemo(() => buildLayerTree(items, (item) => item.children), [items]);
   const visible = useMemo(() => filterLayerTree(tree, (id) => {
@@ -39,7 +41,7 @@ export default function LayersTree({ items, search, canEdit, selectedId, onSelec
 
   if (items.length === 0) return <p className="pd-empty-note">Sayfada henüz bileşen yok.</p>;
   if (visible.length === 0) return <p className="pd-empty-note">“{search.trim()}” ile eşleşen katman yok.</p>;
-  const last = items.length - 1;
+  const last = (rootCount ?? items.length) - 1;
   return <ol className="pd-layers pd-layer-tree" ref={listRef}>{visible.map((node) => {
     const item = byId.get(node.id);
     if (!item) return null;

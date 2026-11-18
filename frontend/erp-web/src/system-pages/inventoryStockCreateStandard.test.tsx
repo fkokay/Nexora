@@ -85,7 +85,7 @@ function setup(id?: string, role = 'TenantAdmin') {
       return {
         id: 'sp-create', code: `@${KEY}`, name: standard.title, description: null, revision: 1, forms: [],
         rights: { view: true, insert: true, update: true, delete: true }, screenKey: KEY, source: 'standard', standardVersion: 1,
-        definitionJson: JSON.stringify(standard.definition),
+        definitionJson: JSON.stringify(definition),
       };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations };
@@ -136,7 +136,20 @@ const openCard = async (id = S1, role = 'TenantAdmin') => {
   await ready('save');
 };
 
+/** Eski biçim: kayıttan sonra gizli "Sayfa aç" düğmesi (afterSaveButton) listeye döner; aynen çalışmalıdır. */
+function legacyDefinition(): Definition {
+  const legacy = structuredClone(standard.definition);
+  const bar = legacy.components.find((component) => component.type === 'actionBar')!;
+  const props = { ...bar.props };
+  for (const key of ['afterSaveAction', 'afterSavePageCode', 'afterSaveTarget', 'afterSaveRefresh']) delete props[key];
+  bar.props = { ...props, afterSaveButton: 'listeyeDon' };
+  legacy.components.push({ id: 'listeyeDon', type: 'button', props: { text: 'Stok kartları listesi', actionType: 'page', pageCode: '@inventory-stock', target: 'sameTab' } });
+  return legacy;
+}
+let definition: Definition = standard.definition;
+
 beforeEach(() => {
+  definition = standard.definition;
   calls = []; failures = []; valuesGate = null; operations = catalog.operations; navigations = []; api.mockReset();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
@@ -165,7 +178,10 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'Stok kartı KLM' })).toBeNull();
   });
 
-  it('yeni then save posts exactly one card and returns to the list', async () => {
+  // Düz özellikli standart (afterSaveAction) ve eski düğmeli tanım (afterSaveButton) aynı gezinmeyi verir.
+  for (const [variant, make] of [['', () => standard.definition], [' (legacy afterSaveButton)', legacyDefinition]] as const) {
+  it(`yeni then save posts exactly one card and returns to the list${variant}`, async () => {
+    definition = make();
     await openNew();
     await waitFor(() => expect(tab('Genel').getAttribute('aria-selected')).toBe('true'), T);
     expect(input('kod').value).toBe('');
@@ -181,7 +197,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     expect(JSON.parse(posts[0].body!)).toMatchObject({ code: 'YENI-1', name: 'Yeni kart', unitCode: 'ADET', customFields: {}, variants: [] });
     // Eski ekran gibi: kayıttan sonra Stok Kartları listesine dönülür ve liste yenilenir; form bir sonraki kart için boşalır.
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0]).toMatchObject({ page: 'inventory-stock', params: {}, replace: true, from: KEY, refresh: true });
+    expect(navigations[0]).toEqual({ page: 'inventory-stock', params: {}, replace: true, from: KEY, refresh: true });
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(input('ad').value).toBe('');
     // Aynı değerlerle ikinci bir kart oluşturulmaz: boş form kaydedilmez.
@@ -189,6 +205,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     await settle(100);
     expect(writes().filter((call) => call.url === '/api/stock/items' && call.method === 'POST')).toHaveLength(1);
   });
+  }
 
   it('opened card saves PUT with source rowVersion and custom field PUT', async () => {
     await openCard();

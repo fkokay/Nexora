@@ -22,14 +22,14 @@ import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
 import { mapOperationResult, missingRequiredValue, type ErpOperation } from "./custom-page/erpOperations";
 import { CREATED_REOPEN, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
 import { useErpOperations } from "./custom-page/useErpOperations";
-import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
+import { actionBarOf, barCommandPlan, buildPageCommands, exportRows, movedButtonIds, type BarPageNavigation } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
-import { DataTableGrid } from "./custom-page/DataTableGrid";
+import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
@@ -978,7 +978,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)}
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)}
           onOpenRow={tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
@@ -1166,11 +1166,23 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   });
   // `afterSaveButton`: kayıt yolu tam başarılı olunca kayıt kartları kaynak değerlerine döner (aynı değerlerle ikinci bir oluşturma
   // gitmez) ve düğmenin eylemi çalışır (ör. listeye dön); gezinilen sayfa açılış sorgularını yeniler.
-  const afterSaveId = typeof barProps.afterSaveButton === "string" ? barProps.afterSaveButton.trim() : "";
-  const afterSave = afterSaveId ? () => {
+  // Düz özelliklerde (`afterSaveAction: page`) sayfa doğrudan açılır; yenileme `afterSaveRefresh` ile seçilir.
+  const barPlan = barCommandPlan(barProps, !!runtime.formDialog);
+  const afterSavePlan = barPlan.afterSave;
+  const navigateBar = (navigation: BarPageNavigation, options?: { refreshTarget?: boolean }) => {
+    onStatus(null);
+    void runNavigation(navigation, latest.current.currentScope, latest.current.tabKey, options)
+      .then((failure) => { if (failure && mounted.current) onStatus({ tone: "error", text: failure }); });
+  };
+  const afterSave = afterSavePlan.mode === "button" && afterSavePlan.button ? () => {
     if (!mounted.current) return;
     latest.current.clearRecordInputs();
-    runButton(afterSaveId, { refreshTarget: true });
+    runButton(afterSavePlan.button!, { refreshTarget: true });
+  } : afterSavePlan.mode === "page" && afterSavePlan.page ? () => {
+    if (!mounted.current) return;
+    latest.current.clearRecordInputs();
+    if (!actionAllowed({ type: "navigate", rights: ["view"] }, latest.current.rights)) return;
+    navigateBar(afterSavePlan.page!, afterSavePlan.refresh ? { refreshTarget: true } : undefined);
   } : undefined;
 
   const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void) => {
@@ -1290,7 +1302,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       open: () => latest.current.formDialog?.open(document.activeElement instanceof HTMLElement ? document.activeElement : null),
       startNew: (focusId) => latest.current.formDialog?.startNew(focusId, document.activeElement instanceof HTMLElement ? document.activeElement : null),
     } : undefined,
+    tableSelected: (tableId) => {
+      const name = runtime.tableById[tableId]?.name;
+      return !!name && !!runtime.selections[name];
+    },
     run: {
+      navigate: (navigation) => navigateBar(navigation),
       clearInputs: (ids) => ids.forEach((id) => latest.current.setInput(id, inputIsCheckbox(latest.current.inputById[id]) ? false : "")),
       write: (queryId, kind) => {
         const query = latest.current.queryById[queryId];
@@ -1318,7 +1335,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         if (!(await confirmStartNew(latest.current.isDirty()))) return;
         latest.current.startNew();
         // Yeni bir düğmeyi çalıştırıyorsa (ör. aynı kayıt ekranını parametresiz açar) kayıt kartları da boşalır.
-        if (typeof barProps.newButton === "string" && barProps.newButton.trim()) latest.current.clearRecordInputs();
+        if (barPlan.new.mode === "button" || barPlan.new.mode === "page") latest.current.clearRecordInputs();
         await clearAndFocus();
       },
     };
@@ -2446,12 +2463,16 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
 
   const openTables = useMemo(() => {
     const tables = new Set<string>();
-    const openId = bar ? textValue(bar.props.openButton).trim() : "";
+    const plan = bar ? barCommandPlan(bar.props, !!formDialogId) : null;
+    const openId = plan?.open.mode === "button" ? plan.open.button ?? "" : "";
     const button = openId ? buttonById[openId] : undefined;
     for (const match of JSON.stringify(button?.props ?? {}).matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir\b/g)) tables.add(match[1]);
-    if (formDialogId) recordTableSets.all.forEach((name) => tables.add(name));
+    // Düz Aç (`openAction: page`): seçili satırı kullanılan liste.
+    const openTableName = plan?.open.mode === "page" && plan.open.table ? tableById[plan.open.table]?.name : undefined;
+    if (openTableName) tables.add(openTableName);
+    if (formDialogId && plan?.open.mode === "dialog") recordTableSets.all.forEach((name) => tables.add(name));
     return tables;
-  }, [bar, buttonById, formDialogId, recordTableSets]);
+  }, [bar, buttonById, formDialogId, recordTableSets, tableById]);
   const pendingOpen = useRef(false);
   const [openSignal, setOpenSignal] = useState(0);
   const openRow = (tableName: string, row: Record<string, unknown>) => {

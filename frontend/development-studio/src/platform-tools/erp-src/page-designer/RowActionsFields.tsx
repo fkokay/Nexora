@@ -29,10 +29,12 @@ export function rowActionOwners(components: RowActionComponent[], tableId: strin
  * Veri listesinin "Satır eylemleri" bölümü: satır başına çizilecek düğmeler (en çok 4; sorgu, kayıt dizisi ya da
  * pencere açan, başka sahibi olmayan düğmeler), boş liste metni ve en fazla satır. `onPatch` undefined değeri siler.
  */
-export function RowActionsFields({ table, components, labelOf = defaultLabel, serverPaged, disabled, onPatch }: {
+export function RowActionsFields({ table, components, labelOf = defaultLabel, serverPaged, disabled, parts = ["actions", "empty", "limit"], onPatch }: {
   table: RowActionComponent; components: RowActionComponent[]; labelOf?: (component: RowActionComponent) => string;
   /** Liste sunucu sayfalıysa `limit` kullanılamaz. */
   serverPaged: boolean; disabled?: boolean;
+  /** Çizilecek alanlar (ızgara ayar penceresinde sekmelere dağıtılır); verilmezse hepsi. */
+  parts?: ("actions" | "empty" | "limit")[];
   onPatch: (patch: { rowActions?: string[]; emptyText?: string; limit?: number }) => void;
 }) {
   const value = idList(table.props.rowActions, MAX_ROW_ACTIONS);
@@ -47,24 +49,24 @@ export function RowActionsFields({ table, components, labelOf = defaultLabel, se
   const emptyText = typeof table.props.emptyText === "string" ? table.props.emptyText : "";
   const limit = typeof table.props.limit === "number" ? table.props.limit : undefined;
   return <>
-    <div className="pd-field">Satır eylemleri<small>Her satırın sonundaki “İşlemler” sütununda çizilir; tıklanan satır seçilir ve düğme o satırla çalışır.</small>
+    {parts.includes("actions") && <div className="pd-field">Satır düğmeleri<small>Her satırın sonundaki “İşlemler” sütununda çizilir; tıklanan satır seçilir ve düğme o satırla çalışır.</small>
       {!named && <small className="pd-query-warning">Satır işlemleri için listeye bir Ad verin.</small>}
       {!queryBound && <small className="pd-query-warning">Satır işlemleri yalnız bir sorguya bağlı listede kullanılabilir.</small>}
       <InputPicker inputs={buttons} value={value} owned={owners} filter={eligible} max={MAX_ROW_ACTIONS} takenLabel="Başka yerde" disabled={disabled || !named || !queryBound}
         onChange={(next) => onPatch({ rowActions: next.length > 0 ? next : undefined })}/>
       {buttons.filter(eligible).length === 0 && <small>Önce eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olan bir düğme ekleyin.</small>}
       {ineligibleSelected.length > 0 && <small className="pd-query-warning">Satır işlemi düğmesinin eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olmalıdır.</small>}
-    </div>
-    <label className="pd-field">Boş liste metni<small>Boşsa ERP'nin standart “kayıt yok” metni gösterilir; sorgu çalışmadan önce de bu metin görünür.</small>
+    </div>}
+    {parts.includes("empty") && <label className="pd-field">Boş liste metni<small>Boşsa ERP'nin standart “kayıt yok” metni gösterilir; sorgu çalışmadan önce de bu metin görünür.</small>
       <input value={emptyText} maxLength={MAX_EMPTY_TEXT} disabled={disabled} placeholder="Henüz hareket yok."
         onChange={(event) => onPatch({ emptyText: sanitizeSafeValue(event.target.value, false).slice(0, MAX_EMPTY_TEXT) || undefined })}/>
-    </label>
-    <label className="pd-field">En fazla satır<small>{serverPaged ? "'limit' sunucu sayfalı listede kullanılamaz." : "Yalnız ilk N satır çizilir (1–100); toplamlar ve Excel çizilen satırları kullanır."}</small>
+    </label>}
+    {parts.includes("limit") && <label className="pd-field">En fazla satır<small>{serverPaged ? "'limit' sunucu sayfalı listede kullanılamaz." : "Yalnız ilk N satır çizilir (1–100); toplamlar ve Excel çizilen satırları kullanır."}</small>
       <input type="number" min={1} max={MAX_ROW_LIMIT} step={1} value={limit ?? ""} disabled={disabled || serverPaged || !queryBound} placeholder="Tümü"
         onChange={(event) => {
           const number = Number(event.target.value);
           onPatch({ limit: event.target.value === "" || !Number.isInteger(number) ? undefined : Math.max(1, Math.min(MAX_ROW_LIMIT, number)) });
         }}/>
-    </label>
+    </label>}
   </>;
 }

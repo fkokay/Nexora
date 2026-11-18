@@ -74,3 +74,12 @@ export function inventoryPageTitle(page: InventoryPageKey, locale: Locale) {
 export function manufacturingPageTitle(page: ManufacturingPageKey, locale: Locale) {
   return locale === 'en' ? manufacturingPageTitlesEn[page] : manufacturingPageTitles[page]
 }
+
+/** Sekme listesinde olmayan (ör. URL'den açılan önizleme) bilinen bir sayfanın adı; bilinmiyorsa undefined. */
+export function knownPageTitle(page: string, locale: Locale): string | undefined {
+  const pick = (tr: Record<string, string>, en: Record<string, string>) => (locale === 'en' ? en : tr)[page]
+  return standalonePageTitle(page, locale)
+    ?? pick(inventoryPageTitles, inventoryPageTitlesEn)
+    ?? pick(salesPageTitles, salesPageTitlesEn)
+    ?? pick(manufacturingPageTitles, manufacturingPageTitlesEn)
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Izgara ayarları sade</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b54708;--warn-bg:#fef0c7;--err:#b42318;--err-bg:#fee4e2;--info:#1f5fd1;--info-bg:#e8f0fd}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:13px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.modal{max-width:1120px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.18);overflow:hidden}
+.mh{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}.mh b{font-size:15px}
+.tabs{display:flex;gap:2px;margin-left:18px}.tabs span{padding:6px 12px;border-radius:7px;color:var(--mut);font-weight:600}.tabs span.on{background:var(--st-soft);color:var(--st)}
+.mh .x{margin-left:auto;color:var(--mut)}
+.mb{padding:14px 16px}
+.tools{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff}
+.btn{border:1px solid #d8d0fb;background:#fff;color:var(--st);border-radius:7px;padding:5px 10px;font-weight:600;font-size:12px}.btn.pri{background:var(--st);color:#fff;border-color:var(--st)}
+.cnt{margin-left:auto;color:var(--mut);font-size:12px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--line);background:#fbfbfe}
+td{padding:6px 8px;border-bottom:1px solid #f0eff6;vertical-align:middle}
+tr.off td{color:#98a2b3}
+.grip{color:#b0b6c3;cursor:grab}
+.code{font-family:Consolas,monospace;font-size:11.5px;color:var(--mut)}
+.sel{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;background:#fff;display:inline-block;min-width:96px}
+.chev{color:var(--mut);font-size:11px}
+tr.open td{background:#faf9ff}
+.detail td{background:#faf9ff;padding:4px 8px 12px 46px}
+.vl{display:flex;flex-wrap:wrap;gap:8px}
+.vrow{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:#fff}
+.tone{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-err{background:var(--err-bg);color:var(--err)}.t-info{background:var(--info-bg);color:var(--info)}
+.mf{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.f{margin-bottom:12px}.f label{display:block;font-weight:600;margin-bottom:5px}.f small{display:block;color:var(--mut);margin-top:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg span{padding:5px 12px;border-right:1px solid var(--line)}.seg span:last-child{border:0}.seg span.on{background:var(--st-soft);color:var(--st);font-weight:700}
+.rule{display:flex;gap:6px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;background:#fbfbfe}
+.adv{color:var(--st);font-weight:600;font-size:12px}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+</style></head><body>
+<h1>Izgara ayarları: sade düzen</h1>
+<p class="sub">Taslak · 2026-11-19 · Bugün 8 bölüm var; aynı sütunun ayarları 4 ayrı yere dağılmış (başlık, birim ve değer etiketleri metin kutularında, toplam satırı ayrı listede, ton eşlemesi başka bölümde). Öneri: 4 sekme. Bir sütunun tüm ayarları tek satırda; metin kutusuna "kolon=değer" yazmak kalkar.</p>
+
+<div class="lbl">1 · Sütunlar sekmesi: her sütun tek satır</div>
+<div class="modal">
+  <div class="mh"><b>Izgara · liste</b><div class="tabs"><span class="on">Sütunlar</span><span>Veri</span><span>Satır eylemleri</span><span>Görünüm</span></div><span class="x">✕</span></div>
+  <div class="mb">
+    <div class="tools"><span class="in" style="width:260px">⌕ Sütun ara</span><span class="btn">Tümünü göster</span><span class="btn">Tümünü gizle</span><span class="cnt">10 / 48 sütun görünür · sırayı sürükleyerek değiştirin</span></div>
+    <table>
+      <tr><th style="width:26px"></th><th style="width:40px">Göster</th><th>Başlık</th><th>Kaynak</th><th>Biçim</th><th>Birim</th><th style="width:60px">Toplam</th><th style="width:30px"></th></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Stok kodu</span></td><td class="code">balance.code</td><td><span class="sel">Metin</span></td><td><span class="sel">—</span></td><td></td><td class="chev">▸</td></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Stok adı</span></td><td class="code">balance.name</td><td><span class="sel">Metin</span></td><td><span class="sel">—</span></td><td></td><td class="chev">▸</td></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Depo bakiyesi</span></td><td class="code">balance.quantityOnHand</td><td><span class="sel">Miktar</span></td><td><span class="sel">balance.unitCode</span></td><td>☑</td><td class="chev">▸</td></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Kullanılabilir</span></td><td class="code">balance.availableQuantity</td><td><span class="sel">Miktar</span></td><td><span class="sel">balance.unitCode</span></td><td>☐</td><td class="chev">▸</td></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Stok değeri</span></td><td class="code">balance.valuationAmountBase</td><td><span class="sel">Tutar</span></td><td><span class="sel">—</span></td><td>☑</td><td class="chev">▸</td></tr>
+      <tr class="open"><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Durum</span></td><td class="code">status</td><td><span class="sel">Durum etiketi</span></td><td><span class="sel">—</span></td><td></td><td class="chev">▾</td></tr>
+      <tr class="detail"><td colspan="8"><div style="font-weight:600;margin-bottom:6px">Değerler ve renkleri <span style="color:var(--mut);font-weight:400">(hücrede ham değer yerine etiket ve renk)</span></div>
+        <div class="vl">
+          <span class="vrow">Yeterli → <span class="tone t-ok">Olumlu</span> ✕</span>
+          <span class="vrow">Minimum altı → <span class="tone t-err">Hata</span> ✕</span>
+          <span class="vrow">Maliyetsiz → <span class="tone t-warn">Dikkat</span> ✕</span>
+          <span class="vrow">Pasif → <span class="tone t-info">Bilgi</span> ✕</span>
+          <span class="btn">＋ Değer ekle</span></div></td></tr>
+      <tr><td class="grip">⋮⋮</td><td>☑</td><td><span class="in">Takip</span></td><td class="code">stockItem.trackingMode</td><td><span class="sel">Değer etiketi</span></td><td><span class="sel">—</span></td><td></td><td class="chev">▸</td></tr>
+      <tr class="off"><td class="grip">⋮⋮</td><td>☐</td><td><span class="in">Barkod</span></td><td class="code">stockItem.barcode</td><td><span class="sel">Metin</span></td><td><span class="sel">—</span></td><td></td><td class="chev">▸</td></tr>
+    </table>
+  </div>
+  <div class="mf"><span>Değişiklikler tuvale hemen uygulanır; Ctrl+Z ile geri alınır.</span><span class="btn pri">Kapat</span></div>
+</div>
+<p class="note">• "Sütun başlıkları", "Birim sütunları", "Değer etiketleri", "Toplam satırı" ve durum renkleri ayrı bölüm olmaktan çıkar; hepsi sütunun kendi satırında. Değer/renk listesi yalnız ▸ ile açılan satırda görünür. • Kaydedilen tanım değişmez (columnLabels, columnUnits, valueLabels, toneMap, totals aynı kalır); yalnız düzenleme biçimi değişir.</p>
+
+<div class="lbl">2 · Görünüm sekmesi: koşullu genişlik formla, formül yazmadan</div>
+<div class="modal">
+  <div class="mh"><b>Izgara · liste</b><div class="tabs"><span>Sütunlar</span><span>Veri</span><span>Satır eylemleri</span><span class="on">Görünüm</span></div><span class="x">✕</span></div>
+  <div class="mb grid2">
+    <div>
+      <div class="f"><label>Genişlik</label><div class="seg"><span>3</span><span>4</span><span>6</span><span>8</span><span>9</span><span class="on">12</span></div><small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small></div>
+      <div class="f"><label>Daralma kuralı</label>
+        <div class="rule">Şu durumda genişlik <span class="sel">8</span> olsun: <span class="sel">Detay paneli açık</span> ve <span class="sel">Satır seçili</span> <span class="btn">＋</span></div>
+        <small>Örn. sağda panel açılınca liste daralır.</small></div>
+      <div class="f"><label>Görünürlük</label><div class="seg"><span class="on">Her zaman</span><span>Koşula bağlı</span></div></div>
+    </div>
+    <div>
+      <div class="f"><label>Yoğunluk</label><div class="seg"><span>Rahat</span><span class="on">Normal</span><span>Sıkı</span></div></div>
+      <div class="f"><label>Boş liste metni</label><span class="in" style="display:block">Kayıt bulunamadı.</span></div>
+      <div class="f"><span class="adv">▸ Gelişmiş (iç boşluk, dış boşluk, köşe, ham koşul ifadesi)</span></div>
+    </div>
+  </div>
+  <div class="mf"><span>Değişiklikler tuvale hemen uygulanır; Ctrl+Z ile geri alınır.</span><span class="btn pri">Kapat</span></div>
+</div>
+<p class="note">• 8 bölüm → 4 sekme: <b>Sütunlar</b> (yukarıdaki tablo), <b>Veri</b> (sorgu, sayfalama, arama kutusu, satır sınırı), <b>Satır eylemleri</b> (satır düğmeleri + çift tıklama/Enter eylemi tek listede), <b>Görünüm</b>. • İç/dış boşluk, köşe ve ham koşul ifadesi "Gelişmiş" altında kapalı durur. • Sekmeler arası kaydırmalı uzun sayfa yerine her sekme kendi içeriğini gösterir.</p>
+</body></html>

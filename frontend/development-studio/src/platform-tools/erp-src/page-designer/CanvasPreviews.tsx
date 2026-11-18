@@ -1,13 +1,11 @@
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useFlip } from "./useFlip";
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ImageIcon, Info, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
+import { METRIC_ICONS as ICONS } from "./metricIcons";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
 
 // Tuval önizlemeleri: ERP (MetricCard / QueryTable / PageBadge) görünümünü, sorgu önizleme verisiyle yansıtır.
-const ICONS: Record<string, LucideIcon> = {
-  box: Box, users: Users, receipt: Receipt, wallet: Wallet, chart: BarChart3, clock: Clock, check: CheckCircle2, alert: AlertTriangle,
-};
 const TREND_WIDTH = 70;
 const TREND_HEIGHT = 26;
 const TONE_NAMES: readonly string[] = ["info", "success", "warning", "danger"];
@@ -41,12 +39,13 @@ type PreviewColumn = { code: string; label?: string; dataType?: string };
 /** Sunucu sayfalı listenin tuval altbilgisi (ERP PagedTableFooter görünümü; düğmeler tuvalde kapalıdır). */
 export type GridPaging = { pageSize: number; total: number; meta: { label: string; value: string }[]; search?: ReactNode };
 
-export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style }: {
+/** `advanced`: sorguya bağlı tablo ERP'de gelişmiş ızgarayla çizilir; tuvalde de araç satırı ve onay kutusu sütunu görünür. */
+export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style, advanced = false }: {
   title: string; subtitle: string; columns: PreviewColumn[]; rows: Record<string, unknown>[]; truncated: boolean;
   props: Record<string, unknown>; emptyText: string; rowAction?: string;
   /** Satır işlemi düğmelerinin (rowActions) etiketleri: "İşlemler" sütununda satır başına çip olarak çizilir. */
   rowActionLabels?: string[];
-  showTotals?: boolean; paging?: GridPaging; style: CSSProperties;
+  showTotals?: boolean; paging?: GridPaging; style: CSSProperties; advanced?: boolean;
 }) {
   const actionChips = [...(rowAction ? [rowAction] : []), ...(rowActionLabels ?? [])];
   const hasActions = actionChips.length > 0;
@@ -66,15 +65,22 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
     const tone = toneFor(text, toneMap);
     return <span className={`pd-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
   };
-  const colCount = columns.length + (hasActions ? 1 : 0);
+  const colCount = columns.length + (hasActions ? 1 : 0) + (advanced ? 1 : 0);
+  const check = advanced ? <span className="pd-adv-check" aria-hidden="true" /> : null;
   return <article className="custom-page-preview-card" style={style}>
     <div className="custom-page-preview-card-head"><b>{title}</b><small>{subtitle}</small></div>
     {paging?.search && <div className="pd-grid-search">{paging.search}</div>}
-    <div className="custom-page-preview-grid-scroll"><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}`}>
-      <thead><tr>{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
+    {advanced && <div className="pd-adv-toolbar" aria-hidden="true">
+      {props.showGridSearch !== false && <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>}
+      {props.showColumnFilters !== false && <span className="pd-adv-menu">Sütun filtreleri</span>}{props.showColumnChooser !== false && <span className="pd-adv-menu">Sütunlar</span>}
+      <span className="pd-adv-count">{paging ? number(paging.total) : rows.length} kayıt</span>
+      {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span><span className="pd-adv-btn">CSV</span></>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
+    </div>}
+    <div className={`custom-page-preview-grid-scroll${advanced ? " is-advanced" : ""}`}><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}${advanced ? " is-advanced" : ""}`}>
+      <thead><tr>{advanced && <th className="pd-adv-check-cell">{check}</th>}{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
       <tbody>{rows.length === 0 ? <tr><td colSpan={Math.max(1, colCount)}>{emptyText}</td></tr>
-        : rows.map((row, rowIndex) => <tr key={String(row.id ?? rowIndex)}>{columns.map((column) => <td key={column.code} className={cellClass(column)}>{cell(column, row)}</td>)}{hasActions &&<td>{actionChips.map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</td>}</tr>)}</tbody>
-      {hasTotals && <tfoot><tr className="pd-total">
+        : rows.map((row, rowIndex) => <tr key={String(row.id ?? rowIndex)}>{advanced && <td className="pd-adv-check-cell">{check}</td>}{columns.map((column) => <td key={column.code} className={cellClass(column)}>{cell(column, row)}</td>)}{hasActions &&<td>{actionChips.map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</td>}</tr>)}</tbody>
+      {hasTotals && <tfoot><tr className="pd-total">{advanced && <td />}
         {columns.map((column, index) => {
           const total = totals.includes(column.code) ? columnTotal(rows, column.code) : null;
           const inTotals = totals.includes(column.code);
@@ -97,9 +103,11 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
 }
 
 /** Arama kutusu (lookup) önizlemesi: arama simgeli metin kutusu ve ilk üç seçenek. */
-export function LookupPreview({ placeholder, value, options, ready }: {
-  placeholder: string; value: string; options: { label: string; description: string }[]; ready: boolean;
+/** `compact`: tek satırlık süzgeçte ERP'deki gibi kapalı açılır kutu (seçili değer ya da ilk seçenek, sağda ⌄). */
+export function LookupPreview({ placeholder, value, options, ready, compact = false }: {
+  placeholder: string; value: string; options: { label: string; description: string }[]; ready: boolean; compact?: boolean;
 }) {
+  if (compact) return <span className="pd-lookup-select"><input tabIndex={-1} readOnly placeholder={placeholder || "Seçin"} value={value || options[0]?.label || ""}/><ChevronDown size={14} aria-hidden="true"/></span>;
   return <div className="pd-lookup">
     <span className="pd-lookup-box"><Search size={13} aria-hidden="true" /><input tabIndex={-1} readOnly placeholder={placeholder || "Ara…"} value={value}/></span>
     <ul className="pd-lookup-list" aria-hidden="true">
@@ -328,7 +336,8 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
 type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
-export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
+/** `title`: ERP'deki gibi işlem çubuğunun üstündeki başlık satırı (sayfa adı ve `titleCount` varsa "N kayıt"). */
+export function ActionBarPreview({ bound, moreCount, style, title, count }: { bound: ActionBarBound; moreCount: number; style: CSSProperties; title?: string; count?: string | null }) {
   // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
   const primary = bound.save ? "save" : bound.new ? "new" : "";
   const button = (id: string, label: string, key: string, on: boolean) =>
@@ -336,6 +345,7 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
     <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"} · ${key}`} data-shortcut={key}>{id === "new" ? "+ " : ""}{label}</span>;
   const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
   return <div className="pd-actionbar-wrap" style={style}>
+    {title && <div className="pd-page-title"><h1>{title}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>}
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
       {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", bound.open === true)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
       <span className="pd-bar-sep" />
@@ -426,10 +436,12 @@ export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned
 }) {
   const [open, setOpen] = useState(false);
   const kind = presentation === "drawer" ? "Çekmece" : "Pencere";
-  return <section className="pd-layout-block pd-tabs-preview" style={style}>
-    <div className="pd-tabs-preview-list">
-      <button type="button" tabIndex={-1} aria-expanded={open} className={open ? "is-active" : undefined}
-        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}>{`${kind}: ${title || "Başlıksız"} · ${ids.length} bileşen`} {open ? "▴" : "▾"}</button>
+  return <section className="pd-layout-block pd-dialog-preview" style={style}>
+    <div className="pd-dialog-head">
+      <span className="pd-dialog-icon" aria-hidden="true">{presentation === "drawer" ? "▥" : "▢"}</span>
+      <span className="pd-dialog-title"><b>{title || "Başlıksız"}</b><small>{kind} · {ids.length} bileşen · ERP'de düğmeyle açılır</small></span>
+      <button type="button" tabIndex={-1} aria-expanded={open} className="pd-dialog-toggle"
+        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}>{open ? "İçini gizle ▴" : "İçini göster ▾"}</button>
     </div>
     {open && <>
       <div className="pd-tabs-preview-panel">
@@ -443,4 +455,17 @@ export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned
       </div>
     </>}
   </section>;
+}
+
+const ALERT_STRIP_ICONS: Record<string, LucideIcon> = { shield: ShieldCheck, shieldAlert: ShieldAlert, check: CheckCircle2, alert: AlertTriangle, info: Info };
+
+/** Bildirim kutusu: ERP ile aynı. `icon` verilmişse durum şeridi (beyaz kart, tonlu simge kutusu, sağda `value` rozeti). */
+export function AlertPreview({ variant, title, text, icon, value, style }: { variant: string; title: string; text: string; icon: string; value: string; style: CSSProperties }) {
+  const StripIcon = ALERT_STRIP_ICONS[icon];
+  if (!StripIcon) return <article className={`custom-page-preview-alert tone-${variant}`} style={style}><b>{title || "Bilgilendirme"}</b><p>{text}</p></article>;
+  return <aside className={`pd-status-strip tone-${variant}`} style={style}>
+    <span className="pd-status-strip-mark" aria-hidden="true"><StripIcon size={17}/></span>
+    <span className="pd-status-strip-text"><b>{title || "Bilgilendirme"}</b>{text && <small>{text}</small>}</span>
+    {value && <span className="pd-status-strip-badge">{value}</span>}
+  </aside>;
 }

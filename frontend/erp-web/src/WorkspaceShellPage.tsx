@@ -18,6 +18,7 @@ import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
 import { WorkspacePageRouter } from "./WorkspacePageRouter";
+import { knownPageTitle } from "./workspace-navigation";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
 import { CustomerReferenceSidebar } from "./customers/components/CustomerReferenceSidebar";
 import {
@@ -380,6 +381,7 @@ export function WorkspaceShellPage(props: Props) {
   }, [pendingCloseTab, onCancelCloseTab]);
   const activeTabLabel =
     moduleTabs.find((tab) => tab.id === page)?.label ||
+    knownPageTitle(page, locale) ||
     page.replace(/[-_]/g, " ");
   const currentSubrouteTitle = subrouteTitle?.page === page ? subrouteTitle.title : null;
   const breadcrumbNav = (

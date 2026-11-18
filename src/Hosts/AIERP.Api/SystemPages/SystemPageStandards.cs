@@ -353,6 +353,12 @@ internal static class SystemPageStandards
                 foreach (var key in new[] { "newInputs", "moreButtons" }) StripList(props, key, removed, dropWhenEmpty: true);
                 foreach (var key in new[] { "focusInput", "exportTable", "saveQuery", "deleteQuery", "formDialog", "newButton", "openButton", "afterSaveButton" })
                     if (props[key] is JsonValue value && value.TryGetValue<string>(out var id) && removed.Contains(id)) props.Remove(key);
+                // Flat Yeni / Aç commands lose their choice with the component they use (Aç's list takes its page group along).
+                if (props["openTable"] is JsonValue table && table.TryGetValue<string>(out var tableId) && removed.Contains(tableId))
+                    foreach (var key in new[] { "openAction", "openPageCode", "openTarget", "openTable", "openParams" }) props.Remove(key);
+                foreach (var key in new[] { "newAction", "openAction" })
+                    if (props[key] is JsonValue action && action.TryGetValue<string>(out var choice)
+                        && (choice == "clear" && props["newInputs"] is null || choice == "dialog" && props["formDialog"] is null)) props.Remove(key);
             }
             if (type is "formCard" or "filterChips" or "facetPanel") StripList(props, "inputs", removed, dropWhenEmpty: false);
         }
