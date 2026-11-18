@@ -63,6 +63,8 @@ internal static class ErpOperationCatalog
     private const string StockModule = "Stok";
     private const string WarehouseModule = "Depo";
     private const string ReportModule = "Raporlar";
+    private const string ManufacturingModule = "Üretim";
+    private const string SettingsModule = "Ayarlar";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
@@ -95,7 +97,11 @@ internal static class ErpOperationCatalog
         ["parentLocationId"] = "Üst konum",
         ["customFields"] = "Özel alanlar", ["variants"] = "Varyantlar", ["attributes"] = "Özellikler",
         ["tracking"] = "Lot / seri dağılımı", ["trackingCode"] = "Lot / seri kodu", ["expiryDate"] = "Son kullanma tarihi",
-        ["values"] = "Özel alan değerleri"
+        ["values"] = "Özel alan değerleri",
+        ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
+        ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",
+        ["allowNegativeStock"] = "Negatif stoka izin ver", ["updatedByUserId"] = "Güncelleyen", ["updatedAt"] = "Güncellenme",
+        ["status"] = "Durum"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -153,6 +159,7 @@ internal static class ErpOperationCatalog
             Read(StockModule, "stok.kategoriler", "Stok kategorileri", "/api/stock/categories", [], List(Columns<StockItemCategoryView>(), null)),
         };
         operations.AddRange(BuildStockPilot(id, paging));
+        operations.AddRange(BuildStockPilotV1());
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -176,12 +183,20 @@ internal static class ErpOperationCatalog
         const string transactionsRoute = "/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions";
         string[] hiddenStockColumns = ["stockItem.code", "stockItem.name", "stockItem.unitCode", "stockItem.minimumStock"];
         var balanceColumns = Columns<InventoryBalanceView>("balance")
-            .Concat(Columns<StockItemView>("stockItem").Where(x => !hiddenStockColumns.Contains(x.Code, StringComparer.Ordinal))).ToArray();
+            .Concat(Columns<StockItemView>("stockItem").Where(x => !hiddenStockColumns.Contains(x.Code, StringComparer.Ordinal)))
+            .Append(new ErpOperationColumn("status", Label("status"), "text")).ToArray();
 
         // warehouseId is optional: when it is set the per-warehouse route is used, otherwise all active warehouses.
         yield return Read(StockModule, "stok.bakiye.sayfa", "Stok bakiyeleri (sayfalı)", "/api/warehouses/balances/page",
-            [new ErpOperationParameter("warehouseId", "route", "guid", false), Query("q", "text"), Query("belowMinimumOnly", "bool"), .. paging],
-            List(balanceColumns, "items") with { Flatten = ["balance", "stockItem"], MetaPaths = ["page", "pageSize", "totalCount", "belowMinimumCount"] })
+            [new ErpOperationParameter("warehouseId", "route", "guid", false), Query("q", "text"), Query("belowMinimumOnly", "bool"),
+                Query("includeInactive", "bool"), .. paging],
+            List(balanceColumns, "items") with
+            {
+                Flatten = ["balance", "stockItem"],
+                // The page summary members are computed over the returned page items only.
+                MetaPaths = ["page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity",
+                    "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode"]
+            })
             with { RouteVariants = [new ErpOperationRouteVariant("/api/warehouses/{warehouseId}/balances/page", "warehouseId")] };
         yield return Read(WarehouseModule, "depo.listele", "Depoları listele", "/api/warehouses", [], List(Columns<WarehouseView>(), null));
         yield return Read(WarehouseModule, "depo.konumlari", "Depo konumları", "/api/warehouses/{warehouseId}/locations", [warehouseId],
@@ -209,6 +224,16 @@ internal static class ErpOperationCatalog
             [warehouseId, stockItemId, Route("entryId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
         yield return Read(StockModule, "stok.kart.depoBakiyeleri", "Stok kartı depo bakiyeleri", StockItemRoute + "/balances", [id],
             List(Columns<StockItemWarehouseBalanceView>(), null));
+    }
+
+    /// <summary>Proje 4 stock card standard v1: the recipes that produce a card and the tenant negative stock rule.</summary>
+    private static IEnumerable<ErpOperation> BuildStockPilotV1()
+    {
+        // The product filter is required, so a page never reads every recipe of the tenant.
+        yield return Read(ManufacturingModule, "uretim.recete.listele", "Stok kartını üreten reçeteler", "/api/manufacturing/boms",
+            [new ErpOperationParameter("productStockItemId", "query", "guid", true)], List(Columns<BomView>(), null));
+        yield return Read(SettingsModule, "ayar.negatifStok", "Negatif stok kuralı", "/api/tenant-settings/operations", [],
+            Record(Columns<TenantOperationalSettingsView>()));
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.

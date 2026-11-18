@@ -1,3 +1,4 @@
+ayar.negatifStok
 depo.konumlari
 depo.listele
 rapor.bankStatementLines
@@ -52,3 +53,4 @@ stok.kart.sil
 stok.kart.varyantlari
 stok.kategoriler
 stok.ozelAlanTanimlari
+uretim.recete.listele

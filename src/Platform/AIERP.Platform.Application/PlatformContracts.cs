@@ -133,9 +133,10 @@ public sealed record WarehouseStateChangeRequest(bool IsActive, bool Confirmatio
 public sealed record InventoryBalanceView(Guid StockItemId, string Code, string Name, string UnitCode,
     decimal MinimumStock, decimal QuantityOnHand, bool BelowMinimum, decimal ReservedQuantity, decimal AvailableQuantity,
     decimal ValuationAmountBase = 0, decimal UnvaluedQuantity = 0, string BaseCurrencyCode = "TRY");
-public sealed record InventoryBalancePageItem(InventoryBalanceView Balance, StockItemView StockItem);
+public sealed record InventoryBalancePageItem(InventoryBalanceView Balance, StockItemView StockItem, string Status = "Yeterli");
 public sealed record InventoryBalancePage(IReadOnlyList<InventoryBalancePageItem> Items, int Page, int PageSize,
-    int TotalCount, int BelowMinimumCount);
+    int TotalCount, int BelowMinimumCount, decimal PageValuationAmountBase = 0, decimal PageAvailableQuantity = 0, string? PageUnitCode = null,
+    int PageAvailableCount = 0, int PageUnvaluedCount = 0, string BaseCurrencyCode = "TRY");
 public sealed record StockItemWarehouseBalanceView(Guid WarehouseId, string WarehouseCode, string WarehouseName, decimal QuantityOnHand,
     decimal ReservedQuantity, decimal AvailableQuantity, decimal ValuationAmountBase, decimal UnvaluedQuantity, string BaseCurrencyCode);
 public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, InventoryDirection Direction,

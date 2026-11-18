@@ -2898,12 +2898,12 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
-warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
+warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var warehouseIds = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).Select(x => x.Id).ToArrayAsync();
-    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive);
+    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && (includeInactive || x.IsActive));
     if (!string.IsNullOrWhiteSpace(q))
     {
         var term = q.Trim();
@@ -2961,17 +2961,17 @@ warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal,
             reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
         var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
             item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId);
-        return new InventoryBalancePageItem(balance, stockItem);
+        return new InventoryBalancePageItem(balance, stockItem, InventoryBalancePageSummary.Status(item.IsActive, balance));
     }).ToList();
-    return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
+    return Results.Ok(InventoryBalancePageSummary.Page(result, page, pageSize, totalCount, belowMinimumCount, baseCurrency));
 });
 
-warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
-    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive);
+    var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && (includeInactive || x.IsActive));
     if (!string.IsNullOrWhiteSpace(q))
     {
         var term = q.Trim();
@@ -3028,9 +3028,9 @@ warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, 
             reservedQuantity, Math.Max(0m, quantity - reservedQuantity), (total?.Valuation ?? 0m) + valueAdjustments.GetValueOrDefault(item.Id), Math.Max(0m, total?.Unvalued ?? 0m), baseCurrency);
         var stockItem = new StockItemView(item.Id, item.Code, item.Name, item.Barcode, item.UnitCode, item.Category, item.MinimumStock, item.IsActive,
             item.CreatedAt, item.RowVersion, item.TrackingMode, item.ProcurementLeadTimeDays, item.ManufacturingLeadTimeDays, item.PurchaseListPrice, item.SalesListPrice, item.PriceCurrencyCode, item.PurchaseVatPercent, item.SalesVatPercent, item.ExciseTaxPercent, item.CommunicationTaxPercent, item.PurchaseDiscountPercent, item.SalesDiscountPercent, item.MaximumStock, item.ReorderPoint, item.SafetyStock, item.NetWeight, item.GrossWeight, item.Length, item.Width, item.Height, item.ProductImageUrl, item.PurchaseAccountCode, item.SalesAccountCode, item.CostAccountCode, item.MarketplaceProductId);
-        return new InventoryBalancePageItem(balance, stockItem);
+        return new InventoryBalancePageItem(balance, stockItem, InventoryBalancePageSummary.Status(item.IsActive, balance));
     }).ToList();
-    return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
+    return Results.Ok(InventoryBalancePageSummary.Page(result, page, pageSize, totalCount, belowMinimumCount, baseCurrency));
 });
 
 warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, ClaimsPrincipal principal, TenantDbContext db) =>

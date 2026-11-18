@@ -27,9 +27,9 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class ErpOperationCatalogTests
 {
-    private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    internal static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    internal static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    internal static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Reader = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Writer = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
@@ -85,7 +85,7 @@ public sealed class ErpOperationCatalogTests
             Assert.Null(op.BodyMap);
         }
         Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.sayfa", out var page));
-        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount" }, page.Result.MetaPaths);
+        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity", "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode" }, page.Result.MetaPaths);
         var codes = page.Result.Columns.Select(x => x.Code).ToArray();
         Assert.Contains("balance.code", codes);
         Assert.Contains("stockItem.barcode", codes);
@@ -130,7 +130,7 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("warehouseId", variant.GetProperty("when").GetString());
         Assert.Equal("/api/warehouses/{warehouseId}/balances/page", variant.GetProperty("route").GetString());
         Assert.Equal(new[] { "balance", "stockItem" }, page.GetProperty("result").GetProperty("flatten").EnumerateArray().Select(x => x.GetString()));
-        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount" },
+        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity", "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode" },
             page.GetProperty("result").GetProperty("metaPaths").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(JsonValueKind.Null, page.GetProperty("bodyMap").ValueKind);
         Assert.True(page.GetProperty("allowed").GetBoolean());
@@ -149,6 +149,15 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("Depo", ops["depo.listele"].GetProperty("module").GetString());
         // Every new operation resolves to a registered endpoint and permission for an admin.
         Assert.All(Proje2FazAOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
+        // Proje 4: both new operations resolve to an endpoint and a permission for an admin.
+        Assert.True(ops["uretim.recete.listele"].GetProperty("allowed").GetBoolean());
+        Assert.True(ops["ayar.negatifStok"].GetProperty("allowed").GetBoolean());
+        Assert.Equal("Üretim", ops["uretim.recete.listele"].GetProperty("module").GetString());
+        var productFilter = Assert.Single(ops["uretim.recete.listele"].GetProperty("parameters").EnumerateArray());
+        Assert.Equal("productStockItemId", productFilter.GetProperty("name").GetString());
+        Assert.Equal("query", productFilter.GetProperty("in").GetString());
+        Assert.True(productFilter.GetProperty("required").GetBoolean());
+        Assert.Equal("record", ops["ayar.negatifStok"].GetProperty("result").GetProperty("shape").GetString());
     }
 
     [Fact]
@@ -291,7 +300,91 @@ public sealed class ErpOperationCatalogTests
         }
     }
 
-    private static readonly HashSet<string> ScalarTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
+    [Fact]
+    public void Recipe_list_operation_requires_product_filter()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("uretim.recete.listele", out var op));
+        Assert.Equal("Üretim", op.Module);
+        Assert.Equal("read", op.Kind);
+        Assert.Equal("GET", op.Method);
+        Assert.Equal("/api/manufacturing/boms", op.Route);
+        var parameter = Assert.Single(op.Parameters);
+        Assert.Equal(new ErpOperationParameter("productStockItemId", "query", "guid", true), parameter);
+        Assert.Equal("list", op.Result.Shape);
+        Assert.Null(op.Result.RowsPath);
+        Assert.Equal(["id", "code", "name", "productStockItemId", "productName", "productTrackingMode", "outputQuantity", "isActive", "orderCount", "rowVersion"],
+            op.Result.Columns.Select(x => x.Code));
+        Assert.Equal("Mamul stok kartı", op.Result.Columns.Single(x => x.Code == "productStockItemId").Label);
+        Assert.Equal("Üretim emri sayısı", op.Result.Columns.Single(x => x.Code == "orderCount").Label);
+    }
+
+    [Fact]
+    public void Negative_stock_setting_operation_reads_settings()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("ayar.negatifStok", out var op));
+        Assert.Equal("Ayarlar", op.Module);
+        Assert.Equal("read", op.Kind);
+        Assert.Equal("GET", op.Method);
+        Assert.Equal("/api/tenant-settings/operations", op.Route);
+        Assert.Empty(op.Parameters);
+        Assert.Equal("record", op.Result.Shape);
+        Assert.Equal(["tenantId", "allowNegativeStock", "updatedByUserId", "updatedAt", "rowVersion"], op.Result.Columns.Select(x => x.Code));
+        var column = op.Result.Columns.Single(x => x.Code == "allowNegativeStock");
+        Assert.Equal("bool", column.DataType);
+        Assert.Equal("Negatif stoka izin ver", column.Label);
+    }
+
+    [Fact]
+    public void Balance_page_accepts_include_inactive_and_status()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.sayfa", out var op));
+        Assert.Equal(["warehouseId", "q", "belowMinimumOnly", "includeInactive", "page", "pageSize"], op.Parameters.Select(x => x.Name));
+        Assert.Equal(new ErpOperationParameter("includeInactive", "query", "bool", false), op.Parameters.Single(x => x.Name == "includeInactive"));
+        Assert.Equal(new ErpOperationColumn("status", "Durum", "text"), op.Result.Columns[^1]);
+    }
+
+    [Fact]
+    public async Task Bom_list_filters_by_product_stock_item()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        var first = new StockItem { TenantId = TenantA, Code = "MAM-1", Name = "Mamul 1", UnitCode = "EA", IsActive = true };
+        var second = new StockItem { TenantId = TenantA, Code = "MAM-2", Name = "Mamul 2", UnitCode = "EA", IsActive = true };
+        var foreignBom = new BillOfMaterial { TenantId = TenantB, Code = "BOM-B", Name = "Başka firma", ProductStockItemId = first.Id, OutputQuantity = 1m };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.AddRange(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" }, new Tenant { Id = TenantB, Name = "B", Slug = "tenant-b" });
+            db.StockItems.AddRange(first, second);
+            db.BillOfMaterials.AddRange(
+                new BillOfMaterial { TenantId = TenantA, Code = "BOM-1", Name = "Reçete 1", ProductStockItemId = first.Id, OutputQuantity = 1m },
+                new BillOfMaterial { TenantId = TenantA, Code = "BOM-2", Name = "Reçete 2", ProductStockItemId = second.Id, OutputQuantity = 2m },
+                foreignBom);
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        async Task<string[]> CodesAsync(string query)
+        {
+            using var response = await client.GetAsync("/api/manufacturing/boms" + query);
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{query} {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            var rows = (await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToArray();
+            if (rows.Length > 0)
+            {
+                Assert.True(ErpOperationCatalog.TryGet("uretim.recete.listele", out var op));
+                Assert.All(op.Result.Columns, column => Assert.True(rows[0].TryGetProperty(column.Code, out _), column.Code));
+            }
+            return rows.Select(x => x.GetProperty("code").GetString()!).ToArray();
+        }
+
+        Assert.Equal(["BOM-1"], await CodesAsync($"?productStockItemId={first.Id:D}"));
+        Assert.Equal(["BOM-2"], await CodesAsync($"?productStockItemId={second.Id:D}"));
+        Assert.Equal(["BOM-1", "BOM-2"], await CodesAsync(""));
+        Assert.Empty(await CodesAsync($"?productStockItemId={Guid.NewGuid():D}"));
+    }
+
+    private static readonly HashSet<string> ScalarTypes =new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
 
     [Fact]
     public void Collection_parameters_are_body_and_optional()
@@ -325,7 +418,9 @@ public sealed class ErpOperationCatalogTests
         ["stok.kart.hareketleri"] = "stockItemId,page,pageSize",
         ["stok.kart.varyantlari"] = "id",
         ["stok.kart.ozelAlanDegerleri"] = "id",
-        ["stok.bakiye.sayfa"] = "warehouseId,q,belowMinimumOnly,page,pageSize",
+        // Proje 4 adds the optional includeInactive filter after belowMinimumOnly; parameters bind by name.
+        ["stok.bakiye.sayfa"] = "warehouseId,q,belowMinimumOnly,includeInactive,page,pageSize",
+        ["uretim.recete.listele"] = "productStockItemId",
         ["depo.konumlari"] = "warehouseId",
         ["stok.kart.birimleri"] = "id",
         ["stok.kart.birimEkle"] = "id,unitCode,factorToBase",
@@ -635,7 +730,7 @@ public sealed class ErpOperationCatalogTests
         return body.GetProperty("operations").EnumerateArray().ToDictionary(x => x.GetProperty("name").GetString()!, x => x.Clone());
     }
 
-    private static async Task SeedAsync(ErpOperationApiFactory factory, Action<PlatformDbContext> rules)
+    internal static async Task SeedAsync(ErpOperationApiFactory factory, Action<PlatformDbContext> rules)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
@@ -656,7 +751,7 @@ public sealed class ErpOperationCatalogTests
         await db.SaveChangesAsync();
     }
 
-    private static void SetIdentity(HttpClient client, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");
@@ -667,7 +762,7 @@ public sealed class ErpOperationCatalogTests
     }
 
     /// <summary>Full API host with InMemory stores and the real permission policy and authorizer.</summary>
-    private sealed class ErpOperationApiFactory : WebApplicationFactory<ApiEntryPointMarker>
+    internal sealed class ErpOperationApiFactory : WebApplicationFactory<ApiEntryPointMarker>
     {
         private readonly string _databaseName = $"erp-operation-catalog-{Guid.NewGuid():N}";
 
