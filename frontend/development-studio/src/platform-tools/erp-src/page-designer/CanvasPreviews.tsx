@@ -332,7 +332,8 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
   // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
   const primary = bound.save ? "save" : bound.new ? "new" : "";
   const button = (id: string, label: string, key: string, on: boolean) =>
-    <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={on ? undefined : "Bu sayfada bağlanmadı"}>{id === "new" ? "+ " : ""}{label}<span className="pd-bar-key">{key}</span></span>;
+    // ERP'deki gibi kısayol düğmede rozet değil, üstüne gelince ipucudur: "Kaydet · Ctrl+S" / "Bu sayfada bağlanmadı · Ctrl+S".
+    <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"} · ${key}`} data-shortcut={key}>{id === "new" ? "+ " : ""}{label}</span>;
   const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
   return <div className="pd-actionbar-wrap" style={style}>
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
@@ -342,7 +343,7 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
       <span className="pd-bar-sep" />
       {button("print", "Yazdır", "Ctrl+P", bound.print)}{button("excel", "Excel", "Ctrl+E", bound.excel)}
       <span className="pd-bar-grow" />
-      <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={moreCount > 0 ? undefined : "Bu sayfada bağlanmadı"}>İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾<span className="pd-bar-key">Alt+İ</span></span>
+      <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={`${moreCount > 0 ? "İşlemler" : "Bu sayfada bağlanmadı"} · Alt+İ`} data-shortcut="Alt+İ">İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾</span>
     </div>
     <p className="pd-actionbar-note">Bu çubuk ERP'de sayfanın üstündeki İşlem Çubuğu'nda görünür.</p>
   </div>;

@@ -12,6 +12,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { expiryState } from './trackingExpiry';
 import { useCostListScreen } from './useCostListScreen';
 import { useTransferListScreen } from './useTransferListScreen';
+import { commandReason } from '../action-bar/commandReason';
 
 const xlsx = vi.hoisted(() => ({ sheets: [] as unknown[][][] }));
 vi.mock('xlsx', () => ({
@@ -226,7 +227,7 @@ describe('Stok Değerleme list', () => {
   it('Aç (Enter) opens the cost manager of the current row; the row Yönet button stays', async () => {
     await renderLoaded();
     expect(enabled('open')).toBe(false);
-    expect(command('open')!.title).toBe('Önce bir kayıt seçin');
+    expect((commandReason(command('open')) ?? '')).toBe('Önce bir kayıt seçin');
     fireEvent.click(rowOf('Un tip'));
     await waitFor(() => expect(enabled('open')).toBe(true));
     scroller().focus();

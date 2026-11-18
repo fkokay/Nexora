@@ -6,6 +6,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import GeneralLedgerPage from '../GeneralLedgerPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const account = (id: string, code: string, name: string, isActive = true) => ({
   id, code, name, isActive, statementSection: 'Asset', hasMovements: false, accountType: 'Asset', normalBalance: 'Debit',
@@ -119,6 +120,6 @@ describe('Hesap eşleştirmeleri (characterization)', () => {
     fireEvent.click([...document.querySelectorAll<HTMLElement>('tr[data-mapping-key]')].find((tr) => tr.textContent?.includes('Satış gelirleri'))!);
     await settle(50);
     expect(pickerFor('Satış gelirleri')).toBeNull();
-    expect(barCommand('save').getAttribute('title')).toBe('Hesap eşleştirmelerini firma yöneticisi düzenler');
+    expect(commandReason(barCommand('save'))).toBe('Hesap eşleştirmelerini firma yöneticisi düzenler');
   });
 });

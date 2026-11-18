@@ -52,7 +52,7 @@ public sealed class InventoryStockStandardTests
         var search = Props("aramaKutusu");
         Assert.Equal("text", (string)search["inputType"]!);
         Assert.Equal("Ara", (string)search["label"]!);
-        Assert.Equal("Kod, ad, barkod veya kategori", (string)search["placeholder"]!);
+        Assert.Equal("Kod veya stok adıyla ara", (string)search["placeholder"]!);
     }
 
     [Fact]
@@ -111,11 +111,13 @@ public sealed class InventoryStockStandardTests
         Assert.True((bool)props["allowClear"]!);
         Assert.Equal("depo.listele", (string)Query("depolar")["operation"]!);
         var toolbar = Props("suzgecKarti");
-        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "pasifler", "detayPaneli" }, Strings(toolbar["inputs"]));
+        // Legacy row: search, Depo, Minimum altı chip, Detay paneli; the new Pasif toggle sits last (right end, where legacy has its list tools).
+        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "detayPaneli", "pasifler" }, Strings(toolbar["inputs"]));
         Assert.Equal("inline", (string)toolbar["layout"]!);
         Assert.Null(toolbar["columns"]);
-        Assert.Equal("Minimum altı {{bakiye.meta.belowMinimumCount}}", (string)Props("minimumAlti")["label"]!);
-        Assert.Equal("checkbox", (string)Props("pasifler")["inputType"]!);
+        Assert.Equal(("Minimum altı", "{{bakiye.meta.belowMinimumCount}}"), ((string)Props("minimumAlti")["label"]!, (string)Props("minimumAlti")["description"]!));
+        Assert.Equal(("checkbox", "archive"), ((string)Props("pasifler")["inputType"]!, (string)Props("pasifler")["icon"]!));
+        Assert.Equal("panel", (string)Props("detayPaneli")["icon"]!);
         var detail = Props("detayPaneli");
         Assert.Equal(("checkbox", "Detay paneli", "true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultValue"]!));
         // Legacy order: action bar → metrics → toolbar row → list.
@@ -538,6 +540,8 @@ public sealed class InventoryStockStandardTests
     {
         var props = Props("komutlar");
         Assert.Equal("kartPenceresi", (string)props["formDialog"]!);
+        // Legacy title row: "Stok Kartları  N kayıt" above the action bar.
+        Assert.Equal("{{bakiye.meta.totalCount}}", (string)props["titleCount"]!);
         Assert.Equal(new[] { "kod" }, Strings(props["newInputs"]));
         Assert.Null(props["saveQuery"]);
         var requires = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar").Requires;
@@ -644,17 +648,19 @@ public sealed class InventoryStockStandardTests
     [Fact]
     public void Negative_stock_strip_sits_below_the_list_for_everyone()
     {
-        var expected = new (string Id, string Title, string Variant, string VisibleWhen)[]
+        // Legacy NegativeStockPolicyNote wording: status strip with a shield tile and a right-hand badge.
+        var expected = new (string Id, string Title, string Variant, string VisibleWhen, string Icon, string Badge)[]
         {
-            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false"),
-            ("negatifStokKorumaKapali", "Negatif stok koruması kapalı", "warning", "negatifStok.rows[0].allowNegativeStock == true")
+            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false", "shield", "Etkin"),
+            ("negatifStokKorumaKapali", "Negatif stoka izin veriliyor", "warning", "negatifStok.rows[0].allowNegativeStock == true", "shieldAlert", "İzinli")
         };
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
-        foreach (var (id, title, variant, visibleWhen) in expected)
+        foreach (var (id, title, variant, visibleWhen, icon, badge) in expected)
         {
             Assert.Equal("alert", (string)Component(id)["type"]!);
             var props = Props(id);
             Assert.Equal((title, variant, visibleWhen, 12), ((string)props["title"]!, (string)props["variant"]!, (string)props["visibleWhen"]!, (int)props["width"]!));
+            Assert.Equal((icon, badge), ((string)props["icon"]!, (string)props["value"]!));
             Assert.Contains("Değer ağırlıklı ortalama", (string)props["text"]!);
             Assert.True(order.IndexOf(id) > order.IndexOf("liste"), id);
             // Not tab- or dialog-owned: visible on the page itself.

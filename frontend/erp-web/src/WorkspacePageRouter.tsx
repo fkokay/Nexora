@@ -5,6 +5,7 @@ import type * as AppTypes from "./erp-types";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
 import { canBeSystemPage } from "./system-pages/systemPageKeys";
 import { LegacyScreenBar } from "./system-pages/LegacyScreenBar";
+import { systemPreviewFor } from "./workspace-storage";
 
 const PurchaseDeliveryNotesPage = lazy(
   () => import("./PurchaseDeliveryNotesPage"),
@@ -165,6 +166,12 @@ const isBuiltInPageKey = (key: string) => !nonBuiltInPrefixes.some((prefix) => k
 
 export function WorkspacePageRouter({ systemPages, ...props }: RouterProps) {
   const key = props.page;
+  // Studio's preview of a system page draft opens on the screen's own key, so the workspace shows it as that built-in
+  // screen (module menu, breadcrumb, tab title) with the draft in place of the published design or the legacy screen.
+  const previewId = isBuiltInPageKey(key) && canBeSystemPage(key) ? systemPreviewFor(key) : undefined;
+  if (previewId)
+    return <TenantCustomPage token={props.token} systemScreenKey={key} previewId={previewId}
+      onOpenLegacy={systemPages ? () => systemPages.openLegacy(key) : undefined} />;
   // A key without a standard definition is never in the runtime map, so it need not wait for the map to load.
   if (!systemPages || !isBuiltInPageKey(key) || !canBeSystemPage(key)) return <LegacyPageRouter {...props} />;
   if (systemPages.status === "loading")

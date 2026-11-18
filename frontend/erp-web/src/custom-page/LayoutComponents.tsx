@@ -1,5 +1,7 @@
 import { Children, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { formatCell } from "./cellFormat";
+// Tek satır süzgeç dizilimi eski liste araç satırının (list-v2) sınıflarını kullanır.
+import "../list-page/list-page-v2.css";
 
 /** Form kartı — taslak `.card` + `.fg3`: başlık ve girişlerin 1/2/3 sütunlu ızgarası. */
 export function FormCard({ title, columns, children, style, meta, inline = false }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties;
@@ -10,10 +12,10 @@ export function FormCard({ title, columns, children, style, meta, inline = false
    * yanında yan yana dizilir; dar ekranda alt satıra kayar. Başlık görsel olarak çizilmez, bölgenin erişilebilir adı olur.
    */
   inline?: boolean }) {
-  return <section className={`tenant-page-block tenant-page-form-card${inline ? " is-inline" : ""}`} style={style} aria-label={inline && title ? title : undefined}>
+  return <section className={`tenant-page-block tenant-page-form-card${inline ? " is-inline list-v2" : ""}`} style={style} aria-label={inline && title ? title : undefined}>
     {title && !inline && <h3>{title}</h3>}
     {meta && <span className="tenant-page-form-card-meta" role="status">{meta}</span>}
-    <div className={inline ? "tenant-page-form-card-grid is-inline" : `tenant-page-form-card-grid is-cols-${columns}`}>
+    <div className={inline ? "tenant-page-form-card-grid is-inline list-v2-toolbar" : `tenant-page-form-card-grid is-cols-${columns}`}>
       {Children.map(children, (child) => child == null || child === false ? null : <div className="tenant-page-form-card-cell">{child}</div>)}
     </div>
   </section>;

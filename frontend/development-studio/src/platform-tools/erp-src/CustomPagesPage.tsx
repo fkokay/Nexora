@@ -132,7 +132,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog",
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -1631,6 +1631,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (systemScreenKey) destination.searchParams.set("page", systemScreenKey);
     else destination.searchParams.set("customPage", page.code);
   };
+  /** Taslak önizlemesi: sistem sayfası kendi ekran anahtarıyla açılır (modül menüsü, konum satırı ve sekme o ekranınkidir). */
+  const setDraftTarget = (destination: URL, draftId: string) => {
+    if (systemScreenKey) {
+      destination.searchParams.set("page", systemScreenKey);
+      destination.searchParams.set("systemPreview", draftId);
+    } else destination.searchParams.set("customPagePreview", draftId);
+  };
   const openErpPreview = async () => {
     if (!platformOrigin) { setError("ERP adresi bulunamadı. Studio'yu ERP ekranındaki bağlantıdan açın."); return; }
     setPreviewHref(null);
@@ -1644,7 +1651,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         else {
           const saved = dirty || !current ? await saveDraft() : current;
           if (!saved) return;
-          destination.searchParams.set("customPagePreview", saved.id);
+          setDraftTarget(destination, saved.id);
         }
         setError("");
         setNotice(blockedPreviewNotice);
@@ -1665,7 +1672,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const saved = dirty || !current ? await saveDraft() : current;
       if (!saved) { previewWindow.close(); return; }
       const destination = new URL("/", platformOrigin);
-      destination.searchParams.set("customPagePreview", saved.id);
+      setDraftTarget(destination, saved.id);
       previewWindow.location.replace(destination.toString());
     } catch {
       previewWindow.close();

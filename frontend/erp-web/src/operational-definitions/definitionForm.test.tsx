@@ -4,6 +4,7 @@ import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { DefinitionForm } from './components/DefinitionForm';
+import { commandReason } from '../action-bar/commandReason';
 
 afterEach(cleanup);
 
@@ -55,7 +56,7 @@ describe('DefinitionForm (İş yeri / şube / fabrika side form)', () => {
     const onSubmit = vi.fn();
     renderForm(onSubmit, true);
     expect(barSave().getAttribute('aria-disabled')).toBe('true');
-    expect(barSave().title).toBe('Kaydediliyor…');
+    expect((commandReason(barSave()) ?? '')).toBe('Kaydediliyor…');
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     expect(onSubmit).not.toHaveBeenCalled();
   });

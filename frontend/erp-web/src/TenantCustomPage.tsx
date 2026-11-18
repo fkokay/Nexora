@@ -1,5 +1,5 @@
 import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, LayoutTemplate } from "lucide-react";
+import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, PanelRight, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
@@ -36,6 +36,7 @@ import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomF
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
 import { usePageParams, type PageParams } from "./pageNavigation";
@@ -638,9 +639,21 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   return [...fixed, ...(optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }))];
 };
 
-export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup }: {
+/** Durum şeridi (simgeli uyarı) simgeleri; sunucudaki AlertIcons ile aynı küme. */
+const ALERT_STRIP_ICONS: Record<string, LucideIcon> = { shield: ShieldCheck, shieldAlert: ShieldAlert, check: CheckCircle2, alert: AlertTriangle, info: Info };
+
+/** Tek satır süzgeç diziliminde onay kutusunu düz anahtar düğmesi olarak çizen simgeler (`icon`); simgesiz onay kutusu çiptir. */
+const INLINE_TOGGLE_ICONS: Record<string, LucideIcon> = { panel: PanelRight, archive: Archive, eye: Eye, filter: Filter };
+
+/**
+ * `inline`: giriş, tek satırlık süzgeç diziliminde (form kartı `layout: "inline"`) eski liste araç satırının görünümüyle çizilir —
+ * yer tutuculu metin girişi büyüteçli arama kutusu (`list-v2-search`), arama kutusu (lookup) açılır liste, onay kutusu çip
+ * (`list-v2-chip`; `description` sayaç olur) ya da `icon` verilmişse düz anahtar düğmesi (eski "Detay paneli" düğmesi).
+ */
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup, inline = false }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void; lookup?: LookupBinding;
+  inline?: boolean;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
@@ -653,7 +666,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
         allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
         error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
-        onSearch={(text) => lookup?.onSearch(text)} />
+        onSearch={(text) => lookup?.onSearch(text)} appearance={inline ? "select" : "search"} />
       {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
     </div>;
   }
@@ -682,8 +695,22 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
       placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
+  let field = <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>;
+  if (inline && inputType === "checkbox") {
+    const Icon = INLINE_TOGGLE_ICONS[textValue(props.icon)];
+    const count = textValue(props.description);
+    const active = raw === true ? " is-active" : "";
+    field = Icon
+      ? <label htmlFor={inputId} className={`tenant-page-toggle${active}`}>{control}<Icon size={15} aria-hidden="true" /><span>{label}</span></label>
+      : <label htmlFor={inputId} className={`list-v2-chip${active}`}>{control}<span>{label}</span>
+        {count && <>{" "}<span className="list-v2-chip-count">{count}</span></>}</label>;
+  } else if (inline && inputType === "text" && textValue(props.placeholder)) {
+    field = <label htmlFor={inputId} className="list-v2-search"><Search size={16} aria-hidden="true" />{label && <span>{label}</span>}{control}</label>;
+  } else if (inline) {
+    field = <label htmlFor={inputId} className="list-v2-filter">{label && <span>{label}</span>}{control}</label>;
+  }
   return <div className={`tenant-page-input tenant-page-input-${inputType}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
-    <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
+    {field}
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
   </div>;
@@ -693,7 +720,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
 const withConditionalRequired = (props: Record<string, unknown>, raw: Record<string, unknown> | undefined, scope: PageScope) =>
   props.required !== true && conditionHolds(raw?.requiredWhen, scope, false) ? { ...props, required: true } : props;
 
-function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime, inline = false) {
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? withConditionalRequired(boundProps, component.props, runtime.scope) : boundProps;
   // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
@@ -702,7 +729,7 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
     error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
     optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
-    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} />;
+    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
 }
 
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
@@ -725,8 +752,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
       const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
       const changes = runtime && props.trackChanges === true ? runtime.cardChanges(component) : 0;
-      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={props.layout === "inline"}>
-        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
+      const inline = props.layout === "inline";
+      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={inline}>
+        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime, inline))}
       </FormCard>;
     }
     case "filterChips": {
@@ -896,7 +924,19 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       hidden={props.hidden === true} style={style} title={title || "Yalıtılmış özel kod"} host={runtime?.codeHost ?? INERT_CODE_HOST} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
     case "alert": {
       const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
-      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
+      const role = variant === "danger" ? "alert" : "status";
+      // `icon` verilen uyarı eski Stok Kartları alt notunun (NegativeStockPolicyNote) durum şeridi olarak çizilir: beyaz kart,
+      // tonlu simge kutusu, kalın başlık, soluk alt metin ve sağda `value` rozeti.
+      const StripIcon = ALERT_STRIP_ICONS[textValue(props.icon)];
+      if (StripIcon) {
+        const badge = textValue(props.value);
+        return <aside key={component.id} className={`tenant-page-status-strip tone-${variant}`} style={style} role={role}>
+          <span className="tenant-page-status-strip-mark" aria-hidden="true"><StripIcon size={17} /></span>
+          <span className="tenant-page-status-strip-text"><b>{title || "Bilgilendirme"}</b>{text && <small>{text}</small>}</span>
+          {badge && <span className="tenant-page-status-strip-badge">{badge}</span>}
+        </aside>;
+      }
+      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={role}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
     }
     case "badge": {
       return <PageBadge key={component.id} text={text || title || "Durum"} variant={props.variant} toneMap={props.toneMap} style={style} />;
@@ -1211,10 +1251,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams }: {
+function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams, legacyLink = null }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
   /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
   tabKey?: string; pageParams: PageParams;
+  /** İşlem çubuklu sayfada başlık satırına konan "Eski ekranda aç" bağlantısı. */
+  legacyLink?: ReactNode;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   const touchedRef = useRef(touched);
@@ -2326,7 +2368,13 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     newCommand,
   } : undefined;
 
+  // İşlem çubuklu sayfa eski liste ekranlarının başlık satırını kullanır: başlık (ve isteğe bağlı kayıt sayısı) işlem çubuğunun
+  // üstünde, çubuk başlığın hemen altındaki yuvaya (ActionBarSlot) taşınır; açıklama başlığın ipucudur (eski ekranda satır yok).
+  const titleCount = bar ? pageTitleCount(bar.props.titleCount, scope) : null;
   return <div className="tenant-custom-page-content">
+    {bar && <div className="list-v2 tenant-custom-page-title">
+      <ListPageHeader title={page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
+    </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
@@ -2334,6 +2382,18 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }
+
+/** İşlem çubuğunun `titleCount` bağlaması sayıya çözülürse başlığın yanındaki kayıt sayısı; boş/sayı değilse gösterilmez. */
+export function pageTitleCount(raw: unknown, scope: PageScope): number | null {
+  const template = textValue(raw);
+  if (!template) return null;
+  const text = interpolate(template, scope).trim();
+  const value = text === "" ? NaN : Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** İşlem çubuğu (iç içe bileşenler dahil) olan sayfa. */
+const hasActionBar = (list: ComponentDefinition[]): boolean => list.some((component) => component.type === "actionBar" || hasActionBar(component.children ?? []));
 
 /** Sorgu durumlarındaki ERP doğrulama hatalarını (parametre adına göre) `{{<giriş>.value}}` bağlamasıyla giriş adlarına eşler. */
 function operationInputErrors(queries: PageQueryDefinition[], states: Record<string, QueryState>): Record<string, string> {
@@ -2367,7 +2427,8 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   // The router passes inline callbacks; keep them out of the load effect's dependencies.
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
-  const tabKey = previewId ? `custom-page-preview:${previewId}` : systemScreenKey ?? (code ? `custom-page:${code}` : undefined);
+  // A system page (published or a Studio draft preview) lives in its built-in screen's tab.
+  const tabKey = systemScreenKey ?? (previewId ? `custom-page-preview:${previewId}` : code ? `custom-page:${code}` : undefined);
   const pageParams = usePageParams(tabKey);
 
   useEffect(() => {
@@ -2421,7 +2482,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
-    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} />
+    {!(isV2 && hasActionBar(components)) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} />
   </main>;
 }

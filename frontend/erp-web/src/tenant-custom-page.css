@@ -9,6 +9,10 @@
 .tenant-custom-page-header p { margin: 3px 0 0; color: var(--nx-muted); font-size: 12px; }
 .tenant-custom-page-content { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap); }
 .tenant-custom-page-content > * { grid-column: span 12; min-width: 0; }
+/* İşlem çubuklu sayfanın başlık satırı ve çubuk yuvası (ListPageHeader) doğrudan sayfa ızgarasının öğeleridir (eski liste
+   ekranlarındaki gibi aralarında 12px); sarmalayıcı yalnız `.list-v2` kapsamını verir. */
+.tenant-custom-page-title { display: contents; }
+.tenant-custom-page-title > * { grid-column: span 12; min-width: 0; }
 
 /* Kart ve bloklar */
 .tenant-page-block, .tenant-page-metric { box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
@@ -91,6 +95,22 @@
 .tenant-page-alert.tone-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); color: var(--nx-ok); background: var(--nx-ok-bg); }
 .tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
 .tenant-page-alert.tone-danger { border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); color: var(--nx-bad); background: var(--nx-bad-bg); }
+/* Durum şeridi (uyarı + `icon`): eski Stok Kartları alt notu (inventory-list-v2.css `.stock-policy-note`) ile aynı ölçüler.
+   Sınıf adları "-card"/"-icon"/"-badge" içermez: kabuğun alt dize kuralları !important dolgu ve köşe verir. */
+.tenant-page-status-strip { display: flex; align-items: center; gap: 12px; box-sizing: border-box; min-width: 0; padding: 10px 14px; border: 1px solid #dfe5ee; border-radius: var(--nx-radius-card); background: #fff; color: #17263a; }
+.tenant-page-status-strip-mark { display: grid; flex: none; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #e8f6ee; color: #1c7a4a; }
+.tenant-page-status-strip-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.tenant-page-status-strip-text b { font-size: 13px; font-weight: 650; }
+.tenant-page-status-strip-text small { color: #5b6b80; font-size: 12px; line-height: 1.45; }
+.tenant-page-status-strip-badge { flex: none; padding: 3px 9px; border-radius: 999px; background: #e8f6ee; color: #1c7a4a; font-size: 11px; font-weight: 650; }
+.tenant-page-status-strip.tone-info :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: #eef2f7; color: #45566d; }
+.tenant-page-status-strip:is(.tone-warning, .tone-danger) :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface)); color: var(--nx-primary-strong); }
+.tenant-page-status-strip.tone-danger :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: var(--nx-bad-bg); color: var(--nx-bad); }
+html[data-theme='dark'] .tenant-page-status-strip { border-color: #35435b; background: #1a263a; color: #e7edf5; }
+html[data-theme='dark'] .tenant-page-status-strip-text small { color: #a7b4c6; }
+html[data-theme='dark'] .tenant-page-status-strip.tone-success :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: #173a2a; color: #8ee0b2; }
+html[data-theme='dark'] .tenant-page-status-strip.tone-warning :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: var(--nx-warn-bg); color: var(--nx-primary-strong); }
+html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: #253247; color: #c2cfe0; }
 .tenant-page-badge { display: inline-flex; align-items: center; width: fit-content; padding: 1px 8px !important; border: 0; border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 11px; font-weight: 600; line-height: 1.6; }
 .tenant-page-badge.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
 .tenant-page-badge.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
@@ -192,29 +212,64 @@
 .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .tenant-page-form-card-cell { min-width: 0; }
 .tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
-/* Form kartı `layout: "inline"`: listenin üstündeki tek satırlık süzgeç dizilimi (taslak `.tb`). Etiket kutunun solunda,
-   onay kutusu çip görünümünde; sığmayan giriş alt satıra kayar. */
+/* Form kartı `layout: "inline"`: listenin üstündeki tek satırlık süzgeç dizilimi. Eski liste araç satırıyla (ListToolbar,
+   list-page-v2.css) birebir: kart `.list-v2`, ızgara `.list-v2-toolbar`; arama `.list-v2-search`, onay kutusu `.list-v2-chip`
+   ya da `icon` ile düz anahtar düğmesi (eski "Detay paneli"), arama kutusu (lookup) eski depo seçicisi gibi açılır liste.
+   Aşağıdaki kurallar yalnız eski sınıfların özel sayfa kabuğunda ezilen yerlerini düzeltir (#root, kabuğun !important kurallarını aşar). */
 /* Kart çerçevesi yok: araç satırı sayfa zemininde durur (kabuğun `[class*='-card']` dolgu kuralı #root ile aşılır). */
 .tenant-page-form-card.is-inline { display: flex; align-items: center; padding: 0 !important; border: 0; background: transparent; box-shadow: none; }
 #root .app-shell .tenant-page-form-card.is-inline { padding: 0 !important; border: 0 !important; background-color: transparent !important; box-shadow: none !important; }
+/* Izgara ve hücre sınıfları da "-card" içerir; kabuk onlara da yüzey dolgusu (!important) verir. Eski araç satırı gibi
+   saydam kalırlar: yalnız denetimlerin kendi çerçevesi görünür. */
+#root .app-shell .tenant-page-form-card.is-inline :is(.tenant-page-form-card-grid, .tenant-page-form-card-cell) {
+  padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+.tenant-page-form-card-grid.is-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; width: 100%; }
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell { flex: 0 1 auto; }
+/* Arama kutusu eski `.list-v2-search` gibi esner (240px'ten başlar, en çok 340px). */
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:has(> .tenant-page-input > .list-v2-search) { flex: 1 1 240px; max-width: 340px; }
+/* Son öğe satırın sağına yaslanır (eski satırda liste araçlarının yeri; ör. "Pasif kartları da göster"). */
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child) { margin-left: auto; }
 /* Yer tutuculu metin girişinin (arama) etiketi görsel olarak gizlenir; erişilebilir ad olarak kalır. */
 .tenant-page-form-card-grid.is-inline .tenant-page-input-text > label:has(input[placeholder]:not([placeholder=""])) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-/* Son öğe (ör. "Detay paneli") satırın sağına yaslanır. */
-.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child) { margin-left: auto; }
-/* Onay kutusu çip olarak çizilir: kutu görünmez ama odaklanabilir ve ekran okuyucuya açıktır. */
+#root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-search { box-sizing: border-box; width: 100%; max-width: none; color: var(--lv2-muted) !important; font-size: 12.5px !important; font-weight: 400 !important; cursor: text; }
+#root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-search > svg { flex: none; }
+/* Etiketli süzgeç (eski `.list-v2-filter`): etiket kutunun solunda, soluk 12px/600. */
+.tenant-page-form-card-grid.is-inline .tenant-page-lookup { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#root .app-shell .tenant-page-form-card-grid.is-inline .tenant-page-lookup > label,
+#root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-filter { margin: 0; color: var(--lv2-muted) !important; font-size: 12px !important; font-weight: 600 !important; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-select select { width: 220px; max-width: 100%; }
+/* Açılır liste görünümlü arama kutusu (eski depo seçicisi `.searchable-record-trigger`: 220×32, 13px, sağda ⌄). */
+.tenant-page-lookup.is-select .tenant-page-lookup-control { width: 220px; max-width: 100%; }
+#root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input {
+  height: 32px; min-height: 32px; padding: 0 30px 0 10px; font-size: 13px !important; text-overflow: ellipsis; cursor: pointer;
+}
+#root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input:focus { cursor: text; }
+/* Eski tetikleyicinin (style.css `.searchable-record-trigger`) çerçeve, köşe ve yazı tonu; koyu temada tasarım belirteçleri kalır. */
+html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input:not(:focus) { border-color: #d8e2ec !important; }
+#root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input { border-radius: 5px !important; font-weight: 600 !important; }
+html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input { color: #26384c !important; }
+.tenant-page-lookup-chevron { position: absolute; top: 50%; right: 9px; color: var(--nx-text); pointer-events: none; transform: translateY(-50%); }
+.tenant-page-lookup.is-select .tenant-page-lookup-clear { right: 28px; }
+#root .app-shell .tenant-custom-page .tenant-page-lookup.is-select:has(.tenant-page-lookup-clear) .tenant-page-lookup-control input { padding-right: 50px; }
+/* Onay kutusu çip ya da anahtar düğmesi olarak çizilir: kutu görünmez ama odaklanabilir ve ekran okuyucuya açıktır. */
 .tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label { position: relative; }
 .tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox input[type="checkbox"] { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label:has(input:focus-visible) { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
-.tenant-page-form-card-grid.is-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; width: 100%; }
-.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell { flex: 0 1 auto; }
-.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:first-child:has(.tenant-page-input-text) { flex: 1 1 240px; max-width: 360px; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input > label,
-.tenant-page-form-card-grid.is-inline .tenant-page-lookup { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-text > label > input { min-width: 0; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-select select,
-.tenant-page-form-card-grid.is-inline .tenant-page-lookup-control { width: 220px; max-width: 100%; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label { min-height: var(--nx-control-h); box-sizing: border-box; padding: 0 10px; border: 1px solid var(--nx-line); border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label:has(input:checked) { border-color: var(--nx-primary); color: var(--nx-primary-strong, var(--nx-primary)); background: color-mix(in srgb, var(--nx-primary) 8%, transparent); }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label:has(input:focus-visible) { outline: 2px solid var(--lv2-strong, var(--nx-primary)); outline-offset: 2px; }
+/* Çip: ölçüler `.list-v2-chip`'ten gelir; kabuğun `.content label` kuralı (14px, !important) burada geri alınır. */
+#root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-chip { box-sizing: border-box; color: var(--lv2-text) !important; font-size: 12px !important; font-weight: 500 !important; }
+#root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-chip.is-active { color: var(--nx-primary-strong) !important; font-weight: 600 !important; }
+/* Anahtar düğmesi: eski Stok Kartları "Detay paneli" düğmesinin (`.inventory-stock-panel-toggle`) aynısı. */
+#root .app-shell .tenant-page-form-card-grid.is-inline label.tenant-page-toggle {
+  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--nx-control-h); min-height: var(--nx-control-h); margin: 0; padding: 0 9px;
+  border: 1px solid transparent; border-radius: var(--nx-radius-control); box-shadow: none;
+  /* Eski düğmenin sınıfı "-panel" içerdiği için kabuk ona her durumda yüzey dolgusu verir (!important); görünüm aynı kalsın. */
+  background: var(--erp-color-surface) !important;
+  color: var(--nx-text) !important; font: 500 12.5px/1.2 var(--nx-font) !important; white-space: nowrap; cursor: pointer;
+}
+#root .app-shell .tenant-page-form-card-grid.is-inline label.tenant-page-toggle.is-active {
+  border-color: color-mix(in srgb, var(--nx-primary) 35%, var(--nx-surface)); color: var(--nx-primary-strong) !important;
+}
 /* Zorunlu giriş işareti: etiketten sonra "*" (erişilebilir ad değişmez; zorunluluk `required`/aria ile bildirilir). */
 .tenant-page-input.is-required > label > span::after,
 .tenant-page-input.is-required .tenant-page-lookup > label > span::after { content: " *"; color: var(--nx-bad); font-weight: 600; }

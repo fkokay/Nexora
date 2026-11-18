@@ -10,6 +10,7 @@ import SalesRequestsPage from '../SalesRequestsPage';
 import PurchaseSupplierQuotesPage from '../PurchaseSupplierQuotesPage';
 import { PurchaseRequestFlow, purchaseRequestListTag } from './purchaseRequestList';
 import { purchaseQuoteListTag } from './purchaseQuoteList';
+import { commandReason } from '../action-bar/commandReason';
 
 /*
  * Satınalma Talepleri ve Teklifleri on the list / document type (Faz 4 Task 2): the list (cards from the per-status
@@ -117,7 +118,7 @@ function renderScreen(view: ReactNode) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function openMenu() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

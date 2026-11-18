@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TenantCustomPage from '../TenantCustomPage';
-import { lookupOptions } from './LookupInput';
+import { LookupInput, lookupOptions, type LookupOption } from './LookupInput';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -212,5 +212,33 @@ describe('lookupOptions', () => {
   it('shows at most 50 options', () => {
     const many = { ...state, rows: Array.from({ length: 60 }, (_, index) => ({ Kod: `K${index}`, Ad: `Depo ${index}` })) };
     expect(lookupOptions(props, many, '', false)).toHaveLength(50);
+  });
+});
+
+describe('LookupInput açılır liste görünümü', () => {
+  const opts: LookupOption[] = [
+    { value: '', label: 'Tüm depolar', description: '', row: null },
+    { value: 'D1', label: 'Merkez Depo', description: 'D1', row: {} },
+  ];
+  const view = (raw: string, options = opts, onChange = vi.fn()) => render(<LookupInput inputId="d" label="Depo" raw={raw} onChange={onChange}
+    onSearch={() => {}} options={options} loading={false} allowClear disabled={false} placeholder="" appearance="select" />);
+
+  it('değer metni ve ⌄ çizer, tıklayınca listeyi açar', () => {
+    const { container } = view('');
+    expect(container.querySelector('.tenant-page-lookup.is-select .tenant-page-lookup-chevron')).toBeTruthy();
+    expect(combobox().value).toBe('Tüm depolar');
+    fireEvent.click(combobox());
+    expect(optionTexts()).toEqual(['Tüm depolar', 'Merkez Depo']);
+  });
+
+  it('boş değerli seçenek varken ✕ çizilmez; yoksa allowClear ✕ gösterir', () => {
+    view('D1');
+    expect(combobox().value).toBe('Merkez Depo');
+    expect(screen.queryByRole('button', { name: 'Temizle' })).toBeNull();
+    cleanup();
+    const onChange = vi.fn();
+    view('D1', opts.slice(1), onChange);
+    fireEvent.click(screen.getByRole('button', { name: 'Temizle' }));
+    expect(onChange).toHaveBeenCalledWith('', null, '');
   });
 });

@@ -52,6 +52,44 @@ describe('liste görünümü', () => {
     expect(grid.querySelectorAll('.tenant-page-form-card-cell')).toHaveLength(2);
   });
 
+  it('tek satır form kartı eski liste araç satırının sınıflarını taşır', () => {
+    const { container } = render(<FormCard title="Süzgeçler" columns={3} style={{}} inline><span>a</span></FormCard>);
+    expect(container.querySelector('section')!.classList.contains('list-v2')).toBe(true);
+    expect(container.querySelector('.tenant-page-form-card-grid')!.classList.contains('list-v2-toolbar')).toBe(true);
+  });
+
+  it('tek satırda: arama büyüteçli kutu, onay kutusu sayaçlı çip, simgeli onay kutusu anahtar düğmesi, lookup açılır liste', () => {
+    const { container } = render(<>
+      <PageInput inline component={component('ara')} props={{ inputType: 'text', label: 'Ara', placeholder: 'Kod veya stok adıyla ara' }} raw="" onChange={() => {}} style={{}} />
+      <PageInput inline component={component('min')} props={{ inputType: 'checkbox', label: 'Minimum altı', description: '3' }} raw={true} onChange={() => {}} style={{}} />
+      <PageInput inline component={component('panel')} props={{ inputType: 'checkbox', label: 'Detay paneli', icon: 'panel' }} raw={false} onChange={() => {}} style={{}} />
+      <PageInput inline component={component('depo')} props={{ inputType: 'lookup', label: 'Depo', allowClear: true }} raw="" onChange={() => {}} style={{}} />
+    </>);
+    const search = screen.getByLabelText('Ara').closest('label')!;
+    expect(search.classList.contains('list-v2-search')).toBe(true);
+    expect(search.querySelector('svg')).toBeTruthy();
+    const chip = (screen.getByLabelText('Minimum altı 3') as HTMLInputElement);
+    expect(chip.checked).toBe(true);
+    const chipLabel = chip.closest('label')!;
+    expect(chipLabel.className).toBe('list-v2-chip is-active');
+    expect(chipLabel.querySelector('.list-v2-chip-count')?.textContent).toBe('3');
+    const toggle = screen.getByLabelText('Detay paneli').closest('label')!;
+    expect(toggle.className).toBe('tenant-page-toggle');
+    expect(toggle.querySelector('svg')).toBeTruthy();
+    const lookup = container.querySelector('#page-input-depo')!.closest('.tenant-page-lookup')!;
+    expect(lookup.classList.contains('is-select')).toBe(true);
+    expect(lookup.querySelector('.tenant-page-lookup-chevron')).toBeTruthy();
+  });
+
+  it('ızgara (tek satır olmayan) girişler eski görünümü korur', () => {
+    const { container } = render(<>
+      <PageInput component={component('ara')} props={{ inputType: 'text', label: 'Ara', placeholder: 'Ara' }} raw="" onChange={() => {}} style={{}} />
+      <PageInput component={component('min')} props={{ inputType: 'checkbox', label: 'Minimum altı', icon: 'panel' }} raw={false} onChange={() => {}} style={{}} />
+      <PageInput component={component('depo')} props={{ inputType: 'lookup', label: 'Depo' }} raw="" onChange={() => {}} style={{}} />
+    </>);
+    expect(container.querySelector('.list-v2-search, .list-v2-chip, .tenant-page-toggle, .is-select, .tenant-page-lookup-chevron')).toBeNull();
+  });
+
   it('ızgara form kartı başlığını ve sütun sınıfını korur', () => {
     const { container } = render(<FormCard title="Kimlik" columns={3} style={{}}><span>a</span></FormCard>);
     expect(container.querySelector('h3')?.textContent).toBe('Kimlik');

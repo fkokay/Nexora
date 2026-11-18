@@ -11,6 +11,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import SearchableRecordPicker from '../SearchableRecordPicker';
 import { RecordFieldChange, RecordFormGroup, RecordFormPage, RecordFormTabs } from './RecordForm';
 import type { RecordFormPageProps, RecordFormTab } from './RecordForm';
+import { commandReason } from '../action-bar/commandReason';
 
 afterEach(cleanup);
 
@@ -201,7 +202,7 @@ describe('RecordFormPage saving', () => {
     const onSubmit = vi.fn();
     inView(<Form title="Konum" onSubmit={onSubmit} saveDisabledReason="Konum kodu ve adı zorunludur." />);
     expect(barSave().getAttribute('aria-disabled')).toBe('true');
-    expect(barSave().title).toBe('Konum kodu ve adı zorunludur.');
+    expect((commandReason(barSave()) ?? '')).toBe('Konum kodu ve adı zorunludur.');
     ctrlS();
     expect(onSubmit).not.toHaveBeenCalled();
   });

@@ -5,6 +5,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -438,7 +439,7 @@ describe('İşlem yetkisi', () => {
     fireEvent.click(button);
     fireEvent.click(screen.getByText('Var olan'));
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(command('delete').getAttribute('title')).toBe('Bu işlem için yetkiniz yok');
+    expect(commandReason(command('delete'))).toBe('Bu işlem için yetkiniz yok');
     expect(writes()).toHaveLength(0);
   });
 });

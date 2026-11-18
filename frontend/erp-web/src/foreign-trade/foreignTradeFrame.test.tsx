@@ -7,6 +7,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import ForeignTradePage from '../ForeignTradePage';
 import { tradeStatusTone } from './tradeStatus';
+import { commandReason } from '../action-bar/commandReason';
 
 const tradeCase = (id: string, referenceCode: string, status: string) => ({
   id, direction: 'Export', status, purchaseOrderId: null, salesOrderId: 'so1', referenceCode, originCountryCode: 'TR', destinationCountryCode: 'DE',
@@ -66,7 +67,7 @@ function renderScreen(view: ReactNode) {
 }
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 function openMenu() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

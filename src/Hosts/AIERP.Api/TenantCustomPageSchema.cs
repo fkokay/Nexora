@@ -47,15 +47,20 @@ internal static class TenantCustomPageSchema
       "requiredWhen",
       // Proje 4: compact one-row formCard (e.g. the filter row above a list), conditional width and per-value cell labels.
       "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
+      // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
+      "titleCount",
       // Navigation actions (link, erpPage, page): they never write data.
       "href", "pageKey", "pageCode", "params", "queryText" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog" };
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount" };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
+    private const int MaxTitleCountLength = 200;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
+    private static readonly HashSet<string> AlertIcons = new(StringComparer.Ordinal) { "shield", "shieldAlert", "check", "alert", "info" };
+    private const int MaxAlertBadgeLength = 40;
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
     private const int MaxTotals = 12;
@@ -72,11 +77,11 @@ internal static class TenantCustomPageSchema
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText" };
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
         ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200,
-        ["href"] = 1000, ["queryText"] = 200 };
+        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -573,6 +578,12 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
             && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
         { error = "Gösterge 'icon' değeri box, users, receipt, wallet, chart, clock, check veya alert olmalıdır."; return false; }
+        // An alert with an icon is drawn as a status strip (icon tile, title, text and a `value` badge on the right).
+        if (props.TryGetProperty("icon", out var alertIcon) && typeText == "alert"
+            && (alertIcon.ValueKind != JsonValueKind.String || !AlertIcons.Contains(alertIcon.GetString()!)))
+        { error = "Uyarı 'icon' değeri shield, shieldAlert, check, alert veya info olmalıdır."; return false; }
+        if (props.TryGetProperty("value", out var alertBadge) && typeText == "alert" && !IsStaticTextUpTo(alertBadge, MaxAlertBadgeLength))
+        { error = $"Uyarı rozeti ('value') en fazla {MaxAlertBadgeLength} karakterlik bir metin olmalıdır."; return false; }
         if (props.TryGetProperty("trendQuery", out var trendQuery)
             && (typeText != "metric" || trendQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(trendQuery.GetString())))
         {
@@ -714,6 +725,8 @@ internal static class TenantCustomPageSchema
             { error = FormDialogTargetText + "?"; return false; }
             context.PendingActionRefs.Add(("formDialog", formDialog.GetString()!, "dialog"));
         }
+        if (props.TryGetProperty("titleCount", out var titleCount) && !(titleCount.ValueKind == JsonValueKind.String && titleCount.GetString()!.Length is >= 1 and <= MaxTitleCountLength))
+        { error = $"'titleCount' 1–{MaxTitleCountLength} karakterlik bir metin (ör. bir sorgunun toplam kayıt sayısı bağlaması) olmalıdır."; return false; }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
         return ValidateSaveQueries(props, context, out error);

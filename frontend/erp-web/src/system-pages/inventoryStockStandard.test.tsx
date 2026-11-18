@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
+import { commandReason } from '../action-bar/commandReason';
+import { ActionBarSlotProvider } from '../action-bar/ActionBarSlot';
 import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
@@ -130,8 +132,10 @@ function setup(role = 'TenantAdmin') {
   });
   return render(
     <CommandProvider>
-      <ActionBar locale="tr" />
-      <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage systemScreenKey="inventory-stock" token={jwt(role)} onOpenLegacy={() => {}} /></KeepAliveViews>
+      <ActionBarSlotProvider breadcrumb={<nav aria-label="Konum">Ana Sayfa › Stok Kartları</nav>}>
+        <ActionBar locale="tr" />
+        <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage systemScreenKey="inventory-stock" token={jwt(role)} onOpenLegacy={() => {}} /></KeepAliveViews>
+      </ActionBarSlotProvider>
       <ConfirmDialogHost />
     </CommandProvider>,
   );
@@ -219,6 +223,25 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(metric('Minimum altı').getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('legacy title row: breadcrumb, title and record count above the action bar, inside the page column', async () => {
+    const { container } = setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    const title = screen.getByRole('heading', { level: 1, name: 'Stok Kartları' });
+    const heading = title.closest('.list-v2-heading') as HTMLElement;
+    expect(heading).toBeTruthy();
+    await waitFor(() => expect(heading.querySelector('.list-v2-count')?.textContent).toBe('2 kayıt'), T);
+    expect(container.querySelector('.tenant-custom-page-header, .tenant-custom-page-icon')).toBeNull();
+    // No description line (legacy shows none); it stays the title's tooltip.
+    expect(heading.querySelector('p')).toBeNull();
+    // The shared action bar moves into the slot right under the title, inside the page content column.
+    const bar = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+    const slot = bar.closest('[data-nx-action-bar-slot]') as HTMLElement;
+    await waitFor(() => expect(bar.closest('[data-nx-action-bar-slot]')).toBeTruthy(), T);
+    expect(slot.closest('.tenant-custom-page-content')).toBeTruthy();
+    expect(heading.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(heading).getByRole('navigation', { name: 'Konum' }).textContent).toBe('Ana Sayfa › Stok Kartları');
+  });
+
   it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
     const { container } = setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
@@ -235,8 +258,11 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     ]);
     const cells = Array.from(listRow('Kalem').querySelectorAll('td')).map((td) => td.textContent);
     expect(cells).toEqual(['KLM', 'Kalem', 'Kırtasiye', '5 ADET', '1 ADET', '4 ADET', '10', '25,00 TRY', '0 ADET', 'Minimum altı']);
-    expect(screen.getByText('Negatif stok koruması açık')).toBeTruthy();
-    expect(screen.queryByText('Negatif stok koruması kapalı')).toBeNull();
+    const strip = screen.getByText('Negatif stok koruması açık').closest('.tenant-page-status-strip') as HTMLElement;
+    expect(strip.classList.contains('tone-success')).toBe(true);
+    expect(strip.querySelector('.tenant-page-status-strip-mark svg')).toBeTruthy();
+    expect(strip.querySelector('.tenant-page-status-strip-badge')?.textContent).toBe('Etkin');
+    expect(screen.queryByText('Negatif stoka izin veriliyor')).toBeNull();
 
     await selectCard();
     await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
@@ -345,7 +371,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     setup('TenantUser');
     await selectCard();
     expect(command('delete').getAttribute('aria-disabled')).toBe('true');
-    expect(command('delete').getAttribute('title')).toBe('Bu işlem için yetkiniz yok');
+    expect(commandReason(command('delete'))).toBe('Bu işlem için yetkiniz yok');
     await openCard();
     fireEvent.click(tab(drawer(), 'Birimler'));
     expect(await within(drawer()).findByText('Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir.', {}, T)).toBeTruthy();
@@ -496,7 +522,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     setup();
     fireEvent.click(await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T));
     await waitFor(() => expect(gets(`/api/stock/items/${S1}`)).toHaveLength(1), T);
-    await waitFor(() => expect(command('open').getAttribute('title')).toBe('Kayıt okunamadı'), T);
+    await waitFor(() => expect(commandReason(command('open'))).toBe('Kayıt okunamadı'), T);
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(command('open'));
     await settle(50);

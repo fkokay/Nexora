@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkspacePageRouter } from '../WorkspacePageRouter';
 import { useSystemPageMap } from './useSystemPageMap';
+import { resetSystemPreviewForTests } from '../workspace-storage';
 import type * as AppTypes from '../erp-types';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
@@ -163,5 +164,34 @@ describe('system page routing', () => {
     expect(await screen.findByRole('heading', { name: 'Özel sayfa' })).toBeTruthy();
     rerender(<Harness page="custom-page:ozel" tenantId="t2" />);
     await waitFor(() => expect(api.mock.calls.filter(([endpoint]) => endpoint === '/api/system-pages/runtime')).toHaveLength(2));
+  });
+});
+
+describe('system page draft preview (Studio ERP önizlemesi)', () => {
+  const DRAFT = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+  afterEach(() => { window.history.replaceState(null, '', '/'); resetSystemPreviewForTests(); });
+
+  it('renders the draft on the built-in screen key, with the preview banner, before the map or the legacy screen', async () => {
+    window.history.replaceState(null, '', `/?page=${KEY}&systemPreview=${DRAFT}`);
+    resetSystemPreviewForTests();
+    api.mockImplementation(async (endpoint: string) => {
+      if (endpoint === `/api/custom-pages/${DRAFT}/preview`) return { ...published('override'), id: DRAFT, name: 'Depo Yönetimi' };
+      if (endpoint === '/api/system-pages/runtime') return new Promise(() => {});
+      if (endpoint.includes('/queries/')) return { columns: [], rows: [] };
+      throw new Error(`unexpected ${endpoint}`);
+    });
+    render(<Harness />);
+    expect(await screen.findByText('Depo başlığı')).toBeTruthy();
+    expect(screen.getByText('Studio taslak önizlemesi')).toBeTruthy();
+    expect(screen.queryByText('Eski depo ekranı')).toBeNull();
+    expect(api).not.toHaveBeenCalledWith(`/api/system-pages/${KEY}/published`, 'tok', expect.anything());
+  });
+
+  it('applies only to the screen key it was opened for', async () => {
+    window.history.replaceState(null, '', `/?page=${KEY}&systemPreview=${DRAFT}`);
+    resetSystemPreviewForTests();
+    api.mockImplementation(() => new Promise(() => {}));
+    render(<Harness page="crm-opportunities" />);
+    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
   });
 });
