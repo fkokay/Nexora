@@ -79,7 +79,64 @@ export function coerceParameter(value: unknown, type: string): unknown {
       return value === "true" ? true : value === "false" ? false : null;
     case "guid":
       return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+    case "list":
+      return coerceList(value);
+    case "map":
+      return coerceMap(value);
     default:
       return null;
   }
+}
+
+export const MAX_LIST_ITEMS = 200;
+export const MAX_MAP_KEYS = 40;
+/** Nesne prototipini değiştirebilecek anahtarlar her düzeyde düşürülür. */
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** `map`: en fazla 40 anahtarlı düz nesne; metin ve null değerler kalır, diğerleri düşer. Nesne değilse null. */
+function coerceMap(value: unknown): Record<string, string | null> | null {
+  if (!isPlainObject(value)) return null;
+  const map: Record<string, string | null> = {};
+  let count = 0;
+  for (const [key, item] of Object.entries(value)) {
+    if (count >= MAX_MAP_KEYS) break;
+    if (UNSAFE_KEYS.has(key) || (typeof item !== "string" && item !== null)) continue;
+    map[key] = item;
+    count += 1;
+  }
+  return map;
+}
+
+/**
+ * `list`: en fazla 200 düz nesneden oluşan dizi. Nesne olmayan öğeler düşer; öğe değerleri skaler (metin, sayı, mantıksal, null)
+ * ya da bir düzey derin metin eşlemidir (eşlemdeki metin olmayan değerler ve diğer değerler düşer). Dizi değilse null.
+ */
+function coerceList(value: unknown): Record<string, unknown>[] | null {
+  if (!Array.isArray(value)) return null;
+  const list: Record<string, unknown>[] = [];
+  for (const item of value) {
+    if (list.length >= MAX_LIST_ITEMS) break;
+    if (!isPlainObject(item)) continue;
+    const row: Record<string, unknown> = {};
+    for (const [key, field] of Object.entries(item)) {
+      if (UNSAFE_KEYS.has(key)) continue;
+      if (field === null || typeof field === "string" || typeof field === "boolean" || (typeof field === "number" && Number.isFinite(field))) {
+        row[key] = field;
+      } else if (isPlainObject(field)) {
+        const nested: Record<string, string> = {};
+        let count = 0;
+        for (const [nestedKey, nestedValue] of Object.entries(field)) {
+          if (count >= MAX_MAP_KEYS) break;
+          if (UNSAFE_KEYS.has(nestedKey) || typeof nestedValue !== "string") continue;
+          nested[nestedKey] = nestedValue;
+          count += 1;
+        }
+        row[key] = nested;
+      }
+    }
+    list.push(row);
+  }
+  return list;
 }

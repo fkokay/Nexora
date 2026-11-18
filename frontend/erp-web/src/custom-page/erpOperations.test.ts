@@ -243,3 +243,50 @@ describe('Faz A inceleme düzeltmeleri', () => {
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
+
+describe('collection parameters', () => {
+  const createCard = op({
+    name: 'stok.kart.olustur', kind: 'write', pageKind: 'insert', method: 'POST', route: '/api/stock/items',
+    parameters: [
+      { name: 'code', in: 'body', type: 'text', required: true, items: null },
+      { name: 'customFields', in: 'body', type: 'map', required: false, items: null },
+      { name: 'variants', in: 'body', type: 'list', required: false, items: [
+        { code: 'code', label: 'Kod', dataType: 'text', required: true }, { code: 'attributes', label: 'Özellikler', dataType: 'map', required: true }] },
+    ],
+    result: { shape: 'record', rowsPath: null, columns },
+  });
+  const saveFieldsMap = op({ ...saveFields, parameters: [...saveFields.parameters, { name: 'values', in: 'body', type: 'map', required: false, items: null }] });
+  const movement = op({
+    name: 'stok.hareket.ekle', kind: 'write', pageKind: 'insert', method: 'POST', route: '/api/stock/movements',
+    parameters: [{ name: 'tracking', in: 'body', type: 'list', required: false, items: [{ code: 'trackingCode', label: 'Kod', dataType: 'text', required: true }] }],
+    result: { shape: 'record', rowsPath: null, columns },
+  });
+
+  it('list parameter is written to body as array', () => {
+    const variants = [{ code: 'TS-KIRMIZI', attributes: { Renk: 'Kırmızı' } }];
+    const request = buildOperationRequest(createCard, { code: 'TS', variants }, null);
+    expect(JSON.parse(request.body!)).toEqual({ code: 'TS', variants });
+  });
+
+  it('null map parameter is omitted', () => {
+    const request = buildOperationRequest(createCard, { code: 'TS', customFields: null, variants: null }, null);
+    expect(request.body).toBe('{"code":"TS"}');
+    expect(buildOperationRequest(createCard, { code: 'TS', customFields: { RENK: 'Mavi' } }, null).body).toBe('{"code":"TS","customFields":{"RENK":"Mavi"}}');
+  });
+
+  it('map parameter merges over body map source', () => {
+    const source = [{ code: 'RENK', value: 'Mavi' }, { code: 'BOY', value: '10' }];
+    const request = buildOperationRequest(saveFieldsMap, { id: guid, values: { RENK: 'Kırmızı', BOY: null }, EN: '5' }, null, source);
+    expect(request.body).toBe('{"values":{"RENK":"Kırmızı","BOY":"10","EN":"5"}}');
+    // Tek tek bağlı büyük harfli parametre eşlem değerini ezer; bağlanmamış eşlem kaynağı korur.
+    expect(JSON.parse(buildOperationRequest(saveFieldsMap, { id: guid, values: { RENK: 'Kırmızı' }, RENK: 'Sarı' }, null, source).body!))
+      .toEqual({ values: { RENK: 'Sarı', BOY: '10' } });
+    expect(JSON.parse(buildOperationRequest(saveFieldsMap, { id: guid, values: null }, null, source).body!)).toEqual({ values: { RENK: 'Mavi', BOY: '10' } });
+  });
+
+  it('field errors keep map and list keys', () => {
+    expect(fieldErrorsByParameter(saveFieldsMap, { 'values.RENK': ['x'] })).toEqual({ 'values.RENK': 'x' });
+    expect(fieldErrorsByParameter(movement, { 'tracking[1].trackingCode': ['y'] })).toEqual({ 'tracking[1].trackingCode': 'y' });
+    expect(fieldErrorsByParameter(createCard, { 'CustomFields.RENK': ['z'], 'code.x': ['w'], Code: ['v'] })).toEqual({ 'customFields.RENK': 'z', code: 'v' });
+  });
+});
