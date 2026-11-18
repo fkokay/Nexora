@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Ban,
-  Banknote,
   Check,
   ChevronDown,
   ExternalLink,
@@ -10,20 +9,34 @@ import {
   PackageCheck,
   Plus,
   Search,
-  Settings,
   ShoppingCart,
-  Trophy,
-  Undo2,
   X,
 } from "lucide-react";
 import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
-import { ListPagination } from "./list-page/ListPagination";
 import SalesListToolbar from "./sales/components/SalesListToolbar";
 import SalesInvoiceFromDeliveryDialog from "./sales/components/SalesInvoiceFromDeliveryDialog";
 import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import {
+  INVOICE_LIST_WIDTHS,
+  ORDER_LIST_WIDTHS,
+  QUOTE_LIST_WIDTHS,
+  SALES_CODE_FIELDS,
+  SALES_NUMBER_FIELDS,
+  listAmount,
+  listTag,
+} from "./sales/components/salesListCells";
+import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter, pageAmount, pageAmountHint } from "./sales/components/SalesListFooter";
+import { InvoiceListPanel, OrderListPanel, QuoteListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
+import { PURCHASE_REQUEST_CODE_FIELDS, PURCHASE_REQUEST_LIST_WIDTHS, PURCHASE_REQUEST_NUMBER_FIELDS, PURCHASE_REQUEST_OPEN_EVENT, PurchaseRequestFlow, PurchaseRequestListEmpty, PurchaseRequestListPanel, PurchaseRequestTag, purchaseRequestSummaryCards, supplierQuoteDocumentStatus, takePurchaseRequestOpen, usePurchaseListPanel } from "./purchasing/purchaseRequestList";
+import { PURCHASE_ORDER_CODE_FIELDS, PURCHASE_ORDER_LIST_WIDTHS, PURCHASE_ORDER_NUMBER_FIELDS, PurchaseOrderFlow, PurchaseOrderListEmpty, PurchaseOrderListPanel, PurchaseOrderTag, isPurchaseOrderOverdue, purchaseOrderSummaryCards } from "./purchasing/purchaseOrderList";
+import type { BulkAction } from "./list-page/BulkActionBar";
+import { CircleDollarSign, CircleSlash, Clock3, Truck } from "lucide-react";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
@@ -44,14 +57,19 @@ import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { SalesDeliveriesScreen } from "./SalesDeliveriesPage";
 import { PurchaseReceiptsScreen } from "./PurchaseReceiptsScreen";
-import { PurchaseInvoiceModal, type PurchaseInvoiceInitialAction } from "./PurchaseInvoiceModal";
+import { PurchaseInvoiceModal } from "./PurchaseInvoiceModal";
+import { PurchaseInvoicesScreen } from "./purchasing/PurchaseInvoicesScreen";
 import { SalesInvoiceModal } from "./SalesInvoiceModal";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
 import {
+  DetailChain,
+  DetailContext,
   DetailInfoGrid,
+  DetailKeyValues,
   DetailLinesFooter,
+  DetailLinesHead,
   DetailNotes,
   DetailSection,
   DetailTabs,
@@ -61,7 +79,10 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
+import { PurchaseCreateOrderFlow, purchaseCreateOrderTotals } from "./purchasing/purchaseCreateForms";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -394,7 +415,9 @@ export function SalesPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
-    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null);
+    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null),
+    // Ticked rows of the visible list page (checkbox column).
+    [salesTicked, setSalesTicked] = useState<string[]>([]);
   const [detail, setDetail] = useState<SalesQuoteDetail | null>(null),
     [quoteRevisions, setQuoteRevisions] = useState<SalesQuoteRevisionSummary[]>([]),
     [quoteDetailTab, setQuoteDetailTab] = useState<"information" | "revisions">("information"),
@@ -1822,19 +1845,10 @@ export function SalesPage({
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
+  // The quote row menu moved to İşlemler (current row) and the detail panel: no "⋯" column.
   const visibleQuoteFields = quoteScreenFields
-    .filter(
-      (field) =>
-        field.key !== "revisionNumber" &&
-        (field.key === "actions" || field.visible),
-    )
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+    .filter((field) => field.key !== "revisionNumber" && field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position);
   const visibleOrderFields = orderScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -1892,46 +1906,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesQuoteStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void openQuote(item.id)}>Detay</button>
-            {item.status === "Draft" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteEdit(item.id)}>Düzenle</button>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void sendQuote(item)}>İletildi yap</button>
-                {role === "TenantAdmin" && (
-                  <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(item)}>Sil</button>
-                )}
-              </>
-            )}
-            {item.status === "Sent" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void decideQuote(item, "accept")}>Kabul et</button>
-                <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void decideQuote(item, "reject")}>Reddet</button>
-              </>
-            )}
-            {item.status === "Accepted" && !item.hasSalesOrder && (
-              <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void convertQuote(item)}>Sipariş oluştur</button>
-            )}
-            {item.status === "Accepted" && item.hasSalesOrder && (
-              <span className="sales-row-menu-note">Sipariş hazır</span>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("quote", item.status);
       default:
         return null;
     }
@@ -1966,19 +1943,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesOrderStatus(item.status)} />
-        );
+        return listTag("order", item.status);
       case "actions":
         return (
           <SalesRowActionsMenu label={item.code}>
@@ -2005,6 +1972,35 @@ export function SalesPage({
   const quoteListScreen = activeTab === "quotes" && !createQuotePage && !createOrderPage;
   const orderListScreen = activeTab === "orders" && !createQuotePage && !createOrderPage;
   const salesPageDialogOpen = quoteFieldCatalogOpen || orderFieldCatalogOpen;
+  // List type (mockup 06): the current row is the one the user chose (click, ↑/↓; `selectedSalesId`), never an
+  // implicit first row. Aç / Sil act on it, else on a single ticked row; the detail panel shows the current row.
+  const invoiceListScreen = activeTab === "invoices" && !createQuotePage && !createOrderPage && !createInvoicePage;
+  const visibleInvoices = invoices.filter(
+    (x) =>
+      !search ||
+      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
+        .toLocaleLowerCase("tr")
+        .includes(search.toLocaleLowerCase("tr")),
+  );
+  const listRows: Array<SalesQuoteSummary | SalesOrderSummary | SalesInvoiceSummary> = quoteListScreen
+    ? filtered
+    : orderListScreen
+      ? filteredOrders
+      : invoiceListScreen
+        ? visibleInvoices
+        : [];
+  const listCurrent = listRows.find((row) => row.id === selectedSalesId);
+  const listTarget = listCurrent ?? (salesTicked.length === 1 ? listRows.find((row) => row.id === salesTicked[0]) : undefined);
+  const salesListActive =
+    (quoteListScreen || orderListScreen || invoiceListScreen) &&
+    !detail && !orderDetail && !invoiceId && !salesPageDialogOpen && !invoiceCreateOpen;
+  const salesPanel = useSalesListPanel<SalesQuoteDetail | SalesOrderDetail | AppTypes.SalesInvoiceDetail>({
+    active: salesListActive,
+    token,
+    currentId: listCurrent?.id ?? null,
+    path: (id) => `/api/sales/${quoteListScreen ? "quotes" : orderListScreen ? "orders" : "invoices"}/${id}`,
+    reloadKey: listCurrent ? JSON.stringify(listCurrent) : undefined,
+  });
   const ownsActionBar =
     !orderDetail && !invoiceId && (createQuotePage || createOrderPage || quoteListScreen || orderListScreen);
   const salesNewCommand: CommandSpec | undefined = salesPageDialogOpen
@@ -2063,8 +2059,8 @@ export function SalesPage({
       more.push({ id: "quote-revise", label: "Revizyon oluştur", disabledReason: busyReason, run: () => beginQuoteRevision() });
     salesCommands.more = more;
   } else if (quoteListScreen || orderListScreen) {
-    const selectedQuote = quoteListScreen ? filtered.find((item) => item.id === selectedSalesId) : undefined;
-    const selectedOrder = orderListScreen ? filteredOrders.find((item) => item.id === selectedSalesId) : undefined;
+    const selectedQuote = quoteListScreen ? (listTarget as SalesQuoteSummary | undefined) : undefined;
+    const selectedOrder = orderListScreen ? (listTarget as SalesOrderSummary | undefined) : undefined;
     const selectedRecord = selectedQuote ?? selectedOrder;
     salesCommands.open = {
       disabledReason: selectedRecord ? undefined : "Önce bir kayıt seçin",
@@ -2084,6 +2080,17 @@ export function SalesPage({
         run: () => (selectedQuote ? deleteQuote(selectedQuote) : selectedOrder ? deleteOrder(selectedOrder) : undefined),
       };
     const more: MenuCommand[] = [];
+    // Former row menu ("⋯") of the quote list, with its conditions; Detay is Aç, Sil is the bar's Sil.
+    if (selectedQuote?.status === "Draft") {
+      more.push({ id: "quote-row-edit", label: "Düzenle", disabledReason: busyReason, run: () => beginQuoteEdit(selectedQuote.id) });
+      more.push({ id: "quote-row-send", label: "İletildi yap", disabledReason: busyReason, run: () => sendQuote(selectedQuote) });
+    }
+    if (selectedQuote?.status === "Sent") {
+      more.push({ id: "quote-row-accept", label: "Kabul et", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "accept") });
+      more.push({ id: "quote-row-reject", label: "Reddet", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "reject") });
+    }
+    if (selectedQuote?.status === "Accepted" && !selectedQuote.hasSalesOrder)
+      more.push({ id: "quote-row-convert", label: "Sipariş oluştur", disabledReason: busyReason, run: () => convertQuote(selectedQuote) });
     if (role === "TenantAdmin" || role === "TenantDeveloper")
       more.push(
         quoteListScreen
@@ -2095,6 +2102,149 @@ export function SalesPage({
   }
   // Passed to an open order / invoice detail, which owns the bar while it is open.
   const detailNewCommand = salesNewCommand ? { run: salesNewCommand.run } : undefined;
+  // Summary cards: figures of the loaded page only ("bu sayfa"); the list endpoints return no totals, due dates or
+  // outstanding amounts, so there is no Tahsil edilmemiş / Vadesi geçen card.
+  const amountCard = (id: string, label: string, rows: Array<{ grandTotal: number; currencyCode: string }>, hint: React.ReactNode) => ({
+    id,
+    label,
+    value: loading ? "—" : pageAmount(rows) ?? "—",
+    icon: CircleDollarSign,
+    hint: pageAmountHint(rows, hint),
+  });
+  const countValue = (count: number) => (loading ? "—" : count.toLocaleString("tr-TR"));
+  let listSummary: React.ReactNode = null;
+  if (quoteListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard("quote-total", "Teklif tutarı", filtered, <span>bu sayfa · tüm durumlar</span>),
+          {
+            id: "quote-sent",
+            label: "Yanıt bekleyen",
+            value: countValue(filtered.filter((item) => item.status === "Sent").length),
+            icon: Clock3,
+            tone: "warn",
+            hint: "bu sayfa",
+            // The list's existing status filter (İletildi).
+            filterActive: quoteStatusFilter === "Sent",
+            onFilter: () => setQuoteStatusFilter((value) => (value === "Sent" ? "" : "Sent")),
+          },
+        ]}
+      />
+    );
+  else if (orderListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard(
+            "order-total",
+            "Sipariş tutarı",
+            filteredOrders.filter((item) => item.status !== "Cancelled"),
+            <span>bu sayfa · iptaller hariç</span>,
+          ),
+          {
+            id: "order-open",
+            label: "Sevk bekleyen",
+            value: countValue(filteredOrders.filter((item) => item.status === "Open").length),
+            icon: Truck,
+            tone: "warn",
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  else if (invoiceListScreen) {
+    const posted = visibleInvoices.filter((item) => item.status === "Posted");
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          {
+            ...amountCard(
+              "invoice-posted",
+              "Kesilen",
+              posted,
+              <>
+                <span>{posted.length.toLocaleString("tr-TR")}</span> <span>fatura · bu sayfa</span>
+              </>,
+            ),
+            tone: "ok",
+          },
+          {
+            id: "invoice-voided",
+            label: "İptal",
+            value: countValue(visibleInvoices.filter((item) => item.status === "Voided").length),
+            icon: CircleSlash,
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  }
+  const salesPanelOpen = salesPanel.open && salesListActive;
+  const panelControls = {
+    error: salesPanel.error,
+    onClose: salesPanel.close,
+    takeFocus: salesPanel.takeFocus,
+    openDisabled: busy,
+  };
+  let salesListPanel: React.ReactNode = null;
+  if (salesPanelOpen) {
+    if (quoteListScreen)
+      salesListPanel = listCurrent ? (
+        <QuoteListPanel
+          {...panelControls}
+          row={listCurrent as SalesQuoteSummary}
+          detail={salesPanel.detail as SalesQuoteDetail | null}
+          onOpen={() => void openQuote(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="quote" />
+      );
+    else if (orderListScreen)
+      salesListPanel = listCurrent ? (
+        <OrderListPanel
+          {...panelControls}
+          row={listCurrent as SalesOrderSummary}
+          detail={salesPanel.detail as SalesOrderDetail | null}
+          onOpen={() => void openOrder(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="order" />
+      );
+    else if (invoiceListScreen)
+      salesListPanel = listCurrent ? (
+        <InvoiceListPanel
+          {...panelControls}
+          row={listCurrent as SalesInvoiceSummary}
+          detail={salesPanel.detail as AppTypes.SalesInvoiceDetail | null}
+          onOpen={() => void openInvoice(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="invoice" />
+      );
+  }
+  const salesListFooter = (
+    <SalesListFooter
+      ticked={salesTicked.length}
+      shown={listRows.length}
+      total={salesListTotal}
+      page={salesListPage}
+      loading={loading}
+      onPageChange={setSalesListPage}
+    />
+  );
+  const salesBulkActions: BulkAction[] = [
+    { id: "export-selected", label: "Excel (seçilenler)", run: () => void salesGridExportRef.current?.exportExcel() },
+  ];
+  const salesGridSelection = {
+    currentId: selectedSalesId,
+    onCurrentChange: setSelectedSalesId,
+    onTickedChange: setSalesTicked,
+    // Only while the list is on screen: a document or form over it must not show the floating bar.
+    bulkActions: salesListActive ? salesBulkActions : undefined,
+    onOpen: (id: string) => void (quoteListScreen ? openQuote(id) : openOrder(id)),
+  };
+  const salesListBodyClass = `sales-list-body${salesListPanel ? " has-detail" : ""}`;
   return (
     <div className="list-v2 sales-lv2-root">
       {ownsActionBar && <PageCommandsSlot commands={salesCommands} />}
@@ -2126,6 +2276,7 @@ export function SalesPage({
               }
               count={salesListTotal}
             />
+            {listSummary}
             <SalesListToolbar
               activeTab={activeTab as "quotes" | "orders" | "invoices"}
               search={search}
@@ -2138,6 +2289,7 @@ export function SalesPage({
               onQuoteDateToChange={setQuoteDateTo}
               toolsSlotRef={setSalesGridToolsSlot}
               onRefresh={() => void load()}
+              extra={<SalesListPanelToggle open={salesPanel.open} onToggle={salesPanel.toggle} />}
             />
           </div>
         )}
@@ -2215,7 +2367,7 @@ export function SalesPage({
           />
         ) : activeTab === "invoices" ? (
           <SalesInvoiceTable
-            invoices={invoices}
+            invoices={visibleInvoices}
             orders={orders}
             customers={customers}
             stockItems={stockItems}
@@ -2223,6 +2375,12 @@ export function SalesPage({
             onOpen={openInvoice}
             onSelect={setSelectedSalesId}
             selectedId={selectedSalesId}
+            ticked={salesTicked}
+            onTickedChange={setSalesTicked}
+            listFooter={salesListFooter}
+            listPanel={salesListPanel}
+            listBodyRef={salesPanel.rootRef}
+            listBodyClass={salesListBodyClass}
             search={search}
             fields={invoiceScreenFields}
             toolbarContainer={salesGridToolsSlot}
@@ -2252,61 +2410,62 @@ export function SalesPage({
             commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış teklifi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-quotes"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleQuoteFields}
-              items={filtered}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Teklifler yükleniyor…"
-              emptyMessage="Henüz satış teklifi yok."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen teklif yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderQuoteField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış teklifi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-quotes"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleQuoteFields}
+                items={filtered}
+                loading={loading}
+                loadingMessage="Teklifler yükleniyor…"
+                emptyMessage="Henüz satış teklifi yok."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen teklif yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderQuoteField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={QUOTE_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ) : (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış siparişi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-orders"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleOrderFields}
-              items={filteredOrders}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Siparişler yükleniyor…"
-              emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen sipariş yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderOrderField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış siparişi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-orders"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleOrderFields}
+                items={filteredOrders}
+                loading={loading}
+                loadingMessage="Siparişler yükleniyor…"
+                emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen sipariş yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderOrderField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={ORDER_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ))}
-      {(activeTab === "quotes" ||
-        activeTab === "orders" ||
-        activeTab === "invoices") &&
-        !createOrderPage && !createQuotePage && (
-          <ListPagination
-            page={salesListPage}
-            total={salesListTotal}
-            loading={loading}
-            onPageChange={setSalesListPage}
-          />
-        )}
       {quoteFieldCatalogOpen && (
         <div
           className="modal-backdrop"
@@ -2614,6 +2773,14 @@ export function SalesPage({
       {createOrderPage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış siparişi",
+              code: directOrderCode.trim() || undefined,
+              party: customers.find((x) => x.id === customerId)?.name,
+              // A new order is Açık only once saved; an edited order already is.
+              statusFlow: <SalesOrderFlow status={directOrderEditId ? "Open" : undefined} />,
+              hints: SALES_FORM_HINTS,
+            }}
             title={directOrderEditId ? "Sipariş Düzenleme" : "Yeni Sipariş"}
             mode={directOrderEditId ? "edit" : "create"}
             busy={busy}
@@ -2647,7 +2814,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
                 <label>
                   <span>Sipariş no <RequiredMark /></span>
                   <input
@@ -2713,11 +2880,15 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Sipariş Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table direct-order-lines-table">
-                  <thead><tr><th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th><th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th><th>KDV türü</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th></tr></thead>
+            <SalesFormLines
+              label="Sipariş satırları"
+              lines={directOrderLines.length}
+              extra={customers.find((x) => x.id === customerId)?.currencyCode || undefined}
+              totals={salesFormTotalRows(directOrderTotals, (value) => renderOrderCurrency(value, customers.find((x) => x.id === customerId)?.currencyCode || "TRY"))}
+              totalsLabel="Sipariş toplamları"
+            >
+                <table className="dd-lines">
+                  <thead><tr><th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th><th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th><th>KDV türü</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th></tr></thead>
                   <tbody>
                     {directOrderLines.map((line, index) => {
                       const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
@@ -2728,40 +2899,26 @@ export function SalesPage({
                       const discount = subtotal * Number(line.discountPercent || 0) / 100;
                       const tax = (subtotal - discount) * Number(line.vatPercent || 0) / 100;
                       return <tr key={index}>
-                        <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
-                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
-                        <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
+                        <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
+                        <td className="dd-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateDirectOrderLine(index, "unitCode", event.target.value)} required><option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>{(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => updateDirectOrderLine(index, "currencyCode", event.target.value)}>{quoteCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
-                        <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
-                        <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} KDV dahil veya hariç`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateDirectOrderLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">KDV hariç</option><option value="included">KDV dâhil</option></select></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
-                        <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
+                        <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
                       </tr>;
                     })}
-                    <tr className="quote-line-add-row"><td colSpan={14}><button type="button" className="secondary small-button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><Plus size={14} /> Satır ekle <small>Ctrl+Shift+Enter</small></button></td></tr>
+                    <tr className="dd-new-line"><td colSpan={14}><button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><LineAddLabel /></button></td></tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-total-breakdown" aria-label="Sipariş toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(directOrderTotals.subtotal, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(directOrderTotals.discount, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</span></div>
-                {Object.keys(directOrderTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(directOrderTotals.taxableByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                {Object.keys(directOrderTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(directOrderTotals.vatByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(directOrderTotals.vat, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(directOrderTotals.total, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
+            </SalesFormLines>
               {orderFieldDefinitions.length > 0 && (
                 <RecordFormGroup title="Sipariş Özel Alanları">
                   <small>Tenant alan tanımlarına göre doğrulanır.</small>
@@ -2827,6 +2984,25 @@ export function SalesPage({
       {createQuotePage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış teklifi",
+              code: code.trim() || undefined,
+              party: isProspectQuote ? prospectCustomerName.trim() : customers.find((x) => x.id === customerId)?.name,
+              statusFlow: <SalesQuoteFlow status="Draft" />,
+              hints: SALES_FORM_HINTS,
+            }}
+            aside={
+              sourceSalesRequest ? (
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      { key: "request", code: sourceSalesRequest.code, label: "Satış talebi" },
+                      { key: "self", code: code.trim() || undefined, label: "Bu teklif", kind: "Satış teklifi", current: true },
+                    ]}
+                  />
+                </DetailContext>
+              ) : undefined
+            }
             title={editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}
             mode={editingQuoteId ? "edit" : "create"}
             busy={busy}
@@ -2861,7 +3037,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Teklif Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
               <label className="rf-check rf-columns-wide quote-prospect-toggle">
                 <input type="checkbox" checked={isProspectQuote} onChange={(event) => {
                   setIsProspectQuote(event.target.checked);
@@ -2942,15 +3118,48 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Teklif Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table">
+            <SalesFormLines
+              label="Teklif satırları"
+              lines={lines.length}
+              extra={currencyCode || undefined}
+              totals={salesFormTotalRows(
+                { subtotal: quoteTotals.subtotal, discount: quoteTotals.discount, vat: quoteTotals.tax, total: quoteTotals.total, taxableByRate: quoteTotals.taxableByRate, vatByRate: quoteTotals.taxByRate },
+                (value) => renderOrderCurrency(value, currencyCode),
+              )}
+              totalsLabel="Teklif toplamları"
+              notes={
+                <>
+                  <label>
+                    <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={deliveryTerms}
+                      onChange={(e) => setDeliveryTerms(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="sales-rf-tall"
+                      placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
+                    />
+                  </label>
+                  <label>
+                    <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      maxLength={1000}
+                      rows={7}
+                      className="sales-rf-tall"
+                      placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
+                    />
+                  </label>
+                </>
+              }
+            >
+                <table className="dd-lines">
                   <thead>
                     <tr>
-                      <th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th>
-                      <th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th>
-                      <th>KDV</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th>
+                      <th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th>
+                      <th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th>
+                      <th>KDV</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2961,8 +3170,8 @@ export function SalesPage({
                       const lineFxRate = quoteLineEffectiveFxRate(line);
                       return (
                         <tr key={index}>
-                          <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
-                          <td className="quote-stock-cell">
+                          <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
+                          <td className="dd-stock-cell">
                             <SearchableRecordPicker
                               options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
                               selectedId={line.stockItemId}
@@ -2992,14 +3201,14 @@ export function SalesPage({
                               required
                             />
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
                           <td>
                             <select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateLine(index, "unitCode", event.target.value)} required>
                               <option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>
                               {(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}
                             </select>
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
                           <td>
                               <select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => {
                                 updateLine(index, "currencyCode", event.target.value);
@@ -3015,22 +3224,21 @@ export function SalesPage({
                               </small>
                             )}
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
-                          <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
-                          <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
                           <td><select aria-label={`Satır ${index + 1} KDV dahil mi`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">Hariç</option><option value="included">Dahil</option></select></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
-                          <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
+                          <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
                         </tr>
                       );
                     })}
-                    <tr className="quote-line-add-row">
+                    <tr className="dd-new-line">
                       <td colSpan={14}>
                         <button
                           type="button"
-                          className="secondary small-button"
                           data-line-add-shortcut
                           title="Ctrl+Shift+Enter ile satır ekle"
                           onClick={() => setLines((current) => [...current, {
@@ -3045,53 +3253,13 @@ export function SalesPage({
                             exchangeRateOverride: "",
                           }])}
                         >
-                          <Plus size={14} /> Satır ekle
+                          <LineAddLabel />
                         </button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <div className="sales-rf-totals-layout">
-            <RecordFormGroup title="Koşullar ve Açıklama">
-              <label>
-                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={deliveryTerms}
-                  onChange={(e) => setDeliveryTerms(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                  className="sales-rf-tall"
-                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
-                />
-              </label>
-              <label>
-                <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  rows={7}
-                  className="sales-rf-tall"
-                  placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
-                />
-              </label>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-grand-total quote-total-breakdown" aria-label="Teklif toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(quoteTotals.subtotal, currencyCode)}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(quoteTotals.discount, currencyCode)}</span></div>
-                {Object.keys(quoteTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(quoteTotals.taxableByRate[rate], currencyCode)}</div>)}
-                {Object.keys(quoteTotals.taxByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(quoteTotals.taxByRate[rate], currencyCode)}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(quoteTotals.tax, currencyCode)}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(quoteTotals.total, currencyCode)}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
-            </div>
+            </SalesFormLines>
               {quoteFieldDefinitions.length > 0 && (
               <RecordFormGroup title="Teklif Özel Alanları">
                 <small>Tenant alan tanımlarına göre doğrulanır.</small>
@@ -3178,50 +3346,36 @@ export function SalesPage({
               </span>
             }
             status={salesQuoteStatus(detail.status)}
+            meta={<span>{formatDate(detail.quoteDate)}</span>}
+            statusFlow={<SalesQuoteFlow status={detail.status} />}
             onClose={() => setDetail(null)}
             className="sales-quote-detail"
-            actions={
+            aside={
               <>
-                {detail.status === "Draft" && !detail.hasSalesOrder && (
-                  <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteEdit(detail.id)}>
-                    Düzenle
-                  </button>
-                )}
-                {detail.status === "Draft" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void sendQuote(detail)}>
-                    {busy ? "Kaydediliyor…" : "İletildi yap"}
-                  </button>
-                )}
-                {detail.status === "Sent" && (
-                  <>
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void decideQuote(detail, "reject")}>
-                      Reddet
-                    </button>
-                    <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                      Kabul et
-                    </button>
-                  </>
-                )}
-                {detail.status === "Rejected" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                    Reddedilen teklifi kabul et
-                  </button>
-                )}
-                {detail.status === "Accepted" && !detail.hasSalesOrder && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void convertQuote(detail)}>
-                    Siparişe dönüştür
-                  </button>
-                )}
-                {/* Yazdır and Sil are the action bar's print / delete commands. */}
-                {canRevise && (
-                  <SalesRowActionsMenu label={detail.code}>
-                    <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
-                      Revizyon oluştur
-                    </button>
-                  </SalesRowActionsMenu>
-                )}
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi" }] : []),
+                      { key: "self", code: detail.code, label: "Bu teklif", kind: "Satış teklifi", current: true, status: salesQuoteStatus(detail.status) },
+                      ...(detail.salesOrderId && detail.salesOrderCode
+                        ? [{ key: "order", code: detail.salesOrderCode, label: "Satış siparişi", onOpen: () => void openOrder(detail.salesOrderId!) }]
+                        : []),
+                    ]}
+                  />
+                </DetailContext>
+                <DetailContext title="Cari" hint={detail.customerCode || undefined}>
+                  <DetailKeyValues
+                    items={[
+                      { label: "Unvan", value: detail.customerName },
+                      ...(!detail.customerId ? [{ label: "Kayıt", value: "Kayıtsız alıcı" }] : []),
+                      { label: "Plasiyer", value: detail.salespersonName || "—" },
+                    ]}
+                  />
+                </DetailContext>
               </>
             }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={<SalesFooterStatus lines={detail.lines.length} total={quoteMoney(detail.grandTotal)} />}
           >
             {error && (
               <div className="alert inline-alert">
@@ -3300,10 +3454,15 @@ export function SalesPage({
                   />
                 </div>
                 <div className="dd-box">
+                  <DetailLinesHead
+                    title="Satırlar"
+                    meta={<SalesLinesMeta lines={detail.lines.length} extra={usesForeignCurrency ? undefined : detail.currencyCode} />}
+                  />
                   <div className="dd-lines-wrap">
                     <table className="dd-lines" aria-label="Teklif satırları">
                       <thead>
                         <tr>
+                          <th className="dd-ix">#</th>
                           <th>Stok</th>
                           <th className="dd-num">Miktar</th>
                           {usesForeignCurrency && <th className="dd-num">Döviz fiyatı</th>}
@@ -3315,10 +3474,11 @@ export function SalesPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.lines.map((line) => {
+                        {detail.lines.map((line, index) => {
                           const foreign = !!line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode;
                           return (
                             <tr key={line.lineNumber}>
+                              <td className="dd-ix">{index + 1}</td>
                               <td className="dd-stock">
                                 <b>{line.stockCode}</b>
                                 <small>{line.stockName}</small>
@@ -3377,12 +3537,14 @@ export function SalesPage({
                         ]}
                       />
                     }
-                    totals={[
-                      { label: "Ara toplam", value: quoteMoney(detail.subtotal) },
-                      { label: "Toplam iskonto", value: quoteMoney(detail.discountTotal) },
-                      { label: "Toplam KDV", value: quoteMoney(detail.taxTotal) },
-                      { label: "Genel toplam", value: quoteMoney(detail.grandTotal), emphasis: "grand" },
-                    ]}
+                    totals={salesTotalRows(
+                      detail,
+                      quoteMoney,
+                      vatByRate(
+                        detail.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+                        { taxable: detail.subtotal - detail.discountTotal, vat: detail.taxTotal },
+                      ),
+                    )}
                   />
                 </div>
                 {detail.status === "Draft" && detail.customFields.length > 0 && (
@@ -3580,381 +3742,6 @@ export function SalesPage({
   );
 }
 
-function PurchaseInvoicesScreen({
-  token,
-  initialSupplier,
-  onInitialSupplierOpened,
-  onNavigate,
-}: {
-  token: string;
-  initialSupplier?: { id: string; name: string } | null;
-  onInitialSupplierOpened?: () => void;
-  onNavigate: (page: SalesPageKey) => void;
-}) {
-  const [items, setItems] = useState<PurchaseInvoiceSummary[]>([]),
-    [total, setTotal] = useState(0),
-    [page, setPage] = useState(1),
-    [query, setQuery] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState(initialSupplier ?? null);
-  const [loading, setLoading] = useState(true),
-    [error, setError] = useState(""),
-    [invoiceId, setInvoiceId] = useState<string | null>(null),
-    [invoiceAction, setInvoiceAction] =
-      useState<PurchaseInvoiceInitialAction | undefined>(undefined),
-    [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
-  const defaultLayout: BuiltInScreenLayoutField[] = [
-    { key: "code", label: "Fatura no", visible: true, position: 0 },
-    { key: "supplierName", label: "Tedarikçi", visible: true, position: 1 },
-    { key: "receiptCode", label: "Mal kabul", visible: true, position: 2 },
-    {
-      key: "purchaseOrderCode",
-      label: "Sipariş no",
-      visible: true,
-      position: 3,
-    },
-    { key: "invoiceDate", label: "Fatura tarihi", visible: true, position: 4 },
-    { key: "dueDate", label: "Vade tarihi", visible: true, position: 5 },
-    { key: "currencyCode", label: "Döviz", visible: true, position: 6 },
-    { key: "grandTotal", label: "Toplam", visible: true, position: 7 },
-    { key: "paidAmount", label: "Ödenen", visible: true, position: 8 },
-    {
-      key: "outstandingAmount",
-      label: "Ödenmemiş",
-      visible: true,
-      position: 9,
-    },
-    { key: "lineCount", label: "Satır", visible: true, position: 10 },
-    { key: "status", label: "Durum", visible: true, position: 11 },
-    {
-      key: "actions",
-      label: "İşlemler",
-      visible: true,
-      position: 12,
-      fixed: true,
-      // The ⋯ menu must stay reachable without scrolling the wide invoice grid sideways.
-      pinned: "right",
-      width: 72,
-    },
-  ];
-  const [screenFields, setScreenFields] = useState(defaultLayout);
-  const pageSize = 25;
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-        q: query.trim(),
-      });
-      if (supplierFilter) params.set("supplierId", supplierFilter.id);
-      const result = await api<{
-        items: PurchaseInvoiceSummary[];
-        page: number;
-        pageSize: number;
-        totalCount: number;
-      }>(`/api/purchasing/invoices/?${params}`, token);
-      setItems(result.items);
-      setTotal(result.totalCount);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    void load();
-  }, [token, page, query, supplierFilter?.id]);
-  useEffect(() => {
-    if (initialSupplier) onInitialSupplierOpened?.();
-  }, [initialSupplier, onInitialSupplierOpened]);
-  useEffect(() => {
-    let cancelled = false;
-    api<{ fields: BuiltInScreenLayoutField[] }>(
-      "/api/screen-views/purchase-invoices/active",
-      token,
-    )
-      .then((view) => {
-        if (!cancelled && view.fields?.length) setScreenFields(view.fields);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-  async function openInvoice(id: string, action?: PurchaseInvoiceInitialAction) {
-    setError("");
-    try {
-      if (warehouses.length === 0)
-        setWarehouses(
-          (await api<Warehouse[]>("/api/warehouses/", token)).filter(
-            (x) => x.isActive,
-          ),
-        );
-      setInvoiceAction(action);
-      setInvoiceId(id);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  const visibleFields = [...screenFields]
-    .filter((field) => field.visible)
-    .sort((a, b) => a.position - b.position)
-    // Keep the ⋯ menu reachable on this wide grid unless the tenant layout pins it elsewhere.
-    .map((field) =>
-      field.key === "actions" && !field.pinned
-        ? { ...field, pinned: "right" as const, width: field.width || 72 }
-        : field,
-    );
-  function cell(item: PurchaseInvoiceSummary, field: BuiltInScreenLayoutField) {
-    switch (field.key) {
-      case "code":
-        return (
-          <button
-            type="button"
-            className="customer-code purchase-invoice-code-link"
-            title="Faturayı görüntüle"
-            onClick={(event) => {
-              event.stopPropagation();
-              void openInvoice(item.id);
-            }}
-          >
-            {item.code}
-          </button>
-        );
-      case "supplierName":
-        return <b className="customer-name">{item.supplierName}</b>;
-      case "receiptCode":
-        return item.receiptCode;
-      case "purchaseOrderCode":
-        return item.purchaseOrderCode;
-      case "invoiceDate":
-        return item.invoiceDate.split("-").reverse().join(".");
-      case "dueDate":
-        return item.dueDate.split("-").reverse().join(".");
-      case "currencyCode":
-        return item.currencyCode;
-      case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
-      case "paidAmount":
-        return (
-          <>
-            {item.paidAmount.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </>
-        );
-      case "outstandingAmount":
-        return (
-          <b>
-            {item.outstandingAmount.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
-      case "lineCount":
-        return item.lineCount;
-      case "status":
-        return (
-          <DocumentStatusBadge status={purchaseInvoiceStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id)}>
-              <Eye size={15} aria-hidden="true" /> Görüntüle
-            </button>
-            {item.status === "Posted" && item.outstandingAmount > 0 && (
-              <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id, "payment")}>
-                <Banknote size={15} aria-hidden="true" /> Ödeme ekle
-              </button>
-            )}
-            {item.status === "Posted" && (
-              <button role="menuitem" className="sales-row-menu-item" onClick={() => void openInvoice(item.id, "return")}>
-                <Undo2 size={15} aria-hidden="true" /> İade oluştur
-              </button>
-            )}
-            {item.status === "Posted" && (
-              <>
-                <div role="separator" className="sales-row-menu-separator" />
-                {item.paidAmount > 0 ? (
-                  <span className="sales-row-menu-note">İptal için önce ödemeleri iptal edin.</span>
-                ) : (
-                  <button role="menuitem" className="sales-row-menu-item danger-action" onClick={() => void openInvoice(item.id, "void")}>
-                    <Ban size={15} aria-hidden="true" /> İptal et (ters kayıt)
-                  </button>
-                )}
-              </>
-            )}
-          </SalesRowActionsMenu>
-        );
-      default:
-        return null;
-    }
-  }
-  return (
-    <div className="purchase-invoices-page list-v2">
-      <div className="sales-lv2-stack">
-        <ListPageHeader
-          className="customer-heading"
-          title="Satınalma Faturaları"
-          description="Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin."
-          count={total}
-        >
-          <details className="purchase-invoice-add-menu">
-            <summary className="primary" aria-haspopup="menu">
-              <Plus size={16} />
-              Fatura ekle
-              <ChevronDown size={15} aria-hidden="true" />
-            </summary>
-            <div className="purchase-invoice-add-options" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={(e) => {
-                  e.currentTarget.closest("details")?.removeAttribute("open");
-                  onNavigate("sales-purchase-invoice-entry");
-                }}
-              >
-                <b>Mal kabulünden fatura</b>
-                <small>Faturalanmamış bir mal kabulünü seçip faturasını girin.</small>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={(e) => {
-                  e.currentTarget.closest("details")?.removeAttribute("open");
-                  onNavigate("sales-purchase-invoice-drafts");
-                }}
-              >
-                <b>Mal kabulsüz fatura</b>
-                <small>Sipariş veya mal kabulü olmayan tedarikçi faturasını taslak olarak girin.</small>
-              </button>
-            </div>
-          </details>
-        </ListPageHeader>
-        <ListToolbar
-          search={query}
-          onSearchChange={(value) => {
-            setPage(1);
-            setQuery(value);
-          }}
-          searchLabel="Fatura numarası, tedarikçi veya mal kabul ara"
-          searchPlaceholder="Fatura no, tedarikçi veya mal kabul ara"
-          toolsSlotRef={setToolsSlot}
-          onRefresh={() => void load()}
-        >
-          {supplierFilter && (
-            <ListChipGroup
-              label="Tedarikçi"
-              value={supplierFilter.id}
-              onChange={(value) => {
-                if (value) return;
-                setSupplierFilter(null);
-                setPage(1);
-              }}
-              options={[
-                { value: "", label: "Tüm tedarikçiler" },
-                { value: supplierFilter.id, label: supplierFilter.name },
-              ]}
-            />
-          )}
-        </ListToolbar>
-      </div>
-      {error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-          <button onClick={() => setError("")}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-      <section
-        className="purchase-invoice-list-card list-v2-list"
-        aria-label="Alış faturası listesi"
-      >
-        <div className="customer-table-wrap">
-          <AdvancedDataGrid
-          className="customer-table quote-table"
-          gridId="purchase-invoices"
-          {...screenViewGridDefaults(visibleFields)}
-          externalPagination
-          hideSearch
-          toolbarContainer={toolsSlot}
-          enableRowSelection={false}
-        >
-            <thead>
-              <ScreenViewGroupHeader fields={visibleFields} />
-              <tr>
-                {visibleFields.map((field) => (
-                  <th key={field.key}>{field.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={visibleFields.length} className="table-empty">
-                    Alış faturaları yükleniyor…
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={visibleFields.length} className="table-empty">
-                    {query
-                      ? "Aramanızla eşleşen alış faturası yok."
-                      : supplierFilter
-                        ? `${supplierFilter.name} için görüntülenebilir alış faturası yok.`
-                        : "Henüz alış faturası yok. Fatura eklemek için faturalanabilir bir mal kabul seçin."}
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={item.id} onClick={() => void openInvoice(item.id)}>
-                    {visibleFields.map((field) => (
-                      <td key={field.key}>{cell(item, field)}</td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </AdvancedDataGrid>
-        </div>
-      </section>
-      <ListPagination
-        page={page}
-        total={total}
-        pageSize={pageSize}
-        loading={loading}
-        onPageChange={setPage}
-      />
-      {invoiceId && (
-        <PurchaseInvoiceModal
-          invoiceId={invoiceId}
-          token={token}
-          warehouses={warehouses}
-          initialAction={invoiceAction}
-          onClose={() => {
-            setInvoiceId(null);
-            setInvoiceAction(undefined);
-          }}
-          onChanged={load}
-        />
-      )}
-    </div>
-  );
-}
-
 const PURCHASE_ORDERS_CHANGED_EVENT = "nexora:purchase-orders-changed";
 const SALES_CHANGED_EVENT = "nexora:sales-changed";
 const createdPurchaseOrderStorageKey = "nexora.purchase-order.created";
@@ -4065,18 +3852,7 @@ function PurchaseOrderCreatePage({
   );
   const supplier = customers.find((x) => x.id === supplierId);
   const currencyCode = supplier?.currencyCode || "TRY";
-  const totals = lines.reduce(
-    (sum, line) => {
-      const amounts = purchaseOrderLineAmounts(line);
-      return {
-        gross: sum.gross + amounts.gross,
-        discount: sum.discount + amounts.discount,
-        vat: sum.vat + amounts.vat,
-        grand: sum.grand + amounts.net + amounts.vat,
-      };
-    },
-    { gross: 0, discount: 0, vat: 0, grand: 0 },
-  );
+  const totals = purchaseCreateOrderTotals(lines);
   /** The tab stays mounted (keep-alive) after save or cancel; the next visit must start clean. */
   function resetForm() {
     setCode("");
@@ -4204,12 +3980,21 @@ function PurchaseOrderCreatePage({
       setBusy(false);
     }
   }
+  const money = (value: number) => formatPurchaseOrderMoney(value, currencyCode);
   return (
     <div className="purchase-order-create-page" ref={hostRef}>
       <RecordFormPage
         key={formKey}
         className="sales-rf purchase-order-create"
         title="Yeni satınalma siparişi"
+        document={{
+          type: "Satınalma siparişi",
+          code: code.trim() || undefined,
+          party: supplier?.name,
+          // The save creates the order as Onay bekliyor or Açık: no current step before that.
+          statusFlow: <PurchaseCreateOrderFlow />,
+          hints: SALES_FORM_HINTS,
+        }}
         mode="create"
         busy={busy}
         saveLabel="Sipariş oluştur"
@@ -4233,7 +4018,7 @@ function PurchaseOrderCreatePage({
           </>
         }
       >
-        <RecordFormGroup title="Sipariş bilgileri" bodyClassName="po-create-band">
+        <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
           <label>
             <span>
               Sipariş no <RequiredMark />
@@ -4247,7 +4032,7 @@ function PurchaseOrderCreatePage({
               placeholder="SA-2026-0001"
             />
           </label>
-          <label className="po-create-span-2">
+          <label className="rf-span-2">
             <span>
               Tedarikçi <RequiredMark />
             </span>
@@ -4291,7 +4076,7 @@ function PurchaseOrderCreatePage({
               onChange={(e) => setExpectedReceiptDate(e.target.value)}
             />
           </label>
-          <label className="po-create-span-2">
+          <label className="rf-span-2">
             <span>
               Hedef depo <span className="optional-label">İsteğe bağlı</span>
             </span>
@@ -4308,155 +4093,173 @@ function PurchaseOrderCreatePage({
             />
           </label>
         </RecordFormGroup>
-        <RecordFormGroup title="Sipariş satırları">
-          <div className="po-create-lines-wrap">
-            <table className="po-create-lines">
-              <thead>
-                <tr>
-                  <th scope="col" className="po-col-stock">Stok kartı</th>
-                  <th scope="col" className="po-num">Miktar</th>
-                  <th scope="col" className="po-col-unit">Birim</th>
-                  <th scope="col" className="po-num">Birim fiyat</th>
-                  <th scope="col" className="po-num">İsk. %</th>
-                  <th scope="col" className="po-num">KDV %</th>
-                  <th scope="col" className="po-num">Tutar</th>
-                  <th scope="col" className="po-col-remove">
-                    <span className="sr-only">Satırı kaldır</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, index) => {
-                  const baseUnit = line.baseUnitCode || line.unitCode;
-                  return (
-                    <tr key={line.rowKey}>
-                      <td data-label="Stok kartı" className="po-col-stock">
-                        <AsyncStockItemPicker
-                          token={token}
-                          selectedId={line.stockItemId}
-                          initialItems={[]}
-                          onSelect={(item) => selectStockItem(index, item)}
-                        />
-                      </td>
-                      <td data-label="Miktar" className="po-num">
-                        <input
-                          type="number"
-                          min="0.0001"
-                          step="0.0001"
-                          aria-label={`Satır ${index + 1} miktar`}
-                          value={line.quantity}
-                          onChange={(e) =>
-                            updateLine(index, { quantity: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="Birim" className="po-col-unit">
-                        <select
-                          aria-label={`Satır ${index + 1} birim`}
-                          value={line.unitCode || baseUnit}
-                          onChange={(e) =>
-                            updateLine(index, { unitCode: e.target.value })
-                          }
-                          required
-                        >
-                          <option value={baseUnit}>
-                            {baseUnit || "Temel birim"}
-                          </option>
-                          {(units[line.stockItemId] || [])
-                            .filter((x) => x.isActive && x.unitCode !== baseUnit)
-                            .map((unit) => (
-                              <option key={unit.id} value={unit.unitCode}>
-                                {unit.unitCode} (×{unit.factorToBase})
-                              </option>
-                            ))}
-                        </select>
-                      </td>
-                      <td data-label="Birim fiyat" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.0001"
-                          aria-label={`Satır ${index + 1} birim fiyat`}
-                          value={line.unitPrice}
-                          onChange={(e) =>
-                            updateLine(index, { unitPrice: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="İsk. %" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          aria-label={`Satır ${index + 1} iskonto yüzdesi`}
-                          value={line.discountPercent}
-                          onChange={(e) =>
-                            updateLine(index, { discountPercent: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="KDV %" className="po-num">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          aria-label={`Satır ${index + 1} KDV yüzdesi`}
-                          value={line.vatPercent}
-                          onChange={(e) =>
-                            updateLine(index, { vatPercent: e.target.value })
-                          }
-                          required
-                        />
-                      </td>
-                      <td data-label="Tutar" className="po-num po-amount">
-                        <output>
-                          {formatPurchaseOrderMoney(
-                            purchaseOrderLineAmounts(line).net,
-                            currencyCode,
-                          )}
-                        </output>
-                      </td>
-                      <td className="po-col-remove">
-                        <button
-                          type="button"
-                          className="po-line-remove"
-                          aria-label={`Satır ${index + 1} kaldır`}
-                          title="Satırı kaldır"
-                          disabled={lines.length === 1}
-                          onClick={() =>
-                            setLines((current) =>
-                              current.filter((_, i) => i !== index),
-                            )
-                          }
-                        >
-                          <X size={16} aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="po-create-lines-actions">
-            <button
-              type="button"
-              className="secondary small-button"
-              data-line-add-shortcut
-              title="Ctrl+Shift+Enter ile satır ekle"
-              onClick={() =>
-                setLines((current) => [...current, emptyPurchaseOrderLine()])
-              }
-            >
-              <Plus size={14} /> Satır ekle
-            </button>
-          </div>
-        </RecordFormGroup>
+        <SalesFormLines
+          label="Sipariş satırları"
+          lines={lines.length}
+          extra={currencyCode}
+          totals={salesFormTotalRows(totals, money)}
+          totalsLabel="Sipariş toplamları"
+          notes={
+            <label className="po-create-note">
+              <span>
+                Sipariş notu{" "}
+                <span className="optional-label">İsteğe bağlı</span>
+              </span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={1000}
+                rows={4}
+              />
+              <small className="sales-invoice-note-counter" aria-hidden="true">
+                {notes.length} / 1000
+              </small>
+            </label>
+          }
+        >
+          <table className="dd-lines po-create-lines">
+            <thead>
+              <tr>
+                <th className="dd-ix">#</th>
+                <th>Stok kartı</th>
+                <th className="dd-num">Miktar</th>
+                <th>Birim</th>
+                <th className="dd-num">Birim fiyat</th>
+                <th className="dd-num">İsk. %</th>
+                <th className="dd-num">KDV %</th>
+                <th className="dd-num">Tutar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, index) => {
+                const baseUnit = line.baseUnitCode || line.unitCode;
+                return (
+                  <tr key={line.rowKey}>
+                    <td className="dd-ix">
+                      <span>{index + 1}</span>
+                      <button
+                        type="button"
+                        className="dd-line-remove"
+                        aria-label={`Satır ${index + 1} kaldır`}
+                        title="Satırı kaldır"
+                        disabled={lines.length === 1}
+                        onClick={() =>
+                          setLines((current) =>
+                            current.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </td>
+                    <td className="dd-stock-cell">
+                      <AsyncStockItemPicker
+                        token={token}
+                        selectedId={line.stockItemId}
+                        initialItems={[]}
+                        onSelect={(item) => selectStockItem(index, item)}
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0.0001"
+                        step="0.0001"
+                        aria-label={`Satır ${index + 1} miktar`}
+                        value={line.quantity}
+                        onChange={(e) =>
+                          updateLine(index, { quantity: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td>
+                      <select
+                        aria-label={`Satır ${index + 1} birim`}
+                        value={line.unitCode || baseUnit}
+                        onChange={(e) =>
+                          updateLine(index, { unitCode: e.target.value })
+                        }
+                        required
+                      >
+                        <option value={baseUnit}>
+                          {baseUnit || "Temel birim"}
+                        </option>
+                        {(units[line.stockItemId] || [])
+                          .filter((x) => x.isActive && x.unitCode !== baseUnit)
+                          .map((unit) => (
+                            <option key={unit.id} value={unit.unitCode}>
+                              {unit.unitCode} (×{unit.factorToBase})
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        aria-label={`Satır ${index + 1} birim fiyat`}
+                        value={line.unitPrice}
+                        onChange={(e) =>
+                          updateLine(index, { unitPrice: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        aria-label={`Satır ${index + 1} iskonto yüzdesi`}
+                        value={line.discountPercent}
+                        onChange={(e) =>
+                          updateLine(index, { discountPercent: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        aria-label={`Satır ${index + 1} KDV yüzdesi`}
+                        value={line.vatPercent}
+                        onChange={(e) =>
+                          updateLine(index, { vatPercent: e.target.value })
+                        }
+                        required
+                      />
+                    </td>
+                    <td className="dd-num dd-total">
+                      <output aria-label={`Satır ${index + 1} tutar`}>
+                        {money(purchaseOrderLineAmounts(line).net)}
+                      </output>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="dd-new-line">
+                <td colSpan={8}>
+                  <button
+                    type="button"
+                    data-line-add-shortcut
+                    title="Ctrl+Shift+Enter ile satır ekle"
+                    onClick={() =>
+                      setLines((current) => [...current, emptyPurchaseOrderLine()])
+                    }
+                  >
+                    <LineAddLabel />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </SalesFormLines>
         {fieldDefinitions.length > 0 && (
           <RecordFormGroup title="Sipariş Özel Alanları">
             <div className="rf-custom-grid">
@@ -4508,49 +4311,6 @@ function PurchaseOrderCreatePage({
             </div>
           </RecordFormGroup>
         )}
-        <RecordFormGroup title="Not ve toplamlar">
-          <div className="sales-invoice-totals-layout">
-            <label className="sales-invoice-note">
-              <span>
-                Sipariş notu{" "}
-                <span className="optional-label">İsteğe bağlı</span>
-              </span>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                maxLength={1000}
-                rows={4}
-              />
-              <small className="sales-invoice-note-counter" aria-hidden="true">
-                {notes.length} / 1000
-              </small>
-            </label>
-            <section
-              className="sales-invoice-total-panel"
-              aria-label="Sipariş toplamları"
-            >
-              <div className="total-row">
-                <span>Ara toplam</span>
-                <output>{formatPurchaseOrderMoney(totals.gross, currencyCode)}</output>
-              </div>
-              <div className="total-row">
-                <span>İskonto</span>
-                <output>
-                  {totals.discount > 0 ? "− " : ""}
-                  {formatPurchaseOrderMoney(totals.discount, currencyCode)}
-                </output>
-              </div>
-              <div className="total-row">
-                <span>KDV</span>
-                <output>{formatPurchaseOrderMoney(totals.vat, currencyCode)}</output>
-              </div>
-              <div className="total-row grand">
-                <span>Genel toplam</span>
-                <output>{formatPurchaseOrderMoney(totals.grand, currencyCode)}</output>
-              </div>
-            </section>
-          </div>
-        </RecordFormGroup>
       </RecordFormPage>
     </div>
   );
@@ -4896,10 +4656,9 @@ function PurchasingPanel({
         setPurchaseRequests(requests.items);
         setRequestPage(requests.page);
         setRequestTotal(requests.totalCount);
+        // List type: the current row is the one the user chose; a reload keeps it while it is on the page.
         setSelectedRequestId((current) =>
-          current && requests.items.some((item) => item.id === current)
-            ? current
-            : (requests.items[0]?.id ?? null),
+          current && requests.items.some((item) => item.id === current) ? current : null,
         );
         return;
       }
@@ -4983,6 +4742,20 @@ function PurchasingPanel({
     return () =>
       window.removeEventListener(PURCHASE_ORDERS_CHANGED_EVENT, onChanged);
   }, [requestsOnly]);
+  // Satınalma Teklifleri › Aç opens the quote's request here (the hand-off is read on mount and on the event).
+  const purchaseRequestOpenHandler = useRef<() => void>(() => undefined);
+  purchaseRequestOpenHandler.current = () => {
+    if (!requestsOnly) return;
+    const id = takePurchaseRequestOpen();
+    if (id) void openRequest(id);
+  };
+  useEffect(() => {
+    if (!requestsOnly) return;
+    purchaseRequestOpenHandler.current();
+    const onOpen = () => purchaseRequestOpenHandler.current();
+    window.addEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
+  }, [requestsOnly]);
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;
@@ -5014,10 +4787,6 @@ function PurchasingPanel({
     [orderScreenFields],
   );
   const orderFieldVisible = (key: string) => visibleOrderScreenFields.some((field) => field.key === key);
-  const isOrderOverdue = (item: PurchaseOrderSummary) =>
-    (item.status === "Open" || item.status === "PartiallyReceived") &&
-    !!item.expectedReceiptDate &&
-    item.expectedReceiptDate < today;
   // Client-side status index: the list API filters by text only, so chip counts and chip filtering
   // read up to 1000 order summaries for the current search. It is rebuilt after every list load
   // (search changes, refreshes and mutations all go through load()).
@@ -5045,14 +4814,14 @@ function PurchasingPanel({
     };
   }, [token, requestsOnly, orderIndexVersion]);
   const orderStatusMatches = (item: PurchaseOrderSummary, filter: typeof orderStatusFilter) =>
-    filter === "" ? true : filter === "Overdue" ? isOrderOverdue(item) : item.status === filter;
+    filter === "" ? true : filter === "Overdue" ? isPurchaseOrderOverdue(item, today) : item.status === filter;
   const orderStatusCounts = orderIndex?.complete
     ? {
         all: orderIndex.items.length,
         Open: orderIndex.items.filter((item) => item.status === "Open").length,
         PartiallyReceived: orderIndex.items.filter((item) => item.status === "PartiallyReceived").length,
         Received: orderIndex.items.filter((item) => item.status === "Received").length,
-        Overdue: orderIndex.items.filter(isOrderOverdue).length,
+        Overdue: orderIndex.items.filter((item) => isPurchaseOrderOverdue(item, today)).length,
       }
     : null;
   const filteredOrderIndex =
@@ -5067,8 +4836,7 @@ function PurchasingPanel({
   // Visible rows need their order detail for the "Teslim alınan" column; the selected row always does
   // (lines and receipts in the side panel).
   const receivedColumnVisible = orderFieldVisible("receivedProgress");
-  const selectedOrderForDetail =
-    displayedOrders.find((item) => item.id === selectedOrderId)?.id ?? displayedOrders[0]?.id;
+  const selectedOrderForDetail = displayedOrders.find((item) => item.id === selectedOrderId)?.id;
   const orderDetailTargets = receivedColumnVisible
     ? displayedOrders.map((item) => item.id)
     : selectedOrderForDetail
@@ -5222,7 +4990,18 @@ function PurchasingPanel({
         ].filter(Boolean);
         return (
           <span className="po-list-code-cell">
-            <b className="customer-code">{request.code}</b>
+            <button
+              type="button"
+              className="erp-link-button customer-code"
+              aria-label={`${request.code} talep ayrıntılarını aç`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedRequestId(request.id);
+                void openRequest(request.id);
+              }}
+            >
+              {request.code}
+            </button>
             {parts.length > 0 && (
               <small className="cell-subtitle pr-list-subtitle" title={request.description}>
                 {parts.join(" · ")}
@@ -5267,7 +5046,7 @@ function PurchasingPanel({
       case "lineCount":
         return request.lineCount;
       case "status":
-        return <DocumentStatusBadge status={purchaseRequestStatus(request.status)} />;
+        return <PurchaseRequestTag status={request.status} />;
       case "purchaseOrderCode":
         return request.purchaseOrderCode || "—";
       case "actions":
@@ -5278,10 +5057,10 @@ function PurchasingPanel({
             </button>
             {canDecideRequest(request) && (
               <>
-                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => focusDecision(request, true)}>
+                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void decideFromList(request.id, true)}>
                   <Check size={15} aria-hidden="true" /> Onayla
                 </button>
-                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => focusDecision(request, false)}>
+                <button type="button" role="menuitem" className="sales-row-menu-item" onClick={() => void decideFromList(request.id, false)}>
                   <Ban size={15} aria-hidden="true" /> Reddet
                 </button>
               </>
@@ -5405,19 +5184,28 @@ function PurchasingPanel({
       case "code": {
         // Dates sit under the code unless the layout shows them as their own columns.
         const showDates = !orderFieldVisible("orderDate") && !orderFieldVisible("expectedReceiptDate");
-        const overdue = isOrderOverdue(item);
+        const overdue = isPurchaseOrderOverdue(item, today);
         return (
           <span className="po-list-code-cell">
-            <b className="customer-code">{item.code}</b>
+            <button
+              type="button"
+              className="erp-link-button customer-code"
+              aria-label={`${item.code} sipariş ayrıntılarını aç`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedOrderId(item.id);
+                void openOrder(item.id);
+              }}
+            >
+              {item.code}
+            </button>
             {showDates && (
-              <small className="cell-subtitle">
+              <small className={`cell-subtitle${overdue ? " po-list-overdue" : ""}`}>
                 {`${item.orderDate.slice(5, 10).split("-").reverse().join(".")} · teslim ${
                   item.expectedReceiptDate ? item.expectedReceiptDate.slice(5, 10).split("-").reverse().join(".") : "—"
                 }`}
-                {overdue && <span className="po-list-overdue"> · gecikti</span>}
               </small>
             )}
-            {!showDates && overdue && <small className="cell-subtitle po-list-overdue">gecikti</small>}
           </span>
         );
       }
@@ -5469,20 +5257,15 @@ function PurchasingPanel({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b className="po-list-amount">
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-            {!orderFieldVisible("currencyCode") && ` ${item.currencyCode}`}
-          </b>
+        return orderFieldVisible("currencyCode") ? (
+          <span>{item.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        ) : (
+          listAmount(item.grandTotal, item.currencyCode)
         );
       case "currencyCode":
         return item.currencyCode;
       case "status":
-        return (
-          <DocumentStatusBadge status={purchaseOrderStatus(item.status)} />
-        );
+        return <PurchaseOrderTag status={item.status} overdue={isPurchaseOrderOverdue(item, today)} />;
       case "actions":
         return (
           <SalesRowActionsMenu label={item.code}>
@@ -5573,6 +5356,9 @@ function PurchasingPanel({
     const order = await openOrder(id);
     if (!order || !canReceiveOrder(order.status)) return;
     beginReceipt(order);
+    focusReceiptForm();
+  }
+  function focusReceiptForm() {
     window.setTimeout(() => {
       const form = document.querySelector<HTMLElement>(".doc-surface .sales-rf-embedded");
       form?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -6712,12 +6498,9 @@ function PurchasingPanel({
   const supplierOptions = customers.filter(
     (x) => x.isActive && (x.type === "Supplier" || x.type === "Both"),
   );
-  const selectedOrderSummary =
-    displayedOrders.find((item) => item.id === selectedOrderId) ?? displayedOrders[0] ?? null;
-  const selectedRequestSummary =
-    purchaseRequests.find((item) => item.id === selectedRequestId) ??
-    purchaseRequests[0] ??
-    null;
+  // List type: the current row is the one the user chose (click, ↑/↓), never an implicit first row.
+  const selectedOrderSummary = displayedOrders.find((item) => item.id === selectedOrderId) ?? null;
+  const selectedRequestSummary = purchaseRequests.find((item) => item.id === selectedRequestId) ?? null;
   const requestHasQuotes = (status: PurchaseRequestSummary["status"]) =>
     status === "Approved" || status === "Ordered";
   // Quotes exist only after approval, so only approved/ordered rows are fetched (5 at a time).
@@ -6795,17 +6578,36 @@ function PurchasingPanel({
     const request = await openRequest(id);
     if (!request || request.status !== "Approved") return;
     beginQuoteCapture(request);
-    focusRequestDetailForm();
+    focusRequestDetailForm(".pr-detail-quotes");
   }
   async function beginRequestConversionFromList(id: string) {
     const request = await openRequest(id);
     if (!request || request.status !== "Approved" || request.purchaseOrderId) return;
     beginOrderConversion(request);
-    focusRequestDetailForm();
+    focusRequestDetailForm(".pr-detail-conversion");
   }
-  function focusRequestDetailForm() {
+  /**
+   * Onayla / Reddet from the list (row menu, İşlemler): the request opens and its decision panel takes the step, as
+   * Teklif ekle does (the list panel may be closed on a narrow screen).
+   */
+  async function decideFromList(id: string, approved: boolean) {
+    const request = await openRequest(id);
+    if (!request || !canDecideRequest(request)) return;
+    startDecision(request, approved);
+    focusRequestDecision(approved);
+  }
+  function focusRequestDecision(approved: boolean) {
     window.setTimeout(() => {
-      const form = document.querySelector<HTMLElement>(".doc-surface .pr-detail-form-target form");
+      const panel = document.querySelector<HTMLElement>(".doc-surface .pr-detail-decision .pr-decision");
+      panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      panel
+        ?.querySelector<HTMLElement>(approved ? ".pr-decision-confirm button.primary" : "textarea")
+        ?.focus({ preventScroll: true });
+    }, 120);
+  }
+  function focusRequestDetailForm(target = ".pr-detail-form-target") {
+    window.setTimeout(() => {
+      const form = document.querySelector<HTMLElement>(`.doc-surface ${target} form`);
       form?.scrollIntoView({ block: "start", behavior: "smooth" });
       form?.querySelector<HTMLElement>("input:not([type='hidden']):not([readonly]), select")?.focus({ preventScroll: true });
     }, 120);
@@ -6818,17 +6620,6 @@ function PurchasingPanel({
       if (!approved && !base.note.trim()) return { ...base, confirm: null, error: "Ret gerekçesi zorunludur." };
       return { ...base, confirm: approved ? "approve" : "reject", error: "" };
     });
-  }
-  /** Row menu "Onayla"/"Reddet": select the row and continue in the side panel's inline flow. */
-  function focusDecision(request: PurchaseRequestSummary, approved: boolean) {
-    startDecision(request, approved);
-    window.setTimeout(() => {
-      const panel = document.querySelector<HTMLElement>(".purchase-requests-page .pr-list-aside .pr-decision");
-      panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      panel
-        ?.querySelector<HTMLElement>(approved ? ".pr-decision-confirm button.primary" : "textarea")
-        ?.focus({ preventScroll: true });
-    }, 60);
   }
   function renderDecisionControls(request: PurchaseRequestSummary | PurchaseRequestDetail, idPrefix: string) {
     if (role !== "TenantAdmin" || request.status !== "Submitted") return null;
@@ -7529,12 +7320,178 @@ function PurchasingPanel({
       </form>
     </section>
   );
+  const [purchaseTicked, setPurchaseTicked] = useState<string[]>([]);
+  const purchaseGridExportRef = useRef<GridExportActions | null>(null);
+  /** Supplier quote whose line prices are expanded in the request document. */
+  const [openQuoteLinesId, setOpenQuoteLinesId] = useState<string | null>(null);
+  // ---- List type and İşlem Çubuğu (Faz 4, mockup 07): the current row is the one the user chose; Aç / Enter / double
+  // click / the number link open it. The page owns the bar while it is on screen; an open alış faturası owns its own.
+  const busyReason = busy ? "Kaydediliyor…" : undefined;
+  const purchaseListActive = requestsOnly
+    ? !requestDetail && !detail && !requestEditor && !requestFieldSettingsOpen
+    : !detail && !requestEditor && !orderFieldsOpen;
+  const purchasePanel = usePurchaseListPanel(purchaseListActive);
+  const purchaseRows: Array<PurchaseRequestSummary | PurchaseOrderSummary> = requestsOnly ? purchaseRequests : displayedOrders;
+  const purchaseTarget = requestsOnly
+    ? (selectedRequestSummary ?? (purchaseTicked.length === 1 ? purchaseRequests.find((item) => item.id === purchaseTicked[0]) : undefined))
+    : (selectedOrderSummary ?? (purchaseTicked.length === 1 ? displayedOrders.find((item) => item.id === purchaseTicked[0]) : undefined));
+  const applyOrderStatusFilter = (next: typeof orderStatusFilter) => {
+    setOrderStatusFilter(next);
+    setOrderPage(1);
+    if (!next) void load(requestPage, 1);
+  };
+  const purchaseCommands: PageCommands = {};
+  const purchaseMore: MenuCommand[] = [];
+  if (detail) {
+    // An open order (from the order list, or just created from a request): Mal kabul ekle moves to İşlemler.
+    Object.assign(purchaseCommands, documentOpenCommands(() => void openOrder(detail.id)));
+    if (!requestsOnly) purchaseCommands.new = { run: () => onNavigate?.("sales-purchase-order-create") };
+    if (canReceiveOrder(detail.status))
+      purchaseMore.push({
+        id: "po-receipt",
+        label: "Mal kabul ekle",
+        disabledReason: busyReason,
+        run: () => {
+          if (!receiptEditor) beginReceipt(detail);
+          focusReceiptForm();
+        },
+      });
+  } else if (requestDetail) {
+    // An open request: the decision, quote capture and order conversion of its body, with the same conditions.
+    Object.assign(purchaseCommands, documentOpenCommands(() => void openRequest(requestDetail.id)));
+    purchaseCommands.new = { run: () => void beginRequestCreate() };
+    if (canDecideRequest(requestDetail)) {
+      purchaseMore.push({ id: "pr-approve", label: "Onayla", disabledReason: busyReason, run: () => { startDecision(requestDetail, true); focusRequestDecision(true); } });
+      purchaseMore.push({ id: "pr-reject", label: "Reddet", disabledReason: busyReason, run: () => { startDecision(requestDetail, false); focusRequestDecision(false); } });
+    }
+    if (role === "TenantAdmin" && requestDetail.status === "Approved")
+      purchaseMore.push({
+        id: "pr-quote",
+        label: "Teklif ekle",
+        disabledReason: busyReason,
+        run: () => {
+          if (!quoteEditor) beginQuoteCapture(requestDetail);
+          focusRequestDetailForm(".pr-detail-quotes");
+        },
+      });
+    if (role === "TenantAdmin" && requestDetail.status === "Approved" && !requestDetail.purchaseOrderId)
+      purchaseMore.push({
+        id: "pr-convert",
+        label: "Siparişe dönüştür",
+        disabledReason: busyReason,
+        run: () => {
+          if (!orderConversion) beginOrderConversion(requestDetail);
+          focusRequestDetailForm(".pr-detail-conversion");
+        },
+      });
+    if (requestDetail.status === "Ordered" && requestDetail.purchaseOrderId)
+      purchaseMore.push({
+        id: "pr-order",
+        label: "Siparişi aç",
+        run: () => openLinkedPurchaseOrder(requestDetail.purchaseOrderId!, requestDetail.purchaseOrderCode || ""),
+      });
+  } else if (requestsOnly) {
+    const request = purchaseTarget as PurchaseRequestSummary | undefined;
+    purchaseCommands.new = { primary: true, run: () => void beginRequestCreate() };
+    purchaseCommands.open = {
+      disabledReason: request ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? request?.id;
+        if (id) void openRequest(id);
+      },
+    };
+    // The row menu ("⋯") items, with its conditions; İncele is Aç.
+    if (request && canDecideRequest(request)) {
+      purchaseMore.push({ id: "pr-row-approve", label: "Onayla", disabledReason: busyReason, run: () => void decideFromList(request.id, true) });
+      purchaseMore.push({ id: "pr-row-reject", label: "Reddet", disabledReason: busyReason, run: () => void decideFromList(request.id, false) });
+    }
+    if (request && role === "TenantAdmin" && request.status === "Approved")
+      purchaseMore.push({ id: "pr-row-quote", label: "Teklif ekle", disabledReason: busyReason, run: () => void beginRequestQuoteFromList(request.id) });
+    if (request && role === "TenantAdmin" && request.status === "Approved" && !request.purchaseOrderId)
+      purchaseMore.push({ id: "pr-row-convert", label: "Siparişe dönüştür", disabledReason: busyReason, run: () => void beginRequestConversionFromList(request.id) });
+    if (request && request.status === "Ordered" && request.purchaseOrderId)
+      purchaseMore.push({
+        id: "pr-row-order",
+        label: "Siparişi aç",
+        run: () => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || ""),
+      });
+    if (canManagePurchaseFields) purchaseMore.push({ id: "pr-fields", label: "Alanlar", run: () => setRequestFieldSettingsOpen(true) });
+    purchaseMore.push(csvExportCommand(purchaseGridExportRef));
+  } else {
+    const order = purchaseTarget as PurchaseOrderSummary | undefined;
+    purchaseCommands.new = { primary: true, run: () => onNavigate?.("sales-purchase-order-create") };
+    purchaseCommands.open = {
+      disabledReason: order ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? order?.id;
+        if (id) void openOrder(id);
+      },
+    };
+    // The row menu ("⋯") item Mal kabul ekle, with its condition; Siparişi aç is Aç. The header's Talep oluştur and
+    // Alanlar are here too.
+    if (order && canReceiveOrder(order.status))
+      purchaseMore.push({ id: "po-row-receipt", label: "Mal kabul ekle", disabledReason: busyReason, run: () => void openOrderReceipt(order.id) });
+    purchaseMore.push({ id: "po-request", label: "Talep oluştur", run: () => void beginRequestCreate() });
+    if (canManagePurchaseFields) purchaseMore.push({ id: "po-fields", label: "Alanlar", run: () => setOrderFieldsOpen(true) });
+    purchaseMore.push(csvExportCommand(purchaseGridExportRef));
+  }
+  if (purchaseMore.length) purchaseCommands.more = purchaseMore;
+  // As in Satış (salesPageDialogOpen): no Yeni while a dialog of this page (Alanlar, talep formu, Faturala) is open.
+  if (requestFieldSettingsOpen || orderFieldsOpen || requestEditor || invoiceReceiptId) delete purchaseCommands.new;
+  let purchaseListPanel: React.ReactNode = null;
+  if (purchasePanel.open && purchaseListActive) {
+    if (requestsOnly) {
+      const request = selectedRequestSummary;
+      const cachedQuotes = request ? requestQuoteCache.current.get(request.id) : undefined;
+      const decisionControls = request ? renderDecisionControls(request, "panel") : null;
+      purchaseListPanel = request ? (
+        <PurchaseRequestListPanel
+          row={request}
+          needHint={requestNeedHint(request)}
+          quotes={requestHasQuotes(request.status) ? (cachedQuotes ?? "loading") : undefined}
+          decision={decisionControls && <div className="pr-ld-decision">{decisionControls}</div>}
+          onOpen={() => void openRequest(request.id)}
+          openDisabled={busy}
+          onOpenOrder={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
+          onClose={purchasePanel.close}
+          takeFocus={purchasePanel.takeFocus}
+        />
+      ) : (
+        <PurchaseRequestListEmpty />
+      );
+    } else {
+      const order = selectedOrderSummary;
+      purchaseListPanel = order ? (
+        <PurchaseOrderListPanel
+          row={order}
+          detail={cachedOrderDetail(order.id)}
+          error={orderDetailCache.current.get(order.id) === "error" ? "Satırlar yüklenemedi." : ""}
+          overdue={isPurchaseOrderOverdue(order, today)}
+          warehouseName={warehouses.find((x) => x.id === order.targetWarehouseId)?.name}
+          onOpen={() => void openOrder(order.id)}
+          openDisabled={busy}
+          onClose={purchasePanel.close}
+          takeFocus={purchasePanel.takeFocus}
+        />
+      ) : (
+        <PurchaseOrderListEmpty />
+      );
+    }
+  }
+  const purchaseGridSelection = {
+    currentId: requestsOnly ? selectedRequestId : selectedOrderId,
+    onCurrentChange: requestsOnly ? setSelectedRequestId : setSelectedOrderId,
+    onTickedChange: setPurchaseTicked,
+    // Only while the list is on screen: a document or dialog over it must not show the floating bar.
+    bulkActions: purchaseListActive
+      ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void purchaseGridExportRef.current?.exportExcel() }]
+      : undefined,
+    onOpen: (id: string) => void (requestsOnly ? openRequest(id) : openOrder(id)),
+  };
+  const purchaseListBodyClass = `sales-list-body${purchaseListPanel ? " has-detail" : ""}`;
   return (
-    <div
-      className={`${
-        requestsOnly ? "purchase-requests-page" : "purchase-orders-page"
-      } list-v2`}
-    >
+    <div className={`${requestsOnly ? "pr-lv2" : "po-lv2"} list-v2 sales-lv2-root`}>
+      {!invoiceId && <PageCommandsSlot commands={purchaseCommands} />}
       <div className="sales-lv2-stack">
         <ListPageHeader
           className="customer-heading"
@@ -7550,49 +7507,16 @@ function PurchasingPanel({
               : orderTotal
           }
           countLabel={requestsOnly ? "talep" : "sipariş"}
-        >
-          {!requestsOnly && canManagePurchaseFields && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setOrderFieldsOpen(true)}
-            >
-              <Settings size={14} aria-hidden="true" /> Alanlar
-            </button>
-          )}
-          {requestsOnly && canManagePurchaseFields && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setRequestFieldSettingsOpen(true)}
-            >
-              <Settings size={14} aria-hidden="true" /> Alanlar
-            </button>
-          )}
-          {requestsOnly && (
-            <button type="button" className="primary" onClick={beginRequestCreate}>
-              <Plus size={17} /> Talep oluştur
-            </button>
-          )}
-          {!requestsOnly && (
-            <button
-              className="secondary"
-              onClick={() => {
-                beginRequestCreate();
-              }}
-            >
-              Talep oluştur
-            </button>
-          )}
-          {!requestsOnly && (
-            <button
-              className="primary"
-              onClick={() => onNavigate?.("sales-purchase-order-create")}
-            >
-              <Plus size={17} /> Yeni satınalma siparişi
-            </button>
-          )}
-        </ListPageHeader>
+        />
+        <ListSummaryCards
+          cards={
+            requestsOnly
+              ? purchaseRequestSummaryCards(requestStatusCounts, requestStatus, setRequestStatus, !!requestSearch.trim())
+              : purchaseOrderSummaryCards(displayedOrders, today, loading || orderIndexPending, orderStatusFilter === "Overdue", () =>
+                  applyOrderStatusFilter(orderStatusFilter === "Overdue" ? "" : "Overdue"),
+                )
+          }
+        />
         {requestsOnly ? (
           <ListToolbar
             search={requestSearch}
@@ -7614,6 +7538,7 @@ function PurchasingPanel({
                 { value: "Rejected", label: "Reddedildi", count: requestStatusCounts?.Rejected },
               ]}
             />
+            <SalesListPanelToggle open={purchasePanel.open} onToggle={purchasePanel.toggle} />
           </ListToolbar>
         ) : (
           <ListToolbar
@@ -7630,12 +7555,7 @@ function PurchasingPanel({
             <ListChipGroup
               label="Sipariş durumuna göre filtrele"
               value={orderStatusFilter}
-              onChange={(value) => {
-                const next = value as typeof orderStatusFilter;
-                setOrderStatusFilter(next);
-                setOrderPage(1);
-                if (!next) void load(requestPage, 1);
-              }}
+              onChange={(value) => applyOrderStatusFilter(value as typeof orderStatusFilter)}
               options={[
                 { value: "", label: "Tümü", count: orderStatusCounts?.all },
                 { value: "Open", label: "Açık", count: orderStatusCounts?.Open },
@@ -7644,6 +7564,7 @@ function PurchasingPanel({
                 { value: "Overdue", label: "Gecikmiş", count: orderStatusCounts?.Overdue },
               ]}
             />
+            <SalesListPanelToggle open={purchasePanel.open} onToggle={purchasePanel.toggle} />
           </ListToolbar>
         )}
       </div>
@@ -7663,189 +7584,86 @@ function PurchasingPanel({
           </button>
         </div>
       )}
-      {requestsOnly && (
-        <div className="po-list-layout">
-          <div className="po-list-main">
-            <section className="panel purchase-request-list-card list-v2-list" aria-label="Satınalma talebi listesi">
-              <div className="customer-table-wrap">
-                <AdvancedDataGrid
-                  className="customer-table quote-table"
-                  gridId="purchase-requests-v2"
-                  {...screenViewGridDefaults(visibleRequestScreenFields)}
-                  externalPagination
-                  hideSearch
-                  toolbarContainer={requestGridToolsSlot}
-                  enableRowSelection={false}
-                >
-                  <thead>
-                    <ScreenViewGroupHeader fields={visibleRequestScreenFields} />
-                    <tr>
-                      {visibleRequestScreenFields.map((field) => (
-                        <th key={field.key}>{field.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && purchaseRequests.length === 0 ? (
-                      <tr>
-                        <td colSpan={visibleRequestScreenFields.length} className="table-empty">
-                          Satınalma talepleri yükleniyor…
-                        </td>
-                      </tr>
-                    ) : purchaseRequests.length === 0 ? (
-                      <tr>
-                        <td colSpan={visibleRequestScreenFields.length} className="table-empty">
-                          {requestStatus === "Approved"
-                            ? "Onaylanmış satın alma talebi yok."
-                            : requestSearch.trim() || requestStatus
-                              ? "Filtrelerle eşleşen satın alma talebi yok."
-                              : "Henüz satın alma talebi yok."}
-                        </td>
-                      </tr>
-                    ) : (
-                      purchaseRequests.map((request) => (
-                        <tr
-                          key={request.id}
-                          className={selectedRequestSummary?.id === request.id ? "erp-selected-row" : ""}
-                          onClick={() => setSelectedRequestId(request.id)}
-                          aria-selected={selectedRequestSummary?.id === request.id}
-                        >
-                          {visibleRequestScreenFields.map((field) => (
-                            <td key={field.key}>{renderPurchaseRequestCell(field, request)}</td>
-                          ))}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </AdvancedDataGrid>
-              </div>
-            </section>
-            <ListPagination
-              page={requestPage}
-              total={requestTotal}
-              pageSize={purchasePageSize}
-              loading={loading}
-              onPageChange={(next) => void load(next)}
+      <div ref={purchasePanel.rootRef} className={purchaseListBodyClass}>
+        <section className="list-v2-list" aria-label={requestsOnly ? "Satınalma talebi listesi" : "Tedarikçi siparişi listesi"}>
+          {requestsOnly ? (
+            <SalesDocumentGrid
+              gridId="purchase-requests-v2"
+              ariaLabel="Satınalma talebi kayıtları"
+              hideExport
+              exportActionsRef={purchaseGridExportRef}
+              fields={visibleRequestScreenFields}
+              items={purchaseRequests}
+              loading={loading && purchaseRequests.length === 0}
+              loadingMessage="Satınalma talepleri yükleniyor…"
+              emptyMessage={
+                requestStatus === "Approved"
+                  ? "Onaylanmış satın alma talebi yok."
+                  : requestSearch.trim() || requestStatus
+                    ? "Filtrelerle eşleşen satın alma talebi yok."
+                    : "Henüz satın alma talebi yok."
+              }
+              search=""
+              searchEmptyMessage="Filtrelerle eşleşen satın alma talebi yok."
+              toolbarContainer={requestGridToolsSlot}
+              renderCell={renderPurchaseRequestCell}
+              selection={purchaseGridSelection}
+              columnWidths={PURCHASE_REQUEST_LIST_WIDTHS}
+              numberFields={PURCHASE_REQUEST_NUMBER_FIELDS}
+              codeFields={PURCHASE_REQUEST_CODE_FIELDS}
+              footer={
+                <SalesListFooter
+                  ticked={purchaseTicked.length}
+                  shown={purchaseRows.length}
+                  total={requestTotal}
+                  page={requestPage}
+                  pageSize={purchasePageSize}
+                  loading={loading}
+                  onPageChange={(next) => void load(next)}
+                />
+              }
             />
-          </div>
-          {selectedRequestSummary && (() => {
-            const request = selectedRequestSummary;
-            const quotes = requestHasQuotes(request.status) ? cachedRequestQuotes(request.id) : null;
-            const best = quotes ? bestRequestQuote(quotes) : null;
-            const hint = requestNeedHint(request);
-            return (
-              <aside className="po-list-aside pr-list-aside" aria-label="Seçili talep">
-                <span className="pr-list-aside-kicker">{`Seçili talep · ${request.requestedByName || "—"}`}</span>
-                <div className="po-list-aside-head">
-                  <h2>{request.code}</h2>
-                  <DocumentStatusBadge status={purchaseRequestStatus(request.status)} />
-                </div>
-                {request.description && <p className="po-list-aside-party">{request.description}</p>}
-                <dl className="po-list-aside-facts">
-                  <div>
-                    <dt>Talep tarihi</dt>
-                    <dd>{formatDate(request.requestDate)}</dd>
-                  </div>
-                  <div>
-                    <dt>İhtiyaç</dt>
-                    <dd>
-                      {formatDate(request.neededByDate)}
-                      {hint && <small className={hint.overdue ? "po-list-overdue" : "po-list-muted"}>{` · ${hint.text}`}</small>}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Kalem</dt>
-                    <dd>{request.lineCount}</dd>
-                  </div>
-                  {request.reviewedByName && request.status !== "Submitted" && (
-                    <div>
-                      <dt>{request.status === "Rejected" ? "Reddeden" : "Onaylayan"}</dt>
-                      <dd>{request.reviewedByName}</dd>
-                    </div>
-                  )}
-                  {request.reviewNote && (
-                    <div className="pr-list-aside-note">
-                      <dt>Not</dt>
-                      <dd>{request.reviewNote}</dd>
-                    </div>
-                  )}
-                  {request.status === "Ordered" && (
-                    <div>
-                      <dt>Sipariş</dt>
-                      <dd>
-                        {request.purchaseOrderId ? (
-                          <button
-                            type="button"
-                            className="pr-list-link"
-                            onClick={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
-                          >
-                            {request.purchaseOrderCode || "Siparişi aç"}
-                          </button>
-                        ) : (
-                          request.purchaseOrderCode || "—"
-                        )}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-                {requestHasQuotes(request.status) && (
-                  <section className="pr-list-quotes-box" aria-label="Tedarikçi teklifleri">
-                    <h3>{quotes ? `Teklifler · ${quotes.length}` : "Teklifler"}</h3>
-                    {!quotes ? (
-                      <p className="po-list-muted">
-                        {requestQuoteCache.current.get(request.id) === "error" ? "Teklifler yüklenemedi." : "Teklifler yükleniyor…"}
-                      </p>
-                    ) : quotes.length === 0 ? (
-                      <p className="po-list-muted">Henüz tedarikçi teklifi kaydedilmedi.</p>
-                    ) : (
-                      <ul>
-                        {quotes.map((quote) => (
-                          <li key={quote.id} className={best?.id === quote.id ? "is-best" : undefined}>
-                            <span className="pr-list-quote-supplier" title={quote.supplierName}>
-                              {best?.id === quote.id && <Trophy size={13} aria-label="En iyi teklif" />}
-                              <span>{quote.supplierName}</span>
-                            </span>
-                            <span className="pr-list-quote-amount">
-                              {quote.comparableGrandTotal !== null
-                                ? formatAmount(quote.comparableGrandTotal, quote.baseCurrencyCode)
-                                : formatAmount(quote.grandTotal, quote.currencyCode)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-                )}
-                {renderDecisionControls(request, "panel")}
-                <div className="po-list-aside-actions">
-                  {role === "TenantAdmin" && request.status === "Approved" && (
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void beginRequestQuoteFromList(request.id)}>
-                      <Plus size={14} aria-hidden="true" /> Teklif ekle
-                    </button>
-                  )}
-                  {role === "TenantAdmin" && request.status === "Approved" && !request.purchaseOrderId && (
-                    <button type="button" className="primary" disabled={busy} onClick={() => void beginRequestConversionFromList(request.id)}>
-                      Siparişe dönüştür
-                    </button>
-                  )}
-                  {request.status === "Ordered" && request.purchaseOrderId && (
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={() => openLinkedPurchaseOrder(request.purchaseOrderId!, request.purchaseOrderCode || "")}
-                    >
-                      Siparişi aç
-                    </button>
-                  )}
-                  <button type="button" className="secondary" onClick={() => void openRequest(request.id)}>
-                    <Eye size={14} aria-hidden="true" /> İncele
-                  </button>
-                </div>
-              </aside>
-            );
-          })()}
-        </div>
-      )}
+          ) : (
+            <SalesDocumentGrid
+              gridId="purchase-orders-v2"
+              ariaLabel="Satınalma siparişi kayıtları"
+              hideExport
+              exportActionsRef={purchaseGridExportRef}
+              fields={visibleOrderScreenFields}
+              items={displayedOrders}
+              loading={loading || orderIndexPending}
+              loadingMessage="Satın alma siparişleri yükleniyor…"
+              emptyMessage={
+                orderStatusFilter
+                  ? "Bu durumda satın alma siparişi yok."
+                  : orderSearch.trim()
+                    ? "Aramanızla eşleşen tedarikçi siparişi yok."
+                    : "Henüz satın alma siparişi yok."
+              }
+              search=""
+              searchEmptyMessage="Aramanızla eşleşen tedarikçi siparişi yok."
+              toolbarContainer={orderGridToolsSlot}
+              renderCell={renderPurchaseOrderField}
+              selection={purchaseGridSelection}
+              columnWidths={PURCHASE_ORDER_LIST_WIDTHS}
+              numberFields={PURCHASE_ORDER_NUMBER_FIELDS}
+              codeFields={PURCHASE_ORDER_CODE_FIELDS}
+              footer={
+                <SalesListFooter
+                  ticked={purchaseTicked.length}
+                  shown={purchaseRows.length}
+                  total={displayedOrderTotal}
+                  page={orderPage}
+                  pageSize={purchasePageSize}
+                  loading={loading}
+                  onPageChange={(next) => (orderStatusFilter ? setOrderPage(next) : void load(requestPage, next))}
+                />
+              }
+            />
+          )}
+        </section>
+        {purchaseListPanel}
+      </div>
       {requestsOnly && requestFieldSettingsOpen && canManagePurchaseFields && (
         <div
           className="modal-backdrop"
@@ -7908,155 +7726,6 @@ function PurchasingPanel({
               </button>
             </div>
           </div>
-        </div>
-      )}
-      {!requestsOnly && (
-        <div className="po-list-layout">
-          <div className="po-list-main">
-            <section className="panel purchase-order-list-card list-v2-list" aria-label="Tedarikçi siparişi listesi">
-          <div className="customer-table-wrap">
-            <AdvancedDataGrid
-              className="customer-table quote-table"
-              gridId="purchase-orders-v2"
-              {...screenViewGridDefaults(visibleOrderScreenFields)}
-              externalPagination
-              hideSearch
-              toolbarContainer={orderGridToolsSlot}
-              enableRowSelection={false}
-            >
-              <thead>
-                <ScreenViewGroupHeader fields={visibleOrderScreenFields} />
-                <tr>
-                  {visibleOrderScreenFields.map((field) => (
-                    <th key={field.key}>{field.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading || orderIndexPending ? (
-                  <tr>
-                    <td
-                      colSpan={visibleOrderScreenFields.length}
-                      className="table-empty"
-                    >
-                      Satın alma siparişleri yükleniyor…
-                    </td>
-                  </tr>
-                ) : displayedOrders.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={visibleOrderScreenFields.length}
-                      className="table-empty"
-                    >
-                      {orderStatusFilter
-                    ? "Bu durumda satın alma siparişi yok."
-                    : orderSearch.trim()
-                        ? "Aramanızla eşleşen tedarikçi siparişi yok."
-                        : "Henüz satın alma siparişi yok."}
-                    </td>
-                  </tr>
-                ) : (
-                  displayedOrders.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={
-                        selectedOrderSummary?.id === item.id
-                          ? "erp-selected-row"
-                          : ""
-                      }
-                      onClick={() => setSelectedOrderId(item.id)}
-                      aria-selected={selectedOrderSummary?.id === item.id}
-                    >
-                      {visibleOrderScreenFields.map((field) => (
-                        <td key={field.key}>
-                          {renderPurchaseOrderField(field, item)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </AdvancedDataGrid>
-          </div>
-            </section>
-            <ListPagination
-              page={orderPage}
-              total={displayedOrderTotal}
-              pageSize={purchasePageSize}
-              loading={loading}
-              onPageChange={(next) =>
-                orderStatusFilter ? setOrderPage(next) : void load(requestPage, next)
-              }
-            />
-          </div>
-          {selectedOrderSummary && (() => {
-            const order = cachedOrderDetail(selectedOrderSummary.id);
-            const warehouse = warehouses.find((x) => x.id === selectedOrderSummary.targetWarehouseId);
-            const invoicedReceipts = order?.receipts.filter((receipt) => receipt.status === "Posted" && receipt.invoice).length ?? 0;
-            const postedReceipts = order?.receipts.filter((receipt) => receipt.status === "Posted").length ?? 0;
-            return (
-              <aside className="po-list-aside" aria-label="Seçili sipariş">
-                <div className="po-list-aside-head">
-                  <h2>{selectedOrderSummary.code}</h2>
-                  <DocumentStatusBadge status={purchaseOrderStatus(selectedOrderSummary.status)} />
-                </div>
-                <p className="po-list-aside-party">
-                  {selectedOrderSummary.supplierName}
-                  {warehouse ? ` · ${warehouse.name}` : ""}
-                </p>
-                {order ? (
-                  <table className="po-list-aside-lines" aria-label="Sipariş satırları">
-                    <thead>
-                      <tr>
-                        <th>Stok</th>
-                        <th className="po-num">Alınan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {order.lines.map((line) => (
-                        <tr key={line.lineNumber}>
-                          <td title={line.stockName}>{line.stockCode}</td>
-                          <td className="po-num">
-                            {line.receivedQuantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })} /{" "}
-                            {line.quantity.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="po-list-muted">{orderDetailCache.current.get(selectedOrderSummary.id) === "error" ? "Satırlar yüklenemedi." : "Satırlar yükleniyor…"}</p>
-                )}
-                <dl className="po-list-aside-facts">
-                  <div>
-                    <dt>Mal kabul</dt>
-                    <dd>{order ? postedReceipts : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Faturalanan</dt>
-                    <dd>{order ? `${invoicedReceipts} / ${postedReceipts}` : "—"}</dd>
-                  </div>
-                  <div className="is-total">
-                    <dt>Genel toplam</dt>
-                    <dd>
-                      {selectedOrderSummary.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}{" "}
-                      {selectedOrderSummary.currencyCode}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="po-list-aside-actions">
-                  <button type="button" className="primary" onClick={() => void openOrder(selectedOrderSummary.id)}>
-                    Siparişi aç
-                  </button>
-                  {canReceiveOrder(selectedOrderSummary.status) && (
-                    <button type="button" className="secondary" onClick={() => void openOrderReceipt(selectedOrderSummary.id)}>
-                      Mal kabul ekle
-                    </button>
-                  )}
-                </div>
-              </aside>
-            );
-          })()}
         </div>
       )}
       {!requestsOnly && orderFieldsOpen && canManagePurchaseFields && (
@@ -8125,103 +7794,155 @@ function PurchasingPanel({
           </div>
         </div>
       )}
-      {detail && (
+      {detail && (() => {
+        // Satınalma siparişi belgesi (taslak 02): durum akışı, özet kutucukları, başlık alanları, satırlar ve
+        // toplamlar, özel alanlar, mal kabuller; Mal kabul ekle İşlemler'de de.
+        const orderMoney = (value: number) => formatAmount(value, detail.currencyCode);
+        const postedReceipts = detail.receipts.filter((receipt) => receipt.status === "Posted");
+        const invoicedReceipts = postedReceipts.filter((receipt) => receipt.invoice).length;
+        const overdue = isPurchaseOrderOverdue(detail, today);
+        const overdueDays = overdue && detail.expectedReceiptDate ? -daysFromToday(detail.expectedReceiptDate) : 0;
+        const targetWarehouse = warehouses.find((x) => x.id === detail.targetWarehouseId);
+        return (
           <DocumentSurface
+            variant="detail"
             title="Satınalma siparişi"
             code={detail.code}
             subtitle={detail.supplierName}
             status={purchaseOrderStatus(detail.status)}
+            meta={<span>{formatDate(detail.orderDate)}</span>}
+            statusFlow={<PurchaseOrderFlow status={detail.status} />}
             onClose={() => setDetail(null)}
-            bodyClassName="modal ledger-modal"
+            aside={
+              <DetailContext title="Belge zinciri">
+                <DetailChain
+                  items={[
+                    { key: "self", code: detail.code, label: "Bu sipariş", kind: "Satınalma siparişi", current: true, status: purchaseOrderStatus(detail.status) },
+                    ...detail.receipts.flatMap((receipt) => [
+                      {
+                        key: `receipt-${receipt.id}`,
+                        code: receipt.code,
+                        label: "Mal kabul",
+                        meta: formatDate(receipt.receiptDate),
+                        status: purchaseReceiptStatus(receipt.status),
+                      },
+                      ...(receipt.invoice
+                        ? [
+                            {
+                              key: `invoice-${receipt.invoice.id}`,
+                              code: receipt.invoice.code,
+                              label: "Alış faturası",
+                              status: purchaseInvoiceStatus(receipt.invoice.status),
+                              onOpen: () => setInvoiceId(receipt.invoice!.id),
+                            },
+                          ]
+                        : []),
+                    ]),
+                  ]}
+                />
+              </DetailContext>
+            }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={<SalesFooterStatus lines={detail.lines.length} total={orderMoney(detail.grandTotal)} />}
           >
-            <div className="balance-banner">
-              <div>
-                <small>Genel toplam · {detail.currencyCode}</small>
-                <b>
-                  {detail.grandTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {detail.currencyCode}
-                </b>
-                <span>
-                  Sipariş {detail.orderDate.split("-").reverse().join(".")} ·
-                  Tedarikçi para birimi
-                </span>
+            {error && (
+              <div className="alert inline-alert" role="alert">
+                {error}
+                <button type="button" aria-label="Hatayı kapat" onClick={() => setError("")}>
+                  <X size={15} />
+                </button>
               </div>
-              <span className="ledger-currency">
-                {detail.status === "Open"
-                  ? "Açık"
-                  : detail.status === "PartiallyReceived"
-                    ? "Kısmi mal kabul"
-                    : detail.status === "Received"
-                      ? "Tam alındı"
-                      : "İptal"}
-              </span>
+            )}
+            {notice && (
+              <div className="notice" role="status">
+                {notice}
+                <button type="button" aria-label="Bildirimi kapat" onClick={() => setNotice("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <DetailTiles
+              label="Sipariş özeti"
+              items={[
+                { label: "Genel toplam", value: orderMoney(detail.grandTotal) },
+                { label: "Mal kabul", value: postedReceipts.length },
+                { label: "Faturalanan", value: `${invoicedReceipts} / ${postedReceipts.length}` },
+                {
+                  label: "Beklenen teslim",
+                  value: formatDate(detail.expectedReceiptDate),
+                  tone: overdue ? "danger" : "default",
+                  hint: overdue ? `${overdueDays} gün geçti` : undefined,
+                },
+              ]}
+            />
+            <div className="dd-box">
+              <DetailInfoGrid
+                label="Sipariş üst bilgileri"
+                items={[
+                  { label: "Sipariş tarihi", value: formatDate(detail.orderDate) },
+                  { label: "Beklenen teslim", value: formatDate(detail.expectedReceiptDate) },
+                  { label: "Hedef depo", value: targetWarehouse ? `${targetWarehouse.code} · ${targetWarehouse.name}` : "—" },
+                  { label: "Para birimi", value: detail.currencyCode },
+                ]}
+              />
             </div>
-            <div className="ledger-list invoice-lines-wrap">
-              <table className="customer-table quote-detail-table">
-                <thead>
-                  <tr>
-                    <th>Stok</th>
-                    <th>Sipariş</th>
-                    <th>Alınan</th>
-                    <th>Kalan</th>
-                    <th>Toplam</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.lines.map((line) => (
-                    <tr key={line.lineNumber}>
-                      <td>
-                        <b>{line.stockCode}</b>
-                        <small className="cell-subtitle">
-                          {line.stockName}
-                        </small>
-                      </td>
-                      <td>
-                        {line.quantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}{" "}
-                        {line.unitCode}
-                      </td>
-                      <td>
-                        {line.receivedQuantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}
-                      </td>
-                      <td>
-                        {line.remainingQuantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}
-                      </td>
-                      <td>
-                        {line.lineTotal.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
+            <div className="dd-box">
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} extra={detail.currencyCode} />} />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines" aria-label="Sipariş satırları">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">#</th>
+                      <th>Stok</th>
+                      <th className="dd-num">Sipariş</th>
+                      <th className="dd-num">Alınan</th>
+                      <th className="dd-num">Kalan</th>
+                      <th className="dd-num">Toplam</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {detail.lines.map((line) => (
+                      <tr key={line.lineNumber}>
+                        <td className="dd-ix">{line.lineNumber}</td>
+                        <td className="dd-stock">
+                          <b>{line.stockCode}</b>
+                          <small>{line.stockName}</small>
+                        </td>
+                        <td className="dd-num">
+                          <span>{formatQuantity(line.quantity)}</span> <span>{line.unitCode}</span>
+                        </td>
+                        <td className="dd-num">{formatQuantity(line.receivedQuantity)}</td>
+                        <td className="dd-num">{formatQuantity(line.remainingQuantity)}</td>
+                        <td className="dd-num">{orderMoney(line.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <DetailLinesFooter
+                label="Sipariş toplamları"
+                aside={detail.notes ? <DetailNotes items={[{ label: "Not", value: detail.notes }]} /> : undefined}
+                totals={salesTotalRows(
+                  detail,
+                  orderMoney,
+                  vatByRate(
+                    detail.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+                    { taxable: detail.subtotal - detail.discountTotal, vat: detail.taxTotal },
+                  ),
+                )}
+              />
             </div>
-            {detail.notes && <p className="quote-notes">{detail.notes}</p>}
             {detail.customFields.length > 0 && (
-              <form
-                onSubmit={saveOrderCustomFields}
-                className="panel"
-                style={{ marginTop: 14 }}
+              <DetailSection
+                title="Sipariş özel alanları"
+                description={
+                  detail.status === "Open" ||
+                  detail.status === "PartiallyReceived"
+                    ? "Açık siparişte düzenlenebilir."
+                    : "Sipariş kapalı."
+                }
               >
-                <div className="panel-heading">
-                  <div>
-                    <b>Sipariş özel alanları</b>
-                    <small>
-                      {detail.status === "Open" ||
-                      detail.status === "PartiallyReceived"
-                        ? "Açık siparişte düzenlenebilir."
-                        : "Sipariş kapalı."}
-                    </small>
-                  </div>
-                </div>
+              <form onSubmit={saveOrderCustomFields} className="pr-detail-form">
                 <div className="form-two">
                   {detail.customFields.map((field) => (
                     <label key={field.definitionId}>
@@ -8293,23 +8014,20 @@ function PurchasingPanel({
                   </div>
                 )}
               </form>
+              </DetailSection>
             )}
-            <div className="list-toolbar">
-              <div>
-                <h2>Mal kabuller</h2>
-                <p>Her kayıt seçilen depoya stok girişi yapar.</p>
-              </div>
-              {detail.status !== "Received" &&
-                detail.status !== "Cancelled" && (
-                  <button
-                    className="primary"
-                    onClick={() => beginReceipt(detail)}
-                  >
-                    <Plus size={16} /> Mal kabul ekle
+            <DetailSection
+              title="Mal kabuller"
+              count={detail.receipts.length}
+              description="Her kayıt seçilen depoya stok girişi yapar."
+              actions={
+                canReceiveOrder(detail.status) ? (
+                  <button type="button" className="secondary small-button" onClick={() => beginReceipt(detail)}>
+                    <Plus size={14} /> Mal kabul ekle
                   </button>
-                )}
-            </div>
-            <div className="ledger-list">
+                ) : undefined
+              }
+            >
               <AdvancedDataGrid
                 className="customer-table"
                 gridId="purchase-order-receipts"
@@ -8349,7 +8067,7 @@ function PurchasingPanel({
                   )}
                 </tbody>
               </AdvancedDataGrid>
-            </div>
+            </DetailSection>
             {receiptEditor && (() => {
               const receiptHasQuantity = detail.lines.some(
                 (x) => Number(quantities[x.lineNumber] || 0) > 0,
@@ -8577,14 +8295,10 @@ function PurchasingPanel({
               </RecordFormPage>
               );
             })()}
-            <div className="modal-foot">
-              <span>Alış faturası vade gününü tedarikçi kartından alır.</span>
-              <button className="secondary" onClick={() => setDetail(null)}>
-                Kapat
-              </button>
-            </div>
+            <p className="dd-muted">Alış faturası vade gününü tedarikçi kartından alır.</p>
           </DocumentSurface>
-          )}
+        );
+      })()}
       {requestEditor && (
         <div
           className="modal-backdrop"
@@ -8850,397 +8564,265 @@ function PurchasingPanel({
       )}
       {requestDetail && (
           <DocumentSurface
+            variant="detail"
             title="Satınalma talebi"
             code={requestDetail.code}
             subtitle={requestDetail.requestedByName}
             status={purchaseRequestStatus(requestDetail.status)}
+            meta={<span>{formatDate(requestDetail.requestDate)}</span>}
+            statusFlow={<PurchaseRequestFlow status={requestDetail.status} />}
             onClose={() => setRequestDetail(null)}
-            bodyClassName="modal ledger-modal"
+            aside={
+              <DetailContext title="Belge zinciri">
+                <DetailChain
+                  items={[
+                    { key: "self", code: requestDetail.code, label: "Bu talep", kind: "Satınalma talebi", current: true, status: purchaseRequestStatus(requestDetail.status) },
+                    ...supplierQuotes.map((quote) => ({
+                      key: `quote-${quote.id}`,
+                      code: quote.code,
+                      label: "Tedarikçi teklifi",
+                      meta: quote.supplierName,
+                      status: supplierQuoteDocumentStatus(quote, today),
+                    })),
+                    ...(requestDetail.purchaseOrderCode
+                      ? [
+                          {
+                            key: "order",
+                            code: requestDetail.purchaseOrderCode,
+                            label: "Satınalma siparişi",
+                            onOpen: requestDetail.purchaseOrderId
+                              ? () => openLinkedPurchaseOrder(requestDetail.purchaseOrderId!, requestDetail.purchaseOrderCode || "")
+                              : undefined,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </DetailContext>
+            }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={<SalesFooterStatus lines={requestDetail.lines.length} />}
           >
-            <div className="balance-banner">
-              <div>
-                <small>
-                  {requestDetail.requestDate.split("-").reverse().join(".")} ·{" "}
-                  {requestDetail.neededByDate
-                    ? `İhtiyaç ${requestDetail.neededByDate.split("-").reverse().join(".")}`
-                    : "İhtiyaç tarihi belirtilmedi"}
-                </small>
-                <b>{requestDetail.description}</b>
-                <span>
-                  {requestDetail.status === "Submitted"
-                    ? "Onay bekliyor"
-                    : requestDetail.status === "Approved"
-                      ? "Onaylandı"
-                      : requestDetail.status === "Ordered"
-                        ? "Siparişe dönüştü"
-                        : "Reddedildi"}
-                  {requestDetail.reviewedByName
-                    ? ` · ${requestDetail.reviewedByName}`
-                    : ""}
-                </span>
+            {error && (
+              <div className="alert inline-alert" role="alert">
+                {error}
+                <button type="button" aria-label="Hatayı kapat" onClick={() => setError("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            {notice && (
+              <div className="notice" role="status">
+                {notice}
+                <button type="button" aria-label="Bildirimi kapat" onClick={() => setNotice("")}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <div className="dd-box">
+              <DetailInfoGrid
+                label="Talep üst bilgileri"
+                items={[
+                  { label: "Talep tarihi", value: formatDate(requestDetail.requestDate) },
+                  { label: "İhtiyaç tarihi", value: requestDetail.neededByDate ? formatDate(requestDetail.neededByDate) : "İhtiyaç tarihi belirtilmedi" },
+                  { label: "Talep sahibi", value: requestDetail.requestedByName || "—" },
+                  requestDetail.reviewedByName && requestDetail.status !== "Submitted"
+                    ? { label: requestDetail.status === "Rejected" ? "Reddeden" : "Onaylayan", value: requestDetail.reviewedByName }
+                    : { label: "Kalem", value: requestDetail.lines.length },
+                ]}
+              />
+            </div>
+            <div className="dd-box">
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={requestDetail.lines.length} />} />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines" aria-label="Talep satırları">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">#</th>
+                      <th>Stok</th>
+                      <th className="dd-num">Miktar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requestDetail.lines.map((line) => (
+                      <tr key={line.lineNumber}>
+                        <td className="dd-ix">{line.lineNumber}</td>
+                        <td className="dd-stock">
+                          <b>{line.stockCode}</b>
+                          <small>{line.stockName}</small>
+                        </td>
+                        <td className="dd-num">
+                          <span>{formatQuantity(line.quantity)}</span> <span>{line.unitCode}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="dd-lines-footer">
+                <div className="dd-lines-aside">
+                  <DetailNotes
+                    items={[
+                      { label: "Açıklama", value: requestDetail.description },
+                      ...(requestDetail.reviewNote ? [{ label: "Karar notu", value: requestDetail.reviewNote }] : []),
+                    ]}
+                  />
+                </div>
               </div>
             </div>
-            <div className="ledger-list">
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Stok kodu</th>
-                    <th>Stok adı</th>
-                    <th>Miktar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requestDetail.lines.map((line) => (
-                    <tr key={line.lineNumber}>
-                      <td>
-                        <span className="customer-code">{line.stockCode}</span>
-                      </td>
-                      <td>{line.stockName}</td>
-                      <td>
-                        {line.quantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}{" "}
-                        {line.unitCode}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {requestDetail.customFields &&
-              requestDetail.customFields.length > 0 && (
-                <section
-                  className="panel"
-                  style={{ margin: "18px 0", padding: 16 }}
-                >
-                  <div className="panel-heading">
-                    <div>
-                      <b>Talep özel alanları</b>
-                      <small>Bu değerler satın alma talebiyle saklanır.</small>
-                    </div>
-                  </div>
-                  {requestDetail.status === "Submitted" ? (
-                    <form onSubmit={saveRequestCustomFields}>
-                      <div className="form-two">
-                        {requestDetail.customFields.map((field) => (
-                          <label key={field.definitionId}>
-                            {field.label}
-                            {field.isRequired ? " *" : ""}
-                            <small>
-                              {field.code} · v{field.definitionVersion}
-                            </small>
-                            {field.dataType === "Boolean" ? (
-                              <select
-                                required={field.isRequired}
-                                value={requestFieldValues[field.code] || ""}
-                                onChange={(e) =>
-                                  setRequestFieldValues((current) => ({
-                                    ...current,
-                                    [field.code]: e.target.value,
-                                  }))
-                                }
-                              >
-                                <option value="">Seçin</option>
-                                <option value="true">Evet</option>
-                                <option value="false">Hayır</option>
-                              </select>
-                            ) : (
-                              <input
-                                type={
-                                  field.dataType === "Decimal"
-                                    ? "number"
-                                    : field.dataType === "Date"
-                                      ? "date"
-                                      : "text"
-                                }
-                                step={
-                                  field.dataType === "Decimal"
-                                    ? "any"
-                                    : undefined
-                                }
-                                maxLength={
-                                  field.dataType === "Text"
-                                    ? field.maxLength
-                                    : undefined
-                                }
-                                required={field.isRequired}
-                                value={requestFieldValues[field.code] || ""}
-                                onChange={(e) =>
-                                  setRequestFieldValues((current) => ({
-                                    ...current,
-                                    [field.code]: e.target.value,
-                                  }))
-                                }
-                              />
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                      <div className="requests-list">
-                        {requestDetail.customFields.map((field) => (
-                          <article
-                            className="request-row"
-                            key={field.definitionId}
-                          >
-                            <div className="request-info">
-                              <b>{field.label}</b>
-                              <small>{field.code}</small>
-                            </div>
-                            <button
-                              type="button"
-                              className="row-action"
-                              disabled={busy}
-                              onClick={() =>
-                                void openRequestValueHistory(field)
-                              }
-                            >
-                              Değer geçmişi
-                            </button>
-                          </article>
-                        ))}
-                      </div>
-                      <div className="modal-foot">
-                        <span>Onay sonrası alanlar değiştirilemez.</span>
-                        <button className="secondary" disabled={busy}>
-                          Alanları kaydet
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="requests-list">
-                      {requestDetail.customFields.map((field) => (
-                        <article
-                          className="request-row"
-                          key={field.definitionId}
-                        >
-                          <div className="request-info">
-                            <b>{field.label}</b>
-                            <small>
-                              {field.code} · v{field.definitionVersion}
-                            </small>
-                          </div>
-                          <span>{field.value || "—"}</span>
-                          <button
-                            type="button"
-                            className="row-action"
-                            disabled={busy}
-                            onClick={() => void openRequestValueHistory(field)}
-                          >
-                            Değer geçmişi
-                          </button>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                  {requestValueHistoryField && (
-                    <section className="panel" style={{ marginTop: 14 }}>
-                      <div className="panel-heading">
-                        <div>
-                          <b>
-                            {requestValueHistoryField.label} · değer geçmişi
-                          </b>
-                          <small>
-                            Geri yükleme yeni bir geçmiş kaydı oluşturur.
-                          </small>
-                        </div>
-                        <button
-                          type="button"
-                          className="secondary small-button"
-                          onClick={() => setRequestValueHistoryField(null)}
-                        >
-                          Kapat
-                        </button>
-                      </div>
-                      <div className="requests-list">
-                        {requestFieldValueHistory.map((revision) => (
-                          <article className="request-row" key={revision.id}>
-                            <div className="request-info">
-                              <b>
-                                {revision.previousValue ?? "—"} →{" "}
-                                {revision.newValue ?? "—"}
-                              </b>
-                              <small>
-                                Tanım v{revision.definitionVersion} ·{" "}
-                                {new Date(revision.createdAt).toLocaleString(
-                                  "tr-TR",
-                                )}
-                              </small>
-                            </div>
-                            {requestDetail?.status === "Submitted" && (
-                              <button
-                                type="button"
-                                className="secondary small-button"
-                                disabled={busy}
-                                onClick={() =>
-                                  void restoreRequestValueRevision(revision)
-                                }
-                              >
-                                Önceki değeri geri yükle
-                              </button>
-                            )}
-                          </article>
-                        ))}
-                        {requestFieldValueHistory.length === 0 && (
-                          <div className="empty-small">
-                            Bu alan için değişiklik geçmişi yok.
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  )}
-                </section>
-              )}
-            {requestDetail.reviewNote && (
-              <p className="quote-notes">
-                Karar notu: {requestDetail.reviewNote}
-              </p>
+            {role === "TenantAdmin" && requestDetail.status === "Submitted" && (
+              <div className="pr-detail-decision">
+                <DetailSection title="Talep kararı">{renderDecisionControls(requestDetail, "detail")}</DetailSection>
+              </div>
             )}
+            {requestDetail.status === "Ordered" &&
+              requestDetail.purchaseOrderCode && (
+                <p className="notice">
+                  Bu talep <b>{requestDetail.purchaseOrderCode}</b> siparişine
+                  dönüştürüldü.
+                </p>
+              )}
             {(supplierQuotes.length > 0 ||
               requestDetail.status === "Approved") && (
-              <section
-                className="panel pr-detail-form-target"
-                style={{ margin: "18px 0", padding: 16 }}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <b>Tedarikçi teklifleri · {supplierQuotes.length}</b>
-                    <small>
-                      Tutarlar teklif tarihindeki kurla tenant baz para birimine
-                      çevrilir; kur yoksa kıyaslanamaz.
-                    </small>
-                  </div>
-                  {role === "TenantAdmin" &&
+              <div className="pr-detail-form-target pr-detail-quotes">
+                <DetailSection
+                  title="Tedarikçi teklifleri"
+                  count={supplierQuotes.length}
+                  description="Tutarlar teklif tarihindeki kurla tenant baz para birimine çevrilir; kur yoksa kıyaslanamaz."
+                  actions={
+                    role === "TenantAdmin" &&
                     requestDetail.status === "Approved" &&
-                    !quoteEditor && (
+                    !quoteEditor ? (
                       <button
+                        type="button"
                         className="secondary small-button"
                         disabled={busy}
                         onClick={() => beginQuoteCapture(requestDetail)}
                       >
                         <Plus size={14} /> Teklif kaydet
                       </button>
-                    )}
-                </div>
-                {supplierQuotes.length > 0 ? (
-                  <div className="requests-list">
-                    {supplierQuotes.map((quote) => (
-                      <article className="request-row" key={quote.id}>
-                        <div className="request-info">
-                          <b>
-                            {quote.supplierName} · {quote.code}
-                          </b>
-                          <small>
-                            {quote.quoteDate.split("-").reverse().join(".")} ·{" "}
-                            {quote.validUntil
-                              ? `Son geçerlilik ${quote.validUntil.split("-").reverse().join(".")}`
-                              : "Geçerlilik tarihi yok"}{" "}
-                            ·{" "}
-                            {quote.grandTotal.toLocaleString("tr-TR", {
-                              minimumFractionDigits: 2,
-                            })}{" "}
-                            {quote.currencyCode}
-                            <br />
-                            {quote.comparableGrandTotal === null
-                              ? "Baz para birimine çevrilemedi"
-                              : `Kıyas: ${quote.comparableGrandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${quote.baseCurrencyCode}${quote.appliedRateDate ? ` · ${quote.appliedRateDate.split("-").reverse().join(".")}` : ""}`}
-                          </small>
-                          <details>
-                            <summary>Kalem fiyatlarını incele</summary>
-                            <div className="ledger-list">
-                              <table className="customer-table">
-                                <thead>
-                                  <tr>
-                                    <th>Kalem</th>
-                                    <th>Miktar</th>
-                                    <th>Birim fiyat</th>
-                                    <th>KDV</th>
-                                    <th>Toplam</th>
+                    ) : undefined
+                  }
+                >
+                  {supplierQuotes.length > 0 ? (
+                    <div className="dd-lines-wrap">
+                      <table className="dd-lines pr-quotes" aria-label="Tedarikçi teklifleri">
+                        <thead>
+                          <tr>
+                            <th>Tedarikçi</th>
+                            <th>Teklif no</th>
+                            <th>Teklif tarihi</th>
+                            <th>Geçerlilik</th>
+                            <th className="dd-num">Genel toplam</th>
+                            <th className="dd-num">Kıyas</th>
+                            <th>Durum</th>
+                            <th aria-label="İşlemler" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {supplierQuotes.map((quote) => {
+                            const linesOpen = openQuoteLinesId === quote.id;
+                            const values = quote.customFields.filter((field) => field.value);
+                            return (
+                              <React.Fragment key={quote.id}>
+                                <tr>
+                                  <td className="pr-quote-supplier">
+                                    <b>{quote.supplierName}</b>
+                                    {values.length > 0 && (
+                                      <small>{values.map((field) => `${field.label}: ${field.value}`).join(" · ")}</small>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="pr-quote-lines-toggle"
+                                      aria-expanded={linesOpen}
+                                      onClick={() => setOpenQuoteLinesId(linesOpen ? null : quote.id)}
+                                    >
+                                      Kalem fiyatlarını incele
+                                    </button>
+                                  </td>
+                                  <td className="nx-code">{quote.code}</td>
+                                  <td>{formatDate(quote.quoteDate)}</td>
+                                  <td>{quote.validUntil ? formatDate(quote.validUntil) : "Geçerlilik tarihi yok"}</td>
+                                  <td className="dd-num">{formatAmount(quote.grandTotal, quote.currencyCode)}</td>
+                                  <td className="dd-num">
+                                    {quote.comparableGrandTotal === null ? (
+                                      "Baz para birimine çevrilemedi"
+                                    ) : (
+                                      <>
+                                        <span>{formatAmount(quote.comparableGrandTotal, quote.baseCurrencyCode)}</span>
+                                        {quote.appliedRateDate && <small>{formatDate(quote.appliedRateDate)}</small>}
+                                      </>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <DocumentStatusBadge status={supplierQuoteDocumentStatus(quote, today)} />
+                                  </td>
+                                  <td>
+                                    {role === "TenantAdmin" &&
+                                      requestDetail.status === "Approved" &&
+                                      quote.status === "Submitted" &&
+                                      (!quote.validUntil || quote.validUntil >= today) && (
+                                        <button
+                                          type="button"
+                                          className="row-action"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            beginOrderConversion(requestDetail, quote)
+                                          }
+                                        >
+                                          Bu teklifle sipariş
+                                        </button>
+                                      )}
+                                  </td>
+                                </tr>
+                                {linesOpen && (
+                                  <tr className="pr-quote-lines-row">
+                                    <td colSpan={8}>
+                                      <table className="pr-quote-lines" aria-label={`${quote.code} kalem fiyatları`}>
+                                        <thead>
+                                          <tr>
+                                            <th>Kalem</th>
+                                            <th className="dd-num">Miktar</th>
+                                            <th className="dd-num">Birim fiyat</th>
+                                            <th className="dd-num">KDV</th>
+                                            <th className="dd-num">Toplam</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {quote.lines.map((line) => (
+                                            <tr key={line.requestLineNumber}>
+                                              <td className="dd-stock">
+                                                <b>{line.stockCode}</b>
+                                                <small>{line.stockName}</small>
+                                              </td>
+                                              <td className="dd-num">
+                                                <span>{formatQuantity(line.quantity)}</span> <span>{line.unitCode}</span>
+                                              </td>
+                                              <td className="dd-num">
+                                                {line.unitPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                              </td>
+                                              <td className="dd-num">{line.vatPercent}%</td>
+                                              <td className="dd-num">{formatAmount(line.lineTotal)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </td>
                                   </tr>
-                                </thead>
-                                <tbody>
-                                  {quote.lines.map((line) => (
-                                    <tr key={line.requestLineNumber}>
-                                      <td>
-                                        <b>{line.stockCode}</b>
-                                        <small className="cell-subtitle">
-                                          {line.stockName}
-                                        </small>
-                                      </td>
-                                      <td>
-                                        {line.quantity.toLocaleString("tr-TR", {
-                                          maximumFractionDigits: 4,
-                                        })}{" "}
-                                        {line.unitCode}
-                                      </td>
-                                      <td>
-                                        {line.unitPrice.toLocaleString(
-                                          "tr-TR",
-                                          {
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 4,
-                                          },
-                                        )}
-                                      </td>
-                                      <td>{line.vatPercent}%</td>
-                                      <td>
-                                        {line.lineTotal.toLocaleString(
-                                          "tr-TR",
-                                          { minimumFractionDigits: 2 },
-                                        )}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </details>
-                          {quote.customFields.filter((field) => field.value)
-                            .length > 0 && (
-                            <p className="quote-notes">
-                              {quote.customFields
-                                .filter((field) => field.value)
-                                .map(
-                                  (field) => `${field.label}: ${field.value}`,
-                                )
-                                .join(" · ")}
-                            </p>
-                          )}
-                        </div>
-                        <span
-                          className={`quote-status ${quote.status === "Selected" ? "accepted" : quote.status === "NotSelected" ? "rejected" : "sent"}`}
-                        >
-                          {quote.status === "Selected"
-                            ? "Seçildi"
-                            : quote.status === "NotSelected"
-                              ? "Seçilmedi"
-                              : quote.validUntil && quote.validUntil < today
-                                ? "Süresi doldu"
-                                : "Değerlendiriliyor"}
-                        </span>
-                        {role === "TenantAdmin" &&
-                          requestDetail.status === "Approved" &&
-                          quote.status === "Submitted" &&
-                          (!quote.validUntil || quote.validUntil >= today) && (
-                            <button
-                              className="row-action"
-                              disabled={busy}
-                              onClick={() =>
-                                beginOrderConversion(requestDetail, quote)
-                              }
-                            >
-                              Bu teklifle sipariş
-                            </button>
-                          )}
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-small">
-                    Henüz tedarikçi teklifi kaydedilmedi.
-                  </div>
-                )}
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="dd-empty">
+                      Henüz tedarikçi teklifi kaydedilmedi.
+                    </p>
+                  )}
                 {quoteEditor && (
-                  <form onSubmit={createSupplierQuote}>
+                  <form onSubmit={createSupplierQuote} className="pr-detail-form">
                     <div className="form-two">
                       <label>
                         Tedarikçi teklif no
@@ -9291,8 +8873,8 @@ function PurchasingPanel({
                         />
                       </label>
                     </div>
-                    <div className="ledger-list">
-                      <table className="customer-table">
+                    <div className="dd-lines-wrap">
+                      <table className="dd-lines pr-price-lines">
                         <thead>
                           <tr>
                             <th>Stok</th>
@@ -9475,42 +9057,31 @@ function PurchasingPanel({
                     </div>
                   </form>
                 )}
-              </section>
+                </DetailSection>
+              </div>
             )}
-            {requestDetail.status === "Ordered" &&
-              requestDetail.purchaseOrderCode && (
-                <p className="notice">
-                  Bu talep <b>{requestDetail.purchaseOrderCode}</b> siparişine
-                  dönüştürüldü.
-                </p>
-              )}
             {role === "TenantAdmin" &&
               requestDetail.status === "Approved" &&
               !requestDetail.purchaseOrderId && (
-                <div
-                  className="panel pr-detail-form-target"
-                  style={{ margin: "18px 0", padding: 16 }}
-                >
-                  <div className="panel-heading">
-                    <div>
-                      <b>Talebi siparişe dönüştür</b>
-                      <small>
-                        Tedarikçi seçin ve talep miktarları için birim fiyatları
-                        girin.
-                      </small>
-                    </div>
-                    {!orderConversion && (
-                      <button
-                        className="primary"
-                        disabled={busy}
-                        onClick={() => beginOrderConversion(requestDetail)}
-                      >
-                        Sipariş oluştur
-                      </button>
-                    )}
-                  </div>
+                <div className="pr-detail-form-target pr-detail-conversion">
+                  <DetailSection
+                    title="Talebi siparişe dönüştür"
+                    description="Tedarikçi seçin ve talep miktarları için birim fiyatları girin."
+                    actions={
+                      !orderConversion ? (
+                        <button
+                          type="button"
+                          className="primary small-button"
+                          disabled={busy}
+                          onClick={() => beginOrderConversion(requestDetail)}
+                        >
+                          Sipariş oluştur
+                        </button>
+                      ) : undefined
+                    }
+                  >
                   {orderConversion && (
-                    <form onSubmit={convertPurchaseRequest}>
+                    <form onSubmit={convertPurchaseRequest} className="pr-detail-form">
                       <div className="form-two">
                         <label>
                           Sipariş no
@@ -9579,8 +9150,8 @@ function PurchasingPanel({
                           />
                         </label>
                       </div>
-                      <div className="ledger-list">
-                        <table className="customer-table">
+                      <div className="dd-lines-wrap">
+                        <table className="dd-lines pr-price-lines">
                           <thead>
                             <tr>
                               <th>Stok</th>
@@ -9771,26 +9342,189 @@ function PurchasingPanel({
                       </div>
                     </form>
                   )}
+                  </DetailSection>
                 </div>
               )}
-            {role === "TenantAdmin" && requestDetail.status === "Submitted" && (
-              <section className="panel pr-detail-decision" aria-label="Talep kararı">
-                {renderDecisionControls(requestDetail, "detail")}
-              </section>
-            )}
-            <div className="modal-foot">
-              <span>
-                Onay, sipariş ve finans kaydı birbirinden ayrı adımlardır.
-              </span>
-              <div>
-                <button
-                  className="secondary"
-                  onClick={() => setRequestDetail(null)}
+            {requestDetail.customFields &&
+              requestDetail.customFields.length > 0 && (
+                <DetailSection
+                  title="Talep özel alanları"
+                  description="Bu değerler satın alma talebiyle saklanır."
                 >
-                  Kapat
-                </button>
-              </div>
-            </div>
+                  {requestDetail.status === "Submitted" ? (
+                    <form onSubmit={saveRequestCustomFields}>
+                      <div className="form-two">
+                        {requestDetail.customFields.map((field) => (
+                          <label key={field.definitionId}>
+                            {field.label}
+                            {field.isRequired ? " *" : ""}
+                            <small>
+                              {field.code} · v{field.definitionVersion}
+                            </small>
+                            {field.dataType === "Boolean" ? (
+                              <select
+                                required={field.isRequired}
+                                value={requestFieldValues[field.code] || ""}
+                                onChange={(e) =>
+                                  setRequestFieldValues((current) => ({
+                                    ...current,
+                                    [field.code]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">Seçin</option>
+                                <option value="true">Evet</option>
+                                <option value="false">Hayır</option>
+                              </select>
+                            ) : (
+                              <input
+                                type={
+                                  field.dataType === "Decimal"
+                                    ? "number"
+                                    : field.dataType === "Date"
+                                      ? "date"
+                                      : "text"
+                                }
+                                step={
+                                  field.dataType === "Decimal"
+                                    ? "any"
+                                    : undefined
+                                }
+                                maxLength={
+                                  field.dataType === "Text"
+                                    ? field.maxLength
+                                    : undefined
+                                }
+                                required={field.isRequired}
+                                value={requestFieldValues[field.code] || ""}
+                                onChange={(e) =>
+                                  setRequestFieldValues((current) => ({
+                                    ...current,
+                                    [field.code]: e.target.value,
+                                  }))
+                                }
+                              />
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="requests-list">
+                        {requestDetail.customFields.map((field) => (
+                          <article
+                            className="request-row"
+                            key={field.definitionId}
+                          >
+                            <div className="request-info">
+                              <b>{field.label}</b>
+                              <small>{field.code}</small>
+                            </div>
+                            <button
+                              type="button"
+                              className="row-action"
+                              disabled={busy}
+                              onClick={() =>
+                                void openRequestValueHistory(field)
+                              }
+                            >
+                              Değer geçmişi
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                      <div className="modal-foot">
+                        <span>Onay sonrası alanlar değiştirilemez.</span>
+                        <button className="secondary" disabled={busy}>
+                          Alanları kaydet
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="requests-list">
+                      {requestDetail.customFields.map((field) => (
+                        <article
+                          className="request-row"
+                          key={field.definitionId}
+                        >
+                          <div className="request-info">
+                            <b>{field.label}</b>
+                            <small>
+                              {field.code} · v{field.definitionVersion}
+                            </small>
+                          </div>
+                          <span>{field.value || "—"}</span>
+                          <button
+                            type="button"
+                            className="row-action"
+                            disabled={busy}
+                            onClick={() => void openRequestValueHistory(field)}
+                          >
+                            Değer geçmişi
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                  {requestValueHistoryField && (
+                    <div className="pr-value-history">
+                      <div className="pr-value-history-head">
+                        <div>
+                          <b>
+                            {requestValueHistoryField.label} · değer geçmişi
+                          </b>
+                          <small>
+                            Geri yükleme yeni bir geçmiş kaydı oluşturur.
+                          </small>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary small-button"
+                          onClick={() => setRequestValueHistoryField(null)}
+                        >
+                          Kapat
+                        </button>
+                      </div>
+                      <div className="requests-list">
+                        {requestFieldValueHistory.map((revision) => (
+                          <article className="request-row" key={revision.id}>
+                            <div className="request-info">
+                              <b>
+                                {revision.previousValue ?? "—"} →{" "}
+                                {revision.newValue ?? "—"}
+                              </b>
+                              <small>
+                                Tanım v{revision.definitionVersion} ·{" "}
+                                {new Date(revision.createdAt).toLocaleString(
+                                  "tr-TR",
+                                )}
+                              </small>
+                            </div>
+                            {requestDetail?.status === "Submitted" && (
+                              <button
+                                type="button"
+                                className="secondary small-button"
+                                disabled={busy}
+                                onClick={() =>
+                                  void restoreRequestValueRevision(revision)
+                                }
+                              >
+                                Önceki değeri geri yükle
+                              </button>
+                            )}
+                          </article>
+                        ))}
+                        {requestFieldValueHistory.length === 0 && (
+                          <div className="empty-small">
+                            Bu alan için değişiklik geçmişi yok.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </DetailSection>
+              )}
+            <p className="dd-muted">
+              Onay, sipariş ve finans kaydı birbirinden ayrı adımlardır.
+            </p>
           </DocumentSurface>
           )}
       {invoiceReceiptId && (
@@ -10285,15 +10019,45 @@ function SalesOrderModal({
       },
     });
   if (orderMore.length) orderCommands.more = orderMore;
+  const orderMoney = (value: number) => formatAmount(value, order.currencyCode);
   return (
     <DocumentSurface
+      variant="detail"
       title="Satış siparişi"
       code={order.code}
       subtitle={order.customerName}
       status={salesOrderStatus(order.status)}
+      meta={<span>{formatDate(order.orderDate)}</span>}
+      statusFlow={<SalesOrderFlow status={order.status} />}
       onClose={onClose}
-      className="sales-order-detail-backdrop"
-      bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
+      aside={
+        <DetailContext title="Belge zinciri">
+          <DetailChain
+            items={[
+              ...(order.quoteCode ? [{ key: "quote", code: order.quoteCode, label: "Satış teklifi" }] : []),
+              { key: "self", code: order.code, label: "Bu sipariş", kind: "Satış siparişi", current: true, status: salesOrderStatus(order.status) },
+              ...deliveries.map((item) => ({
+                key: `delivery-${item.id}`,
+                code: item.code,
+                label: "Satış irsaliyesi",
+                meta: formatDate(item.deliveryDate),
+                status: salesDeliveryStatus(item.status),
+              })),
+              // A delivery gives its invoice's status and id, not its number.
+              ...deliveries
+                .filter((item) => item.invoiceId && item.invoiceStatus)
+                .map((item) => ({
+                  key: `invoice-${item.invoiceId}`,
+                  label: "Satış faturası",
+                  status: salesInvoiceStatus(item.invoiceStatus!),
+                  onOpen: () => onInvoiceCreated(item.invoiceId!),
+                })),
+            ]}
+          />
+        </DetailContext>
+      }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={<SalesFooterStatus lines={order.lines.length} total={orderMoney(order.grandTotal)} />}
     >
         {ownsActionBar && <PageCommandsSlot commands={orderCommands} />}
         {error && (
@@ -10312,20 +10076,27 @@ function SalesOrderModal({
             </button>
           </div>
         )}
-        <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Sipariş detay bölümleri">
-          {([ ["information", "Sipariş Bilgileri"], ["deliveries", "İrsaliye Geçmişi"] ] as const).map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={detailTab === key} className={detailTab === key ? "active" : ""} onClick={() => setDetailTab(key)}>{label}{key === "deliveries" && <span>{deliveries.length}</span>}</button>
-          ))}
-        </nav>
-        <div className="sales-detail-content">
+        <DetailTabs<"information" | "deliveries">
+          label="Sipariş detay bölümleri"
+          value={detailTab}
+          onChange={setDetailTab}
+          tabs={[
+            { key: "information", label: "Sipariş Bilgileri" },
+            { key: "deliveries", label: "İrsaliye Geçmişi", count: deliveries.length },
+          ]}
+        />
         {detailTab === "information" && <>
-        <h3 className="sales-quote-section-title">Sipariş Üst Bilgileri</h3>
-        <section className="sales-quote-overview-grid">
-          <article><small>Müşteri</small><b>{order.customerName}</b></article>
-          <article><small>Durum</small><b><span className={`quote-status ${order.status === "Fulfilled" ? "accepted" : order.status === "Cancelled" ? "rejected" : "sent"}`}>{order.status === "Fulfilled" ? "Tamamlandı" : order.status === "Cancelled" ? "İptal" : "Açık"}</span></b></article>
-          <article><small>İstenen teslim tarihi</small><b>{order.requestedDeliveryDate || "—"}</b></article>
-          <article><small>Para birimi</small><b>{order.currencyCode}</b></article>
-        </section>
+        <div className="dd-box">
+          <DetailInfoGrid
+            label="Sipariş üst bilgileri"
+            items={[
+              { label: "Sipariş tarihi", value: formatDate(order.orderDate) },
+              { label: "İstenen teslim tarihi", value: formatDate(order.requestedDeliveryDate) },
+              { label: "Para birimi", value: order.currencyCode },
+              { label: "Kaynak teklif", value: order.quoteCode || "—" },
+            ]}
+          />
+        </div>
         {order.status === "Open" && (
           <form
             className="panel"
@@ -10432,18 +10203,6 @@ function SalesOrderModal({
             )}
           </form>
         )}
-        <div className="sales-order-lines-heading">
-          <h3 className="sales-quote-section-title">Sipariş Satırları</h3>
-          {order.status === "Open" && !activeReservation && (
-            <button className="secondary small-button" type="button" onClick={() => {
-              setReservationWarehouseId(warehouses.find((warehouse) => warehouse.isActive)?.id || "");
-              setReservationRequestId(crypto.randomUUID());
-              setReservationEditor(true);
-            }}>
-              Stok ayır
-            </button>
-          )}
-        </div>
         {reservationEditor && detailTab === "information" && (
           <form className="delivery-editor" onSubmit={reserveOrderStock}>
             <label>
@@ -10469,13 +10228,15 @@ function SalesOrderModal({
             </div>
           </form>
         )}
-        <div className="ledger-list sales-quote-lines">
+        <div className="dd-box">
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={order.lines.length} extra={order.currencyCode} />} />
+        <div className="dd-grid">
           <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
               <ScreenViewGroupHeader fields={visibleOrderLineFields} />
               <tr>
                 {visibleOrderLineFields.map((field) => (
-                  <th key={field.key}>{field.label}</th>
+                  <th key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>{field.label}</th>
                 ))}
               </tr>
             </thead>
@@ -10483,7 +10244,7 @@ function SalesOrderModal({
               {order.lines.map((line) => (
                 <tr key={line.lineNumber}>
                   {visibleOrderLineFields.map((field) => (
-                    <td key={field.key}>
+                    <td key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>
                       {field.key === "stockCode" ? (
                         line.stockCode
                       ) : field.key === "stockName" ? (
@@ -10532,42 +10293,20 @@ function SalesOrderModal({
             </tbody>
           </AdvancedDataGrid>
         </div>
-        <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
-        <section className="sales-quote-totals-panel">
-          <div><span>Ara toplam</span><b>{order.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam iskonto</span><b>{order.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam KDV</span><b>{order.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div className="grand-total"><span>Genel toplam</span><b>{order.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currencyCode}</b></div>
-        </section>
+        <DetailLinesFooter
+          label="Sipariş toplamları"
+          totals={salesTotalRows(
+            order,
+            orderMoney,
+            vatByRate(
+              order.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+              { taxable: order.subtotal - order.discountTotal, vat: order.taxTotal },
+            ),
+          )}
+        />
+        </div>
         </>}
         {detailTab === "deliveries" && <>
-        <div className="delivery-history-head">
-          <b>İrsaliyeler</b>
-          {order.status === "Open" &&
-            activeReservation &&
-            role === "TenantAdmin" && (
-              <button
-                className="secondary danger-action"
-                disabled={busy}
-                onClick={() => void releaseOrderReservation()}
-              >
-                Rezervasyonu bırak
-              </button>
-            )}
-          {order.status === "Open" && (
-            <button
-              className="primary"
-              disabled={
-                busy ||
-                warehouses.length === 0 ||
-                order.lines.every((x) => x.remainingQuantity === 0)
-              }
-              onClick={startDelivery}
-            >
-              <Plus size={14} /> İrsaliye oluştur
-            </button>
-          )}
-        </div>
         {editor && (
           <RecordFormPage
             variant="dialog"
@@ -10692,6 +10431,38 @@ function SalesOrderModal({
             </RecordFormGroup>
           </RecordFormPage>
         )}
+        <DetailSection
+          title="İrsaliyeler"
+          count={deliveries.length}
+          actions={
+            <>
+          {order.status === "Open" &&
+            activeReservation &&
+            role === "TenantAdmin" && (
+              <button
+                className="secondary danger-action"
+                disabled={busy}
+                onClick={() => void releaseOrderReservation()}
+              >
+                Rezervasyonu bırak
+              </button>
+            )}
+          {order.status === "Open" && (
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                warehouses.length === 0 ||
+                order.lines.every((x) => x.remainingQuantity === 0)
+              }
+              onClick={startDelivery}
+            >
+              <Plus size={14} /> İrsaliye oluştur
+            </button>
+          )}
+            </>
+          }
+        >
         <div className="delivery-list">
           {loading ? (
             <span className="cell-subtitle">İrsaliyeler yükleniyor…</span>
@@ -10743,11 +10514,16 @@ function SalesOrderModal({
             ))
           )}
         </div>
+        </DetailSection>
         </>}
-        </div>
       </DocumentSurface>
   );
 }
+
+/** Order line grid columns that hold numbers (right-aligned, tabular figures). */
+const ORDER_NUMBER_FIELDS = new Set(["quantity", "deliveredQuantity", "remainingQuantity", "unitPrice", "lineTotal"]);
+
+const noTicks = () => undefined;
 
 function SalesInvoiceTable({
   invoices,
@@ -10772,6 +10548,12 @@ function SalesInvoiceTable({
   onChanged,
   onNew,
   commandsSuspended = false,
+  ticked = [],
+  onTickedChange,
+  listFooter,
+  listPanel,
+  listBodyRef,
+  listBodyClass = "sales-list-body",
 }: {
   invoices: SalesInvoiceSummary[];
   orders: SalesOrderSummary[];
@@ -10779,7 +10561,7 @@ function SalesInvoiceTable({
   stockItems: StockItem[];
   warehouses: Warehouse[];
   onOpen: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   selectedId: string | null;
   search: string;
   fields: BuiltInScreenLayoutField[];
@@ -10797,6 +10579,14 @@ function SalesInvoiceTable({
   onNew: () => void;
   /** An invoice / order detail or a page dialog owns the action bar. */
   commandsSuspended?: boolean;
+  /** Ticked rows of the list page (the current row is `selectedId`). */
+  ticked?: string[];
+  onTickedChange?: (ids: string[]) => void;
+  /** Footer and detail panel of the list (owned by SalesPage, which also renders the summary cards). */
+  listFooter?: React.ReactNode;
+  listPanel?: React.ReactNode;
+  listBodyRef?: React.Ref<HTMLDivElement>;
+  listBodyClass?: string;
 }) {
   const [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState(""),
@@ -10906,35 +10696,37 @@ function SalesInvoiceTable({
       setBusy(false);
     }
   }
-  const visible = invoices.filter(
-    (x) =>
-      !search ||
-      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
-        .toLocaleLowerCase("tr")
-        .includes(search.toLocaleLowerCase("tr")),
-  );
-  const ordered = fields
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+  // Already filtered by the search in SalesPage (visibleInvoices).
+  const visible = invoices;
+  // The bar (Aç, Sil, İşlemler › İptal et) and the detail panel cover the former row menu: no "⋯" column.
+  const ordered = fields.filter((field) => field.key !== "actions" && field.visible).sort((a, b) => a.position - b.position);
   const render = (
     item: SalesInvoiceSummary,
     field: BuiltInScreenLayoutField,
   ) => {
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-haspopup="dialog"
+            aria-label={`${item.code} fatura ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(item.id);
+              onOpen(item.id);
+            }}
+          >
+            {item.code}
+          </button>
+        );
       case "deliveryCode":
         return item.deliveryCode || "—";
       case "orderCode":
         return item.orderCode || "—";
       case "customerName":
-        return <b className="customer-name">{item.customerName}</b>;
+        return <span className="customer-name">{item.customerName}</span>;
       case "customerTaxNumber":
         return item.customerTaxNumber || "—";
       case "invoiceDate":
@@ -10942,48 +10734,9 @@ function SalesInvoiceTable({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesInvoiceStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" onClick={() => onOpen(item.id)}>Detay</button>
-            {role === "TenantAdmin" && item.status === "Posted" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy}
-                onClick={() => void voidInvoice(item)}
-              >
-                İptal et
-              </button>
-            )}
-            {role === "TenantAdmin" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy || item.status === "Posted"}
-                title={item.status === "Posted" ? "Kesilmiş belge silinemez — İşlemler › İptal et" : undefined}
-                onClick={() => void deleteInvoice(item)}
-              >
-                Sil
-              </button>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("invoice", item.status);
       default:
         if (field.key.startsWith("custom:")) return item.listCustomFields?.[field.key] || "—";
         return null;
@@ -11003,7 +10756,10 @@ function SalesInvoiceTable({
       },
     };
   } else if (!createOpen) {
-    const selected = visible.find((item) => item.id === selectedId);
+    // The current row, else a single ticked row (never an implicit first row).
+    const selected =
+      visible.find((item) => item.id === selectedId) ??
+      (ticked.length === 1 ? visible.find((item) => item.id === ticked[0]) : undefined);
     commands.new = { primary: true, run: onNew };
     commands.open = {
       disabledReason: selected ? undefined : "Önce bir kayıt seçin",
@@ -11050,30 +10806,41 @@ function SalesInvoiceTable({
           </button>
         </div>
       )}
-      {!entryPage && <section
-        className="sales-invoice-list-card list-v2-list"
-        aria-label="Satış faturası listesi"
-      >
-        <SalesDocumentGrid
-          gridId="sales-invoices"
-          hideExport
-          exportActionsRef={gridExportRef}
-          fields={ordered}
-          items={visible}
-          selectedId={selectedId}
-          loading={false}
-          loadingMessage="Faturalar yükleniyor…"
-          emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
-          search={search}
-          searchEmptyMessage="Aramanızla eşleşen fatura yok."
-          toolbarContainer={toolbarContainer}
-          onSelect={(id) => {
-            onSelect(id);
-            onOpen(id);
-          }}
-          renderCell={(field, item) => render(item, field)}
-        />
-      </section>}
+      {!entryPage && (
+        <div ref={listBodyRef} className={listBodyClass}>
+          <section className="sales-invoice-list-card list-v2-list" aria-label="Satış faturası listesi">
+            <SalesDocumentGrid
+              gridId="sales-invoices"
+              hideExport
+              exportActionsRef={gridExportRef}
+              fields={ordered}
+              items={visible}
+              loading={false}
+              loadingMessage="Faturalar yükleniyor…"
+              emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
+              search={search}
+              searchEmptyMessage="Aramanızla eşleşen fatura yok."
+              toolbarContainer={toolbarContainer}
+              renderCell={(field, item) => render(item, field)}
+              selection={{
+                currentId: selectedId,
+                onCurrentChange: onSelect,
+                onTickedChange: onTickedChange ?? noTicks,
+                // Only while the list is on screen: a document or form over it must not show the floating bar.
+                bulkActions: !commandsSuspended && !createOpen
+                  ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                  : undefined,
+                onOpen,
+              }}
+              footer={listFooter}
+              columnWidths={INVOICE_LIST_WIDTHS}
+              numberFields={SALES_NUMBER_FIELDS}
+              codeFields={SALES_CODE_FIELDS}
+            />
+          </section>
+          {listPanel}
+        </div>
+      )}
       {createOpen && (
         <SalesInvoiceFromDeliveryDialog
           key={createFormKey}

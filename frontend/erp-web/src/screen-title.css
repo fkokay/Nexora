@@ -9,8 +9,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) {
   box-sizing: border-box;
   display: flex;
@@ -43,8 +42,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 )::before,
 :is(
   #root .main-area .page-heading:has(h1),
@@ -56,8 +54,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 )::after { content: none !important; }
 
 :is(
@@ -70,8 +67,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) h1 {
   margin: 2px 0 4px;
   color: #1f2937 !important;
@@ -91,8 +87,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) .eyebrow {
   margin: 0 0 3px;
   color: #1672b8 !important;
@@ -111,8 +106,7 @@
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) p:not(.eyebrow) {
   max-width: 780px;
   margin: 0;
@@ -135,12 +129,12 @@
   :is(
     #root .main-area .page-heading:has(h1), #root .main-area .screen-page-header, #root .main-area .hr-header, #root .main-area .op-project-heading,
     #root .main-area .erp-home-heading, #root .main-area .forms-hero, #root .main-area .platform-license-heading,
-    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading, #root .main-area .sid-heading
+    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading
   ) { align-items: flex-start; padding: 13px 15px; }
   :is(
     #root .main-area .page-heading:has(h1), #root .main-area .screen-page-header, #root .main-area .hr-header, #root .main-area .op-project-heading,
     #root .main-area .erp-home-heading, #root .main-area .forms-hero, #root .main-area .platform-license-heading,
-    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading, #root .main-area .sid-heading
+    #root .main-area .sales-distribution-header, #root .main-area .sales-promotions-header, #root .main-area .pie-heading
   ) h1 { font-size: 22px; }
 }
 
@@ -155,8 +149,7 @@ html[data-theme="dark"] :is(
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) {
   border-color: var(--erp-border);
   border-left-color: #5ca8ee;
@@ -173,8 +166,7 @@ html[data-theme="dark"] :is(
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) h1 { color: var(--erp-text) !important; }
 html[data-theme="dark"] :is(
   #root .main-area .page-heading:has(h1),
@@ -186,8 +178,7 @@ html[data-theme="dark"] :is(
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) .eyebrow { color: #8fc8ff !important; }
 html[data-theme="dark"] :is(
   #root .main-area .page-heading:has(h1),
@@ -199,8 +190,7 @@ html[data-theme="dark"] :is(
   #root .main-area .platform-license-heading,
   #root .main-area .sales-distribution-header,
   #root .main-area .sales-promotions-header,
-  #root .main-area .pie-heading,
-  #root .main-area .sid-heading
+  #root .main-area .pie-heading
 ) p:not(.eyebrow) { color: var(--erp-muted) !important; }
 html[data-theme="dark"] #root .main-area .hr-refresh {
   border-color: #3a455d;

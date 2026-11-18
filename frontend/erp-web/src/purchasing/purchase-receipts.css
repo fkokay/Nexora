@@ -1,0 +1,27 @@
+/*
+ * Mal kabulleri: the form for receipts without an order (StandaloneFulfillmentPanel, unchanged) sits under the list.
+ * Frame only: it is not a second box around its cards — its title row sits on the canvas and its cards are the only
+ * boxes, as in the embedded forms of the definition screens. `record-form--dialog` matches the global "-dialog"
+ * rules, hence !important.
+ */
+#root .app-shell .receipt-screen > .purchase-receipt-standalone { min-width: 0; margin-top: 4px; }
+#root .app-shell .receipt-screen > .purchase-receipt-standalone .record-form.sales-rf-embedded {
+  margin: 0;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .receipt-screen > .purchase-receipt-standalone .record-form.sales-rf-embedded > .rf-toolbar {
+  padding: 4px 0 10px;
+  border-bottom: 0;
+  background: transparent;
+}
+#root .app-shell .receipt-screen > .purchase-receipt-standalone .record-form.sales-rf-embedded > .rf-form { padding: 0; }
+#root .app-shell .receipt-screen > .purchase-receipt-standalone .record-form.sales-rf-embedded > .rf-error { margin: 0 0 12px; }
+#root .app-shell .receipt-screen > .purchase-receipt-standalone .record-form.sales-rf-embedded > .rf-status {
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+}

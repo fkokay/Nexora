@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand } from "./commands/gridCommands";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { ListFooter } from "./list-page/ListFooter";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import { authenticatedFetch } from "./authApi";
 import { localizedText } from "./locale";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
+import { confirmDialog } from "./confirmDialog";
 import "./foreign-trade.css";
 import {
   RecordFormGroup,
@@ -10,6 +16,7 @@ import {
 } from "./record-form/RecordForm";
 import "./finance-record-forms.css";
 import "./foreign-trade/foreign-trade-list-v2.css";
+import "./sales/sales-list-v2.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ForeignTradeFilters } from "./foreign-trade/components/ForeignTradeFilters";
 import {
@@ -23,7 +30,6 @@ import {
   incotermsCodes,
   type ForeignTradePanelNotice,
 } from "./foreign-trade/components/ForeignTradeDetail";
-import { ForeignTradeStageStrip } from "./foreign-trade/components/ForeignTradeStageStrip";
 import type {
   Direction,
   TradeStatus,
@@ -36,6 +42,8 @@ import type {
   AdvanceInputs,
 } from "./foreign-trade/types";
 import { problemDetail } from "./erpApi";
+import { advanceCheck, canLinkInventoryDocument } from "./foreign-trade/advance";
+import { ForeignTradeDocumentPicker } from "./foreign-trade/components/ForeignTradeDocumentPicker";
 
 const blankDraft = (): Draft => ({
   direction: "Import",
@@ -122,9 +130,12 @@ export default function ForeignTradePage({
   role: string;
 }) {
   const [cases, setCases] = useState<TradeCase[]>([]);
+  // Total case count the endpoint reports (the page loads only the first 100).
+  const [caseTotal, setCaseTotal] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Set when the user deselects on purpose, so the first row is not re-selected immediately.
   const selectionCleared = useRef(false);
+  const tradeGridExportRef = useRef<GridExportActions | null>(null);
   const [orders, setOrders] = useState<TradeOrder[]>([]);
   const [draft, setDraft] = useState<Draft>(blankDraft());
   const [creating, setCreating] = useState(false);
@@ -147,7 +158,10 @@ export default function ForeignTradePage({
   const [inventoryDocuments, setInventoryDocuments] = useState<
     InventoryDocument[]
   >([]);
-  const [inventoryDocumentId, setInventoryDocumentId] = useState("");
+  const [inventoryDocumentId, setInventoryDocumentId] = useState(""),
+    [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  // Prerequisite inputs of the selected case's next stage (entered in the panel, used by İşlemler's step).
+  const [advanceInputs, setAdvanceInputs] = useState<AdvanceInputs>({});
   const [screenFields, setScreenFields] = useState<ForeignTradeScreenField[]>(
     defaultForeignTradeFields,
   );
@@ -207,6 +221,7 @@ export default function ForeignTradePage({
       ]);
       setCapabilities(permissions);
       setCases(casePage.items);
+      setCaseTotal(casePage.total ?? casePage.items.length);
       setOrders([
         ...imports.map((x) => ({ ...x, direction: "Import" as const })),
         ...exports.map((x) => ({ ...x, direction: "Export" as const })),
@@ -269,41 +284,32 @@ export default function ForeignTradePage({
       ),
     [cases, filter, query],
   );
-  const stageCounts = useMemo(() => {
-    const counts: Record<TradeStatus, number> = {
-      Draft: 0,
-      Booked: 0,
-      Shipped: 0,
-      CustomsClearance: 0,
-      Arrived: 0,
-      Closed: 0,
-      Cancelled: 0,
-    };
-    for (const item of scoped) counts[item.status] += 1;
-    return counts;
-  }, [scoped]);
   const filtered = useMemo(
     () => (stage ? scoped.filter((item) => item.status === stage) : scoped),
     [scoped, stage],
   );
   const selectedCase = filtered.find((item) => item.id === selectedId) || null;
-  // Default to the first visible row; keep an explicit deselection until the user picks again.
+  // The current row is the one the user chose (list type): none is picked by itself; a row that left the
+  // filtered list is dropped.
   useEffect(() => {
     if (loading) return;
-    if (selectedId && filtered.some((item) => item.id === selectedId)) return;
-    if (!selectedId && selectionCleared.current) return;
-    selectionCleared.current = false;
-    setSelectedId(filtered[0]?.id ?? null);
+    if (selectedId && !filtered.some((item) => item.id === selectedId)) setSelectedId(null);
   }, [filtered, selectedId, loading]);
-  function selectCase(item: TradeCase) {
-    if (item.id === selectedId) {
-      selectionCleared.current = true;
-      setSelectedId(null);
-    } else {
-      selectionCleared.current = false;
-      setSelectedId(item.id);
-    }
+  function selectCase(id: string | null) {
+    if (id === selectedId) return;
+    selectionCleared.current = id === null;
+    setSelectedId(id);
     setNotice(null);
+  }
+  const detailRef = useRef<HTMLElement>(null);
+  /** Double click / Enter: an editable case opens its form (Aç); any other case moves the focus to its panel. */
+  function openCase(id: string) {
+    const item = filtered.find((candidate) => candidate.id === id);
+    if (!item) return;
+    selectCase(id);
+    // While this case's transition runs the form would show stale details: focus the panel instead.
+    if (["Draft", "Booked"].includes(item.status) && capabilities.canUpdate && busyId !== id) startEdit(item);
+    else window.setTimeout(() => detailRef.current?.focus(), 0);
   }
   useEffect(() => {
     if (creating) return;
@@ -327,6 +333,10 @@ export default function ForeignTradePage({
   const selectedNextStatus = selectedCase
     ? nextStatus[selectedCase.status]
     : undefined;
+  // A new case or a moved case starts with empty prerequisite inputs (as the panel did).
+  useEffect(() => {
+    setAdvanceInputs({});
+  }, [selectedCase?.id, selectedCase?.status]);
   const orderMap = useMemo(
     () => new Map(orders.map((order) => [order.id, order])),
     [orders],
@@ -497,8 +507,8 @@ export default function ForeignTradePage({
       setBusyId("");
     }
   }
-  async function linkInventoryDocument(item: TradeCase) {
-    if (!inventoryDocumentId || !capabilities.canAdvance) return;
+  async function linkInventoryDocument(item: TradeCase, documentId = inventoryDocumentId) {
+    if (!documentId || !capabilities.canAdvance) return;
     setBusyId(item.id);
     setNotice(null);
     try {
@@ -506,7 +516,7 @@ export default function ForeignTradePage({
         `/api/foreign-trade/cases/${item.id}/inventory-document`,
         {
           method: "POST",
-          body: JSON.stringify({ documentId: inventoryDocumentId }),
+          body: JSON.stringify({ documentId }),
         },
       );
       setNotice({
@@ -529,8 +539,107 @@ export default function ForeignTradePage({
     }
   }
 
+  // Header create buttons, the panel's Düzenle and İptal et are on the action bar (mockup 10, Dış Ticaret).
+  const createReason = capabilities.canCreate
+    ? undefined
+    : tr("erp.foreign-trade.create izni gerekir", "Requires the erp.foreign-trade.create permission");
+  const caseEditable = !!selectedCase && ["Draft", "Booked"].includes(selectedCase.status);
+  const caseBusy = !!selectedCase && busyId === selectedCase.id;
+  const gridExportRef = tradeGridExportRef;
+  const tradeMore: MenuCommand[] = [
+    { id: "trade-new-import", label: tr("İthalat dosyası", "Import case"), disabledReason: createReason, run: () => startCreate("Import") },
+    { id: "trade-new-export", label: tr("İhracat dosyası", "Export case"), disabledReason: createReason, run: () => startCreate("Export") },
+  ];
+  // The panel's "… aşamasına geçir" step, with the same conditions (advanceCheck) and the inputs entered there.
+  if (selectedCase && capabilities.canAdvance && selectedNextStatus) {
+    const step = advanceCheck(selectedCase, selectedNextStatus, capabilities, advanceInputs, caseBusy);
+    tradeMore.push({
+      id: "trade-advance",
+      label: tr(`${statusLabel(selectedNextStatus)} aşamasına geçir`, `Move to ${statusLabel(selectedNextStatus)}`),
+      disabledReason: step.disabledReason,
+      run: () => void transition(selectedCase, selectedNextStatus, advanceInputs),
+    });
+  }
+  // "Stok belgesi bağla": the panel's former select + button, as a selection list (same conditions).
+  if (
+    selectedCase &&
+    capabilities.canAdvance &&
+    selectedCase.status !== "Cancelled" &&
+    !selectedCase.purchaseReceiptId &&
+    !selectedCase.salesDeliveryId &&
+    canLinkInventoryDocument(selectedCase)
+  )
+    tradeMore.push({
+      id: "trade-link-document",
+      label: tr("Stok belgesi bağla…", "Link inventory document…"),
+      disabledReason: caseBusy
+        ? tr("İşlem sürüyor…", "An operation is in progress…")
+        : !inventoryDocuments.some((document) => !document.isLinked)
+          ? tr("Uygun kayıtlı stok belgesi yok", "No eligible posted inventory document")
+          : undefined,
+      run: () => setLinkPickerOpen(true),
+    });
+  if (selectedCase && caseEditable && capabilities.canAdvance)
+    tradeMore.push({
+      id: "trade-cancel",
+      label: tr("İptal et", "Cancel case"),
+      disabledReason: caseBusy ? tr("İşlem sürüyor…", "An operation is in progress…") : undefined,
+      run: async () => {
+        const confirmed = await confirmDialog({
+          title: tr("Dosyayı iptal et", "Cancel case"),
+          message: tr("Dosya iptal edilsin mi? Bu işlem geri alınamaz.", "Cancel this case? This cannot be undone."),
+          confirmLabel: tr("Evet, iptal et", "Yes, cancel"),
+          cancelLabel: tr("Vazgeç", "Keep"),
+          tone: "danger",
+        });
+        if (confirmed) void transition(selectedCase, "Cancelled");
+      },
+    });
+  const tradeCommands: PageCommands = {
+    new: {
+      primary: true,
+      disabledReason: createReason,
+      run: () => startCreate(filter === "Import" ? "Import" : "Export"),
+    },
+    open: {
+      disabledReason: !selectedCase
+        ? tr("Önce bir kayıt seçin", "Select a record first")
+        : !caseEditable
+          ? tr("Yalnız Taslak ve Planlandı dosyalar düzenlenebilir", "Only Draft and Booked cases can be edited")
+          : !capabilities.canUpdate
+            ? tr("erp.foreign-trade.update izni gerekir", "Requires the erp.foreign-trade.update permission")
+            : caseBusy
+              ? tr("İşlem sürüyor…", "An operation is in progress…")
+              : undefined,
+      run: () => {
+        if (selectedCase) startEdit(selectedCase);
+      },
+    },
+    delete: {
+      disabledReason: selectedCase
+        ? tr("Dosya silinemez; İşlemler'den iptal edin.", "Cases cannot be deleted; cancel from Actions.")
+        : tr("Önce bir kayıt seçin", "Select a record first"),
+    },
+    more: [...tradeMore, csvExportCommand(gridExportRef)],
+  };
   return (
     <div className="page-content foreign-trade-page list-v2">
+      {!creating && <PageCommandsSlot commands={tradeCommands} />}
+      {linkPickerOpen && selectedCase && (
+        <ForeignTradeDocumentPicker
+          direction={selectedCase.direction}
+          caseCode={selectedCase.referenceCode}
+          documents={inventoryDocuments}
+          busy={busyId === selectedCase.id}
+          locale={locale()}
+          onClose={() => setLinkPickerOpen(false)}
+          onLink={(documentId) => {
+            setInventoryDocumentId(documentId);
+            setLinkPickerOpen(false);
+            void linkInventoryDocument(selectedCase, documentId);
+          }}
+        />
+      )}
       <ListPageHeader
         title={tr("İthalat ve ihracat dosyaları", "Import and export cases")}
         description={tr(
@@ -539,23 +648,7 @@ export default function ForeignTradePage({
         )}
         count={loading && cases.length === 0 ? null : cases.length}
         countLabel={tr("dosya", "cases")}
-      >
-        {capabilities.canCreate && (
-          <>
-            <button
-              className="secondary"
-              onClick={() => startCreate("Import")}
-            >
-              <Plus size={15} />
-              {tr("İthalat dosyası", "Import case")}
-            </button>
-            <button className="primary" onClick={() => startCreate("Export")}>
-              <Plus size={15} />
-              {tr("İhracat dosyası", "Export case")}
-            </button>
-          </>
-        )}
-      </ListPageHeader>
+      />
       {(!capabilities.canCreate ||
         !capabilities.canUpdate ||
         !capabilities.canAdvance) &&
@@ -594,12 +687,6 @@ export default function ForeignTradePage({
           </button>
         </div>
       )}
-      <ForeignTradeStageStrip
-        counts={stageCounts}
-        active={stage}
-        statusLabel={statusLabel}
-        onChange={setStage}
-      />
       <ForeignTradeFilters
         query={query}
         direction={filter}
@@ -610,6 +697,9 @@ export default function ForeignTradePage({
         }}
         onQueryChange={setQuery}
         onDirectionChange={setFilter}
+        stage={stage}
+        onStageChange={setStage}
+        statusLabel={statusLabel}
         onRefresh={() => {
           if (!loading) void load();
         }}
@@ -964,48 +1054,64 @@ export default function ForeignTradePage({
           </section>
         </div>
       )}
-      <section className="panel foreign-trade-list list-v2-list">
-        <div className="foreign-trade-workspace foreign-trade-workspace-v2">
-          <div className="foreign-trade-record-list">
-            <ForeignTradeGrid
-              items={filtered}
-              caseCount={cases.length}
-              loading={loading}
-              selectedId={selectedCase?.id || null}
-              orderMap={orderMap}
-              capabilities={capabilities}
-              statusLabel={statusLabel}
-              directionLabel={directionLabel}
-              onSelect={selectCase}
-              transportLabel={transportLabel}
-              fields={screenFields}
-              toolbarContainer={toolsSlot}
-            />
-          </div>
-          <ForeignTradeDetail
-            item={selectedCase}
+      <div className="sales-list-body has-detail foreign-trade-body">
+        <section
+          className="foreign-trade-list list-v2-list"
+          aria-label={tr("Dış ticaret dosyaları", "Foreign trade cases")}
+        >
+          <ForeignTradeGrid
+            items={filtered}
+            caseCount={cases.length}
+            loading={loading}
+            selectedId={selectedCase?.id || null}
             orderMap={orderMap}
-            documents={inventoryDocuments}
-            documentId={inventoryDocumentId}
-            capabilities={capabilities}
-            busyId={busyId}
-            nextStatus={selectedNextStatus}
-            locale={locale()}
             statusLabel={statusLabel}
             directionLabel={directionLabel}
+            onSelect={selectCase}
+            onOpen={openCase}
+            exportActionsRef={gridExportRef}
             transportLabel={transportLabel}
-            notice={notice}
-            onDismissNotice={() => setNotice(null)}
-            onDocumentChange={setInventoryDocumentId}
-            onLinkDocument={(item) => void linkInventoryDocument(item)}
-            onEdit={startEdit}
-            onAdvance={(item, status, inputs) =>
-              void transition(item, status, inputs)
+            fields={screenFields}
+            toolbarContainer={toolsSlot}
+            footer={
+              <ListFooter hints={tr("↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç", "↑↓ move · Space mark · Enter open · Double-click open")}>
+                <span>
+                  <span>{tr("Gösterilen", "Shown")}</span>{" "}
+                  <span>
+                    {filtered.length.toLocaleString(locale())} / {cases.length.toLocaleString(locale())}
+                  </span>
+                </span>
+                {/* The page loads one page of 100 cases; there is no pager. */}
+                {cases.length >= 100 && (
+                  <span>
+                    {tr(
+                      `ilk 100 / toplam ${caseTotal.toLocaleString(locale())}`,
+                      `first 100 / total ${caseTotal.toLocaleString(locale())}`,
+                    )}
+                  </span>
+                )}
+              </ListFooter>
             }
-            onCancelCase={(item) => void transition(item, "Cancelled")}
           />
-        </div>
-      </section>
+        </section>
+        <ForeignTradeDetail
+          ref={detailRef}
+          item={selectedCase}
+          orderMap={orderMap}
+          documents={inventoryDocuments}
+          capabilities={capabilities}
+          busyId={busyId}
+          nextStatus={selectedNextStatus}
+          locale={locale()}
+          statusLabel={statusLabel}
+          directionLabel={directionLabel}
+          transportLabel={transportLabel}
+          notice={notice}
+          onDismissNotice={() => setNotice(null)}
+          inputs={advanceInputs}
+          onInputsChange={setAdvanceInputs}
+        />
+      </div>
     </div>
   );
 }

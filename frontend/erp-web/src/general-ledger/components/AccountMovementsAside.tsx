@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { api } from "../../erpApi";
 import { journalSourceTypeLabel as sourceTypeLabel } from "../sourceTypeLabels";
 import { displayDate, formatAmount, round2 } from "../ledgerReportUtils";
-import { shortenEntryCode } from "./JournalLedgerView";
+import { shortenEntryCode } from "../journalEntries";
 
 /** GET /api/finance/general-ledger/accounts/{accountId}/statement (muavin defter). */
 type AccountStatement = {

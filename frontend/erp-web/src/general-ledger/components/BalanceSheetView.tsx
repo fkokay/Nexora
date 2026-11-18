@@ -2,8 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import { api, localDateString } from "../../erpApi";
 import type { BalanceSheet } from "../../erp-types";
-import { ListPageHeader } from "../../list-page/ListPageHeader";
-import { ListToolbar } from "../../list-page/ListToolbar";
+import { LedgerReportFrame, ReportParam } from "./LedgerReportFrame";
 import { displayDate, downloadXlsx, formatAmount, round2, tdhpGroupLabel } from "../ledgerReportUtils";
 import { BasisSegmented, type ReportingBasis } from "./BasisSegmented";
 import "../ledger-reports.css";
@@ -98,7 +97,9 @@ export function BalanceSheetView({ token }: { token: string }) {
     [current, setCurrent] = useState<BalanceSheet | null>(null),
     [compare, setCompare] = useState<BalanceSheet | null>(null),
     [loading, setLoading] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    // F9 / Yenile: the same request(s) again.
+    [runKey, setRunKey] = useState(0);
   useEffect(() => {
     if (!asOf || (compareOn && !compareDate)) return;
     const controller = new AbortController();
@@ -128,7 +129,7 @@ export function BalanceSheetView({ token }: { token: string }) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [token, basis, asOf, compareOn, compareDate]);
+  }, [token, basis, asOf, compareOn, compareDate, runKey]);
 
   const sections = current ? buildSections(current, compareOn ? compare : null, basis) : [];
   const hasCompare = compareOn && compare != null;
@@ -232,90 +233,112 @@ export function BalanceSheetView({ token }: { token: string }) {
   );
 
   return (
-    <>
-      <ListPageHeader
-        title="Bilanço"
-        description="Belirli bir tarih itibarıyla varlık, yükümlülük ve özkaynak dağılımını inceleyin."
-        count={null}
-      >
-        <button type="button" className="secondary" disabled={!current} onClick={exportXlsx}>
-          XLSX
-        </button>
-      </ListPageHeader>
-      <section className="ledger-subpanel glrp glbs" aria-label="Bilanço">
-        <ListToolbar>
-          <label className="list-v2-filter">
-            <span>Tarih</span>
-            <input type="date" aria-label="Bilanço tarihi" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
-          </label>
-          <button
-            type="button"
-            className={`list-v2-chip${asOf === localDateString() ? " is-active" : ""}`}
-            aria-pressed={asOf === localDateString()}
-            onClick={() => setAsOf(localDateString())}
-          >
-            <span>Bugün</span>
-          </button>
-          <button
-            type="button"
-            className={`list-v2-chip${compareOn ? " is-active" : ""}`}
-            aria-pressed={compareOn}
-            onClick={() => setCompareOn((value) => !value)}
-          >
-            <span>Karşılaştır</span>
-          </button>
-          {compareOn && (
-            <label className="list-v2-filter">
-              <span>Karşılaştırma</span>
-              <input type="date" aria-label="Karşılaştırma tarihi" value={compareDate} onChange={(e) => setCompareDate(e.target.value)} />
-            </label>
-          )}
-          <BasisSegmented value={basis} onChange={setBasis} />
-          <label className="glrp-toggle">
-            <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
-            <span>Sıfır kalemleri göster</span>
-          </label>
-        </ListToolbar>
-        {error && <p className="error-banner">{error}</p>}
-        {current && (
-          <>
-            {current.isBalanced ? (
-              <p className="glrp-check is-ok">
-                <CheckCircle2 size={15} aria-hidden="true" />
-                <span>
-                  {`Aktif = Pasif · ${formatAmount(current.totals.assets)} ${currency}`}
-                  {round2(current.totals.cumulativeResult) !== 0
-                    ? ` · Kümülatif dönem sonucu ${signed(round2(current.totals.cumulativeResult))} ${currency} özkaynaklarda gösterilir.`
-                    : ""}
-                </span>
-              </p>
-            ) : !current.isComplete ? (
-              <p className="glrp-warning" role="status">
-                <AlertTriangle size={15} aria-hidden="true" />
-                <span>
-                  {current.unclassifiedAccountCount > 0
-                    ? `${current.unclassifiedAccountCount} hareketli hesap sınıflandırılmamış; bilanço tamamlanmadı. Hesap planında her hesabı varlık, yükümlülük, özkaynak, gelir veya gider olarak sınıflandırın.`
-                    : `${current.unmappedAccountCount || 0} hareketli hesapta ${basis} eşlemesi eksik; bilanço tamamlanmadı.`}
-                </span>
-              </p>
-            ) : (
-              <p className="glrp-check is-bad" role="alert">
-                <AlertTriangle size={15} aria-hidden="true" />
-                <span>{`Aktif ile pasif arasında fark var: ${formatAmount(current.totals.difference)} ${currency}`}</span>
-              </p>
-            )}
-            {loading && <span className="glrp-loading">Yükleniyor…</span>}
-            <div className="glbs-grid">
-              {renderSide("assets", "Aktif · Varlıklar", current.totals.assets, compare?.totals.assets ?? null)}
-              {renderSide("liabilities", "Pasif · Kaynaklar", current.totals.liabilitiesAndEquity, compare?.totals.liabilitiesAndEquity ?? null)}
+    <LedgerReportFrame
+      className="glrp-balance"
+      title="Bilanço"
+      description="Belirli bir tarih itibarıyla varlık, yükümlülük ve özkaynak dağılımını inceleyin."
+      count={null}
+      countLabel=""
+      onRun={() => setRunKey((key) => key + 1)}
+      onExportXlsx={exportXlsx}
+      exportDisabledReason={current ? undefined : "Rapor henüz hazır değil"}
+      summary={[
+        <>
+          <span>Tarih:</span> <b>{displayDate(asOf)}</b>
+        </>,
+        ...(compareOn ? [<><span>Karşılaştırma:</span> <b>{displayDate(compareDate)}</b></>] : []),
+        <>
+          <span>Standart:</span> <b>{basis}</b>
+        </>,
+        ...(currency ? [<><span>Para birimi:</span> <b>{currency}</b></>] : []),
+        ...(loading ? [<span className="glrp-loading">Yükleniyor…</span>] : []),
+      ]}
+      params={
+        <>
+          <ReportParam label="Tarih">
+            <div className="glrp-param-dates">
+              <label className="list-v2-filter">
+                <span>Tarih</span>
+                <input type="date" aria-label="Bilanço tarihi" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+              </label>
             </div>
-            <p className="glrp-note">
-              Gelir/gider sonucu fişlerin başlangıcından seçilen tarihe kadar kümülatiftir. Dönem kapama, geçmiş yıl kârı aktarımı ve yasal beyanname uygunluğu bu rapor kapsamında değildir.
+            <div className="list-v2-chips">
+              <button
+                type="button"
+                className={`list-v2-chip${asOf === localDateString() ? " is-active" : ""}`}
+                aria-pressed={asOf === localDateString()}
+                onClick={() => setAsOf(localDateString())}
+              >
+                <span>Bugün</span>
+              </button>
+              <button
+                type="button"
+                className={`list-v2-chip${compareOn ? " is-active" : ""}`}
+                aria-pressed={compareOn}
+                onClick={() => setCompareOn((value) => !value)}
+              >
+                <span>Karşılaştır</span>
+              </button>
+            </div>
+            {compareOn && (
+              <div className="glrp-param-dates">
+                <label className="list-v2-filter">
+                  <span>Karşılaştırma</span>
+                  <input type="date" aria-label="Karşılaştırma tarihi" value={compareDate} onChange={(e) => setCompareDate(e.target.value)} />
+                </label>
+              </div>
+            )}
+          </ReportParam>
+          <ReportParam label="Standart">
+            <BasisSegmented value={basis} onChange={setBasis} />
+          </ReportParam>
+          <ReportParam label="Gösterim">
+            <label className="glrp-toggle">
+              <input type="checkbox" checked={showZero} onChange={(e) => setShowZero(e.target.checked)} />
+              <span>Sıfır kalemleri göster</span>
+            </label>
+          </ReportParam>
+        </>
+      }
+    >
+      {error && <p className="error-banner">{error}</p>}
+      {current && (
+        <>
+          {current.isBalanced ? (
+            <p className="glrp-check is-ok">
+              <CheckCircle2 size={15} aria-hidden="true" />
+              <span>
+                {`Aktif = Pasif · ${formatAmount(current.totals.assets)} ${currency}`}
+                {round2(current.totals.cumulativeResult) !== 0
+                  ? ` · Kümülatif dönem sonucu ${signed(round2(current.totals.cumulativeResult))} ${currency} özkaynaklarda gösterilir.`
+                  : ""}
+              </span>
             </p>
-          </>
-        )}
-        {!current && loading && <p className="glrp-empty">Bilanço hazırlanıyor…</p>}
-      </section>
-    </>
+          ) : !current.isComplete ? (
+            <p className="glrp-warning" role="status">
+              <AlertTriangle size={15} aria-hidden="true" />
+              <span>
+                {current.unclassifiedAccountCount > 0
+                  ? `${current.unclassifiedAccountCount} hareketli hesap sınıflandırılmamış; bilanço tamamlanmadı. Hesap planında her hesabı varlık, yükümlülük, özkaynak, gelir veya gider olarak sınıflandırın.`
+                  : `${current.unmappedAccountCount || 0} hareketli hesapta ${basis} eşlemesi eksik; bilanço tamamlanmadı.`}
+              </span>
+            </p>
+          ) : (
+            <p className="glrp-check is-bad" role="alert">
+              <AlertTriangle size={15} aria-hidden="true" />
+              <span>{`Aktif ile pasif arasında fark var: ${formatAmount(current.totals.difference)} ${currency}`}</span>
+            </p>
+          )}
+          <div className="glbs-grid">
+            {renderSide("assets", "Aktif · Varlıklar", current.totals.assets, compare?.totals.assets ?? null)}
+            {renderSide("liabilities", "Pasif · Kaynaklar", current.totals.liabilitiesAndEquity, compare?.totals.liabilitiesAndEquity ?? null)}
+          </div>
+          <p className="glrp-note">
+            Gelir/gider sonucu fişlerin başlangıcından seçilen tarihe kadar kümülatiftir. Dönem kapama, geçmiş yıl kârı aktarımı ve yasal beyanname uygunluğu bu rapor kapsamında değildir.
+          </p>
+        </>
+      )}
+      {!current && loading && <p className="glrp-empty">Bilanço hazırlanıyor…</p>}
+    </LedgerReportFrame>
   );
 }

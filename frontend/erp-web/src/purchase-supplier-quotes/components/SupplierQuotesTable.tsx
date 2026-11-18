@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
-import { DocumentStatusBadge } from "../../document-page/DocumentStatusBadge";
-import { supplierQuoteStatus } from "../../document-page/documentStatus";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { MutableRefObject, ReactNode } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
+import SalesDocumentGrid, { type SalesGridSelection } from "../../sales/components/SalesDocumentGrid";
+import { listAmount } from "../../sales/components/salesListCells";
+import { StatusTag } from "../../list-page/StatusTag";
+import { PURCHASE_QUOTE_LIST_WIDTHS, purchaseQuoteListTag } from "../../purchasing/purchaseQuoteList";
 import type { Quote, ScreenField } from "../types";
 
 export const defaultSupplierQuoteFields: ScreenField[] = [
@@ -17,33 +18,40 @@ export const defaultSupplierQuoteFields: ScreenField[] = [
   { key: "createdAt", label: "Oluşturulma", visible: false, position: 8 },
 ];
 
-const numericFields = new Set(["grandTotal", "lineCount"]);
+const numericFields: ReadonlySet<string> = new Set(["grandTotal", "lineCount"]);
+const codeFields: ReadonlySet<string> = new Set(["code", "requestCode"]);
 
 type Props = {
   items: Quote[];
   fields?: ScreenField[];
   loading: boolean;
-  selectedId: string | undefined;
-  onSelect: (quote: Quote) => void;
   toolbarContainer?: HTMLElement | null;
+  exportActionsRef?: MutableRefObject<GridExportActions | null>;
+  /** List type: checkbox column, page-owned current row, bulk bar; Enter / double click open the quote's request. */
+  selection: SalesGridSelection;
+  footer?: ReactNode;
 };
+
+const date = (value: string | null) => (value ? value.slice(0, 10).split("-").reverse().join(".") : "—");
 
 function renderCell(quote: Quote, key: string): ReactNode {
   switch (key) {
     case "code":
-      return <b>{quote.code}</b>;
+      return quote.code;
     case "requestCode":
       return quote.requestCode;
     case "supplierName":
-      return quote.supplierName;
+      return <b className="customer-name">{quote.supplierName}</b>;
     case "quoteDate":
-      return quote.quoteDate;
+      return date(quote.quoteDate);
     case "validUntil":
-      return quote.validUntil || "—";
-    case "status":
-      return <DocumentStatusBadge status={supplierQuoteStatus(quote.status)} />;
+      return date(quote.validUntil);
+    case "status": {
+      const tag = purchaseQuoteListTag(quote.status);
+      return <StatusTag tone={tag.tone}>{tag.label}</StatusTag>;
+    }
     case "grandTotal":
-      return `${quote.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${quote.currencyCode}`;
+      return listAmount(quote.grandTotal, quote.currencyCode);
     case "lineCount":
       return quote.lineCount.toLocaleString("tr-TR");
     case "createdAt":
@@ -53,88 +61,39 @@ function renderCell(quote: Quote, key: string): ReactNode {
   }
 }
 
+/** Satınalma Teklifleri tablosu: Satış listeleriyle aynı liste tipi (SalesDocumentGrid), kiracının ekran düzeniyle. */
 export default function SupplierQuotesTable({
   items,
   fields = defaultSupplierQuoteFields,
   loading,
-  selectedId,
-  onSelect,
   toolbarContainer,
+  exportActionsRef,
+  selection,
+  footer,
 }: Props) {
   const columns = fields
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);
-  const span = Math.max(columns.length, 1);
   return (
-    <div
-      className="customer-table-wrap supplier-quotes-table-wrap"
-      role="region"
-      aria-label="Tedarikçi teklifleri tablosu"
-      tabIndex={0}
-    >
-      <AdvancedDataGrid
-        className="customer-table"
-        gridId="purchase-supplier-quotes"
-        {...screenViewGridDefaults(columns)}
-        externalPagination
-        hideSearch
-        enableRowSelection={false}
-        toolbarContainer={toolbarContainer}
-      >
-        <thead>
-          <tr>
-            {columns.map((field) => (
-              <th
-                key={field.key}
-                scope="col"
-                className={numericFields.has(field.key) ? "numeric" : undefined}
-              >
-                {field.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={span} className="table-empty" role="status">
-                Teklifler yükleniyor…
-              </td>
-            </tr>
-          ) : !items.length ? (
-            <tr>
-              <td colSpan={span} className="table-empty">
-                Bu filtrelerle teklif bulunamadı.
-              </td>
-            </tr>
-          ) : (
-            items.map((quote) => (
-              <tr
-                key={quote.id}
-                tabIndex={0}
-                onClick={() => onSelect(quote)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(quote);
-                  }
-                }}
-                aria-selected={selectedId === quote.id}
-                className={selectedId === quote.id ? "erp-selected-row" : ""}
-              >
-                {columns.map((field) => (
-                  <td
-                    key={field.key}
-                    className={numericFields.has(field.key) ? "numeric" : undefined}
-                  >
-                    {renderCell(quote, field.key)}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </AdvancedDataGrid>
-    </div>
+    <SalesDocumentGrid
+      gridId="purchase-supplier-quotes"
+      ariaLabel="Tedarikçi teklifleri tablosu"
+      hideExport
+      exportActionsRef={exportActionsRef}
+      fields={columns}
+      items={items}
+      loading={loading}
+      loadingMessage="Teklifler yükleniyor…"
+      emptyMessage="Bu filtrelerle teklif bulunamadı."
+      search=""
+      searchEmptyMessage="Bu filtrelerle teklif bulunamadı."
+      toolbarContainer={toolbarContainer}
+      renderCell={(field, quote) => renderCell(quote, field.key)}
+      selection={selection}
+      footer={footer}
+      columnWidths={PURCHASE_QUOTE_LIST_WIDTHS}
+      numberFields={numericFields}
+      codeFields={codeFields}
+    />
   );
 }

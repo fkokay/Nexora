@@ -1,5 +1,8 @@
 import { Users } from "lucide-react";
+import { StatusTag } from "../../list-page/StatusTag";
+import { hrStatusTone } from "../hrStatus";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { hrGridSelection, hrRowProps } from "../hrList";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type { Employee, EmployeeScreenField, Translate } from "./types";
 
@@ -14,7 +17,10 @@ export type EmployeeGridProps = {
   totalCount: number;
   /** Page-level toolbar element that hosts the grid's column and pivot tools. */
   toolbarContainer?: HTMLElement | null;
-  onEditEmployee: (employee: Employee) => void;
+  /** List-type selection (current row, ticks, Excel of the ticked rows). */
+  selection: ReturnType<typeof hrGridSelection>;
+  /** Double click / Enter on a row. */
+  onOpen: (id: string) => void;
   onImportRows: (rows: Record<string, unknown>[]) => void | Promise<void>;
   onEditRows: (
     rows: { key: string; values: Record<string, string> }[],
@@ -29,11 +35,11 @@ export default function EmployeeGrid({
   fieldLabel,
   isEnglish,
   isAdmin,
-  busy,
   search,
   totalCount,
   toolbarContainer,
-  onEditEmployee,
+  selection,
+  onOpen,
   onImportRows,
   onEditRows,
   translate,
@@ -48,6 +54,7 @@ export default function EmployeeGrid({
         toolbarContainer={toolbarContainer}
         onImportRows={isAdmin ? onImportRows : undefined}
         onEditRows={isAdmin ? onEditRows : undefined}
+        {...selection}
       >
         <thead>
           <tr>
@@ -67,7 +74,7 @@ export default function EmployeeGrid({
         </thead>
         <tbody>
           {rows.map((employee) => (
-            <tr key={employee.id}>
+            <tr key={employee.id} {...hrRowProps(employee.id, onOpen)}>
               {fields.map((field) => (
                 <td
                   key={field.key}
@@ -89,18 +96,9 @@ export default function EmployeeGrid({
                   ) : field.key === "employmentCategory" ? (
                     employee.employmentCategory || "—"
                   ) : field.key === "status" ? (
-                    <span className="hr-status">
+                    <StatusTag tone={hrStatusTone(employee.status)}>
                       {statusLabel(employee.status, isEnglish)}
-                    </span>
-                  ) : field.key === "actions" && isAdmin ? (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => onEditEmployee(employee)}
-                    >
-                      {translate("Düzenle", "Edit")}
-                    </button>
+                    </StatusTag>
                   ) : null}
                 </td>
               ))}

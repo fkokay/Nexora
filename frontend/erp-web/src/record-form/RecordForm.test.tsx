@@ -308,8 +308,10 @@ function Sectioned({
   aside,
   dirty,
   onCancel = () => {},
+  confirmCancel,
 }: {
   onCancel?: () => void;
+  confirmCancel?: boolean;
   completion?: number;
   identityRequired?: boolean;
   /** Simulates a container whose own validation sets `error` on submit. */
@@ -325,6 +327,7 @@ function Sectioned({
       title="Stok Kartı"
       mode="edit"
       busy={false}
+      confirmCancel={confirmCancel}
       saveLabel="x"
       onSubmit={(event) => {
         event.preventDefault();
@@ -524,6 +527,36 @@ describe('RecordFormPage Esc', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it("the header's Vazgeç closes at once by default, even with typed values", () => {
+    closeOpenDialogs();
+    const onCancel = vi.fn();
+    inView(<Sectioned onCancel={onCancel} />);
+    fireEvent.input(screen.getByLabelText('Stok adı'), { target: { value: 'Koli' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it("with confirmCancel the header's Vazgeç asks like Esc: closes an untouched form, asks for a touched one", async () => {
+    closeOpenDialogs();
+    const onCancel = vi.fn();
+    inView(<Sectioned onCancel={onCancel} confirmCancel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    fireEvent.input(screen.getByLabelText('Stok adı'), { target: { value: 'Koli' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    let dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Kaydedilmemiş değişiklikler kaybolacak');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await act(async () => {});
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Vazgeç' })[0]);
+    dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Devam' }));
+    await act(async () => {});
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
   it('does nothing while a modal is open or in a hidden view', () => {
     const onCancel = vi.fn();
     inView(
@@ -613,6 +646,20 @@ describe('RecordFormPage context panel', () => {
     press('.', { ctrlKey: true }, screen.getByLabelText('Stok adı'));
     expect(aside.hidden).toBe(false);
     press('.', { ctrlKey: true });
+    expect(aside.hidden).toBe(true);
+  });
+
+  it('leaves Ctrl+. alone when another handler already took it (defaultPrevented)', () => {
+    formWidth = 1000;
+    inView(<Sectioned aside={<p>Stok durumu</p>} />);
+    const aside = screen.getByText('Stok durumu').closest('aside')!;
+    const taken = (event: KeyboardEvent) => event.preventDefault();
+    window.addEventListener('keydown', taken, true);
+    try {
+      press('.', { ctrlKey: true }, screen.getByLabelText('Stok adı'));
+    } finally {
+      window.removeEventListener('keydown', taken, true);
+    }
     expect(aside.hidden).toBe(true);
   });
 

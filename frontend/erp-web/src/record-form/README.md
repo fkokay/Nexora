@@ -17,7 +17,9 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     komutu varsa · PgUp/PgDn yalnızca `recordNav` varsa · Ctrl+. yalnızca `aside` varsa · Esc kapat), sağda `status`.
     Aynı tuşlar F1 kısayol yardımında "Kayıt formu" başlığı altında listelenir.
   - `<form>` etiketini kendisi üretir; içine ayrıca `<form>` koymayın. Modal içindeki formlar için `variant="dialog"`
-    (gezgin yerine yatay sekmeler, kısayol satırı yok). Form açıkken İşlem Çubuğu'nun Kaydet komutunu (`Ctrl+S`,
+    (gezgin yerine yatay sekmeler, kısayol satırı yok). Satırlı belge oluşturma / düzenleme ekranında `document`
+    verilir: başlık belge ekranınınkidir (tür, numara · cari, durum akışı), davranış aynıdır (`document-page/README.md`,
+    "Belge oluşturma ekranı"). Form açıkken İşlem Çubuğu'nun Kaydet komutunu (`Ctrl+S`,
     birincil) kaydeder; "Kaydet ve Yeni" (`Ctrl+F2`) ve "Temizle" İşlemler menüsündedir. `F2` çubuğun Yeni komutudur;
     sayfa kaydeder (kaydedilmemiş değişiklik varsa onay sorarak).
   - **Formun kendi düğmeleri**: Kaydet, Kaydet ve Yeni, Temizle formun başlığında yalnızca İşlem Çubuğu'nun
@@ -27,6 +29,9 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
   - Ekranda birden çok form varsa `Ctrl+S` ve `Ctrl+F2` odaktaki forma gider; odak hiçbirinde değilse `Ctrl+F2`
     yalnızca tek başına olan forma gider. RecordFormPage olmayan bir form (yan panel, fiş girişi) Kaydet'i
     `FormSaveCommand` ile kaydeder; `F2` hiçbir formda kaydetmez.
+  - **Bağlı ama görünmeyen form**: liste sayfasında kalan bir form, listenin üstünde belge açıkken
+    `commandsActive={false}` alır (Mal kabulleri'ndeki siparişsiz mal kabul formu): çubuğa hiçbir komut (Kaydet, Kaydet ve
+    Yeni, Temizle) kaydetmez, `Ctrl+F2` / çubuksuz `Ctrl+S` / Esc ona gitmez; form ve girilen değerler korunur. Varsayılan `true`.
   - **Kaydetme hatası**: yalnızca alan düzeyindeki sorunlarda hareket edilir. Tarayıcı doğrulaması geçmezse ya da
     kapsayıcı kayıttan sonra `error` verirse ilk geçersiz alana (`:invalid` / `aria-invalid="true"`) odaklanılır.
     Alan, kapsayıcının gizli tuttuğu bir bölümdeyse (bölüm sarmalayıcısı `data-rf-section="anahtar"` ve `hidden`)
@@ -37,6 +42,10 @@ taslak `docs/design-proposals/erp-design-language/01-liste-ve-kayit-stok.html` (
     pencere, açık seçici / liste kutusu (`[role=listbox]`, `[aria-expanded=true]`) ya da Esc'i işlemiş bir alan
     (`defaultPrevented`) varken çalışmaz. Diyalog içindeki formda Esc'i modal yönetir. Seçici, menü ve açılır
     listeler Esc'i kapatırken `preventDefault()` çağırır; böylece arkadaki form Esc ile kapanmaz.
+  - **Vazgeç düğmesi**: varsayılan olarak `onCancel`'ı hemen çağırır (karar kapsayıcınındır; ör. tanım ekranı kendi
+    sorusunu sorar). `confirmCancel` verilirse başlıktaki Vazgeç de Esc gibi davranır: formda bir alana yazıldıysa /
+    değiştirildiyse ya da `dirty` doluysa önce aynı "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?" sorusu
+    çıkar, `onCancel` yalnızca onayda çağrılır. Örnek: Yevmiye Fişi (`general-ledger/components/ManualJournalForm.tsx`).
   - **Bağlam paneli** (`aside`): 300px, kartlar alt alta. Kayıt formunun kendi genişliği (görünüm alanı değil; açık
     widget rayı ve menü düşülür) 1100px olunca açılır, 1060px altına inince kapanır (arada titremesin); `ResizeObserver` ile izlenir. `Ctrl+.` açar /
     kapatır.

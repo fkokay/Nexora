@@ -1,12 +1,12 @@
-import type { ReactNode } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import type { MutableRefObject, ReactNode } from "react";
+import { StatusTag } from "../../list-page/StatusTag";
+import { tradeStatusTone } from "../tradeStatus";
+import type { GridExportActions } from "../../AdvancedDataGrid";
+import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
 import type { ScreenColumnPin } from "../../erp-types";
-import { Globe2, RefreshCw } from "lucide-react";
 import { localizedText } from "../../locale";
 import type {
   Direction,
-  TradeCapabilities,
   TradeCase,
   TradeOrder,
   TradeStatus,
@@ -76,222 +76,158 @@ type Props = {
   items: TradeCase[];
   caseCount: number;
   loading: boolean;
+  /** Current row (click, ↑/↓); null = none. */
   selectedId: string | null;
   orderMap: Map<string, TradeOrder>;
-  capabilities: TradeCapabilities;
   statusLabel: (status: TradeStatus) => string;
   directionLabel: (direction: Direction) => string;
-  /** Called with the clicked case; the page deselects when it is already selected. */
-  onSelect: (item: TradeCase) => void;
+  onSelect: (id: string | null) => void;
+  /** Double click / Enter on a row. */
+  onOpen: (id: string) => void;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
   /** Page-level toolbar element that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
   transportLabel?: (mode: string) => string;
   fields?: ForeignTradeScreenField[];
+  footer?: ReactNode;
 };
 
 const tr = (turkish: string, english: string) =>
   localizedText(turkish, english);
 const locale = () => localizedText("tr-TR", "en-US");
+const noop = () => {};
 
+const WIDTHS: Record<string, number> = {
+  reference: 190,
+  direction: 90,
+  linkedOrder: 220,
+  countries: 170,
+  dates: 120,
+  status: 120,
+  transportMode: 120,
+};
+
+/** Case list (list type): single click selects, double click / Enter opens; the panel and İşlemler follow the row. */
 export function ForeignTradeGrid({
   items,
   caseCount,
   loading,
   selectedId,
   orderMap,
-  capabilities,
   statusLabel,
   directionLabel,
   onSelect,
+  onOpen,
+  exportActionsRef,
   toolbarContainer,
   transportLabel = (mode) => mode,
   fields = defaultForeignTradeFields,
+  footer,
 }: Props) {
-  // Stage and cancel actions live in the detail panel, so "actions" gets no column here.
-  const visibleFields = fields
-    .filter((field) => field.key !== "actions" && field.visible)
-    .sort((a, b) => a.position - b.position);
   // Tenant-relabelled columns keep the tenant's text; untouched standard labels follow the UI locale.
   const fieldLabel = (field: ForeignTradeScreenField) => {
-    const standard = defaultForeignTradeFields.find(
-      (item) => item.key === field.key,
-    );
-    return standard && standard.label === field.label
+    const standard = defaultForeignTradeFields.find((item) => item.key === field.key);
+    return standard &&
+      (standard.label === field.label || legacyStandardLabels[field.key] === field.label)
       ? tr(standard.label, standard.enLabel)
-      : standard && legacyStandardLabels[field.key] === field.label
-        ? tr(standard.label, standard.enLabel)
-        : field.label;
+      : field.label;
   };
-  if (loading)
-    return (
-      <div className="foreign-trade-empty-state is-loading">
-        <span className="foreign-trade-empty-icon">
-          <RefreshCw size={19} />
-        </span>
-        <b>
-          {tr(
-            "Dış ticaret kayıtları yükleniyor",
-            "Loading foreign trade cases",
-          )}
-        </b>
-        <span>
-          {tr(
-            "Güncel sipariş ve sevkiyat bilgileri alınıyor.",
-            "Loading current order and shipment information.",
-          )}
-        </span>
-      </div>
-    );
-  if (items.length === 0)
-    return (
-      <div className="foreign-trade-empty-state" role="status">
-        <span className="foreign-trade-empty-icon">
-          <Globe2 size={21} />
-        </span>
-        <b>
-          {caseCount
-            ? tr("Eşleşen dosya bulunamadı", "No matching cases found")
-            : tr("Henüz dış ticaret dosyası yok", "No foreign trade cases yet")}
-        </b>
-        <span>
-          {caseCount
-            ? tr(
-                "Arama metnini, yön veya aşama filtresini değiştirerek tekrar deneyin.",
-                "Change the search text, direction or stage filter and try again.",
-              )
-            : tr(
-                "İthalat veya ihracat siparişine bağlı yeni dosya oluşturarak sevkiyat sürecini izlemeye başlayın.",
-                "Create a case linked to an import or export order to start tracking its shipment.",
-              )}
-        </span>
-        {!caseCount && capabilities.canCreate && (
-          <small>
-            {tr(
-              "Dosya türünü üstteki İthalat dosyası veya İhracat dosyası düğmesinden seçebilirsiniz.",
-              "Select the case type with the Import case or Export case button above.",
-            )}
-          </small>
-        )}
-      </div>
-    );
+  // Stage and cancel actions live in İşlemler and the detail panel, so "actions" gets no column here.
+  const visibleFields = fields
+    .filter((field) => field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position)
+    .map((field) => ({ ...field, label: fieldLabel(field) }));
+  const renderCell = (key: string, item: TradeCase): ReactNode => {
+    const order = orderMap.get(item.purchaseOrderId || item.salesOrderId || "");
+    switch (key) {
+      case "reference":
+        return (
+          <>
+            <span className="nx-code">{item.referenceCode}</span>{" "}
+            <span className="foreign-trade-cell-muted">· {directionLabel(item.direction)}</span>
+          </>
+        );
+      case "direction":
+        return directionLabel(item.direction);
+      case "linkedOrder":
+        return order ? (
+          <>
+            <span className="nx-code">{order.code}</span>{" "}
+            <span className="foreign-trade-cell-muted">· {order.counterpartyName}</span>
+          </>
+        ) : (
+          "—"
+        );
+      case "countries":
+        return (
+          <>
+            {item.originCountryCode} → {item.destinationCountryCode}{" "}
+            <span className="foreign-trade-cell-muted">
+              · {item.incotermsCode || "—"} ·{" "}
+              {item.transportMode ? transportLabel(item.transportMode) : "—"}
+            </span>
+          </>
+        );
+      case "dates": {
+        const ship = item.actualShipDate || item.plannedShipDate;
+        const arrival = item.actualArrivalDate || item.plannedArrivalDate;
+        if (!ship && !arrival) return "—";
+        const title = [
+          `${tr("Planlanan sevk", "Planned shipment")}: ${fullDate(item.plannedShipDate, locale())}`,
+          `${tr("Gerçek sevk", "Actual shipment")}: ${fullDate(item.actualShipDate, locale())}`,
+          `${tr("Planlanan varış", "Planned arrival")}: ${fullDate(item.plannedArrivalDate, locale())}`,
+          `${tr("Gerçek varış", "Actual arrival")}: ${fullDate(item.actualArrivalDate, locale())}`,
+        ].join("\n");
+        return (
+          <span className="foreign-trade-dates" title={title}>
+            {shortDate(ship, locale())} → {shortDate(arrival, locale())}
+          </span>
+        );
+      }
+      case "status":
+        return (
+          <StatusTag tone={tradeStatusTone(item.status)}>{statusLabel(item.status)}</StatusTag>
+        );
+      case "transportMode":
+        return transportLabel(item.transportMode);
+      default:
+        return null;
+    }
+  };
   return (
-    <div className="table-wrap">
-      <AdvancedDataGrid
-        gridId="foreign-trade-files-v2"
-        {...screenViewGridDefaults(visibleFields)}
-        enableRowSelection={false}
-        hideSearch
-        toolbarContainer={toolbarContainer}
-      >
-        <thead>
-          <tr>
-            {visibleFields.map((field) => (
-              <th key={field.key}>{fieldLabel(field)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const order = orderMap.get(
-              item.purchaseOrderId || item.salesOrderId || "",
-            );
-            const renderCell = (key: string): ReactNode => {
-              switch (key) {
-                case "reference":
-                  return (
-                    <span className="foreign-trade-file-cell">
-                      <b>{item.referenceCode}</b>
-                      <span
-                        className={`trade-direction ${item.direction.toLowerCase()}`}
-                      >
-                        {directionLabel(item.direction)}
-                      </span>
-                    </span>
-                  );
-                case "direction":
-                  return (
-                    <span
-                      className={`trade-direction ${item.direction.toLowerCase()}`}
-                    >
-                      {directionLabel(item.direction)}
-                    </span>
-                  );
-                case "linkedOrder":
-                  return order ? (
-                    <>
-                      <b>{order.code}</b>
-                      <small>{order.counterpartyName}</small>
-                    </>
-                  ) : (
-                    <span className="list-v2-unset">—</span>
-                  );
-                case "countries":
-                  return (
-                    <>
-                      <b className="foreign-trade-route">
-                        {item.originCountryCode} → {item.destinationCountryCode}
-                      </b>
-                      <small>
-                        {item.incotermsCode || "—"} ·{" "}
-                        {item.transportMode
-                          ? transportLabel(item.transportMode)
-                          : "—"}
-                      </small>
-                    </>
-                  );
-                case "dates": {
-                  const ship = item.actualShipDate || item.plannedShipDate;
-                  const arrival =
-                    item.actualArrivalDate || item.plannedArrivalDate;
-                  if (!ship && !arrival)
-                    return <span className="list-v2-unset">—</span>;
-                  const title = [
-                    `${tr("Planlanan sevk", "Planned shipment")}: ${fullDate(item.plannedShipDate, locale())}`,
-                    `${tr("Gerçek sevk", "Actual shipment")}: ${fullDate(item.actualShipDate, locale())}`,
-                    `${tr("Planlanan varış", "Planned arrival")}: ${fullDate(item.plannedArrivalDate, locale())}`,
-                    `${tr("Gerçek varış", "Actual arrival")}: ${fullDate(item.actualArrivalDate, locale())}`,
-                  ].join("\n");
-                  return (
-                    <span className="foreign-trade-dates" title={title}>
-                      {shortDate(ship, locale())} → {shortDate(arrival, locale())}
-                    </span>
-                  );
-                }
-                case "status":
-                  return (
-                    <span
-                      className={`trade-status ${item.status.toLowerCase()}`}
-                    >
-                      {statusLabel(item.status)}
-                    </span>
-                  );
-                case "transportMode":
-                  return transportLabel(item.transportMode);
-                default:
-                  return null;
-              }
-            };
-            return (
-              <tr
-                key={item.id}
-                tabIndex={0}
-                aria-selected={selectedId === item.id}
-                onClick={() => onSelect(item)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(item);
-                  }
-                }}
-              >
-                {visibleFields.map((field) => (
-                  <td key={field.key}>{renderCell(field.key)}</td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </AdvancedDataGrid>
-    </div>
+    <SalesDocumentGrid
+      gridId="foreign-trade-files-v2"
+      ariaLabel={tr("Dış ticaret dosyası kayıtları", "Foreign trade case records")}
+      hideExport
+      exportActionsRef={exportActionsRef}
+      fields={visibleFields}
+      items={items}
+      loading={loading && items.length === 0}
+      loadingMessage={tr("Dış ticaret kayıtları yükleniyor", "Loading foreign trade cases")}
+      emptyMessage={
+        caseCount
+          ? tr("Eşleşen dosya bulunamadı", "No matching cases found")
+          : tr("Henüz dış ticaret dosyası yok", "No foreign trade cases yet")
+      }
+      search=""
+      searchEmptyMessage=""
+      toolbarContainer={toolbarContainer}
+      renderCell={(field, item) => renderCell(field.key, item)}
+      selection={{
+        currentId: selectedId,
+        onCurrentChange: onSelect,
+        onTickedChange: noop,
+        bulkActions: [
+          {
+            id: "export-selected",
+            label: tr("Excel (seçilenler)", "Excel (selected)"),
+            run: () => void exportActionsRef.current?.exportExcel(),
+          },
+        ],
+        onOpen,
+      }}
+      footer={footer}
+      columnWidths={WIDTHS}
+    />
   );
 }

@@ -27,7 +27,6 @@ import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
 import "./finance-hub.css";
-import "./credit-facilities.css";
 import "./commercial-contracts.css";
 import "./commercial-contracts/commercial-contracts.css";
 import { problemDetail } from "./erpApi";

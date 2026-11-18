@@ -1,10 +1,11 @@
-import { Boxes, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
+import { useState, type MutableRefObject, type ReactNode } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
 import type { ScreenColumnPin } from "../../erp-types";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
-import type { ManufacturingBom, ManufacturingPageKey } from "../types";
+import { StatusTag } from "../../list-page/StatusTag";
+import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
+import { SalesListFooter } from "../../sales/components/SalesListFooter";
+import type { ManufacturingBom } from "../types";
 
 export type RecipeScreenField = {
   key: string;
@@ -27,13 +28,25 @@ export const defaultRecipeFields: RecipeScreenField[] = [
   { key: "actions", label: "İşlemler", visible: true, position: 6, fixed: true },
 ];
 
+const RECIPE_LIST_WIDTHS: Record<string, number> = {
+  recipe: 280,
+  product: 240,
+  outputQuantity: 90,
+  content: 170,
+  status: 170,
+  workCenters: 220,
+};
+const RECIPE_NUMBER_FIELDS: ReadonlySet<string> = new Set(["outputQuantity"]);
+export const RECIPE_PAGE_SIZE = 25;
+
 type Props = {
   fields?: RecipeScreenField[];
   boms: ManufacturingBom[];
   filteredBoms: ManufacturingBom[];
   pagedBoms: ManufacturingBom[];
   loading: boolean;
-  busy: boolean;
+  /** The list is the visible screen (the floating bulk bar shows only then). */
+  active: boolean;
   search: string;
   setSearch: (value: string) => void;
   /** "" (all), "Active" or "Inactive"; applied by the page when it filters the recipes. */
@@ -41,22 +54,26 @@ type Props = {
   setStatus: (value: string) => void;
   onRefresh: () => void;
   page: number;
-  setPage: Dispatch<SetStateAction<number>>;
-  pageCount: number;
-  onResetForm: () => void;
-  onNavigate: (page: ManufacturingPageKey) => void;
-  onEdit: (bom: ManufacturingBom) => void;
-  onChangeState: (bom: ManufacturingBom) => void;
-  onDelete: (bom: ManufacturingBom) => void;
+  setPage: (page: number) => void;
+  /** Current row (click, ↑/↓); the bar's Aç / Sil and İşlemler follow it. */
+  currentId: string | null;
+  onCurrentChange: (id: string | null) => void;
+  /** Double click / Enter: opens the recipe record (edit). */
+  onOpen: (bom: ManufacturingBom) => void;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
 };
 
+/**
+ * Tanımlı reçeteler (list type, mockup 10 mapping): single click selects, double click / Enter opens the recipe
+ * record; Düzenle, Pasife al / Etkinleştir and Sil are the action bar's Aç, İşlemler and Sil.
+ */
 export default function ManufacturingRecipeList({
   fields = defaultRecipeFields,
   boms,
   filteredBoms,
   pagedBoms,
   loading,
-  busy,
+  active,
   search,
   setSearch,
   status,
@@ -64,29 +81,25 @@ export default function ManufacturingRecipeList({
   onRefresh,
   page,
   setPage,
-  pageCount,
-  onResetForm,
-  onNavigate,
-  onEdit,
-  onChangeState,
-  onDelete,
+  currentId,
+  onCurrentChange,
+  onOpen,
+  exportActionsRef,
 }: Props) {
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
   const activeCount = boms.filter((x) => x.isActive).length;
+  // Row actions are on the action bar, so the list has no actions column.
   const visibleFields = fields
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) => {
-      if (a.key === "actions") return 1;
-      if (b.key === "actions") return -1;
-      return a.position - b.position;
-    });
+    .filter((field) => field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position);
   const renderCell = (bom: ManufacturingBom, key: string): ReactNode => {
     switch (key) {
       case "recipe":
         return (
           <>
-            <b>{bom.code}</b>
-            <small>{bom.name}</small>
+            <span>{bom.name}</span>
+            <small className="cell-subtitle list-v2-name-code">{bom.code}</small>
           </>
         );
       case "product":
@@ -98,19 +111,17 @@ export default function ManufacturingRecipeList({
       case "content":
         return (
           <>
-            {bom.lines.length} bileşen · {bom.operations.length}{" "}
-            operasyon
+            <span>{bom.lines.length}</span> <span>bileşen</span> · <span>{bom.operations.length}</span>{" "}
+            <span>operasyon</span>
           </>
         );
       case "status":
         return (
           <>
-            <span
-              className={`manufacturing-status ${bom.isActive ? "manufacturing-completed" : "manufacturing-cancelled"}`}
-            >
-              {bom.isActive ? "Aktif" : "Pasif"}
+            <StatusTag tone={bom.isActive ? "ok" : "off"}>{bom.isActive ? "Aktif" : "Pasif"}</StatusTag>{" "}
+            <span className="mfg-cell-muted">
+              <span>{bom.orderCount}</span> <span>üretim emri</span>
             </span>
-            <small>{bom.orderCount} üretim emri</small>
           </>
         );
       case "workCenters": {
@@ -124,41 +135,6 @@ export default function ManufacturingRecipeList({
         );
         return names.length ? names.join(", ") : "—";
       }
-      case "actions":
-        return (
-          <div className="manufacturing-recipe-actions">
-            <button
-              type="button"
-              className="secondary small-button"
-              disabled={busy}
-              onClick={() => onEdit(bom)}
-            >
-              <Pencil size={13} /> Düzenle
-            </button>
-            <button
-              type="button"
-              className="secondary small-button"
-              disabled={busy}
-              onClick={() => onChangeState(bom)}
-            >
-              {bom.isActive ? "Pasife al" : "Etkinleştir"}
-            </button>
-            <button
-              type="button"
-              className="secondary small-button manufacturing-recipe-delete"
-              disabled={busy || bom.orderCount > 0}
-              title={
-                bom.orderCount > 0
-                  ? "Üretim emri referansı olan reçeteler silinemez."
-                  : ""
-              }
-              aria-label={`${bom.code} reçetesini sil`}
-              onClick={() => onDelete(bom)}
-            >
-              <Trash2 size={13} /> Sil
-            </button>
-          </div>
-        );
       default:
         return null;
     }
@@ -200,90 +176,57 @@ export default function ManufacturingRecipeList({
         aria-label="Tanımlı reçeteler"
         aria-busy={loading}
       >
-      {loading ? (
-        <div className="manufacturing-empty" role="status" aria-live="polite">
-          <RefreshCw size={18} aria-hidden="true" />
-          <span>Ürün reçeteleri yükleniyor…</span>
-        </div>
-      ) : boms.length === 0 ? (
-        <div className="manufacturing-empty">
-          <Boxes size={22} />
-          <b>Henüz ürün reçetesi yok</b>
-          <span>Yeni reçete düğmesini kullanarak ilk reçeteyi oluşturun.</span>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => {
-              onResetForm();
-              onNavigate("manufacturing-recipe-create");
-            }}
-          >
-            <Plus size={15} /> Reçete oluştur
-          </button>
-        </div>
-      ) : filteredBoms.length === 0 ? (
-        <div className="manufacturing-empty">
-          Aramanızla eşleşen reçete bulunamadı.
-        </div>
-      ) : (
-        <>
-          <div className="manufacturing-table-wrap manufacturing-recipe-table-wrap">
-            <AdvancedDataGrid
-              className="customer-table manufacturing-recipe-grid"
-              gridId="manufacturing-recipes"
-              {...screenViewGridDefaults(visibleFields)}
-              externalPagination
-              hideSearch
-              toolbarContainer={toolsSlot}
-              enableRowSelection={false}
-              aria-label="Ürün reçeteleri"
-            >
-              <thead>
-                <tr>
-                  {visibleFields.map((field) => (
-                    <th key={field.key}>{field.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pagedBoms.map((bom) => (
-                  <tr key={bom.id}>
-                    {visibleFields.map((field) => (
-                      <td key={field.key}>{renderCell(bom, field.key)}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </AdvancedDataGrid>
-          </div>
-          <div className="manufacturing-recipe-pagination">
-            <span>
-              {filteredBoms.length.toLocaleString("tr-TR")} reçete · Sayfa{" "}
-              {page}/{pageCount}
-            </span>
-            <div>
-              <button
-                type="button"
-                className="secondary small-button"
-                disabled={page <= 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Önceki
-              </button>
-              <button
-                type="button"
-                className="secondary small-button"
-                disabled={page >= pageCount}
-                onClick={() =>
-                  setPage((value) => Math.min(pageCount, value + 1))
-                }
-              >
-                Sonraki
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+        <SalesDocumentGrid
+          gridId="manufacturing-recipes"
+          ariaLabel="Ürün reçeteleri"
+          hideExport
+          exportActionsRef={exportActionsRef}
+          fields={visibleFields}
+          items={pagedBoms}
+          loading={loading}
+          loadingMessage="Ürün reçeteleri yükleniyor…"
+          emptyMessage={
+            status
+              ? "Aramanızla eşleşen reçete bulunamadı."
+              : "Henüz ürün reçetesi yok. Yeni (F2) ile ilk reçeteyi oluşturun."
+          }
+          search={search}
+          searchEmptyMessage="Aramanızla eşleşen reçete bulunamadı."
+          toolbarContainer={toolsSlot}
+          renderCell={(field, bom) => renderCell(bom, field.key)}
+          selection={{
+            currentId,
+            onCurrentChange,
+            onTickedChange: setTicked,
+            bulkActions: active
+              ? [
+                  {
+                    id: "export-selected",
+                    label: "Excel (seçilenler)",
+                    run: () => void exportActionsRef.current?.exportExcel(),
+                  },
+                ]
+              : undefined,
+            onOpen: (id) => {
+              const bom = boms.find((candidate) => candidate.id === id);
+              if (bom) onOpen(bom);
+            },
+          }}
+          footer={
+            <SalesListFooter
+              ticked={ticked.length}
+              shown={pagedBoms.length}
+              total={filteredBoms.length}
+              page={page}
+              pageSize={RECIPE_PAGE_SIZE}
+              loading={loading}
+              onPageChange={setPage}
+              hints="↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç"
+            />
+          }
+          columnWidths={RECIPE_LIST_WIDTHS}
+          numberFields={RECIPE_NUMBER_FIELDS}
+        />
       </section>
     </div>
   );

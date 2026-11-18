@@ -156,17 +156,6 @@ html[data-theme="dark"] #root .fh-page {
 #root .fh-page .fh-tile .is-danger { color: var(--fh-danger); }
 #root .fh-page .fh-tile .is-success { color: var(--fh-success); }
 #root .fh-page .fh-tile-error { color: var(--fh-danger); font-size: 12.5px; font-weight: 600; }
-#root .fh-page .fh-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-#root .fh-page .fh-state.is-success { background: var(--fh-success-bg); color: var(--fh-success); }
-#root .fh-page .fh-state.is-warning { border: 1px solid var(--fh-warn-line); background: var(--fh-warn-bg); color: var(--fh-warn); }
 
 /* Plain bordered section */
 #root .fh-page .fh-box {
@@ -317,7 +306,6 @@ html[data-theme="dark"] #root .fh-page {
   letter-spacing: 0.02em;
 }
 #root .app-shell .fh-page table.fh-table .fh-group-row th small { display: inline !important; margin-left: 6px; font-weight: 500; }
-#root .fh-page .fh-missing-mark { color: var(--fh-warn); font-size: 12px; font-weight: 700; white-space: nowrap; }
 #root .app-shell .fh-page table.fh-table select {
   min-width: 220px;
   height: 32px;

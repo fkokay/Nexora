@@ -2,15 +2,28 @@ import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { ScreenColumnPin } from "./erp-types";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { Factory, Info } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  Factory,
+  Info,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import { DetailLinesHead } from "./document-detail/DocumentDetailLayout";
 import ScreenViewGroupHeader from "./ScreenViewGroupHeader";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import ManufacturingPageHeader from "./manufacturing/components/ManufacturingPageHeader";
@@ -19,18 +32,54 @@ import {
   ToolbarMoreMenu,
 } from "./manufacturing/components/ManufacturingFormMenu";
 import ManufacturingRecipeList, {
+  RECIPE_PAGE_SIZE,
   defaultRecipeFields,
 } from "./manufacturing/components/ManufacturingRecipeList";
 import type {
   ManufacturingBom as Bom,
+  ManufacturingOrder as Order,
+  ManufacturingOrderOperation as OrderOperation,
   ManufacturingPageKey,
 } from "./manufacturing/types";
 import {
   RecordFormGroup,
   RecordFormPage,
+  RecordFormTabs,
   RequiredMark,
+  type RecordFormTab,
 } from "./record-form/RecordForm";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import { DefinitionEmptyPane, DefinitionLayout } from "./list-page/DefinitionLayout";
+import { ListSummaryCards, type SummaryCard } from "./list-page/ListSummaryCards";
+import { StatusTag } from "./list-page/StatusTag";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { MenuCommand, PageCommands } from "./commands/types";
+import { useStockDetailPanelOpen } from "./inventory/components/InventoryStockDetailPanel";
+import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
+import {
+  SalesListDetailEmpty,
+  SalesListPanelToggle,
+} from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter } from "./sales/components/SalesListFooter";
+import {
+  ManufacturingOrderPanel,
+  type ManufacturingOrderPanelHandle,
+} from "./manufacturing/components/ManufacturingOrderPanel";
+import {
+  amountText,
+  displayDate,
+  orderCanCancel,
+  orderCanComplete,
+  orderCanRelease,
+  orderNeedsScheduling,
+  orderPageFigures,
+  orderStatusTag,
+  type OrderStep,
+} from "./manufacturing/orderList";
+// Kit line table (table.dd-lines) of the lined record forms (recipe, production order).
+import "./document-page/document-page.css";
 import "./manufacturing.css";
 import "./manufacturing-record-forms.css";
 import "./manufacturing/manufacturing-list-v2.css";
@@ -101,75 +150,6 @@ type SetupRule = {
   setupMinutes: number;
   isTransitionAllowed: boolean;
 };
-type OrderLine = {
-  componentStockItemId: string;
-  componentCode: string;
-  componentName: string;
-  requiredQuantity: number;
-  standardUnitCostBaseSnapshot: number;
-  plannedCostBase: number;
-};
-type OrderOperation = {
-  id: string;
-  sequence: number;
-  workCenterId: string;
-  workCenterCode: string;
-  workCenterName: string;
-  setupMinutes: number;
-  runMinutes: number;
-  minimumWaitDaysAfterPrevious: number;
-  setupFamilyCode: string;
-  sequenceSetupMinutes: number;
-  plannedEnergyQuantityKwh: number;
-  plannedEnergyCostPerKwhBase: number;
-  plannedEnergyCostBase: number;
-  plannedCostBase: number;
-  scheduledStartDate: string | null;
-  scheduledEndDate: string | null;
-  scheduledStartMinuteOfDay: number | null;
-  scheduledEndMinuteOfDay: number | null;
-  scheduledStartSecondOfDay: number | null;
-  scheduledEndSecondOfDay: number | null;
-  status: string;
-  actualSetupMinutes: number | null;
-  actualRunMinutes: number | null;
-  actualEnergyQuantityKwh: number | null;
-  actualEnergyCostPerKwhBase: number | null;
-  actualEnergyCostBase: number | null;
-  actualCostBase: number | null;
-  performedByEmployeeId: string | null;
-  performedByEmployeeName: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  capacityDays: {
-    date: string;
-    minutes: number;
-    startMinuteOfDay: number;
-    endMinuteOfDay: number;
-    startSecondOfDay: number;
-    endSecondOfDay: number;
-  }[];
-};
-type Order = {
-  id: string;
-  code: string;
-  billOfMaterialId: string;
-  billOfMaterialName: string;
-  warehouseId: string;
-  warehouseName: string;
-  plannedQuantity: number;
-  sourceSalesOrderId: string | null;
-  sourceSalesOrderLineNumber: number | null;
-  sourceSalesOrderCode: string | null;
-  actualGoodQuantity: number | null;
-  scrapQuantity: number | null;
-  scrapReason: string | null;
-  status: string;
-  plannedDate: string;
-  completedAt: string | null;
-  lines: OrderLine[];
-  operations: OrderOperation[];
-};
 type MrpLine = {
   stockItemId: string;
   stockCode: string;
@@ -238,6 +218,11 @@ const defaultWorkCenterFields: ScreenViewField[] = [
   { key: "status", label: "Durum", visible: true, position: 5 },
   { key: "shift", label: "Vardiya", visible: false, position: 6 },
 ];
+const WORK_CENTER_NUMBER_FIELDS: ReadonlySet<string> = new Set([
+  "capacityMinutesPerDay",
+  "laborCostPerHourBase",
+  "overheadCostPerHourBase",
+]);
 function minuteOfDayLabel(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -246,7 +231,7 @@ function minuteOfDayLabel(minutes: number) {
 function renderWorkCenterCell(center: WorkCenter, key: string) {
   switch (key) {
     case "code":
-      return <b>{center.code}</b>;
+      return center.code;
     case "name":
       return center.name;
     case "capacityMinutesPerDay":
@@ -257,15 +242,9 @@ function renderWorkCenterCell(center: WorkCenter, key: string) {
       return center.overheadCostPerHourBase.toLocaleString("tr-TR");
     case "status":
       return (
-        <span
-          className={
-            center.isActive
-              ? "manufacturing-status-active"
-              : "manufacturing-status-inactive"
-          }
-        >
+        <StatusTag tone={center.isActive ? "ok" : "off"}>
           {center.isActive ? "Aktif" : "Pasif"}
-        </span>
+        </StatusTag>
       );
     case "shift":
       return `${minuteOfDayLabel(center.shiftStartMinuteOfDay)}–${minuteOfDayLabel(center.shiftEndMinuteOfDay)}`;
@@ -358,6 +337,20 @@ const timeMinute = (time: string) => {
 
 const MANUFACTURING_CHANGED_EVENT = "nexora:manufacturing-changed";
 
+/** Default widths of the Üretim emirleri columns (tenant widths win), sized to fit beside the detail panel. */
+const ORDER_LIST_WIDTHS: Record<string, number> = {
+  code: 126,
+  plannedDate: 92,
+  billOfMaterialName: 272,
+  warehouseName: 126,
+  plannedQuantity: 92,
+  productionSource: 130,
+  components: 118,
+  status: 124,
+};
+const ORDER_NUMBER_FIELDS: ReadonlySet<string> = new Set(["plannedQuantity"]);
+const ORDER_CODE_FIELDS: ReadonlySet<string> = new Set(["code"]);
+
 export default function ManufacturingPage({
   token,
   section,
@@ -422,25 +415,16 @@ export default function ManufacturingPage({
     [sourceSalesOrderId, setSourceSalesOrderId] = useState(""),
     [sourceSalesOrderLineNumber, setSourceSalesOrderLineNumber] = useState(""),
     [ordersTotalCount, setOrdersTotalCount] = useState(0),
-    [, setOpenOrdersCount] = useState(0);
+    [openOrdersCount, setOpenOrdersCount] = useState<number | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState(""),
     [orderPage, setOrderPage] = useState(1),
     [orderSearchDraft, setOrderSearchDraft] = useState(""),
     [orderSearch, setOrderSearch] = useState(""),
     [orderStatus, setOrderStatus] = useState("");
   const orderPageSize = 25,
-    orderPageCount = Math.max(1, Math.ceil(ordersTotalCount / orderPageSize)),
     pageOrders = orders;
   const selectedOrder =
     orders.find((order) => order.id === selectedOrderId) ?? null;
-  // True when the detail panel has a next workflow step to offer for the selected order.
-  const orderDetailHasStep =
-    !!selectedOrder &&
-    (selectedOrder.status === "Planned" ||
-      (selectedOrder.status === "Released" &&
-        selectedOrder.operations.every(
-          (operation) => operation.status === "Completed",
-        )));
   const [editingBomId, setEditingBomId] = useState(""),
     [recipeSearch, setRecipeSearch] = useState(""),
     [recipeStatus, setRecipeStatus] = useState(""),
@@ -450,6 +434,8 @@ export default function ManufacturingPage({
     [expandedBomOperations, setExpandedBomOperations] = useState<
       Record<number, boolean>
     >({}),
+    // Section of the recipe form (navigator: Kimlik, Bileşenler, Rota).
+    [recipeTab, setRecipeTab] = useState("identity"),
     [workCenterTab, setWorkCenterTab] = useState<
       "calendar" | "general" | "exceptions"
     >("calendar"),
@@ -483,6 +469,9 @@ export default function ManufacturingPage({
     [wcCapacity, setWcCapacity] = useState("480"),
     [wcLabor, setWcLabor] = useState("0"),
     [wcOverhead, setWcOverhead] = useState("0");
+  // İş merkezleri definition screen: Yeni (F2) opens the create form in the right pane.
+  const [wcCreating, setWcCreating] = useState(false);
+  const workCenterDefRef = useRef<HTMLDivElement>(null);
   const [calendarReloadKey, setCalendarReloadKey] = useState(0);
   const [calendarCenterId, setCalendarCenterId] = useState(""),
     [calendarMask, setCalendarMask] = useState(127),
@@ -886,12 +875,12 @@ export default function ManufacturingPage({
       setOpenOrdersCount(
         Number.isFinite(orderRows.data.openOrderCount)
           ? orderRows.data.openOrderCount
-          : 0,
+          : null,
       );
     } else if (needOrders) {
       setOrders([]);
       setOrdersTotalCount(0);
-      setOpenOrdersCount(0);
+      setOpenOrdersCount(null);
     }
     if (employeeRows.data) setEmployees(employeeRows.data.filter((x) => x.status === "Active"));
     else if (needOrders) setEmployees([]);
@@ -948,11 +937,9 @@ export default function ManufacturingPage({
       setOrderPage(page);
       return;
     }
-    if (
-      orders.length &&
-      !pageOrders.some((order) => order.id === selectedOrderId)
-    )
-      setSelectedOrderId(pageOrders[0]?.id ?? "");
+    // The current row is the one the user chose (click, ↑/↓); a row that left the page is dropped, none is picked.
+    if (selectedOrderId && !pageOrders.some((order) => order.id === selectedOrderId))
+      setSelectedOrderId("");
   }, [orders, ordersTotalCount, orderPage, selectedOrderId]);
   useEffect(() => {
     if (section !== "manufacturing-orders") return;
@@ -1019,17 +1006,33 @@ export default function ManufacturingPage({
       workCenterSettingsSavePending.current = false;
     };
   }, [section]);
+  // Definition screen: no work centre is opened by itself (the user picks one); one that left the list is dropped.
   useEffect(() => {
     if (
       section === "manufacturing-work-centers" &&
-      workCenters.length > 0 &&
+      !loading &&
+      calendarCenterId &&
       !workCenters.some((x) => x.id === calendarCenterId)
-    ) {
-      changeCalendarCenter(
-        (workCenters.find((x) => x.isActive) ?? workCenters[0]).id,
-      );
-    }
-  }, [section, workCenters, calendarCenterId]);
+    )
+      changeCalendarCenter("");
+  }, [section, workCenters, calendarCenterId, loading]);
+  // Esc = Vazgeç on the definition screen: closes the create form or the open work centre (and the drawer below 1280px).
+  useEffect(() => {
+    if (section !== "manufacturing-work-centers" || (!wcCreating && !calendarCenterId)) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const root = workCenterDefRef.current;
+      if (!root || root.closest("[hidden]")) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu']") || document.querySelector("dialog[open]")) return;
+      // An open record's calendar / rule fields have no discard prompt: Esc while typing there does not close it.
+      if (!wcCreating && target?.closest("input, select, textarea")) return;
+      event.preventDefault();
+      void closeWorkCenterPane();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
   useEffect(() => {
     if (section !== "manufacturing-work-centers" || !calendarCenterId) return;
     let active = true;
@@ -1100,6 +1103,7 @@ export default function ManufacturingPage({
     };
   }, [request, section, calendarCenterId]);
   function resetBomForm() {
+    setRecipeTab("identity");
     setEditingBomId("");
     setCode("");
     setName("");
@@ -1111,6 +1115,7 @@ export default function ManufacturingPage({
     setBomOperations([]);
   }
   function beginEditBom(bom: Bom) {
+    setRecipeTab("identity");
     setEditingBomId(bom.id);
     setCode(bom.code);
     setName(bom.name);
@@ -1256,14 +1261,15 @@ export default function ManufacturingPage({
       if (mutationIsCurrent(captured)) setBusy(false);
     }
   }
-  async function createWorkCenter(e: FormEvent) {
+  /** `onCreated`: the definition screen's pane closes the form and opens the new record instead of the notice. */
+  async function createWorkCenter(e: FormEvent, onCreated?: (id: string | undefined) => void) {
     e.preventDefault();
     const captured = captureMutationEpoch();
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await request("/api/manufacturing/work-centers/", {
+      const created = await request<{ id?: string } | undefined>("/api/manufacturing/work-centers/", {
         method: "POST",
         body: JSON.stringify({
           code: wcCode,
@@ -1276,6 +1282,10 @@ export default function ManufacturingPage({
       if (!mutationIsCurrent(captured)) return;
       setWcCode("");
       setWcName("");
+      if (onCreated) {
+        onCreated(created?.id);
+        return;
+      }
       setNotice("İş merkezi oluşturuldu. Liste ekranına dönebilirsiniz.");
     } catch (e) {
       if (mutationIsCurrent(captured)) setError((e as Error).message);
@@ -1295,6 +1305,46 @@ export default function ManufacturingPage({
       setBusy(false);
     }
     setCalendarCenterId(centerId);
+  }
+  // İş merkezleri definition screen (list left, record right). The create form asks before a typed draft is dropped;
+  // an open work centre's calendar / rule edits keep today's behaviour (switching rows does not ask).
+  const workCenterDraftDirty = wcCreating && !!(wcCode.trim() || wcName.trim());
+  async function confirmWorkCenterDiscard() {
+    return (
+      !workCenterDraftDirty ||
+      (await confirmDialog({
+        title: "İş merkezi",
+        message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?",
+        confirmLabel: "Devam",
+      }))
+    );
+  }
+  const focusWorkCenterList = () =>
+    window.setTimeout(
+      () => workCenterDefRef.current?.querySelector<HTMLElement>(".nx-def-list .advanced-grid-scroll")?.focus(),
+      0,
+    );
+  async function closeWorkCenterPane() {
+    if (!(await confirmWorkCenterDiscard())) return;
+    setWcCreating(false);
+    changeCalendarCenter("");
+    focusWorkCenterList();
+  }
+  async function openWorkCenter(id: string) {
+    if (id === calendarCenterId && !wcCreating) return;
+    if (!(await confirmWorkCenterDiscard())) return;
+    setWcCreating(false);
+    changeCalendarCenter(id);
+  }
+  function startWorkCenterCreate() {
+    setError("");
+    setNotice("");
+    changeCalendarCenter("");
+    setWcCreating(true);
+    window.setTimeout(
+      () => document.getElementById("mfg-wc-create")?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus(),
+      0,
+    );
   }
   async function saveWorkCenterCalendar() {
     const selectionGeneration = calendarSelectionGeneration.current;
@@ -1918,21 +1968,419 @@ export default function ManufacturingPage({
   const visibleOrderFields = orderScreenFields
     .filter((field) => field.key !== "actions" && (field.visible || field.fixed))
     .sort((a, b) => a.position - b.position);
-  // Without a plan date column the order cell shows the date under the code.
-  const orderPlanDateVisible = visibleOrderFields.some(
-    (field) => field.key === "plannedDate",
-  );
+  // Üretim emirleri list (mockup 10): selectable grid, current row → detail panel, İşlemler.
+  const ordersListActive =
+    section === "manufacturing-orders" && !createOrderPage && !trackingOrder;
+  const orderListBodyRef = useRef<HTMLDivElement>(null);
+  const orderPanelRef = useRef<ManufacturingOrderPanelHandle>(null);
+  const orderGridExportRef = useRef<GridExportActions | null>(null);
+  const [orderTicked, setOrderTicked] = useState<string[]>([]);
+  const [selectedRecipeId, setSelectedRecipeId] = useState("");
+  const recipeGridExportRef = useRef<GridExportActions | null>(null);
+  const workCenterGridExportRef = useRef<GridExportActions | null>(null);
+  const orderPanel = useStockDetailPanelOpen(ordersListActive, orderListBodyRef);
+  const orderRecipe = (order: Order) =>
+    boms.find((bom) => bom.id === order.billOfMaterialId);
+  const orderRecipeTitle = (order: Order) => {
+    const bom = orderRecipe(order);
+    return bom ? `${bom.code} · ${bom.productName}` : order.billOfMaterialName;
+  };
+  const orderUnitCode = (order: Order) => {
+    const bom = orderRecipe(order);
+    return bom
+      ? (items.find((item) => item.id === bom.productStockItemId)?.unitCode ?? "")
+      : "";
+  };
+  /** Opens the current order's panel and moves the focus there (an order has no document screen). */
+  const openOrderPanel = (id: string) => {
+    setSelectedOrderId(id);
+    if (!orderPanel.open) orderPanel.toggle();
+    window.setTimeout(() => orderPanelRef.current?.focus(), 0);
+  };
+  const runOrderStep = (order: Order, step: OrderStep) => {
+    if (step === "schedule") void scheduleOrder(order);
+    else if (step === "release") void transition(order, "release");
+    else completeOrder(order);
+  };
+  const renderOrderRoute = (order: Order) => {
+    const total = order.operations.length;
+    if (!total) return <span className="mfg-cell-muted">rota yok</span>;
+    if (order.status === "Planned")
+      return orderNeedsScheduling(order) ? (
+        <span className="mfg-cell-warn">
+          <span>{total}</span> <span>op · çizelgelenmedi</span>
+        </span>
+      ) : (
+        <span className="mfg-cell-muted">
+          <span>{total}</span> <span>op · çizelgelendi</span>
+        </span>
+      );
+    if (order.status === "Cancelled")
+      return (
+        <span className="mfg-cell-muted">
+          <span>{total}</span> <span>op</span>
+        </span>
+      );
+    const done = order.operations.filter((op) => op.status === "Completed").length;
+    return (
+      <span className="mfg-cell-muted">
+        <span>
+          {done} / {total}
+        </span>{" "}
+        <span>tamamlandı</span>
+      </span>
+    );
+  };
+  const renderOrderCell = (key: string, order: Order): ReactNode => {
+    switch (key) {
+      case "code":
+        return order.code;
+      case "plannedDate":
+        return displayDate(order.plannedDate);
+      case "productionSource":
+        return order.sourceSalesOrderCode ? (
+          <>
+            <span className="nx-code">{order.sourceSalesOrderCode}</span> ·{" "}
+            <span>satır</span> <span>{order.sourceSalesOrderLineNumber}</span>
+          </>
+        ) : (
+          "Stoka üretim"
+        );
+      case "billOfMaterialName":
+        return (
+          <span className="mfg-cell-line" title={order.billOfMaterialName}>
+            <span className="mfg-cell-recipe">{orderRecipeTitle(order)}</span>{" "}
+            · {renderOrderRoute(order)}
+          </span>
+        );
+      case "warehouseName":
+        return order.warehouseName;
+      case "plannedQuantity":
+        return order.plannedQuantity.toLocaleString("tr-TR", {
+          maximumFractionDigits: 4,
+        });
+      case "components":
+        return order.lines.length ? (
+          <span
+            className="mfg-cell-line"
+            title={order.lines
+              .map((line) => `${line.componentCode} · ${line.componentName}`)
+              .join("\n")}
+          >
+            {order.lines.map((line) => line.componentCode).join(", ")}
+          </span>
+        ) : (
+          "—"
+        );
+      case "status": {
+        const tag = orderStatusTag(order.status);
+        return <StatusTag tone={tag.tone}>{tag.label}</StatusTag>;
+      }
+      default:
+        return null;
+    }
+  };
+  const orderFigures = orderPageFigures(orders);
+  const orderFigure = (value: number) =>
+    loading ? "—" : value.toLocaleString("tr-TR");
+  const orderSummaryCards: SummaryCard[] = [
+    {
+      id: "open",
+      label: "Açık emir",
+      value: openOrdersCount === null || loading ? "—" : openOrdersCount.toLocaleString("tr-TR"),
+      icon: Clock3,
+      hint: "firma geneli · Planlandı + Serbest bırakıldı",
+    },
+    {
+      id: "planned-cost",
+      label: "Planlanan maliyet",
+      value: loading || !orderFigures.costedCount ? "—" : amountText(orderFigures.plannedCost),
+      icon: CircleDollarSign,
+      hint: (
+        <>
+          <span>bu sayfa</span> · <span>{orderFigures.costedCount}</span>{" "}
+          <span>emir · iptal hariç</span>
+        </>
+      ),
+    },
+    {
+      id: "unscheduled",
+      label: "Çizelgelenmemiş",
+      value: orderFigure(orderFigures.unscheduled),
+      icon: AlertTriangle,
+      tone: orderFigures.unscheduled > 0 ? "warn" : "primary",
+      hint: "bu sayfa · rotası takvimsiz",
+    },
+    {
+      id: "completed",
+      label: "Tamamlanan",
+      value: orderFigure(orderFigures.completed),
+      icon: CheckCircle2,
+      tone: "ok",
+      hint: "bu sayfa",
+      // The list's existing status filter (Tamamlandı).
+      filterActive: orderStatus === "Completed",
+      onFilter: () => {
+        setOrderStatus((value) => (value === "Completed" ? "" : "Completed"));
+        setOrderPage(1);
+      },
+    },
+  ];
+  const orderGridSelection = {
+    currentId: selectedOrderId || null,
+    onCurrentChange: (id: string | null) => setSelectedOrderId(id ?? ""),
+    onTickedChange: setOrderTicked,
+    bulkActions: ordersListActive
+      ? [
+          {
+            id: "export-selected",
+            label: "Excel (seçilenler)",
+            run: () => void orderGridExportRef.current?.exportExcel(),
+          },
+        ]
+      : undefined,
+    onOpen: openOrderPanel,
+  };
+  // Operations of the current order with their start / complete actions (detail panel, Rota tab).
+  const orderRoute = selectedOrder ? (
+    <>
+                      {selectedOrder.operations.length ? (
+                        <ul className="manufacturing-op-rows">
+                          {selectedOrder.operations.map((op) => {
+                            const isCompleted = op.status === "Completed";
+                            const windowText = op.scheduledStartDate
+                              ? `${op.scheduledStartDate} ${secondTime(op.scheduledStartSecondOfDay ?? (op.scheduledStartMinuteOfDay ?? 0) * 60)}–${op.scheduledEndDate} ${secondTime(op.scheduledEndSecondOfDay ?? (op.scheduledEndMinuteOfDay ?? 0) * 60)}`
+                              : "";
+                            const meta = (
+                              isCompleted
+                                ? [
+                                    `${decimalText(op.actualEnergyQuantityKwh ?? 0, 3)} kWh enerji`,
+                                    `fiili ${decimalText(op.actualCostBase ?? 0)} baz para`,
+                                    op.performedByEmployeeName
+                                      ? `Operatör: ${op.performedByEmployeeName}`
+                                      : "",
+                                  ]
+                                : [
+                                    `${decimalText(op.plannedEnergyQuantityKwh, 3)} kWh enerji`,
+                                    `plan ${decimalText(op.plannedCostBase)} baz para`,
+                                    windowText,
+                                    ...(op.capacityDays.length > 1
+                                      ? op.capacityDays.map(
+                                          (slot) =>
+                                            `${slot.date} ${secondTime(slot.startSecondOfDay ?? slot.startMinuteOfDay * 60)}–${secondTime(slot.endSecondOfDay ?? slot.endMinuteOfDay * 60)} (${slot.minutes} dk)`,
+                                        )
+                                      : []),
+                                  ]
+                            )
+                              .filter(Boolean)
+                              .join("\n");
+                            return (
+                              <li
+                                key={op.id}
+                                className={`manufacturing-op-row is-${op.status.toLowerCase()}`}
+                              >
+                                <div className="manufacturing-op-row-main" title={meta}>
+                                  <span className="manufacturing-op-row-name">
+                                    <i aria-hidden="true" />
+                                    <span>{`${op.sequence} · ${op.workCenterCode}`}</span>
+                                    <small>
+                                      {operationStatusLabel[op.status] || op.status}
+                                    </small>
+                                  </span>
+                                  <b>{`${decimalText(operationMinutes(op))} dk`}</b>
+                                  {selectedOrder.status === "Released" &&
+                                    op.status === "Planned" && (
+                                      <button
+                                        type="button"
+                                        className="secondary small-button"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void startOperation(selectedOrder, op)
+                                        }
+                                      >
+                                        Operasyonu başlat
+                                      </button>
+                                    )}
+                                  {selectedOrder.status === "Released" &&
+                                    op.status === "InProgress" && (
+                                      <button
+                                        type="button"
+                                        className="primary small-button"
+                                        aria-expanded={completingOperationId === op.id}
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setCompletingOperationId((id) =>
+                                            id === op.id ? "" : op.id,
+                                          )
+                                        }
+                                      >
+                                        Operasyonu tamamla
+                                      </button>
+                                    )}
+                                </div>
+                                {selectedOrder.status === "Released" &&
+                                  op.status === "InProgress" && completingOperationId === op.id && (
+                                    <div className="actual-time-entry">
+                                      <label>
+                                        Kurulum dk
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={
+                                            actualTimes[op.id]?.setup ??
+                                            String(op.setupMinutes)
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "setup", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Çalışma dk
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={
+                                            actualTimes[op.id]?.run ??
+                                            String(op.runMinutes)
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "run", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Enerji kWh
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.001"
+                                          value={
+                                            actualTimes[op.id]?.energyKwh ?? "0"
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "energyKwh", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label>
+                                        Baz para / kWh
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.000001"
+                                          value={
+                                            actualTimes[op.id]?.energyRate ?? "0"
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "energyRate", e.target.value)
+                                          }
+                                        />
+                                      </label>
+                                      <label className="is-wide">
+                                        Operatör
+                                        <select
+                                          value={
+                                            actualTimes[op.id]?.employeeId ??
+                                            (employees.length === 1 ? employees[0].id : "")
+                                          }
+                                          onChange={(e) =>
+                                            updateActual(op, "employeeId", e.target.value)
+                                          }
+                                          required
+                                        >
+                                          <option value="">Personel seçin</option>
+                                          {employees.map((employee) => (
+                                            <option key={employee.id} value={employee.id}>
+                                              {employee.personnelCode} · {employee.fullName}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <button
+                                        type="button"
+                                        className="primary small-button"
+                                        disabled={busy || employees.length === 0}
+                                        onClick={() =>
+                                          void completeOperation(selectedOrder, op)
+                                        }
+                                      >
+                                        Fiili kayıtları kaydet
+                                      </button>
+                                    </div>
+                                  )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="sales-ld-muted">Operasyon rotası tanımlı değil.</p>
+                      )}
+    </>
+  ) : null;
+  const orderPanelNode =
+    ordersListActive && orderPanel.open ? (
+      selectedOrder ? (
+        <ManufacturingOrderPanel
+          ref={orderPanelRef}
+          order={selectedOrder}
+          recipeTitle={orderRecipeTitle(selectedOrder)}
+          unitCode={orderUnitCode(selectedOrder)}
+          busy={busy}
+          onStep={(step) => runOrderStep(selectedOrder, step)}
+          route={orderRoute}
+          onClose={orderPanel.close}
+          takeFocus={orderPanel.takeFocus}
+        />
+      ) : (
+        <SalesListDetailEmpty
+          label="Üretim emri özeti"
+          text="Özetini görmek için listeden bir üretim emri seçin."
+        />
+      )
+    ) : null;
+  const busyReason = busy ? "İşlem sürüyor…" : undefined;
+  const orderCommands: PageCommands = (() => {
+    const current = selectedOrder;
+    const more: MenuCommand[] = [];
+    if (current) {
+      // The detail panel's workflow buttons, with their conditions.
+      if (orderNeedsScheduling(current))
+        more.push({ id: "order-schedule", label: "Kapasiteye çizelgele", disabledReason: busyReason, run: () => runOrderStep(current, "schedule") });
+      else if (orderCanRelease(current))
+        more.push({ id: "order-release", label: "Serbest bırak", disabledReason: busyReason, run: () => runOrderStep(current, "release") });
+      if (orderCanComplete(current))
+        more.push({ id: "order-complete", label: "Üretimi tamamla", disabledReason: busyReason, run: () => runOrderStep(current, "complete") });
+      if (orderCanCancel(current))
+        more.push({ id: "order-cancel", label: "İptal et", disabledReason: busyReason, run: () => void transition(current, "cancel") });
+    }
+    more.push(csvExportCommand(orderGridExportRef));
+    return {
+      new: { primary: true, run: () => onNavigate("manufacturing-order-create") },
+      open: {
+        disabledReason: current ? undefined : "Önce bir kayıt seçin",
+        run: () => {
+          const id = focusedRecordId() ?? current?.id;
+          if (id) openOrderPanel(id);
+        },
+      },
+      delete: {
+        disabledReason: current
+          ? "Üretim emri silinemez; İşlemler'den iptal edin."
+          : "Önce bir kayıt seçin",
+      },
+      more,
+    };
+  })();
   const filteredBoms = boms.filter((bom) =>
     (!recipeStatus || bom.isActive === (recipeStatus === "Active")) &&
     `${bom.code} ${bom.name} ${bom.productName}`
       .toLocaleLowerCase("tr-TR")
       .includes(recipeSearch.trim().toLocaleLowerCase("tr-TR")),
   );
-  const recipePageSize = 25,
-    recipePageCount = Math.max(
-      1,
-      Math.ceil(filteredBoms.length / recipePageSize),
-    ),
+  const recipePageSize = RECIPE_PAGE_SIZE,
     pagedBoms = filteredBoms.slice(
       (recipePage - 1) * recipePageSize,
       recipePage * recipePageSize,
@@ -1988,19 +2436,28 @@ export default function ManufacturingPage({
         ? sum + quantity * (1 + scrap / 100) * cost
         : sum;
     }, 0);
-    const recipeChecklist = [
-      { label: "Reçete kodu", done: code.trim().length > 0 },
-      { label: "Mamul seçimi", done: !!product },
+    // The former "Kaydetmeden önce" checklist (reçete kodu, mamul, en az bir bileşen) is the section navigator's state.
+    const recipeTabs: RecordFormTab[] = [
+      { key: "identity", label: "Kimlik", state: code.trim() && product ? "done" : "empty" },
       {
-        label: "En az bir bileşen",
-        done: components.some((line) => !!line.stockItemId),
+        key: "components",
+        label: "Bileşenler",
+        count: components.length,
+        state: components.some((line) => !!line.stockItemId) ? "done" : "empty",
       },
+      { key: "route", label: "Rota", count: bomOperations.length, state: bomOperations.length ? "done" : "empty" },
     ];
     return (
       <div className="manufacturing-page manufacturing-record-form-host">
         <RecordFormPage
           className="mfg-rf"
           title={editingBomId ? "Ürün Reçetesini Düzenle" : "Ürün Reçetesi Tanımlama"}
+          // Record v3 with the kit line table (the lined-record header: type, code · mamul).
+          document={{
+            type: "Ürün reçetesi",
+            code: code.trim() || undefined,
+            party: eligibleItems.find((x) => x.id === product)?.name,
+          }}
           mode={editingBomId ? "edit" : "create"}
           busy={busy}
           saveLabel={editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"}
@@ -2040,7 +2497,10 @@ export default function ManufacturingPage({
               items={[{ label: "Temizle", onSelect: clearBom, disabled: busy }]}
             />
           )}
+          <RecordFormTabs tabs={recipeTabs} active={recipeTab} onChange={setRecipeTab} label="Reçete bölümleri">
           <div className="mfg-rf-layout">
+            <div className="mfg-rf-stack">
+            <div data-rf-section="identity" hidden={recipeTab !== "identity"}>
             <section className="mfg-rf-card mfg-rf-main">
               <div className="mfg-rf-row">
                 <label>
@@ -2110,37 +2570,36 @@ export default function ManufacturingPage({
                   />
                 </label>
               </div>
-              <div className="mfg-rf-section">
-                <div className="mfg-rf-section-head">
-                  <h2>Bileşenler</h2>
-                  <button
-                    type="button"
-                    className="mfg-rf-link"
-                    onClick={() =>
-                      setComponents((x) => [
-                        ...x,
-                        {
-                          stockItemId: "",
-                          quantity: "1",
-                          scrap: "0",
-                          standardUnitCostBase: "0",
-                        },
-                      ])
-                    }
-                  >
-                    + Bileşen ekle
-                  </button>
-                </div>
-                <div className="mfg-rf-table mfg-rf-components">
-                  <div className="mfg-rf-thead" aria-hidden="true">
-                    <span>Stok kartı</span>
-                    <span>Miktar</span>
-                    <span>Fire %</span>
-                    <span>Birim maliyet</span>
-                    <span></span>
-                  </div>
+            </section>
+            </div>
+            {/* Bileşenler: the kit line table (mockup 02 satır kartı). */}
+            <div data-rf-section="components" hidden={recipeTab !== "components"}>
+            <section className="dd-box mfg-rf-lines" aria-label="Bileşenler">
+              <DetailLinesHead
+                title="Bileşenler"
+                meta={
+                  <>
+                    <span>{components.length.toLocaleString("tr-TR")}</span> <span>bileşen</span>
+                  </>
+                }
+              />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines mfg-rf-components">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">Sıra</th>
+                      <th>Stok kartı</th>
+                      <th className="dd-num">Miktar</th>
+                      <th className="dd-num">Fire %</th>
+                      <th className="dd-num">Birim maliyet</th>
+                      <th className="dd-menu" aria-label="Satır işlemleri" />
+                    </tr>
+                  </thead>
+                  <tbody>
                   {components.map((line, index) => (
-                    <div className="mfg-rf-tr" key={index}>
+                    <tr key={index}>
+                      <td className="dd-ix">{index + 1}</td>
+                      <td className="dd-stock-cell">
                       <SearchableRecordPicker
                         options={eligibleItems
                           .filter((x) => x.id !== product)
@@ -2165,6 +2624,8 @@ export default function ManufacturingPage({
                         emptyMessage="Aramanızla eşleşen bileşen bulunamadı."
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Bileşen miktarı"
@@ -2184,6 +2645,8 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Fire yüzdesi"
@@ -2202,6 +2665,8 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-num">
                       <input
                         className="rf-num"
                         aria-label="Standart birim maliyeti baz para"
@@ -2221,10 +2686,13 @@ export default function ManufacturingPage({
                         }
                         required
                       />
+                      </td>
+                      <td className="dd-menu">
                       <button
                         type="button"
-                        className="manufacturing-remove"
+                        className="dd-line-remove"
                         aria-label="Bileşeni kaldır"
+                        title="Bileşeni kaldır"
                         disabled={components.length === 1}
                         onClick={() =>
                           setComponents((rows) =>
@@ -2232,44 +2700,64 @@ export default function ManufacturingPage({
                           )
                         }
                       >
-                        ×
+                        <Trash2 size={13} aria-hidden="true" />
                       </button>
-                    </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-                <small className="mfg-rf-hint">
-                  Miktar reçete çıktısı başınadır; birim maliyet baz para
-                  birimindedir.
-                </small>
+                  <tr className="dd-new-line">
+                    <td colSpan={6}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setComponents((x) => [
+                            ...x,
+                            {
+                              stockItemId: "",
+                              quantity: "1",
+                              scrap: "0",
+                              standardUnitCostBase: "0",
+                            },
+                          ])
+                        }
+                      >
+                        <Plus size={13} aria-hidden="true" /> Bileşen ekle
+                      </button>
+                    </td>
+                  </tr>
+                  </tbody>
+                </table>
               </div>
-              <div className="mfg-rf-section">
-                <div className="mfg-rf-section-head">
-                  <h2>Rota / operasyonlar</h2>
-                  {bomOperations.length > 0 && (
-                    <button
-                      type="button"
-                      className="mfg-rf-link"
-                      disabled={!canAddBomOperation}
-                      onClick={addBomOperation}
-                    >
-                      {`+ Operasyon ekle (${bomOperations.length}/50)`}
-                    </button>
-                  )}
-                </div>
-                {bomOperations.length === 0 ? (
-                  <div className="mfg-rf-empty">
-                    <small>Rota isteğe bağlıdır; henüz operasyon yok.</small>
-                    <button
-                      type="button"
-                      className="mfg-rf-link"
-                      disabled={!canAddBomOperation}
-                      onClick={addBomOperation}
-                    >
-                      + Operasyon ekle
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mfg-rf-op-list">
+              <p className="mfg-rf-lines-note">
+                Miktar reçete çıktısı başınadır; birim maliyet baz para
+                birimindedir.
+              </p>
+            </section>
+            </div>
+            <div data-rf-section="route" hidden={recipeTab !== "route"}>
+            {/* Rota: the kit line table (mockup 10 · record v3 "satır ızgarası"); Gelişmiş opens a detail row. */}
+            <section className="dd-box mfg-rf-lines mfg-rf-route" aria-label="Rota">
+              <DetailLinesHead
+                title="Rota / operasyonlar"
+                meta={
+                  <>
+                    <span>{bomOperations.length.toLocaleString("tr-TR")}</span> <span>/ 50 operasyon · isteğe bağlı</span>
+                  </>
+                }
+              />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines mfg-rf-operations">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">Sıra</th>
+                      <th>İş merkezi</th>
+                      <th className="dd-num">Birim süre (dk)</th>
+                      <th className="dd-num">Kurulum (dk)</th>
+                      <th>Gelişmiş</th>
+                      <th className="dd-menu" aria-label="Satır işlemleri" />
+                    </tr>
+                  </thead>
+                  <tbody>
                     {bomOperations.map((operation, index) => {
                       const waitDays = operation.minimumWaitDaysAfterPrevious;
                       const advancedInvalid =
@@ -2289,12 +2777,12 @@ export default function ManufacturingPage({
                         advancedInvalid ||
                         (expandedBomOperations[index] ?? advancedSet);
                       return (
-                        <div className="mfg-rf-op" key={index}>
-                          <div className="mfg-rf-op-main">
-                            <span className="mfg-rf-seq">{index + 1}</span>
-                            <label>
-                              İş merkezi
+                        <Fragment key={index}>
+                          <tr>
+                            <td className="dd-ix">{index + 1}</td>
+                            <td>
                               <select
+                                aria-label="İş merkezi"
                                 value={operation.workCenterId}
                                 onChange={(e) =>
                                   updateBomOperation(index, (x) => ({
@@ -2317,11 +2805,11 @@ export default function ManufacturingPage({
                                     </option>
                                   ))}
                               </select>
-                            </label>
-                            <label>
-                              Birim süre (dk)
+                            </td>
+                            <td className="dd-num">
                               <input
                                 className="rf-num"
+                                aria-label="Birim süre (dk)"
                                 type="number"
                                 min="0"
                                 step="0.0001"
@@ -2334,11 +2822,11 @@ export default function ManufacturingPage({
                                 }
                                 required
                               />
-                            </label>
-                            <label>
-                              Kurulum (dk)
+                            </td>
+                            <td className="dd-num">
                               <input
                                 className="rf-num"
+                                aria-label="Kurulum (dk)"
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -2351,37 +2839,45 @@ export default function ManufacturingPage({
                                 }
                                 required
                               />
-                            </label>
-                            <button
-                              type="button"
-                              className="manufacturing-remove"
-                              aria-label="Operasyonu kaldır"
-                              onClick={() => {
-                                setBomOperations((rows) =>
-                                  rows.filter((_, i) => i !== index),
-                                );
-                                setExpandedBomOperations({});
-                              }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            className="mfg-rf-disclosure"
-                            aria-expanded={expanded}
-                            disabled={advancedInvalid}
-                            onClick={() =>
-                              setExpandedBomOperations((state) => ({
-                                ...state,
-                                [index]: !expanded,
-                              }))
-                            }
-                          >
-                            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-                            Gelişmiş
-                          </button>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="mfg-rf-disclosure"
+                                aria-expanded={expanded}
+                                disabled={advancedInvalid}
+                                onClick={() =>
+                                  setExpandedBomOperations((state) => ({
+                                    ...state,
+                                    [index]: !expanded,
+                                  }))
+                                }
+                              >
+                                <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                                Gelişmiş
+                              </button>
+                            </td>
+                            <td className="dd-menu">
+                              <button
+                                type="button"
+                                className="dd-line-remove"
+                                aria-label="Operasyonu kaldır"
+                                title="Operasyonu kaldır"
+                                onClick={() => {
+                                  setBomOperations((rows) =>
+                                    rows.filter((_, i) => i !== index),
+                                  );
+                                  setExpandedBomOperations({});
+                                }}
+                              >
+                                <Trash2 size={13} aria-hidden="true" />
+                              </button>
+                            </td>
+                          </tr>
                           {expanded && (
+                            <tr className="mfg-rf-op-detail-row">
+                              <td />
+                              <td colSpan={5}>
                             <div className="mfg-rf-op-details">
                               <label>
                                 Kurulum ailesi
@@ -2511,13 +3007,32 @@ export default function ManufacturingPage({
                                 </div>
                               </div>
                             </div>
+
+                              </td>
+                            </tr>
                           )}
-                        </div>
+                        </Fragment>
                       );
                     })}
-                  </div>
-                )}
-                <small className="mfg-rf-hint">
+                    {!bomOperations.length && (
+                      <tr>
+                        <td colSpan={6} className="mfg-rf-lines-empty">
+                          Rota isteğe bağlıdır; henüz operasyon yok.
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="dd-new-line">
+                      <td colSpan={6}>
+                        <button type="button" disabled={!canAddBomOperation} onClick={addBomOperation}>
+                          <Plus size={13} aria-hidden="true" /> {`Operasyon ekle (${bomOperations.length}/50)`}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mfg-rf-lines-note">
+
                   Enerji, bekleme ve alternatif merkezler 'Gelişmiş' altında.
                   <span
                     className="mfg-rf-info"
@@ -2527,9 +3042,11 @@ export default function ManufacturingPage({
                   >
                     <Info size={13} aria-hidden="true" />
                   </span>
-                </small>
-              </div>
+
+              </p>
             </section>
+            </div>
+            </div>
             <aside className="mfg-rf-side">
               <section className="mfg-rf-card" aria-labelledby="mfg-recipe-summary">
                 <h2 id="mfg-recipe-summary">Özet</h2>
@@ -2557,22 +3074,9 @@ export default function ManufacturingPage({
                   </small>
                 </div>
               </section>
-              <section
-                className="mfg-rf-card"
-                aria-labelledby="mfg-recipe-checklist"
-              >
-                <h2 id="mfg-recipe-checklist">Kaydetmeden önce</h2>
-                <ul className="mfg-rf-checklist">
-                  {recipeChecklist.map((item) => (
-                    <li key={item.label} className={item.done ? "is-done" : ""}>
-                      <span aria-hidden="true">{item.done ? "✓" : "○"}</span>
-                      {item.label}
-                    </li>
-                  ))}
-                </ul>
-              </section>
             </aside>
           </div>
+          </RecordFormTabs>
           <StickyFormBar
             saveLabel={
               editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"
@@ -2638,6 +3142,12 @@ export default function ManufacturingPage({
         <RecordFormPage
           className="mfg-rf"
           title="Üretim Emri Planlama"
+          // Record v3: lined-record header (type, code · mamul); no status step before the order is saved.
+          document={{
+            type: "Üretim emri",
+            code: orderCode.trim() || undefined,
+            party: orderBom?.productName,
+          }}
           mode="create"
           busy={busy}
           saveLabel="Emir Planla"
@@ -2665,6 +3175,7 @@ export default function ManufacturingPage({
           }
         >
           <div className="mfg-rf-layout">
+            <div className="mfg-rf-stack">
             <section className="mfg-rf-card mfg-rf-main">
               <label className="mfg-rf-lead">
                 <span>Reçete <RequiredMark /></span>
@@ -2808,6 +3319,100 @@ export default function ManufacturingPage({
                 </div>
               )}
             </section>
+            {/* Bileşen ve rota reçeteden gelir: salt okunur önizleme (kit satır tablosu); emir satır girişi almaz. */}
+            {orderBom && (
+              <section className="dd-box mfg-rf-lines" aria-label="Bileşenler">
+                <DetailLinesHead
+                  title="Bileşenler"
+                  meta={
+                    <>
+                      <span>{orderBom.lines.length.toLocaleString("tr-TR")}</span> <span>bileşen</span> ·{" "}
+                      <span>reçeteden, salt okunur</span>
+                    </>
+                  }
+                />
+                <div className="dd-lines-wrap">
+                  <table className="dd-lines">
+                    <thead>
+                      <tr>
+                        <th className="dd-ix">Sıra</th>
+                        <th>Bileşen</th>
+                        <th className="dd-num">Fire %</th>
+                        <th className="dd-num">Gereken miktar</th>
+                        <th className="dd-num">Birim maliyet</th>
+                        <th className="dd-num">Planlanan maliyet</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderBom.lines.map((line, index) => {
+                        const required = line.quantity * (1 + line.scrapPercent / 100) * orderFactor;
+                        return (
+                          <tr key={`${line.componentStockItemId}-${index}`}>
+                            <td className="dd-ix">{index + 1}</td>
+                            <td>{line.componentName}</td>
+                            <td className="dd-num">{line.scrapPercent.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</td>
+                            <td className="dd-num">{required.toLocaleString("tr-TR", { maximumFractionDigits: 4 })}</td>
+                            <td className="dd-num">{line.standardUnitCostBase.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                            <td className="dd-num">
+                              {(required * line.standardUnitCostBase).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {orderBom.lines.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="mfg-rf-lines-empty">Bu emirde bileşen satırı yok.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            {orderBom && (
+              <section className="dd-box mfg-rf-lines" aria-label="Rota">
+                <DetailLinesHead
+                  title="Rota"
+                  meta={
+                    <>
+                      <span>{orderBom.operations.length.toLocaleString("tr-TR")}</span> <span>operasyon</span>
+                    </>
+                  }
+                />
+                <div className="dd-lines-wrap">
+                  <table className="dd-lines">
+                    <thead>
+                      <tr>
+                        <th className="dd-ix">Sıra</th>
+                        <th>İş merkezi</th>
+                        <th className="dd-num">Kurulum dk</th>
+                        <th className="dd-num">Çalışma dk</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderBom.operations.map((op, index) => (
+                        <tr key={`${op.sequence}-${index}`}>
+                          <td className="dd-ix">{op.sequence}</td>
+                          <td>{op.workCenterName}</td>
+                          <td className="dd-num">{op.setupMinutes.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</td>
+                          <td className="dd-num">
+                            {(op.runMinutesPerOutputUnit * (Number.isFinite(orderQuantity) ? orderQuantity : 0)).toLocaleString("tr-TR", {
+                              maximumFractionDigits: 1,
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                      {orderBom.operations.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="mfg-rf-lines-empty">Operasyon rotası tanımlı değil.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            </div>
             <aside className="mfg-rf-side">
               <section className="mfg-rf-card" aria-labelledby="mfg-order-summary">
                 <h2 id="mfg-order-summary">Reçete özeti</h2>
@@ -2854,7 +3459,8 @@ export default function ManufacturingPage({
       </div>
     );
   }
-  if (section === "manufacturing-work-center-create") {
+  /** Fields of the work centre create form: the create page and the definition screen's pane (one POST). */
+  const workCenterFormBody = (tip: ReactNode) => {
     const wcCurrency = "TRY";
     const wcCapacityMinutes = Number(wcCapacity);
     const wcHourly =
@@ -2869,23 +3475,6 @@ export default function ManufacturingPage({
         maximumFractionDigits: 2,
       });
     return (
-      <div className="manufacturing-page manufacturing-record-form-host">
-        <RecordFormPage
-          className="mfg-rf"
-          title="İş Merkezi Tanımlama"
-          mode="create"
-          busy={busy}
-          saveLabel="İş Merkezini Kaydet"
-          onSubmit={(event) => void createWorkCenter(event)}
-          onCancel={() => onNavigate("manufacturing-work-centers")}
-          error={error}
-          onDismissError={() => setError("")}
-          status={
-            notice ? (
-              <span className="rf-status-notice">{notice}</span>
-            ) : undefined
-          }
-        >
           <div className="mfg-rf-layout">
             <section className="mfg-rf-card mfg-rf-main">
               <label className="mfg-rf-lead">
@@ -2977,12 +3566,33 @@ export default function ManufacturingPage({
                   </small>
                 </div>
               </section>
-              <p className="mfg-rf-tip">
-                Kaydettikten sonra çalışma takvimini iş merkezleri listesinden
-                ayarlayın.
-              </p>
+              <p className="mfg-rf-tip">{tip}</p>
             </aside>
           </div>
+    );
+  };
+  if (section === "manufacturing-work-center-create") {
+    return (
+      <div className="manufacturing-page manufacturing-record-form-host">
+        <RecordFormPage
+          className="mfg-rf"
+          title="İş Merkezi Tanımlama"
+          mode="create"
+          busy={busy}
+          saveLabel="İş Merkezini Kaydet"
+          onSubmit={(event) => void createWorkCenter(event)}
+          onCancel={() => onNavigate("manufacturing-work-centers")}
+          error={error}
+          onDismissError={() => setError("")}
+          status={
+            notice ? (
+              <span className="rf-status-notice">{notice}</span>
+            ) : undefined
+          }
+        >
+          {workCenterFormBody(
+            "Kaydettikten sonra çalışma takvimini iş merkezleri listesinden ayarlayın.",
+          )}
         </RecordFormPage>
       </div>
     );
@@ -3037,55 +3647,125 @@ export default function ManufacturingPage({
     !warehouseId ||
     filledMrpDemands.length === 0 ||
     hasDuplicateMrpDemand;
+  const currentRecipe =
+    pagedBoms.find((bom) => bom.id === selectedRecipeId) ?? null;
+  const recipeCommands: PageCommands = {
+    new: {
+      primary: true,
+      run: () => {
+        resetBomForm();
+        setError("");
+        setNotice("");
+        onNavigate("manufacturing-recipe-create");
+      },
+    },
+    open: {
+      disabledReason: currentRecipe ? busyReason : "Önce bir kayıt seçin",
+      run: () => {
+        const id = focusedRecordId() ?? currentRecipe?.id;
+        const bom = boms.find((candidate) => candidate.id === id);
+        if (bom) beginEditBom(bom);
+      },
+    },
+    delete: {
+      disabledReason: !currentRecipe
+        ? "Önce bir kayıt seçin"
+        : currentRecipe.orderCount > 0
+          ? "Üretim emri referansı olan reçeteler silinemez."
+          : busyReason,
+      run: () => {
+        if (currentRecipe) void deleteBom(currentRecipe);
+      },
+    },
+    more: [
+      ...(currentRecipe
+        ? [
+            {
+              id: "recipe-state",
+              label: currentRecipe.isActive ? "Pasife al" : "Etkinleştir",
+              disabledReason: busyReason,
+              run: () => void changeBomState(currentRecipe),
+            },
+          ]
+        : []),
+      csvExportCommand(recipeGridExportRef),
+    ],
+  };
+  const workCenterCommands: PageCommands = {
+    // Yeni (F2) opens the empty form in the right pane (the menu's "İş merkezi tanımla" page stays).
+    new: {
+      primary: !wcCreating,
+      disabledReason: busyReason,
+      run: () => {
+        if (wcCreating) {
+          document.getElementById("mfg-wc-create")?.querySelector<HTMLInputElement>("input:not([disabled])")?.focus();
+          return;
+        }
+        void confirmWorkCenterDiscard().then((ok) => ok && startWorkCenterCreate());
+      },
+    },
+    open: {
+      disabledReason: selectedWorkCenter ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        window.setTimeout(
+          () => workCenterDefRef.current?.querySelector<HTMLElement>(".nx-def-pane [role='tab'][aria-selected='true']")?.focus(),
+          0,
+        );
+      },
+    },
+    delete: {
+      disabledReason: selectedWorkCenter
+        ? "İş merkezi silinemez; durumu Genel sekmesinden değiştirilir."
+        : "Önce bir kayıt seçin",
+    },
+    more: [csvExportCommand(workCenterGridExportRef)],
+  };
+  const mrpCommands: PageCommands = {
+    refresh: { disabledReason: busyReason, run: () => void refresh() },
+    more: [
+      {
+        id: "mrp-history",
+        label: "Plan geçmişi",
+        disabledReason: busyReason,
+        run: () => void loadMrpHistory(),
+      },
+    ],
+  };
+  const sectionCommands: PageCommands | null =
+    section === "manufacturing-orders"
+      ? orderCommands
+      : section === "manufacturing-recipes"
+        ? recipeCommands
+        : section === "manufacturing-work-centers"
+          ? workCenterCommands
+          : mrpSection
+            ? mrpCommands
+            : null;
   return (
     <div
       className={`manufacturing-page manufacturing-workbench${listSection || mrpSection ? " list-v2" : ""}${mrpSection ? " mrp-v2" : ""}`}
     >
+      {sectionCommands && <PageCommandsSlot commands={sectionCommands} />}
       <ManufacturingPageHeader
-        listMode={listSection}
-        listCount={listCount}
-        listMeta={
+        title={manufacturingSections[section].title}
+        description={manufacturingSections[section].description}
+        count={listSection ? listCount : null}
+        countLabel={
           section === "manufacturing-work-centers"
-            ? `· günlük kapasite ${activeWorkCenterCapacity.toLocaleString("tr-TR")} dk`
-            : mrpSection
-              ? `${boms.length.toLocaleString("tr-TR")} reçete · ${workCenters.length.toLocaleString("tr-TR")} iş merkezi · ${warehouses.length.toLocaleString("tr-TR")} depo`
-              : undefined
+            ? `kayıt · günlük kapasite ${activeWorkCenterCapacity.toLocaleString("tr-TR")} dk`
+            : undefined
         }
-        compactMode={mrpSection}
-        onShowHistory={mrpSection ? () => void loadMrpHistory() : undefined}
-        title={createOrderPage ? manufacturingSections["manufacturing-order-create"].title : manufacturingSections[section].title}
-        description={createOrderPage ? manufacturingSections["manufacturing-order-create"].description : manufacturingSections[section].description}
-        showRecipeScope={false}
-        showCreateRecipe={section === "manufacturing-recipes"}
-        showRecipeListBack={false}
-        showCreateWorkCenter={section === "manufacturing-work-centers"}
-        showWorkCenterListBack={false}
-        showCreateOrder={section === "manufacturing-orders" && !createOrderPage}
-        showOrderListBack={createOrderPage}
-        showOrderSave={createOrderPage}
-        canSaveOrder={boms.length > 0 && warehouses.length > 0}
-        busy={busy}
-        onCreateRecipe={() => {
-          resetBomForm();
-          setError("");
-          setNotice("");
-          onNavigate("manufacturing-recipe-create");
-        }}
-        onBackToRecipeList={() => {
-          resetBomForm();
-          onNavigate("manufacturing-recipes");
-        }}
-        onCreateWorkCenter={() => {
-          setError("");
-          setNotice("");
-          onNavigate("manufacturing-work-center-create");
-        }}
-        onBackToWorkCenterList={() => onNavigate("manufacturing-work-centers")}
-        onCreateOrder={() => onNavigate("manufacturing-order-create")}
-        onBackToOrderList={() => onNavigate("manufacturing-orders")}
-        onRefresh={() => void refresh()}
+        meta={
+          mrpSection ? (
+            <>
+              <span>{boms.length.toLocaleString("tr-TR")}</span> <span>reçete</span> ·{" "}
+              <span>{workCenters.length.toLocaleString("tr-TR")}</span> <span>iş merkezi</span> ·{" "}
+              <span>{warehouses.length.toLocaleString("tr-TR")}</span> <span>depo</span>
+            </>
+          ) : undefined
+        }
       />
-      {error && !trackingOrder && (
+      {error && !trackingOrder && !(section === "manufacturing-work-centers" && wcCreating) && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button onClick={() => setError("")}>×</button>
@@ -3100,7 +3780,7 @@ export default function ManufacturingPage({
             pagedBoms={pagedBoms}
             fields={recipeScreenFields}
             loading={loading}
-            busy={busy}
+            active={!busy}
             search={recipeSearch}
             setSearch={setRecipeSearch}
             status={recipeStatus}
@@ -3108,16 +3788,21 @@ export default function ManufacturingPage({
             onRefresh={refreshList}
             page={recipePage}
             setPage={setRecipePage}
-            pageCount={recipePageCount}
-            onResetForm={resetBomForm}
-            onNavigate={onNavigate}
-            onEdit={beginEditBom}
-            onChangeState={(bom) => void changeBomState(bom)}
-            onDelete={(bom) => void deleteBom(bom)}
+            currentId={currentRecipe?.id ?? null}
+            onCurrentChange={(id) => setSelectedRecipeId(id ?? "")}
+            onOpen={beginEditBom}
+            exportActionsRef={recipeGridExportRef}
           />
         )}
       </div>
       {section === "manufacturing-work-centers" && (
+        <DefinitionLayout
+          rootRef={workCenterDefRef}
+          className="work-center-def"
+          paneOpen={wcCreating || !!selectedWorkCenter}
+          paneLabel="İş merkezi kaydı"
+          list={
+            <>
         <ListToolbar
           search={workCenterSearch}
           onSearchChange={setWorkCenterSearch}
@@ -3141,9 +3826,6 @@ export default function ManufacturingPage({
             ]}
           />
         </ListToolbar>
-      )}
-      {section === "manufacturing-work-centers" && (
-        <div className="work-center-layout">
           <section
             className="work-center-card work-center-list-card"
             aria-label="Tanımlı iş merkezleri"
@@ -3166,26 +3848,41 @@ export default function ManufacturingPage({
                   hideSearch
                   enableRowSelection={false}
                   toolbarContainer={workCenterToolsSlot}
+                  hideExport
+                  exportActionsRef={workCenterGridExportRef}
+                  aria-label="İş merkezi kayıtları"
+                  selectable
+                  currentRowKey={calendarCenterId || null}
+                  onCurrentRowChange={(id) => {
+                    if (id) void openWorkCenter(id);
+                  }}
                 >
                   <thead>
                     <tr>
                       {visibleWorkCenterFields.map((field) => (
-                        <th key={field.key}>{field.label}</th>
+                        <th
+                          key={field.key}
+                          className={WORK_CENTER_NUMBER_FIELDS.has(field.key) ? "nx-num" : undefined}
+                        >
+                          {field.label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {visibleWorkCenters.map((center) => (
-                      <tr
-                        key={center.id}
-                        className={
-                          center.id === calendarCenterId ? "selected" : ""
-                        }
-                        aria-selected={center.id === calendarCenterId}
-                        onClick={() => changeCalendarCenter(center.id)}
-                      >
+                      <tr key={center.id} data-record-id={center.id} tabIndex={0}>
                         {visibleWorkCenterFields.map((field) => (
-                          <td key={field.key}>
+                          <td
+                            key={field.key}
+                            className={
+                              WORK_CENTER_NUMBER_FIELDS.has(field.key)
+                                ? "nx-num"
+                                : field.key === "code"
+                                  ? "nx-code"
+                                  : undefined
+                            }
+                          >
                             {renderWorkCenterCell(center, field.key)}
                           </td>
                         ))}
@@ -3196,6 +3893,41 @@ export default function ManufacturingPage({
               </div>
             )}
           </section>
+            </>
+          }
+          pane={
+            wcCreating ? (
+              <section id="mfg-wc-create" className="inv-rf-embedded mfg-wc-embedded">
+                <RecordFormPage
+                  variant="dialog"
+                  className="mfg-rf"
+                  title="İş Merkezi Tanımlama"
+                  mode="create"
+                  busy={busy}
+                  saveLabel="İş Merkezini Kaydet"
+                  onSubmit={(event) =>
+                    void createWorkCenter(event, (id) => {
+                      setWcCreating(false);
+                      setNotice("İş merkezi oluşturuldu.");
+                      void refresh().then(() => {
+                        if (id) changeCalendarCenter(id);
+                      });
+                    })
+                  }
+                  onCancel={() => void closeWorkCenterPane()}
+                  error={error}
+                  onDismissError={() => setError("")}
+                >
+                  {workCenterFormBody(
+                    "Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.",
+                  )}
+                </RecordFormPage>
+              </section>
+            ) : !selectedWorkCenter ? (
+              <DefinitionEmptyPane>
+                Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.
+              </DefinitionEmptyPane>
+            ) : (
           <aside
             className="work-center-card work-center-detail"
             aria-label="Seçili iş merkezi ayrıntısı"
@@ -3214,6 +3946,16 @@ export default function ManufacturingPage({
                       {selectedWorkCenter.code}
                     </small>
                   </div>
+                  {/* Below 1280px the record is a drawer over an inert list: this (or Esc) closes it. */}
+                  <button
+                    type="button"
+                    className="work-center-detail-close"
+                    aria-label="Detay panelini kapat"
+                    title="Detay panelini kapat"
+                    onClick={() => void closeWorkCenterPane()}
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
                 </div>
                 <div
                   className="list-v2-tabs"
@@ -4026,10 +4768,13 @@ export default function ManufacturingPage({
               </>
             )}
           </aside>
-        </div>
+            )
+          }
+        />
       )}
       {section === "manufacturing-orders" && !createOrderPage && (
         <div className="manufacturing-order-stack">
+          <ListSummaryCards cards={orderSummaryCards} />
           <ListToolbar
             search={orderSearchDraft}
             onSearchChange={setOrderSearchDraft}
@@ -4043,7 +4788,7 @@ export default function ManufacturingPage({
             toolsSlotRef={setOrderToolsSlot}
           >
             <ListChipGroup
-              label="Üretim emri durumu"
+              label="Durum"
               value={orderStatus}
               onChange={(value) => {
                 setOrderStatus(value);
@@ -4054,548 +4799,49 @@ export default function ManufacturingPage({
                 (value) => ({ value, label: statusLabel[value] }),
               )}
             />
+            <SalesListPanelToggle open={orderPanel.open} onToggle={orderPanel.toggle} />
           </ListToolbar>
-          <section
-            className="manufacturing-panel manufacturing-order-list list-v2-list"
-            aria-label="Üretim emirleri"
+          <div
+            ref={orderListBodyRef}
+            className={`sales-list-body${orderPanelNode ? " has-detail" : ""}`}
           >
-          {orders.length === 0 ? (
-            <div className="manufacturing-empty">
-              <Factory size={22} />
-              <b>{orderSearch || orderStatus ? "Filtreyle eşleşen üretim emri yok" : "Henüz üretim emri yok"}</b>
-              <span>
-                {orderSearch || orderStatus
-                  ? "Arama veya durum ölçütlerini değiştirip yeniden filtreleyin."
-                  : "Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz."}
-              </span>
-            </div>
-          ) : (
-            <div className="manufacturing-order-workbench">
-              <div className="manufacturing-table-wrap">
-                <AdvancedDataGrid
-                  gridId="manufacturing-orders"
-                  {...screenViewGridDefaults(visibleOrderFields)}
-                  externalPagination
-                  hideSearch
-                  enableRowSelection={false}
-                  toolbarContainer={orderToolsSlot}
-                >
-                  <thead>
-                    <ScreenViewGroupHeader fields={visibleOrderFields} />
-                    <tr>
-                      {visibleOrderFields.map((field) => (
-                        <th key={field.key}>{field.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageOrders.map((x) => {
-                      const orderCells = {
-                        code: (
-                          <>
-                            <button
-                              type="button"
-                              className="manufacturing-order-select"
-                              aria-pressed={selectedOrderId === x.id}
-                              onClick={() => setSelectedOrderId(x.id)}
-                            >
-                              {x.code}
-                            </button>
-                            {!orderPlanDateVisible && (
-                              <small className="manufacturing-order-cell-sub">
-                                {x.plannedDate}
-                              </small>
-                            )}
-                          </>
-                        ),
-                        plannedDate: <>{x.plannedDate}</>,
-                        productionSource: <>{x.sourceSalesOrderCode
-                          ? `${x.sourceSalesOrderCode} · satır ${x.sourceSalesOrderLineNumber}`
-                          : "Stoka üretim"}</>,
-                        billOfMaterialName: (() => {
-                          const bom = boms.find(
-                            (candidate) => candidate.id === x.billOfMaterialId,
-                          );
-                          const recipeTitle = bom
-                            ? `${bom.code} · ${bom.productName}`
-                            : x.billOfMaterialName;
-                          const totalOperations = x.operations.length;
-                          const completedOperations = x.operations.filter(
-                            (operation) => operation.status === "Completed",
-                          ).length;
-                          const totalMinutes = x.operations.reduce(
-                            (sum, operation) => sum + operationMinutes(operation),
-                            0,
-                          );
-                          return (
-                            <>
-                              <span
-                                className="manufacturing-order-recipe-name"
-                                title={x.billOfMaterialName}
-                              >
-                                {recipeTitle}
-                              </span>
-                              {totalOperations > 0 ? (
-                                <span className="manufacturing-order-progress">
-                                  <span
-                                    className="manufacturing-order-progress-bar"
-                                    aria-hidden="true"
-                                  >
-                                    <span
-                                      className={
-                                        completedOperations === totalOperations
-                                          ? "is-done"
-                                          : ""
-                                      }
-                                      style={{
-                                        width: `${Math.round((completedOperations / totalOperations) * 100)}%`,
-                                      }}
-                                    />
-                                  </span>
-                                  <small>{`${completedOperations}/${totalOperations} operasyon · ${decimalText(totalMinutes)} dk`}</small>
-                                </span>
-                              ) : (
-                                <small className="manufacturing-order-cell-sub">
-                                  Operasyon rotası tanımlı değil.
-                                </small>
-                              )}
-                            </>
-                          );
-                        })(),
-                        warehouseName: <>{x.warehouseName}</>,
-                        plannedQuantity: (
-                          <>{x.plannedQuantity.toLocaleString("tr-TR")}</>
-                        ),
-                        components: x.lines.length ? (
-                          <>
-                            <span
-                              className="manufacturing-order-cell-main"
-                              title={x.lines
-                                .map(
-                                  (line) =>
-                                    `${line.componentCode} · ${line.componentName}`,
-                                )
-                                .join("\n")}
-                            >
-                              {x.lines.map((line) => line.componentCode).join(", ")}
-                            </span>
-                            <small className="manufacturing-order-cell-sub">
-                              {`Planlanan malzeme: ${decimalText(
-                                x.lines.reduce(
-                                  (sum, line) => sum + line.plannedCostBase,
-                                  0,
-                                ),
-                                4,
-                              )} baz para`}
-                            </small>
-                          </>
-                        ) : (
-                          <>—</>
-                        ),
-                        status: (
-                          <>
-                            <span
-                              className={`manufacturing-status manufacturing-${x.status.toLowerCase()}`}
-                            >
-                              {statusLabel[x.status] || x.status}
-                            </span>
-                          </>
-                        ),
-                      };
-                      return (
-                        <tr
-                          key={x.id}
-                          className={selectedOrderId === x.id ? "selected" : ""}
-                          onClick={() => setSelectedOrderId(x.id)}
-                        >
-                          {visibleOrderFields.map((field) => (
-                            <td key={field.key}>
-                              {orderCells[field.key as keyof typeof orderCells]}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </AdvancedDataGrid>
-              </div>
-              <aside
-                className="manufacturing-order-inspector"
-                aria-label="Seçili üretim emri ayrıntısı"
-              >
-                {selectedOrder ? (
-                  <>
-                    <div className="list-v2-detail-head manufacturing-inspector-head">
-                      <div>
-                        <span className="list-v2-kind">Üretim emri</span>
-                        <h2>{selectedOrder.code}</h2>
-                      </div>
-                      <span
-                        className={
-                          "manufacturing-status manufacturing-" +
-                          selectedOrder.status.toLowerCase()
-                        }
-                      >
-                        {statusLabel[selectedOrder.status] ||
-                          selectedOrder.status}
-                      </span>
-                    </div>
-                    {/* Next workflow step of the order; cancelling is in the footer. */}
-                    {orderDetailHasStep && (
-                    <div className="list-v2-quick">
-                      <div>
-                      {selectedOrder.status === "Planned" &&
-                        selectedOrder.operations.length > 0 &&
-                        selectedOrder.operations.some(
-                          (operation) => !operation.scheduledStartDate,
-                        ) && (
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => void scheduleOrder(selectedOrder)}
-                          >
-                            Kapasiteye çizelgele
-                          </button>
-                        )}
-                      {selectedOrder.status === "Planned" &&
-                        (selectedOrder.operations.length === 0 ||
-                          selectedOrder.operations.every(
-                            (operation) => !!operation.scheduledStartDate,
-                          )) && (
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={busy}
-                            onClick={() =>
-                              void transition(selectedOrder, "release")
-                            }
-                          >
-                            Serbest bırak
-                          </button>
-                        )}
-                      {selectedOrder.status === "Released" &&
-                        selectedOrder.operations.every(
-                          (operation) => operation.status === "Completed",
-                        ) && (
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => completeOrder(selectedOrder)}
-                          >
-                            Üretimi tamamla
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    )}
-                    {(() => {
-                      const orderBomRecord = boms.find(
-                        (bom) => bom.id === selectedOrder.billOfMaterialId,
-                      );
-                      const orderUnitCode = orderBomRecord
-                        ? items.find(
-                            (item) =>
-                              item.id === orderBomRecord.productStockItemId,
-                          )?.unitCode ?? ""
-                        : "";
-                      const [year, month, day] =
-                        selectedOrder.plannedDate.split("-");
-                      const planDateText =
-                        year && month && day
-                          ? `${day.slice(0, 2)}.${month}.${year}`
-                          : selectedOrder.plannedDate;
-                      return (
-                        <div className="manufacturing-inspector-summary">
-                          <span>
-                            {`${selectedOrder.plannedQuantity.toLocaleString("tr-TR")}${orderUnitCode ? ` ${orderUnitCode}` : ""} · ${planDateText} · ${selectedOrder.warehouseName}`}
-                          </span>
-                          <span
-                            className="is-ellipsis"
-                            title={selectedOrder.billOfMaterialName}
-                          >
-                            {/* The API name is already "code · name"; prefix the code only when it isn't there. */}
-                            {orderBomRecord &&
-                            !selectedOrder.billOfMaterialName.startsWith(orderBomRecord.code)
-                              ? `${orderBomRecord.code} · ${selectedOrder.billOfMaterialName}`
-                              : selectedOrder.billOfMaterialName}
-                          </span>
-                          {selectedOrder.sourceSalesOrderCode && (
-                            <span>
-                              {`Siparişe özel · ${selectedOrder.sourceSalesOrderCode} / satır ${selectedOrder.sourceSalesOrderLineNumber}`}
-                            </span>
-                          )}
-                          {selectedOrder.actualGoodQuantity !== null && (
-                            <span>
-                              {`İyi ürün ${selectedOrder.actualGoodQuantity.toLocaleString("tr-TR")} · fire ${selectedOrder.scrapQuantity?.toLocaleString("tr-TR") ?? "0"}${selectedOrder.scrapReason ? ` · ${selectedOrder.scrapReason}` : ""}`}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div className="manufacturing-inspector-section">
-                      <h3>Operasyonlar</h3>
-                      {selectedOrder.operations.length ? (
-                        <ul className="manufacturing-op-rows">
-                          {selectedOrder.operations.map((op) => {
-                            const isCompleted = op.status === "Completed";
-                            const windowText = op.scheduledStartDate
-                              ? `${op.scheduledStartDate} ${secondTime(op.scheduledStartSecondOfDay ?? (op.scheduledStartMinuteOfDay ?? 0) * 60)}–${op.scheduledEndDate} ${secondTime(op.scheduledEndSecondOfDay ?? (op.scheduledEndMinuteOfDay ?? 0) * 60)}`
-                              : "";
-                            const meta = (
-                              isCompleted
-                                ? [
-                                    `${decimalText(op.actualEnergyQuantityKwh ?? 0, 3)} kWh enerji`,
-                                    `fiili ${decimalText(op.actualCostBase ?? 0)} baz para`,
-                                    op.performedByEmployeeName
-                                      ? `Operatör: ${op.performedByEmployeeName}`
-                                      : "",
-                                  ]
-                                : [
-                                    `${decimalText(op.plannedEnergyQuantityKwh, 3)} kWh enerji`,
-                                    `plan ${decimalText(op.plannedCostBase)} baz para`,
-                                    windowText,
-                                    ...(op.capacityDays.length > 1
-                                      ? op.capacityDays.map(
-                                          (slot) =>
-                                            `${slot.date} ${secondTime(slot.startSecondOfDay ?? slot.startMinuteOfDay * 60)}–${secondTime(slot.endSecondOfDay ?? slot.endMinuteOfDay * 60)} (${slot.minutes} dk)`,
-                                        )
-                                      : []),
-                                  ]
-                            )
-                              .filter(Boolean)
-                              .join("\n");
-                            return (
-                              <li
-                                key={op.id}
-                                className={`manufacturing-op-row is-${op.status.toLowerCase()}`}
-                              >
-                                <div className="manufacturing-op-row-main" title={meta}>
-                                  <span className="manufacturing-op-row-name">
-                                    <i aria-hidden="true" />
-                                    <span>{`${op.sequence} · ${op.workCenterCode}`}</span>
-                                    <small>
-                                      {operationStatusLabel[op.status] || op.status}
-                                    </small>
-                                  </span>
-                                  <b>{`${decimalText(operationMinutes(op))} dk`}</b>
-                                  {selectedOrder.status === "Released" &&
-                                    op.status === "Planned" && (
-                                      <button
-                                        type="button"
-                                        className="secondary small-button"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void startOperation(selectedOrder, op)
-                                        }
-                                      >
-                                        Operasyonu başlat
-                                      </button>
-                                    )}
-                                  {selectedOrder.status === "Released" &&
-                                    op.status === "InProgress" && (
-                                      <button
-                                        type="button"
-                                        className="primary small-button"
-                                        aria-expanded={completingOperationId === op.id}
-                                        disabled={busy}
-                                        onClick={() =>
-                                          setCompletingOperationId((id) =>
-                                            id === op.id ? "" : op.id,
-                                          )
-                                        }
-                                      >
-                                        Operasyonu tamamla
-                                      </button>
-                                    )}
-                                </div>
-                                {selectedOrder.status === "Released" &&
-                                  op.status === "InProgress" && completingOperationId === op.id && (
-                                    <div className="actual-time-entry">
-                                      <label>
-                                        Kurulum dk
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={
-                                            actualTimes[op.id]?.setup ??
-                                            String(op.setupMinutes)
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "setup", e.target.value)
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Çalışma dk
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={
-                                            actualTimes[op.id]?.run ??
-                                            String(op.runMinutes)
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "run", e.target.value)
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Enerji kWh
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.001"
-                                          value={
-                                            actualTimes[op.id]?.energyKwh ?? "0"
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "energyKwh", e.target.value)
-                                          }
-                                        />
-                                      </label>
-                                      <label>
-                                        Baz para / kWh
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          step="0.000001"
-                                          value={
-                                            actualTimes[op.id]?.energyRate ?? "0"
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "energyRate", e.target.value)
-                                          }
-                                        />
-                                      </label>
-                                      <label className="is-wide">
-                                        Operatör
-                                        <select
-                                          value={
-                                            actualTimes[op.id]?.employeeId ??
-                                            (employees.length === 1 ? employees[0].id : "")
-                                          }
-                                          onChange={(e) =>
-                                            updateActual(op, "employeeId", e.target.value)
-                                          }
-                                          required
-                                        >
-                                          <option value="">Personel seçin</option>
-                                          {employees.map((employee) => (
-                                            <option key={employee.id} value={employee.id}>
-                                              {employee.personnelCode} · {employee.fullName}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                      <button
-                                        type="button"
-                                        className="primary small-button"
-                                        disabled={busy || employees.length === 0}
-                                        onClick={() =>
-                                          void completeOperation(selectedOrder, op)
-                                        }
-                                      >
-                                        Fiili kayıtları kaydet
-                                      </button>
-                                    </div>
-                                  )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <small>Operasyon rotası tanımlı değil.</small>
-                      )}
-                    </div>
-                    <div className="manufacturing-inspector-section">
-                      <h3>Bileşenler</h3>
-                      {selectedOrder.lines.length ? (
-                        <ul className="manufacturing-component-rows">
-                          {selectedOrder.lines.map((line) => (
-                            <li
-                              key={line.componentStockItemId}
-                              title={`${decimalText(line.requiredQuantity, 4)} × ${decimalText(line.standardUnitCostBaseSnapshot, 4)} = ${decimalText(line.plannedCostBase, 4)} baz para`}
-                            >
-                              <span>
-                                {line.componentCode} · {line.componentName}
-                              </span>
-                              <b>
-                                {line.requiredQuantity.toLocaleString("tr-TR")}
-                              </b>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <small>Bu emirde bileşen satırı yok.</small>
-                      )}
-                      {selectedOrder.lines.length > 0 && (
-                        <small className="manufacturing-component-total">
-                          {`Planlanan malzeme: ${decimalText(
-                            selectedOrder.lines.reduce(
-                              (sum, line) => sum + line.plannedCostBase,
-                              0,
-                            ),
-                            4,
-                          )} baz para`}
-                        </small>
-                      )}
-                    </div>
-                    {["Planned", "Released"].includes(selectedOrder.status) && (
-                      <div className="list-v2-detail-foot">
-                        <button
-                          type="button"
-                          className="is-danger"
-                          disabled={busy}
-                          onClick={() => void transition(selectedOrder, "cancel")}
-                        >
-                          İptal et
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="manufacturing-empty">
-                    Bir üretim emri seçin.
-                  </div>
-                )}
-              </aside>
-            </div>
-          )}
-          {ordersTotalCount > orderPageSize && (
-            <div className="table-pagination manufacturing-order-pagination">
-              <span>
-                Sayfa {orderPage} / {orderPageCount} ·{" "}
-                {(orderPage - 1) * orderPageSize + 1}–
-                {Math.min(orderPage * orderPageSize, ordersTotalCount)} /{" "}
-                {ordersTotalCount} emir
-              </span>
-              <div>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={orderPage <= 1}
-                  onClick={() => setOrderPage((page) => Math.max(1, page - 1))}
-                >
-                  Önceki
-                </button>
-                <button
-                  type="button"
-                  className="secondary small-button"
-                  disabled={orderPage >= orderPageCount}
-                  onClick={() =>
-                    setOrderPage((page) => Math.min(orderPageCount, page + 1))
-                  }
-                >
-                  Sonraki
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
+            <section
+              className="manufacturing-order-list list-v2-list"
+              aria-label="Üretim emirleri"
+            >
+              <SalesDocumentGrid
+                gridId="manufacturing-orders"
+                ariaLabel="Üretim emri kayıtları"
+                hideExport
+                exportActionsRef={orderGridExportRef}
+                fields={visibleOrderFields}
+                items={pageOrders}
+                loading={loading && orders.length === 0}
+                loadingMessage="Üretim emirleri yükleniyor…"
+                emptyMessage={orderStatus ? "Filtreyle eşleşen üretim emri yok" : "Henüz üretim emri yok. Bir reçete oluşturduktan sonra ilk emri planlayabilirsiniz."}
+                search={orderSearch}
+                searchEmptyMessage="Filtreyle eşleşen üretim emri yok"
+                toolbarContainer={orderToolsSlot}
+                renderCell={(field, order) => renderOrderCell(field.key, order)}
+                selection={orderGridSelection}
+                footer={
+                  <SalesListFooter
+                    ticked={orderTicked.length}
+                    shown={pageOrders.length}
+                    total={ordersTotalCount}
+                    page={orderPage}
+                    pageSize={orderPageSize}
+                    loading={loading}
+                    onPageChange={setOrderPage}
+                  />
+                }
+                columnWidths={ORDER_LIST_WIDTHS}
+                numberFields={ORDER_NUMBER_FIELDS}
+                codeFields={ORDER_CODE_FIELDS}
+              />
+            </section>
+            {orderPanelNode}
+          </div>
         </div>
       )}
       {section === "manufacturing-mrp" && (

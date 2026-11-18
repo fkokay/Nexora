@@ -2,8 +2,10 @@ import { Link2 } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import { DetailLinesHead } from "../../document-detail/DocumentDetailLayout";
 import type { OrderDetail, Note, ScreenField } from "../types";
 
+/** The chosen order's delivery notes with link / unlink of a receipt (buttons, not submits of the note form). */
 export function OrderDeliveryNotesPanel({
   detail,
   notes,
@@ -24,19 +26,14 @@ export function OrderDeliveryNotesPanel({
   onUnlink: (note: Note) => void;
 }) {
   return (
-    <section className="panel purchase-note-related-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">SEÇİLİ SİPARİŞ</p>
-          <b>Bu siparişin irsaliyeleri</b>
-          <small>Mutabık olan belgeler bağlı mal kabul kodunu gösterir.</small>
-        </div>
-      </div>
-      <div className="ledger-list">
+    <div className="dd-box purchase-note-related">
+      <DetailLinesHead title="Bu siparişin irsaliyeleri" meta="Mutabık olan belgeler bağlı mal kabul kodunu gösterir." />
+      <div className="dd-grid">
         <AdvancedDataGrid
           className="customer-table"
           gridId="purchase-order-delivery-notes"
           {...screenViewGridDefaults(fields)}
+          enableRowSelection={false}
         >
           <thead>
             <ScreenViewGroupHeader fields={fields} />
@@ -61,6 +58,7 @@ export function OrderDeliveryNotesPanel({
                       note.purchaseReceiptCode || "Bekliyor"
                     ) : note.purchaseReceiptId ? (
                       <button
+                        type="button"
                         className="row-action danger-action"
                         disabled={busy}
                         onClick={() => onUnlink(note)}
@@ -93,6 +91,7 @@ export function OrderDeliveryNotesPanel({
                             ))}
                         </select>
                         <button
+                          type="button"
                           className="row-action"
                           disabled={busy || !receiptId}
                           onClick={() => onLink(note)}
@@ -115,6 +114,6 @@ export function OrderDeliveryNotesPanel({
           </tbody>
         </AdvancedDataGrid>
       </div>
-    </section>
+    </div>
   );
 }

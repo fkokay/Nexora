@@ -44,7 +44,7 @@
   .table-wrap, .table-responsive, .customer-table-wrap, .customer-ledger-table-panel,
   .contracts-table-wrap, .crm-table-wrap, .credit-table-wrap, .hr-table-wrap,
   .manufacturing-table-wrap, .payment-instrument-table-wrap, .report-table-wrap,
-  .pie-table-wrap, .sid-table-wrap, .module-ui-table-wrap,
+  .module-ui-table-wrap,
   .sales-distribution-table-wrap, .cash-forecast-table-wrap,
   .integration-queue-table-wrap, .advanced-grid-container
 ) {

@@ -7,8 +7,11 @@ stiller `src/list-page/list-page-v2.css` içinde `nx-def-*`). Kuralların tamam�
 ("2 · Tanım ekranı", "2b · Sil onayı").
 
 Örnek uygulamalar: Depolar (`src/inventory/useWarehouseDefinitionScreen.tsx`, `inventory/components/WarehouseDefinition*.tsx`)
-ve Raf ve Konumlar (`src/WarehouseLocationsPage.tsx`, `warehouse-locations/components/`). Testler:
-`src/list-page/definitionLayout.test.tsx`, `src/inventory/definitionScreens.test.tsx`.
+ve Raf ve Konumlar (`src/WarehouseLocationsPage.tsx`, `warehouse-locations/components/`); Satış'ta Kampanyalar
+(`src/sales-promotions/useCampaignDefinitionScreen.tsx`, `sales-promotions/components/CampaignDefinition*.tsx`: satır
+sürümü yok, form kampanyanın etkin bayrağını korur; firma kullanıcısı formu salt okunur görür ama teklife uygulayabilir).
+Testler: `src/list-page/definitionLayout.test.tsx`, `src/inventory/definitionScreens.test.tsx`,
+`src/sales-promotions/campaignDefinition.test.tsx`.
 
 Sonraki modüller için hangi düzen:
 

@@ -1,32 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BadgePercent, CalendarClock, FileCheck2, Wallet } from "lucide-react";
 import type { GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { csvExportCommand } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { authenticatedFetch } from "./authApi";
-import { addLocalCalendarDays, localDateString } from "./dateUtils";
-import type { FormEvent } from "react";
+import { localDateString } from "./dateUtils";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
-import "./finance-hub.css";
-import "./credit-facilities.css";
 import "./sales-promotions.css";
 import "./sales/sales-list-v2.css";
 import CampaignPerformanceSection from "./sales-promotions/components/CampaignPerformanceSection";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
 import {
-  CampaignRegister,
   ENDING_SOON_DAYS,
   campaignState,
   campaignStateLabel,
   daysBetween,
-  type CampaignState,
-  type CampaignTab,
-} from "./sales-promotions/components/CampaignRegister";
+} from "./sales-promotions/campaignState";
+import { useCampaignDefinitionScreen } from "./sales-promotions/useCampaignDefinitionScreen";
+import type { CampaignDraft } from "./sales-promotions/components/CampaignDefinitionForm";
 import { formatAmount } from "./document-detail/DocumentDetailLayout";
-import CampaignDialog from "./sales-promotions/components/CampaignDialog";
 import type {
   Campaign,
+  CampaignScreenField,
   PerformancePage,
   PerformanceScreenField,
   Quote,
@@ -61,9 +59,25 @@ const defaultPerformanceScreenFields: PerformanceScreenField[] = [
     position: 5,
   },
 ];
-const performanceScreenKeys = new Set(
-  defaultPerformanceScreenFields.map((field) => field.key),
-);
+// The tenant's "sales-promotions" screen view (Ekran görünümleri) lays out the campaign list.
+const defaultCampaignScreenFields: CampaignScreenField[] = [
+  { key: "code", label: "Kampanya kodu", visible: true, position: 0 },
+  { key: "name", label: "Kampanya adı", visible: true, position: 1 },
+  { key: "discountPercent", label: "İndirim (%)", visible: true, position: 2 },
+  { key: "effectiveFrom", label: "Başlangıç", visible: true, position: 3 },
+  { key: "effectiveThrough", label: "Bitiş", visible: true, position: 4 },
+  { key: "status", label: "Durum", visible: true, position: 5 },
+  { key: "applicationCount", label: "Uygulama", visible: true, position: 6 },
+];
+/** Today's fields with the tenant's visibility, order, width and pin (unknown keys are ignored). */
+function mergeScreenFields<T extends { key: string; position: number }>(defaults: T[], saved: unknown): T[] {
+  if (!Array.isArray(saved)) return defaults;
+  const keys = new Set(defaults.map((field) => field.key));
+  const allowed = (saved as T[]).filter((field) => keys.has(field.key));
+  return defaults
+    .map((fallback) => ({ ...fallback, ...(allowed.find((field) => field.key === fallback.key) ?? {}) }))
+    .sort((a, b) => a.position - b.position);
+}
 type QuotePage = {
   items: Quote[];
   page: number;
@@ -99,29 +113,24 @@ async function request<T>(
 }
 
 export default function SalesPromotionsPage({ token, role, onBack }: Props) {
+  const admin = role === "TenantAdmin";
   const [campaigns, setCampaigns] = useState<Campaign[]>([]),
     [quotes, setQuotes] = useState<Quote[]>([]);
-  const [code, setCode] = useState(""),
-    [name, setName] = useState(""),
-    [percent, setPercent] = useState("10"),
-    [from, setFrom] = useState(localDateString()),
-    [through, setThrough] = useState(addLocalCalendarDays(30));
-  const [campaignId, setCampaignId] = useState(""),
-    [quoteId, setQuoteId] = useState(""),
-    [busy, setBusy] = useState(false),
+  const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    // Save / apply errors of the open campaign form; list, quote and report loading errors stay at page level.
+    [formError, setFormError] = useState(""),
     [notice, setNotice] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const reportExportRef = useRef<GridExportActions | null>(null);
-  const [campaignTab, setCampaignTab] = useState<CampaignTab>("summary");
-  const [stateFilter, setStateFilter] = useState<CampaignState | "">("");
+  const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const [overview, setOverview] = useState<PerformancePage | null>(null);
   const [performanceScreenFields, setPerformanceScreenFields] = useState(
     defaultPerformanceScreenFields,
   );
-  const [campaignQuery, setCampaignQuery] = useState("");
+  const [campaignScreenFields, setCampaignScreenFields] = useState(
+    defaultCampaignScreenFields,
+  );
   const [performance, setPerformance] = useState<PerformancePage | null>(null),
     [reportQuery, setReportQuery] = useState(""),
     [reportFrom, setReportFrom] = useState(""),
@@ -168,21 +177,22 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       token,
     )
       .then((view) => {
-        if (!current || !Array.isArray(view.fields)) return;
-        const allowed = view.fields.filter((field) =>
-          performanceScreenKeys.has(field.key),
-        );
-        setPerformanceScreenFields(
-          defaultPerformanceScreenFields
-            .map((fallback) => ({
-              ...fallback,
-              ...(allowed.find((field) => field.key === fallback.key) ?? {}),
-            }))
-            .sort((a, b) => a.position - b.position),
-        );
+        if (current && Array.isArray(view.fields))
+          setPerformanceScreenFields(mergeScreenFields(defaultPerformanceScreenFields, view.fields));
       })
       .catch(() => {
         if (current) setPerformanceScreenFields(defaultPerformanceScreenFields);
+      });
+    void request<{ fields?: CampaignScreenField[] }>(
+      "/api/screen-views/sales-promotions/active",
+      token,
+    )
+      .then((view) => {
+        if (current && Array.isArray(view.fields))
+          setCampaignScreenFields(mergeScreenFields(defaultCampaignScreenFields, view.fields));
+      })
+      .catch(() => {
+        if (current) setCampaignScreenFields(defaultCampaignScreenFields);
       });
     return () => {
       current = false;
@@ -201,67 +211,45 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setError((e as Error).message);
     }
   }
-  function openCreate() {
-    setEditingCampaign(null);
-    setCode("");
-    setName("");
-    setPercent("10");
-    setFrom(localDateString());
-    setThrough(addLocalCalendarDays(30));
-    setError("");
-    setCreateOpen(true);
-  }
-  function openEdit(campaign: Campaign) {
-    setEditingCampaign(campaign);
-    setCode(campaign.code);
-    setName(campaign.name);
-    setPercent(String(campaign.discountPercent));
-    setFrom(campaign.effectiveFrom);
-    setThrough(campaign.effectiveThrough);
-    setError("");
-    setCreateOpen(true);
-  }
-  async function saveCampaign(e: FormEvent): Promise<boolean> {
-    e.preventDefault();
+  async function saveCampaign(draft: CampaignDraft, editing: Campaign | null): Promise<Campaign | null> {
     setBusy(true);
-    setError("");
+    setFormError("");
     setNotice("");
     try {
       const body = JSON.stringify({
-        code,
-        name,
-        discountPercent: Number(percent),
-        effectiveFrom: from,
-        effectiveThrough: through,
-        isActive: editingCampaign?.isActive ?? true,
+        code: draft.code,
+        name: draft.name,
+        discountPercent: Number(draft.percent),
+        effectiveFrom: draft.from,
+        effectiveThrough: draft.through,
+        isActive: editing?.isActive ?? true,
       });
       const row = await request<Campaign>(
-        editingCampaign
-          ? `/api/sales/promotions/${editingCampaign.id}`
+        editing
+          ? `/api/sales/promotions/${editing.id}`
           : "/api/sales/promotions/",
         token,
-        { method: editingCampaign ? "PUT" : "POST", body },
+        { method: editing ? "PUT" : "POST", body },
       );
       setCampaigns((current) =>
-        editingCampaign
+        editing
           ? current.map((item) => (item.id === row.id ? row : item))
           : [row, ...current],
       );
-      setCampaignId(row.id);
       setNotice(
-        editingCampaign
+        editing
           ? "Kampanya güncellendi."
           : "Kampanya oluşturuldu. Teklif tarihinin kampanya aralığında olması gerekir.",
       );
-      return true;
+      return row;
     } catch (e) {
-      setError((e as Error).message);
-      return false;
+      setFormError((e as Error).message);
+      return null;
     } finally {
       setBusy(false);
     }
   }
-  async function toggleCampaignStatus(campaign: Campaign) {
+  async function setCampaignStatus(campaign: Campaign, isActive: boolean): Promise<Campaign | null> {
     setBusy(true);
     setError("");
     setNotice("");
@@ -277,7 +265,7 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
             discountPercent: campaign.discountPercent,
             effectiveFrom: campaign.effectiveFrom,
             effectiveThrough: campaign.effectiveThrough,
-            isActive: !campaign.isActive,
+            isActive,
           }),
         },
       );
@@ -289,16 +277,17 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
           ? "Kampanya yeniden etkinleştirildi."
           : "Kampanya pasifleştirildi.",
       );
+      return row;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     } finally {
       setBusy(false);
     }
   }
-  async function apply(e: FormEvent, campaignId: string) {
-    e.preventDefault();
+  async function apply(campaignId: string, quoteId: string): Promise<boolean> {
     setBusy(true);
-    setError("");
+    setFormError("");
     setNotice("");
     try {
       const result = await request<{
@@ -311,30 +300,44 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setNotice(
         `Kampanya uygulandı. Ek indirim: ${result.discountAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} · Yeni toplam: ${result.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`,
       );
-      setQuoteId("");
+    } catch (e) {
+      setFormError((e as Error).message);
+      setBusy(false);
+      return false;
+    }
+    // The applied quote leaves the draft list: reload (a failure here is a page-level loading error).
+    try {
       await load();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
+    return true;
   }
   const today = localDateString();
-  const normalizedQuery = campaignQuery.trim().toLocaleLowerCase("tr-TR");
-  const visibleCampaigns = campaigns.filter(
-    (item) =>
-      (!stateFilter || campaignState(item, today) === stateFilter) &&
-      `${item.code} ${item.name}`
-        .toLocaleLowerCase("tr-TR")
-        .includes(normalizedQuery),
-  );
-  const selectedCampaign =
-    visibleCampaigns.find((item) => item.id === campaignId) ??
-    visibleCampaigns[0] ??
-    null;
   const performanceById = new Map(
     (overview?.items ?? []).map((item) => [item.campaignId, item]),
   );
+  const definition = useCampaignDefinitionScreen({
+    active: !reportOpen,
+    admin,
+    campaigns,
+    quotes,
+    performanceById,
+    fields: campaignScreenFields.filter((field) => field.visible),
+    busy,
+    error: formError,
+    setError: setFormError,
+    save: saveCampaign,
+    exportRows: (rows) => void exportCampaigns(rows),
+    setStatus: setCampaignStatus,
+    apply,
+    toolsSlot: listToolsSlot,
+    toolsSlotRef: setListToolsSlot,
+    onRefresh: () => void refreshAll(),
+  });
+  const visibleCampaigns = definition.visible;
   const current = campaigns.filter(
     (item) => campaignState(item, today) === "current",
   );
@@ -356,12 +359,12 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
         total.currencyCode,
         (discountByCurrency.get(total.currencyCode) ?? 0) + total.amount,
       );
-  async function exportCampaigns() {
+  async function exportCampaigns(items: Campaign[]) {
     try {
       const XLSX = await import("xlsx");
       const rows = [
         ["Kod", "Kampanya", "İndirim %", "Başlangıç", "Bitiş", "Durum", "Uygulama"],
-        ...visibleCampaigns.map((item) => [
+        ...items.map((item) => [
           item.code,
           item.name,
           item.discountPercent,
@@ -378,31 +381,42 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
       setError("XLSX dosyası oluşturulamadı.");
     }
   }
-  // Action bar. In the campaign list the page exports its own XLSX; in the performance report the report grid's
-  // Excel export (grid fallback) and its ListToolbar's refresh/filter apply.
+  // Action bar. In the campaign list: Yeni / Aç / Sil of the definition screen (the open form registers Kaydet),
+  // the page's own XLSX export and refresh; in the performance report the report grid's Excel export (grid fallback)
+  // and its ListToolbar's refresh/filter apply. Yeni in the report returns to the list with an empty form.
   const commands: PageCommands = {};
-  if (role === "TenantAdmin" && !createOpen) commands.new = { primary: true, run: openCreate };
-  const more: MenuCommand[] = [
-    {
-      id: "campaign-report",
-      label: reportOpen ? "Kampanya listesi" : "Performans raporu",
-      run: () => setReportOpen((open) => !open),
-    },
-  ];
+  const more: MenuCommand[] = [];
+  if (reportOpen) {
+    const create = definition.commands.new;
+    if (create)
+      commands.new = {
+        ...create,
+        run: () => {
+          setReportOpen(false);
+          void definition.startCreate();
+        },
+      };
+  } else {
+    Object.assign(commands, definition.commands);
+    more.push(...definition.moreItems);
+  }
+  more.push({
+    id: "campaign-report",
+    label: reportOpen ? "Kampanya listesi" : "Performans raporu",
+    run: () => setReportOpen((open) => !open),
+  });
   if (reportOpen) {
     more.push(csvExportCommand(reportExportRef));
   } else {
-    if (role === "TenantAdmin" && selectedCampaign && !createOpen)
-      commands.open = { disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => openEdit(selectedCampaign) };
     commands.refresh = { run: () => void refreshAll() };
     commands.export = {
       disabledReason: visibleCampaigns.length === 0 ? "Dışa aktarılacak kampanya yok." : undefined,
-      run: () => exportCampaigns(),
+      run: () => exportCampaigns(visibleCampaigns),
     };
   }
   commands.more = more;
   return (
-    <main className="sales-promotions-page list-v2 fh-page cf-page">
+    <main className="sales-promotions-page list-v2">
       <PageCommandsSlot commands={commands} />
       <ListPageHeader
         title="Kampanyalar ve promosyonlar"
@@ -461,101 +475,41 @@ export default function SalesPromotionsPage({ token, role, onBack }: Props) {
         />
       ) : (
         <>
-          <section className="fh-tiles" aria-label="Kampanya özeti">
-            <div className="fh-tile">
-              <span className="fh-tile-label">Etkin kampanya</span>
-              <span className="fh-tile-value">{current.length}</span>
-              <span className="fh-tile-hint">bugün geçerli</span>
-            </div>
-            <div className={`fh-tile${endingSoon.length ? " is-warning" : ""}`}>
-              <span className="fh-tile-label">{`${ENDING_SOON_DAYS} gün içinde bitiyor`}</span>
-              <span className="fh-tile-value">{endingSoon.length}</span>
-              <span className="fh-tile-hint">
-                {endingSoon.length
-                  ? endingSoon.map((item) => item.code).join(", ")
-                  : "Yakında biten kampanya yok"}
-              </span>
-            </div>
-            <div className="fh-tile">
-              <span className="fh-tile-label">Uygulanan teklif</span>
-              <span className="fh-tile-value">{appliedQuotes.toLocaleString("tr-TR")}</span>
-              <span className="fh-tile-hint">{`${linkedOrders.toLocaleString("tr-TR")} siparişe dönüştü`}</span>
-            </div>
-            <div className="fh-tile">
-              <span className="fh-tile-label">Verilen indirim</span>
-              <span className={`fh-tile-value${discountByCurrency.size ? "" : " is-muted-value"}`}>
-                {discountByCurrency.size
-                  ? [...discountByCurrency.entries()].map(([code, amount]) => (
-                      <span key={code}>{formatAmount(amount, code)}</span>
-                    ))
-                  : "—"}
-              </span>
-              <span className="fh-tile-hint">Tüm kampanyalar</span>
-            </div>
+          <section aria-label="Kampanya özeti">
+            <ListSummaryCards
+              cards={[
+                { id: "current", label: "Etkin kampanya", value: current.length, icon: BadgePercent, tone: "ok", hint: "bugün geçerli" },
+                {
+                  id: "ending",
+                  label: `${ENDING_SOON_DAYS} gün içinde bitiyor`,
+                  value: endingSoon.length,
+                  icon: CalendarClock,
+                  tone: endingSoon.length ? "warn" : "primary",
+                  hint: endingSoon.length ? endingSoon.map((item) => item.code).join(", ") : "Yakında biten kampanya yok",
+                },
+                {
+                  id: "applied",
+                  label: "Uygulanan teklif",
+                  value: appliedQuotes.toLocaleString("tr-TR"),
+                  icon: FileCheck2,
+                  hint: `${linkedOrders.toLocaleString("tr-TR")} siparişe dönüştü`,
+                },
+                {
+                  id: "discount",
+                  label: "Verilen indirim",
+                  value: discountByCurrency.size
+                    ? [...discountByCurrency.entries()].map(([code, amount]) => (
+                        <span key={code}>{formatAmount(amount, code)}</span>
+                      ))
+                    : "—",
+                  icon: Wallet,
+                  hint: "Tüm kampanyalar",
+                },
+              ]}
+            />
           </section>
-          <CampaignRegister
-            campaigns={campaigns}
-            visibleCampaigns={visibleCampaigns}
-            selected={selectedCampaign}
-            performanceById={performanceById}
-            quotes={quotes}
-            today={today}
-            tab={campaignTab}
-            search={campaignQuery}
-            stateFilter={stateFilter}
-            admin={role === "TenantAdmin"}
-            busy={busy}
-            quoteId={quoteId}
-            onSearchChange={setCampaignQuery}
-            onStateFilterChange={setStateFilter}
-            onRefresh={() => void refreshAll()}
-            onSelect={(campaign) => {
-              setCampaignId(campaign.id);
-              setQuoteId("");
-            }}
-            onTabChange={setCampaignTab}
-            onEdit={openEdit}
-            onToggleStatus={(campaign) => void toggleCampaignStatus(campaign)}
-            onQuoteChange={setQuoteId}
-            onApply={(event) => {
-              event.preventDefault();
-              if (selectedCampaign) void apply(event, selectedCampaign.id);
-            }}
-            onClearFilters={() => {
-              setCampaignQuery("");
-              setStateFilter("");
-            }}
-            onCreate={openCreate}
-          />
+          {definition.view}
         </>
-      )}
-      {createOpen && role === "TenantAdmin" && (
-        <CampaignDialog
-          editing={Boolean(editingCampaign)}
-          code={code}
-          name={name}
-          percent={percent}
-          from={from}
-          through={through}
-          busy={busy}
-          onCodeChange={setCode}
-          onNameChange={setName}
-          onPercentChange={setPercent}
-          onFromChange={setFrom}
-          onThroughChange={setThrough}
-          onClose={() => {
-            setCreateOpen(false);
-            setEditingCampaign(null);
-          }}
-          onSubmit={(event) => {
-            void saveCampaign(event).then((saved) => {
-              if (saved) {
-                setCreateOpen(false);
-                setEditingCampaign(null);
-              }
-            });
-          }}
-        />
       )}
     </main>
   );

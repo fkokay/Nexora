@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   onRefresh?: () => void;
   /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
+  /** Extra toolbar items after the chips (e.g. the detail panel toggle). */
+  extra?: ReactNode;
 };
 
 export function FinanceAccountsToolbar({
@@ -23,6 +26,7 @@ export function FinanceAccountsToolbar({
   onApply,
   onRefresh,
   toolsSlotRef,
+  extra,
 }: Props) {
   return (
     <ListToolbar
@@ -44,6 +48,7 @@ export function FinanceAccountsToolbar({
           { value: "inactive", label: "Pasif", count: counts?.inactive },
         ]}
       />
+      {extra}
     </ListToolbar>
   );
 }

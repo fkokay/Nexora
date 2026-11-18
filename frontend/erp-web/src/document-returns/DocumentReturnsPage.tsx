@@ -4,11 +4,15 @@ import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
 import { confirmDialog } from "../confirmDialog";
 import { ListPageHeader } from "../list-page/ListPageHeader";
-import { ListPagination } from "../list-page/ListPagination";
 import { ListToolbar } from "../list-page/ListToolbar";
-import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
-import { returnStatus } from "../document-page/documentStatus";
+import { ListSummaryCards } from "../list-page/ListSummaryCards";
+import { CircleDollarSign, CircleSlash } from "lucide-react";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
+import { useSalesListPanel } from "../sales/useSalesListPanel";
+import { SalesListPanelToggle } from "../sales/components/SalesListDetailPanel";
+import { SalesListFooter, pageAmount, pageAmountHint } from "../sales/components/SalesListFooter";
+import { ReturnListPanel, SalesListPanelEmpty } from "../sales/components/SalesListPanels";
+import { SALES_CODE_FIELDS, SALES_NUMBER_FIELDS, listAmount, listTag } from "../sales/components/salesListCells";
 import type { GridExportActions } from "../AdvancedDataGrid";
 import { PageCommandsSlot, documentOpenCommands } from "../commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
@@ -17,10 +21,11 @@ import { SalesInvoiceModal } from "../SalesInvoiceModal";
 import { PurchaseInvoiceModal } from "../PurchaseInvoiceModal";
 import { ReturnDetailSurface } from "./components/ReturnDetailSurface";
 import {
-  formatReturnAmount, formatReturnDate, returnSides, toReturnDetail, toReturnListItem,
+  formatReturnDate, returnSides, toReturnDetail, toReturnListItem,
   type ReturnDetail, type ReturnListItem, type ReturnSide,
 } from "./types";
 import "../sales/sales-list-v2.css";
+import "./document-returns.css";
 
 type Props = {
   token: string;
@@ -50,16 +55,28 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<AppTypes.Warehouse[]>([]);
   const gridExportRef = useRef<GridExportActions | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  // The row the user chose (click, ↑/↓); never an implicit first row.
+  const current = items.find((item) => item.id === selectedId);
+  const listActive = !detail && !invoiceId;
+  const panel = useSalesListPanel<Parameters<typeof toReturnDetail>[0]>({
+    active: listActive,
+    token,
+    currentId: current?.id ?? null,
+    path: (id) => `${config.basePath}/${id}`,
+    reloadKey: current ? JSON.stringify(current) : undefined,
+  });
+  const panelDetail = panel.detail ? toReturnDetail(panel.detail) : null;
 
   const fields: AppTypes.BuiltInScreenLayoutField[] = [
-    { key: "code", label: "İade no", width: 130 },
-    { key: "returnDate", label: "Tarih", width: 105 },
-    { key: "partyName", label: config.partyLabel, width: 220 },
-    { key: "invoiceCode", label: "Fatura", width: 130 },
+    { key: "code", label: "İade no", width: 125 },
+    { key: "returnDate", label: "Tarih", width: 100 },
+    { key: "partyName", label: config.partyLabel, width: 210 },
+    { key: "invoiceCode", label: "Fatura", width: 125 },
     { key: "warehouseName", label: "Depo", width: 120 },
-    { key: "lineCount", label: "Satır", width: 65 },
-    { key: "grandTotal", label: "Tutar", width: 140 },
-    { key: "status", label: "Durum", width: 110 },
+    { key: "lineCount", label: "Satır", width: 55 },
+    { key: "grandTotal", label: "Tutar", width: 130 },
+    { key: "status", label: "Durum", width: 100 },
   ].map((field, position) => ({ ...field, visible: true, position }));
 
   async function load() {
@@ -145,15 +162,15 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
       case "invoiceCode": return item.invoiceCode;
       case "warehouseName": return item.warehouseName;
       case "lineCount": return item.lineCount;
-      case "grandTotal": return <b><span>{formatReturnAmount(item.grandTotal)}</span> <span>{item.currencyCode}</span></b>;
-      case "status": return <DocumentStatusBadge status={returnStatus(item.status)} />;
+      case "grandTotal": return listAmount(item.grandTotal, item.currencyCode);
+      case "status": return listTag("return", item.status);
       default: return null;
     }
   };
 
   // Action bar of the return list and of an open return. A return is created from its invoice (Yeni opens the
   // invoice list) and a posted return is cancelled, never deleted. An open invoice holds the bar itself.
-  const selected = items.find((item) => item.id === selectedId);
+  const selected = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
   const commands: PageCommands = { new: { primary: !detail, run: () => onNavigate(config.invoicePage) } };
   const more: MenuCommand[] = [];
   if (detail) {
@@ -173,11 +190,50 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
     more.push(csvExportCommand(gridExportRef));
   }
   commands.more = more;
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <ReturnListPanel
+          row={current}
+          config={config}
+          detail={panelDetail}
+          error={panel.error}
+          onOpen={() => void openDetail(current.id)}
+          openDisabled={detailBusy}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="return" />
+      )
+    ) : null;
+  const posted = items.filter((item) => item.status === "Posted");
 
   return (
     <div className="sales-lv2-stack list-v2">
       {!invoiceId && <PageCommandsSlot commands={commands} />}
-      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total} />
+      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total}>
+        {/* Yeni (F2) opens the invoice list: a return is created from its invoice. */}
+        <span className="returns-create-hint">İade, fatura detayından oluşturulur</span>
+      </ListPageHeader>
+      <ListSummaryCards
+        cards={[
+          {
+            id: "posted",
+            label: "İade tutarı",
+            value: loading ? "—" : pageAmount(posted) ?? "—",
+            icon: CircleDollarSign,
+            hint: pageAmountHint(posted, <span>bu sayfa · iptaller hariç</span>),
+          },
+          {
+            id: "voided",
+            label: "İptal",
+            value: loading ? "—" : items.filter((item) => item.status === "Voided").length.toLocaleString("tr-TR"),
+            icon: CircleSlash,
+            hint: "bu sayfa",
+          },
+        ]}
+      />
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -186,45 +242,68 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
         searchPlaceholder={config.searchPlaceholder}
         toolsSlotRef={setToolsSlot}
         onRefresh={() => { if (!loading) void load(); }}
-      />
+      >
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </ListToolbar>
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={15} /></button>
         </div>
       )}
-      <section className="list-v2-list">
-        <SalesDocumentGrid
-          gridId={config.gridId}
-          hideExport
-          exportActionsRef={gridExportRef}
-          fields={fields}
-          items={items}
-          selectedId={selectedId}
-          loading={loading}
-          loadingMessage="İadeler yükleniyor…"
-          emptyMessage={config.emptyMessage}
-          search={filter}
-          searchEmptyMessage="Aramanızla eşleşen iade yok."
-          toolbarContainer={toolsSlot}
-          onSelect={(id) => void openDetail(id)}
-          renderCell={renderCell}
-          ariaLabel="İade kayıtları"
-        />
-      </section>
-      <ListPagination page={page} total={total} pageSize={pageSize} loading={loading} onPageChange={setPage} />
+      <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list">
+          <SalesDocumentGrid
+            gridId={config.gridId}
+            hideExport
+            exportActionsRef={gridExportRef}
+            fields={fields}
+            items={items}
+            loading={loading}
+            loadingMessage="İadeler yükleniyor…"
+            emptyMessage={config.emptyMessage}
+            search={filter}
+            searchEmptyMessage="Aramanızla eşleşen iade yok."
+            toolbarContainer={toolsSlot}
+            renderCell={renderCell}
+            ariaLabel="İade kayıtları"
+            selection={{
+              currentId: selectedId,
+              onCurrentChange: setSelectedId,
+              onTickedChange: setTicked,
+              // Only while the list is on screen: a document or form over it must not show the floating bar.
+              bulkActions: listActive
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                : undefined,
+              onOpen: (id) => void openDetail(id),
+            }}
+            footer={
+              <SalesListFooter
+                ticked={ticked.length}
+                shown={items.length}
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                loading={loading}
+                onPageChange={setPage}
+              />
+            }
+            numberFields={SALES_NUMBER_FIELDS}
+            codeFields={SALES_CODE_FIELDS}
+          />
+        </section>
+        {listPanel}
+      </div>
       {detail && (
         <ReturnDetailSurface
           detail={detail}
           config={config}
-          busy={detailBusy}
           error={detailError}
           notice={detailNotice}
           onDismissError={() => setDetailError("")}
           onDismissNotice={() => setDetailNotice("")}
           onClose={() => setDetail(null)}
           onOpenInvoice={() => setInvoiceId(detail.invoiceId)}
-          onVoid={() => void voidReturn()}
         />
       )}
       {invoiceId && side === "sales" && (

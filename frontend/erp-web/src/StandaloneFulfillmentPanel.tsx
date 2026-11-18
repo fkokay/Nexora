@@ -16,6 +16,8 @@ import {
   RequiredMark,
 } from "./record-form/RecordForm";
 import "./sales/sales-record-forms.css";
+import { SalesDeliveryFlow } from "./sales/salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines } from "./sales/salesDocumentForm";
 
 export function StandaloneFulfillmentPanel({
   token,
@@ -26,6 +28,7 @@ export function StandaloneFulfillmentPanel({
   initialCustomerId = "",
   onCancel,
   ownsActionBar = false,
+  commandsActive = true,
 }: {
   token: string;
   sales?: boolean;
@@ -37,6 +40,8 @@ export function StandaloneFulfillmentPanel({
   onCancel?: () => void;
   /** The panel is the whole screen: it registers the action bar's Yeni (a fresh draft). */
   ownsActionBar?: boolean;
+  /** False while the panel is mounted but hidden (a document over its list): its form registers no bar commands. */
+  commandsActive?: boolean;
 }) {
   type Row = {
     id: string;
@@ -386,6 +391,69 @@ export function StandaloneFulfillmentPanel({
       setBusy(false);
     }
   }
+  const setLine = (index: number, patch: Partial<Line>) =>
+    setLines((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  const addLine = () =>
+    setLines((rows) => [
+      ...rows,
+      {
+        stockItemId: "",
+        quantity: "1",
+        unitCostBase: "0",
+        trackingCode: "",
+        expiryDate: "",
+        storageLocationId: "",
+      },
+    ]);
+  const trackingMode = (line: Line) => stockItems.find((x) => x.id === line.stockItemId)?.trackingMode;
+  const needsTracking = (line: Line) => trackingMode(line) !== "None" && !!line.stockItemId;
+  const needsExpiry = (line: Line) => trackingMode(line) === "Lot";
+  // Line controls, shared by the sales line grid and the purchasing line cards.
+  const stockPicker = (line: Line, index: number) => (
+    <SearchableRecordPicker
+      options={stockItems
+        .filter((x) => x.isActive)
+        .map((x) => ({
+          id: x.id,
+          label: `${x.code} · ${x.name} (${x.unitCode})`,
+          searchText: x.code,
+        }))}
+      selectedId={line.stockItemId}
+      onSelect={(value) => setLine(index, { stockItemId: value })}
+      title="Stok kartı seçin"
+      placeholder="Stok seçin"
+      searchPlaceholder="Stok kodu veya adıyla ara"
+      emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
+      required
+    />
+  );
+  const quantityInput = (line: Line, index: number, label?: string) => (
+    <input
+      aria-label={label}
+      type="number"
+      min="0.0001"
+      step="0.0001"
+      value={line.quantity}
+      onChange={(e) => setLine(index, { quantity: e.target.value })}
+      required
+    />
+  );
+  const locationSelect = (line: Line, index: number, label?: string) => (
+    <select aria-label={label} value={line.storageLocationId} onChange={(e) => setLine(index, { storageLocationId: e.target.value })}>
+      <option value="">Depo düzeyinde</option>
+      {locations.map((location) => (
+        <option key={location.id} value={location.id}>
+          {location.code} · {location.name}
+        </option>
+      ))}
+    </select>
+  );
+  const trackingInput = (line: Line, index: number, label?: string) => (
+    <input aria-label={label} value={line.trackingCode} onChange={(e) => setLine(index, { trackingCode: e.target.value })} required maxLength={80} />
+  );
+  const expiryInput = (line: Line, index: number, label?: string) => (
+    <input aria-label={label} type="date" value={line.expiryDate} onChange={(e) => setLine(index, { expiryDate: e.target.value })} required />
+  );
   const formDirty = Boolean(
     editingId || code.trim() || (customerId && customerId !== initialCustomerId) || lines.some((line) => line.stockItemId),
   );
@@ -404,7 +472,19 @@ export function StandaloneFulfillmentPanel({
       )}
       <RecordFormPage
         variant={sales ? "page" : "dialog"}
+        commandsActive={commandsActive}
         className={sales ? "sales-rf" : "sales-rf sales-rf-embedded"}
+        document={
+          sales
+            ? {
+                type: "Satış irsaliyesi",
+                code: code.trim() || undefined,
+                party: counterparties.find((x) => x.id === customerId)?.name,
+                statusFlow: <SalesDeliveryFlow status="Draft" invoiced={false} draft />,
+                hints: [...SALES_FORM_HINTS, "Alt+İ işlemler"],
+              }
+            : undefined
+        }
         title={
           sales
             ? "Siparişsiz satış irsaliyesi"
@@ -434,8 +514,9 @@ export function StandaloneFulfillmentPanel({
         }
       >
         <RecordFormGroup
-          title={sales ? "İrsaliye Kimliği" : "Mal Kabul Kimliği"}
-          bodyClassName="rf-identity"
+          title={sales ? "Belge bilgileri" : "Mal Kabul Kimliği"}
+          hint={sales ? "* zorunlu alan" : undefined}
+          bodyClassName={sales ? "rf-identity doc-form-fields" : "rf-identity"}
         >
           <label>
             <span>
@@ -506,9 +587,61 @@ export function StandaloneFulfillmentPanel({
             />
           </label>
         </RecordFormGroup>
-        <RecordFormGroup
-          title={sales ? "İrsaliye Satırları" : "Mal Kabul Satırları"}
-        >
+        {sales ? (
+          <SalesFormLines
+            label="İrsaliye satırları"
+            lines={lines.length}
+            extra="Lot / seri takipli stoklarda takip kodu zorunludur."
+          >
+            <table className="dd-lines">
+              <thead>
+                <tr>
+                  <th className="dd-ix">#</th>
+                  <th>Stok kartı</th>
+                  <th className="dd-num">Miktar</th>
+                  <th>Birim</th>
+                  {locations.length > 0 && <th>Depo gözü</th>}
+                  {lines.some(needsTracking) && <th>Lot / seri kodu</th>}
+                  {lines.some(needsExpiry) && <th>Son kullanma tarihi</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, index) => (
+                  <tr key={index}>
+                    <td className="dd-ix">
+                      <span>{index + 1}</span>
+                      {lines.length > 1 && (
+                        <button
+                          type="button"
+                          className="dd-line-remove"
+                          aria-label={`Satır ${index + 1} kaldır`}
+                          title="Satırı kaldır"
+                          onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </td>
+                    <td className="dd-stock-cell">{stockPicker(line, index)}</td>
+                    <td className="dd-num">{quantityInput(line, index, `Satır ${index + 1} miktar`)}</td>
+                    <td>{stockItems.find((x) => x.id === line.stockItemId)?.unitCode || "—"}</td>
+                    {locations.length > 0 && <td>{locationSelect(line, index, `Satır ${index + 1} depo gözü`)}</td>}
+                    {lines.some(needsTracking) && <td>{needsTracking(line) && trackingInput(line, index, `Satır ${index + 1} lot / seri kodu`)}</td>}
+                    {lines.some(needsExpiry) && <td>{needsExpiry(line) && expiryInput(line, index, `Satır ${index + 1} son kullanma tarihi`)}</td>}
+                  </tr>
+                ))}
+                <tr className="dd-new-line">
+                  <td colSpan={4 + (locations.length > 0 ? 1 : 0) + (lines.some(needsTracking) ? 1 : 0) + (lines.some(needsExpiry) ? 1 : 0)}>
+                    <button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={addLine}>
+                      <LineAddLabel />
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </SalesFormLines>
+        ) : (
+        <RecordFormGroup title="Mal Kabul Satırları">
           <div className="quote-lines-heading sales-rf-group-actions">
             <span className="muted">
               Lot / seri takipli stoklarda takip kodu zorunludur.
@@ -518,172 +651,56 @@ export function StandaloneFulfillmentPanel({
               className="secondary small-button"
               data-line-add-shortcut
               title="Ctrl+Shift+Enter ile satır ekle"
-              onClick={() =>
-                setLines((rows) => [
-                  ...rows,
-                  {
-                    stockItemId: "",
-                    quantity: "1",
-                    unitCostBase: "0",
-                    trackingCode: "",
-                    expiryDate: "",
-                    storageLocationId: "",
-                  },
-                ])
-              }
+              onClick={addLine}
             >
               Satır ekle
             </button>
           </div>
         {lines.map((line, index) => (
           <div className="quote-line delivery-document-line" key={index}>
-            {sales && (
-              <div className="quote-line-title">
-                <b>Satır {index + 1}</b>
-                {lines.length > 1 && (
-                  <button
-                    type="button"
-                    className="row-action"
-                    onClick={() =>
-                      setLines((rows) => rows.filter((_, i) => i !== index))
-                    }
-                  >
-                    Kaldır
-                  </button>
-                )}
-              </div>
-            )}
             <div className="delivery-document-line-fields">
               <label>
                 Stok kartı
-                <SearchableRecordPicker
-                  options={stockItems
-                    .filter((x) => x.isActive)
-                    .map((x) => ({
-                      id: x.id,
-                      label: `${x.code} · ${x.name} (${x.unitCode})`,
-                      searchText: x.code,
-                    }))}
-                  selectedId={line.stockItemId}
-                  onSelect={(value) =>
-                    setLines((rows) =>
-                      rows.map((r, i) =>
-                        i === index ? { ...r, stockItemId: value } : r,
-                      ),
-                    )
-                  }
-                  title="Stok kartı seçin"
-                  placeholder="Stok seçin"
-                  searchPlaceholder="Stok kodu veya adıyla ara"
-                  emptyMessage="Aramanızla eşleşen stok kartı bulunamadı."
-                  required
-                />
+                {stockPicker(line, index)}
               </label>
               <label>
                 Miktar
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  value={line.quantity}
-                  onChange={(e) =>
-                    setLines((rows) =>
-                      rows.map((r, i) =>
-                        i === index ? { ...r, quantity: e.target.value } : r,
-                      ),
-                    )
-                  }
-                  required
-                />
+                {quantityInput(line, index)}
               </label>
               {locations.length > 0 && (
                 <label>
                   Depo gözü (isteğe bağlı)
-                  <select
-                    value={line.storageLocationId}
-                    onChange={(e) =>
-                      setLines((rows) =>
-                        rows.map((r, i) =>
-                          i === index
-                            ? { ...r, storageLocationId: e.target.value }
-                            : r,
-                        ),
-                      )
-                    }
-                  >
-                    <option value="">Depo düzeyinde</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.code} · {location.name}
-                      </option>
-                    ))}
-                  </select>
+                  {locationSelect(line, index)}
                 </label>
               )}
-              {!sales && (
+              <label>
+                Birim maliyet (temel birim)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.00000001"
+                  value={line.unitCostBase}
+                  onChange={(e) => setLine(index, { unitCostBase: e.target.value })}
+                  required
+                />
+              </label>
+              {needsTracking(line) && (
                 <label>
-                  Birim maliyet (temel birim)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.00000001"
-                    value={line.unitCostBase}
-                    onChange={(e) =>
-                      setLines((rows) =>
-                        rows.map((r, i) =>
-                          i === index
-                            ? { ...r, unitCostBase: e.target.value }
-                            : r,
-                        ),
-                      )
-                    }
-                    required
-                  />
+                  Lot / seri kodu
+                  {trackingInput(line, index)}
                 </label>
               )}
-              {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode !==
-                "None" &&
-                line.stockItemId && (
-                  <label>
-                    Lot / seri kodu
-                    <input
-                      value={line.trackingCode}
-                      onChange={(e) =>
-                        setLines((rows) =>
-                          rows.map((r, i) =>
-                            i === index
-                              ? { ...r, trackingCode: e.target.value }
-                              : r,
-                          ),
-                        )
-                      }
-                      required
-                      maxLength={80}
-                    />
-                  </label>
-                )}
-              {stockItems.find((x) => x.id === line.stockItemId)?.trackingMode ===
-                "Lot" && (
+              {needsExpiry(line) && (
                 <label>
                   Son kullanma tarihi
-                  <input
-                    type="date"
-                    value={line.expiryDate}
-                    onChange={(e) =>
-                      setLines((rows) =>
-                        rows.map((r, i) =>
-                          i === index ? { ...r, expiryDate: e.target.value } : r,
-                        ),
-                      )
-                    }
-                    required
-                  />
+                  {expiryInput(line, index)}
                 </label>
               )}
             </div>
           </div>
         ))}
         </RecordFormGroup>
+        )}
       </RecordFormPage>
       {items.length > 0 && (
         <div className="requests-list" style={{ marginTop: 12 }}>

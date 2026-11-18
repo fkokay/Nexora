@@ -1,3 +1,5 @@
+import { Boxes, Factory, PackageCheck } from "lucide-react";
+import { ListSummaryCards } from "../../list-page/ListSummaryCards";
 import type { CostReport } from "./types";
 
 const amount = (value: number | null | undefined, currency: string) => {
@@ -12,6 +14,7 @@ const amount = (value: number | null | undefined, currency: string) => {
   }
 };
 
+/** Page totals of the report (the endpoint returns `pageTotals`, no report total), so every card says "Bu sayfa". */
 export function ManufacturingCostVarianceSummary({
   report,
   currency,
@@ -20,32 +23,37 @@ export function ManufacturingCostVarianceSummary({
   currency: string;
 }) {
   return (
-    <section
-      className="manufacturing-cost-summary"
-      aria-label="Üretim maliyet özeti"
-    >
-      <article>
-        <span>Planlanan malzeme</span>
-        <b>{amount(report.pageTotals.plannedMaterialBase, currency)}</b>
-        <small>Bu sayfa · fire dahil emir anlık görüntüsü</small>
-      </article>
-      <article>
-        <span>Planlanan dönüşüm</span>
-        <b>
-          {amount(
-            report.pageTotals.plannedLaborBase +
-              report.pageTotals.plannedOverheadBase +
-              report.pageTotals.plannedEnergyBase,
-            currency,
-          )}
-        </b>
-        <small>Bu sayfa · işçilik, genel gider ve enerji</small>
-      </article>
-      <article>
-        <span>Fiilî malzeme</span>
-        <b>{amount(report.pageTotals.actualMaterialBase, currency)}</b>
-        <small>Bu sayfa · emre bağlı bileşen hareketleri</small>
-      </article>
+    <section aria-label="Üretim maliyet özeti">
+      <ListSummaryCards
+        cards={[
+          {
+            id: "planned-material",
+            label: "Planlanan malzeme",
+            value: amount(report.pageTotals.plannedMaterialBase, currency),
+            icon: Boxes,
+            hint: "Bu sayfa · fire dahil emir anlık görüntüsü",
+          },
+          {
+            id: "planned-conversion",
+            label: "Planlanan dönüşüm",
+            value: amount(
+              report.pageTotals.plannedLaborBase +
+                report.pageTotals.plannedOverheadBase +
+                report.pageTotals.plannedEnergyBase,
+              currency,
+            ),
+            icon: Factory,
+            hint: "Bu sayfa · işçilik, genel gider ve enerji",
+          },
+          {
+            id: "actual-material",
+            label: "Fiilî malzeme",
+            value: amount(report.pageTotals.actualMaterialBase, currency),
+            icon: PackageCheck,
+            hint: "Bu sayfa · emre bağlı bileşen hareketleri",
+          },
+        ]}
+      />
     </section>
   );
 }

@@ -1,0 +1,9 @@
+/* İadeler: the note right of the title saying where a return is created (Yeni opens the invoice list). It sits on
+   the title line, not on the breadcrumb line above it. */
+#root .list-v2 .list-v2-heading > .heading-actions:has(> .returns-create-hint) { align-self: flex-end; }
+#root .list-v2 .returns-create-hint {
+  color: var(--nx-muted);
+  font-size: 12px;
+  line-height: 24px;
+  white-space: nowrap;
+}

@@ -129,7 +129,7 @@ export function displayAccountName(name: string): string {
   return lower.charAt(0).toLocaleUpperCase("tr-TR") + lower.slice(1);
 }
 
-type ExportCell = string | number | null | undefined;
+export type ExportCell = string | number | null | undefined;
 
 const safeText = (value: ExportCell) => {
   const text = value == null ? "" : String(value);

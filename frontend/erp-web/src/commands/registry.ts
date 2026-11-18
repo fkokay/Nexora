@@ -88,8 +88,11 @@ export function createCommandRegistry(): CommandRegistry {
     if (!sources) return undefined;
     // `form` slots: the record form that contains the focused element is effective; otherwise the one with the
     // latest activity (focus inside it, else mounting), so a newly opened dialog form beats the form behind it.
+    // A form slot without commands (a form whose commands are inactive) never takes part.
     const effective = (source: CommandSource) => {
-      const slots = sources[source]?.filter((slot) => slot.commands);
+      const slots = sources[source]?.filter(
+        (slot) => slot.commands && (source !== 'form' || Object.keys(slot.commands).length > 0),
+      );
       if (source !== 'form') return slots?.[0]?.commands;
       const focused = slots?.find((slot) => slot.hasFocus?.());
       if (focused) return focused.commands;

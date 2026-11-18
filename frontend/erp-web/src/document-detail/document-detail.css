@@ -5,85 +5,29 @@
  * global-components.css bu parçaları içeren her sınıfa arka plan ve köşe yuvarlaması dayatır.
  */
 
-.doc-surface.doc-detail,
+:is(.doc-surface.doc-detail, .doc-form),
 .dd-tabs {
-  --dd-ink: var(--erp-color-text);
-  --dd-muted: var(--erp-color-muted);
-  --dd-line: var(--erp-color-border);
-  --dd-line-soft: #e8edf3;
-  --dd-paper: var(--erp-color-surface);
-  --dd-band: var(--erp-color-surface-muted);
+  --dd-ink: var(--nx-text);
+  --dd-muted: var(--nx-muted);
+  --dd-line: var(--nx-line);
+  --dd-line-soft: var(--nx-line-soft);
+  --dd-paper: var(--nx-surface);
+  --dd-band: var(--nx-canvas);
+  --dd-head: var(--nx-table-head);
   --dd-link: var(--nx-primary);
   --dd-warn: var(--nx-warn);
   --dd-warn-bg: var(--nx-warn-bg);
   --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
-  --dd-danger: var(--erp-color-danger);
-  --dd-success: #17643c;
-  --dd-bar: #2f855a;
-  --dd-bar-track: #e5eaf0;
+  --dd-danger: var(--nx-bad);
+  --dd-success: var(--nx-ok);
+  --dd-bar: var(--nx-ok);
+  --dd-bar-track: var(--nx-line-soft);
 }
-html[data-theme="dark"] .doc-surface.doc-detail,
-html[data-theme="dark"] .dd-tabs {
-  --dd-line-soft: #283043;
-  --dd-link: #93c5fd;
-  --dd-warn: var(--nx-warn);
-  --dd-warn-bg: var(--nx-warn-bg);
-  --dd-warn-line: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface));
-  --dd-success: #9bdcb6;
-  --dd-bar: #48bb78;
-  --dd-bar-track: #2a3346;
-}
-
-/* Başlık: küçük üst satır, büyük numara + durum, altında cari. */
-#root .doc-surface.doc-detail > .doc-surface-head { align-items: flex-start; padding: 14px 18px; }
-#root .doc-surface.doc-detail .doc-surface-back { margin-top: 2px; }
-#root .doc-surface.doc-detail .doc-surface-eyebrow {
-  margin: 0 0 2px;
-  color: var(--dd-muted);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1.3;
-}
-#root .doc-surface.doc-detail .doc-surface-code-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-#root .app-shell .doc-surface.doc-detail .doc-surface-title h1 {
-  display: block;
-  margin: 0;
-  color: var(--dd-ink) !important;
-  font-size: 22px !important;
-  font-weight: 700 !important;
-  line-height: 1.25;
-}
-#root .doc-surface.doc-detail .doc-surface-title h1 b { color: inherit; font-weight: 700; }
-#root .doc-surface.doc-detail .doc-surface-sr,
-#root .doc-surface.doc-detail .dd-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-#root .doc-surface.doc-detail .doc-surface-party { margin-top: 3px; color: var(--dd-muted); font-size: 13.5px; overflow-wrap: anywhere; }
-#root .doc-surface.doc-detail .doc-surface-actions { align-self: center; justify-content: flex-end; }
-#root .app-shell .doc-surface.doc-detail .doc-surface-actions :is(.primary, .secondary) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  white-space: nowrap;
-}
-#root .app-shell .doc-surface.doc-detail .doc-surface-actions .sales-row-actions-trigger {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--dd-line);
-  border-radius: 6px;
-  background: var(--dd-paper);
-}
+html[data-theme="dark"] :is(.doc-surface.doc-detail, .doc-form),
+html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
 
 /* Bağlantı görünümlü düğme (cari, sipariş, muhasebe fişi). */
-#root .app-shell .doc-surface.doc-detail .dd-link {
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-link {
   display: inline;
   min-height: 0;
   padding: 0;
@@ -99,35 +43,37 @@ html[data-theme="dark"] .dd-tabs {
   text-underline-offset: 3px;
   cursor: pointer;
 }
-#root .app-shell .doc-surface.doc-detail .dd-link:hover,
-#root .app-shell .doc-surface.doc-detail .dd-link:focus-visible { text-decoration-color: currentColor; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-link:hover,
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-link:focus-visible { text-decoration-color: currentColor; }
 
-/* Gövde: çerçevesiz akış; bölümler kendi kutularını çizer. */
-#root .doc-surface.doc-detail > .doc-surface-body {
+/* Gövde: çerçevesiz akış; bölümler tek katman kart çizer (1px çizgi, 8px yarıçap, kutu içinde kutu yok). */
+#root :is(.doc-surface.doc-detail, .doc-form) > .doc-surface-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
 }
-#root .doc-surface.doc-detail .dd-box {
-  padding: 16px 18px;
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-box {
+  padding: 10px 12px;
   border: 1px solid var(--dd-line);
-  border-radius: 8px;
+  border-radius: var(--nx-radius-card);
   background: var(--dd-paper);
 }
-#root .doc-surface.doc-detail .dd-muted { color: var(--dd-muted); }
-#root .doc-surface.doc-detail .dd-danger-text { color: var(--dd-danger); font-weight: 600; }
-#root .doc-surface.doc-detail .dd-loading { padding: 28px; color: var(--dd-muted); text-align: center; }
+/* Satır kartı: ızgara kartın kenarlarına dayanır; başlık satırı ve alt bant kendi iç boşluğunu verir. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-box:has(> .dd-lines-wrap) { padding: 0; overflow: hidden; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-muted { color: var(--dd-muted); }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-danger-text { color: var(--dd-danger); font-weight: 600; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-loading { padding: 28px; color: var(--dd-muted); text-align: center; }
 
 /* Özet kutucukları */
-#root .doc-surface.doc-detail .dd-tiles {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
-#root .doc-surface.doc-detail .dd-tile {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -137,8 +83,8 @@ html[data-theme="dark"] .dd-tabs {
   border-radius: 8px;
   background: var(--dd-paper);
 }
-#root .doc-surface.doc-detail .dd-tile-label { color: var(--dd-muted); font-size: 12px; font-weight: 600; }
-#root .doc-surface.doc-detail .dd-tile-value {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile-label { color: var(--dd-muted); font-size: 12px; font-weight: 600; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile-value {
   color: var(--dd-ink);
   font-size: 18px;
   font-weight: 700;
@@ -146,32 +92,34 @@ html[data-theme="dark"] .dd-tabs {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-#root .doc-surface.doc-detail .dd-tile-hint { color: var(--dd-muted); font-size: 12.5px; }
-#root .doc-surface.doc-detail .dd-tile.is-warning { border-color: var(--dd-warn-line); background: var(--dd-warn-bg); }
-#root .doc-surface.doc-detail .dd-tile.is-warning .dd-tile-value { color: var(--dd-warn); }
-#root .doc-surface.doc-detail .dd-tile.is-danger .dd-tile-hint,
-#root .doc-surface.doc-detail .dd-tile-hint.is-danger { color: var(--dd-danger); font-weight: 600; }
-#root .doc-surface.doc-detail .dd-tile.is-success .dd-tile-hint { color: var(--dd-success); font-weight: 600; }
-#root .doc-surface.doc-detail .dd-tile.is-muted .dd-tile-value { color: var(--dd-muted); font-weight: 600; }
-#root .doc-surface.doc-detail .dd-progress {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile-hint { color: var(--dd-muted); font-size: 12.5px; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile.is-warning { border-color: var(--dd-warn-line); background: var(--dd-warn-bg); }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile.is-warning .dd-tile-value { color: var(--dd-warn); }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile.is-danger .dd-tile-hint,
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile-hint.is-danger { color: var(--dd-danger); font-weight: 600; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile.is-success .dd-tile-hint { color: var(--dd-success); font-weight: 600; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-tile.is-muted .dd-tile-value { color: var(--dd-muted); font-weight: 600; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-progress {
   display: block;
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--dd-bar-track);
 }
-#root .doc-surface.doc-detail .dd-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--dd-bar); }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--dd-bar); }
 
-/* Bilgi ızgarası */
-#root .doc-surface.doc-detail .dd-info {
+/* Başlık alanları: dört sütun, etiket / değer (taslak 02, "Belge bilgileri"). */
+/* The fields follow the width of their own card (a context panel next to the body narrows it), not the viewport. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-info-wrap { container-name: dd-info; container-type: inline-size; min-width: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-info {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 12px;
   margin: 0;
 }
-#root .doc-surface.doc-detail .dd-info > div { min-width: 0; }
-#root .doc-surface.doc-detail .dd-info dt { margin: 0 0 3px; color: var(--dd-muted); font-size: 12px; font-weight: 600; }
-#root .doc-surface.doc-detail .dd-info dd { margin: 0; color: var(--dd-ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-info > div { min-width: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-info dt { margin: 0 0 2px; color: var(--dd-muted); font-size: 11.5px; font-weight: 500; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-info dd { margin: 0; color: var(--dd-ink); font-size: 13px; font-weight: 400; overflow-wrap: anywhere; }
 
 /* Alt çizgili sekmeler (belge detayında ve pencerelerde) */
 #root .dd-tabs {
@@ -214,91 +162,171 @@ html[data-theme="dark"] .dd-tabs {
   font-size: 11.5px;
 }
 
-/* Satır tablosu */
-#root .doc-surface.doc-detail .dd-lines-wrap { overflow-x: auto; }
-#root .app-shell .doc-surface.doc-detail table.dd-lines { width: 100%; border-collapse: collapse !important; }
-#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td) {
+/* Satır ızgarası (taslak 02, ekranın kahramanı): gri başlık satırı, 31px satırlar, ince hücre çizgileri, sayılar sağda
+   tabular-nums normal ağırlıkta. Satır sınıfları: is-active (aktif satır), is-warning (uyarılı satır), dd-line-message
+   (satırın altındaki uyarı), dd-new-line (boş "yeni satır"); ilk sütun için dd-ix (sıra no). */
+/* Positioned so the screen-reader-only header text (absolute) is clipped with the table instead of widening the page. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-wrap { position: relative; overflow-x: auto; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines { width: 100%; border-collapse: collapse !important; font-size: 12.5px; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines :is(th, td) {
   height: auto !important;
-  padding: 10px 12px !important;
+  padding: 6px 8px !important;
+  border-right: 1px solid var(--dd-line-soft);
   border-bottom: 1px solid var(--dd-line-soft);
-  vertical-align: top;
+  vertical-align: middle;
   text-align: left;
 }
-#root .app-shell .doc-surface.doc-detail table.dd-lines thead th {
-  height: auto !important;
-  background: transparent !important;
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines td { height: var(--nx-row-h-dense) !important; padding-block: 4px !important; color: var(--dd-ink); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines :is(th, td):last-child { border-right: 0; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines thead th {
+  background: var(--dd-head) !important;
   border-bottom: 1px solid var(--dd-line);
+  color: color-mix(in srgb, var(--dd-ink) 72%, var(--dd-muted)) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
   white-space: nowrap;
 }
-#root .app-shell .doc-surface.doc-detail table.dd-lines tbody tr:hover { background: transparent !important; }
-#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td).dd-num {
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tbody tr:hover { background: transparent !important; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines :is(th, td).dd-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-#root .app-shell .doc-surface.doc-detail table.dd-lines :is(th, td).dd-menu { width: 48px; text-align: right; }
-#root .doc-surface.doc-detail .dd-stock b { display: block; color: var(--dd-ink); font-weight: 700; }
-#root .app-shell .doc-surface.doc-detail .dd-stock small,
-#root .app-shell .doc-surface.doc-detail table.dd-lines small {
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines td.dd-num b { font-weight: 400; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines :is(th, td).dd-menu { width: 48px; text-align: right; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines :is(th, td).dd-ix {
+  width: 34px;
+  background: color-mix(in srgb, var(--dd-band) 50%, var(--dd-paper));
+  color: var(--dd-muted);
+  font-size: 11px;
+  text-align: center;
+}
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.is-active td { background: color-mix(in srgb, var(--nx-primary-soft) 55%, var(--dd-paper)); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.is-active td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.is-active td.dd-ix { color: var(--nx-primary-strong); font-weight: 700; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr:is(.is-warning, .dd-line-message) td { background: color-mix(in srgb, var(--dd-warn-bg) 55%, var(--dd-paper)); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.is-warning td:first-child { box-shadow: inset 3px 0 0 var(--nx-changed); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.is-warning td.dd-ix { color: var(--dd-warn); font-weight: 700; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.dd-line-message td {
+  height: auto !important;
+  padding-block: 4px !important;
+  border-bottom-color: var(--dd-warn-line);
+  color: var(--dd-warn);
+  font-size: 11px;
+}
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines tr.dd-new-line td { background: var(--dd-paper); color: var(--dd-muted); }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines .dd-warn-text { color: var(--dd-warn); font-weight: 650; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-stock b { display: block; color: var(--dd-ink); font-family: var(--nx-font-mono); font-size: 12px; font-weight: 400; white-space: nowrap; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-stock small,
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) table.dd-lines small {
   display: block;
   color: var(--dd-muted) !important;
-  font-size: 12.5px !important;
+  font-size: 11.5px !important;
 }
-#root .doc-surface.doc-detail tr.is-voided td { color: var(--dd-muted); }
-#root .doc-surface.doc-detail tr.is-voided td.dd-num { text-decoration: line-through; }
-#root .doc-surface.doc-detail .dd-empty { padding: 18px 4px; color: var(--dd-muted); text-align: center; }
+#root :is(.doc-surface.doc-detail, .doc-form) tr.is-voided td { color: var(--dd-muted); }
+#root :is(.doc-surface.doc-detail, .doc-form) tr.is-voided td.dd-num { text-decoration: line-through; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-empty { padding: 18px 4px; color: var(--dd-muted); text-align: center; }
 
-/* Satırların altı: solda notlar, sağda toplamlar */
-#root .doc-surface.doc-detail .dd-lines-footer {
+/* Satır kartının başlık satırı (DetailLinesHead): başlık + özet, sağda satır kısayolları. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--dd-line);
+}
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-lines-head h2 { margin: 0; color: var(--dd-ink) !important; font-size: 13px !important; font-weight: 650 !important; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-meta { color: var(--dd-muted); font-size: 11.5px; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-keys { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--dd-muted); font-size: 11.5px; }
+#root :is(.doc-surface, .doc-form) :is(.dd-lines-keys, .doc-surface-keys) kbd {
+  padding: 0 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: 3px;
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+}
+
+/* Satırların altı: solda notlar, sağda toplamlar (taslak 02, sağ alt). Satır kartında alt bant olarak çizilir. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-  gap: 24px;
-  margin-top: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+  gap: 20px;
+  margin-top: 12px;
   align-items: start;
 }
-#root .doc-surface.doc-detail .dd-totals { margin: 0; }
-#root .doc-surface.doc-detail .dd-totals > div {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-box > :is(.dd-lines-wrap, .dd-grid) + .dd-lines-footer { margin: 0; padding: 10px 14px 12px; border-top: 1px solid var(--dd-line); }
+
+/* A tenant-configurable line grid (AdvancedDataGrid with a screen view) in a lines card: flush with the card, one frame. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-box:has(> .dd-grid) { padding: 0; overflow: hidden; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-grid { min-width: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-grid .advanced-grid-toolbar { padding: 6px 12px; border: 0; border-top: 1px solid var(--dd-line); border-radius: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-grid .advanced-grid-scroll { min-height: 0; border: 0; border-top: 1px solid var(--dd-line); border-radius: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-grid :is(th, td).dd-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-grid td.dd-num b { font-weight: 400; }
+/* A grid in a section (collections, returns): no second frame inside the section card, and as tall as its rows. */
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section .advanced-grid-toolbar { padding: 6px 0; border: 0; border-radius: 0; background: transparent; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section .advanced-grid-scroll { min-height: 0; border: 0; border-top: 1px solid var(--dd-line); border-radius: 0; }
+
+/* Legacy inline forms kept in a detail body (custom fields, requested date, collection / return forms): the labels stack
+   above their fields as they did inside the old window (.modal label). */
+#root :is(.doc-surface.doc-detail, .doc-form) :is(.form-two, .collection-form) > label { display: grid; align-content: start; gap: 6px; min-width: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .panel > .panel-heading > div:first-child { display: grid; gap: 2px; min-width: 0; }
+/* Those legacy body cards (.panel: order requested date, custom fields) are cards of the document: 8px like the kit's
+   (the shell's workspace rule gives every .panel 12px with !important, hence !important here). */
+#root .app-shell .workspace-page-main .doc-surface.doc-detail > .doc-surface-body > .panel { border-radius: var(--nx-radius-card) !important; }
+/* DocumentTotals: satırlar, KDV dökümü girintili, genel toplam vurgulu. */
+#root :is(.doc-surface, .doc-form) .dd-totals { margin: 0; }
+#root :is(.doc-surface, .doc-form) .dd-totals > div {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 5px 0;
+  padding: 2px 0;
   font-variant-numeric: tabular-nums;
 }
-#root .doc-surface.doc-detail .dd-totals dt { color: var(--dd-muted); font-size: 13.5px; }
-#root .doc-surface.doc-detail .dd-totals dd { margin: 0; color: var(--dd-ink); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
-#root .doc-surface.doc-detail .dd-totals > .is-negative dd { color: var(--dd-danger); }
-#root .doc-surface.doc-detail .dd-totals > .is-muted :is(dt, dd) { color: var(--dd-muted); font-weight: 500; }
-#root .doc-surface.doc-detail .dd-totals > .is-grand {
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--dd-line);
+#root :is(.doc-surface, .doc-form) .dd-totals dt { color: color-mix(in srgb, var(--nx-text) 72%, var(--nx-muted)); font-size: 12.5px; }
+#root :is(.doc-surface, .doc-form) .dd-totals dd { margin: 0; color: var(--nx-text); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-negative dd { color: var(--nx-bad); }
+#root :is(.doc-surface, .doc-form) .dd-totals > :is(.is-muted, .is-sub) :is(dt, dd) { color: var(--nx-muted); font-weight: 400; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-sub { padding-left: 12px; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-strong dt { color: var(--nx-text); font-weight: 600; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-sub :is(dt, dd) { font-size: 11.5px; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-grand {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--nx-line);
 }
-#root .doc-surface.doc-detail .dd-totals > .is-grand :is(dt, dd) { color: var(--dd-ink); font-size: 16px; font-weight: 700; }
-#root .doc-surface.doc-detail .dd-notes { display: grid; gap: 12px; }
-#root .app-shell .doc-surface.doc-detail .dd-notes h3 {
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-grand dt { color: var(--nx-text); font-size: 15px; font-weight: 650; }
+#root :is(.doc-surface, .doc-form) .dd-totals > .is-grand dd { color: var(--nx-primary-strong); font-size: 17px; font-weight: 650; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-notes { display: grid; gap: 12px; }
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-notes h3 {
   margin: 0 0 3px;
   color: var(--dd-muted) !important;
   font-size: 12px !important;
   font-weight: 600 !important;
 }
-#root .doc-surface.doc-detail .dd-notes p { margin: 0; color: var(--dd-ink); font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
-#root .doc-surface.doc-detail .dd-notes p.dd-muted { color: var(--dd-muted); }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-notes p { margin: 0; color: var(--dd-ink); font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-notes p.dd-muted { color: var(--dd-muted); }
 
 /* Bölümler (Ödemeler, İadeler, Geçmiş…) */
-#root .doc-surface.doc-detail .dd-section {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section {
   padding: 16px 18px;
   border: 1px solid var(--dd-line);
   border-radius: 8px;
   background: var(--dd-paper);
 }
-#root .doc-surface.doc-detail .dd-section-head {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
 }
-#root .app-shell .doc-surface.doc-detail .dd-section-head h2 {
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-section-head h2 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -306,8 +334,8 @@ html[data-theme="dark"] .dd-tabs {
   font-size: 15px !important;
   font-weight: 700 !important;
 }
-#root .doc-surface.doc-detail .dd-section-head p { margin: 3px 0 0; color: var(--dd-muted); font-size: 12.5px; }
-#root .doc-surface.doc-detail .dd-section-count {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section-head p { margin: 3px 0 0; color: var(--dd-muted); font-size: 12.5px; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section-count {
   padding: 1px 8px;
   border: 1px solid var(--dd-line);
   border-radius: 999px;
@@ -316,9 +344,31 @@ html[data-theme="dark"] .dd-tabs {
   font-size: 12px;
   font-weight: 600;
 }
-#root .doc-surface.doc-detail .dd-section-actions { display: flex; gap: 8px; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-section-actions { display: flex; gap: 8px; }
+/* Bölüm başlığındaki düğmeler ve tablo satırındaki işlem düğmeleri kit kontrol boyundadır: eski genel kurallar
+   (.small-button, .row-action) aynı belgede 34 / 38px yükseklik ve 9px yazı veriyordu.
+   !important: global-components.css sizes every .app-shell .primary / .secondary with !important. */
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-section-actions :is(.primary, .secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--nx-control-h) !important;
+  min-height: var(--nx-control-h) !important;
+  padding: 0 12px !important;
+  border-radius: var(--nx-radius-control) !important;
+  font-size: 12.5px !important;
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface.doc-detail td button.row-action {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: var(--nx-radius-control);
+  font-size: 12px;
+  white-space: nowrap;
+}
 
-#root .doc-surface.doc-detail .dd-form-foot {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-form-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -329,13 +379,13 @@ html[data-theme="dark"] .dd-tabs {
 }
 
 /* Sağdan kayan işlem paneli */
-#root .doc-surface.doc-detail .dd-drawer-scrim {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer-scrim {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(10, 25, 47, 0.28);
+  background: color-mix(in srgb, var(--nx-ink) 28%, transparent);
 }
-#root .doc-surface.doc-detail .dd-drawer {
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer {
   position: fixed;
   top: 0;
   right: 0;
@@ -349,35 +399,114 @@ html[data-theme="dark"] .dd-tabs {
   background: var(--dd-paper);
   animation: dd-drawer-in 160ms ease-out;
 }
-#root .doc-surface.doc-detail .dd-drawer:focus { outline: none; }
-#root .doc-surface.doc-detail .dd-drawer > .record-form { flex: 1 0 auto; margin: 0; border: 0; border-radius: 0; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer:focus { outline: none; }
+#root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer > .record-form { flex: 1 0 auto; margin: 0; border: 0; border-radius: 0; }
 @keyframes dd-drawer-in {
   from { transform: translateX(24px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #root .doc-surface.doc-detail .dd-drawer { animation: none; }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer { animation: none; }
 }
 
+/* Sağ bağlam paneli bölümleri (DocumentSurface `aside`): tek katman kart, başlık 13px/650, sağında kısa açıklama. */
+#root :is(.doc-surface, .doc-form) .dd-ctx {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+}
+#root .app-shell :is(.doc-surface, .doc-form) .dd-ctx-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  color: var(--nx-text) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+#root .app-shell :is(.doc-surface, .doc-form) .dd-ctx-head small { color: var(--nx-muted) !important; font-size: 11.5px !important; font-weight: 400; }
+/* Belge zinciri */
+#root :is(.doc-surface, .doc-form) .dd-chain { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+#root :is(.doc-surface, .doc-form) .dd-chain > li { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; line-height: 1.3; }
+#root :is(.doc-surface, .doc-form) .dd-chain > li + li { border-top: 1px dashed var(--nx-line); }
+#root .app-shell :is(.doc-surface, .doc-form) .dd-chain-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--nx-text);
+  font: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+#root .app-shell :is(.doc-surface, .doc-form) button.dd-chain-open { cursor: pointer; }
+#root .app-shell :is(.doc-surface, .doc-form) button.dd-chain-open:hover .dd-chain-code { color: var(--nx-primary-strong); text-decoration: underline; }
+#root :is(.doc-surface, .doc-form) .dd-chain-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-line-soft);
+  color: var(--nx-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+#root :is(.doc-surface, .doc-form) .dd-chain > li.is-current .dd-chain-mark { background: var(--nx-primary); color: var(--nx-on-primary); }
+#root :is(.doc-surface, .doc-form) .dd-chain > li.is-current .dd-chain-text > span { font-weight: 600; }
+#root :is(.doc-surface, .doc-form) .dd-chain-text { display: flex; flex-direction: column; min-width: 0; }
+#root .app-shell :is(.doc-surface, .doc-form) .dd-chain-text small { color: var(--nx-muted) !important; font-size: 11px !important; }
+#root :is(.doc-surface, .doc-form) .dd-chain-code { font-family: var(--nx-font-mono); font-size: 11.5px; }
+/* Kısa etiket / değer satırları */
+#root :is(.doc-surface, .doc-form) .dd-kv { display: flex; flex-direction: column; margin: 0; }
+#root :is(.doc-surface, .doc-form) .dd-kv > div { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; font-size: 12px; }
+#root :is(.doc-surface, .doc-form) .dd-kv dt { color: var(--nx-muted); }
+#root :is(.doc-surface, .doc-form) .dd-kv dd { margin: 0; color: var(--nx-text); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+/* Oran çubuklu satırlar (aktif satırın depolardaki stoku) */
+#root :is(.doc-surface, .doc-form) .dd-meter { display: flex; flex-direction: column; gap: 2px; }
+#root :is(.doc-surface, .doc-form) .dd-meter > div { display: grid; grid-template-columns: 96px minmax(0, 1fr) 56px; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
+#root :is(.doc-surface, .doc-form) .dd-meter > div > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root :is(.doc-surface, .doc-form) .dd-meter-bar { height: 7px; overflow: hidden; border-radius: 4px; background: var(--nx-line-soft); }
+#root :is(.doc-surface, .doc-form) .dd-meter-bar > i { display: block; height: 100%; background: var(--nx-primary); }
+#root :is(.doc-surface, .doc-form) .dd-meter b { color: var(--nx-text); font-weight: 400; font-variant-numeric: tabular-nums; text-align: right; }
+
 @media (max-width: 1100px) {
-  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dd-info (max-width: 760px) {
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dd-info (max-width: 420px) {
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-info { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  #root .doc-surface.doc-detail .dd-lines-footer { grid-template-columns: minmax(0, 1fr); }
-  #root .doc-surface.doc-detail .dd-lines-footer > .dd-totals { order: -1; }
-  #root .doc-surface.doc-detail .doc-surface-actions { width: 100%; justify-content: flex-start; }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-footer { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-lines-footer > .dd-totals { order: -1; }
 }
 @media (max-width: 520px) {
-  #root .doc-surface.doc-detail .dd-tiles { grid-template-columns: minmax(0, 1fr); }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-tiles { grid-template-columns: minmax(0, 1fr); }
 }
 @media print {
-  #root .doc-surface.doc-detail .dd-drawer,
-  #root .doc-surface.doc-detail .dd-drawer-scrim { display: none; }
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer,
+  #root :is(.doc-surface.doc-detail, .doc-form) .dd-drawer-scrim { display: none; }
 }
 
 /* Dar ekranda satır tablosu sayfayı yana taşırmaz; kendi içinde kayar. */
 @media (max-width: 700px) {
-  #root .doc-surface.doc-detail table.dd-lines {
+  #root :is(.doc-surface.doc-detail, .doc-form) table.dd-lines {
+    position: relative;
     display: block;
     max-width: 100%;
     overflow-x: auto;

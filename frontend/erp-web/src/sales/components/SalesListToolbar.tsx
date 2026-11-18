@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 
 export type SalesListTab = "quotes" | "orders" | "invoices";
@@ -16,6 +17,8 @@ type SalesListToolbarProps = {
   /** Receives the element where the list's own tools (columns, pivot…) are rendered. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
   onRefresh: () => void;
+  /** After the filters (the detail panel toggle). */
+  extra?: ReactNode;
 };
 
 const placeholders: Record<SalesListTab, string> = {
@@ -37,6 +40,7 @@ export default function SalesListToolbar({
   onQuoteDateToChange,
   toolsSlotRef,
   onRefresh,
+  extra,
 }: SalesListToolbarProps) {
   return (
     <ListToolbar
@@ -62,7 +66,7 @@ export default function SalesListToolbar({
               { value: "Expired", label: "Süresi doldu" },
             ]}
           />
-          <label className="list-v2-filter">
+          <label className="list-v2-filter sales-quote-date">
             <span>Başlangıç</span>
             <input
               type="date"
@@ -70,7 +74,7 @@ export default function SalesListToolbar({
               onChange={(event) => onQuoteDateFromChange(event.target.value)}
             />
           </label>
-          <label className="list-v2-filter">
+          <label className="list-v2-filter sales-quote-date">
             <span>Bitiş</span>
             <input
               type="date"
@@ -80,6 +84,7 @@ export default function SalesListToolbar({
           </label>
         </>
       )}
+      {extra}
     </ListToolbar>
   );
 }

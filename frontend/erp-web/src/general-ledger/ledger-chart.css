@@ -11,9 +11,9 @@
 #root .general-ledger-panel.list-v2 :is(.glch-table, .glmp-table) :is(th, td) {
   padding: 7px 10px;
   border: 0;
-  border-bottom: 1px solid var(--glrp-line-soft);
+  border-bottom: 1px solid var(--nx-line-soft);
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   text-align: left;
   vertical-align: middle;
 }
@@ -21,14 +21,14 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--glrp-band);
-  color: var(--glrp-muted);
+  background: var(--nx-table-head);
+  color: var(--nx-muted);
   font-size: 12px;
   font-weight: 600;
 }
 #root .general-ledger-panel.list-v2 .glch-table :is(th, td):last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #root .general-ledger-panel.list-v2 .glch-table th:first-child { width: 150px; }
-#root .general-ledger-panel.list-v2 .glch-class-row :is(th, td) { background: var(--glrp-band); font-weight: 700; }
+#root .general-ledger-panel.list-v2 .glch-class-row :is(th, td) { background: var(--nx-table-head); font-weight: 700; }
 #root .app-shell .general-ledger-panel.list-v2 :is(.glch-class-row button, .glch-toggle) {
   display: inline-flex;
   align-items: center;
@@ -38,94 +38,108 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
   box-shadow: none;
 }
 #root .app-shell .general-ledger-panel.list-v2 .glch-toggle { margin-right: 6px; vertical-align: -2px; }
-#root .general-ledger-panel.list-v2 :is(.glch-class-row button, .glch-toggle):focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: 2px; }
+#root .general-ledger-panel.list-v2 :is(.glch-class-row button, .glch-toggle):focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
 #root .general-ledger-panel.list-v2 .glch-group-row td { font-weight: 600; }
 #root .general-ledger-panel.list-v2 .glch-group-row td:first-child { padding-left: 14px; }
-#root .general-ledger-panel.list-v2 .glch-group-row td small { color: var(--glrp-muted); font-weight: 400; }
+#root .general-ledger-panel.list-v2 .glch-group-row td small { color: var(--nx-muted); font-weight: 400; }
 #root .general-ledger-panel.list-v2 .glch-group-row td.is-clickable { cursor: pointer; }
-#root .general-ledger-panel.list-v2 .glch-group-row.is-selected td { background: var(--glrp-select); }
+#root .general-ledger-panel.list-v2 .glch-group-row.is-selected td { background: var(--nx-primary-soft); }
 #root .general-ledger-panel.list-v2 .glch-code { font-variant-numeric: tabular-nums; white-space: nowrap; }
 #root .general-ledger-panel.list-v2 .glch-name { overflow-wrap: anywhere; }
-#root .general-ledger-panel.list-v2 .glch-type { color: var(--glrp-muted); font-size: 12.5px; white-space: nowrap; }
 #root .general-ledger-panel.list-v2 tr.glch-row { cursor: pointer; }
-#root .general-ledger-panel.list-v2 tr.glch-row:hover > td { background: var(--glrp-band); }
-#root .general-ledger-panel.list-v2 tr.glch-row:focus-visible { outline: 2px solid var(--glrp-accent); outline-offset: -2px; }
-#root .general-ledger-panel.list-v2 tr.glch-row.is-selected > td { background: var(--glrp-select); }
-#root .general-ledger-panel.list-v2 tr.glch-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--glrp-accent); }
-#root .general-ledger-panel.list-v2 tr.glch-row.is-inactive > td { color: var(--glrp-muted); }
+#root .general-ledger-panel.list-v2 tr.glch-row:hover > td { background: var(--nx-table-head); }
+#root .general-ledger-panel.list-v2 tr.glch-row:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .general-ledger-panel.list-v2 tr.glch-row.is-selected > td { background: var(--nx-primary-soft); }
+#root .general-ledger-panel.list-v2 tr.glch-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
+#root .general-ledger-panel.list-v2 tr.glch-row.is-inactive > td { color: var(--nx-muted); }
 #root .app-shell .general-ledger-panel.list-v2 .glch-collapse-all {
   min-height: 30px;
   margin: 0;
   padding: 0 10px;
-  border: 1px solid var(--glrp-line);
+  border: 1px solid var(--nx-line);
   border-radius: 15px;
   background: transparent;
-  color: var(--glrp-ink);
+  color: var(--nx-text);
   font-size: 12.5px;
   cursor: pointer;
 }
-#root .general-ledger-panel.list-v2 .glch-facts { display: grid; gap: 8px; margin: 12px 0 0; }
-#root .general-ledger-panel.list-v2 .glch-facts dt { color: var(--glrp-muted); font-size: 11.5px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glch-facts dd { margin: 1px 0 0; color: var(--glrp-ink); font-size: 12.5px; overflow-wrap: anywhere; }
-#root .general-ledger-panel.list-v2 .glch-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
-#root .app-shell .general-ledger-panel.list-v2 .glch-actions > button { flex: 1 1 calc(50% - 8px); min-height: 34px; margin: 0; justify-content: center; }
-#root .app-shell .general-ledger-panel.list-v2 .glch-actions > button.is-danger { color: var(--glrp-bad); }
+/* Hesap planı and Hesap eşleştirmeleri sit on the page canvas: the root is named "*-panel", so the shell's name
+   rules would give it a white 12px surface. Header → bar → toolbar → screen keep the kit's 12px rhythm. */
+#root .app-shell .general-ledger-panel:is(.general-ledger-view-accounts, .general-ledger-view-mappings).list-v2 {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .general-ledger-panel:is(.general-ledger-view-accounts, .general-ledger-view-mappings).list-v2 > :is(.error-banner, .notice) { margin: 0; }
 
-/* Hesap eşleştirmeleri */
-#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: 42%; }
-#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(3) { width: 130px; }
-#root .general-ledger-panel.list-v2 .glmp-usage b { display: block; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-usage small { display: block; margin-top: 2px; color: var(--glrp-muted); font-size: 12px; }
+/* Hesap planı as a definition screen (mockup 04 "Tanım ekranı"): the tree card on the left, the account card right. */
+@media (min-width: 1280px) {
+  #root .list-v2 .nx-def.glch-def { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+}
+#root .list-v2 .glch-def .list-v2-search { flex: 1 1 150px; min-width: 140px; }
+#root .general-ledger-panel.list-v2 .glch-list {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  box-shadow: none;
+  overflow: hidden;
+}
+#root .general-ledger-panel.list-v2 .glch-list .glrp-table-wrap { min-width: 0; max-height: calc(100dvh - 300px); overflow: auto; border: 0; border-radius: 0; }
+/* Dense 30px rows (the shell gives every legacy table 44px rows and 8px 12px padding with !important). */
+#root .app-shell .general-ledger-panel.list-v2 .glch-list .glch-table :is(th, td) {
+  height: var(--nx-row-h-dense) !important;
+  padding: 4px 10px !important;
+  box-sizing: border-box;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+#root .general-ledger-panel.list-v2 .glch-list .glch-table th:first-child { width: 128px; }
+#root .general-ledger-panel.list-v2 .glch-list .glch-table :is(th, td):last-child { width: 140px; font-weight: 400; }
+#root .general-ledger-panel.list-v2 .glch-list .glch-class-row :is(th, td) { font-weight: 650; }
+#root .general-ledger-panel.list-v2 .glch-error { margin: 8px 12px 0; }
+#root .general-ledger-panel.list-v2 .glch-fieldset { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; }
+#root .general-ledger-panel.list-v2 .glch-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; margin: 0; }
+#root .general-ledger-panel.list-v2 .glch-summary dt { color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root .general-ledger-panel.list-v2 .glch-summary dd { margin: 2px 0 0; color: var(--nx-text); font-size: 13px; font-variant-numeric: tabular-nums; }
+#root .general-ledger-panel.list-v2 .glch-summary dd .glrp-reverse { margin-left: 4px; vertical-align: -2px; }
+#root .general-ledger-panel.list-v2 .nx-def-pane > .glmv { min-width: 0; }
+
+/* Hesap eşleştirmeleri: the same definition screen (list left, the mapping's account card right). */
+#root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: 40%; }
+#root .general-ledger-panel.list-v2 .glmp-list .glch-table th:first-child { width: 40%; }
+#root .general-ledger-panel.list-v2 .glmp-list .glch-table :is(th, td):last-child { width: 104px; text-align: left; }
+#root .general-ledger-panel.list-v2 .glmp-list td.glch-name { overflow: hidden; max-width: 0; text-overflow: ellipsis; white-space: nowrap; }
+#root .general-ledger-panel.list-v2 .glmp-facts .glmp-wide { grid-column: span 2; }
+#root .general-ledger-panel.list-v2 .glmp-account { display: grid; gap: 4px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .glmp-account-label { color: var(--nx-text); font-size: 11.5px; font-weight: 500; }
 #root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 32px;
+  height: var(--nx-control-h);
   padding: 0 10px;
-  border: 1px solid var(--glrp-line);
-  border-radius: 7px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
   background: var(--nx-surface);
-  color: var(--glrp-ink);
-  font-size: 13px;
-}
-#root .general-ledger-panel.list-v2 .glmp-row.is-missing .gl-account-combobox input,
-#root .general-ledger-panel.list-v2 .glmp-row.is-inactive .gl-account-combobox input { border-color: var(--glrp-warn-line); }
-#root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input:focus { border-color: var(--glrp-accent); outline: none; }
-#root .general-ledger-panel.list-v2 .glmp-hint {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  color: var(--glrp-muted);
-  font-size: 11.5px;
-}
-#root .general-ledger-panel.list-v2 .glmp-hint.is-ok { color: var(--glrp-ok); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-hint.is-error { color: var(--glrp-bad); font-weight: 600; }
-#root .general-ledger-panel.list-v2 .glmp-unset { color: var(--glrp-muted); }
-#root .general-ledger-panel.list-v2 .glmp-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  color: var(--nx-text);
   font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .glmp-status.is-mapped { color: var(--glrp-ok); }
-#root .general-ledger-panel.list-v2 .glmp-status:is(.is-missing, .is-inactive) { color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip { border-color: var(--glrp-warn-line); color: var(--glrp-warn); }
-#root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip.is-active { border-color: #b86e12; background: #b86e12; color: #fff; }
-#root .general-ledger-panel.list-v2 .glmp .glrp-table-wrap { overflow: visible; }
-
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .list-v2-chip.glmp-missing-chip:not(.is-active) { border-color: #7a5320; color: var(--nx-warn); }
-
-@media (max-width: 760px) {
-  #root .general-ledger-panel.list-v2 .glch-table th:nth-child(3),
-  #root .general-ledger-panel.list-v2 .glch-table td.glch-type { display: none; }
-  #root .general-ledger-panel.list-v2 .glmp-table th:nth-child(1) { width: auto; }
-}
+#root .general-ledger-panel.list-v2 .glmp-account .gl-account-combobox input:focus { border-color: var(--nx-primary); outline: none; }
+#root .general-ledger-panel.list-v2 .glmp-hint { display: flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--nx-muted); font-size: 11.5px; }
+#root .general-ledger-panel.list-v2 .glmp-hint.is-error { color: var(--nx-bad); font-weight: 600; }
+#root .general-ledger-panel.list-v2 .glmp-unset { color: var(--nx-muted); }
+#root .app-shell .general-ledger-panel.list-v2 .glch-list .glch-class-row > :is(th, td) { background: var(--nx-table-head) !important; }

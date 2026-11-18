@@ -6,6 +6,7 @@ import {
 import "../../finance-record-forms.css";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import { StatusTag } from "../../list-page/StatusTag";
 import type { Facility, ScreenField, Security } from "../types";
 
 const defaultSecurityFields: ScreenField[] = [
@@ -25,10 +26,11 @@ type Props = {
   showCreateForm?: boolean;
   visibleFields?: ScreenField[];
   onNavigate?: (page: string, label?: string) => void;
-  /** Replaces the default "Teminat ekle" navigation (e.g. to preselect the credit). */
-  onCreate?: () => void;
-  /** Rendered inside the selected credit's "Teminatlar" tab: no outer box. */
+  /** Rendered inside the opened credit's "Teminatlar" tab. */
   embedded?: boolean;
+  /** The page's save error, shown on the record form. */
+  error?: string;
+  onDismissError?: () => void;
   facilities: Facility[];
   securities: Security[];
   expiringCount: number;
@@ -58,6 +60,9 @@ type Props = {
   onExpiryDateChange: (value: string) => void;
   onNotesChange: (value: string) => void;
 };
+
+const MONEY_KEYS = new Set(["amount", "commissionAmount"]);
+const SECURITY_WIDTHS: Record<string, number> = { code: 150, facilityCode: 110, parties: 220, amount: 120, commissionAmount: 100, issueDate: 95, expiryDate: 95, status: 100, notes: 160, actions: 170 };
 
 export function CreditSecuritiesPanel(props: Props) {
   const currency =
@@ -95,8 +100,18 @@ export function CreditSecuritiesPanel(props: Props) {
         return item.expiryDate;
       case "status":
         return (
-          <span
-            className={`status-badge ${item.alert === "Expired" ? "danger" : item.alert === "Expiring" ? "warning" : ""}`}
+          <StatusTag
+            tone={
+              item.status === "Released"
+                ? "off"
+                : item.status === "Called"
+                  ? "bad"
+                  : item.alert === "Expired"
+                    ? "bad"
+                    : item.alert === "Expiring"
+                      ? "warn"
+                      : "ok"
+            }
           >
             {item.status === "Released"
               ? "Serbest"
@@ -107,7 +122,7 @@ export function CreditSecuritiesPanel(props: Props) {
                   : item.alert === "Expiring"
                     ? "Yaklaşıyor"
                     : "Etkin"}
-          </span>
+          </StatusTag>
         );
       case "notes":
         return item.notes || "—";
@@ -138,61 +153,13 @@ export function CreditSecuritiesPanel(props: Props) {
         return null;
     }
   };
-  return (
-    <section
-      className={
-        props.embedded
-          ? "cf-securities"
-          : `panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`
-      }
-      aria-labelledby="credit-securities-title"
-    >
-      <div className={props.embedded ? "cf-pane-head" : "credit-records-heading"}>
-        <div>
-          {!props.embedded && (
-            <h2 id="credit-securities-title">Teminat ve garantiler</h2>
-          )}
-          <p id={props.embedded ? "credit-securities-title" : undefined}>
-            Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına
-            veya muhasebeye otomatik tutar eklemez.
-          </p>
-        </div>
-        <div className="credit-row-actions">
-          <span
-            className={
-              props.expiredCount ? "status-badge danger" : "status-badge"
-            }
-          >
-            {props.expiredCount} vadesi geçmiş
-          </span>
-          <span
-            className={
-              props.expiringCount ? "status-badge warning" : "status-badge"
-            }
-          >
-            {props.expiringCount} 30 gün içinde
-          </span>
-          {props.isAdmin && !props.showCreateForm && (
-            <button
-              type="button"
-              className="primary small-button"
-              onClick={() =>
-                props.onCreate
-                  ? props.onCreate()
-                  : props.onNavigate?.(
-                      "finance-credit-security-create",
-                      "Teminat kaydı",
-                    )
-              }
-            >
-              Teminat ekle
-            </button>
-          )}
-        </div>
-      </div>
-      {props.isAdmin && props.showCreateForm && (
+  // The create route (finance-credit-security-create) is a full-page record form; the credit surface embeds the list.
+  if (props.showCreateForm)
+    return props.isAdmin ? (
         <RecordFormPage
-          variant="dialog"
+          confirmCancel
+          error={props.error}
+          onDismissError={props.onDismissError}
           title="Teminat kaydı"
           mode="create"
           busy={props.busy}
@@ -378,20 +345,31 @@ export function CreditSecuritiesPanel(props: Props) {
             </div>
           </div>
         </RecordFormPage>
-      )}
-      {!props.showCreateForm &&
-        (props.securities.length === 0 ? (
+    ) : null;
+  return (
+    <section className="dd-box cf-box cf-securities" aria-labelledby="credit-securities-title">
+      <header className="cf-box-head">
+        <h3 id="credit-securities-title">Teminat ve garantiler</h3>
+        <span>
+          Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına veya muhasebeye otomatik tutar eklemez.
+        </span>
+        <span className="cf-box-tags">
+          <StatusTag tone={props.expiredCount ? "bad" : "off"}>{`${props.expiredCount} vadesi geçmiş`}</StatusTag>
+          <StatusTag tone={props.expiringCount ? "warn" : "off"}>{`${props.expiringCount} 30 gün içinde`}</StatusTag>
+        </span>
+      </header>
+      {props.securities.length === 0 ? (
           <div className="credit-state credit-empty">
             <strong>Henüz teminat veya garanti kaydı yok.</strong>
             <span>
               {props.isAdmin
-                ? "Bir kredi seçerek kayıt ekleyebilirsiniz."
+                ? "İşlemler › Teminat ekle ile kayıt ekleyebilirsiniz."
                 : "Kayıt eklendiğinde burada görünür."}
             </span>
           </div>
         ) : (
           <div
-            className="credit-table-wrap"
+            className={props.embedded ? "dd-grid credit-table-wrap" : "credit-table-wrap"}
             role="region"
             aria-label="Teminat ve garanti listesi"
             tabIndex={0}
@@ -399,7 +377,7 @@ export function CreditSecuritiesPanel(props: Props) {
             <AdvancedDataGrid
               className="customer-table credit-table"
               gridId="finance-credit-securities"
-              {...screenViewGridDefaults(columns)}
+              {...screenViewGridDefaults(columns, (field) => SECURITY_WIDTHS[field.key])}
               externalPagination
               hideSearch
               enableRowSelection={false}
@@ -411,7 +389,9 @@ export function CreditSecuritiesPanel(props: Props) {
               <thead>
                 <tr>
                   {columns.map((field) => (
-                    <th key={field.key}>{field.label}</th>
+                    <th key={field.key} className={MONEY_KEYS.has(field.key) ? "nx-num dd-num" : undefined}>
+                      {field.label}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -419,14 +399,16 @@ export function CreditSecuritiesPanel(props: Props) {
                 {props.securities.map((item) => (
                   <tr key={item.id}>
                     {columns.map((field) => (
-                      <td key={field.key}>{renderCell(item, field.key)}</td>
+                      <td key={field.key} className={MONEY_KEYS.has(field.key) ? "nx-num dd-num" : undefined}>
+                        {renderCell(item, field.key)}
+                      </td>
                     ))}
                   </tr>
                 ))}
               </tbody>
             </AdvancedDataGrid>
           </div>
-        ))}
+        )}
     </section>
   );
 }

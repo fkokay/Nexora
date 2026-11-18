@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
 import "./finance-hub.css";
 import "./credit-facilities.css";
-import { CreditFacilitiesSummary } from "./credit-facilities/components/CreditFacilitiesSummary";
 import { CreditExposurePanel } from "./credit-facilities/components/CreditExposurePanel";
 import {
-  CreditFacilityRegister,
+  CreditFacilityDetail,
   drawnShare,
   facilityTypeLabel,
   type CreditTab,
-} from "./credit-facilities/components/CreditFacilityRegister";
+} from "./credit-facilities/components/CreditFacilityDetail";
+import { CreditFacilityList } from "./credit-facilities/components/CreditFacilityList";
 import { CreditFacilitiesPageStatus } from "./credit-facilities/components/CreditFacilitiesPageStatus";
 import { CreditFacilitySetup } from "./credit-facilities/components/CreditFacilitySetup";
 import { CreditMovementForm } from "./credit-facilities/components/CreditMovementForm";
@@ -159,7 +163,8 @@ export default function CreditFacilitiesPage({
     [creditTab, setCreditTabState] = useState<CreditTab>(
       () => (readSession(SELECTED_TAB_KEY) as CreditTab | null) || "summary",
     ),
-    [exposureOpen, setExposureOpen] = useState(false);
+    [exposureOpen, setExposureOpen] = useState(false),
+    [openedFacilityId, setOpenedFacilityId] = useState<string | null>(null);
   const [scheduleFields, setScheduleFields] = useState<ScreenField[]>([
     { key: "dueDate", label: "Vade", visible: true, position: 0 },
     { key: "principalAmount", label: "Anapara", visible: true, position: 1 },
@@ -848,9 +853,10 @@ export default function CreditFacilitiesPage({
           ? -1
           : a.position - b.position,
     );
+  // Footer totals per currency of the listed credits (status, currency and search filters), next to "Gösterilen n / N".
   const currencySummaries = currencies
     .map((code) => {
-      const rows = facilities.filter((f) => f.currencyCode === code);
+      const rows = visibleFacilities.filter((f) => f.currencyCode === code);
       return {
         code,
         count: rows.length,
@@ -860,14 +866,14 @@ export default function CreditFacilitiesPage({
         scheduled: rows.reduce((sum, f) => sum + f.openScheduleTotal, 0),
       };
     })
-    .filter(
-      (summary) => currencyFilter === "All" || summary.code === currencyFilter,
-    );
+    .filter((summary) => summary.count > 0);
   const isList = view === "list";
+  // The current row the user chose (the grid never picks one by itself); the opened credit is shown on its own surface.
   const selectedFacility =
-    visibleFacilities.find((f) => f.id === selectedFacilityId) ??
-    visibleFacilities[0] ??
-    null;
+    visibleFacilities.find((f) => f.id === selectedFacilityId) ?? null;
+  const openedFacility = openedFacilityId
+    ? (facilities.find((f) => f.id === openedFacilityId) ?? null)
+    : null;
   const tileFacilities = facilities.filter(
     (f) => currencyFilter === "All" || f.currencyCode === currencyFilter,
   );
@@ -879,10 +885,14 @@ export default function CreditFacilitiesPage({
     setSelectedFacilityId(f.id);
     writeSession(SELECTED_KEY, f.id);
   }
+  function openFacility(f: Facility) {
+    selectFacility(f);
+    setOpenedFacilityId(f.id);
+  }
   /** Opens an operation page (kept as its own route) with the selected credit preselected. */
   function openOperation(
     f: Facility,
-    target: "schedule-create" | "movement-create" | "security-create",
+    target: "schedule-create" | "movement-create" | "repayment-create" | "security-create",
   ) {
     selectFacility(f);
     writeSession(
@@ -897,6 +907,11 @@ export default function CreditFacilitiesPage({
       setAccountId("");
       setMovementScheduleId("");
       onNavigate?.("finance-credit-movement-create", "Kredi kullandırımı");
+    } else if (target === "repayment-create") {
+      setMovementFacilityId(f.id);
+      setAccountId("");
+      setMovementScheduleId("");
+      onNavigate?.("finance-credit-repayment-create", "Kredi geri ödemesi");
     } else {
       setSecurityFacilityId(f.id);
       onNavigate?.("finance-credit-security-create", "Teminat kaydı");
@@ -950,77 +965,146 @@ export default function CreditFacilitiesPage({
   }
   const facilitySecurities = (f: Facility) =>
     securities.filter((item) => item.creditFacilityId === f.id);
-  const pageTitle =
-    view === "facility-create"
-      ? "Yeni kredi / limit"
-      : view === "schedule-create"
-        ? "Ödeme planına taksit ekle"
-        : view === "repayment-create"
-          ? "Kredi geri ödemesi kaydet"
-          : view === "security-create"
-            ? "Teminat / garanti tanımla"
-            : "Kredi kullandırımı kaydet";
+  // İşlem Çubuğu (list type A and the credit surface): Yeni opens the credit form, Excel is today's XLSX. A credit's
+  // operations are in İşlemler with today's conditions: firma yöneticisi, not busy, active credit; closing needs no open
+  // principal or instalment; Teminat ekle only needs the firma yöneticisi; the interest preview needs a rate (any role),
+  // posting the previous month also the firma yöneticisi.
+  const exportRef = useRef<GridExportActions | null>(null);
+  function creditCommands(f: Facility | null, onSurface: boolean): MenuCommand[] {
+    const fActive = f?.status === "Active";
+    const reason = (needsActive: boolean): string | undefined =>
+      !admin
+        ? "Kredi işlemlerini yalnız firma yöneticisi yapar"
+        : !f
+          ? "Önce bir kredi seçin"
+          : busy
+            ? "İşlem sürüyor…"
+            : needsActive && !fActive
+              ? "Kapalı kredide kullanılamaz"
+              : undefined;
+    const closeBlocked = !!f && fActive && (f.openScheduleCount > 0 || f.outstandingPrincipal > 0);
+    const noRate = f && f.annualInterestRatePercent === null ? "Yıllık faiz oranı tanımlı değil" : undefined;
+    const items: MenuCommand[] = [
+      {
+        id: "cf-movement",
+        label: "Kullandırım kaydet",
+        disabledReason: reason(true),
+        run: () => {
+          if (f) openOperation(f, "movement-create");
+        },
+      },
+      {
+        id: "cf-repayment",
+        label: "Geri ödeme kaydet",
+        disabledReason: reason(true),
+        run: () => {
+          if (f) openOperation(f, "repayment-create");
+        },
+      },
+      {
+        id: "cf-schedule",
+        label: "Taksit planla",
+        disabledReason: reason(true),
+        run: () => {
+          if (f) openOperation(f, "schedule-create");
+        },
+      },
+      {
+        id: "cf-security",
+        label: "Teminat ekle",
+        disabledReason: !admin ? "Kredi işlemlerini yalnız firma yöneticisi yapar" : !f ? "Önce bir kredi seçin" : undefined,
+        run: () => {
+          if (f) openOperation(f, "security-create");
+        },
+      },
+    ];
+    if (onSurface)
+      items.push(
+        {
+          id: "cf-interest-preview",
+          label: "Bu ay faiz önizle",
+          disabledReason: !f ? "Önce bir kredi seçin" : busy ? "İşlem sürüyor…" : noRate,
+          run: () => {
+            if (!f) return;
+            setCreditTab("interest");
+            void previewInterest(f);
+          },
+        },
+        {
+          id: "cf-interest-post",
+          label: "Önceki ayı muhasebeleştir",
+          disabledReason: !admin
+            ? "Faiz tahakkukunu yalnız firma yöneticisi muhasebeleştirir"
+            : !f
+              ? "Önce bir kredi seçin"
+              : busy
+                ? "İşlem sürüyor…"
+                : noRate,
+          run: () => {
+            if (!f) return;
+            setCreditTab("interest");
+            void postPreviousMonthInterest(f);
+          },
+        },
+      );
+    items.push({
+      id: "cf-status",
+      label: f && !fActive ? "Krediyi etkinleştir" : "Krediyi kapat",
+      disabledReason:
+        reason(false) ?? (closeBlocked ? "Açık anapara veya açık taksit varken kredi kapatılamaz." : undefined),
+      run: () => {
+        if (f) void closeFacility(f);
+      },
+    });
+    if (!onSurface) items.push(csvExportCommand(exportRef));
+    return items;
+  }
+  const newCommand: PageCommands["new"] = admin
+    ? {
+        primary: !openedFacility,
+        run: () => onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit"),
+      }
+    : { disabledReason: "Kredi kaydını yalnız firma yöneticisi oluşturur" };
+  const listCommands: PageCommands = {
+    new: newCommand,
+    open: {
+      disabledReason: selectedFacility ? (busy ? "İşlem sürüyor…" : undefined) : "Önce bir kredi seçin",
+      run: () => {
+        const id = focusedRecordId() ?? selectedFacility?.id;
+        const f = visibleFacilities.find((row) => row.id === id);
+        if (f) openFacility(f);
+      },
+    },
+    delete: { disabledReason: "Kredi silinmez; İşlemler › Krediyi kapat" },
+    refresh: { disabledReason: loading ? "Yükleniyor…" : undefined, run: () => void load() },
+    export: {
+      disabledReason: visibleFacilities.length === 0 ? "Listelenecek kredi yok" : undefined,
+      run: () => void exportCredits(),
+    },
+    more: creditCommands(selectedFacility, false),
+  };
+  const surfaceCommands: PageCommands = {
+    ...documentOpenCommands(() => void load()),
+    new: newCommand,
+    save: { disabledReason: "Kredi kaydı düzenlenmez; işlemler İşlemler menüsünde" },
+    delete: { disabledReason: "Kredi silinmez; İşlemler › Krediyi kapat" },
+    more: creditCommands(openedFacility, true),
+  };
   return (
     <div
-      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " credit-operation-screen"}`}
+      className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : ""}`}
     >
+      {isList && !openedFacility && <PageCommandsSlot commands={listCommands} />}
       {isList ? (
         <CreditFacilitiesPageStatus
           loading={loading}
-          error={error}
-          notice={notice}
-          isAdmin={admin}
+          error={openedFacility ? "" : error}
+          notice={openedFacility ? "" : notice}
           totalCount={facilities.length}
-          onCreateFacility={() =>
-            onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit")
-          }
-          onExport={() => void exportCredits()}
-          exportDisabled={visibleFacilities.length === 0}
           onRefresh={() => void load()}
           onDismissNotice={() => setNotice("")}
         />
-      ) : (
-        <div className="credit-operation-page-heading">
-          <div>
-            <button
-              type="button"
-              className="secondary small-button"
-              onClick={() =>
-                onNavigate?.(
-                  "finance-credit-facilities",
-                  "Krediler & Finansman",
-                )
-              }
-            >
-              ← Krediler & Finansman
-            </button>
-            <p className="eyebrow">FİNANS YÖNETİMİ · KREDİLER & FİNANSMAN</p>
-            <h1>{pageTitle}</h1>
-            <p className="muted">
-              İşlemi ayrı ekranda tamamlayın; kaydedince kredi listesine
-              dönersiniz.
-            </p>
-          </div>
-        </div>
-      )}
-      {!isList && error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-        </div>
-      )}
-      {!isList && notice && (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      )}
-      {isList && (
-        <CreditFacilitiesSummary
-          summaries={currencySummaries}
-          facilities={tileFacilities}
-          today={today()}
-          horizon={daysAhead(30)}
-        />
-      )}
+      ) : null}
       <CreditFacilitySetup
         isAdmin={admin}
         view={
@@ -1066,6 +1150,8 @@ export default function CreditFacilitiesPage({
         onInterestChange={setInterest}
         onFeeChange={setFee}
         onScheduleNotesChange={setScheduleNotes}
+        error={error}
+        onDismissError={() => setError("")}
       />
       {view === "movement-create" || view === "repayment-create" ? (
         <CreditMovementForm
@@ -1087,6 +1173,8 @@ export default function CreditFacilitiesPage({
           busy={busy}
           formatMoney={money}
           onSubmit={submitMovement}
+          error={error}
+          onDismissError={() => setError("")}
           onFacilityChange={(value) => {
             setMovementFacilityId(value);
             setAccountId("");
@@ -1124,6 +1212,8 @@ export default function CreditFacilitiesPage({
           expiredCount={expiredSecurities}
           busy={busy}
           showCreateForm={view === "security-create"}
+          error={error}
+          onDismissError={() => setError("")}
           onNavigate={onNavigate}
           facilityId={securityFacilityId}
           type={securityType}
@@ -1152,101 +1242,129 @@ export default function CreditFacilitiesPage({
       )}
       {isList && (
         <>
-          <CreditFacilityRegister
+          <CreditFacilityList
             facilities={facilities}
             visibleFacilities={visibleFacilities}
-            selected={selectedFacility}
-            tab={creditTab}
-            onSelect={selectFacility}
-            onTabChange={setCreditTab}
-            securityCount={(f) => facilitySecurities(f).length}
-            onRecordMovement={(f) => openOperation(f, "movement-create")}
-            onPlanSchedule={(f) => openOperation(f, "schedule-create")}
-            renderSecurities={(f) => {
-              const rows = facilitySecurities(f);
-              return (
-                <CreditSecuritiesPanel
-                  embedded
-                  isAdmin={admin}
-                  facilities={facilities}
-                  securities={rows}
-                  expiringCount={rows.filter((item) => item.alert === "Expiring").length}
-                  expiredCount={rows.filter((item) => item.alert === "Expired").length}
-                  busy={busy}
-                  showCreateForm={false}
-                  visibleFields={visibleSecurityFields}
-                  onNavigate={onNavigate}
-                  onCreate={() => openOperation(f, "security-create")}
-                  facilityId={securityFacilityId}
-                  type={securityType}
-                  code={securityCode}
-                  issuer={securityIssuer}
-                  beneficiary={securityBeneficiary}
-                  amount={securityAmount}
-                  commission={securityCommission}
-                  issueDate={securityIssueDate}
-                  expiryDate={securityExpiryDate}
-                  notes={securityNotes}
-                  formatMoney={money}
-                  onSubmit={submitSecurity}
-                  onClose={(item, status) => void closeSecurity(item, status)}
-                  onFacilityChange={setSecurityFacilityId}
-                  onTypeChange={setSecurityType}
-                  onCodeChange={setSecurityCode}
-                  onIssuerChange={setSecurityIssuer}
-                  onBeneficiaryChange={setSecurityBeneficiary}
-                  onAmountChange={setSecurityAmount}
-                  onCommissionChange={setSecurityCommission}
-                  onIssueDateChange={setSecurityIssueDate}
-                  onExpiryDateChange={setSecurityExpiryDate}
-                  onNotesChange={setSecurityNotes}
-                />
-              );
+            currentId={selectedFacility?.id ?? null}
+            onCurrentChange={(id) => {
+              const f = facilities.find((row) => row.id === id);
+              if (f) selectFacility(f);
+              else {
+                setSelectedFacilityId(null);
+                try {
+                  sessionStorage.removeItem(SELECTED_KEY);
+                } catch {
+                  /* storage unavailable */
+                }
+              }
             }}
+            onOpen={openFacility}
+            exportActionsRef={exportRef}
             loading={loading}
             admin={admin}
+            busy={busy}
             search={search}
             statusFilter={statusFilter}
             currencyFilter={currencyFilter}
             currencies={currencies}
-            visibleScheduleFields={visibleScheduleFields}
-            visibleMovementFields={visibleMovementFields}
-            interestPreviews={interestPreviews}
-            effectiveInterestPreviews={effectiveInterestPreviews}
-            effectiveInterestCosts={effectiveInterestCosts}
-            busy={busy}
-            formatMoney={money}
-            onEffectiveInterestCostChange={(id, value) =>
-              setEffectiveInterestCosts((current) => ({
-                ...current,
-                [id]: value,
-              }))
-            }
-            onPreviewEffectiveInterest={(facility) =>
-              void previewEffectiveInterest(facility)
-            }
             onSearchChange={setSearch}
             onStatusChange={setStatusFilter}
             onCurrencyChange={setCurrencyFilter}
-            onClearFilters={() => {
-              setSearch("");
-              setStatusFilter("All");
-              setCurrencyFilter("All");
-            }}
             onRefresh={() => void load()}
-            onPreviewInterest={(facility) => void previewInterest(facility)}
-            onPostPreviousMonthInterest={(facility) =>
-              void postPreviousMonthInterest(facility)
-            }
-            onCloseFacility={(facility) => void closeFacility(facility)}
-            onPrepareSchedulePayment={prepareSchedulePayment}
-            onSetScheduleStatus={(item, status) =>
-              void setScheduleStatus(item, status)
-            }
-            onReverseMovement={(facility, movement) =>
-              void reverseMovement(facility, movement)
-            }
+            summaries={currencySummaries}
+            tileFacilities={tileFacilities}
+            today={today()}
+            horizon={daysAhead(30)}
           />
+          {openedFacility && (
+            <CreditFacilityDetail
+              key={openedFacility.id}
+              facility={openedFacility}
+              tab={creditTab}
+              admin={admin}
+              busy={busy}
+              securityCount={facilitySecurities(openedFacility).length}
+              visibleScheduleFields={visibleScheduleFields}
+              visibleMovementFields={visibleMovementFields}
+              interest={interestPreviews[openedFacility.id]}
+              effective={effectiveInterestPreviews[openedFacility.id]}
+              effectiveCost={effectiveInterestCosts[openedFacility.id] ?? "0"}
+              formatMoney={money}
+              commands={surfaceCommands}
+              onClose={() => setOpenedFacilityId(null)}
+              onTabChange={setCreditTab}
+              onEffectiveCostChange={(value) =>
+                setEffectiveInterestCosts((current) => ({
+                  ...current,
+                  [openedFacility.id]: value,
+                }))
+              }
+              onPreviewEffectiveInterest={() => void previewEffectiveInterest(openedFacility)}
+              onPrepareSchedulePayment={(item) => prepareSchedulePayment(openedFacility, item)}
+              onSetScheduleStatus={(item, status) => void setScheduleStatus(item, status)}
+              onReverseMovement={(movement) => void reverseMovement(openedFacility, movement)}
+              securities={(() => {
+                const rows = facilitySecurities(openedFacility);
+                return (
+                  <CreditSecuritiesPanel
+                    embedded
+                    isAdmin={admin}
+                    facilities={facilities}
+                    securities={rows}
+                    expiringCount={rows.filter((item) => item.alert === "Expiring").length}
+                    expiredCount={rows.filter((item) => item.alert === "Expired").length}
+                    busy={busy}
+                    showCreateForm={false}
+                    visibleFields={visibleSecurityFields}
+                    onNavigate={onNavigate}
+                    facilityId={securityFacilityId}
+                    type={securityType}
+                    code={securityCode}
+                    issuer={securityIssuer}
+                    beneficiary={securityBeneficiary}
+                    amount={securityAmount}
+                    commission={securityCommission}
+                    issueDate={securityIssueDate}
+                    expiryDate={securityExpiryDate}
+                    notes={securityNotes}
+                    formatMoney={money}
+                    onSubmit={submitSecurity}
+                    onClose={(item, status) => void closeSecurity(item, status)}
+                    onFacilityChange={setSecurityFacilityId}
+                    onTypeChange={setSecurityType}
+                    onCodeChange={setSecurityCode}
+                    onIssuerChange={setSecurityIssuer}
+                    onBeneficiaryChange={setSecurityBeneficiary}
+                    onAmountChange={setSecurityAmount}
+                    onCommissionChange={setSecurityCommission}
+                    onIssueDateChange={setSecurityIssueDate}
+                    onExpiryDateChange={setSecurityExpiryDate}
+                    onNotesChange={setSecurityNotes}
+                  />
+                );
+              })()}
+              messages={
+                <>
+                  {error && (
+                    <div className="alert inline-alert" role="alert">
+                      <span>{error}</span>
+                      <button type="button" onClick={() => setError("")} aria-label="Uyarıyı kapat">
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  {notice && !error && (
+                    <div className="notice" role="status">
+                      {notice}
+                      <button type="button" onClick={() => setNotice("")} aria-label="Bildirimi kapat">
+                        ×
+                      </button>
+                    </div>
+                  )}
+                </>
+              }
+            />
+          )}
           <details
             className="cf-exposure"
             open={exposureOpen}

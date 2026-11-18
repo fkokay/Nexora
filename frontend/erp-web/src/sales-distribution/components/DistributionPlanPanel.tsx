@@ -46,13 +46,22 @@ function fieldValue(item: Need, key: string) {
   ) : key === "available" ? (
     `${item.available.toLocaleString("tr-TR")} ${item.unitCode}`
   ) : key === "uncovered" ? (
-    <b>
-      {item.uncovered.toLocaleString("tr-TR")} {item.unitCode}
-    </b>
+    // A shortfall is marked (warning colour + weight via the class) instead of the former bold tag.
+    item.uncovered > 0 ? (
+      <span className="sales-distribution-short">
+        {item.uncovered.toLocaleString("tr-TR")} {item.unitCode}
+      </span>
+    ) : (
+      `${item.uncovered.toLocaleString("tr-TR")} ${item.unitCode}`
+    )
   ) : (
     item.openOrderCount
   );
 }
+
+/** Quantity columns: right-aligned tabular numbers. */
+const numericKeys = new Set(["openDemand", "onHand", "activeReserved", "available", "uncovered", "openOrderCount"]);
+const numClass = (key: string) => (numericKeys.has(key) ? "nx-num" : undefined);
 
 function StockNeedsTable({
   page,
@@ -95,7 +104,9 @@ function StockNeedsTable({
           <ScreenViewGroupHeader fields={visibleFields} />
           <tr>
             {visibleFields.map((field) => (
-              <th key={field.key}>{field.label}</th>
+              <th key={field.key} className={numClass(field.key)}>
+                {field.label}
+              </th>
             ))}
           </tr>
         </thead>
@@ -114,7 +125,9 @@ function StockNeedsTable({
               }}
             >
               {visibleFields.map((field) => (
-                <td key={field.key}>{fieldValue(item, field.key)}</td>
+                <td key={field.key} className={numClass(field.key)}>
+                  {fieldValue(item, field.key)}
+                </td>
               ))}
             </tr>
           ))}
