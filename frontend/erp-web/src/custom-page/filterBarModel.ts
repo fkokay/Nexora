@@ -1,0 +1,250 @@
+import type { ColumnFormat } from "./cellFormat";
+
+/**
+ * Süzgeç alanı (filterBar) modeli. `filters` öğeleri `anahtar|tür|yer|parametre|Etiket|seçenekler` biçimindedir (sunucudaki
+ * TenantCustomPageSchema.ValidateFilterBar ile aynı): tür auto/text/range/date/select/toggle, yer row/more; parametre verilmişse
+ * değer `{{<ad>.<parametre>}}` bağlamasıyla listenin sorgusuna gider (sunucuda süzülür), verilmemişse yüklenen satırlara
+ * uygulanır. Seçenekler `sorgu[:değerSütunu[:etiketSütunu]]`.
+ */
+export type FilterKind = "text" | "range" | "date" | "select" | "toggle";
+export type FilterSpec = {
+  key: string; kind: FilterKind | "auto"; place: "row" | "more"; param?: string; label?: string;
+  options?: { query: string; valueColumn?: string; labelColumn?: string };
+};
+export type RangeValue = { min: string; max: string };
+export type FilterValue = string | boolean | RangeValue;
+export type FilterBarValues = { search: string; values: Record<string, FilterValue> };
+export type FilterOption = { value: string; label: string };
+/** Türü çözülmüş süzgeç: tabloya ve sorguya göre etiket, tür ve seçenekler. */
+export type ResolvedFilter = FilterSpec & { kind: FilterKind; label: string; options?: FilterSpec["options"]; choices: FilterOption[] };
+
+const KINDS = new Set(["auto", "text", "range", "date", "select", "toggle"]);
+const PARAM = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const OPTIONS = /^([A-Za-z0-9_-]{1,64})(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?$/;
+export const MAX_FILTERS = 20;
+export const EMPTY_FILTER_VALUES: FilterBarValues = { search: "", values: {} };
+
+/** `filters` dizisini savunmacı biçimde okur; geçersiz ya da yinelenen öğeler atlanır. */
+export function parseFilterEntries(value: unknown): FilterSpec[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: FilterSpec[] = [];
+  for (const item of value.slice(0, MAX_FILTERS)) {
+    if (typeof item !== "string") continue;
+    const parts = item.split("|");
+    if (parts.length < 3 || parts.length > 6) continue;
+    const [key, kind, place, param = "", label = "", options = ""] = parts;
+    if (!key || key.length > 128 || key.includes("=") || !KINDS.has(kind) || (place !== "row" && place !== "more") || seen.has(key)) continue;
+    if (param && !PARAM.test(param)) continue;
+    seen.add(key);
+    const source = options ? OPTIONS.exec(options) : null;
+    result.push({
+      key, kind: kind as FilterSpec["kind"], place,
+      ...(param && kind !== "range" && kind !== "date" ? { param } : {}),
+      ...(label.trim() ? { label: label.trim() } : {}),
+      ...(source ? { options: { query: source[1], ...(source[2] ? { valueColumn: source[2] } : {}), ...(source[3] ? { labelColumn: source[3] } : {}) } } : {}),
+    });
+  }
+  return result;
+}
+
+/** Bir öğenin metni (Studio aynı biçimi yazar); boş kalan sondaki bölümler atılır. */
+export function formatFilterEntry(spec: FilterSpec): string {
+  const options = spec.options ? [spec.options.query, spec.options.valueColumn, spec.options.labelColumn].filter(Boolean).join(":") : "";
+  const parts = [spec.key, spec.kind, spec.place, spec.param ?? "", spec.label ?? "", options];
+  while (parts.length > 3 && parts[parts.length - 1] === "") parts.pop();
+  return parts.join("|");
+}
+
+/**
+ * "auto" türünün çözümü: seçenek kaynağı ya da değer etiketi → seçim; sütun biçimi number/money → aralık, date → tarih,
+ * status → seçim; sorgu sütununun dataType'ı (Boolean → aç/kapa, sayı → aralık, tarih → tarih); parametrenin türü bool →
+ * aç/kapa. Parametreli süzgeç tek değer taşır: aralık/tarih çıkarsa metne düşer.
+ */
+export function resolveKind(spec: FilterSpec, context: { format?: ColumnFormat; hasValueLabels?: boolean; dataType?: string; paramType?: string }): FilterKind {
+  let kind: FilterKind;
+  if (spec.kind !== "auto") kind = spec.kind;
+  else if (spec.options || context.hasValueLabels) kind = "select";
+  else if (context.paramType === "bool") kind = "toggle";
+  else if (context.format === "number" || context.format === "money") kind = "range";
+  else if (context.format === "date") kind = "date";
+  else if (context.format === "status") kind = "select";
+  else {
+    const type = (context.dataType ?? "").toLowerCase();
+    kind = type === "boolean" || type === "bool" ? "toggle"
+      : ["decimal", "int", "integer", "number", "money", "double"].includes(type) ? "range"
+        : type === "date" || type === "datetime" ? "date" : "text";
+  }
+  return spec.param && (kind === "range" || kind === "date") ? "text" : kind;
+}
+
+export const isRange = (value: FilterValue | undefined): value is RangeValue => typeof value === "object" && value !== null;
+/** Etkisiz değer: boş metin, kapalı aç/kapa, iki ucu boş aralık. */
+export function isEmptyFilterValue(value: FilterValue | undefined): boolean {
+  if (value === undefined || value === false) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (isRange(value)) return value.min.trim() === "" && value.max.trim() === "";
+  return false;
+}
+
+/** Satırdaki hücre: düzleştirilmiş anahtar ("balance.code") ya da iç içe nesne yolu. */
+export function cellOf(row: Record<string, unknown>, key: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(row, key)) return row[key];
+  let current: unknown = row;
+  for (const part of key.split(".")) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+const fold = (text: string) => text.toLocaleLowerCase("tr-TR");
+const truthy = (value: unknown) => value === true || value === 1 || (typeof value === "string" && /^(true|1|evet)$/i.test(value));
+const toNumber = (value: unknown) => {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value.replace(",", ".")) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/** Hücre metni: değer etiketi varsa o da aranır (ör. "Receipt" ve "Giriş"). */
+const cellTexts = (row: Record<string, unknown>, key: string, labels?: Record<string, string>) => {
+  const raw = cellOf(row, key);
+  const text = raw == null || typeof raw === "object" ? "" : String(raw);
+  return labels && Object.prototype.hasOwnProperty.call(labels, text) ? [text, labels[text]] : [text];
+};
+
+function matches(row: Record<string, unknown>, filter: ResolvedFilter, value: FilterValue, labels?: Record<string, string>): boolean {
+  const cell = cellOf(row, filter.key);
+  switch (filter.kind) {
+    case "toggle": return value !== true || truthy(cell);
+    case "select": return typeof value !== "string" || (cell == null ? "" : String(cell)) === value;
+    case "range": {
+      if (!isRange(value)) return true;
+      const number = toNumber(cell);
+      const min = toNumber(value.min);
+      const max = toNumber(value.max);
+      if (min === null && max === null) return true;
+      return number !== null && (min === null || number >= min) && (max === null || number <= max);
+    }
+    case "date": {
+      if (!isRange(value)) return true;
+      const day = typeof cell === "string" ? cell.slice(0, 10) : "";
+      const min = value.min.trim();
+      const max = value.max.trim();
+      if (!min && !max) return true;
+      return day !== "" && (!min || day >= min) && (!max || day <= max);
+    }
+    default: {
+      const needle = typeof value === "string" ? fold(value.trim()) : "";
+      return !needle || cellTexts(row, filter.key, labels).some((text) => fold(text).includes(needle));
+    }
+  }
+}
+
+/**
+ * Sayfada uygulanan süzgeçler: parametresiz süzgeçler ve (arama parametresi yoksa) arama kutusu yüklenen satırlara uygulanır.
+ * Arama, seçili sütunlardan (yoksa verilen tüm sütunlardan) birinde metin geçen satırları bırakır.
+ */
+export function applyClientFilters(rows: Record<string, unknown>[], filters: ResolvedFilter[], values: FilterBarValues,
+  search: { columns: string[]; server: boolean } | null, valueLabels: Record<string, Record<string, string>> = {}): Record<string, unknown>[] {
+  const active = filters.filter((filter) => !filter.param && !isEmptyFilterValue(values.values[filter.key]));
+  const needle = search && !search.server ? fold(values.search.trim()) : "";
+  if (active.length === 0 && !needle) return rows;
+  return rows.filter((row) => active.every((filter) => matches(row, filter, values.values[filter.key], valueLabels[filter.key]))
+    && (!needle || search!.columns.some((column) => cellTexts(row, column, valueLabels[column]).some((text) => fold(text).includes(needle)))));
+}
+
+const setPath = (target: Record<string, unknown>, path: string, value: unknown) => {
+  const parts = path.split(".");
+  let current = target;
+  for (const part of parts.slice(0, -1)) {
+    const next = current[part];
+    current = (current[part] = next !== null && typeof next === "object" ? next : {}) as Record<string, unknown>;
+  }
+  current[parts[parts.length - 1]] = value;
+};
+
+/**
+ * Bağlama kapsamındaki değerler (`{{<ad>.<parametre ya da anahtar>}}`): metin/seçim boşsa null, aç/kapa true/false,
+ * aralık { min, max } (boş uç null). `arama` arama kutusunun metnidir; arama parametresi verilmişse o ad da aynı değeri taşır.
+ */
+export function filterScope(filters: ResolvedFilter[], values: FilterBarValues, searchParam?: string): Record<string, unknown> {
+  const scope: Record<string, unknown> = { arama: values.search };
+  if (searchParam) scope[searchParam] = values.search.trim() === "" ? null : values.search.trim();
+  for (const filter of filters) {
+    const value = values.values[filter.key];
+    const scoped = filter.kind === "toggle" ? value === true
+      : filter.kind === "range" || filter.kind === "date"
+        ? { min: isRange(value) && value.min.trim() ? value.min.trim() : null, max: isRange(value) && value.max.trim() ? value.max.trim() : null }
+        : typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+    if (filter.param) scope[filter.param] = scoped; else setPath(scope, filter.key, scoped);
+  }
+  return scope;
+}
+
+/** Etkin süzgeç çipleri; aç/kapa çipi yalnız etiketini gösterir. */
+export function filterChips(filters: ResolvedFilter[], values: FilterBarValues): { key: string; label: string; text: string }[] {
+  return filters.flatMap((filter) => {
+    const value = values.values[filter.key];
+    if (isEmptyFilterValue(value)) return [];
+    if (filter.kind === "toggle") return [{ key: filter.key, label: filter.label, text: "" }];
+    if (isRange(value)) {
+      const min = value.min.trim();
+      const max = value.max.trim();
+      return [{ key: filter.key, label: filter.label, text: min && max ? `${min} – ${max}` : min ? `≥ ${min}` : `≤ ${max}` }];
+    }
+    const text = String(value);
+    return [{ key: filter.key, label: filter.label, text: filter.choices.find((choice) => choice.value === text)?.label ?? text }];
+  });
+}
+
+/** Seçim süzgecinin seçenekleri: kaynak sorgu satırları, değer etiketleri ya da yüklenen satırlardaki farklı değerler. */
+export function filterChoices(filter: FilterSpec, source: { optionRows?: Record<string, unknown>[]; valueLabels?: Record<string, string>; rows: Record<string, unknown>[] }): FilterOption[] {
+  if (filter.options && source.optionRows) {
+    return source.optionRows.flatMap((row) => {
+      const keys = Object.keys(row);
+      const valueColumn = filter.options!.valueColumn ?? keys[0];
+      const raw = valueColumn ? row[valueColumn] : undefined;
+      if (raw == null || typeof raw === "object") return [];
+      const label = row[filter.options!.labelColumn ?? filter.options!.valueColumn ?? keys[1] ?? valueColumn];
+      return [{ value: String(raw), label: label == null || typeof label === "object" ? String(raw) : String(label) }];
+    }).slice(0, 200);
+  }
+  if (source.valueLabels && Object.keys(source.valueLabels).length > 0) {
+    return Object.entries(source.valueLabels).filter(([value]) => value !== "").map(([value, label]) => ({ value, label }));
+  }
+  const distinct = new Set<string>();
+  for (const row of source.rows) {
+    const cell = cellOf(row, filter.key);
+    if (cell != null && typeof cell !== "object" && String(cell) !== "") distinct.add(String(cell));
+    if (distinct.size >= 50) break;
+  }
+  return [...distinct].sort((a, b) => a.localeCompare(b, "tr")).map((value) => ({ value, label: value }));
+}
+
+export const filterStorageKey = (pageCode: string, componentId: string) => `nexora.filterBar.${pageCode}.${componentId}`;
+
+/** Saklanan süzgeç değerleri; yalnız tanımda olan anahtarlar ve doğru biçimli değerler okunur. Depolama kapalıysa boş. */
+export function loadFilterValues(key: string, filters: FilterSpec[]): FilterBarValues {
+  let parsed: unknown;
+  try { parsed = JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return EMPTY_FILTER_VALUES; }
+  if (!parsed || typeof parsed !== "object") return EMPTY_FILTER_VALUES;
+  const stored = parsed as { search?: unknown; values?: unknown };
+  const values: Record<string, FilterValue> = {};
+  const raw = stored.values && typeof stored.values === "object" ? stored.values as Record<string, unknown> : {};
+  for (const filter of filters) {
+    const value = raw[filter.key];
+    if (typeof value === "string" || typeof value === "boolean") values[filter.key] = value;
+    else if (value && typeof value === "object" && typeof (value as RangeValue).min === "string" && typeof (value as RangeValue).max === "string") {
+      values[filter.key] = { min: (value as RangeValue).min, max: (value as RangeValue).max };
+    }
+  }
+  return { search: typeof stored.search === "string" ? stored.search.slice(0, 200) : "", values };
+}
+
+export function saveFilterValues(key: string, values: FilterBarValues) {
+  try {
+    const kept = Object.fromEntries(Object.entries(values.values).filter(([, value]) => !isEmptyFilterValue(value)));
+    if (!values.search && Object.keys(kept).length === 0) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify({ search: values.search, values: kept }));
+  } catch { /* depolama kapalı ya da dolu: süzgeçler yalnız bu oturumda kalır */ }
+}

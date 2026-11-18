@@ -38,6 +38,8 @@ import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { CompactList, compactCell } from "./custom-page/CompactList";
+import { FilterBar } from "./custom-page/FilterBar";
+import { applyClientFilters, filterChoices, filterScope, filterStorageKey, loadFilterValues, parseFilterEntries, resolveKind, saveFilterValues, EMPTY_FILTER_VALUES, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./custom-page/filterBarModel";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
@@ -180,6 +182,14 @@ type PageRuntime = {
   openRow: (tableName: string, row: Record<string, unknown>) => void;
   /** Kayıt kartlarının (`recordKey` taşıyan formCard) girişlerini kaynak değerlerine döndürür (yazılan, ileti, arama durumu). */
   clearRecordInputs: () => void;
+  /** Süzgeç alanının çizim verisi (tablosu yoksa null). */
+  filterBarFor: (bar: ComponentDefinition) => FilterBarView | null;
+  /** Listenin gösterilen satırları: bağlı süzgeç alanlarının sayfada uygulanan süzgeçleri (sorgu durumu değişmez). */
+  visibleRows: (table: ComponentDefinition, state: QueryState) => QueryState;
+};
+type FilterBarView = {
+  search: { placeholder: string; hint: string } | null; values: FilterBarValues; filters: ResolvedFilter[];
+  onSearch: (text: string) => void; onChange: (key: string, value: FilterValue | undefined) => void; onClearAll: () => void;
 };
 type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
@@ -324,7 +334,7 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" || type === "editableGrid" || type === "customFieldsBlock" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" || type === "editableGrid" || type === "customFieldsBlock" || type === "filterBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
@@ -842,6 +852,10 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       });
       return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
     }
+    case "filterBar": {
+      const view = runtime?.filterBarFor(component);
+      return view ? <FilterBar key={component.id} style={style} {...view} /> : null;
+    }
     case "contextPanel": {
       if (!runtime) return null;
       const table = typeof props.table === "string" ? runtime.tableById[props.table] : undefined;
@@ -946,7 +960,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
             emptyText={textValue(props.emptyText).trim()} limit={tableLimit(props.limit)} cell={cell} toneMap={parseToneMap(props.toneMap)} style={style} />;
         }
         const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
-        const state = runtime.states[queryName];
+        const state = runtime.visibleRows(component, runtime.states[queryName]);
         const pager = runtime.tablePaging(component);
         let paging: TablePaging | undefined;
         if (pager) {
@@ -1241,8 +1255,10 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   const exportTable = async (tableId: string) => {
     const current = latest.current;
     const table = current.tableById[tableId];
-    const state = table && typeof table.props?.query === "string" ? current.states[current.queryNames[table.props.query]] : undefined;
-    if (!table || !state) return;
+    const loaded = table && typeof table.props?.query === "string" ? current.states[current.queryNames[table.props.query]] : undefined;
+    if (!table || !loaded) return;
+    // Aktarım listede görünen (süzgeç alanının sayfada uyguladığı) satırları kullanır.
+    const state = current.visibleRows(table, loaded);
     const chosen = Array.isArray(table.props?.columns) ? table.props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
     const title = interpolate(textValue(table.props?.title), current.scope).trim() || "Liste";
     // `limit`: aktarım da yalnız çizilen satırları kullanır.
@@ -1452,6 +1468,45 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const gridComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "editableGrid" && !!component.name) : []), [isV2, flat]);
   const blockComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "customFieldsBlock" && !!component.name) : []), [isV2, flat]);
   const formCards = useMemo(() => (isV2 ? flat.filter((component) => component.type === "formCard") : []), [isV2, flat]);
+  // Süzgeç alanları: değerler sayfa + bileşen başına tarayıcıda saklanır (önizlemede okunmaz, yazılmaz). İlk değerler eşzamanlı
+  // okunur; böylece sunucuya giden süzgeçli sorgu açılışta iki kez çalışmaz.
+  const filterBars = useMemo(() => (isV2 ? flat.filter((component) => component.type === "filterBar" && !!component.name) : []), [isV2, flat]);
+  const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => previewId ? {} : Object.fromEntries(
+    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id), parseFilterEntries(filterBar.props?.filters))])));
+  useEffect(() => {
+    if (previewId) return;
+    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
+  }, [filterValues, filterBars, previewId, page.code]);
+  /** Süzgeç alanının tablosu, sorgusu ve türü/etiketi/seçenekleri çözülmüş süzgeçleri; tablo ya da sorgu yoksa null. */
+  const filterBarModel = (filterBar: ComponentDefinition, states: Record<string, QueryState>) => {
+    const props = filterBar.props ?? {};
+    const table = typeof props.table === "string" ? tableById[props.table] : undefined;
+    const query = table && typeof table.props?.query === "string" ? queryById[table.props.query] : undefined;
+    if (!table || !query) return null;
+    const tableState = states[query.name];
+    const formats = parseColumnFormats(table.props?.columnFormats);
+    const labels = parseValueLabels(table.props?.valueLabels);
+    const headings = pairMap(table.props?.columnLabels);
+    const columns = tableState?.columns ?? [];
+    const headingOf = (code: string) => headings[code] || columns.find((column) => column.code === code)?.label || code;
+    const filters: ResolvedFilter[] = parseFilterEntries(props.filters).map((spec) => {
+      const column = columns.find((item) => item.code === spec.key);
+      const paramType = spec.param ? query.parameters.find((parameter) => parameter.name === spec.param)?.type : undefined;
+      const kind = resolveKind(spec, { format: formats[spec.key], hasValueLabels: !!labels[spec.key], dataType: column?.dataType, paramType });
+      const optionsState = spec.options ? states[queryNames[spec.options.query]] : undefined;
+      const choices = kind === "select" ? filterChoices(spec, { optionRows: optionsState?.rows, valueLabels: labels[spec.key], rows: tableState?.rows ?? [] }) : [];
+      return { ...spec, kind, label: spec.label || headingOf(spec.key), choices };
+    });
+    const search = props.search === true;
+    const searchParam = search && typeof props.searchParam === "string" && props.searchParam ? props.searchParam : undefined;
+    const chosenColumns = stringList(props.searchColumns);
+    const tableColumns = stringList(table.props?.columns);
+    return {
+      filters, values: filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES, search, searchParam, labels,
+      searchColumns: chosenColumns.length > 0 ? chosenColumns : tableColumns.length > 0 ? tableColumns : columns.map((column) => column.code),
+      hint: chosenColumns.length > 0 ? `${chosenColumns.map(headingOf).join(", ")} içinde arar` : "",
+    };
+  };
 
   /** Girişin kapsamdaki nesnesi; arama kutusunda `search` (minChars altında null) ve `seciliSatir` da vardır. */
   const inputScope = (input: ComponentDefinition, raw: InputRaw, states: Record<string, QueryState>): Record<string, unknown> => {
@@ -1513,6 +1568,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams, genislik: pageWidth, genis: pageWidth >= WIDE_PAGE } };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
     for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
+    // Süzgeç alanı değerleri (`{{<ad>.<parametre>}}`): parametreli süzgeç sorguyu yeniden çalıştırır, sayfalı liste 1. sayfaya döner.
+    for (const filterBar of filterBars) {
+      const model = filterBarModel(filterBar, states);
+      if (model) base[filterBar.name!] = filterScope(model.filters, model.values, model.searchParam);
+    }
     // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
     for (const table of pagedTables) base[table.name!] = { seciliSatir: selections[table.name!] ?? null, sayfa: tablePages[table.name!]?.page ?? 1, sayfaBoyutu: 25 };
     for (const input of inputs) {
@@ -2520,6 +2580,33 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       startNew: startNewInDialog,
     } : null,
     newCommand, openCommand, clearRecordInputs, openTables, openRow,
+    filterBarFor: (filterBar) => {
+      const model = filterBarModel(filterBar, states);
+      if (!model) return null;
+      const update = (change: (current: FilterBarValues) => FilterBarValues) =>
+        setFilterValues((previous) => ({ ...previous, [filterBar.id]: change(previous[filterBar.id] ?? EMPTY_FILTER_VALUES) }));
+      return {
+        search: model.search ? { placeholder: textValue(filterBar.props?.searchPlaceholder) || "Ara", hint: model.hint } : null,
+        values: model.values, filters: model.filters,
+        onSearch: (text) => update((current) => ({ ...current, search: text })),
+        onChange: (key, value) => update((current) => {
+          const values = { ...current.values };
+          if (value === undefined) delete values[key]; else values[key] = value;
+          return { ...current, values };
+        }),
+        onClearAll: () => update((current) => ({ ...current, values: {} })),
+      };
+    },
+    visibleRows: (table, state) => {
+      let rows = state.rows;
+      for (const filterBar of filterBars) {
+        if (filterBar.props?.table !== table.id) continue;
+        const model = filterBarModel(filterBar, states);
+        if (model) rows = applyClientFilters(rows, model.filters, model.values, model.search ? { columns: model.searchColumns, server: !!model.searchParam } : null, model.labels);
+      }
+      // Sunucu sayfalı listede toplam kayıt sunucunundur; süzgeç yalnız görünen sayfaya uygulanır.
+      return rows === state.rows ? state : { ...state, rows, rowCount: table.props?.paging === "server" ? state.rowCount : rows.length };
+    },
   } : undefined;
 
   // İşlem çubuklu sayfa eski liste ekranlarının başlık satırını kullanır: başlık (ve isteğe bağlı kayıt sayısı) işlem çubuğunun

@@ -271,6 +271,25 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 #root .app-shell .tenant-page-form-card-grid.is-inline label.tenant-page-toggle.is-active {
   border-color: color-mix(in srgb, var(--nx-primary) 35%, var(--nx-surface)); color: var(--nx-primary-strong) !important;
 }
+/* Süzgeç alanı (filterBar, taslak 14): form kartının tek satır diziliminin üstüne "Daha fazla süzgeç" paneli, aralık kutuları ve çipler. */
+.tenant-page-filter-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+.tenant-page-filter-bar .tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child) { margin-left: 0; }
+.tenant-page-filter-bar .tenant-page-form-card-grid.is-inline > .tenant-page-filter-search { flex: 1 1 260px; max-width: 340px; }
+.tenant-page-filter-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tenant-page-filter-bar .tenant-page-input-select select { width: auto; min-width: 150px; max-width: 220px; }
+.tenant-page-filter-range { display: inline-flex; align-items: center; gap: 6px; }
+.tenant-page-filter-range-label { color: var(--lv2-muted, var(--nx-muted)); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.tenant-page-filter-range input { box-sizing: border-box; width: 96px; height: 30px; padding: 0 7px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); color: var(--nx-text); font: 400 12.5px var(--nx-font); }
+.tenant-page-filter-range input[type="date"] { width: 132px; }
+.tenant-page-filter-more-cell { position: relative; }
+.app-shell .tenant-custom-page .tenant-page-filter-more { display: inline-flex; align-items: center; height: 30px; min-height: 0; padding: 0 10px; border: 1px dashed color-mix(in srgb, var(--nx-muted) 45%, var(--nx-surface)); border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 12.5px var(--nx-font); white-space: nowrap; cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-filter-more:hover, .app-shell .tenant-custom-page .tenant-page-filter-more[aria-expanded="true"] { background: var(--nx-primary-soft); }
+.tenant-page-filter-popover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: grid; gap: 4px; width: 320px; max-width: calc(100vw - 32px); padding: 10px; border: 1px solid var(--nx-line); border-radius: 10px; background: var(--nx-surface); box-shadow: 0 10px 30px rgba(15, 27, 45, .14); }
+.tenant-page-filter-popover > b { font-size: 12.5px; }
+.tenant-page-filter-popover-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px; font-size: 12.5px; }
+.tenant-page-filter-popover-row > span { color: var(--nx-text); }
+.tenant-page-filter-popover-row .tenant-page-filter-range input { width: 80px; }
+.tenant-page-filter-chips .tenant-page-chip strong + button, .tenant-page-filter-chips .tenant-page-chip > strong:first-child { margin-left: 0; }
 /* Zorunlu giriş işareti: etiketten sonra "*" (erişilebilir ad değişmez; zorunluluk `required`/aria ile bildirilir). */
 .tenant-page-input.is-required > label > span::after,
 .tenant-page-input.is-required .tenant-page-lookup > label > span::after { content: " *"; color: var(--nx-bad); font-weight: 600; }
