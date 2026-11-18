@@ -293,12 +293,24 @@ internal static class SystemPageEndpoints
     /// Runtime page rights of a system page. Without SQL queries the page-level write rights equal the view right: they are
     /// UX gates only, and every ERP operation is authorized by its own endpoint with the user's token (Proje 1 decision 3).
     /// A definition with any SQL query (or a malformed query entry, see <see cref="TenantCustomPageQueries.HasSqlQueries"/>)
-    /// keeps the access rules unchanged, because page write rights gate the SQL writes run by the server.
+    /// keeps the access rules unchanged, because page write rights gate the SQL writes run by the server. Fails closed: an
+    /// unparseable definition counts as one with SQL and is never widened.
     /// </summary>
     internal static CustomPageRightsView RuntimeRights(CustomPageRights rights, string definitionJson) =>
-        TenantCustomPageQueries.HasSqlQueries(definitionJson)
+        !IsParseableJson(definitionJson) || TenantCustomPageQueries.HasSqlQueries(definitionJson)
             ? CustomPageRightsView.From(rights)
             : new CustomPageRightsView(rights.View, rights.View, rights.View, rights.View);
+
+    /// <summary>Whether the definition parses with the same options as <see cref="TenantCustomPageQueries.HasSqlQueries"/>.</summary>
+    private static bool IsParseableJson(string definitionJson)
+    {
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(definitionJson, new System.Text.Json.JsonDocumentOptions { MaxDepth = 16 });
+            return true;
+        }
+        catch (System.Text.Json.JsonException) { return false; }
+    }
 
     private static SystemPageDraft DraftView(TenantCustomPage x, IReadOnlyList<string> notes) => new(x.Id, x.Code, x.Name, x.Description, x.Revision,
         x.IsPublished, x.IsArchived, x.DefinitionJson, x.UpdatedAt, x.ScreenKey, x.StandardVersion, notes);

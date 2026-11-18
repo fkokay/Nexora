@@ -315,6 +315,28 @@ public sealed class SystemPageEndpointsIntegrationTests
             malformed["queries"]!.AsArray().Add(JsonNode.Parse(entry));
             Assert.Equal(new CustomPageRightsView(true, false, false, false), SystemPageEndpoints.RuntimeRights(viewOnly, malformed.ToJsonString()));
         }
+
+        // Fails closed: an unparseable definition (bad syntax, or deeper than the parser allows) is never widened.
+        var tooDeep = new string('[', 40) + new string(']', 40);
+        foreach (var unparseable in new[] { "{ bozuk", "", tooDeep })
+            Assert.Equal(new CustomPageRightsView(true, false, false, false), SystemPageEndpoints.RuntimeRights(viewOnly, unparseable));
+    }
+
+    [Fact]
+    public async Task Unparseable_stored_definition_never_returns_widened_rights()
+    {
+        // A stored definition that does not parse: RuntimeRights keeps the access-rule rights (view only here, see
+        // Runtime_rights_widen_only_operation_only_definitions), and the route itself still fails before any rights are
+        // sent (embedded form lookup parses the definition), so the client never receives page rights for it.
+        await using var app = await StartApplicationAsync(enabled: [ScreenKey]);
+        const string unparseable = "{ \"schemaVersion\": 2, \"queries\": [";
+        await SeedRowAsync(app, unparseable, published: true, standardVersion: 1);
+        using var client = app.GetTestClient();
+        SetIdentity(client, Mehmet, "TenantUser");
+
+        await Assert.ThrowsAnyAsync<JsonException>(() => client.GetAsync($"/api/system-pages/{ScreenKey}/published"));
+        Assert.Equal(new CustomPageRightsView(true, false, false, false),
+            SystemPageEndpoints.RuntimeRights(new CustomPageRights(true, false, false, false), unparseable));
     }
 
     [Fact]
