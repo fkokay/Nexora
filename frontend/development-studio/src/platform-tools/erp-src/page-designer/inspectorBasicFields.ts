@@ -11,6 +11,7 @@ export type BasicField =
 export const BASIC_FIELDS: Readonly<Record<string, readonly BasicField[]>> = {
   dataTable: ["title", "dataQuery", "columns", "width"],
   metric: ["title", "metricValue", "icon", "tone"],
+  alert: ["title", "text", "icon", "tone"],
   input: ["label", "inputType", "required"],
   button: ["label", "actionType", "actionMain"],
 };

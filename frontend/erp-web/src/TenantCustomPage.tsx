@@ -1,5 +1,5 @@
-import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, LayoutTemplate } from "lucide-react";
+import { createElement, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
@@ -29,6 +29,7 @@ import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
+import { DataTableGrid } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
@@ -36,11 +37,14 @@ import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomF
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
+import { CompactList, compactCell } from "./custom-page/CompactList";
+import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { usePageParams, type PageParams } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
+import "./custom-page/detail-panel.css";
 
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
@@ -168,6 +172,14 @@ type PageRuntime = {
   } | null;
   /** İşlem Çubuğu'nun Yeni komutu (onay ve sıfırlama dahil); kayıt penceresinde F2 bununla çalışır. */
   newCommand: { current: (() => void | Promise<void>) | null };
+  /** İşlem Çubuğu'nun etkin Aç komutu (yoksa null); satıra çift tıklama bununla çalışır. */
+  openCommand: { current: (() => void | Promise<void>) | null };
+  /** Aç komutunun kaydını seçen tablolar (`openButton` bağlamalarının `<tablo>.seciliSatir` kökleri, kayıt penceresinin kayıt tabloları). */
+  openTables: Set<string>;
+  /** Satıra çift tıklama: satırı seçer, çizimden sonra Aç komutunu çalıştırır. */
+  openRow: (tableName: string, row: Record<string, unknown>) => void;
+  /** Kayıt kartlarının (`recordKey` taşıyan formCard) girişlerini kaynak değerlerine döndürür (yazılan, ileti, arama durumu). */
+  clearRecordInputs: () => void;
 };
 type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
@@ -423,13 +435,15 @@ function QueryMetric({ state, title, description, style, ...card }: { state: Que
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
-export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
   /** Kolon başına ham değer → gösterilen etiket (`valueLabels`). */
   valueLabels?: Record<string, Record<string, string>>;
   /** Kolon → başlık (`columnLabels`) ve kolon → aynı satırdaki birim kolonu (`columnUnits`). */
   columnLabels?: Record<string, string>; columnUnits?: Record<string, string>;
   selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
+  /** Satıra çift tıklama (Aç); verilmezse çift tıklama yalnız seçimi değiştirir. */
+  onOpenRow?: (row: Record<string, unknown>) => void;
   formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
   /** Sunucu sayfalı liste: sonuç her zaman "kesilmiş"tir; uyarı yerine sayfa alt satırı gösterilir. */
   paging?: TablePaging;
@@ -499,6 +513,7 @@ export function QueryTable({ state, columns, title, description, style, selected
             {drawn.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
+              onDoubleClick={onOpenRow ? () => onOpenRow(row) : undefined}
               onKeyDown={onSelect ? (event) => {
                 // Enter bir sayfa komutunu (Aç) çalıştırdıysa satır seçimi değişmez: açılan kayıt seçili kalır.
                 if (event.defaultPrevented) return;
@@ -549,7 +564,7 @@ function writeErrorText(configured: string, cause: unknown): string {
  * kalır ve sonucu bildirir. İstemli yazma ve dizi `runtime.runSequence` ile, düz sorgu Faz A yoluyla çalışır.
  */
 function QueryActionButton({ component, props, label, runtime, disabled: conditionDisabled = false, disabledReason: conditionReason = "" }: {
-  component: ComponentDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
+  component: ComponentDefinition; props: Record<string, unknown>; label: ReactNode; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<ActionStatus | null>(null);
@@ -638,9 +653,59 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   return [...fixed, ...(optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }))];
 };
 
-export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup }: {
+/** Düğme simgeleri (`icon`): ör. detay panelinin "Aç" düğmesi. */
+const BUTTON_ICONS: Record<string, LucideIcon> = { open: Maximize2 };
+
+/**
+ * Kart `variant: "panel"` — eski liste ekranlarının sağ detay paneli (InventoryStockDetailPanel): üst satırda kod
+ * (`description`), başlıktan önceki düğmeler ve `closeInput` verilmişse ✕ (o onay kutusunu kapatır); başlık (`title`);
+ * rozet alt bileşenleri etiket satırında; diğer alt bileşenler (ör. sekmeler) gövdede; gövdeden sonraki düğmeler altlıkta.
+ */
+function DetailPanel({ component, title, code, style, runtime, render, closeInput }: {
+  component: ComponentDefinition; title: string; code: string; style: CSSProperties; runtime?: PageRuntime;
+  render: (child: ComponentDefinition) => ReactNode; closeInput: string;
+}) {
+  const head: ReactNode[] = [], tags: ReactNode[] = [], body: ReactNode[] = [], foot: ReactNode[] = [];
+  for (const child of component.children ?? []) {
+    if (child.type === "badge") tags.push(render(child));
+    else if (child.type === "button") (body.length > 0 ? foot : head).push(render(child));
+    else body.push(render(child));
+  }
+  const canClose = !!runtime && !!closeInput && closeInput in runtime.inputById;
+  return <aside className="tenant-page-detail" style={style} aria-label={title || undefined}>
+    <div className="tenant-page-detail-head">
+      <div className="tenant-page-detail-top">
+        <span className="nx-code">{code}</span>
+        <span className="tenant-page-detail-actions">
+          {head}
+          {canClose && <button type="button" className="tenant-page-detail-close" aria-label="Detay panelini kapat" onClick={() => runtime!.setInput(closeInput, false)}>
+            <X size={15} aria-hidden="true" />
+          </button>}
+        </span>
+      </div>
+      {title && <h3>{title}</h3>}
+      {tags.some(Boolean) && <div className="tenant-page-detail-labels">{tags}</div>}
+    </div>
+    <div className="tenant-page-detail-body">{body}</div>
+    {foot.some(Boolean) && <div className="tenant-page-detail-foot">{foot}</div>}
+  </aside>;
+}
+
+/** Durum şeridi (simgeli uyarı) simgeleri; sunucudaki AlertIcons ile aynı küme. */
+const ALERT_STRIP_ICONS: Record<string, LucideIcon> = { shield: ShieldCheck, shieldAlert: ShieldAlert, check: CheckCircle2, alert: AlertTriangle, info: Info };
+
+/** Tek satır süzgeç diziliminde onay kutusunu düz anahtar düğmesi olarak çizen simgeler (`icon`); simgesiz onay kutusu çiptir. */
+const INLINE_TOGGLE_ICONS: Record<string, LucideIcon> = { panel: PanelRight, archive: Archive, eye: Eye, filter: Filter };
+
+/**
+ * `inline`: giriş, tek satırlık süzgeç diziliminde (form kartı `layout: "inline"`) eski liste araç satırının görünümüyle çizilir —
+ * yer tutuculu metin girişi büyüteçli arama kutusu (`list-v2-search`), arama kutusu (lookup) açılır liste, onay kutusu çip
+ * (`list-v2-chip`; `description` sayaç olur) ya da `icon` verilmişse düz anahtar düğmesi (eski "Detay paneli" düğmesi).
+ */
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup, inline = false }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void; lookup?: LookupBinding;
+  inline?: boolean;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
@@ -653,7 +718,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
         allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
         error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
-        onSearch={(text) => lookup?.onSearch(text)} />
+        onSearch={(text) => lookup?.onSearch(text)} appearance={inline ? "select" : "search"} />
       {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
     </div>;
   }
@@ -682,8 +747,22 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
       placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
+  let field = <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>;
+  if (inline && inputType === "checkbox") {
+    const Icon = INLINE_TOGGLE_ICONS[textValue(props.icon)];
+    const count = textValue(props.description);
+    const active = raw === true ? " is-active" : "";
+    field = Icon
+      ? <label htmlFor={inputId} className={`tenant-page-toggle${active}`}>{control}<Icon size={15} aria-hidden="true" /><span>{label}</span></label>
+      : <label htmlFor={inputId} className={`list-v2-chip${active}`}>{control}<span>{label}</span>
+        {count && <>{" "}<span className="list-v2-chip-count">{count}</span></>}</label>;
+  } else if (inline && inputType === "text" && textValue(props.placeholder)) {
+    field = <label htmlFor={inputId} className="list-v2-search"><Search size={16} aria-hidden="true" />{label && <span>{label}</span>}{control}</label>;
+  } else if (inline) {
+    field = <label htmlFor={inputId} className="list-v2-filter">{label && <span>{label}</span>}{control}</label>;
+  }
   return <div className={`tenant-page-input tenant-page-input-${inputType}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
-    <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
+    {field}
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
   </div>;
@@ -693,7 +772,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
 const withConditionalRequired = (props: Record<string, unknown>, raw: Record<string, unknown> | undefined, scope: PageScope) =>
   props.required !== true && conditionHolds(raw?.requiredWhen, scope, false) ? { ...props, required: true } : props;
 
-function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime, inline = false) {
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? withConditionalRequired(boundProps, component.props, runtime.scope) : boundProps;
   // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
@@ -702,7 +781,7 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
     error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
     optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
-    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} />;
+    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
 }
 
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
@@ -717,7 +796,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   const children = (component.children ?? []).map((child) => renderComponent(child, forms, token, pageCode, runtime));
 
   switch (component.type) {
-    case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
+    // `pageTitle`: başlık sayfa üst bilgisinde (h1) çizilir, gövdede tekrarlanmaz.
+    case "heading": return runtime && component.props?.pageTitle === true ? null : <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
     case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
     case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
@@ -725,8 +805,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
       const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
       const changes = runtime && props.trackChanges === true ? runtime.cardChanges(component) : 0;
-      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={props.layout === "inline"}>
-        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
+      const inline = props.layout === "inline";
+      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={inline}>
+        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime, inline))}
       </FormCard>;
     }
     case "filterChips": {
@@ -767,7 +848,13 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const row = table?.name ? runtime.selections[table.name] ?? null : null;
       const formats = parseColumnFormats(table?.props?.columnFormats);
       const labels = parseValueLabels(table?.props?.valueLabels);
-      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? labeledCell(labels, field.code, row[field.code], formats[field.code]) : "" }));
+      // Birim, listenin `columnUnits` eşlemesinden gelir (ör. "0,00 TRY", "0 EA"); listede gösterildiği gibi.
+      const units = pairMap(table?.props?.columnUnits);
+      const fields = parseFieldList(props.fields).map((field) => {
+        const value = row ? labeledCell(labels, field.code, row[field.code], formats[field.code]) : "";
+        const unit = row && units[field.code] ? displayText(row[units[field.code]]) : "";
+        return { ...field, text: unit && value !== "—" ? `${value} ${unit}` : value };
+      });
       const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
       const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
       const related = relatedState ? {
@@ -802,7 +889,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
-    case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
+    case "card": case "section": if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
+      runtime={runtime} render={(child) => renderComponent(child, forms, token, pageCode, runtime)} closeInput={textValue(props.closeInput).trim()} />;
+      return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
     case "divider": return <hr key={component.id} style={style} />;
     case "spacer": return <div className="tenant-page-spacer" style={style} aria-hidden="true" key={component.id} />;
     case "actionBar": {
@@ -817,7 +906,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const action = runtime?.buttonAction(component);
       return <div className="tenant-page-action" style={style} key={component.id}>
         {runtime && action && action.type !== "workflow"
-          ? <QueryActionButton component={component} props={props} label={text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+          ? <QueryActionButton component={component} props={props} label={BUTTON_ICONS[textValue(props.icon)] ? <>{createElement(BUTTON_ICONS[textValue(props.icon)], { size: 13, "aria-hidden": true })}<span>{text || title || "Eylem"}</span></> : text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
           : workflow && !disabled
             ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
             : <>
@@ -850,6 +939,12 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       if (runtime && queryName && runtime.states[queryName]) {
         const tableName = component.name;
+        if (props.variant === "bars" || props.variant === "list") {
+          // Dar panel görünümleri (eski detay panelinin "Depo dağılımı" ve "Son hareketler" satırları); seçim ve sayfalama yok.
+          const cell = compactCell(parseValueLabels(props.valueLabels), parseColumnFormats(props.columnFormats), pairMap(props.columnUnits), displayText);
+          return <CompactList key={component.id} variant={props.variant} state={runtime.states[queryName]} columns={columns} title={title}
+            emptyText={textValue(props.emptyText).trim()} limit={tableLimit(props.limit)} cell={cell} toneMap={parseToneMap(props.toneMap)} style={style} />;
+        }
         const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
         const state = runtime.states[queryName];
         const pager = runtime.tablePaging(component);
@@ -879,11 +974,12 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           }];
         }) : [];
         const limit = tableLimit(props.limit);
-        return <QueryTable key={component.id} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
+        return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} />;
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)}
+          onOpenRow={tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
@@ -896,7 +992,19 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       hidden={props.hidden === true} style={style} title={title || "Yalıtılmış özel kod"} host={runtime?.codeHost ?? INERT_CODE_HOST} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
     case "alert": {
       const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
-      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
+      const role = variant === "danger" ? "alert" : "status";
+      // `icon` verilen uyarı eski Stok Kartları alt notunun (NegativeStockPolicyNote) durum şeridi olarak çizilir: beyaz kart,
+      // tonlu simge kutusu, kalın başlık, soluk alt metin ve sağda `value` rozeti.
+      const StripIcon = ALERT_STRIP_ICONS[textValue(props.icon)];
+      if (StripIcon) {
+        const badge = textValue(props.value);
+        return <aside key={component.id} className={`tenant-page-status-strip tone-${variant}`} style={style} role={role}>
+          <span className="tenant-page-status-strip-mark" aria-hidden="true"><StripIcon size={17} /></span>
+          <span className="tenant-page-status-strip-text"><b>{title || "Bilgilendirme"}</b>{text && <small>{text}</small>}</span>
+          {badge && <span className="tenant-page-status-strip-badge">{badge}</span>}
+        </aside>;
+      }
+      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={role}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
     }
     case "badge": {
       return <PageBadge key={component.id} text={text || title || "Durum"} variant={props.variant} toneMap={props.toneMap} style={style} />;
@@ -1051,13 +1159,21 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     if (!actionAllowed(runtime.buttonAction(component), runtime.rights)) return undefined;
     return label || "Eylem";
   };
-  const sequenceSource = (props: Record<string, unknown>, name?: string): SequenceSource => ({
-    props, name,
+  const sequenceSource = (props: Record<string, unknown>, name?: string, onSuccess?: () => void): SequenceSource => ({
+    props, name, onSuccess,
     onStatus: (status) => { if (mounted.current) onStatus(status); },
     onBusy: (next) => { if (mounted.current) onBusy(next); },
   });
+  // `afterSaveButton`: kayıt yolu tam başarılı olunca kayıt kartları kaynak değerlerine döner (aynı değerlerle ikinci bir oluşturma
+  // gitmez) ve düğmenin eylemi çalışır (ör. listeye dön); gezinilen sayfa açılış sorgularını yeniler.
+  const afterSaveId = typeof barProps.afterSaveButton === "string" ? barProps.afterSaveButton.trim() : "";
+  const afterSave = afterSaveId ? () => {
+    if (!mounted.current) return;
+    latest.current.clearRecordInputs();
+    runButton(afterSaveId, { refreshTarget: true });
+  } : undefined;
 
-  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = []) => {
+  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void) => {
     onStatus(null);
     const result = await runWriteAction({
       query, isPreview: latest.current.isPreview, inFlight, confirm,
@@ -1073,10 +1189,11 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     if (result.ok) {
       onStatus({ tone: "success", text: `${successText} (${result.affectedRows} kayıt)` });
       latest.current.rerun([...new Set([...loadIds, ...extraRefresh])]);
+      onSuccess?.();
     } else if ("error" in result) onStatus({ tone: "error", text: result.error });
   };
 
-  const runButton = (id: string) => {
+  const runButton = (id: string, options?: { refreshTarget?: boolean }) => {
     const component = flat.find((item) => item.id === id && item.type === "button");
     if (!component) return;
     // Menü komutu oluşturulduktan sonra koşul değişmiş olabilir: gizli veya pasif düğme çalışmaz.
@@ -1102,7 +1219,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     }
     if (action?.type === "navigate") {
       onStatus(null);
-      void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey)
+      void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey, options)
         .then((failure) => { if (failure && mounted.current) onStatus({ tone: "error", text: failure }); });
       return;
     }
@@ -1178,12 +1295,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       write: (queryId, kind) => {
         const query = latest.current.queryById[queryId];
         if (!query) return;
-        if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "");
+        if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
         else void writeThroughBar(query, { enabled: true, title: "Kayıt silinsin mi?", confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
       },
       saveSequence: () => {
         onStatus(null);
-        void latest.current.runSequence(sequenceSource(barProps));
+        void latest.current.runSequence(sequenceSource(barProps, undefined, afterSave));
       },
       refresh: () => latest.current.rerun(loadIds),
       focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
@@ -1200,23 +1317,45 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       run: async () => {
         if (!(await confirmStartNew(latest.current.isDirty()))) return;
         latest.current.startNew();
+        // Yeni bir düğmeyi çalıştırıyorsa (ör. aynı kayıt ekranını parametresiz açar) kayıt kartları da boşalır.
+        if (typeof barProps.newButton === "string" && barProps.newButton.trim()) latest.current.clearRecordInputs();
         await clearAndFocus();
       },
     };
   }
   // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır.
   runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
+  runtime.openCommand.current = commands.open?.run && !commands.open.disabledReason ? commands.open.run : null;
   usePageCommands(commands);
   return null;
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams }: {
+function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
   /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
   tabKey?: string; pageParams: PageParams;
+  /** İşlem çubuklu sayfada başlık satırına konan "Eski ekranda aç" bağlantısı. */
+  legacyLink?: ReactNode;
+  /** Görünen ilk `pageTitle` başlığının metni (yoksa null): sayfa üst bilgisinin başlığı olur. */
+  onTitle?: (title: string | null) => void;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
+  // Sayfa içerik alanının genişliği (`{{sayfa.genislik}}`, px); ölçülemezse 0. Eski liste ekranları detay panelini yalnız
+  // geniş alanda kendiliğinden açar: onay kutusunun `defaultWhen` koşulu buna bağlanır.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageWidth, setPageWidth] = useState(0);
+  useLayoutEffect(() => {
+    const element = contentRef.current;
+    if (!element) return;
+    // Gizli (keep-alive) görünüm 0 ölçer: son genişlik korunur, sekme değişimi varsayılanı sıfırlamaz.
+    const measure = () => { const width = Math.round(element.getBoundingClientRect().width); if (width > 0) setPageWidth(width); };
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const touchedRef = useRef(touched);
   touchedRef.current = touched;
   const [selections, setSelections] = useState<Record<string, Record<string, unknown> | null>>({});
@@ -1238,6 +1377,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
   const writeLock = useRef(false);
   const newCommand = useRef<(() => void | Promise<void>) | null>(null);
+  const openCommand = useRef<(() => void | Promise<void>) | null>(null);
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
   // {{sayilar.x}}: yalnız sayfada geçen rapor kaynaklarının kayıt sayısı getirilir.
@@ -1370,7 +1510,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
-    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams } };
+    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams, genislik: pageWidth, genis: pageWidth >= WIDE_PAGE } };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
     for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
     // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
@@ -1383,7 +1523,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const defaults: Record<string, InputRaw> = {};
     for (const input of inputs) {
       const inputType = textValue(input.props?.inputType, "text");
-      defaults[input.id] = rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
+      defaults[input.id] = inputType === "checkbox" && typeof input.props?.defaultWhen === "string" && input.props.defaultWhen.trim()
+        // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
+        ? conditionHolds(input.props.defaultWhen, base, false)
+        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
       raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
       if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
     }
@@ -2301,6 +2444,59 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     setLookupState((previous) => without(previous, reset));
   }, [cardKeySignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const openTables = useMemo(() => {
+    const tables = new Set<string>();
+    const openId = bar ? textValue(bar.props.openButton).trim() : "";
+    const button = openId ? buttonById[openId] : undefined;
+    for (const match of JSON.stringify(button?.props ?? {}).matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir\b/g)) tables.add(match[1]);
+    if (formDialogId) recordTableSets.all.forEach((name) => tables.add(name));
+    return tables;
+  }, [bar, buttonById, formDialogId, recordTableSets]);
+  const pendingOpen = useRef(false);
+  const [openSignal, setOpenSignal] = useState(0);
+  const openRow = (tableName: string, row: Record<string, unknown>) => {
+    if ((selections[tableName] ?? null) !== row) select(tableName, row, { user: true });
+    pendingOpen.current = true;
+    setOpenSignal((value) => value + 1);
+  };
+  // Seçim çizildikten sonra (Aç komutu yeni seçimle kaydedildi) çalışır.
+  useEffect(() => {
+    if (!pendingOpen.current) return;
+    pendingOpen.current = false;
+    void openCommand.current?.();
+  }, [openSignal]);
+  /** Kayıt kartlarının girişleri kaynak değerlerine döner (İşlem Çubuğu Yeni düğmesi ve `afterSaveButton`). */
+  const clearRecordInputs = () => {
+    const owned = formCards.filter((card) => textValue(card.props?.recordKey).trim() !== "").flatMap((card) => idList(card.props?.inputs));
+    if (owned.length === 0) return;
+    setTouched((previous) => without(previous, owned));
+    setValidationErrors((previous) => without(previous, owned));
+    setLookupState((previous) => without(previous, owned));
+  };
+  // Başka bir sayfanın `afterSaveButton` gezinmesi bu sekmeyi hedefliyorsa açılış sorguları yenilenir (ör. kayıttan sonra liste).
+  const rerunRef = useRef(rerun);
+  rerunRef.current = rerun;
+  const loadIdsRef = useRef(loadIds);
+  loadIdsRef.current = loadIds;
+  useEffect(() => {
+    if (!tabKey) return;
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
+      if (request?.refresh && request.page === tabKey && request.from !== tabKey) rerunRef.current(loadIdsRef.current);
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, [tabKey]);
+
+  const pageTitleComponent = isV2 ? flat.find((component) => component.type === "heading" && component.props?.pageTitle === true
+    && conditionHolds(component.props?.visibleWhen, scope, true)) : undefined;
+  const pageTitle = pageTitleComponent
+    ? interpolate(textValue(pageTitleComponent.props?.title) || textValue(pageTitleComponent.props?.text), scope).trim() || null : null;
+  const onTitleRef = useRef(onTitle);
+  onTitleRef.current = onTitle;
+  useEffect(() => { onTitleRef.current?.(pageTitle); }, [pageTitle]);
+  useEffect(() => () => onTitleRef.current?.(null), []);
+
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
@@ -2323,10 +2519,16 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       open: (opener) => openDialog(formDialogId, opener),
       startNew: startNewInDialog,
     } : null,
-    newCommand,
+    newCommand, openCommand, clearRecordInputs, openTables, openRow,
   } : undefined;
 
-  return <div className="tenant-custom-page-content">
+  // İşlem çubuklu sayfa eski liste ekranlarının başlık satırını kullanır: başlık (ve isteğe bağlı kayıt sayısı) işlem çubuğunun
+  // üstünde, çubuk başlığın hemen altındaki yuvaya (ActionBarSlot) taşınır; açıklama başlığın ipucudur (eski ekranda satır yok).
+  const titleCount = bar ? pageTitleCount(bar.props.titleCount, scope) : null;
+  return <div className="tenant-custom-page-content" ref={contentRef}>
+    {bar && <div className="list-v2 tenant-custom-page-title">
+      <ListPageHeader title={pageTitle || page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
+    </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
@@ -2334,6 +2536,24 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }
+
+/**
+ * `{{sayfa.genis}}`: içerik alanı en az bu kadar (px) geniş. Eski Stok Kartları gibi liste ekranları detay panelini yalnız
+ * bu genişlikte kendiliğinden açar (liste varsayılan sütunlarıyla panelin yanında kaydırmasız sığar).
+ */
+export const WIDE_PAGE = 1440;
+
+/** İşlem çubuğunun `titleCount` bağlaması sayıya çözülürse başlığın yanındaki kayıt sayısı; boş/sayı değilse gösterilmez. */
+export function pageTitleCount(raw: unknown, scope: PageScope): number | null {
+  const template = textValue(raw);
+  if (!template) return null;
+  const text = interpolate(template, scope).trim();
+  const value = text === "" ? NaN : Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** İşlem çubuğu (iç içe bileşenler dahil) olan sayfa. */
+const hasActionBar = (list: ComponentDefinition[]): boolean => list.some((component) => component.type === "actionBar" || hasActionBar(component.children ?? []));
 
 /** Sorgu durumlarındaki ERP doğrulama hatalarını (parametre adına göre) `{{<giriş>.value}}` bağlamasıyla giriş adlarına eşler. */
 function operationInputErrors(queries: PageQueryDefinition[], states: Record<string, QueryState>): Record<string, string> {
@@ -2364,11 +2584,18 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [titleOverride, setTitleOverride] = useState<string | null>(null);
   // The router passes inline callbacks; keep them out of the load effect's dependencies.
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
-  const tabKey = previewId ? `custom-page-preview:${previewId}` : systemScreenKey ?? (code ? `custom-page:${code}` : undefined);
+  // A system page (published or a Studio draft preview) lives in its built-in screen's tab.
+  const tabKey = systemScreenKey ?? (previewId ? `custom-page-preview:${previewId}` : code ? `custom-page:${code}` : undefined);
   const pageParams = usePageParams(tabKey);
+  // Sekme başka parametrelerle yeniden açıldı (ör. başka bir kayıt): sayfa gövdesi baştan kurulur, yazılanlar ve sonuçlar taşınmaz.
+  const paramKeys = useRef(new WeakMap<object, number>());
+  const paramCounter = useRef(0);
+  let paramKey = paramKeys.current.get(pageParams);
+  if (paramKey === undefined) { paramKey = ++paramCounter.current; paramKeys.current.set(pageParams, paramKey); }
 
   useEffect(() => {
     let active = true;
@@ -2421,7 +2648,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
-    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} />
+    {!(isV2 && hasActionBar(components)) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={setTitleOverride} />
   </main>;
 }

@@ -1,0 +1,10 @@
+/* Sayfa tasarımcısı dataTable: gelişmiş ızgara (AdvancedDataGrid) çevresi. */
+.tenant-page-data-grid { min-width: 0; }
+.tenant-page-data-grid-wrap { max-width: 100%; }
+.tenant-page-data-grid td.tenant-page-row-actions, .tenant-page-data-grid th.tenant-page-row-actions { white-space: nowrap; text-align: right; }
+.tenant-page-data-grid td.code { font-family: var(--nx-font-mono); font-size: 12px; white-space: nowrap; }
+.tenant-page-data-grid .tenant-page-row-selectable { cursor: pointer; }
+.tenant-page-grid-totals { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; margin: 6px 0 0; padding: 6px 9px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-table-head); font-size: 12.5px; }
+.tenant-page-grid-totals > div { display: flex; gap: 6px; align-items: baseline; }
+.tenant-page-grid-totals dt { color: var(--nx-muted); font-weight: 600; }
+.tenant-page-grid-totals dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
