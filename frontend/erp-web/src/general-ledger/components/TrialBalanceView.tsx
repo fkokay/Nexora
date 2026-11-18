@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type KeyboardEvent } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { api, localDateString } from "../../erpApi";
 import type { LedgerStatementSection, LedgerTrialBalance } from "../../erp-types";
@@ -93,6 +93,16 @@ function aggregateMainAccounts(rows: TrialRow[]): DisplayRow[] {
 }
 
 type Period = "year" | "month" | "custom";
+
+/** ↑ / ↓ on an account row: focus the previous / next account row (group and subtotal rows are skipped). */
+function moveRowFocus(event: KeyboardEvent<HTMLTableRowElement>): boolean {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return false;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
+  event.preventDefault();
+  const rows = [...(event.currentTarget.closest("tbody")?.querySelectorAll<HTMLElement>("tr.glrp-row") ?? [])];
+  rows[rows.indexOf(event.currentTarget) + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+  return true;
+}
 
 export function TrialBalanceView({ token }: { token: string }) {
   const [basis, setBasis] = useState<ReportingBasis>("TDHP"),
@@ -324,20 +334,20 @@ export function TrialBalanceView({ token }: { token: string }) {
                             <tr
                               key={row.key}
                               className={`glrp-row${clickable ? " is-clickable" : ""}${isSelected ? " is-selected" : ""}${row.isActive ? "" : " is-inactive"}`}
-                              tabIndex={clickable ? 0 : undefined}
+                              // Every account row takes the focus so ↑↓ walks the list (IFRS too); Enter opens the muavin
+                              // only on the TDHP basis. The arrows move the focus only.
+                              tabIndex={0}
                               aria-current={isSelected || undefined}
                               title={clickable ? "Enter: muavini aç" : undefined}
                               onClick={clickable ? () => openRow(row) : undefined}
-                              onKeyDown={
-                                clickable
-                                  ? (event) => {
-                                      if (event.key === "Enter" || event.key === " ") {
-                                        event.preventDefault();
-                                        openRow(row);
-                                      }
-                                    }
-                                  : undefined
-                              }
+                              onKeyDown={(event) => {
+                                if (event.target !== event.currentTarget) return;
+                                if (moveRowFocus(event)) return;
+                                if (clickable && (event.key === "Enter" || event.key === " ")) {
+                                  event.preventDefault();
+                                  openRow(row);
+                                }
+                              }}
                             >
                               <td className="glrp-account" style={{ paddingLeft: effectiveLevel === "sub" ? 10 + 14 * (row.code.split(".").length - 1) : undefined }}>
                                 <b>{row.code}</b>

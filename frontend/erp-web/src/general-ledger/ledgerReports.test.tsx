@@ -29,6 +29,11 @@ function respond(url: string): unknown {
   if (path === '/api/finance/general-ledger/trial-balance') return trialBalance;
   if (path === '/api/finance/general-ledger/financial-statements/balance-sheet') return balanceSheet;
   if (path === '/api/finance/general-ledger/accounts') return [];
+  if (/^\/api\/finance\/general-ledger\/accounts\/[^/]+\/statement$/.test(path))
+    return {
+      account: { id: 'a', code: '100', name: 'Kasa', isActive: true }, openingDebit: 0, openingCredit: 0, totalDebit: 0, totalCredit: 0,
+      closingBalanceDebit: 0, closingBalanceCredit: 0, totalCount: 0, page: 1, totalPages: 1, lines: [],
+    };
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   return {};
 }
@@ -110,6 +115,31 @@ describe('Mizan (characterization)', () => {
     await setDate('Bitiş', '2026-04-01');
     expect(requests(TB).length).toBe(before + 1);
     expect(requests(TB).at(-1)).toEqual({ basis: 'TDHP', from: '2026-05-01', to: localDateString() });
+  });
+
+  it('↑↓ moves the focus between account rows (group rows skipped) without opening; Enter opens the muavin; IFRS rows walk too', async () => {
+    renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="trial-balance" />);
+    await settle();
+    const row = (code: string) => screen.getByText(code, { selector: '.glrp-account b' }).closest('tr')!;
+    expect(document.querySelector('.nx-list-footer-hints')?.textContent ?? '').toContain('↑↓ gez');
+    row('100').focus();
+    fireEvent.keyDown(row('100'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(row('600'));
+    expect(row('600').getAttribute('aria-current')).toBeNull();
+    fireEvent.keyDown(row('600'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(row('600'));
+    fireEvent.keyDown(row('600'), { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(row('100'));
+    fireEvent.keyDown(row('100'), { key: 'Enter' });
+    await settle(50);
+    expect(row('100').getAttribute('aria-current')).toBe('true');
+    await choose('IFRS');
+    row('100').focus();
+    fireEvent.keyDown(row('100'), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(row('600'));
+    fireEvent.keyDown(row('600'), { key: 'Enter' });
+    await settle(50);
+    expect(row('600').getAttribute('aria-current')).toBeNull();
   });
 });
 
