@@ -7,7 +7,11 @@ import {
   useSyncExternalStore,
 } from "react";
 import { authenticatedFetch } from "./authApi";
-import { ArrowRight, Database, Play, Plus, Save, Search, Sparkles, X } from "lucide-react";
+import { ArrowRight, Database, Play, Plus, Search, X } from "lucide-react";
+import { ActionBarSlot, useSlotBreadcrumb } from "./action-bar/ActionBarSlot";
+import { usePageCommands } from "./commands/CommandProvider";
+import type { MenuCommand } from "./commands/types";
+import { isInPopup, openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
 import {
   isEnglishLocale,
   localizedCatalogLabel,
@@ -592,29 +596,139 @@ export default function ReportsPage({
       aggregate: next.length ? (definition.aggregate ?? "count") : undefined,
     });
   }
-  const runDisabled =
-    busy ||
-    loading ||
-    sources.length === 0 ||
-    (!isSqlQuery && definition.columns.length === 0) ||
-    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length))) ||
-    definition.filters.some((x) => x.operator !== "isNull" && !x.value.trim());
-  const saveDisabled =
-    busy ||
-    loading ||
-    !!drilldownBase ||
-    !name.trim() ||
-    (!isSqlQuery && definition.columns.length === 0) ||
-    (isSqlQuery && (!definition.sqlQuery?.trim() || !(definition.companyIds?.length)));
-  const saveTitle = selectedId
-    ? tx("Değişiklikleri kaydet", "Save changes")
-    : isList
-      ? tx("Listeyi kaydet", "Save list")
-      : tx("Raporu kaydet", "Save report");
   const groupCandidates = columns.filter((column) => !groupingFields.includes(column.code));
+  const pageRootRef = useRef<HTMLDivElement | null>(null);
+  // The bar sits under the title like the list screens; the breadcrumb then moves into this title block.
+  const { slotRef, breadcrumb } = useSlotBreadcrumb();
+  const busyReason = loading
+    ? tx("Yükleniyor…", "Loading…")
+    : busy
+      ? tx("İşlem sürüyor…", "Working…")
+      : undefined;
+  const designReason = canDesign
+    ? undefined
+    : isList
+      ? tx("Liste tasarlama yetkiniz yok", "You are not allowed to design lists")
+      : tx("Rapor tasarlama yetkiniz yok", "You are not allowed to design reports");
+  const queryReason = isSqlQuery
+    ? !definition.sqlQuery?.trim()
+      ? tx("Önce SQL sorgusunu yazın", "Write the SQL query first")
+      : !definition.companyIds?.length
+        ? tx("En az bir firma seçin", "Select at least one company")
+        : undefined
+    : definition.columns.length === 0
+      ? tx("En az bir alan seçin", "Select at least one field")
+      : undefined;
+  const runReason =
+    busyReason ??
+    (sources.length === 0 ? tx("Kullanılabilir veri kaynağı yok", "No data sources available") : undefined) ??
+    queryReason ??
+    (definition.filters.some((x) => x.operator !== "isNull" && !x.value.trim())
+      ? tx("Eksik filtre koşullarını tamamlayın", "Complete the unfinished filter conditions")
+      : undefined);
+  const saveReason =
+    designReason ??
+    busyReason ??
+    (drilldownBase
+      ? tx("Grup detayındayken kaydedilemez; önce gruplara dönün", "Return to the groups before saving")
+      : undefined) ??
+    (!name.trim()
+      ? isList
+        ? tx("Önce liste adını girin", "Enter a list name first")
+        : tx("Önce rapor adını girin", "Enter a report name first")
+      : undefined) ??
+    queryReason;
+  const selectedReport = saved.find((report) => report.id === selectedId);
+  const openFirstReason = isList
+    ? tx("Önce kayıtlı bir liste açın", "Open a saved list first")
+    : tx("Önce kayıtlı bir rapor açın", "Open a saved report first");
+  const deleteReason = !admin
+    ? tx("Silmek için yönetici yetkisi gerekir", "Deleting requires administrator rights")
+    : (busyReason ?? (!selectedReport ? openFirstReason : undefined));
+  const exportReason =
+    busyReason ??
+    (!result
+      ? isList
+        ? tx("Önce listeyi görüntüleyin", "View the list first")
+        : tx("Önce raporu çalıştırın", "Run the report first")
+      : !result.rows.length && !result.groups?.length
+        ? tx("Dışa aktarılacak satır yok", "No rows to export")
+        : undefined);
+  const runLabel = isList ? tx("Listeyi görüntüle", "View list") : tx("Raporu çalıştır", "Run report");
+  const runReport = () => {
+    if (!runReason) void run(1);
+  };
+  const reportMore: MenuCommand[] = [
+    { id: "report-run", label: runLabel, shortcut: "F9", disabledReason: runReason, run: runReport },
+  ];
+  if (!isList && onNavigate)
+    reportMore.push({
+      id: "report-ai",
+      label: tx("AI ile keşfet", "Explore with AI"),
+      run: () => onNavigate("erp-assistant"),
+    });
+  if (canDesign)
+    reportMore.push({
+      id: "report-duplicate",
+      label: tx("Kopyasını oluştur", "Duplicate"),
+      disabledReason: busyReason ?? (!selectedReport ? openFirstReason : undefined),
+      run: () => {
+        if (selectedReport) void duplicate(selectedReport);
+      },
+    });
+  usePageCommands({
+    new: {
+      disabledReason: designReason ?? busyReason,
+      run: () => {
+        setFiltersOpen(false);
+        newReport();
+      },
+    },
+    open: {
+      disabledReason: isList
+        ? tx("Sağdaki kayıtlı listelerden birini seçin", "Choose a saved list on the right")
+        : tx("Sağdaki kayıtlı raporlardan birini seçin", "Choose a saved report on the right"),
+    },
+    save: { primary: canDesign, disabledReason: saveReason, run: () => void save() },
+    delete: {
+      disabledReason: deleteReason,
+      run: () => {
+        if (selectedReport) void remove(selectedReport);
+      },
+    },
+    refresh: { disabledReason: runReason, run: runReport },
+    filter: {
+      disabledReason: isSqlQuery
+        ? tx("SQL sorgusunda filtre koşulu kullanılmaz", "SQL queries do not use filter conditions")
+        : busyReason,
+      run: () => {
+        if (definition.filters.length === 0) {
+          addFilter();
+          setFiltersOpen(true);
+        } else setFiltersOpen((open) => !open);
+      },
+    },
+    print: {
+      disabledReason: tx(
+        "Rapor oluşturucuda yazdırma yok; sonucu Excel ile indirin",
+        "Printing is not available in the report builder; download the result with Excel",
+      ),
+    },
+    export: { disabledReason: exportReason, run: () => void exportCsv() },
+    more: reportMore,
+  });
+  // F9 runs the report like the other report screens (LedgerReportFrame); the menu item only shows the shortcut.
+  useWindowKeyDown(true, (event) => {
+    if (event.key !== "F9" || event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
+    const root = pageRootRef.current;
+    if (event.defaultPrevented || isInPopup(event.target) || !root || root.closest("[hidden]") || openDialogs().length) return;
+    event.preventDefault();
+    runReport();
+  });
 
   return (
-    <div className={`reports-page report-studio${isList ? " custom-list-mode" : ""}`}>
+    <div ref={pageRootRef} className={`reports-page report-studio${isList ? " custom-list-mode" : ""}`}>
+      {breadcrumb}
       <header className="report-topbar">
         <div className="report-topbar-title">
           <h1>
@@ -632,48 +746,8 @@ export default function ReportsPage({
                 }`}
           </span>
         </div>
-        <div className="report-topbar-actions">
-          {!isList && onNavigate && (
-            <button
-              type="button"
-              className="secondary"
-              title={tx(
-                "Veri kaynakları ve alanlar hakkında AI ERP Asistanı’ndan yardım alın.",
-                "Ask the AI ERP Assistant about data sources and fields.",
-              )}
-              onClick={() => onNavigate("erp-assistant")}
-            >
-              <Sparkles size={15} />
-              {tx("AI ile keşfet", "Explore with AI")}
-            </button>
-          )}
-          {canDesign && (
-            <button
-              type="button"
-              className="secondary"
-              title={saveTitle}
-              disabled={saveDisabled}
-              onClick={() => void save()}
-            >
-              <Save size={15} />
-              {tx("Kaydet", "Save")}
-            </button>
-          )}
-          <button
-            type="button"
-            className="primary"
-            disabled={runDisabled}
-            onClick={() => void run(1)}
-          >
-            <Play size={15} />
-            {busy
-              ? tx("Çalıştırılıyor…", "Running…")
-              : isList
-                ? tx("Listeyi görüntüle", "View list")
-                : tx("Çalıştır", "Run")}
-          </button>
-        </div>
       </header>
+      <ActionBarSlot slotRef={slotRef} />
       {error && (
         <div className="report-alert error" role="alert">
           {error}
@@ -856,6 +930,23 @@ export default function ReportsPage({
               </div>
             </>
           )}
+          <button
+            type="button"
+            className="secondary report-run-button"
+            disabled={!!runReason}
+            title={runReason ?? `${runLabel} (F9)`}
+            onClick={runReport}
+          >
+            <Play size={15} aria-hidden="true" />
+            <span>
+              {busy
+                ? tx("Çalıştırılıyor…", "Running…")
+                : isList
+                  ? tx("Listeyi görüntüle", "View list")
+                  : tx("Çalıştır", "Run")}
+            </span>
+            <kbd>F9</kbd>
+          </button>
         </aside>
         <section
           className="report-builder report-pane report-main-pane"
@@ -890,20 +981,6 @@ export default function ReportsPage({
                   ? tx("Kaynak yükleniyor", "Loading source")
                   : tx("Kaynak kullanılamıyor", "Source unavailable")}
             </small>
-            {canDesign && (
-              <button
-                type="button"
-                className="secondary small-button"
-                disabled={busy}
-                onClick={() => {
-                  setFiltersOpen(false);
-                  newReport();
-                }}
-              >
-                <Plus size={14} />
-                {isList ? tx("Yeni liste", "New list") : tx("Yeni rapor", "New report")}
-              </button>
-            )}
           </div>
           {isSqlQuery ? (
             <div className="report-sql-query">
@@ -1172,7 +1249,6 @@ export default function ReportsPage({
               locale={locale}
               groupValue={groupValue}
               onReturnToGroups={returnToGroups}
-              onExport={() => void exportCsv()}
               onDrillIntoGroup={drillIntoGroup}
               onPageChange={(page) => void run(page)}
             />
