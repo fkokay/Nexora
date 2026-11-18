@@ -1,11 +1,110 @@
 {
   "syntax": {
     "valid": [
-      { "text": "kullanici.rol == 'TenantAdmin'", "roots": ["kullanici"] },
-      { "text": "liste.seciliSatir.balance.belowMinimum", "roots": ["liste"] },
-      { "text": "!(ad.value == '') && kart.rows[0].trackingMode in ['Lot', 'Serial']", "roots": ["ad", "kart"] },
-      { "text": "yon.value != \"Receipt\" || miktar.value == 0", "roots": ["yon", "miktar"] },
-      { "text": "x.value == null", "roots": ["x"] }
+      {
+        "text": "kullanici.rol == 'TenantAdmin'",
+        "roots": [
+          "kullanici"
+        ]
+      },
+      {
+        "text": "liste.seciliSatir.balance.belowMinimum",
+        "roots": [
+          "liste"
+        ]
+      },
+      {
+        "text": "!(ad.value == '') && kart.rows[0].trackingMode in ['Lot', 'Serial']",
+        "roots": [
+          "ad",
+          "kart"
+        ]
+      },
+      {
+        "text": "yon.value != \"Receipt\" || miktar.value == 0",
+        "roots": [
+          "yon",
+          "miktar"
+        ]
+      },
+      {
+        "text": "x.value == null",
+        "roots": [
+          "x"
+        ]
+      },
+      {
+        "text": "((((((((a.value))))))))",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.value == 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "xx.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a",
+        "roots": [
+          "xx"
+        ]
+      },
+      {
+        "text": "null",
+        "roots": []
+      },
+      {
+        "text": "a.rows[1234].x == 1",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.value == \"it's\"",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.value == 'say \"hi\"'",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.value\t==\r\n1",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.value == -1.25 && b.value in [1, 'x', true, null]",
+        "roots": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "text": "a.value == ''",
+        "roots": [
+          "a"
+        ]
+      },
+      {
+        "text": "a.in == 1 || b.true",
+        "roots": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "text": "!!a.value",
+        "roots": [
+          "a"
+        ]
+      }
     ],
     "invalid": [
       "",
@@ -16,16 +115,318 @@
       "'abc",
       "ad.value in []",
       "((((((((((a.value))))))))))",
-      "a.value && || b.value"
+      "a.value && || b.value",
+      "(((((((((a.value)))))))))",
+      "a.value == 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+      "xxx.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a",
+      "1abc",
+      "a.value == 1abc",
+      "true.x",
+      "k.value in ['a',]",
+      "k.value in [a.value]",
+      "k.value in 'a'",
+      "a.value == 1 == 2",
+      "(a.value",
+      "a.value)",
+      "-",
+      "a.value == --1",
+      "a.value == 1.",
+      "a.value == .5",
+      "a.rows[12345] == 1",
+      "a.value == 1",
+      "   ",
+      "a.value == 'it\\'s'",
+      "a.value === 1",
+      "a..value",
+      "!"
     ]
   },
   "eval": [
-    { "text": "kullanici.rol == 'TenantAdmin'", "scope": { "kullanici": { "rol": "TenantAdmin" } }, "expected": true },
-    { "text": "kart.rows[0].trackingMode == 'Lot'", "scope": {}, "expected": false },
-    { "text": "miktar.value == 5", "scope": { "miktar": { "value": "5" } }, "expected": true },
-    { "text": "aktif.value", "scope": { "aktif": { "value": "false" } }, "expected": false },
-    { "text": "ad.value == null", "scope": { "ad": { "value": "" } }, "expected": true },
-    { "text": "!liste.seciliSatir", "scope": { "liste": { "seciliSatir": null } }, "expected": true },
-    { "text": "k.value in ['Lot','Serial']", "scope": { "k": { "value": "Serial" } }, "expected": true }
+    {
+      "text": "kullanici.rol == 'TenantAdmin'",
+      "scope": {
+        "kullanici": {
+          "rol": "TenantAdmin"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "kart.rows[0].trackingMode == 'Lot'",
+      "scope": {},
+      "expected": false
+    },
+    {
+      "text": "miktar.value == 5",
+      "scope": {
+        "miktar": {
+          "value": "5"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "aktif.value",
+      "scope": {
+        "aktif": {
+          "value": "false"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "ad.value == null",
+      "scope": {
+        "ad": {
+          "value": ""
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "!liste.seciliSatir",
+      "scope": {
+        "liste": {
+          "seciliSatir": null
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "k.value in ['Lot','Serial']",
+      "scope": {
+        "k": {
+          "value": "Serial"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value || b.value && c.value",
+      "scope": {
+        "a": {
+          "value": true
+        },
+        "b": {
+          "value": false
+        },
+        "c": {
+          "value": false
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "(a.value || b.value) && c.value",
+      "scope": {
+        "a": {
+          "value": true
+        },
+        "b": {
+          "value": false
+        },
+        "c": {
+          "value": false
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "!a.value == 1",
+      "scope": {
+        "a": {
+          "value": 2
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "!a.value == 1",
+      "scope": {
+        "a": {
+          "value": 1
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value != 'x'",
+      "scope": {
+        "a": {
+          "value": "y"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value != 'x'",
+      "scope": {
+        "a": {
+          "value": "x"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value != null",
+      "scope": {},
+      "expected": false
+    },
+    {
+      "text": "zz.value in ['a', 'b']",
+      "scope": {},
+      "expected": false
+    },
+    {
+      "text": "zz.value in ['a', null]",
+      "scope": {},
+      "expected": true
+    },
+    {
+      "text": "a.value == 1.50",
+      "scope": {
+        "a": {
+          "value": "1.5"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value == -3",
+      "scope": {
+        "a": {
+          "value": "-3"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value == -3",
+      "scope": {
+        "a": {
+          "value": 3
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value == true",
+      "scope": {
+        "a": {
+          "value": "true"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value == false",
+      "scope": {
+        "a": {
+          "value": false
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value == 'false'",
+      "scope": {
+        "a": {
+          "value": false
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "'5' == 5",
+      "scope": {},
+      "expected": true
+    },
+    {
+      "text": "'05' == 5",
+      "scope": {},
+      "expected": true
+    },
+    {
+      "text": "'1e3' == 1000",
+      "scope": {},
+      "expected": false
+    },
+    {
+      "text": "a.value",
+      "scope": {
+        "a": {
+          "value": 0
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value",
+      "scope": {
+        "a": {
+          "value": "0"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value",
+      "scope": {
+        "a": {
+          "value": "x"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value",
+      "scope": {
+        "a": {
+          "value": {
+            "b": 1
+          }
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value == 'Lot'",
+      "scope": {
+        "a": {
+          "value": "lot"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.rows[1].x == 'b'",
+      "scope": {
+        "a": {
+          "rows": [
+            {
+              "x": "a"
+            },
+            {
+              "x": "b"
+            }
+          ]
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "null",
+      "scope": {},
+      "expected": false
+    },
+    {
+      "text": "!!a.value",
+      "scope": {
+        "a": {
+          "value": "x"
+        }
+      },
+      "expected": true
+    }
   ]
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED, type InputRules } from './inputValidation';
 
 const rules = (extra: Partial<InputRules> = {}): InputRules => ({ required: false, upperCase: false, ...extra });
@@ -70,7 +70,33 @@ describe('inputValidation', () => {
   });
 
   it('invalid pattern is skipped', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(validateInputValue('text', rules({ pattern: '(' }), 'abc')).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('pattern longer than 200 characters is ignored', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(inputRules({ pattern: 'a'.repeat(201) }).pattern).toBeUndefined();
+    expect(inputRules({ pattern: 'a'.repeat(200) }).pattern).toBe('a'.repeat(200));
+    expect(validateInputValue('text', rules({ pattern: 'a'.repeat(201) }), 'b')).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('number parsing is strict', () => {
+    expect(validateInputValue('number', rules(), ' 12 ')).toBeNull();
+    expect(validateInputValue('number', rules(), '-1.5')).toBeNull();
+    for (const bad of ['1e3', '0x10', '1,5', '.5', '1.', 'Infinity', '+1']) {
+      expect(validateInputValue('number', rules(), bad), bad).toBe('Geçerli bir sayı girin.');
+    }
+  });
+
+  it('date limits accept only YYYY-MM-DD', () => {
+    expect(inputRules({ min: '2026-1-1', max: 'yarın' })).toEqual({ required: false, upperCase: false });
+    expect(validateInputValue('date', rules({ min: 5 }), '2026-01-01')).toBeNull();
+    expect(validateInputValue('number', rules({ min: '2026-01-01' }), '1')).toBeNull();
   });
 
   it('boundInputNames ignores non-value bindings', () => {
