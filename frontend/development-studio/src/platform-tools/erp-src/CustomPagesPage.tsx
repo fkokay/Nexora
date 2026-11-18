@@ -37,7 +37,8 @@ import { parseGridColumns } from "./page-designer/gridColumns";
 import { conditionProblem } from "./page-designer/conditions";
 import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
-import { useFlip } from "./page-designer/useFlip";
+import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
+import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
@@ -67,7 +68,6 @@ type PageComponent = { id: string; type: ComponentType; name?: string; props: Re
 type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
 type Device = "desktop" | "tablet" | "mobile";
-type DropTarget = { index: number; edge: "before" | "after" } | null;
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" };
 
 const palette: PaletteItem[] = [
@@ -739,10 +739,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [previewHref, setPreviewHref] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<DropTarget>(null);
-  // Tuvalde sürüklenirken yer tutucunun durduğu bileşen dizisi sırası (canlı yeniden yerleşim); Katmanlar `dropTarget` kullanır.
-  const [canvasDrop, setCanvasDrop] = useState<number | null>(null);
+  // Sürükleme durumu (sürüklenen, tuvaldeki yer tutucu sırası, Katmanlar hedefi) bu bileşenin state'i değildir: dragover
+  // başına bütün tasarımcı (müfettiş, paneller, önizlemeler) yeniden çizilmesin diye yalnız abone parçalar güncellenir.
+  const [dragStore] = useState(createDragStore);
   // Tuvalde açık olan sekme (Sekmeler kimliği → sekme sırası); yalnız tasarımcı görünümüdür, tanıma yazılmaz.
   const [activeTabs, setActiveTabs] = useState<Record<string, number>>({});
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -1225,7 +1224,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Sürükleme bitince (bırakma ya da Esc) bekleyen konum hesabı da iptal edilir; yoksa sonraki sürüklemede hayalet yer tutucu kalır.
   const cancelCanvasHit = () => { cancelAnimationFrame(canvasFrame.current); canvasFrame.current = 0; canvasHit.current = null; };
-  const clearDrag = () => { cancelCanvasHit(); setDropTarget(null); setCanvasDrop(null); setDragging(null); };
+  const clearDrag = () => { cancelCanvasHit(); dragStore.set({ dropTarget: null, canvasDrop: null, dragging: null }); };
   // `detach`: tuvalde sayfaya bırakılan sekme bileşeni sekmesinden çıkar (Katmanlar'daki sıralama sekmeyi değiştirmez).
   const dropAt = (targetIndex: number, event: DragEvent, detach = false) => {
     event.preventDefault();
@@ -1274,15 +1273,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setActiveTabs((value) => ({ ...value, [tabsId]: tabIndex }));
   };
   // Sürüklenen şey: tuvaldeki bir bileşen (kimlik) ya da paletten bir tür. Sekmeye kabul ve yer tutucu genişliği buna göre.
-  const draggingComponent = dragging ? definition.components.find((component) => component.id === dragging) : undefined;
-  const draggingType = draggingComponent?.type ?? (dragging && palette.some((item) => item.type === dragging) ? dragging as ComponentType : null);
-  const dragSpan = draggingComponent ? deviceSpan(spanOf(draggingComponent), device) : draggingType ? deviceSpan(defaultSpan(draggingType), device) : 12;
+  const dragInfo = (dragging: string | null) => {
+    const draggingComponent = dragging ? definition.components.find((component) => component.id === dragging) : undefined;
+    const draggingType = draggingComponent?.type ?? (dragging && palette.some((item) => item.type === dragging) ? dragging as ComponentType : null);
+    const dragSpan = draggingComponent ? deviceSpan(spanOf(draggingComponent), device) : draggingType ? deviceSpan(defaultSpan(draggingType), device) : 12;
+    return { draggingComponent, draggingType, dragSpan };
+  };
   // Tuval ızgarasında konum hesabı kare başına bir kez yapılır; yer tutucunun üstündeyken konum korunur.
   const canvasHit = useRef<{ target: Element | null; x: number; y: number } | null>(null);
   const canvasFrame = useRef(0);
   const dragOverCanvas = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
-    if (!canEdit || !dragging) return;
+    if (!canEdit || !dragStore.get().dragging) return;
     canvasHit.current = { target: event.target as Element | null, x: event.clientX, y: event.clientY };
     if (canvasFrame.current) return;
     canvasFrame.current = requestAnimationFrame(() => {
@@ -1296,7 +1298,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // Izgaranın boş yeri: son bloğun altındaysa sona; değilse konum korunur.
         const blocks = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-page-index]")).filter((block) => block.offsetParent !== null);
         const lastBlock = blocks[blocks.length - 1];
-        if (!lastBlock || hit.y > lastBlock.getBoundingClientRect().bottom) setCanvasDrop(definitionRef.current.components.length);
+        if (!lastBlock || hit.y > lastBlock.getBoundingClientRect().bottom) dragStore.set({ canvasDrop: definitionRef.current.components.length });
         return;
       }
       if (element.dataset.pagePlaceholder !== undefined) return;
@@ -1306,7 +1308,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const rect = element.getBoundingClientRect();
       const horizontal = deviceSpan(spanOf(component), device) < 12;
       const before = horizontal ? hit.x < rect.left + rect.width / 2 : hit.y < rect.top + rect.height / 2;
-      setCanvasDrop(before ? index : index + 1);
+      dragStore.set({ canvasDrop: before ? index : index + 1 });
     });
   };
   useEffect(() => () => cancelAnimationFrame(canvasFrame.current), []);
@@ -1801,6 +1803,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     enabled: !current?.isPublished, sqlAllowed: isAdmin && !!current && !current.isPublished,
     storedDefinitionJson: current?.definitionJson ?? null, catalog: erpCatalog, scope: designScope, fetchJson: request,
     manualRun: (queryId) => runQueryPreview(queryId, false),
+    whenIdle: dragStore.whenIdle,
   });
   const sampleHint = (queryId: string) => { const info = samples.info(queryId); return info.state === "off" || info.state === "ready" ? null : info.state === "loading" || info.state === "waiting" ? "Örnek veri yükleniyor…" : info.message ?? null; };
   const sampleHintKey = definition.queries.map((query) => `${query.id}:${samples.info(query.id).state}`).join("|");
@@ -2005,12 +2008,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
   // Canlı yeniden yerleşim: sürüklenen bloğun genişliğinde yer tutucu; bileşen yerinden oynamıyorsa (kendi önü/arkası)
   // gösterilmez, soluk asıl blok yerini belirtir. Sekmedeki bileşen sayfaya taşınırken her zaman gösterilir.
-  const draggingIndex = draggingComponent ? definition.components.indexOf(draggingComponent) : -1;
-  const draggingInPlace = draggingIndex >= 0 && !tabIds.has(draggingComponent!.id) && (canvasDrop === draggingIndex || canvasDrop === draggingIndex + 1);
-  const pagePlaceholderAt = canEdit && dragging && canvasDrop !== null && !draggingInPlace ? canvasDrop : null;
-  const pagePlaceholder = <div key="__placeholder" data-flip="__placeholder" data-page-placeholder="" className="pd-drop-placeholder"
-    style={{ gridColumn: `span ${dragSpan}` }}>Buraya bırakın</div>;
-  useFlip(gridRef, `${device}|${definition.components.map((component) => component.id).join(",")}|${pagePlaceholderAt ?? "-"}`);
+  const placeholderFor = useCallback((dragging: string | null, canvasDrop: number | null) => {
+    if (!canEdit || !dragging || canvasDrop === null) return null;
+    const components = definition.components;
+    const draggingIndex = components.findIndex((component) => component.id === dragging);
+    const draggingComponent = draggingIndex >= 0 ? components[draggingIndex] : undefined;
+    const draggingInPlace = !!draggingComponent && !tabIds.has(draggingComponent.id) && (canvasDrop === draggingIndex || canvasDrop === draggingIndex + 1);
+    if (draggingInPlace) return null;
+    const draggingType = draggingComponent?.type ?? (palette.some((item) => item.type === dragging) ? dragging as ComponentType : null);
+    const span = draggingComponent ? deviceSpan(spanOf(draggingComponent), device) : draggingType ? deviceSpan(defaultSpan(draggingType), device) : 12;
+    return { at: canvasDrop, span };
+  }, [canEdit, definition, tabIds, device]);
   // Katmanlardan ya da başka yoldan seçilen sekme bileşeni tuvalde görünsün diye sekmesi açılır.
   useEffect(() => {
     if (!selectedComponentId) return;
@@ -2033,6 +2041,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     });
     return changed ? { ...state, components } : state;
   });
+  // Tuval blokları sürükleme boyunca önbellekte kalır; içlerindeki olay işleyicileri her zaman güncel işlevleri çağırır.
+  const liveActions = { moveInTab, detachFromTab, duplicateComponent, removeComponent, startResize, moveComponent, dropIntoTab, writeTabs, clearDrag, cancelCanvasHit, dropAt, dragOverCanvas };
+  const live = useRef(liveActions);
+  live.current = liveActions;
   const renderTabsContainer = (component: PageComponent) => {
     const tabs = parseTabs(component.props.tabs);
     const byId = new Map(definition.components.map((item) => [item.id, item]));
@@ -2042,14 +2054,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       if (!child || !location) return null;
       const count = tabs[location.tabIndex]?.ids.length ?? 0;
       return <>
-        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => moveInTab(id, -1)}><ArrowUp size={13}/></button>
-        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => moveInTab(id, 1)}><ArrowDown size={13}/></button>
-        <button type="button" title="Sekmeden çıkar" aria-label="Sekmeden çıkar" onClick={() => detachFromTab(id)}><ArrowUpFromLine size={13}/></button>
-        <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => duplicateComponent(id)}><Copy size={13}/></button>
-        <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(id)}><Trash2 size={13}/></button>
+        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => live.current.moveInTab(id, -1)}><ArrowUp size={13}/></button>
+        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => live.current.moveInTab(id, 1)}><ArrowDown size={13}/></button>
+        <button type="button" title="Sekmeden çıkar" aria-label="Sekmeden çıkar" onClick={() => live.current.detachFromTab(id)}><ArrowUpFromLine size={13}/></button>
+        <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => live.current.duplicateComponent(id)}><Copy size={13}/></button>
+        <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(id)}><Trash2 size={13}/></button>
       </>;
     };
-    return <TabsCanvas tabs={tabs} active={activeTabOf(component)} canEdit={canEdit} resizable={device === "desktop"} selectedId={selectedComponentId}
+    // Yalnız sürüklenen şey değişince (başla/bitir) yeniden çizilir; sekme içi konum TabsCanvas'ın kendi durumudur.
+    return <DragSelect store={dragStore} select={(state) => state.dragging}>{(dragging) => {
+      const { draggingComponent, draggingType, dragSpan } = dragInfo(dragging);
+      return <TabsCanvas tabs={tabs} active={activeTabOf(component)} canEdit={canEdit} resizable={device === "desktop"} selectedId={selectedComponentId}
       draggingId={dragging ? draggingComponent?.id ?? `palette:${dragging}` : null} dropSpan={dragSpan} style={componentStyle(component.type, component.props)}
       acceptsTab={(tabIndex) => !!draggingType && !tabPlacementProblem(definition.components, component.id, tabIndex, { id: draggingComponent?.id, type: draggingType })}
       renderChild={(id) => rendered.tabChildren.get(id) ?? null}
@@ -2059,23 +2074,59 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       toolbarFor={childToolbar}
       onActivate={(index) => setActiveTabs((value) => value[component.id] === index ? value : { ...value, [component.id]: index })}
       onSelect={setSelectedComponentId}
-      onClaimDrag={() => { cancelCanvasHit(); if (canvasDrop !== null) setCanvasDrop(null); }}
-      onDrop={(tabIndex, position, event) => dropIntoTab(component.id, tabIndex, position, event)}
+      onClaimDrag={() => { live.current.cancelCanvasHit(); dragStore.set({ canvasDrop: null }); }}
+      onDrop={(tabIndex, position, event) => live.current.dropIntoTab(component.id, tabIndex, position, event)}
       onItemDragStart={(id, event) => {
         if (resizing.current) { event.preventDefault(); return; }
-        event.dataTransfer.setData("application/x-nexora-index", String(definition.components.findIndex((item) => item.id === id)));
+        event.dataTransfer.setData("application/x-nexora-index", String(definitionRef.current.components.findIndex((item) => item.id === id)));
         event.dataTransfer.effectAllowed = "move";
-        setDragging(id);
+        dragStore.set({ dragging: id });
       }}
-      onDragEnd={clearDrag}
-      onRename={(index, label) => writeTabs(component.id, (current) => renameTab(current, index, cleanTabLabel(label)))}
+      onDragEnd={() => live.current.clearDrag()}
+      onRename={(index, label) => live.current.writeTabs(component.id, (current) => renameTab(current, index, cleanTabLabel(label)))}
       canAddTab={tabs.length < MAX_TABS}
       onAddTab={() => {
-        writeTabs(component.id, addTab);
+        live.current.writeTabs(component.id, addTab);
         setActiveTabs((value) => ({ ...value, [component.id]: Math.min(tabs.length, MAX_TABS - 1) }));
       }}
-      onResizeStart={(id, event) => { const child = byId.get(id); if (child) startResize(child, event); }}/>;
+      onResizeStart={(id, event) => { const child = byId.get(id); if (child) live.current.startResize(child, event); }}/>;
+    }}</DragSelect>;
   };
+  // Tuval blokları: tanım, seçim, cihaz ve önizleme değişince yeniden kurulur; sürükleme durumuna bağlı değildir. Böylece
+  // dragover'da yalnız ızgara (yer tutucu) çizilir, 80+ bloğun sarmalayıcısı ve önizlemesi React tarafından atlanır.
+  const canvasBlocks = useMemo<CanvasBlock[]>(() => definition.components.map((component, index) => {
+    const isSelected = selectedComponentId === component.id;
+    const element = <div key={component.id} data-flip={component.id} data-page-index={index}
+      className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
+      style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
+      draggable={canEdit}
+      onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
+      onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: component.id }); }}
+      onDragEnd={() => live.current.clearDrag()}>
+      <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
+      {isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
+      {samples.badge(component.type === "dataTable" || component.type === "metric" ? (typeof component.props.query === "string" ? component.props.query : null) : component.type === "input" && typeof component.props.optionsQuery === "string" ? component.props.optionsQuery : null)}
+      {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="pd-block-edit" title="Tüm ayarlar" aria-label="Tüm ayarlar" onClick={() => { setRightMode("inspector"); setSettingsId(component.id); }}>✎ Düzenle</button>
+        <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => live.current.moveComponent(index, -1)}><ArrowUp size={13}/></button>
+        <button type="button" title="Aşağı taşı (Alt+↓)" aria-label="Aşağı taşı" disabled={index === definition.components.length - 1} onClick={() => live.current.moveComponent(index, 1)}><ArrowDown size={13}/></button>
+        <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" disabled={component.type === "actionBar"} onClick={() => live.current.duplicateComponent(component.id)}><Copy size={13}/></button>
+        <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(component.id)}><Trash2 size={13}/></button>
+      </div>}
+      <div className="pd-block-render">{component.type === "tabs" && !nestedIds.has(component.id) ? renderTabsContainer(component) : rendered.list[index]}</div>
+      {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
+    </div>;
+    return { id: component.id, element };
+  // Olay işleyicileri `live` üzerinden güncel işlevleri çağırır; örnek veri rozeti `sampleHintKey` ile izlenir.
+  }), [definition, selectedComponentId, device, canEdit, rendered, ownedIds, tabIds, nestedIds, movedIds, sampleHintKey, activeTabs, dragStore]);
+  const canvasLayoutKey = useMemo(() => `${device}|${definition.components.map((component) => component.id).join(",")}`, [device, definition]);
+  const canvasGuides = useMemo(() => showGrid ? <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div> : null, [showGrid, device]);
+  const canvasEmpty = <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>;
+  const canvasHandlers = useMemo(() => ({
+    onDragOver: (event: DragEvent<HTMLElement>) => live.current.dragOverCanvas(event),
+    onDragLeave: (event: DragEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { live.current.cancelCanvasHit(); dragStore.set({ canvasDrop: null }); } },
+    onDrop: (event: DragEvent<HTMLDivElement>) => live.current.dropAt(dragStore.get().canvasDrop ?? definitionRef.current.components.length, event, true),
+  }), [dragStore]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const settingsOpen = !!selected && settingsId === selected.id;
@@ -2450,22 +2501,23 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
     <div className={`pd-workspace${docks.workspaceClass}`}>
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
-      <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+      {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
+      <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
         palette={palette.map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
-        onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; setDragging(type); }}
-        onPaletteDragEnd={() => { setDragging(null); setDropTarget(null); }}
+        onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
+        onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => { const item = palette.find((entry) => entry.type === type); if (item) addComponent(item, insertIndex()); }}
         layers={definition.components.map((component) => ({ id: component.id, name: component.name, label: summaryOf(component), typeLabel: titleFor(component.type), span: spanOf(component), icon: iconFor(component.type),
           children: component.type === "tabs" ? parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids })) : component.type === "dialog" ? [{ label: component.props.presentation === "drawer" ? "çekmece" : "pencere", ids: idList(component.props.contains, MAX_DIALOG_IDS) }] : [] }))}
         selectedComponentId={selectedComponentId} onSelectComponent={setSelectedComponentId} dropTarget={dropTarget}
-        onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(id); }}
-        onLayerDragEnd={() => { setDragging(null); setDropTarget(null); }}
-        onLayerDragOver={(index, edge) => { if (dropTarget?.index !== index || dropTarget.edge !== edge) setDropTarget({ index, edge }); }}
+        onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: id }); }}
+        onLayerDragEnd={() => live.current.clearDrag()}
+        onLayerDragOver={(index, edge) => { const target = dragStore.get().dropTarget; if (target?.index !== index || target.edge !== edge) dragStore.set({ dropTarget: { index, edge } }); }}
         onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={moveComponent} componentCount={definition.components.length}
         queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${isOperationQuery(query) ? "ERP işlemi" : "SQL"}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
-        onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>
+        onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>}</DragSelect>
       </DockPanel>
 
       <section className="pd-center" aria-label="Sayfa tuvali">
@@ -2480,38 +2532,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
-            <div ref={gridRef} className={`pd-grid ${dragging ? "is-dragging" : ""}`}
-              onDragOver={dragOverCanvas}
-              onDragLeave={(event) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { cancelCanvasHit(); setCanvasDrop(null); } }}
-              onDrop={(event) => dropAt(canvasDrop ?? definition.components.length, event, true)}>
-              {showGrid && <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>}
-              {definition.components.length === 0 && pagePlaceholderAt === null && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>}
-              {definition.components.flatMap((component, index) => {
-                const isSelected = selectedComponentId === component.id;
-                const block = <div key={component.id} data-flip={component.id} data-page-index={index}
-                  className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""}`}
-                  style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
-                  draggable={canEdit}
-                  onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
-                  onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
-                  onDragEnd={clearDrag}>
-                  <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
-                  {isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
-                  {samples.badge(component.type === "dataTable" || component.type === "metric" ? (typeof component.props.query === "string" ? component.props.query : null) : component.type === "input" && typeof component.props.optionsQuery === "string" ? component.props.optionsQuery : null)}
-                  {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
-                    <button type="button" className="pd-block-edit" title="Tüm ayarlar" aria-label="Tüm ayarlar" onClick={() => { setRightMode("inspector"); setSettingsId(component.id); }}>✎ Düzenle</button>
-                    <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
-                    <button type="button" title="Aşağı taşı (Alt+↓)" aria-label="Aşağı taşı" disabled={index === definition.components.length - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
-                    <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" disabled={component.type === "actionBar"} onClick={() => duplicateComponent(component.id)}><Copy size={13}/></button>
-                    <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(component.id)}><Trash2 size={13}/></button>
-                  </div>}
-                  <div className="pd-block-render">{component.type === "tabs" && !nestedIds.has(component.id) ? renderTabsContainer(component) : rendered.list[index]}</div>
-                  {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
-                </div>;
-                return pagePlaceholderAt === index ? [pagePlaceholder, block] : [block];
-              })}
-              {pagePlaceholderAt !== null && pagePlaceholderAt >= definition.components.length && pagePlaceholder}
-            </div>
+            <CanvasGrid store={dragStore} gridRef={gridRef} blocks={canvasBlocks} layoutKey={canvasLayoutKey} guides={canvasGuides} empty={canvasEmpty}
+              placeholderFor={placeholderFor} onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}/>
           </div>
         </div>
       </section>

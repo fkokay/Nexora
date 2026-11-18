@@ -23,6 +23,8 @@ export type SampleEnv = {
   fetchJson: <T>(url: string, init?: RequestInit) => Promise<T>;
   /** ⟳ ile, kayıtlı tanımdan farklı SQL sorgusu için: Sorgular sekmesindeki "Çalıştır ve önizle" (taslağı kaydeder). */
   manualRun: (queryId: string) => Promise<unknown>;
+  /** Sürükle-bırak sürerken bekler: istek başlatma ve sonucu tuvale yazma sürükleme bitene kadar ertelenir. */
+  whenIdle?: () => Promise<void>;
 };
 
 export type SampleInfo = { state: "off" | "waiting" | "loading" | "ready" | "error" | "blocked" | "stale"; message?: string };
@@ -88,15 +90,17 @@ export function useCanvasSamples(env: SampleEnv) {
 
   const enqueue = (id: string, key: string) => {
     queue.current = queue.current.then(async () => {
+      await envRef.current.whenIdle?.();
       const plan = plansRef.current.get(id);
       if (!plan || plan.key !== key || wanted.current.get(id) !== key) return;
       inflight.current.set(id, key); setTick((tick) => tick + 1);
       try {
         const result = await plan.run();
         cache.current.set(key, { result });
+        await envRef.current.whenIdle?.();
         if (wanted.current.get(id) === key) { applied.current.set(id, key); envRef.current.setPreviews((current) => ({ ...current, [id]: result })); }
       } catch (failure) { cache.current.set(key, { error: (failure as Error).message }); }
-      finally { inflight.current.delete(id); setTick((tick) => tick + 1); }
+      finally { await envRef.current.whenIdle?.(); inflight.current.delete(id); setTick((tick) => tick + 1); }
     });
   };
 
