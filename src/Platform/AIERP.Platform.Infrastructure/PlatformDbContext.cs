@@ -2436,7 +2436,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => x.Id);
             e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasAlternateKey(x => new { x.TenantId, x.Id, x.CurrencyCode });
-            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            // Cash and bank accounts are separate definitions: a code is unique only within its type.
+            e.HasIndex(x => new { x.TenantId, x.Type, x.Code }).IsUnique();
             e.Property(x => x.Code).HasMaxLength(40);
             e.Property(x => x.Name).HasMaxLength(120);
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();

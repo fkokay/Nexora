@@ -8253,8 +8253,8 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
     var errors = FinancialAccountValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
     var code = request.Code.Trim().ToUpperInvariant();
-    if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Code == code))
-        return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." });
+    if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Type == request.Type && x.Code == code))
+        return Results.Conflict(new { error = "Bu hesap kodu bu firmada aynı türde (kasa/banka) zaten kullanılıyor." });
     await using var openingTransaction = request.OpeningBalance != 0 ? await db.Database.BeginTransactionAsync() : null;
     if (request.OpeningBalance != 0)
     {
@@ -8273,7 +8273,7 @@ financeAccounts.MapPost("/", async (FinancialAccountWriteRequest request, Claims
             CashFlowCategory = CashFlowCategory.OpeningBalance, Amount = Math.Abs(request.OpeningBalance), Description = "Açılış bakiyesi" });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.created", Resource = code });
     try { await db.SaveChangesAsync(); }
-    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." }); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firmada aynı türde (kasa/banka) zaten kullanılıyor." }); }
     if (openingTransaction is not null) await openingTransaction.CommitAsync();
     return Results.Created($"/api/finance/accounts/{account.Id}", new FinancialAccountSummary(account.Id, account.Code,
         account.Name, account.Type, account.CurrencyCode, account.IsActive, request.OpeningBalance,
@@ -8288,15 +8288,15 @@ financeAccounts.MapPut("/{id:guid}", async (Guid id, FinancialAccountWriteReques
     var account = await db.FinancialAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (account is null) return Results.NotFound();
     var code = request.Code.Trim().ToUpperInvariant();
-    if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Code == code))
-        return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." });
+    if (await db.FinancialAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id != id && x.Type == request.Type && x.Code == code))
+        return Results.Conflict(new { error = "Bu hesap kodu bu firmada aynı türde (kasa/banka) zaten kullanılıyor." });
     var hasTransactions = await db.FinancialAccountTransactions.AnyAsync(x => x.TenantId == tenantId && x.FinancialAccountId == id);
     if (hasTransactions && (account.Type != request.Type || account.CurrencyCode != request.CurrencyCode.Trim().ToUpperInvariant()))
         return Results.Conflict(new { error = "Hareketi bulunan hesabın türü ve dövizi değiştirilemez." });
     account.Code = code; account.Name = request.Name.Trim(); account.Type = request.Type; account.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "financial-account.updated", Resource = code });
     try { await db.SaveChangesAsync(); }
-    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firma için zaten kullanılıyor." }); }
+    catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu hesap kodu bu firmada aynı türde (kasa/banka) zaten kullanılıyor." }); }
     var balance = await db.FinancialAccountTransactions.Where(x => x.TenantId == tenantId && x.FinancialAccountId == id)
         .SumAsync(x => (decimal?)(x.Direction == FinancialDirection.Inflow ? x.Amount : -x.Amount)) ?? 0m;
     var count = await db.FinancialAccountTransactions.CountAsync(x => x.TenantId == tenantId && x.FinancialAccountId == id);

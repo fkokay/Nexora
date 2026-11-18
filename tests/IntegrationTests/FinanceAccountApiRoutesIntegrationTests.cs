@@ -70,6 +70,51 @@ public sealed class FinanceAccountApiRoutesIntegrationTests
     }
 
     [Fact]
+    public async Task Cash_and_bank_accounts_may_share_a_code_but_the_same_type_may_not()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var factory = new FinanceApiFactory();
+        await SeedTenantCatalogAsync(factory, tenantId);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", tenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+
+        using var cash = await client.PostAsJsonAsync("/api/finance/accounts",
+            new { code = "001", name = "Merkez kasa", type = "Cash", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Created, cash);
+        using var bank = await client.PostAsJsonAsync("/api/finance/accounts",
+            new { code = "001", name = "Ana banka", type = "Bank", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Created, bank);
+
+        using var duplicateCash = await client.PostAsJsonAsync("/api/finance/accounts",
+            new { code = " 001 ", name = "Şube kasa", type = "Cash", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Conflict, duplicateCash);
+        using var duplicateBank = await client.PostAsJsonAsync("/api/finance/accounts",
+            new { code = "001", name = "İkinci banka", type = "Bank", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Conflict, duplicateBank);
+
+        using var otherCash = await client.PostAsJsonAsync("/api/finance/accounts",
+            new { code = "002", name = "Şube kasa", type = "Cash", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Created, otherCash);
+        var otherCashId = (await otherCash.Content.ReadFromJsonAsync<JsonDocument>())!.RootElement.GetProperty("id").GetGuid();
+
+        using var renameToTakenCash = await client.PutAsJsonAsync($"/api/finance/accounts/{otherCashId:D}",
+            new { code = "001", name = "Şube kasa", type = "Cash", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Conflict, renameToTakenCash);
+        using var moveToBankWithSharedCode = await client.PutAsJsonAsync($"/api/finance/accounts/{otherCashId:D}",
+            new { code = "002", name = "Şube banka", type = "Bank", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.OK, moveToBankWithSharedCode);
+        using var renameToTakenBank = await client.PutAsJsonAsync($"/api/finance/accounts/{otherCashId:D}",
+            new { code = "001", name = "Şube banka", type = "Bank", currencyCode = "TRY" });
+        await AssertStatusCodeAsync(HttpStatusCode.Conflict, renameToTakenBank);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var index = Assert.Single(db.Model.FindEntityType(typeof(FinancialAccount))!.GetIndexes(), x => x.IsUnique);
+        Assert.Equal(["TenantId", "Type", "Code"], index.Properties.Select(x => x.Name));
+    }
+
+    [Fact]
     public async Task Payment_instrument_search_is_bounded_by_term_and_tenant()
     {
         var tenantId = Guid.NewGuid();
