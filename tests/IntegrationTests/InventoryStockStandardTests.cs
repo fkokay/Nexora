@@ -52,7 +52,7 @@ public sealed class InventoryStockStandardTests
         var search = Props("aramaKutusu");
         Assert.Equal("text", (string)search["inputType"]!);
         Assert.Equal("Ara", (string)search["label"]!);
-        Assert.Equal("Kod, ad, barkod veya kategori", (string)search["placeholder"]!);
+        Assert.Equal("Kod veya stok adıyla ara", (string)search["placeholder"]!);
     }
 
     [Fact]
@@ -111,13 +111,17 @@ public sealed class InventoryStockStandardTests
         Assert.True((bool)props["allowClear"]!);
         Assert.Equal("depo.listele", (string)Query("depolar")["operation"]!);
         var toolbar = Props("suzgecKarti");
-        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "pasifler", "detayPaneli" }, Strings(toolbar["inputs"]));
+        // Legacy row: search, Depo, Minimum altı chip, Detay paneli; the new Pasif toggle sits last (right end, where legacy has its list tools).
+        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "detayPaneli", "pasifler" }, Strings(toolbar["inputs"]));
         Assert.Equal("inline", (string)toolbar["layout"]!);
         Assert.Null(toolbar["columns"]);
-        Assert.Equal("Minimum altı {{bakiye.meta.belowMinimumCount}}", (string)Props("minimumAlti")["label"]!);
-        Assert.Equal("checkbox", (string)Props("pasifler")["inputType"]!);
+        Assert.Equal(("Minimum altı", "{{bakiye.meta.belowMinimumCount}}"), ((string)Props("minimumAlti")["label"]!, (string)Props("minimumAlti")["description"]!));
+        Assert.Equal(("checkbox", "archive"), ((string)Props("pasifler")["inputType"]!, (string)Props("pasifler")["icon"]!));
+        Assert.Equal("panel", (string)Props("detayPaneli")["icon"]!);
         var detail = Props("detayPaneli");
-        Assert.Equal(("checkbox", "Detay paneli", "true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultValue"]!));
+        // Legacy: the panel opens by itself only on a wide list area (DETAIL_ROOM 1440); the toggle overrides it.
+        Assert.Equal(("checkbox", "Detay paneli", "sayfa.genis == true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultWhen"]!));
+        Assert.Null(detail["defaultValue"]);
         // Legacy order: action bar → metrics → toolbar row → list.
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
         Assert.True(order.IndexOf("maliyetsizGostergesi") < order.IndexOf("suzgecKarti"));
@@ -159,54 +163,61 @@ public sealed class InventoryStockStandardTests
     [Fact]
     public void Detail_tabs_show_summary_warehouses_and_last_movements()
     {
+        // Legacy InventoryStockDetailPanel: a panel card (code, Aç, ×, name, status tags) holding the tabs and "Devre dışı bırak".
+        var card = Props("detayKarti");
+        Assert.Equal(("card", "panel", "detayPaneli", 4), ((string)Component("detayKarti")["type"]!, (string)card["variant"]!, (string)card["closeInput"]!, (int)card["width"]!));
+        Assert.Equal(("{{liste.seciliSatir.balance.name}}", "{{liste.seciliSatir.balance.code}}"), ((string)card["title"]!, (string)card["description"]!));
+        Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)card["visibleWhen"]!);
+        Assert.Equal(new[] { "detayAc", "detayDurum", "detayLot", "detaySeri", "detaySekmeleri", "detayDevreDisi" },
+            Component("detayKarti")["children"]!.AsArray().Select(x => (string)x!["id"]!));
+        Assert.Equal(("page", "@inventory-stock-create", "open"), ((string)Props("detayAc")["actionType"]!, (string)Props("detayAc")["pageCode"]!, (string)Props("detayAc")["icon"]!));
+        Assert.Equal(("pasifeAl", "Devre dışı bırak"), ((string)Props("detayDevreDisi")["queryId"]!, (string)Props("detayDevreDisi")["text"]!));
         var tabs = Props("detaySekmeleri");
         Assert.Equal(new[]
         {
-            "Özet=ozetBaslik,ozetBakiye,ozetKullanilabilir,ozetRezerve,ozetStokDegeri,ozetPaneli",
+            "Özet=ozetBakiye,ozetKullanilabilir,ozetRezerve,ozetMinimum,ozetPaneli,ozetHareketler",
             "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu"
         }, Strings(tabs["tabs"]));
-        Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)tabs["visibleWhen"]!);
-        // Right-side panel next to the list (list 8 + panel 4); its contents fill the panel.
-        Assert.Equal(4, (int)tabs["width"]!);
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
-        Assert.Equal(order.IndexOf("liste") + 1, order.IndexOf("detaySekmeleri"));
-        foreach (var id in new[] { "ozetBaslik", "ozetPaneli", "kartDepoTablosu", "sonHareketTablosu" }) Assert.Equal(12, (int)Props(id)["width"]!);
+        Assert.Equal(order.IndexOf("liste") + 1, order.IndexOf("detayKarti"));
+        foreach (var id in new[] { "ozetPaneli", "kartDepoTablosu", "sonHareketTablosu", "ozetHareketler" }) Assert.Equal(12, (int)Props(id)["width"]!);
 
-        // Özet is built from separately designable components.
-        Assert.Equal("{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", (string)Props("ozetBaslik")["text"]!);
-        var tiles = new (string Id, string Title, string Value, string Format, string Description)[]
+        // Özet: the four legacy stat tiles, then the facts list and "Hareketler / ekle".
+        var tiles = new (string Id, string Title, string Value)[]
         {
-            ("ozetBakiye", "Bakiye", "{{liste.seciliSatir.balance.quantityOnHand}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetKullanilabilir", "Kullanılabilir", "{{liste.seciliSatir.balance.availableQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetRezerve", "Rezerve", "{{liste.seciliSatir.balance.reservedQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
-            ("ozetStokDegeri", "Stok değeri", "{{liste.seciliSatir.balance.valuationAmountBase}}", "money", "{{liste.seciliSatir.balance.baseCurrencyCode}}")
+            ("ozetBakiye", "Depo bakiyesi", "{{liste.seciliSatir.balance.quantityOnHand}}"),
+            ("ozetKullanilabilir", "Kullanılabilir", "{{liste.seciliSatir.balance.availableQuantity}}"),
+            ("ozetRezerve", "Rezerve", "{{liste.seciliSatir.balance.reservedQuantity}}"),
+            ("ozetMinimum", "Minimum", "{{liste.seciliSatir.balance.minimumStock}}")
         };
-        foreach (var (id, title, value, format, description) in tiles)
+        foreach (var (id, title, value) in tiles)
         {
             var tile = Props(id);
-            Assert.Equal((title, value, format, description, 6),
-                ((string)tile["title"]!, (string)tile["value"]!, (string)tile["format"]!, (string)tile["description"]!, (int)tile["width"]!));
+            Assert.Equal((title, value, "number", 6), ((string)tile["title"]!, (string)tile["value"]!, (string)tile["format"]!, (int)tile["width"]!));
         }
 
         var panel = Props("ozetPaneli");
         Assert.Equal("liste", (string)panel["table"]!);
-        Assert.Equal("Kart bilgileri", (string)panel["title"]!);
+        Assert.Null(panel["title"]);
         Assert.Equal(new[]
         {
-            "balance.minimumStock=Minimum", "balance.unvaluedQuantity=Maliyetsiz",
-            "stockItem.category=Kategori", "balance.unitCode=Birim", "stockItem.trackingMode=Lot / seri", "status=Durum"
+            "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz miktar", "stockItem.category=Kategori", "balance.unitCode=Birim"
         }, Strings(panel["fields"]));
+        Assert.Equal(("hareketPenceresi", "depoSecimi.value == null", "Hareket için önce bir depo seçin."),
+            ((string)Props("ozetHareketler")["dialogId"]!, (string)Props("ozetHareketler")["disabledWhen"]!, (string)Props("ozetHareketler")["disabledReason"]!));
 
         var warehouses = Props("kartDepoTablosu");
         Assert.Equal("kartDepolari", (string)warehouses["query"]!);
-        Assert.Equal(new[] { "warehouseCode", "warehouseName", "quantityOnHand", "reservedQuantity", "availableQuantity", "valuationAmountBase", "unvaluedQuantity" },
-            Strings(warehouses["columns"]));
+        Assert.Equal(("bars", "Depo dağılımı"), ((string)warehouses["variant"]!, (string)warehouses["title"]!));
+        Assert.Equal(new[] { "warehouseName", "quantityOnHand" }, Strings(warehouses["columns"]));
         Assert.Equal("{{liste.seciliSatir.stockItem.id}}", Binding("kartDepolari", "id"));
 
         var movements = Props("sonHareketTablosu");
         Assert.Equal("sonHareketler", (string)movements["query"]!);
         Assert.Equal(5, (int)movements["limit"]!);
-        Assert.Equal(new[] { "entryDate", "warehouseCode", "direction", "quantity", "description" }, Strings(movements["columns"]));
+        Assert.Equal(("list", "Son hareketler"), ((string)movements["variant"]!, (string)movements["title"]!));
+        Assert.Equal(new[] { "description", "entryDate", "warehouseCode", "direction", "quantity" }, Strings(movements["columns"]));
+        Assert.Equal(new[] { "Giriş=success", "Çıkış=danger" }, Strings(movements["toneMap"]));
         Assert.Equal("stok.kart.hareketleri", (string)Query("sonHareketler")["operation"]!);
         var parameter = Assert.Single(Query("sonHareketler")["parameters"]!.AsArray());
         Assert.Equal("stockItemId", (string)parameter!["name"]!);
@@ -285,12 +296,11 @@ public sealed class InventoryStockStandardTests
         var standard = SystemPageStandards.All[Key];
         var components = AllComponents().ToArray();
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
-        Assert.True(components.Length <= 90, $"Bileşen sayısı {components.Length} > 90");
+        Assert.True(components.Length <= 100, $"Bileşen sayısı {components.Length} > 100");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
-        // Pilot numbers after Task 6 (82 components, 25 queries) plus the legacy-look fixes: two negative-stock strips,
-        // the "Detay paneli" toggle and the designable summary (heading + four tiles).
-        Assert.Equal(90, components.Length);
-        Assert.Equal(25, queries.Length);
+        // The card form moved to inventory-stock-create (51 components, 11 queries); Yeni and Aç are two navigation buttons.
+        Assert.Equal(47, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
+        Assert.Equal(14, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
         foreach (var component in components)
@@ -301,360 +311,52 @@ public sealed class InventoryStockStandardTests
         Assert.All(queries, x => Assert.False(string.IsNullOrEmpty((string?)x["operation"])));
     }
 
-    // ---- Task 5: card dialog, all scalar fields, composite save ----
-
-    private sealed record Field(string Card, string Input, string Name, string Type, string Label,
-        bool Required = false, int? MaxLength = null, bool UpperCase = false, double? Min = null, double? Max = null, double? Step = null,
-        string? Pattern = null, string? Options = null);
-
-    /// <summary>The 33-row card field map of the wire contract. Options: an optionsQuery id, or the joined staticOptions.</summary>
-    private static readonly Field[] FieldMap =
-    [
-        new("kimlikKarti", "kod", "code", "text", "Stok kodu", Required: true, MaxLength: 64, UpperCase: true),
-        new("kimlikKarti", "ad", "name", "text", "Stok adı", Required: true, MaxLength: 200),
-        new("kimlikKarti", "barkod", "barcode", "text", "Barkod", MaxLength: 64),
-        new("kimlikKarti", "kategori", "category", "select", "Kategori", Options: "kategoriler"),
-        new("kimlikKarti", "takipTuru", "trackingMode", "select", "Lot / seri takibi", Options: "None=Yok|Lot=Lot|Serial=Seri"),
-        new("kimlikKarti", "anaBirim", "unitCode", "text", "Ana birim", Required: true, MaxLength: 8, UpperCase: true),
-        new("stokKarti", "minimumStok", "minimumStock", "number", "Minimum stok", Min: 0, Step: 0.0001),
-        new("stokKarti", "maksimumStok", "maximumStock", "number", "Maksimum stok", Min: 0, Step: 0.0001),
-        new("stokKarti", "yenidenSiparisNoktasi", "reorderPoint", "number", "Yeniden sipariş noktası", Min: 0, Step: 0.0001),
-        new("stokKarti", "emniyetStoku", "safetyStock", "number", "Emniyet stoku", Min: 0, Step: 0.0001),
-        new("stokKarti", "tedarikSuresi", "procurementLeadTimeDays", "number", "Tedarik süresi (gün)", Min: 0, Max: 3650, Step: 1),
-        new("stokKarti", "uretimSuresi", "manufacturingLeadTimeDays", "number", "Üretim süresi (gün)", Min: 0, Max: 3650, Step: 1),
-        new("fiyatKarti", "alisFiyati", "purchaseListPrice", "number", "Alış liste fiyatı", Min: 0, Step: 0.0001),
-        new("fiyatKarti", "satisFiyati", "salesListPrice", "number", "Satış liste fiyatı", Min: 0, Step: 0.0001),
-        new("fiyatKarti", "fiyatParaBirimi", "priceCurrencyCode", "text", "Fiyat para birimi", MaxLength: 3, UpperCase: true, Pattern: "^[A-Z]{3}$"),
-        new("fiyatKarti", "alisIndirimi", "purchaseDiscountPercent", "number", "Alış iskonto %", Min: 0, Max: 100, Step: 0.0001),
-        new("fiyatKarti", "satisIndirimi", "salesDiscountPercent", "number", "Satış iskonto %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "alisKdv", "purchaseVatPercent", "number", "Alış KDV %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "satisKdv", "salesVatPercent", "number", "Satış KDV %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "otv", "exciseTaxPercent", "number", "ÖTV %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "oiv", "communicationTaxPercent", "number", "ÖİV %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "tevkifat", "withholdingTaxPercent", "number", "Tevkifat %", Min: 0, Max: 100, Step: 0.0001),
-        new("vergiKarti", "damgaVergisi", "stampTaxPercent", "number", "Damga vergisi %", Min: 0, Max: 100, Step: 0.0001),
-        new("lojistikKarti", "netAgirlik", "netWeight", "number", "Net ağırlık", Min: 0, Step: 0.0001),
-        new("lojistikKarti", "brutAgirlik", "grossWeight", "number", "Brüt ağırlık", Min: 0, Step: 0.0001),
-        new("lojistikKarti", "uzunluk", "length", "number", "Uzunluk", Min: 0, Step: 0.0001),
-        new("lojistikKarti", "genislik", "width", "number", "Genişlik", Min: 0, Step: 0.0001),
-        new("lojistikKarti", "yukseklik", "height", "number", "Yükseklik", Min: 0, Step: 0.0001),
-        new("muhasebeKarti", "alisHesabi", "purchaseAccountCode", "text", "Alış hesap kodu", MaxLength: 40),
-        new("muhasebeKarti", "satisHesabi", "salesAccountCode", "text", "Satış hesap kodu", MaxLength: 40),
-        new("muhasebeKarti", "maliyetHesabi", "costAccountCode", "text", "Maliyet hesap kodu", MaxLength: 40),
-        new("gorselKarti", "gorsel", "productImageUrl", "text", "Ürün görseli bağlantısı", MaxLength: 1000),
-        new("gorselKarti", "pazaryeriKimligi", "marketplaceProductId", "text", "Pazaryeri ürün kimliği", MaxLength: 120)
-    ];
-
-    private static readonly string[] CardFormCards = ["kimlikKarti", "stokKarti", "fiyatKarti", "vergiKarti", "lojistikKarti", "muhasebeKarti", "gorselKarti"];
-
-    /// <summary>Scalar constructor parameters in camelCase, as the catalog's BodyParameters reflects them.</summary>
-    private static string[] ScalarParameters<T>(params string[] exclude)
-    {
-        static bool Scalar(Type type)
-        {
-            type = Nullable.GetUnderlyingType(type) ?? type;
-            return type == typeof(Guid) || type == typeof(string) || type == typeof(byte[]) || type.IsEnum || type == typeof(decimal)
-                || type == typeof(double) || type == typeof(float) || type == typeof(int) || type == typeof(long) || type == typeof(short)
-                || type == typeof(bool) || type == typeof(DateOnly) || type == typeof(DateTime) || type == typeof(DateTimeOffset);
-        }
-        var constructor = typeof(T).GetConstructors().OrderByDescending(x => x.GetParameters().Length).First();
-        return constructor.GetParameters().Where(x => Scalar(x.ParameterType))
-            .Select(x => char.ToLowerInvariant(x.Name![0]) + x.Name[1..]).Where(x => !exclude.Contains(x)).ToArray();
-    }
-
     [Fact]
-    public void Every_create_field_has_an_input()
+    public void Yeni_and_ac_open_the_card_screen()
     {
-        var fields = ScalarParameters<StockItemWriteRequest>("isActive", "customFields");
-        Assert.Equal(33, fields.Length);
-        Assert.Equal(fields.Order(StringComparer.Ordinal), FieldMap.Select(x => x.Name).Order(StringComparer.Ordinal));
-        foreach (var field in FieldMap)
-        {
-            Assert.Equal($"{{{{{field.Input}.value}}}}", Binding("olustur", field.Name));
-            Assert.Equal("input", (string)Component(field.Input)["type"]!);
-        }
-        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("olustur", "customFields"));
-        Assert.Equal("{{varyantMatrisi.satirlar}}", Binding("olustur", "variants"));
-        Assert.Equal(35, Query("olustur")["parameters"]!.AsArray().Count);
-        Assert.Equal("stok.kart.olustur", (string)Query("olustur")["operation"]!);
-        Assert.Equal("insert", (string)Query("olustur")["kind"]!);
-    }
-
-    [Fact]
-    public void Every_update_field_has_an_input()
-    {
-        var fields = ScalarParameters<StockItemUpdateRequest>("rowVersion");
-        Assert.Equal(fields.Order(StringComparer.Ordinal), FieldMap.Select(x => x.Name).Order(StringComparer.Ordinal));
-        foreach (var field in FieldMap) Assert.Equal($"{{{{{field.Input}.value}}}}", Binding("guncelle", field.Name));
-        Assert.Equal("{{kart.rows[0].id}}", Binding("guncelle", "id"));
-        Assert.Null(Binding("guncelle", "rowVersion"));
-        Assert.Equal(34, Query("guncelle")["parameters"]!.AsArray().Count);
-        Assert.Equal("stok.kart.guncelle", (string)Query("guncelle")["operation"]!);
-        Assert.Equal("update", (string)Query("guncelle")["kind"]!);
-    }
-
-    [Fact]
-    public void Non_nullable_numeric_update_members_are_required_while_editing()
-    {
-        // A cleared optional number is sent as null (it overrides the source record); a member that cannot be null must
-        // instead be refilled while an existing card is edited. Creation leaves blanks to the server defaults.
-        var constructor = typeof(StockItemUpdateRequest).GetConstructors().OrderByDescending(x => x.GetParameters().Length).First();
-        var numeric = constructor.GetParameters()
-            .Where(x => x.ParameterType == typeof(decimal) || x.ParameterType == typeof(int) || x.ParameterType == typeof(decimal?) || x.ParameterType == typeof(int?))
-            .ToDictionary(x => char.ToLowerInvariant(x.Name![0]) + x.Name[1..], x => Nullable.GetUnderlyingType(x.ParameterType) is null);
-        Assert.Equal(21, numeric.Count);
-        Assert.Equal(12, numeric.Count(x => x.Value));
-        foreach (var field in FieldMap.Where(x => numeric.ContainsKey(x.Name)))
-        {
-            var requiredWhen = (string?)Props(field.Input)["requiredWhen"];
-            Assert.True((numeric[field.Name] ? "kart.rows[0].id != null" : null) == requiredWhen, $"{field.Input} requiredWhen");
-        }
-        Assert.All(FieldMap.Where(x => !numeric.ContainsKey(x.Name)), field => Assert.Null(Props(field.Input)["requiredWhen"]));
-    }
-
-    [Fact]
-    public void Inputs_default_to_card_record()
-    {
-        foreach (var field in FieldMap)
-            Assert.Equal($"{{{{kart.rows[0].{field.Name}}}}}", (string?)Props(field.Input)["defaultValue"]);
-    }
-
-    [Fact]
-    public void Input_rules_match_field_map()
-    {
-        static double? Number(JsonNode? node) => node is null ? null : (double)node;
-        foreach (var field in FieldMap)
-        {
-            var props = Props(field.Input);
-            Assert.True(field.Type == (string)props["inputType"]!, field.Input);
-            Assert.True(field.Label == (string)props["label"]!, field.Input);
-            Assert.True(field.Required == ((bool?)props["required"] ?? false), $"{field.Input} required");
-            Assert.True(field.MaxLength == (int?)props["maxLength"], $"{field.Input} maxLength");
-            Assert.True(field.UpperCase == ((bool?)props["upperCase"] ?? false), $"{field.Input} upperCase");
-            Assert.True(field.Min == Number(props["min"]), $"{field.Input} min");
-            Assert.True(field.Max == Number(props["max"]), $"{field.Input} max");
-            Assert.True(field.Step == Number(props["step"]), $"{field.Input} step");
-            Assert.True(field.Pattern == (string?)props["pattern"], $"{field.Input} pattern");
-            if (field.Type is "lookup" or "select")
-            {
-                if (field.Type == "lookup") Assert.Equal(0, (int)props["minChars"]!);
-                var options = (string?)props["optionsQuery"] ?? string.Join("|", Strings(props["staticOptions"]));
-                Assert.Equal(field.Options, options);
-            }
-        }
-        var category = Props("kategori");
-        Assert.Equal("name", (string)category["optionValueColumn"]!);
-        Assert.Equal("name", (string)category["optionLabelColumn"]!);
-        // Select inputs: the empty "Seçin" option clears; lookup-only props are absent.
-        Assert.Null(category["allowClear"]);
-        Assert.Null(category["minChars"]);
-        Assert.Null(Props("takipTuru")["minChars"]);
-        Assert.Equal("stok.kategoriler", (string)Query("kategoriler")["operation"]!);
-        var currency = Props("fiyatParaBirimi");
-        Assert.Equal("Üç harfli para birimi kodu girin (ör. TRY).", (string)currency["patternMessage"]!);
-        Assert.Equal("TRY", (string)currency["placeholder"]!);
-        Assert.Equal("20", (string)Props("alisKdv")["placeholder"]!);
-        Assert.Equal("20", (string)Props("satisKdv")["placeholder"]!);
-        Assert.Equal("https://…", (string)Props("gorsel")["placeholder"]!);
-    }
-
-    [Fact]
-    public void Form_cards_track_the_card_record()
-    {
-        var tracked = AllComponents().Where(x => (string)x["type"]! == "formCard" && x["props"]?["recordKey"] is not null)
-            .Select(x => (string)x["id"]!).ToArray();
-        Assert.Equal(CardFormCards, tracked);
-        var titles = new Dictionary<string, (string Title, int Columns)>
-        {
-            ["kimlikKarti"] = ("Kimlik", 3), ["stokKarti"] = ("Stok yönetimi", 3), ["fiyatKarti"] = ("Fiyat ve indirim", 3),
-            ["vergiKarti"] = ("Vergi", 3), ["lojistikKarti"] = ("Lojistik", 3), ["muhasebeKarti"] = ("Muhasebe", 3),
-            ["gorselKarti"] = ("Görsel ve pazaryeri", 2)
-        };
-        foreach (var card in CardFormCards)
-        {
-            var props = Props(card);
-            Assert.Equal("{{kart.rows[0].id}}", (string)props["recordKey"]!);
-            Assert.True((bool)props["trackChanges"]!);
-            var inputs = Strings(props["inputs"]);
-            Assert.True(inputs.Length <= 12, card);
-            Assert.Equal(FieldMap.Where(x => x.Card == card).Select(x => x.Input), inputs);
-            Assert.Equal(titles[card].Title, (string)props["title"]!);
-            Assert.Equal(titles[card].Columns, (int)props["columns"]!);
-        }
-        Assert.Null(Props("suzgecKarti")["recordKey"]);
-        Assert.Null(Props("suzgecKarti")["trackChanges"]);
-    }
-
-    [Fact]
-    public void Card_tabs_cover_every_section()
-    {
-        Assert.Equal(new[]
-        {
-            "Genel=kimlikKarti,stokKarti,negatifStokYasak,negatifStokIzinli,negatifStokBilinmiyor",
-            "Fiyat ve vergi=fiyatKarti,vergiKarti",
-            "Lojistik ve muhasebe=lojistikKarti,muhasebeKarti",
-            "Görsel=gorselKarti,gorselOnizleme",
-            "Birimler=birimIzgarasi",
-            "Özel alanlar=ozelAlanlar",
-            "Varyantlar=varyantMatrisi,varyantListesi",
-            "Reçeteler=receteListesi"
-        }, Strings(Props("kartSekmeleri")["tabs"]));
-        Assert.Equal("tabs", (string)Component("kartSekmeleri")["type"]!);
-        var image = Props("gorselOnizleme");
-        Assert.Equal("{{gorsel.value}}", (string)image["value"]!);
-        Assert.Equal("Ürün görseli", (string)image["title"]!);
-        Assert.Equal(160, (int)image["height"]!);
-        Assert.Equal("contain", (string)image["fit"]!);
-    }
-
-    [Fact]
-    public void Card_dialog_save_sequence_guards_duplicate_creates()
-    {
-        var dialog = Component("kartPenceresi");
-        Assert.Equal("dialog", (string)dialog["type"]!);
-        var props = dialog["props"]!.AsObject();
-        Assert.Equal("drawer", (string)props["presentation"]!);
-        Assert.Equal("Stok kartı {{kart.rows[0].code}}", (string)props["title"]!);
-        Assert.Equal(new[] { "kartSekmeleri" }, Strings(props["contains"]));
-        Assert.Equal(new[] { "olustur", "guncelle", "birimEkleYeni", "birimEkle", "birimSil", "ozelKaydet" }, Strings(props["saveSequence"]));
-        Assert.Equal(new[]
-        {
-            "olustur=kart.rows[0].id == null && olustur.sonuc.id == null",
-            "guncelle=kart.rows[0].id != null",
-            "birimEkleYeni=kart.rows[0].id == null",
-            "birimEkle=kart.rows[0].id != null",
-            "ozelKaydet=kart.rows[0].id != null"
-        }, Strings(props["sequenceWhen"]));
-        Assert.True((bool)props["stopOnError"]!);
-        Assert.Equal("Kaydet", (string)props["saveLabel"]!);
-        Assert.True((bool)props["closeOnSave"]!);
-        Assert.True((bool)props["resetOnOpen"]!);
-        Assert.Equal(new[] { "bakiye" }, Strings(props["refreshQueries"]));
-        Assert.Null(props["saveQuery"]);
-    }
-
-    [Fact]
-    public void Action_bar_opens_card_dialog()
-    {
+        // Legacy: the list has no card form; Yeni (F2) and Aç (Enter / double click) open "Yeni stok kartı" in its own tab.
         var props = Props("komutlar");
-        Assert.Equal("kartPenceresi", (string)props["formDialog"]!);
-        Assert.Equal(new[] { "kod" }, Strings(props["newInputs"]));
+        Assert.Equal("yeniDugme", (string)props["newButton"]!);
+        Assert.Equal("acDugme", (string)props["openButton"]!);
+        Assert.Null(props["formDialog"]);
+        Assert.Null(props["newInputs"]);
+        // Legacy title row: "Stok Kartları  N kayıt" above the action bar.
+        Assert.Equal("{{bakiye.meta.totalCount}}", (string)props["titleCount"]!);
         Assert.Null(props["saveQuery"]);
+        Assert.Null(props["saveSequence"]);
+        var create = Props("yeniDugme");
+        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)create["actionType"]!, (string)create["pageCode"]!, (string)create["target"]!));
+        Assert.Null(create["params"]);
+        var open = Props("acDugme");
+        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)open["actionType"]!, (string)open["pageCode"]!, (string)open["target"]!));
+        Assert.Equal(new[] { "id={{liste.seciliSatir.stockItem.id}}" }, Strings(open["params"]));
+        Assert.Equal("liste.seciliSatir.stockItem.id != null", (string)open["visibleWhen"]!);
         var requires = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar").Requires;
-        Assert.Contains("component:kartPenceresi", requires);
-        Assert.Contains("component:kod", requires);
-    }
-
-    [Fact]
-    public void Units_grid_is_admin_only_and_staged()
-    {
-        var props = Props("birimIzgarasi");
-        Assert.Equal("editableGrid", (string)Component("birimIzgarasi")["type"]!);
-        Assert.Equal("stage", (string)props["gridMode"]!);
-        Assert.Equal("birimler", (string)props["sourceQuery"]!);
-        Assert.Equal("id", (string)props["rowKey"]!);
-        Assert.Equal(new[] { "unitCode|Birim|text|required,unique,upperCase,maxLength:8", "factorToBase|Ana birim katsayısı|number|required,min:0.000001" },
-            Strings(props["gridColumns"]));
-        Assert.Equal("Ana birim: {{anaBirim.value}} (1)", (string)props["fixedRowLabel"]!);
-        Assert.Equal("kullanici.rol != 'TenantAdmin'", (string)props["disabledWhen"]!);
-        Assert.Equal("Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir.", (string)props["disabledReason"]!);
-        Assert.Equal("Birim dönüşümleri", (string)props["title"]!);
-
-        Assert.Equal("stok.kart.birimleri", (string)Query("birimler")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("birimler", "id"));
-        foreach (var (query, id) in new[] { ("birimEkle", "{{kart.rows[0].id}}"), ("birimEkleYeni", "{{olustur.sonuc.id}}") })
-        {
-            Assert.Equal("stok.kart.birimEkle", (string)Query(query)["operation"]!);
-            Assert.Equal(id, Binding(query, "id"));
-            Assert.Equal("{{birimIzgarasi.eklenenSatir.unitCode}}", Binding(query, "unitCode"));
-            Assert.Equal("{{birimIzgarasi.eklenenSatir.factorToBase}}", Binding(query, "factorToBase"));
-            Assert.Equal(3, Query(query)["parameters"]!.AsArray().Count);
-        }
-        Assert.Equal("stok.kart.birimSil", (string)Query("birimSil")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("birimSil", "id"));
-        Assert.Equal("{{birimIzgarasi.silinenSatir.id}}", Binding("birimSil", "conversionId"));
-    }
-
-    [Fact]
-    public void Custom_fields_variants_and_recipes()
-    {
-        var block = Props("ozelAlanlar");
-        Assert.Equal("customFieldsBlock", (string)Component("ozelAlanlar")["type"]!);
-        Assert.Equal("ozelTanimlar", (string)block["definitionsQuery"]!);
-        Assert.Equal("ozelDegerler", (string)block["valuesQuery"]!);
-        Assert.Equal(2, (int)block["columns"]!);
-        Assert.Equal("Özel alanlar", (string)block["title"]!);
-        Assert.Equal("stok.ozelAlanTanimlari", (string)Query("ozelTanimlar")["operation"]!);
-        Assert.Equal("stok.kart.ozelAlanDegerleri", (string)Query("ozelDegerler")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("ozelDegerler", "id"));
-        Assert.Equal("stok.kart.ozelAlanKaydet", (string)Query("ozelKaydet")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("ozelKaydet", "id"));
-        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("ozelKaydet", "values"));
-
-        var matrix = Props("varyantMatrisi");
-        Assert.Equal("matrix", (string)matrix["gridMode"]!);
-        Assert.Equal("{{kod.value}}", (string)matrix["matrixCode"]!);
-        Assert.Equal("{{ad.value}}", (string)matrix["matrixName"]!);
-        Assert.Equal("Varyant boyutları", (string)matrix["title"]!);
-        Assert.Equal("kart.rows[0].id == null", (string)matrix["visibleWhen"]!);
-
-        var variants = Props("varyantListesi");
-        Assert.Equal("varyantlar", (string)variants["query"]!);
-        Assert.Equal(new[] { "code", "name", "barcode", "isActive" }, Strings(variants["columns"]));
-        Assert.Equal("Bu kartın varyantı yok.", (string)variants["emptyText"]!);
-        Assert.Equal("kart.rows[0].id != null", (string)variants["visibleWhen"]!);
-        Assert.Equal("stok.kart.varyantlari", (string)Query("varyantlar")["operation"]!);
-        Assert.Equal("{{kart.rows[0].id}}", Binding("varyantlar", "id"));
-
-        var recipes = Props("receteListesi");
-        Assert.Equal("receteler", (string)recipes["query"]!);
-        Assert.Equal(new[] { "code", "name", "outputQuantity", "isActive", "orderCount" }, Strings(recipes["columns"]));
-        Assert.Equal("Bu stok kartını üreten reçete yok.", (string)recipes["emptyText"]!);
-        Assert.Equal("kart.rows[0].id != null", (string)recipes["visibleWhen"]!);
-        Assert.Equal("uretim.recete.listele", (string)Query("receteler")["operation"]!);
-        Assert.Equal("load", (string)Query("receteler")["runOn"]!);
-        var parameter = Assert.Single(Query("receteler")["parameters"]!.AsArray());
-        Assert.Equal("productStockItemId", (string)parameter!["name"]!);
-        Assert.Equal("{{kart.rows[0].id}}", (string)parameter["binding"]!);
-        // R5: an empty required parameter keeps the read from being sent, so no unfiltered recipe list is ever read.
-        Assert.True(ErpOperationCatalog.TryGet("uretim.recete.listele", out var operation));
-        Assert.True(Assert.Single(operation.Parameters, x => x.Name == "productStockItemId").Required);
-    }
-
-    [Fact]
-    public void Negative_stock_notes_cover_three_states()
-    {
-        var expected = new (string Id, string Text, string VisibleWhen)[]
-        {
-            ("negatifStokYasak", "Negatif stoka izin verilmez (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == false"),
-            ("negatifStokIzinli", "Negatif stoka izin veriliyor (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == true"),
-            ("negatifStokBilinmiyor", "Negatif stok kuralı şirket ayarlarından gelir (sistem kuralı)", "negatifStok.rows[0].allowNegativeStock == null")
-        };
-        foreach (var (id, text, visibleWhen) in expected)
-        {
-            Assert.Equal("text", (string)Component(id)["type"]!);
-            Assert.Equal(text, (string)Props(id)["text"]!);
-            Assert.Equal(visibleWhen, (string)Props(id)["visibleWhen"]!);
-        }
-        Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);
-        Assert.Equal("load", (string)Query("negatifStok")["runOn"]!);
-        Assert.Empty(Query("negatifStok")["parameters"]!.AsArray());
+        Assert.Contains("component:yeniDugme", requires);
+        Assert.Contains("component:acDugme", requires);
+        // The card form lives on its own screen.
+        Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! is "kartPenceresi" or "kartSekmeleri" or "kod");
+        Assert.DoesNotContain(AllComponents(), x => (string)x["type"]! == "formCard" && x["props"]?["recordKey"] is not null);
+        Assert.DoesNotContain(Definition()["queries"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! is "olustur" or "guncelle" or "ozelKaydet");
+        Assert.True(SystemPageStandards.TryGet("inventory-stock-create", out _));
     }
 
     [Fact]
     public void Negative_stock_strip_sits_below_the_list_for_everyone()
     {
-        var expected = new (string Id, string Title, string Variant, string VisibleWhen)[]
+        // Legacy NegativeStockPolicyNote wording: status strip with a shield tile and a right-hand badge.
+        var expected = new (string Id, string Title, string Variant, string VisibleWhen, string Icon, string Badge)[]
         {
-            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false"),
-            ("negatifStokKorumaKapali", "Negatif stok koruması kapalı", "warning", "negatifStok.rows[0].allowNegativeStock == true")
+            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false", "shield", "Etkin"),
+            ("negatifStokKorumaKapali", "Negatif stoka izin veriliyor", "warning", "negatifStok.rows[0].allowNegativeStock == true", "shieldAlert", "İzinli")
         };
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
-        foreach (var (id, title, variant, visibleWhen) in expected)
+        foreach (var (id, title, variant, visibleWhen, icon, badge) in expected)
         {
             Assert.Equal("alert", (string)Component(id)["type"]!);
             var props = Props(id);
             Assert.Equal((title, variant, visibleWhen, 12), ((string)props["title"]!, (string)props["variant"]!, (string)props["visibleWhen"]!, (int)props["width"]!));
+            Assert.Equal((icon, badge), ((string)props["icon"]!, (string)props["value"]!));
             Assert.Contains("Değer ağırlıklı ortalama", (string)props["text"]!);
             Assert.True(order.IndexOf(id) > order.IndexOf("liste"), id);
             // Not tab- or dialog-owned: visible on the page itself.

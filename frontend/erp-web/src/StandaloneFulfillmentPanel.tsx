@@ -473,8 +473,6 @@ export function StandaloneFulfillmentPanel({
       <RecordFormPage
         variant={sales ? "page" : "dialog"}
         commandsActive={commandsActive}
-        // The purchasing form sits under the Mal kabulleri list: the bar stays a list bar.
-        besideList={!sales}
         className={sales ? "sales-rf" : "sales-rf sales-rf-embedded"}
         document={
           sales

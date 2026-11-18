@@ -1,5 +1,140 @@
-/* list-v2 spacing for the province / district panels: the shared toolbar row carries no
-   margin of its own, so it is set apart from the table below it here. */
-#root .customer-location-definitions-page.list-v2 .panel > .list-v2-toolbar {
-  margin: 0 0 12px;
+/* Adres tanımları (approved draft): two columns — the provinces on the left, the selected province's districts on
+   the right; Yeni / Düzenle open a small dialog. Colours are --nx-* tokens, so light and dark follow the theme. */
+#root .customer-location-definitions-page.cld-v2 { gap: 14px; }
+#root .cld-v2 .cld-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 5fr) minmax(0, 8fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
 }
+@media (max-width: 900px) {
+  #root .cld-v2 .cld-layout { grid-template-columns: minmax(0, 1fr); }
+}
+#root .cld-v2 .cld-panel {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--nx-line);
+  border-radius: 12px;
+  background: var(--nx-surface);
+  overflow: hidden;
+}
+#root .cld-v2 .cld-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--nx-line);
+}
+#root .cld-v2 .cld-panel-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#root .cld-v2 .cld-panel-title h2 { margin: 0; color: var(--nx-text); font-size: 14px; font-weight: 650; }
+#root .cld-v2 .cld-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nx-muted) 12%, var(--nx-surface));
+  color: var(--nx-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+#root .cld-v2 .cld-head-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .cld-v2 :is(.cld-head-actions, .cld-panel-head) > button { display: inline-flex; align-items: center; gap: 5px; }
+
+#root .cld-v2 .cld-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#root .cld-v2 .cld-tag.is-ok { background: color-mix(in srgb, var(--nx-ok) 13%, var(--nx-surface)); color: var(--nx-ok); }
+#root .cld-v2 .cld-tag.is-off { background: color-mix(in srgb, var(--nx-muted) 13%, var(--nx-surface)); color: var(--nx-muted); }
+
+/* Provinces: search + status filter, then a scrolling list of selectable rows. */
+#root .cld-v2 .cld-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--nx-line);
+}
+#root .cld-v2 .cld-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: var(--nx-control-h, 34px);
+  padding: 0 10px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control, 8px);
+  background: var(--nx-surface);
+  color: var(--nx-muted);
+}
+#root .cld-v2 .cld-search:focus-within { border-color: var(--nx-primary); }
+#root .app-shell .cld-v2 .cld-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-text);
+  font: inherit;
+  font-size: 13px;
+}
+#root .app-shell .cld-v2 .cld-filters select { height: var(--nx-control-h, 34px); min-height: 0; }
+#root .cld-v2 .cld-province-list {
+  max-height: min(64vh, 620px);
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+}
+#root .app-shell .cld-v2 button.cld-province {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+#root .app-shell .cld-v2 button.cld-province:hover { background: color-mix(in srgb, var(--nx-primary) 5%, var(--nx-surface)); }
+#root .app-shell .cld-v2 button.cld-province:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .app-shell .cld-v2 button.cld-province.is-selected {
+  background: color-mix(in srgb, var(--nx-primary) 10%, var(--nx-surface));
+  box-shadow: inset 3px 0 0 var(--nx-primary);
+  color: var(--nx-primary-strong, var(--nx-primary));
+  font-weight: 650;
+}
+#root .cld-v2 .cld-province.is-inactive .cld-province-name { color: var(--nx-muted); }
+#root .cld-v2 .cld-province-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .cld-v2 .cld-province-count { color: var(--nx-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+#root .cld-v2 .cld-province.is-selected .cld-province-count { color: inherit; }
+#root .cld-v2 .cld-empty { padding: 22px 14px; color: var(--nx-muted); font-size: 12.5px; text-align: center; }
+
+/* Districts: the shared toolbar row and grid inside the panel. */
+#root .cld-v2 .cld-districts > .list-v2-toolbar { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--nx-line); }
+#root .cld-v2 .cld-districts .advanced-grid { border: 0; border-radius: 0; }
+#root .cld-v2 .cld-districts tr.cld-inactive-row > td { color: var(--nx-muted); }
+
+/* The Yeni / Düzenle dialog: narrow, one column of fields. */
+#root .modal.cld-modal { width: min(440px, calc(100vw - 32px)); max-width: none; }
+#root .modal.cld-modal .rf-identity { grid-template-columns: minmax(0, 1fr); }

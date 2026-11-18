@@ -42,7 +42,7 @@ const COLUMN_WIDTHS: Record<string, number> = {
 /**
  * Mal kabulleri (taslak 07, liste tipi): tek tık satırı seçer (sağ panel), çift tık / Enter / Aç / numara bağlantısı
  * mal kabulü belge ekranında açar. Mal kabul listesinde sunucu araması yoktur; arama yüklenen sayfayı süzer ("bu
- * sayfa"). Mal kabul satın alma siparişi ayrıntısından kaydedilir; siparişsiz mal kabul formu listenin altındadır.
+ * sayfa"). Mal kabul satın alma siparişi ayrıntısından kaydedilir; siparişsiz mal kabul Yeni ile açılan kendi ekranındadır.
  */
 export function PurchaseReceiptsScreen({
   token,
@@ -90,7 +90,9 @@ export function PurchaseReceiptsScreen({
   const [opened, setOpened] = useState<{ order: PurchaseOrderDetail; receiptId: string } | null>(null),
     [opening, setOpening] = useState(false),
     [invoiceId, setInvoiceId] = useState<string | null>(null),
-    [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+    [warehouses, setWarehouses] = useState<Warehouse[]>([]),
+    // Siparişsiz mal kabul: its own screen (Yeni), in place of the list, like Satış İrsaliyeleri's create form.
+    [creating, setCreating] = useState(false);
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const gridExportRef = useRef<GridExportActions | null>(null);
   async function load() {
@@ -152,7 +154,7 @@ export function PurchaseReceiptsScreen({
   // The row the user chose (click, ↑/↓) among the shown rows; never an implicit first row.
   const current = filtered.find((x) => x.id === selectedId);
   const openedReceipt = opened ? receiptOfOrder(opened.order, opened.receiptId) : null;
-  const listActive = !opened && !invoiceId;
+  const listActive = !opened && !invoiceId && !creating;
 
   async function open(item: Pick<PurchaseReceiptRow, "id" | "purchaseOrderId">) {
     setError("");
@@ -221,13 +223,23 @@ export function PurchaseReceiptsScreen({
     }
   }
 
-  // Action bar of the receipt list and of an open receipt. A receipt is created from its order (or below, without
-  // an order) and cancelled from the order; it is never deleted. An open invoice holds the bar itself.
+  // Action bar of the receipt list and of an open receipt. A receipt is created from its order (or, without an
+  // order, on the Yeni screen) and cancelled from the order; it is never deleted. An open invoice holds the bar
+  // itself; the Yeni screen's form registers its own bar (StandaloneFulfillmentPanel ownsActionBar).
   const target: PurchaseReceiptRow | undefined = opened
     ? items.find((x) => x.id === opened.receiptId)
     : current ?? (ticked.length === 1 ? filtered.find((x) => x.id === ticked[0]) : undefined);
   const targetStatus = openedReceipt?.status ?? target?.status;
-  const commands: PageCommands = {};
+  const commands: PageCommands = {
+    // An open receipt is closed first so the create screen is what shows.
+    new: {
+      primary: !opened,
+      run: () => {
+        setOpened(null);
+        setCreating(true);
+      },
+    },
+  };
   const more: MenuCommand[] = [];
   commands.delete = {
     disabledReason: !targetStatus
@@ -278,99 +290,108 @@ export function PurchaseReceiptsScreen({
     ) : null;
 
   return (
-    <div className="receipt-screen list-v2 sales-lv2-stack">
-      {!invoiceId && <PageCommandsSlot commands={commands} />}
-      <ListPageHeader
-        title="Mal kabulleri"
-        description="Tedarikçi siparişlerinden depoya giren mal kabul belgelerini inceleyin."
-        count={loading && total === 0 ? null : total}
-      />
-      <ListSummaryCards
-        cards={[
-          {
-            id: "voided",
-            label: "İptal",
-            value: loading ? "—" : items.filter((item) => item.status === "Voided").length.toLocaleString("tr-TR"),
-            icon: CircleSlash,
-            hint: "bu sayfa",
-          },
-        ]}
-      />
-      <ListToolbar
-        search={search}
-        onSearchChange={setSearch}
-        searchLabel="Bu sayfada ara: mal kabul, sipariş veya depo"
-        searchPlaceholder="Bu sayfada ara: mal kabul, sipariş veya depo"
-        toolsSlotRef={setToolsSlot}
-        onRefresh={() => {
-          if (!loading) void load();
-        }}
-      >
-        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
-      </ListToolbar>
-      {error && (
-        <div className="alert inline-alert" role="alert">
-          {error}
-          <button type="button" aria-label="Kapat" onClick={() => setError("")}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-      <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
-        <section className="list-v2-list">
-          <SalesDocumentGrid
-            gridId="purchase-receipts"
-            hideExport
-            exportActionsRef={gridExportRef}
-            fields={visibleFields}
-            items={filtered}
-            loading={loading}
-            loadingMessage="Mal kabulleri yükleniyor…"
-            emptyMessage="Henüz mal kabul yok. Kabul, satın alma siparişi ayrıntısından kaydedilir."
-            search={search}
-            searchEmptyMessage="Bu sayfada aramanızla eşleşen mal kabul yok."
-            toolbarContainer={toolsSlot}
-            renderCell={(field, item) => renderField(item, field)}
-            ariaLabel="Mal kabul kayıtları"
-            selection={{
-              currentId: selectedId,
-              onCurrentChange: setSelectedId,
-              onTickedChange: setTicked,
-              // Only while the list is on screen: a document over it must not show the floating bar.
-              bulkActions: listActive
-                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
-                : undefined,
-              onOpen: (id) => void openById(id),
+    <div className={`receipt-screen list-v2 sales-lv2-stack${creating ? " receipt-create-screen" : ""}`}>
+      {!creating && !invoiceId && <PageCommandsSlot commands={commands} />}
+      {creating ? (
+        // Siparişsiz mal kabul screen: the form owns the bar (Yeni = fresh draft, Kaydet); Vazgeç = back to the list.
+        <section className="purchase-receipt-standalone" aria-label="Siparişsiz mal kabul">
+          <StandaloneFulfillmentPanel
+            token={token}
+            customers={customers}
+            stockItems={stockItems}
+            warehouses={warehouseOptions}
+            onCancel={() => {
+              setCreating(false);
+              void load();
             }}
-            footer={
-              <SalesListFooter
-                ticked={ticked.length}
-                shown={filtered.length}
-                total={total}
-                page={page}
-                pageSize={pageSize}
-                loading={loading}
-                onPageChange={setPage}
-              />
-            }
-            columnWidths={COLUMN_WIDTHS}
-            numberFields={NUMBER_FIELDS}
-            codeFields={CODE_FIELDS}
+            ownsActionBar={!invoiceId}
+            commandsActive={!invoiceId}
           />
         </section>
-        {listPanel}
-      </div>
-      {/* Receipts without an order: the form stays as it is, in one card under the list. */}
-      <section className="purchase-receipt-standalone" aria-label="Siparişsiz mal kabul">
-        <StandaloneFulfillmentPanel
-          token={token}
-          customers={customers}
-          stockItems={stockItems}
-          warehouses={warehouseOptions}
-          // While a receipt document or its invoice is open, Kaydet / Ctrl+S / Temizle must not act on this hidden form.
-          commandsActive={listActive}
+      ) : (
+        <>
+        <ListPageHeader
+          title="Mal kabulleri"
+          description="Tedarikçi siparişlerinden depoya giren mal kabul belgelerini inceleyin."
+          count={loading && total === 0 ? null : total}
         />
-      </section>
+        <ListSummaryCards
+          cards={[
+            {
+              id: "voided",
+              label: "İptal",
+              value: loading ? "—" : items.filter((item) => item.status === "Voided").length.toLocaleString("tr-TR"),
+              icon: CircleSlash,
+              hint: "bu sayfa",
+            },
+          ]}
+        />
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchLabel="Bu sayfada ara: mal kabul, sipariş veya depo"
+          searchPlaceholder="Bu sayfada ara: mal kabul, sipariş veya depo"
+          toolsSlotRef={setToolsSlot}
+          onRefresh={() => {
+            if (!loading) void load();
+          }}
+        >
+          <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+        </ListToolbar>
+        {error && (
+          <div className="alert inline-alert" role="alert">
+            {error}
+            <button type="button" aria-label="Kapat" onClick={() => setError("")}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
+        <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+          <section className="list-v2-list">
+            <SalesDocumentGrid
+              gridId="purchase-receipts"
+              hideExport
+              exportActionsRef={gridExportRef}
+              fields={visibleFields}
+              items={filtered}
+              loading={loading}
+              loadingMessage="Mal kabulleri yükleniyor…"
+              emptyMessage="Henüz mal kabul yok. Kabul, satın alma siparişi ayrıntısından kaydedilir."
+              search={search}
+              searchEmptyMessage="Bu sayfada aramanızla eşleşen mal kabul yok."
+              toolbarContainer={toolsSlot}
+              renderCell={(field, item) => renderField(item, field)}
+              ariaLabel="Mal kabul kayıtları"
+              selection={{
+                currentId: selectedId,
+                onCurrentChange: setSelectedId,
+                onTickedChange: setTicked,
+                // Only while the list is on screen: a document over it must not show the floating bar.
+                bulkActions: listActive
+                  ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                  : undefined,
+                onOpen: (id) => void openById(id),
+              }}
+              footer={
+                <SalesListFooter
+                  ticked={ticked.length}
+                  shown={filtered.length}
+                  total={total}
+                  page={page}
+                  pageSize={pageSize}
+                  loading={loading}
+                  onPageChange={setPage}
+                />
+              }
+              columnWidths={COLUMN_WIDTHS}
+              numberFields={NUMBER_FIELDS}
+              codeFields={CODE_FIELDS}
+            />
+          </section>
+          {listPanel}
+        </div>
+        </>
+      )}
       {opened && openedReceipt && (
         <PurchaseReceiptDocument
           order={opened.order}

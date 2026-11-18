@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { displayText } from "./pageBindings";
 import type { QueryState } from "./usePageQueries";
 
@@ -66,12 +66,17 @@ export function lookupOptionsWithValue(props: Record<string, unknown>, state: Qu
  * Arama kutusu (combobox). Seçimde etiket saklanır; değer dışarıdan değişirse (varsayılan, setInput) eşleşen seçeneğin
  * etiketi, eşleşme yoksa ham değer gösterilir; değer hiçbir zaman seçeneklere göre temizlenmez.
  */
-export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected }: {
+export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected, appearance = "search" }: {
   inputId: string; label: string; raw: string; onChange: (value: string, row: Record<string, unknown> | null, label: string) => void;
   onSearch: (text: string) => void; options: LookupOption[];
   loading: boolean; error?: string; allowClear: boolean; disabled: boolean; placeholder: string;
   /** Sayfa çalışma zamanının sakladığı son seçim (bileşen yeniden bağlansa da, ör. visibleWhen açılıp kapanınca, kaybolmaz). */
   selected?: { value: string; label: string } | null;
+  /**
+   * "select": tek satır süzgeç dizilimindeki açılır liste görünümü (eski ekranın depo seçicisi): değer metni ve ⌄; tıklayınca
+   * liste açılır, odakta metin seçilir (yazmak aramayı başlatır). Boş değerli seçenek (ör. "Tüm depolar") varsa ✕ çizilmez.
+   */
+  appearance?: "search" | "select";
 }) {
   const [open, setOpen] = useState(false);
   // Yazılan arama metni; null iken kutuda seçili etiket görünür.
@@ -82,6 +87,9 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   const listId = `${inputId}-listbox`;
   const display = chosen && chosen.value === raw ? chosen.label : options.find((option) => option.value === raw)?.label ?? raw;
   const listOpen = open && !disabled;
+  const isSelect = appearance === "select";
+  // Açılır liste görünümünde boş değerli seçenek temizleme işini görür; ✕ yalnız böyle bir seçenek yoksa çizilir.
+  const showClear = allowClear && raw !== "" && !disabled && !(isSelect && options.some((option) => option.value === ""));
 
   const close = () => {
     setOpen(false);
@@ -117,15 +125,17 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   // Ok tuşlarıyla vurgulanan seçenek görünür alana kaydırılır (jsdom'da scrollIntoView yoktur).
   useEffect(() => { if (active) document.getElementById(active)?.scrollIntoView?.({ block: "nearest" }); }, [active]);
 
-  return <div className="tenant-page-lookup">
+  return <div className={`tenant-page-lookup${isSelect ? " is-select" : ""}`}>
     {label && <label htmlFor={inputId}><span>{label}</span></label>}
     <div className="tenant-page-lookup-control">
       <input id={inputId} type="text" role="combobox" autoComplete="off" aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
         aria-activedescendant={active} disabled={disabled} placeholder={placeholder} value={text ?? display}
         onChange={(event) => { setText(event.target.value); setOpen(true); setHighlight(-1); onSearch(event.target.value); }}
         onClick={() => { if (!disabled) setOpen(true); }}
+        onFocus={isSelect ? (event) => event.currentTarget.select() : undefined}
         onKeyDown={onKeyDown} onBlur={close} />
-      {allowClear && raw !== "" && !disabled && <button type="button" className="tenant-page-lookup-clear" aria-label="Temizle"
+      {isSelect && <ChevronDown className="tenant-page-lookup-chevron" size={16} aria-hidden="true" />}
+      {showClear && <button type="button" className="tenant-page-lookup-clear" aria-label="Temizle"
         onMouseDown={(event) => event.preventDefault()} onClick={clear}><X size={14} aria-hidden="true" /></button>}
       {/* Listeye (kaydırma çubuğu dahil) basmak girişi bulanıklaştırıp listeyi kapatmasın. */}
       {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || undefined} onMouseDown={(event) => event.preventDefault()}>

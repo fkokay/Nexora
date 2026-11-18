@@ -6,6 +6,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { addLocalCalendarDays, localDateString } from '../dateUtils';
 import SalesPromotionsPage from '../SalesPromotionsPage';
+import { commandReason } from '../action-bar/commandReason';
 
 // Kampanyalar as a definition screen (mockup 04 "2 · Tanım ekranı" / "2b · Sil onayı", mapping in mockup 06): the
 // campaign list on the left, the selected campaign's form on the right; the API has no row version and no delete.
@@ -223,7 +224,7 @@ describe('Kampanyalar definition screen', () => {
     expect(performance.textContent).toContain('Dönüşüm');
     expect(performance.textContent).toContain('%50');
     expect(enabled('save')).toBe(false);
-    expect(command('save')!.title).toBe('Kaydedilecek değişiklik yok');
+    expect((commandReason(command('save')) ?? '')).toBe('Kaydedilecek değişiklik yok');
   });
 
   it('moves with ↓ and asks before leaving a changed form', async () => {
@@ -376,10 +377,10 @@ describe('Kampanyalar definition screen', () => {
     renderPage();
     await settle();
     expect(enabled('delete')).toBe(false);
-    expect(command('delete')!.title).toBe('Önce bir kayıt seçin');
+    expect((commandReason(command('delete')) ?? '')).toBe('Önce bir kayıt seçin');
     await select('KMP-ESK');
     expect(enabled('delete')).toBe(false);
-    expect(command('delete')!.title).toBe('Kampanyalar silinemez; bu kampanya zaten pasif.');
+    expect((commandReason(command('delete')) ?? '')).toBe('Kampanyalar silinemez; bu kampanya zaten pasif.');
     await select('KMP-YIL');
     expect(enabled('delete')).toBe(true);
     await act(async () => {
@@ -407,7 +408,7 @@ describe('Kampanyalar definition screen', () => {
     });
     // Changed form: Sil is closed.
     fireEvent.change(field(/^Kampanya adı/), { target: { value: 'X' } });
-    expect(command('delete')!.title).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
+    expect((commandReason(command('delete')) ?? '')).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
   });
 
   it('a TenantUser sees the campaign read-only and can still apply it to a draft quote', async () => {
@@ -420,7 +421,7 @@ describe('Kampanyalar definition screen', () => {
     expect(field(/^Kampanya adı/).disabled).toBe(true);
     expect(field(/^Kampanya kodu/).disabled).toBe(true);
     expect(enabled('save')).toBe(false);
-    expect(command('save')!.title).toBe('Kampanyaları firma yöneticisi düzenler');
+    expect((commandReason(command('save')) ?? '')).toBe('Kampanyaları firma yöneticisi düzenler');
     expect(openMenu()).toEqual(['Teklife uygula', 'Performans raporu']);
     const apply = within(pane()).getByRole('region', { name: 'Teklife uygula' });
     // Only draft quotes with lines inside the campaign window are offered.

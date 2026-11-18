@@ -1,4 +1,4 @@
-import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Plus, Receipt, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Info, Plus, Receipt, ShieldAlert, ShieldCheck, Users, Wallet, X, type LucideIcon } from "lucide-react";
 import { COLUMN_FORMATS, parseColumnFormats, parseToneMap, type ColumnFormat, type Tone } from "./cellFormat";
 
 const MAX_ENTRIES = 20;
@@ -23,10 +23,20 @@ export function ToneSelect({ value, onChange, disabled, label = "Ton" }: { value
   </div>;
 }
 
-export function IconSelect({ value, onChange, disabled }: { value: string | undefined; onChange: (icon: string | undefined) => void; disabled?: boolean }) {
+/** Uyarının durum şeridi simgeleri (sunucudaki AlertIcons); simge verilen uyarı ERP'de şerit olarak çizilir. */
+export const alertIconOptions: { value: string; label: string; icon: LucideIcon }[] = [
+  { value: "shield", label: "Kalkan", icon: ShieldCheck },
+  { value: "shieldAlert", label: "Uyarılı kalkan", icon: ShieldAlert },
+  { value: "check", label: "Onay", icon: CheckCircle2 },
+  { value: "alert", label: "Uyarı", icon: AlertTriangle },
+  { value: "info", label: "Bilgi", icon: Info },
+];
+
+export function IconSelect({ value, onChange, disabled, options = iconOptions }: { value: string | undefined; onChange: (icon: string | undefined) => void; disabled?: boolean;
+  options?: { value: string; label: string; icon: LucideIcon }[] }) {
   return <div className="pd-icon-grid" role="group" aria-label="İkon">
     <button type="button" disabled={disabled} className={!value ? "active" : ""} aria-pressed={!value} onClick={() => onChange(undefined)}>İkon yok</button>
-    {iconOptions.map(({ value: key, label, icon: Icon }) => <button type="button" key={key} title={label} aria-label={label} disabled={disabled} className={value === key ? "active" : ""} aria-pressed={value === key} onClick={() => onChange(key)}><Icon size={15}/></button>)}
+    {options.map(({ value: key, label, icon: Icon }) => <button type="button" key={key} title={label} aria-label={label} disabled={disabled} className={value === key ? "active" : ""} aria-pressed={value === key} onClick={() => onChange(key)}><Icon size={15}/></button>)}
   </div>;
 }
 

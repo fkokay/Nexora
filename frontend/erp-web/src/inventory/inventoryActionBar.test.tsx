@@ -12,6 +12,7 @@ import InventoryTransfersPage from '../InventoryTransfersPage';
 import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import InventoryTrackingPage from '../InventoryTrackingPage';
 import { ConfirmDialogHost } from '../confirmDialog';
+import { commandReason } from '../action-bar/commandReason';
 
 const warehouses = [
   { id: 'w1', code: 'D1', name: 'Ana depo', isActive: true },
@@ -220,9 +221,9 @@ describe('other Stok screens on the action bar', () => {
     expect(primary('new')).toBe(true);
     // Aç (Enter) opens the current row into the form beside the list; nothing is selected yet.
     expect(enabled('open')).toBe(false);
-    expect(command('open').title).toBe('Önce bir kayıt seçin');
+    expect((commandReason(command('open')) ?? '')).toBe('Önce bir kayıt seçin');
     expect(enabled('delete')).toBe(false);
-    expect(command('delete').title).toBe('Önce bir kayıt seçin');
+    expect((commandReason(command('delete')) ?? '')).toBe('Önce bir kayıt seçin');
     expect(headerButtonTexts()).toEqual([]);
     expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
     fireEvent.mouseDown(document.body);
@@ -231,7 +232,7 @@ describe('other Stok screens on the action bar', () => {
     expect(primary('save')).toBe(true);
     // The empty create form cannot be saved yet; the bar says why.
     expect(enabled('save')).toBe(false);
-    expect(command('save').title).toBe('Konum kodu ve adı zorunludur.');
+    expect((commandReason(command('save')) ?? '')).toBe('Konum kodu ve adı zorunludur.');
   });
 
   it('Lot / seri izleme: export and CSV through the bar only', async () => {

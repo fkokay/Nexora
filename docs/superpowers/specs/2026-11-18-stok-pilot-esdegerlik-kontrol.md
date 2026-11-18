@@ -1,13 +1,18 @@
-# Stok Kartları pilotu (inventory-stock v1): eşdeğerlik kontrol listesi
+# Stok Kartları pilotu (inventory-stock v1 ve inventory-stock-create v1): eşdeğerlik kontrol listesi
 
 Bu liste, Proje 4'ün canlı QA betiğidir. Her satır, eski ekranın bir öğesini
-`src/Hosts/AIERP.Api/SystemPages/Standards/inventory-stock.json` standart tanımındaki karşılığıyla eşler. Bölümler
+`src/Hosts/AIERP.Api/SystemPages/Standards/` altındaki standart tanımlardaki karşılığıyla eşler: liste, detay paneli ve
+hareket penceresi `inventory-stock.json`, stok kartı formu `inventory-stock-create.json` ("Yeni stok kartı") tanımındadır. Bölümler
 `2026-11-18-stok-esdegerlik-envanteri.md` belgesinin 1–4. ve 6. bölümlerini izler.
 
 Kaynaklar:
-- Standart tanım: `inventory-stock.json` (90 bileşen, 25 sorgu). Görünüm düzeltmeleri (2026-11-18, `fix/stok-gorunum`)
-  sürüm 1'de yapıldı: standart `preview` aşamasındadır ve hiçbir firma yayımlamadı.
-- Çizim testleri: `frontend/erp-web/src/system-pages/inventoryStockStandard.test.tsx`. Bu testler tanımı gerçek çalışma
+- Standart tanımlar: `inventory-stock.json` (41 bileşen, 14 sorgu) ve `inventory-stock-create.json` (55 bileşen, 14 sorgu).
+  Görünüm düzeltmeleri (2026-11-18, `fix/stok-gorunum`) ve liste/kart ayrımı (2026-11-18, `feat/stok-liste-kart-ayrimi`)
+  sürüm 1'de yapıldı: iki standart da `preview` aşamasındadır ve hiçbir firma yayımlamadı.
+- Liste ile kart, eski ekrandaki gibi ayrıdır: listenin Yeni ve Aç komutları "Yeni stok kartı" ekranını kendi sekmesinde
+  açar (Aç seçili satırın `id`'sini verir). Kart ekranı `{{sayfa.parametre.id}}` okur: boşsa yeni kart, doluysa o kart düzenlenir.
+- Çizim testleri: `frontend/erp-web/src/system-pages/inventoryStockStandard.test.tsx` (liste) ve
+  `inventoryStockCreateStandard.test.tsx` (kart ekranı; "(kart test: …)" notları). Bu testler tanımı gerçek çalışma
   zamanıyla, sahte API yanıtlarıyla çizer. Katalog, `inventoryStockOperations.fixture.json` dosyasındaki
   `ErpOperationCatalog` anlık görüntüsünden gelir.
 - Satırlarda geçen "(test: …)" notu, o davranışı doğrulayan çizim testinin adıdır.
@@ -68,8 +73,9 @@ Kaynaklar:
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Yeni (F2) | `komutlar.formDialog: kartPenceresi`, `newInputs: [kod]`. Yeni, seçimi kaldırır, pencereyi Genel sekmesinde açar ve odağı Stok kodu'na verir. Kayıt tek `POST /api/stock/items` gönderir, `PUT` göndermez. (test: `yeni then save posts exactly one card`) | karşılandı | |
-| Aç (Enter) | Aç, seçili satırın kartını pencerede açar (test: `aç then save sends PUT with source rowVersion and custom field PUT`) | karşılandı | |
+| Yeni (F2) | `komutlar.newButton: yeniDugme`: "Sayfa aç" düğmesi (`@inventory-stock-create`, yeni sekme). Eski ekran gibi kart ayrı sekmede açılır; liste kart formu taşımaz, form kaynaklarını okumaz. (test: `yeni opens the card screen in its own tab`) | karşılandı | |
+| Aç (Enter) | `komutlar.openButton: acDugme`: kart ekranını seçili satırın kimliğiyle açar (`params: ["id={{liste.seciliSatir.stockItem.id}}"]`). Seçim yokken Aç "Önce bir kayıt seçin" nedeniyle pasiftir. Eski ekran kartı liste sekmesinde açıyordu; yeni tanımda kart ekranı ayrı sekmededir. (test: `aç opens the selected card on the card screen; Enter and double click too`) | fark | |
+| Satıra çift tıklama kartı açar | Çift tıklama satırı seçer ve Aç komutunu çalıştırır (çalışma zamanı: `openButton` bağlamasının `<tablo>.seciliSatir` kökü olan tablo). (test: aynı) | karşılandı | |
 | Odaklı satırda Enter | Aç seçili satıra göre çalışır. Odaklı ama seçili olmayan satırda Enter önce satırı seçer. | fark | |
 | Sil (Ctrl+Delete), yalnız TenantAdmin, tehlike onayı | `komutlar.deleteQuery: kartSil` (`stok.kart.sil`). Silmeden önce tehlike onayı sorulur. Katalog `allowed:false` döndüğünde Sil "Bu işlem için yetkiniz yok" nedeniyle pasiftir. (test: `tenant user gating`) | karşılandı | |
 | Toplu silme ve kısmi hataların listesi | Toplu seçim ve toplu silme yok | kapsam dışı | |
@@ -79,7 +85,7 @@ Kaynaklar:
 | Etkinleştir | `etkinlestir` (menü, yalnız pasif kartta görünür) → `aktifEt` | karşılandı | |
 | Hareketler / ekle (depo seçili olmalı) | `hareketlerDugmesi` (menü). Depo seçili değilse "Hareket için önce bir depo seçin." nedeniyle pasiftir. (test: `movement dialog posts movement and reversal sends reason`) | karşılandı | |
 | Kategorileri yönet (TenantAdmin) | Kategori yöneticisi yok. Kategori, `kategoriler` listesinden seçilir. | kapsam dışı | |
-| Özel alanlar (tanım yönetimi) | Özel alan tanım yönetimi yok. Değer girişi kart penceresindedir. | kapsam dışı | |
+| Özel alanlar (tanım yönetimi) | Özel alan tanım yönetimi yok. Değer girişi kart ekranındadır. | kapsam dışı | |
 | `inventory-stock-movements` ekran görünümünün içe aktarılması | Yalnız `inventory-stock` görünümü (`liste`) eşlenir. Hareket tablosu görünümü içe aktarılmaz. | kapsam dışı | |
 
 ## 2. Detay paneli
@@ -123,16 +129,16 @@ Kaynaklar:
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Düzenleme açılışı; birimler, özel alanlar, varyantlar ve reçeteler paralel yüklenir | `kartPenceresi` (çekmece). `kart` (`stok.kart.getir`) ve ona bağlı `birimler`, `ozelTanimlar`, `ozelDegerler`, `varyantlar`, `receteler` sorguları yüklenir. | karşılandı | |
-| Kaynak okumaları yüklenirken kayıt | Bir kaynak okuması (ör. özel alan değerleri) yüklenirken Kaydet hiçbir şey yazmaz ve "Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin." gösterir. (test: `save while a source read loads writes nothing`; Task 7 düzeltmesi) | karşılandı | |
-| Değişiklik izleme: değişen alan sayacı, çıkışta onay | Yedi kart formCard'ı `trackChanges: true` ve `recordKey` taşır. Kirli kayıtta Yeni, kayıt değiştirme ve pencereyi kapatma "Kaydedilmemiş değişiklikler kaybolacak" onayını sorar. (test: `esc on a dirty card asks before closing`) | karşılandı | |
+| Düzenleme açılışı; birimler, özel alanlar, varyantlar ve reçeteler paralel yüklenir | Kart ayrı ekrandır (`inventory-stock-create`). `kart` (`stok.kart.getir`) `{{sayfa.parametre.id}}` ile okunur; ona bağlı `birimler`, `ozelTanimlar`, `ozelDegerler`, `varyantlar`, `receteler` sorguları yüklenir. Başlık yeni kartta "Yeni stok kartı", kayıtlı kartta "Stok kartı {kod}" olur (`pageTitle` başlıkları). Sekme başka bir kartla yeniden açılınca sayfa baştan kurulur, yazılanlar taşınmaz. (kart test: `header says …`, `opening another card starts fresh instead of carrying typed values`) | karşılandı | |
+| Kaynak okumaları yüklenirken kayıt | Bir kaynak okuması (ör. özel alan değerleri) yüklenirken Kaydet hiçbir şey yazmaz ve "Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin." gösterir. (kart test: `save while a source read loads writes nothing`) | karşılandı | |
+| Değişiklik izleme: değişen alan sayacı, çıkışta onay | Yedi kart formCard'ı `trackChanges: true` ve `recordKey` taşır. Kirli kayıtta Yeni "Kaydedilmemiş değişiklikler kaybolacak" onayını sorar (kart test: `yeni on a dirty card asks before clearing`). Kart sekmesini kapatmak ya da listeden başka bir kartı açmak onay sormaz. | fark | |
 | Her değişen alanda "Önceki: …" gösterimi | Yok | kapsam dışı | |
 | Sekme durumları (tamam / boş / hata) | `kartSekmeleri` (8 sekme) yalnız hata durumunu gösterir: hata işareti ve hata sayısı. Geçersiz kayıtta ilk hatalı sekmeye geçilir. "Tamam" ve "boş" durumları yoktur. | fark | |
-| Ctrl+S kaydeder | Ctrl+S, kart penceresinin kayıt dizisini çalıştırır (test: `yeni then save posts exactly one card`) | karşılandı | |
-| Esc kapatır | Esc pencereyi kapatır. Kirli kayıtta önce onay sorulur. (test: `esc on a dirty card asks before closing`) | karşılandı | |
-| F2 yeni kayıt; kaydedilmemiş değişiklikte onay | `formDialog` Yeni yolu. Açık pencerede F2, kirliyse "Kaydedilmemiş değişiklikler kaybolacak" onayını sorar. | karşılandı | |
+| Ctrl+S kaydeder | Ctrl+S, kart ekranının İşlem Çubuğu kayıt dizisini çalıştırır (`komutlar.saveSequence`). (kart test: `yeni then save posts exactly one card and returns to the list`) | karşılandı | |
+| Esc kapatır; kayıttan sonra listeye dönülür | Kart bir pencere değil, ekrandır: Esc kapatmaz, sekme kapatılır. Tam başarılı kayıttan sonra (`afterSaveButton: listeyeDon`) kart alanları boşalır ve Stok Kartları listesine dönülür; açık liste yenilenir (eski ekrandaki `inventory-stock-refresh` gibi). Kısmi kayıtta ekran açık kalır. (kart test: `yeni then save …`, `retry after a partial create …`; liste test: `a save on the card screen refreshes the open list`) | fark | |
+| F2 yeni kayıt; kaydedilmemiş değişiklikte onay | `komutlar.newButton: yeniKartDugmesi`: kirliyse önce onay sorulur, kart alanları boşalır ve ekran parametresiz (yeni kart) açılır. Kayıtlı kartta F2 yeni karta geçer; eski kartın değerleri taşınmaz. (kart test: `yeni on an opened card starts a fresh card that does not carry the old values`) | karşılandı | |
 | PgUp / PgDn önceki ve sonraki kayda geçer | Yok | kapsam dışı | |
-| Eşzamanlılık: `rowVersion`, çakışmada 409 | `guncelle`, `pasifeAl` ve `aktifEt`, `rowVersion`'ı kaynak `kart` satırından alır. 409 metni gösterilir. (test: `aç then save …`, `deactivate …`) | karşılandı | |
+| Eşzamanlılık: `rowVersion`, çakışmada 409 | `guncelle`, `pasifeAl` ve `aktifEt`, `rowVersion`'ı kaynak `kart` satırından alır. 409 metni gösterilir. (kart test: `opened card saves PUT …`; liste test: `deactivate …`) | karşılandı | |
 | Negatif stok kuralı | `negatifStokYasak` / `negatifStokIzinli` / `negatifStokBilinmiyor` metinleri, `ayar.negatifStok` değerine göre | karşılandı | |
 
 ### Skaler alanlar
@@ -140,7 +146,7 @@ Kaynaklar:
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
 | Kimlik: `code` * (≤ 64, büyük harf), `name` * (≤ 200), `barcode` (≤ 64), `category`, `trackingMode`, `unitCode` * (≤ 8) | `kimlikKarti`: `kod` *, `ad` *, `barkod`, `kategori` (açılır liste, `kategoriler` + listede olmayan geçerli değer), `takipTuru` (açılır liste: Yok / Lot / Seri), `anaBirim` * (metin). Zorunlu girişlerin etiketinde "*" görünür. | karşılandı | |
-| Pencere arkası | Çekmece/pencere arkası yarı saydam karartmadır (`rgba(15,27,45,.35)`); sayfa görünür kalır. | karşılandı | |
+| Pencere arkası | Kart tam sayfa ekrandır; pencere arkası yoktur. | fark | |
 | Stok yönetimi: minimum, maksimum, yeniden sipariş, emniyet; tedarik ve üretim süresi (0–3650) | `stokKarti`: altı sayı girişi (`min 0`; süreler `max 3650`, `step 1`) | karşılandı | |
 | Fiyat: alış ve satış liste fiyatı (≥ 0); `priceCurrencyCode` (3 harf) | `fiyatKarti`: `alisFiyati`, `satisFiyati`, `fiyatParaBirimi` (`^[A-Z]{3}$`) | karşılandı | |
 | İndirim: alış ve satış (0–100) | `fiyatKarti`: `alisIndirimi`, `satisIndirimi` | karşılandı | |
@@ -150,22 +156,22 @@ Kaynaklar:
 | Görsel: `productImageUrl` (≤ 1000, yalnız bağlantı) | `gorsel` ve `gorselOnizleme` (görsel bileşeni) | karşılandı | |
 | Pazaryeri: `marketplaceProductId` (≤ 120) | `pazaryeriKimligi` | karşılandı | |
 | Oluşturma varsayılanları (TRY, KDV 20) | Boş alan gövdeye yazılmaz; varsayılanı sunucu uygular. Sayfa bunu yer tutucuyla gösterir ("TRY", "20"). | fark | |
-| İsteğe bağlı alanı boşaltma (barkod, maksimum stok) | Boşaltılan metin alanı `""` olarak gider; sunucu barkodu `null` yapar, yani barkod temizlenir. Kullanıcının boşalttığı isteğe bağlı sayı alanı (maksimum stok, yeniden sipariş noktası, fiyatlar, ağırlık ve ölçüler) `null` olarak gider ve kaynak kaydın değerini ezer, yani temizlenir (test: `clearing an optional field on edit`). Boş bırakılamayan sayı alanları (minimum ve emniyet stoku, tedarik ve üretim süresi, iskonto ve vergi oranları) kayıtlı kart düzenlenirken `requiredWhen` ile zorunludur: boşaltılınca "Bu alan zorunludur." gösterilir, kayıt yapılmaz (test: `clearing a non-nullable number on edit is required`). Yeni kartta bu alanlar boş bırakılabilir, varsayılanı sunucu uygular. | karşılandı | |
+| İsteğe bağlı alanı boşaltma (barkod, maksimum stok) | Boşaltılan metin alanı `""` olarak gider; sunucu barkodu `null` yapar, yani barkod temizlenir. Kullanıcının boşalttığı isteğe bağlı sayı alanı (maksimum stok, yeniden sipariş noktası, fiyatlar, ağırlık ve ölçüler) `null` olarak gider ve kaynak kaydın değerini ezer, yani temizlenir (kart test: `clearing an optional field on edit`). Boş bırakılamayan sayı alanları (minimum ve emniyet stoku, tedarik ve üretim süresi, iskonto ve vergi oranları) kayıtlı kart düzenlenirken `requiredWhen` ile zorunludur: boşaltılınca "Bu alan zorunludur." gösterilir, kayıt yapılmaz (kart test: `clearing a non-nullable number on edit is required`). Yeni kartta bu alanlar boş bırakılabilir, varsayılanı sunucu uygular. | karşılandı | |
 
 ### Bileşik bloklar
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
 | Birim dönüşümleri: ana birim satırı ve alternatif birimler | `birimIzgarasi` (stage). Sabit satır "Ana birim: {{anaBirim}} (1)", kaynağı `birimler`. | karşılandı | |
-| Birim ekle / sil; kart kaydından sonra uygulanır; kısmi hatada bildirim | Dizi sırası: `guncelle` → `birimEkle` (her eklenen satır için POST) → `birimSil` (her silinen satır için DELETE) → `ozelKaydet`. Kısmi hatada "… başarısız … Önceki N işlem kaydedildi" uyarısı çıkar. (test: `unit staging sends POST and DELETE after card save`) | karşılandı | |
-| Birim dönüşümleri yalnız TenantAdmin | `disabledWhen: kullanici.rol != 'TenantAdmin'`, nedeni "Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir." TenantUser kart kaydını yapabilir; birim istekleri gitmez. (test: `tenant user gating`) | karşılandı | |
+| Birim ekle / sil; kart kaydından sonra uygulanır; kısmi hatada bildirim | Dizi sırası: `guncelle` → `birimEkle` (her eklenen satır için POST) → `birimSil` (her silinen satır için DELETE) → `ozelKaydet`. Kısmi hatada "… başarısız … Önceki N işlem kaydedildi" uyarısı çıkar. (kart test: `unit staging sends POST and DELETE after card save`) | karşılandı | |
+| Birim dönüşümleri yalnız TenantAdmin | `disabledWhen: kullanici.rol != 'TenantAdmin'`, nedeni "Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir." TenantUser kart kaydını yapabilir; birim istekleri gitmez. (kart test: `tenant user gating`) | karşılandı | |
 | Özel alanlar: tanımlardan dinamik giriş (Metin, Ondalık, Tarih, Evet/Hayır) | `ozelAlanlar` (customFieldsBlock) ← `ozelTanimlar`, `ozelDegerler` | karşılandı | |
 | Zorunlu özel alan boşsa kayıt engellenir | customFieldsBlock doğrulaması | karşılandı | |
-| Oluştururken değerler POST gövdesinin `customFields` alanında | `olustur.customFields = {{ozelAlanlar.degerler}}` (test: `yeni then save …`) | karşılandı | |
-| Düzenlemede ayrı `PUT /{id}/custom-fields` | `ozelKaydet` (`stok.kart.ozelAlanKaydet`, `bodyMap`) (test: `aç then save …`) | karşılandı | |
+| Oluştururken değerler POST gövdesinin `customFields` alanında | `olustur.customFields = {{ozelAlanlar.degerler}}` (kart test: `yeni then save posts exactly one card and returns to the list`) | karşılandı | |
+| Düzenlemede ayrı `PUT /{id}/custom-fields` | `ozelKaydet` (`stok.kart.ozelAlanKaydet`, `bodyMap`) (kart test: `opened card saves PUT …`) | karşılandı | |
 | Varyantlar: oluştururken boyut satırları, kartezyen önizleme (en fazla 200), POST `variants[]` | `varyantMatrisi` (matrix, yalnız yeni kartta); `olustur.variants` | karşılandı | |
 | Varyantlar: düzenlemede salt okunur liste | `varyantListesi` ← `varyantlar` (yalnız mevcut kartta) | karşılandı | |
-| Üretim reçeteleri: salt okunur; bugün tümü yüklenip istemcide süzülüyor | `receteListesi` ← `receteler` (`uretim.recete.listele`). Süzme sunucudadır: `?productStockItemId=<id>`. Kart yüklenmeden istek gitmez. (test: `recipes are read only with product filter`) | karşılandı | |
+| Üretim reçeteleri: salt okunur; bugün tümü yüklenip istemcide süzülüyor | `receteListesi` ← `receteler` (`uretim.recete.listele`). Süzme sunucudadır: `?productStockItemId=<id>`. Kart yüklenmeden istek gitmez. (kart test: `recipes are read only with product filter`) | karşılandı | |
 | Üretim okuma yetkisi olmayan kullanıcı | Reçeteler sekmesi boş liste yerine yetki hatasını gösterir | fark | |
 | Özel alan tanım yönetimi | Yok | kapsam dışı | |
 | Özel alan değer geçmişi ve geri yükleme | Yok | kapsam dışı | |
@@ -187,8 +193,8 @@ Kaynaklar:
 
 | Eski ekran öğesi | Yeni tanımda karşılığı (bileşen / sorgu / işlem) | Durum | Canlı sonuç |
 |---|---|---|---|
-| Yeni kart ekranı `inventory-stock-create` | Ayrı ekran olarak eski haliyle kalır. Yeni tanımda kart, Yeni ile kart penceresinde oluşturulur. | kapsam dışı | |
-| Rol koşulları | Sil ve birimler yalnız TenantAdmin'e açıktır. TenantUser kartı kaydedebilir (test: `tenant user gating`). Hareket girişi ve ters kayıt için sayfa hakkı vardır; izni katalog `allowed` değeri belirler. TenantUser için bu ikisi canlıda doğrulanacak. | karşılandı | |
-| Duyarlı (responsive) çekmece | Çekmece çalışma zamanının varsayılan düzeniyle açılır | kapsam dışı | |
+| Yeni kart ekranı `inventory-stock-create` | Ayrı standart tanım (`inventory-stock-create.json`, "Yeni stok kartı"): eski ekran gibi liste ile kart ayrıdır. Liste Yeni ile boş, Aç ile seçili kartı açar. | karşılandı | |
+| Rol koşulları | Sil ve birimler yalnız TenantAdmin'e açıktır. TenantUser kartı kaydedebilir (liste ve kart test: `tenant user gating`). Hareket girişi ve ters kayıt için sayfa hakkı vardır; izni katalog `allowed` değeri belirler. TenantUser için bu ikisi canlıda doğrulanacak. | karşılandı | |
+| Duyarlı (responsive) çekmece | Çekmece yok: kart, çalışma zamanının sayfa düzeniyle tam sayfa açılır. | fark | |
 | Taşınmayacaklar: her depo için ayrı bakiye çağrısı; tüm reçeteleri yükleyip istemcide süzme | Taşınmadı. Tek uç nokta (`kartDepolari`) ve sunucuda süzme (`receteler`) kullanılır. | karşılandı | |
 | v1 dışında kalan her iş için geri dönüş | Sayfa başlığındaki "Eski ekranda aç" bağlantısı. Yükleme hatalarında da gösterilir. | karşılandı | |

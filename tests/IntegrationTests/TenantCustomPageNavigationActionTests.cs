@@ -136,4 +136,38 @@ public sealed class TenantCustomPageNavigationActionTests
             C("b1", "button", new { label = "Takip", actionType = "link", href = "https://kargo.example.com/{{sayfa.parametre.no}}", visibleWhen = "sayfa.parametre.no != ''" })]));
         AssertRejected(V2([N("h1", "heading", "sayfa", new { text = "x" })]), "'sayfa' ayrılmış bir addır");
     }
+
+    // ---- actionBar Yeni / Aç / after-save buttons, page title heading ----
+
+    [Fact]
+    public void Action_bar_runs_buttons_for_yeni_ac_and_after_save()
+    {
+        object Bar(object props) => N("bar", "actionBar", "komutlar", props);
+        var buttons = new object[]
+        {
+            N("t1", "dataTable", "liste", new { query = "kargolar" }),
+            C("yeni", "button", new { label = "Yeni", actionType = "page", pageCode = "@inventory-stock-create", target = "newTab" }),
+            C("ac", "button", new { label = "Aç", actionType = "page", pageCode = "@inventory-stock-create", @params = new[] { "id={{liste.seciliSatir.takipNo}}" }, visibleWhen = "liste.seciliSatir.takipNo != null" }),
+            C("geri", "button", new { label = "Listeye dön", actionType = "erpPage", pageKey = "inventory-stock" }),
+            C("bos", "button", new { label = "Eylemsiz" }),
+            C("d1", "dialog", new { title = "Kayıt", contains = new[] { "h1" } }),
+            C("h1", "heading", new { text = "x" }),
+        };
+        AssertAccepted(V2([Bar(new { newButton = "yeni", openButton = "ac", afterSaveButton = "geri" }), .. buttons]));
+        AssertRejected(V2([Bar(new { newButton = "yok" }), .. buttons]), "sayfada yok");
+        AssertRejected(V2([Bar(new { openButton = "h1" }), .. buttons]), "bir düğme bileşeni değil");
+        AssertRejected(V2([Bar(new { afterSaveButton = "bos" }), .. buttons]), "eylemi olmalıdır");
+        AssertRejected(V2([Bar(new { openButton = "ac", formDialog = "d1" }), .. buttons]), "'openButton' ve 'formDialog' birlikte kullanılamaz");
+        AssertRejected(V2([Bar(new { newButton = 3 }), .. buttons]), "'newButton'");
+        // The button props are actionBar-only.
+        AssertRejected(V2([C("b1", "button", new { label = "x", actionType = "erpPage", pageKey = "customers", newButton = "b1" })]), "'newButton' özelliği yalnızca İşlem Çubuğu");
+    }
+
+    [Fact]
+    public void Page_title_is_a_heading_flag()
+    {
+        AssertAccepted(V2([C("h1", "heading", new { text = "Stok kartı {{sayfa.parametre.id}}", pageTitle = true, visibleWhen = "sayfa.parametre.id != ''" })]));
+        AssertRejected(V2([C("h1", "heading", new { text = "x", pageTitle = "evet" })]), "'pageTitle' true veya false");
+        AssertRejected(V2([C("t1", "text", new { text = "x", pageTitle = true })]), "'pageTitle' özelliği bu bileşen türünde kullanılamaz");
+    }
 }

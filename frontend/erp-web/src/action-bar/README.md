@@ -28,8 +28,8 @@ usePageCommands({
   - **Kayıt formu ekranı:** etkin `form` kaynağı birincil Kaydet'i sahipleniyorsa (RecordFormPage, sayfa diyaloğu,
     birincil `FormSaveCommand`) kayıt defteri `screen: 'form'` hesaplar; Aç, Filtre ve Excel gizlenir, kısayolları
     (Enter, Ctrl+F, Ctrl+E) çalışmaz. Listenin yanında duran form birincil olmayan Kaydet kaydeder
-    (`FormSaveCommand primary={false}`) ya da `besideList` taşır (RecordFormPage `besideList`, ör. Mal kabulleri
-    listesinin altındaki siparişsiz form); ekran liste olarak kalır.
+    (`FormSaveCommand primary={false}`) ya da `besideList` taşır (tanım ekranının bölmesindeki, `.nx-def-pane`
+    içindeki RecordFormPage bunu kendiliğinden ekler, ör. Raf ve Konumlar); ekran liste olarak kalır.
   - Ayırıcı yalnızca iki yanında düğme kalan gruplar arasında çizilir.
 - **Birincil komut** (`primary: true`) mavi dolgulu çizilir; ekranda en fazla bir tane olur (liste: Yeni, açık form: Kaydet).
 - **Geri Al** (Ctrl+Z) yalnızca sayfa `undo` kaydettiğinde, İşlemler'in solunda görünür.

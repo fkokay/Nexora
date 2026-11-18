@@ -7,6 +7,7 @@ import { ACTION_BAR_ORDER, offersCommand, type CommandSpec, type MenuCommand, ty
 import { COMMAND_LABELS } from './labels';
 import { useActionBarTarget } from './ActionBarSlot';
 import { ShortcutHelpDialog } from './ShortcutHelpDialog';
+import { tooltipText, useActionTooltip } from './ActionTooltip';
 import './action-bar.css';
 
 type Locale = 'tr' | 'en';
@@ -80,36 +81,49 @@ function stateOf(spec: CommandSpec | undefined): { enabled: boolean; reason?: st
   return { enabled: false, reason: spec?.disabledReason ?? UNAVAILABLE };
 }
 
-function CommandButton({ id, spec, locale, iconOnly = false }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale; iconOnly?: boolean }) {
+/** aria-describedby of a button: the shown tooltip and, while disabled, the (screen-reader) reason. */
+const describedBy = (...ids: (string | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
+
+function CommandButton({ id, spec, locale }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale; iconOnly?: boolean }) {
   const reasonId = useId();
   const { enabled, reason } = stateOf(spec);
   const Icon = ICONS[id];
   const label = COMMAND_LABELS[id];
+  // The shortcut is no longer a badge on the button: it shows in the hover/focus tooltip ("Kaydet · Ctrl+S").
+  const tip = useActionTooltip<HTMLButtonElement>(tooltipText(label, formatShortcut(STANDARD_SHORTCUTS[id], locale), enabled ? undefined : reason));
   return (
-    <button
-      type="button"
-      className="nx-action-bar__button"
-      data-command={id}
-      data-primary={spec?.primary ? 'true' : undefined}
-      aria-label={label}
-      aria-keyshortcuts={STANDARD_SHORTCUTS[id]}
-      aria-disabled={enabled ? undefined : 'true'}
-      aria-describedby={enabled ? undefined : reasonId}
-      title={enabled ? (iconOnly ? `${label} (${formatShortcut(STANDARD_SHORTCUTS[id], locale)})` : undefined) : reason}
-      onClick={() => { if (enabled) void spec?.run?.(); }}
-    >
-      <Icon size={15} aria-hidden />
-      <span>{label}</span>
-      <kbd>{formatShortcut(STANDARD_SHORTCUTS[id], locale)}</kbd>
-      {!enabled && <span id={reasonId} className="nx-action-bar__sr">{reason}</span>}
-    </button>
+    <>
+      <button
+        ref={tip.anchorRef}
+        type="button"
+        className="nx-action-bar__button"
+        data-command={id}
+        data-primary={spec?.primary ? 'true' : undefined}
+        aria-label={label}
+        aria-keyshortcuts={STANDARD_SHORTCUTS[id]}
+        aria-disabled={enabled ? undefined : 'true'}
+        aria-describedby={describedBy(tip.describedBy, enabled ? undefined : reasonId)}
+        {...tip.handlers}
+        onClick={() => { if (enabled) void spec?.run?.(); }}
+      >
+        <Icon size={15} aria-hidden />
+        <span>{label}</span>
+        {!enabled && <span id={reasonId} className="nx-action-bar__sr">{reason}</span>}
+      </button>
+      {tip.tooltip}
+    </>
   );
 }
 
 function ActionsMenu({ items, locale, open, onOpenChange }: { items: MenuCommand[]; locale: Locale; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, right: 0 });
+  const tip = useActionTooltip<HTMLButtonElement>(open ? '' : tooltipText('İşlemler', formatShortcut(MORE_MENU_SHORTCUT, locale)));
+  const setTrigger = useCallback((node: HTMLButtonElement | null) => {
+    triggerRef.current = node;
+    tip.anchorRef.current = node;
+  }, [tip.anchorRef]);
 
   const close = useCallback((restoreFocus: boolean) => {
     onOpenChange(false);
@@ -154,7 +168,7 @@ function ActionsMenu({ items, locale, open, onOpenChange }: { items: MenuCommand
   return (
     <>
       <button
-        ref={triggerRef}
+        ref={setTrigger}
         type="button"
         className="nx-action-bar__button nx-action-bar__more"
         data-command="more"
@@ -162,12 +176,14 @@ function ActionsMenu({ items, locale, open, onOpenChange }: { items: MenuCommand
         aria-keyshortcuts={MORE_MENU_SHORTCUT}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-describedby={tip.describedBy}
+        {...tip.handlers}
         onClick={() => onOpenChange(!open)}
       >
         <span>İşlemler</span>
-        <kbd>{formatShortcut(MORE_MENU_SHORTCUT, locale)}</kbd>
         <ChevronDown size={15} aria-hidden />
       </button>
+      {tip.tooltip}
       {open && (
         <div ref={menuRef} className="nx-action-bar__menu" role="menu" aria-label="İşlemler" style={position} onKeyDown={onMenuKeyDown}>
           {items.length === 0 && <div className="nx-action-bar__menu-empty">{UNAVAILABLE}</div>}

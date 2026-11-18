@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider, usePageCommands } from '../commands/CommandProvider';
 import { ACTION_BAR_ORDER, type CommandSource, type PageCommands } from '../commands/types';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ActionBar, pickCompaction } from './ActionBar';
+import { TOOLTIP_DELAY_MS } from './ActionTooltip';
 
 afterEach(cleanup);
 
@@ -30,6 +31,13 @@ const all = (): PageCommands => Object.fromEntries(ACTION_BAR_ORDER.map((id) => 
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const button = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const isDisabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
+/** Focuses the button (keyboard focus shows the tooltip at once) and returns the tooltip it describes itself with. */
+const tooltipOf = (el: HTMLElement) => {
+  act(() => el.focus());
+  const tip = screen.getByRole('tooltip');
+  expect(el.getAttribute('aria-describedby')?.split(' ')).toContain(tip.id);
+  return tip.textContent;
+};
 
 describe('ActionBar', () => {
   const commandIds = () => Array.from(bar().querySelectorAll('[data-command]')).map((el) => el.getAttribute('data-command'));
@@ -110,17 +118,18 @@ describe('ActionBar', () => {
   it('a read-only record that registers save with a reason keeps Kaydet dimmed', () => {
     setup({ save: { disabledReason: 'Banka ekstresi salt okunurdur' } });
     expect(isDisabled(button('save'))).toBe(true);
-    expect(button('save').title).toBe('Banka ekstresi salt okunurdur');
+    expect(tooltipOf(button('save'))).toBe('Banka ekstresi salt okunurdur · Ctrl+S');
   });
 
-  it('disabled button shows its reason as title and is not hidden', () => {
+  it('disabled button shows its reason (and shortcut) in the tooltip and is not hidden', () => {
     const run = vi.fn();
     setup({ delete: { run, disabledReason: 'Kesilmiş belge silinemez — İşlemler › İptal et' } });
     const del = button('delete');
     expect(del.hidden).toBe(false);
     expect(isDisabled(del)).toBe(true);
-    expect(del.title).toBe('Kesilmiş belge silinemez — İşlemler › İptal et');
+    expect(del.title).toBe('');
     expect(document.getElementById(del.getAttribute('aria-describedby')!)?.textContent).toBe('Kesilmiş belge silinemez — İşlemler › İptal et');
+    expect(tooltipOf(del)).toBe('Kesilmiş belge silinemez — İşlemler › İptal et · Ctrl+Del');
     fireEvent.click(del);
     expect(run).not.toHaveBeenCalled();
   });
@@ -131,11 +140,32 @@ describe('ActionBar', () => {
     expect(button('new').getAttribute('data-primary')).toBeNull();
   });
 
-  it('shows the formatted shortcut on each button', () => {
-    setup(all());
-    expect(within(button('delete')).getByText('Ctrl+Del')).toBeTruthy();
-    expect(within(button('new')).getByText('F2')).toBeTruthy();
-    expect(within(button('more')).getByText('Alt+İ')).toBeTruthy();
+  it('shows the formatted shortcut in a tooltip, not as a badge on the button', () => {
+    setup({ new: { run: () => undefined }, delete: { run: () => undefined } });
+    expect(bar().querySelector('kbd')).toBeNull();
+    expect(button('new').getAttribute('aria-keyshortcuts')).toBe('F2');
+    expect(tooltipOf(button('new'))).toBe('Yeni · F2');
+    act(() => (document.activeElement as HTMLElement).blur()); void (button('new'));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(tooltipOf(button('delete'))).toBe('Sil · Ctrl+Del');
+    act(() => (document.activeElement as HTMLElement).blur()); void (button('delete'));
+    expect(tooltipOf(button('more'))).toBe('İşlemler · Alt+İ');
+  });
+
+  it('shows the tooltip after the hover delay and hides it on leave', () => {
+    vi.useFakeTimers();
+    try {
+      setup({ save: { run: () => undefined } });
+      fireEvent.mouseEnter(button('save'));
+      expect(screen.queryByRole('tooltip')).toBeNull();
+      act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS); });
+      expect(screen.getByRole('tooltip').textContent).toBe('Kaydet · Ctrl+S');
+      expect(bar().contains(screen.getByRole('tooltip'))).toBe(false);
+      fireEvent.mouseLeave(button('save'));
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders the undo button only when the page registers it', () => {
@@ -254,15 +284,16 @@ describe('ActionBar compaction (narrow bar)', () => {
     expect(button('save').title).toBe('');
   });
 
-  it('hides the key hints first, then the labels (icon only with a title); İşlemler keeps its label', () => {
+  it('compacts to icons only (label and shortcut in the tooltip); İşlemler keeps its label', () => {
     const restore = fakeLayout(700, { full: 900, 'no-keys': 760, icons: 420 });
     try {
       setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
       expect(bar().getAttribute('data-compact')).toBe('icons');
-      expect(button('save').title).toBe('Kaydet (Ctrl+S)');
       expect(button('save').getAttribute('aria-label')).toBe('Kaydet');
-      // A disabled button keeps its reason as the title.
-      expect(button('delete').title).toBe('Önce bir kayıt seçin');
+      expect(tooltipOf(button('save'))).toBe('Kaydet · Ctrl+S');
+      act(() => (document.activeElement as HTMLElement).blur()); void (button('save'));
+      // A disabled button shows its reason with the shortcut.
+      expect(tooltipOf(button('delete'))).toBe('Önce bir kayıt seçin · Ctrl+Del');
       expect(button('more').textContent).toContain('İşlemler');
     } finally {
       restore();
