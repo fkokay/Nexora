@@ -204,6 +204,20 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Open_draft_with_default_layout_reports_only_unmapped_fields()
+    {
+        await using var app = await StartApplicationAsync();
+        await SeedScreenViewAsync(app, codeLabel: "Depo kodu");
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        var draft = await (await client.PostAsync($"/api/system-pages/{ScreenKey}/draft", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(["code", "isActive"], TableColumns(draft.GetProperty("definitionJson").GetString()!));
+        // Visibility alone is not a layout change.
+        Assert.Equal([SystemPageMerge.UnmappedFieldNote("Açıklama")], draft.GetProperty("importNotes").EnumerateArray().Select(x => x.GetString()));
+    }
+
+    [Fact]
     public async Task Open_draft_is_idempotent()
     {
         await using var app = await StartApplicationAsync();
@@ -493,13 +507,13 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     /// <summary>A published "Görünümü düzenle" view of the warehouse list: "Depo adı" hidden and "Depo kodu" relabelled.</summary>
-    private static async Task SeedScreenViewAsync(WebApplication app)
+    private static async Task SeedScreenViewAsync(WebApplication app, string codeLabel = "Kod")
     {
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         var layout = new object[]
         {
-            new { key = "code", label = "Kod", visible = true, position = 0 },
+            new { key = "code", label = codeLabel, visible = true, position = 0 },
             new { key = "name", label = "Depo adı", visible = false, position = 1 },
             new { key = "status", label = "Durum", visible = true, position = 2 },
             new { key = "availability", label = "Açıklama", visible = true, position = 3 }
