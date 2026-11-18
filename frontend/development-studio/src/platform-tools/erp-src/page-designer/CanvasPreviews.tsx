@@ -41,12 +41,13 @@ type PreviewColumn = { code: string; label?: string; dataType?: string };
 /** Sunucu sayfalı listenin tuval altbilgisi (ERP PagedTableFooter görünümü; düğmeler tuvalde kapalıdır). */
 export type GridPaging = { pageSize: number; total: number; meta: { label: string; value: string }[]; search?: ReactNode };
 
-export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style }: {
+/** `advanced`: sorguya bağlı tablo ERP'de gelişmiş ızgarayla çizilir; tuvalde de araç satırı ve onay kutusu sütunu görünür. */
+export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style, advanced = false }: {
   title: string; subtitle: string; columns: PreviewColumn[]; rows: Record<string, unknown>[]; truncated: boolean;
   props: Record<string, unknown>; emptyText: string; rowAction?: string;
   /** Satır işlemi düğmelerinin (rowActions) etiketleri: "İşlemler" sütununda satır başına çip olarak çizilir. */
   rowActionLabels?: string[];
-  showTotals?: boolean; paging?: GridPaging; style: CSSProperties;
+  showTotals?: boolean; paging?: GridPaging; style: CSSProperties; advanced?: boolean;
 }) {
   const actionChips = [...(rowAction ? [rowAction] : []), ...(rowActionLabels ?? [])];
   const hasActions = actionChips.length > 0;
@@ -66,15 +67,22 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
     const tone = toneFor(text, toneMap);
     return <span className={`pd-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
   };
-  const colCount = columns.length + (hasActions ? 1 : 0);
+  const colCount = columns.length + (hasActions ? 1 : 0) + (advanced ? 1 : 0);
+  const check = advanced ? <span className="pd-adv-check" aria-hidden="true" /> : null;
   return <article className="custom-page-preview-card" style={style}>
     <div className="custom-page-preview-card-head"><b>{title}</b><small>{subtitle}</small></div>
     {paging?.search && <div className="pd-grid-search">{paging.search}</div>}
-    <div className="custom-page-preview-grid-scroll"><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}`}>
-      <thead><tr>{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
+    {advanced && <div className="pd-adv-toolbar" aria-hidden="true">
+      {props.showGridSearch !== false && <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>}
+      {props.showColumnFilters !== false && <span className="pd-adv-menu">Sütun filtreleri</span>}{props.showColumnChooser !== false && <span className="pd-adv-menu">Sütunlar</span>}
+      <span className="pd-adv-count">{paging ? number(paging.total) : rows.length} kayıt</span>
+      {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span><span className="pd-adv-btn">CSV</span></>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
+    </div>}
+    <div className={`custom-page-preview-grid-scroll${advanced ? " is-advanced" : ""}`}><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}${advanced ? " is-advanced" : ""}`}>
+      <thead><tr>{advanced && <th className="pd-adv-check-cell">{check}</th>}{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
       <tbody>{rows.length === 0 ? <tr><td colSpan={Math.max(1, colCount)}>{emptyText}</td></tr>
-        : rows.map((row, rowIndex) => <tr key={String(row.id ?? rowIndex)}>{columns.map((column) => <td key={column.code} className={cellClass(column)}>{cell(column, row)}</td>)}{hasActions &&<td>{actionChips.map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</td>}</tr>)}</tbody>
-      {hasTotals && <tfoot><tr className="pd-total">
+        : rows.map((row, rowIndex) => <tr key={String(row.id ?? rowIndex)}>{advanced && <td className="pd-adv-check-cell">{check}</td>}{columns.map((column) => <td key={column.code} className={cellClass(column)}>{cell(column, row)}</td>)}{hasActions &&<td>{actionChips.map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</td>}</tr>)}</tbody>
+      {hasTotals && <tfoot><tr className="pd-total">{advanced && <td />}
         {columns.map((column, index) => {
           const total = totals.includes(column.code) ? columnTotal(rows, column.code) : null;
           const inTotals = totals.includes(column.code);
@@ -330,7 +338,8 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
 type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
-export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
+/** `title`: ERP'deki gibi işlem çubuğunun üstündeki başlık satırı (sayfa adı ve `titleCount` varsa "N kayıt"). */
+export function ActionBarPreview({ bound, moreCount, style, title, count }: { bound: ActionBarBound; moreCount: number; style: CSSProperties; title?: string; count?: string | null }) {
   // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
   const primary = bound.save ? "save" : bound.new ? "new" : "";
   const button = (id: string, label: string, key: string, on: boolean) =>
@@ -338,6 +347,7 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
     <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"} · ${key}`} data-shortcut={key}>{id === "new" ? "+ " : ""}{label}</span>;
   const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
   return <div className="pd-actionbar-wrap" style={style}>
+    {title && <div className="pd-page-title"><h1>{title}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>}
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
       {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", bound.open === true)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
       <span className="pd-bar-sep" />

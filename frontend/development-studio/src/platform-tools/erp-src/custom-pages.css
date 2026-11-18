@@ -647,3 +647,30 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-lookup-select svg{position:absolute;right:9px;color:#667085;pointer-events:none}
 .pd-inline-toggle{display:inline-flex;align-items:center;height:30px;padding:0 10px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;color:#344054;font-size:12px;font-weight:600;white-space:nowrap}
 .pd-frame .pd-binding-preview-input .pd-inline-search input{padding-left:28px}
+
+/* Gelişmiş ızgara (ERP AdvancedDataGrid) tuval önizlemesi: araç satırı, onay kutusu sütunu, ERP başlık tonu. */
+.pd-adv-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 10px;border:1px solid var(--page-border);border-bottom:0;border-radius:9px 9px 0 0;background:#fff;font-size:12px;color:var(--page-ink)}
+.pd-adv-search{display:flex;align-items:center;gap:7px;flex:1 1 230px;min-width:150px;max-width:420px;height:32px;padding:0 9px;border:1px solid var(--page-border);border-radius:7px;background:#f8fafc;color:#98a2b3}
+.pd-adv-menu,.pd-adv-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid var(--page-border);border-radius:7px;background:#fff;white-space:nowrap}
+.pd-adv-menu::after{content:"";width:6px;height:6px;margin:-3px 1px 0 2px;border-right:1.5px solid #98a2b3;border-bottom:1.5px solid #98a2b3;transform:rotate(45deg)}
+.pd-adv-count{margin-left:auto;color:#667085;font-size:10.5px;white-space:nowrap}
+.custom-page-preview-grid-scroll.is-advanced{border:1px solid var(--page-border);border-radius:0 0 9px 9px}
+.custom-page-preview-grid.is-advanced th{background:#f8fafc;color:#667085;font-size:11px;font-weight:700}
+.custom-page-preview-grid.is-advanced th,.custom-page-preview-grid.is-advanced td{padding:9px 11px}
+.pd-adv-check-cell{width:34px}
+.pd-adv-check{display:inline-block;width:13px;height:13px;border:1.5px solid #98a2b3;border-radius:3px;vertical-align:middle}
+
+/* İşlem çubuğunun üstündeki başlık satırı (ERP ListPageHeader: "Stok Kartları  3 kayıt"). */
+.pd-page-title{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px}
+.pd-page-title h1{margin:0;font-size:20px;font-weight:700;color:var(--page-ink,#172554)}
+.pd-page-title-count{color:#667085;font-size:12px;font-weight:600}
+.pd-frame>.pd-page-title{margin:0;padding:4px 16px 0}
+.pd-grid-guides:not(.is-on){opacity:0;transition:opacity .12s}
+.pd-grid.is-dragging .pd-grid-guides{opacity:1}
+
+/* Kartın içindeki bileşenler (ör. Stok Kartları detay paneli): düğme ve etiketler satırda, sekmeler ve geniş öğeler tam genişlikte. */
+.custom-page-preview-card.has-children{display:grid;gap:8px}
+.pd-card-children{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.pd-card-child{flex:0 0 auto;min-width:0}
+.pd-card-child.is-tabs,.pd-card-child.is-dataTable,.pd-card-child.is-contextPanel,.pd-card-child.is-formCard{flex:1 1 100%}
+.pd-card-child .pd-tabs-preview-panel{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}

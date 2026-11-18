@@ -79,4 +79,12 @@ public sealed class TenantCustomPageSchemaListLookTests
         Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", valueLabels = new[] { "k:a=A" } } }), "'valueLabels' özelliği bu bileşen türünde kullanılamaz.");
         Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", columnLabels = new[] { "k=A" } } }), "'columnLabels' özelliği bu bileşen türünde kullanılamaz.");
     }
+
+    [Fact]
+    public void Grid_tool_flags_are_booleans_on_data_tables_only()
+    {
+        Accepted(V2(Table(new { query = "q1", showGridSearch = false, showColumnFilters = false, showColumnChooser = true, showExport = false, showPivot = false })));
+        Rejected(V2(Table(new { query = "q1", showPivot = "hayır" })), "'showPivot' true veya false olmalıdır.");
+        Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", showExport = false } }), "'showExport' özelliği bu bileşen türünde kullanılamaz.");
+    }
 }
