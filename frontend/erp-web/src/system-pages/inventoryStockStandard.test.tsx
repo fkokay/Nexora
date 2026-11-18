@@ -201,22 +201,57 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
     const metric = (title: string) => screen.getByText(title, { selector: '.tenant-metric-label' }).closest('article') as HTMLElement;
     await waitFor(() => expect(metric('Stok değeri').querySelector('strong')?.textContent).toBe('1.234,50'), T);
-    expect(metric('Stok değeri').textContent).toContain('Bu sayfa · TRY');
+    expect(metric('Stok değeri').textContent).toContain('bu sayfa · TRY');
     expect(metric('Kullanılabilir').querySelector('strong')?.textContent).toBe('23');
-    expect(metric('Kullanılabilir').textContent).toContain('Bu sayfa · ADET');
+    expect(metric('Kullanılabilir').textContent).toContain('bu sayfa · ADET');
     expect(screen.queryByText('Kullanılabilir stoklu kart', { selector: '.tenant-metric-label' })).toBeNull();
     expect(metric('Maliyetsiz').querySelector('strong')?.textContent).toBe('0');
-    expect(screen.getByLabelText('Minimum altı (1)')).toBeTruthy();
+    expect(screen.getByLabelText('Minimum altı 1')).toBeTruthy();
     const minimum = metric('Minimum altı');
     expect(minimum.querySelector('strong')?.textContent).toBe('1');
     expect(minimum.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(minimum);
-    await waitFor(() => expect((screen.getByLabelText('Minimum altı (1)') as HTMLInputElement).checked).toBe(true), T);
+    await waitFor(() => expect((screen.getByLabelText('Minimum altı 1') as HTMLInputElement).checked).toBe(true), T);
     await waitFor(() => expect(gets('/api/warehouses/balances/page').some((call) => query(call.url).get('belowMinimumOnly') === 'true')).toBe(true), T);
     expect(metric('Minimum altı').getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(metric('Minimum altı'));
-    await waitFor(() => expect((screen.getByLabelText('Minimum altı (1)') as HTMLInputElement).checked).toBe(false), T);
+    await waitFor(() => expect((screen.getByLabelText('Minimum altı 1') as HTMLInputElement).checked).toBe(false), T);
     expect(metric('Minimum altı').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
+    const { container } = setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    // One compact toolbar row (no card heading) holding search, Depo, Minimum altı, Pasif and Detay paneli.
+    const toolbar = screen.getByRole('region', { name: 'Süzgeçler' });
+    expect(toolbar.classList.contains('is-inline')).toBe(true);
+    expect(toolbar.querySelector('h3')).toBeNull();
+    for (const id of ['aramaKutusu', 'depoSecimi', 'minimumAlti', 'pasifler', 'detayPaneli']) expect(toolbar.contains(input(id))).toBe(true);
+    expect(container.querySelector('.tenant-page-table-search')).toBeNull();
+    const list = container.querySelector('.tenant-page-table') as HTMLElement;
+    expect(list.style.gridColumn).toBe('span 12');
+    expect(Array.from(list.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
+      'Stok kodu', 'Stok adı', 'Kategori', 'Depo bakiyesi', 'Rezerve', 'Kullanılabilir', 'Minimum', 'Stok değeri', 'Maliyetsiz miktar', 'Durum',
+    ]);
+    const cells = Array.from(listRow('Kalem').querySelectorAll('td')).map((td) => td.textContent);
+    expect(cells).toEqual(['KLM', 'Kalem', 'Kırtasiye', '5 ADET', '1 ADET', '4 ADET', '10', '25,00 TRY', '0 ADET', 'Minimum altı']);
+    expect(screen.getByText('Negatif stok koruması açık')).toBeTruthy();
+    expect(screen.queryByText('Negatif stok koruması kapalı')).toBeNull();
+
+    await selectCard();
+    await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
+    const panel = container.querySelector('.tenant-page-tabs:not(.tenant-page-dialog .tenant-page-tabs)') as HTMLElement;
+    expect(panel.style.gridColumn).toBe('span 4');
+    expect(screen.getByRole('heading', { name: 'KLM · Kalem' })).toBeTruthy();
+    const summary = screen.getByText('Kart bilgileri').closest('.tenant-page-block') as HTMLElement;
+    expect(summary.textContent).toContain('Lot / seri');
+    expect(summary.textContent).toContain('Yok');
+    expect(summary.textContent).not.toContain('None');
+
+    // Turning the panel off gives the list its full width back.
+    fireEvent.click(input('detayPaneli'));
+    await waitFor(() => expect(list.style.gridColumn).toBe('span 12'), T);
+    expect(screen.queryByRole('heading', { name: 'KLM · Kalem' })).toBeNull();
   });
 
   it('yeni then save posts exactly one card', async () => {

@@ -31,8 +31,12 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("bakiye", (string)props["query"]!);
         Assert.Equal("server", (string)props["paging"]!);
         Assert.Equal(25, (int)props["pageSize"]!);
-        Assert.Equal("aramaKutusu", (string)props["searchInput"]!);
+        // The search box sits in the toolbar row (inline formCard), not in the list header.
+        Assert.Null(props["searchInput"]);
         Assert.Equal("Stok kartları", (string)props["title"]!);
+        // Full width; narrows to 8 only while the right-side detail panel is shown.
+        Assert.Equal(12, (int)props["width"]!);
+        Assert.Equal("8=detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)props["widthWhen"]!);
         Assert.Equal(new[] { "belowMinimumCount=Minimum altı" }, Strings(props["footerMeta"]));
 
         Assert.Equal("stok.bakiye.sayfa", (string)Query("bakiye")["operation"]!);
@@ -78,6 +82,19 @@ public sealed class InventoryStockStandardTests
         foreach (var column in new[] { "quantityOnHand", "reservedQuantity", "availableQuantity", "minimumStock", "unvaluedQuantity" })
             Assert.Contains($"balance.{column}=number", formats);
         Assert.Equal(8, formats.Length);
+        Assert.Equal(new[]
+        {
+            "balance.code=Stok kodu", "balance.name=Stok adı", "stockItem.category=Kategori", "balance.quantityOnHand=Depo bakiyesi",
+            "balance.reservedQuantity=Rezerve", "balance.availableQuantity=Kullanılabilir", "balance.minimumStock=Minimum",
+            "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz miktar", "status=Durum"
+        }, Strings(props["columnLabels"]));
+        Assert.Equal(new[]
+        {
+            "balance.quantityOnHand=balance.unitCode", "balance.reservedQuantity=balance.unitCode", "balance.availableQuantity=balance.unitCode",
+            "balance.unvaluedQuantity=balance.unitCode", "balance.valuationAmountBase=balance.baseCurrencyCode"
+        }, Strings(props["columnUnits"]));
+        Assert.Equal(new[] { "stockItem.trackingMode:None=Yok", "stockItem.trackingMode:Lot=Lot", "stockItem.trackingMode:Serial=Seri" },
+            Strings(props["valueLabels"]));
     }
 
     [Fact]
@@ -93,9 +110,19 @@ public sealed class InventoryStockStandardTests
         Assert.Equal(0, (int)props["minChars"]!);
         Assert.True((bool)props["allowClear"]!);
         Assert.Equal("depo.listele", (string)Query("depolar")["operation"]!);
-        Assert.Equal(new[] { "depoSecimi", "minimumAlti", "pasifler" }, Strings(Props("suzgecKarti")["inputs"]));
-        Assert.Equal("Minimum altı ({{bakiye.meta.belowMinimumCount}})", (string)Props("minimumAlti")["label"]!);
+        var toolbar = Props("suzgecKarti");
+        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "pasifler", "detayPaneli" }, Strings(toolbar["inputs"]));
+        Assert.Equal("inline", (string)toolbar["layout"]!);
+        Assert.Null(toolbar["columns"]);
+        Assert.Equal("Minimum altı {{bakiye.meta.belowMinimumCount}}", (string)Props("minimumAlti")["label"]!);
         Assert.Equal("checkbox", (string)Props("pasifler")["inputType"]!);
+        var detail = Props("detayPaneli");
+        Assert.Equal(("checkbox", "Detay paneli", "true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultValue"]!));
+        // Legacy order: action bar → metrics → toolbar row → list.
+        var order = AllComponents().Select(x => (string)x["id"]!).ToList();
+        Assert.True(order.IndexOf("maliyetsizGostergesi") < order.IndexOf("suzgecKarti"));
+        Assert.Equal(order.IndexOf("suzgecKarti") + 1, order.IndexOf("aramaKutusu"));
+        Assert.True(order.IndexOf("suzgecKarti") < order.IndexOf("liste"));
     }
 
     [Fact]
@@ -109,7 +136,8 @@ public sealed class InventoryStockStandardTests
             ("minimumAltiGostergesi", "{{bakiye.meta.belowMinimumCount}}", "number", null),
             ("maliyetsizGostergesi", "{{bakiye.meta.pageUnvaluedCount}}", "number", null)
         };
-        var metrics = AllComponents().Where(x => (string)x["type"]! == "metric").Select(x => (string)x["id"]!).ToArray();
+        var metrics = AllComponents().Where(x => (string)x["type"]! == "metric" && !((string)x["id"]!).StartsWith("ozet", StringComparison.Ordinal))
+            .Select(x => (string)x["id"]!).ToArray();
         Assert.Equal(expected.Select(x => x.Id), metrics);
         foreach (var (id, value, format, visibleWhen) in expected)
         {
@@ -119,29 +147,53 @@ public sealed class InventoryStockStandardTests
             Assert.Equal(visibleWhen, (string?)props["visibleWhen"]);
             Assert.Null(props["query"]);
         }
-        Assert.Equal("Bu sayfa · {{bakiye.meta.baseCurrencyCode}}", (string)Props("stokDegeriGostergesi")["description"]!);
-        Assert.Equal("Bu sayfa · {{bakiye.meta.pageUnitCode}}", (string)Props("kullanilabilirGostergesi")["description"]!);
+        Assert.Equal("bu sayfa · {{bakiye.meta.baseCurrencyCode}}", (string)Props("stokDegeriGostergesi")["description"]!);
+        Assert.Equal("bu sayfa · {{bakiye.meta.pageUnitCode}}", (string)Props("kullanilabilirGostergesi")["description"]!);
         var minimum = Props("minimumAltiGostergesi");
         Assert.Equal("minimumAlti", (string)minimum["filterInput"]!);
         Assert.Equal("true", (string)minimum["filterValue"]!);
         Assert.Equal("danger", (string)minimum["variant"]!);
-        Assert.Equal("Seçili kapsam (arama hariç)", (string)minimum["description"]!);
+        Assert.Equal("seçili depolarda (arama hariç)", (string)minimum["description"]!);
     }
 
     [Fact]
     public void Detail_tabs_show_summary_warehouses_and_last_movements()
     {
         var tabs = Props("detaySekmeleri");
-        Assert.Equal(new[] { "Özet=ozetPaneli", "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu" }, Strings(tabs["tabs"]));
-        Assert.Equal("liste.seciliSatir.stockItem.id != null", (string)tabs["visibleWhen"]!);
+        Assert.Equal(new[]
+        {
+            "Özet=ozetBaslik,ozetBakiye,ozetKullanilabilir,ozetRezerve,ozetStokDegeri,ozetPaneli",
+            "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu"
+        }, Strings(tabs["tabs"]));
+        Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)tabs["visibleWhen"]!);
+        // Right-side panel next to the list (list 8 + panel 4); its contents fill the panel.
+        Assert.Equal(4, (int)tabs["width"]!);
+        var order = AllComponents().Select(x => (string)x["id"]!).ToList();
+        Assert.Equal(order.IndexOf("liste") + 1, order.IndexOf("detaySekmeleri"));
+        foreach (var id in new[] { "ozetBaslik", "ozetPaneli", "kartDepoTablosu", "sonHareketTablosu" }) Assert.Equal(12, (int)Props(id)["width"]!);
+
+        // Özet is built from separately designable components.
+        Assert.Equal("{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", (string)Props("ozetBaslik")["text"]!);
+        var tiles = new (string Id, string Title, string Value, string Format, string Description)[]
+        {
+            ("ozetBakiye", "Bakiye", "{{liste.seciliSatir.balance.quantityOnHand}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
+            ("ozetKullanilabilir", "Kullanılabilir", "{{liste.seciliSatir.balance.availableQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
+            ("ozetRezerve", "Rezerve", "{{liste.seciliSatir.balance.reservedQuantity}}", "number", "{{liste.seciliSatir.balance.unitCode}}"),
+            ("ozetStokDegeri", "Stok değeri", "{{liste.seciliSatir.balance.valuationAmountBase}}", "money", "{{liste.seciliSatir.balance.baseCurrencyCode}}")
+        };
+        foreach (var (id, title, value, format, description) in tiles)
+        {
+            var tile = Props(id);
+            Assert.Equal((title, value, format, description, 6),
+                ((string)tile["title"]!, (string)tile["value"]!, (string)tile["format"]!, (string)tile["description"]!, (int)tile["width"]!));
+        }
 
         var panel = Props("ozetPaneli");
         Assert.Equal("liste", (string)panel["table"]!);
-        Assert.Equal("{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", (string)panel["title"]!);
+        Assert.Equal("Kart bilgileri", (string)panel["title"]!);
         Assert.Equal(new[]
         {
-            "balance.quantityOnHand=Bakiye", "balance.availableQuantity=Kullanılabilir", "balance.reservedQuantity=Rezerve",
-            "balance.minimumStock=Minimum", "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz",
+            "balance.minimumStock=Minimum", "balance.unvaluedQuantity=Maliyetsiz",
             "stockItem.category=Kategori", "balance.unitCode=Birim", "stockItem.trackingMode=Lot / seri", "status=Durum"
         }, Strings(panel["fields"]));
 
@@ -235,8 +287,9 @@ public sealed class InventoryStockStandardTests
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
         Assert.True(components.Length <= 90, $"Bileşen sayısı {components.Length} > 90");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
-        // Final pilot numbers after Task 6 (wire contract: 82 components, 25 queries).
-        Assert.Equal(82, components.Length);
+        // Pilot numbers after Task 6 (82 components, 25 queries) plus the legacy-look fixes: two negative-stock strips,
+        // the "Detay paneli" toggle and the designable summary (heading + four tiles).
+        Assert.Equal(90, components.Length);
         Assert.Equal(25, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
@@ -260,8 +313,8 @@ public sealed class InventoryStockStandardTests
         new("kimlikKarti", "kod", "code", "text", "Stok kodu", Required: true, MaxLength: 64, UpperCase: true),
         new("kimlikKarti", "ad", "name", "text", "Stok adı", Required: true, MaxLength: 200),
         new("kimlikKarti", "barkod", "barcode", "text", "Barkod", MaxLength: 64),
-        new("kimlikKarti", "kategori", "category", "lookup", "Kategori", Options: "kategoriler"),
-        new("kimlikKarti", "takipTuru", "trackingMode", "lookup", "Lot / seri takibi", Options: "None=Takip yok|Lot=Lot|Serial=Seri"),
+        new("kimlikKarti", "kategori", "category", "select", "Kategori", Options: "kategoriler"),
+        new("kimlikKarti", "takipTuru", "trackingMode", "select", "Lot / seri takibi", Options: "None=Yok|Lot=Lot|Serial=Seri"),
         new("kimlikKarti", "anaBirim", "unitCode", "text", "Ana birim", Required: true, MaxLength: 8, UpperCase: true),
         new("stokKarti", "minimumStok", "minimumStock", "number", "Minimum stok", Min: 0, Step: 0.0001),
         new("stokKarti", "maksimumStok", "maximumStock", "number", "Maksimum stok", Min: 0, Step: 0.0001),
@@ -382,9 +435,9 @@ public sealed class InventoryStockStandardTests
             Assert.True(field.Max == Number(props["max"]), $"{field.Input} max");
             Assert.True(field.Step == Number(props["step"]), $"{field.Input} step");
             Assert.True(field.Pattern == (string?)props["pattern"], $"{field.Input} pattern");
-            if (field.Type == "lookup")
+            if (field.Type is "lookup" or "select")
             {
-                Assert.Equal(0, (int)props["minChars"]!);
+                if (field.Type == "lookup") Assert.Equal(0, (int)props["minChars"]!);
                 var options = (string?)props["optionsQuery"] ?? string.Join("|", Strings(props["staticOptions"]));
                 Assert.Equal(field.Options, options);
             }
@@ -392,7 +445,10 @@ public sealed class InventoryStockStandardTests
         var category = Props("kategori");
         Assert.Equal("name", (string)category["optionValueColumn"]!);
         Assert.Equal("name", (string)category["optionLabelColumn"]!);
-        Assert.True((bool)category["allowClear"]!);
+        // Select inputs: the empty "Seçin" option clears; lookup-only props are absent.
+        Assert.Null(category["allowClear"]);
+        Assert.Null(category["minChars"]);
+        Assert.Null(Props("takipTuru")["minChars"]);
         Assert.Equal("stok.kategoriler", (string)Query("kategoriler")["operation"]!);
         var currency = Props("fiyatParaBirimi");
         Assert.Equal("Üç harfli para birimi kodu girin (ör. TRY).", (string)currency["patternMessage"]!);
@@ -583,6 +639,29 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);
         Assert.Equal("load", (string)Query("negatifStok")["runOn"]!);
         Assert.Empty(Query("negatifStok")["parameters"]!.AsArray());
+    }
+
+    [Fact]
+    public void Negative_stock_strip_sits_below_the_list_for_everyone()
+    {
+        var expected = new (string Id, string Title, string Variant, string VisibleWhen)[]
+        {
+            ("negatifStokKorumaAcik", "Negatif stok koruması açık", "success", "negatifStok.rows[0].allowNegativeStock == false"),
+            ("negatifStokKorumaKapali", "Negatif stok koruması kapalı", "warning", "negatifStok.rows[0].allowNegativeStock == true")
+        };
+        var order = AllComponents().Select(x => (string)x["id"]!).ToList();
+        foreach (var (id, title, variant, visibleWhen) in expected)
+        {
+            Assert.Equal("alert", (string)Component(id)["type"]!);
+            var props = Props(id);
+            Assert.Equal((title, variant, visibleWhen, 12), ((string)props["title"]!, (string)props["variant"]!, (string)props["visibleWhen"]!, (int)props["width"]!));
+            Assert.Contains("Değer ağırlıklı ortalama", (string)props["text"]!);
+            Assert.True(order.IndexOf(id) > order.IndexOf("liste"), id);
+            // Not tab- or dialog-owned: visible on the page itself.
+            var owned = AllComponents().Where(x => (string)x["type"]! == "tabs").SelectMany(x => Strings(x["props"]!["tabs"]))
+                .SelectMany(tab => tab.Split('=', 2)[1].Split(',')).Concat(AllComponents().Where(x => (string)x["type"]! == "dialog").SelectMany(x => Strings(x["props"]!["contains"])));
+            Assert.DoesNotContain(id, owned);
+        }
     }
 
     // ---- Task 6: movement dialog, list and reversal ----

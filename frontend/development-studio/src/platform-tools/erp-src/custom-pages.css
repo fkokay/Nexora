@@ -490,6 +490,10 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-form-card-grid.is-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .pd-frame .pd-form-card-grid.is-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .pd-frame .pd-form-card-cell{min-width:0}
+.pd-frame .pd-form-card.is-inline{min-height:0;padding:8px 12px}
+.pd-frame .pd-form-card-grid.is-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.pd-frame .pd-form-card-grid.is-inline>.pd-form-card-cell{flex:0 1 auto}
+.pd-frame .pd-form-card-grid.is-inline label{display:flex;align-items:center;gap:6px}
 .pd-frame .pd-form-card-cell .pd-binding-preview-input{margin:0;padding:0}
 .pd-frame .pd-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .pd-frame .pd-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--dl-primary) 30%,var(--dl-surface));border-radius:999px;color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-size:12px;line-height:1.6}

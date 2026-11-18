@@ -64,6 +64,10 @@
 .tenant-page-table th { padding: 7px 9px; border-bottom: 1px solid var(--nx-line); background: var(--nx-table-head); color: var(--nx-muted); font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; }
 .tenant-page-table td { max-width: 360px; height: var(--nx-row-h-dense); padding: 5px 9px; border-bottom: 1px solid var(--nx-line-soft); text-align: left; overflow-wrap: anywhere; }
 .tenant-page-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Dar tabloda (yan panel, yarım genişlik) kod ve metin hücreleri harf harf kırılmasın: kod tek satır, metin sözcük
+   sınırında kırılır ve okunur bir en az genişliği korur; tablo sığmazsa kaydırma çubuğu çıkar. */
+.tenant-page-table td.code { min-width: 100px; white-space: nowrap; overflow-wrap: normal; }
+.tenant-page-table td.is-text { min-width: 160px; overflow-wrap: break-word; }
 .tenant-page-table tbody tr:last-child td { border-bottom: 0; }
 .tenant-page-row-selectable { cursor: pointer; }
 .tenant-page-row-selectable:hover td { background: var(--nx-table-head); }
@@ -188,6 +192,32 @@
 .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .tenant-page-form-card-cell { min-width: 0; }
 .tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
+/* Form kartı `layout: "inline"`: listenin üstündeki tek satırlık süzgeç dizilimi (taslak `.tb`). Etiket kutunun solunda,
+   onay kutusu çip görünümünde; sığmayan giriş alt satıra kayar. */
+/* Kart çerçevesi yok: araç satırı sayfa zemininde durur (kabuğun `[class*='-card']` dolgu kuralı #root ile aşılır). */
+.tenant-page-form-card.is-inline { display: flex; align-items: center; padding: 0 !important; border: 0; background: transparent; box-shadow: none; }
+#root .app-shell .tenant-page-form-card.is-inline { padding: 0 !important; border: 0 !important; background-color: transparent !important; box-shadow: none !important; }
+/* Yer tutuculu metin girişinin (arama) etiketi görsel olarak gizlenir; erişilebilir ad olarak kalır. */
+.tenant-page-form-card-grid.is-inline .tenant-page-input-text > label:has(input[placeholder]:not([placeholder=""])) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Son öğe (ör. "Detay paneli") satırın sağına yaslanır. */
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child) { margin-left: auto; }
+/* Onay kutusu çip olarak çizilir: kutu görünmez ama odaklanabilir ve ekran okuyucuya açıktır. */
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label { position: relative; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox input[type="checkbox"] { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label:has(input:focus-visible) { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+.tenant-page-form-card-grid.is-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; width: 100%; }
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell { flex: 0 1 auto; }
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:first-child:has(.tenant-page-input-text) { flex: 1 1 240px; max-width: 360px; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input > label,
+.tenant-page-form-card-grid.is-inline .tenant-page-lookup { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-text > label > input { min-width: 0; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-select select,
+.tenant-page-form-card-grid.is-inline .tenant-page-lookup-control { width: 220px; max-width: 100%; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label { min-height: var(--nx-control-h); box-sizing: border-box; padding: 0 10px; border: 1px solid var(--nx-line); border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tenant-page-form-card-grid.is-inline .tenant-page-input-checkbox > label:has(input:checked) { border-color: var(--nx-primary); color: var(--nx-primary-strong, var(--nx-primary)); background: color-mix(in srgb, var(--nx-primary) 8%, transparent); }
+/* Zorunlu giriş işareti: etiketten sonra "*" (erişilebilir ad değişmez; zorunluluk `required`/aria ile bildirilir). */
+.tenant-page-input.is-required > label > span::after,
+.tenant-page-input.is-required .tenant-page-lookup > label > span::after { content: " *"; color: var(--nx-bad); font-weight: 600; }
 /* Süzgeç çipleri — taslak `.chips`/`.chip`; ✕ ve Temizle düğmeleri eski kabuk `.content button` kuralını ezmek için önekli */
 .tenant-page-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .tenant-page-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 12px; line-height: 1.6; }
@@ -262,7 +292,11 @@
 .tenant-page-row-action:hover:not(:disabled) { border-color: var(--nx-primary); color: var(--nx-primary-strong); }
 .tenant-page-row-action:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
 .tenant-page-row-action:disabled { opacity: .45; cursor: not-allowed; }
-.tenant-page-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--nx-text) 38%, transparent); }
+.tenant-page-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(15, 27, 45, .35); }
+/* ERP kabuğunun `.app-shell :is([class*='-dialog'], …) { background-color: surface !important; border-radius … !important }`
+   kuralı arka planı da (sınıf adı "-dialog" içerir) opak beyaza çeviriyordu; pencere arkasındaki sayfa yarı saydam
+   karartmayla görünür kalır. #root seçicisi kabuk kuralından (0,3,0) daha özgüldür. */
+#root .app-shell .tenant-page-dialog-backdrop, .app-shell .tenant-page-dialog-backdrop.tenant-page-dialog-backdrop.tenant-page-dialog-backdrop { background-color: rgba(15, 27, 45, .35) !important; border-radius: 0 !important; }
 .tenant-page-dialog { display: flex; flex-direction: column; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: hidden; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); box-shadow: 0 18px 48px color-mix(in srgb, var(--nx-text) 24%, transparent); }
 .tenant-page-dialog-backdrop:has(.tenant-page-dialog.is-drawer) { place-items: stretch end; padding: 0; }
 .tenant-page-dialog.is-drawer { width: min(560px, 100%); max-height: none; height: 100vh; border-radius: 0; }

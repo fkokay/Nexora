@@ -10,7 +10,7 @@ import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
-import { LookupInput, lookupCandidates, lookupOptionsWithValue, type LookupOption } from "./custom-page/LookupInput";
+import { LookupInput, lookupCandidates, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
 import { conditionHolds } from "./custom-page/conditions";
@@ -318,6 +318,41 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
   };
 };
 
+/**
+ * `widthWhen: "8=koşul"`: koşul tutunca bileşenin sütun genişliği verilen değerdir (ör. satır seçilince liste 8, yan panel 4).
+ * Biçimi bozuk veya koşulu tutmayan değer stili değiştirmez.
+ */
+const withConditionalWidth = (style: CSSProperties, raw: unknown, scope: PageScope | undefined): CSSProperties => {
+  if (!scope || typeof raw !== "string") return style;
+  const match = /^([1-9]|1[0-2])=([\s\S]+)$/.exec(raw);
+  return match && conditionHolds(match[2], scope, false) ? { ...style, gridColumn: `span ${match[1]}` } : style;
+};
+
+/** `valueLabels: ["kolon:değer=Etiket"]`: kolon başına ham değerin gösterilen etiketi (ör. "stockItem.trackingMode:None=Yok"). */
+const parseValueLabels =(value: unknown): Record<string, Record<string, string>> => {
+  const map: Record<string, Record<string, string>> = {};
+  if (!Array.isArray(value)) return map;
+  for (const item of value) {
+    const match = typeof item === "string" ? /^([^=:]{1,128}):([^=]{0,60})=([^=]{1,60})$/.exec(item) : null;
+    if (match) (map[match[1]] ??= {})[match[2]] = match[3];
+  }
+  return map;
+};
+
+/** "anahtar=değer" listesi (columnLabels, columnUnits); ilk "=" ayraçtır, bozuk öğe atlanır. */
+const pairMap = (value: unknown): Record<string, string> => Object.fromEntries((Array.isArray(value) ? value : []).flatMap((item) => {
+  const text = typeof item === "string" ? item : "";
+  const at = text.indexOf("=");
+  return at > 0 && at < text.length - 1 ? [[text.slice(0, at), text.slice(at + 1)]] : [];
+}));
+
+/** Hücre değeri: eşleşen değer etiketi varsa o, yoksa biçimlenmiş değer. */
+const labeledCell = (labels: Record<string, Record<string, string>>, code: string, value: unknown, format?: ColumnFormat, dataType?: string) => {
+  const own = labels[code];
+  const key = value == null ? "" : typeof value === "object" ? null : String(value);
+  return own && key !== null && Object.prototype.hasOwnProperty.call(own, key) ? own[key] : formatCell(value, format, dataType);
+};
+
 function EmbeddedCustomForm({ form, token }: { form: EmbeddedForm; token: string }) {
   const [values, setValues] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(form.fields.map((field) => [field.code, field.defaultValue ?? (field.dataType === "Boolean" ? "false" : "")])));
@@ -379,8 +414,12 @@ function QueryMetric({ state, title, description, style, ...card }: { state: Que
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
-export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
+  /** Kolon başına ham değer → gösterilen etiket (`valueLabels`). */
+  valueLabels?: Record<string, Record<string, string>>;
+  /** Kolon → başlık (`columnLabels`) ve kolon → aynı satırdaki birim kolonu (`columnUnits`). */
+  columnLabels?: Record<string, string>; columnUnits?: Record<string, string>;
   selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
   /** Sunucu sayfalı liste: sonuç her zaman "kesilmiş"tir; uyarı yerine sayfa alt satırı gösterilir. */
@@ -394,7 +433,9 @@ export function QueryTable({ state, columns, title, description, style, selected
   /** Satır işleminin sonucu. */
   status?: ActionStatus | null;
 }) {
-  const chosen = columns.length > 0 ? state.columns.filter((column) => columns.includes(column.code)) : [];
+  // Seçilen sütunlar tasarımcının seçim sırasıyla çizilir (sorgunun sütun sırasıyla değil); başlık `columnLabels` ile değişebilir.
+  const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
+    .map((column) => columnLabels[code] ? { ...column, label: columnLabels[code] } : column)) : [];
   const visible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
   const hasTotals = visible.some((column) => totals.includes(column.code));
   const drawn = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
@@ -408,12 +449,17 @@ export function QueryTable({ state, columns, title, description, style, selected
     onSelect?.(same ?? null);
   }, [state.rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
+  // Kod sütunu bölünmez, metin sütunu en az okunur genişlikte kalır: dar tabloda sözcükler harf harf kırılmaz.
   const cellClass = (column: { code: string; dataType?: string }) => {
     const format = formats[column.code];
-    return [isRightAligned(format, column.dataType) ? "num" : "", format === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
+    const right = isRightAligned(format, column.dataType);
+    const isText = !right && (format === "text" || (format === undefined && (column.dataType ?? "text") === "text"));
+    return [right ? "num" : "", format === "code" ? "code" : "", isText ? "is-text" : ""].filter(Boolean).join(" ") || undefined;
   };
   const renderCell = (column: { code: string; dataType?: string }, row: Record<string, unknown>) => {
-    const text = formatCell(row[column.code], formats[column.code], column.dataType);
+    const value = labeledCell(valueLabels, column.code, row[column.code], formats[column.code], column.dataType);
+    const unit = columnUnits[column.code] ? displayText(row[columnUnits[column.code]]) : "";
+    const text = unit && value !== "—" ? `${value} ${unit}` : value;
     if (formats[column.code] !== "status" || text === "—") return text;
     const tone = toneFor(text, toneMap);
     return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
@@ -563,11 +609,15 @@ function QueryActionButton({ component, props, label, runtime, disabled: conditi
   </div>;
 }
 
-/** Seçim girişinin seçenekleri (optionsQuery sonucundan); satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur. */
+/**
+ * Seçim girişinin seçenekleri: önce sabit seçenekler (`staticOptions`, "değer=Etiket"), sonra optionsQuery satırları;
+ * satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur (sabit seçeneklerde boş satır).
+ */
 const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState) => {
   const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
   const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
-  return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
+  const fixed = staticLookupOptions(props.staticOptions).map(({ value, label }) => ({ value, label, row: {} as Record<string, unknown> }));
+  return [...fixed, ...(optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }))];
 };
 
 export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup }: {
@@ -577,9 +627,11 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
   const inputId = `page-input-${component.id}`;
+  // Zorunlu giriş (required veya tutan requiredWhen) etiketin ardında "*" ile işaretlenir (CSS ::after; erişilebilir ad değişmez).
+  const requiredClass = props.required === true && inputType !== "checkbox" ? " is-required" : "";
   if (inputType === "lookup") {
     // Arama kutusu yalnız `required` kuralını destekler; bulanıklaşma sarmalayıcıda yakalanır (doğrulama iletisi için).
-    return <div className={`tenant-page-input tenant-page-input-lookup${error ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
+    return <div className={`tenant-page-input tenant-page-input-lookup${requiredClass}${error ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
       <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
         allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
         error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
@@ -597,9 +649,13 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     control = <input {...common} type="checkbox" checked={raw === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
     const options = selectOptions(props, optionsState);
-    control = <select {...common} value={typeof raw === "string" ? raw : ""} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
+    const current = typeof raw === "string" ? raw : "";
+    // Seçeneklerde olmayan geçerli değer (ör. listeden kaldırılmış kategori) silinmez; kendi seçeneğiyle gösterilir.
+    const orphan = current !== "" && !optionsState?.loading && !options.some((option) => option.value === current);
+    control = <select {...common} value={current} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
+      {orphan && <option value={current}>{current}</option>}
     </select>;
   } else {
     const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
@@ -608,7 +664,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
       placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
-  return <div className={`tenant-page-input tenant-page-input-${inputType}${invalid ? " is-invalid" : ""}`} style={style}>
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
@@ -635,7 +691,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
-  const style = visualStyle(component.type, props);
+  const style = withConditionalWidth(visualStyle(component.type, props), component.props?.widthWhen, runtime?.scope);
   const title = textValue(props.title);
   const text = textValue(props.text ?? props.label);
   const description = textValue(props.description);
@@ -651,7 +707,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
       const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
       const changes = runtime && props.trackChanges === true ? runtime.cardChanges(component) : 0;
-      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined}>
+      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={props.layout === "inline"}>
         {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
       </FormCard>;
     }
@@ -692,7 +748,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const table = typeof props.table === "string" ? runtime.tableById[props.table] : undefined;
       const row = table?.name ? runtime.selections[table.name] ?? null : null;
       const formats = parseColumnFormats(table?.props?.columnFormats);
-      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+      const labels = parseValueLabels(table?.props?.valueLabels);
+      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? labeledCell(labels, field.code, row[field.code], formats[field.code]) : "" }));
       const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
       const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
       const related = relatedState ? {
@@ -807,7 +864,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         return <QueryTable key={component.id} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
-          rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null} />;
+          rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }

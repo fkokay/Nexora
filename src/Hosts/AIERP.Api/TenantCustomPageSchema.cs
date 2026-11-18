@@ -44,7 +44,9 @@ internal static class TenantCustomPageSchema
       // Proje 4: the actionBar's record dialog (Yeni / Aç).
       "formDialog",
       // Proje 4: conditional required input (e.g. only while an existing record is edited).
-      "requiredWhen" };
+      "requiredWhen",
+      // Proje 4: compact one-row formCard (e.g. the filter row above a list), conditional width and per-value cell labels.
+      "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog" };
@@ -883,6 +885,14 @@ internal static class TenantCustomPageSchema
             { error = $"'{key}' koşulu geçersiz: {reason}"; return false; }
             context.PendingConditionRoots.Add((key, roots));
         }
+        if (props.TryGetProperty("widthWhen", out var widthWhen))
+        {
+            if (!MatchesSafely(WidthWhenItem, widthWhen))
+            { error = "'widthWhen' genişlik=koşul biçiminde olmalıdır (genişlik 1–12)."; return false; }
+            if (!PageConditionExpression.TryParse(widthWhen.GetString()!.Split('=', 2)[1], out var widthRoots, out var widthReason))
+            { error = $"'widthWhen' koşulu geçersiz: {widthReason}"; return false; }
+            context.PendingConditionRoots.Add(("widthWhen", widthRoots));
+        }
         if (props.TryGetProperty("disabledReason", out _))
         {
             if (typeText is not ("button" or "input" or "editableGrid" or "customFieldsBlock"))
@@ -916,13 +926,19 @@ internal static class TenantCustomPageSchema
         return true;
     }
 
+    private static bool ValidStaticOptions(JsonElement value) => value.ValueKind == JsonValueKind.Array && value.GetArrayLength() <= MaxStaticOptions
+        && value.EnumerateArray().All(x => MatchesSafely(StaticOptionItem, x));
+
     private static bool ValidateLookupProps(JsonElement props, string typeText, string? inputType, out string? error)
     {
         error = null;
         var isLookup = inputType == "lookup";
+        // Sabit seçenekler açılır listede (select) de kullanılabilir; diğer arama kutusu özellikleri yalnız lookup'ta.
         foreach (var key in LookupProps)
-            if (!isLookup && props.TryGetProperty(key, out _))
+            if (!isLookup && !(key == "staticOptions" && inputType == "select") && props.TryGetProperty(key, out _))
             { error = $"'{key}' yalnız arama kutusu (inputType: lookup) girişinde kullanılabilir."; return false; }
+        if (inputType == "select" && props.TryGetProperty("staticOptions", out var selectStatic) && !ValidStaticOptions(selectStatic))
+        { error = "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır."; return false; }
         if (!isLookup) return true;
         if (props.TryGetProperty("optionDescriptionColumn", out var description)
             && (description.ValueKind != JsonValueKind.String || description.GetString()!.Length is < 1 or > 128))
@@ -932,8 +948,7 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("allowClear", out var allowClear) && !IsBool(allowClear))
         { error = "'allowClear' true veya false olmalıdır."; return false; }
         var hasStatic = props.TryGetProperty("staticOptions", out var staticOptions);
-        if (hasStatic && (staticOptions.ValueKind != JsonValueKind.Array || staticOptions.GetArrayLength() > MaxStaticOptions
-            || staticOptions.EnumerateArray().Any(x => !MatchesSafely(StaticOptionItem, x))))
+        if (hasStatic && !ValidStaticOptions(staticOptions))
         { error = "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır."; return false; }
         if (!hasStatic && !props.TryGetProperty("optionsQuery", out _))
         { error = "Arama kutusu için seçenek sorgusu veya sabit seçenek gerekli."; return false; }
@@ -1141,8 +1156,19 @@ internal static class TenantCustomPageSchema
         ["definitionsQuery"] = ["customFieldsBlock"], ["valuesQuery"] = ["customFieldsBlock"],
         ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
-        ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"]
+        ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
+        ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"]
     };
+    private const int MaxColumnMaps = 20;
+    private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ColumnUnitItem = new(@"^[^=]{1,128}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static bool ValidItems(JsonElement props, string key, Regex item, int max) => !props.TryGetProperty(key, out var value)
+        || value.ValueKind == JsonValueKind.Array && value.GetArrayLength() is >= 1 && value.GetArrayLength() <= max && value.EnumerateArray().All(x => MatchesSafely(item, x));
+    private const int MaxValueLabels = 40;
+    /// <summary>"kolon:değer=Etiket" (değer boş olabilir); hücrede ve bağlam panelinde ham değer yerine etiket yazılır.</summary>
+    private static readonly Regex ValueLabelItem = new(@"^[^=:]{1,128}:[^=]{0,60}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    /// <summary>"genişlik=koşul": koşul tutunca bileşenin sütun genişliği (1–12) bu değer olur.</summary>
+    private static readonly Regex WidthWhenItem = new(@"^([1-9]|1[0-2])=(.+)\z", RegexOptions.CultureInvariant | RegexOptions.Singleline, RegexTimeout);
 
     private static bool IsStaticTextUpTo(JsonElement value, int max) => value.ValueKind == JsonValueKind.String && value.GetString()!.Length <= max;
 
@@ -1175,6 +1201,13 @@ internal static class TenantCustomPageSchema
         {
             "actionBar" or "dialog" or "button" when !ValidateSequenceProps(props, id, typeText, context, out error) => false,
             "button" => ValidateButtonFazBProps(props, id, name, context, out error),
+            "dataTable" when props.TryGetProperty("valueLabels", out var valueLabels) && !(valueLabels.ValueKind == JsonValueKind.Array
+                && valueLabels.GetArrayLength() is >= 1 and <= MaxValueLabels && valueLabels.EnumerateArray().All(x => MatchesSafely(ValueLabelItem, x))) =>
+                Fail($"'valueLabels' 1–{MaxValueLabels} adet kolon:değer=Etiket öğesi içermelidir.", out error),
+            "dataTable" when !ValidItems(props, "columnLabels", ColumnLabelItem, MaxColumnMaps) =>
+                Fail($"'columnLabels' 1–{MaxColumnMaps} adet kolon=Başlık öğesi içermelidir.", out error),
+            "dataTable" when !ValidItems(props, "columnUnits", ColumnUnitItem, MaxColumnMaps) =>
+                Fail($"'columnUnits' 1–{MaxColumnMaps} adet kolon=birimKolonu öğesi içermelidir.", out error),
             "dataTable" => ValidateTableFazBProps(props, id, name, context, out error),
             "editableGrid" => ValidateGridProps(props, id, name, context, out error),
             "customFieldsBlock" => ValidateCustomFieldsBlock(props, id, name, context, out error),
@@ -1182,6 +1215,8 @@ internal static class TenantCustomPageSchema
             "image" => ValidateImageProps(props, out error),
             "formCard" when props.TryGetProperty("trackChanges", out var track) && !IsBool(track) =>
                 Fail("'trackChanges' true veya false olmalıdır.", out error),
+            "formCard" when props.TryGetProperty("layout", out var layout) && !(layout.ValueKind == JsonValueKind.String && layout.GetString() is "grid" or "inline") =>
+                Fail("Form kartının 'layout' değeri \"grid\" veya \"inline\" olmalıdır.", out error),
             _ => true
         };
     }

@@ -110,10 +110,11 @@ export function LookupPreview({ placeholder, value, options, ready }: {
 
 // Düzen bileşenleri önizlemeleri: ERP LayoutComponents.tsx (FormCard / FilterChips / FacetPanel / ContextPanel) ile aynı yapı; etkileşimsizdir.
 
-export function FormCardPreview({ title, columns, children, style }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties }) {
-  return <section className="pd-layout-block pd-form-card" style={style}>
-    {title && <h3>{title}</h3>}
-    <div className={`pd-form-card-grid is-cols-${columns}`}>
+/** `inline`: tek satırlık süzgeç dizilimi (ERP FormCard `layout: "inline"` ile aynı; başlık ve sütun sayısı kullanılmaz). */
+export function FormCardPreview({ title, columns, children, style, inline = false }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties; inline?: boolean }) {
+  return <section className={`pd-layout-block pd-form-card${inline ? " is-inline" : ""}`} style={style}>
+    {title && !inline && <h3>{title}</h3>}
+    <div className={inline ? "pd-form-card-grid is-inline" : `pd-form-card-grid is-cols-${columns}`}>
       {Children.map(children, (child) => child == null || child === false ? null : <div className="pd-form-card-cell">{child}</div>)}
     </div>
   </section>;

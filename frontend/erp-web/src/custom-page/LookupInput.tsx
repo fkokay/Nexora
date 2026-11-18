@@ -11,7 +11,7 @@ const MAX_LOOKUP_OPTIONS = 50;
 const textOf = (value: unknown) => (typeof value === "string" ? value : "");
 
 /** "değer=Etiket" sabit seçenekleri; "=Tüm depolar" boş değerlidir. Bozuk (ayraçsız veya etiketsiz) öğeler atlanır. */
-function staticLookupOptions(value: unknown): LookupOption[] {
+export function staticLookupOptions(value: unknown): LookupOption[] {
   if (!Array.isArray(value)) return [];
   const options: LookupOption[] = [];
   for (const item of value) {

@@ -124,7 +124,9 @@ const managedKeys = new Set(["text", "title", "label", "description", "value", "
   // Proje 2 Faz B: kayıt dizisi, satır işlemleri, gerekçe, düzenlenebilir tablo, özel alanlar, pencere, görsel ve değişiklik izleme.
   "saveSequence", "stopOnError", "sequenceWhen", "rowActions", "emptyText", "limit", "promptLabel", "promptRequired", "dialogId",
   "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
-  "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit", "recordKey", "trackChanges"]);
+  "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit", "recordKey", "trackChanges",
+  // Proje 4: form kartının tek satır (süzgeç) dizilimi, koşullu genişlik ve değer etiketleri.
+  "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -657,22 +659,22 @@ const templates: Template[] = [
  * Arama kutusunun sabit seçenekleri: metin yerelde tutulur (yeni satır yazılabilsin); kaydedilen değer boş satırları
  * içermez ve en çok 20 öğedir. Fazlası için uyarı gösterilir. Değer dışarıdan değişirse (geri al) metin yeniden kurulur.
  */
-function StaticOptionsField({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+function StaticOptionsField({ value, onChange, max = MAX_STATIC_OPTIONS, disabled = false }: { value: string[]; onChange: (next: string[]) => void; max?: number; disabled?: boolean }) {
   const [draft, setDraft] = useState(() => value.join("\n"));
   const linesOf = (text: string) => text.split("\n").map((line) => line.trim()).filter(Boolean);
   const joined = value.join("\n");
   // Yalnız dış değer değişince eşitlenir (yazarken taslaktaki boş satırlar korunur).
   useEffect(() => {
-    if (!sameList(value, linesOf(draft).slice(0, MAX_STATIC_OPTIONS))) setDraft(joined);
+    if (!sameList(value, linesOf(draft).slice(0, max))) setDraft(joined);
   }, [joined]);
-  const tooMany = linesOf(draft).length > MAX_STATIC_OPTIONS;
+  const tooMany = linesOf(draft).length > max;
   return <>
-    <textarea rows={3} value={draft} spellCheck={false} onChange={(event) => {
+    <textarea rows={3} value={draft} spellCheck={false} disabled={disabled} onChange={(event) => {
       setDraft(event.target.value);
-      const next = linesOf(event.target.value).slice(0, MAX_STATIC_OPTIONS);
+      const next = linesOf(event.target.value).slice(0, max);
       if (!sameList(value, next)) onChange(next);
     }}/>
-    {tooMany && <small className="pd-query-warning">En fazla {MAX_STATIC_OPTIONS} seçenek; fazlası kaydedilmez.</small>}
+    {tooMany && <small className="pd-query-warning">En fazla {max} satır; fazlası kaydedilmez.</small>}
   </>;
 }
 
@@ -1680,7 +1682,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
         const chosen = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string") : [];
-        const picked = preview ? preview.columns.filter((column) => chosen.includes(column.code)) : [];
+        // ERP ile aynı: seçilen sütunlar seçim sırasıyla, `columnLabels` başlıklarıyla çizilir.
+        const headings = Object.fromEntries((Array.isArray(props.columnLabels) ? props.columnLabels : []).flatMap((item) => {
+          const text = typeof item === "string" ? item : ""; const at = text.indexOf("=");
+          return at > 0 ? [[text.slice(0, at), text.slice(at + 1)]] : [];
+        }));
+        const picked = preview ? chosen.flatMap((code) => preview.columns.filter((column) => column.code === code).map((column) => headings[code] ? { ...column, label: headings[code] } : column)) : [];
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
         // Arama girişi üst düzeyde çizilmez; önizleme yokken de listenin başlığında görünür.
         const searchInput = isPagedTable(component) && typeof props.searchInput === "string" ? inputById.get(props.searchInput) : undefined;
@@ -1713,7 +1720,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "formCard": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
-        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} style={style}>{members.map((input) => renderInput(input, {}))}</FormCardPreview>;
+        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}))}</FormCardPreview>;
       }
       case "filterChips": {
         const chips = idList(props.inputs).flatMap((id) => {
@@ -2295,7 +2302,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
                 ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
                 // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
-                ...(event.target.value !== "lookup" ? lookupReset : {}),
+                // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
+                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
                 // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
                 ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
               })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -2310,6 +2318,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                       : <input value={chosen} maxLength={128} spellCheck={false} placeholder="Sütun adı" onChange={(event) => patchComponent(selected.id, { [key]: event.target.value.trim() || undefined })}/>}
                   </label>;
                 })}
+                {(() => {
+                  const staticOptions = Array.isArray(selected.props.staticOptions) ? selected.props.staticOptions.filter((item): item is string => typeof item === "string") : [];
+                  return <label className="pd-field">Sabit seçenekler<small>Her satıra bir “değer=Etiket” yazın (ör. “Lot=Lot”). Sorgu sonuçlarından önce gösterilir (en fazla {MAX_STATIC_OPTIONS}).</small>
+                    <StaticOptionsField key={selected.id} value={staticOptions} onChange={(next) => patchComponent(selected.id, { staticOptions: next.length > 0 ? next : undefined })}/>
+                    {staticOptions.some((entry) => !STATIC_OPTION.test(entry)) && <small className="pd-query-warning">'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır.</small>}</label>;
+                })()}
               </>}
               {selected.props.inputType === "lookup" && renderLookupFields(selected)}
               {renderValidationFields(selected)}
@@ -2450,6 +2464,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <InputPicker inputs={pageInputs} value={layoutInputIds} owned={layoutOwners} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { inputs: next })}/>
                 {layoutInputIds.length === 0 && <small className="pd-query-warning">{pageInputs.length === 0 ? "Bu bileşen için önce bir giriş kutusu ekleyin" : "En az bir giriş kutusu seçin; boş kart kaydedilemez."}</small>}
               </div>
+              <div className="pd-field">Dizilim<small>Tek satır: girişler başlıksız, etiketleri yanında tek satırda dizilir (ör. listenin üstündeki süzgeç satırı).</small><div className="pd-segment" role="group" aria-label="Dizilim">{([["grid", "Izgara"], ["inline", "Tek satır"]] as const).map(([value, label]) => {
+                const active = (selected.props.layout === "inline" ? "inline" : "grid") === value;
+                return <button type="button" key={value} disabled={!canEdit} aria-pressed={active} className={active ? "active" : ""} onClick={() => patchComponent(selected.id, { layout: value === "inline" ? "inline" : undefined })}>{label}</button>;
+              })}</div></div>
               <div className="pd-field">Sütun sayısı<div className="pd-segment" role="group" aria-label="Sütun sayısı">{[1, 2, 3].map((count) => <button type="button" key={count} disabled={!canEdit} aria-pressed={(Number(selected.props.columns) || 2) === count} className={(Number(selected.props.columns) || 2) === count ? "active" : ""} onClick={() => patchComponent(selected.id, { columns: count })}>{count}</button>)}</div></div>
               <label className="pd-field">Kayıt anahtarı<small>Değişince kartın girişleri yeni kaydın değerleriyle yeniden dolar. Yüklenen kayda bağlayın (ör. <code>{"{{kart.rows[0].id}}"}</code>); seçili satıra bağlarsanız kayıt yüklenmeden girişler boş değerlerle dolabilir.</small>
                 <BindingInput value={String(selected.props.recordKey ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Kayıt anahtarı"
@@ -2600,6 +2618,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <div className="pd-field">İkon<IconSelect value={typeof selected.props.icon === "string" ? selected.props.icon : undefined} disabled={!canEdit} onChange={(icon) => patchComponent(selected.id, { icon })}/></div>
               </>}
               <div className="pd-field">Genişlik<small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small><div className="pd-segment">{[3, 4, 6, 8, 9, 12].map((width) => <button type="button" key={width} className={spanOf(selected) === width ? "active" : ""} onClick={() => updateComponent(selected.id, "width", width)}>{width}</button>)}{![3, 4, 6, 8, 9, 12].includes(spanOf(selected)) && <button type="button" className="active">{spanOf(selected)}</button>}</div></div>
+              <label className="pd-field">Koşullu genişlik<small>“genişlik=koşul” yazın; koşul tutunca bileşen bu genişlikte çizilir (ör. <code>{"8=liste.seciliSatir.id != null"}</code>: satır seçilince liste daralır, yan panele yer açılır).</small>
+                <input value={typeof selected.props.widthWhen === "string" ? selected.props.widthWhen : ""} maxLength={300} spellCheck={false} disabled={!canEdit} placeholder="8=liste.seciliSatir.id != null"
+                  onChange={(event) => patchComponent(selected.id, { widthWhen: event.target.value.trim() ? event.target.value : undefined })}/>
+                {typeof selected.props.widthWhen === "string" && !/^([1-9]|1[0-2])=.+$/.test(selected.props.widthWhen) && <small className="pd-query-warning">'widthWhen' genişlik=koşul biçiminde olmalıdır (genişlik 1–12).</small>}</label>
+              {selected.type === "dataTable" && ([
+                ["columnLabels", "Sütun başlıkları", <>Her satıra bir “kolon=Başlık” yazın (ör. <code>balance.code=Stok kodu</code>); sorgunun sütun adının yerine geçer.</>, 20],
+                ["columnUnits", "Birim sütunları", <>Her satıra bir “kolon=birimKolonu” yazın (ör. <code>balance.quantityOnHand=balance.unitCode</code>); değerin ardına aynı satırın birimi yazılır (“5 EA”).</>, 20],
+                ["valueLabels", "Değer etiketleri", <>Her satıra bir “kolon:değer=Etiket” yazın (ör. <code>stockItem.trackingMode:None=Yok</code>); hücrede ve bağlam panelinde ham değer yerine etiket görünür.</>, 40],
+              ] as const).map(([key, label, help, max]) => <label key={key} className="pd-field">{label}<small>{help}</small>
+                <StaticOptionsField key={`${selected.id}-${key}`} max={max} disabled={!canEdit} value={Array.isArray(selected.props[key]) ? (selected.props[key] as unknown[]).filter((item): item is string => typeof item === "string") : []}
+                  onChange={(next) => patchComponent(selected.id, { [key]: next.length > 0 ? next : undefined })}/></label>)}
               <div className="pd-field-row">
                 <label className="pd-field">İç boşluk<input type="number" min="0" max="64" value={Number(selected.props.padding ?? defaultPadding(selected.type))} onChange={(event) => updateComponent(selected.id, "padding", event.target.value)}/></label>
                 <label className="pd-field">Dış boşluk<input type="number" min="0" max="64" value={Number(selected.props.margin ?? 0)} onChange={(event) => updateComponent(selected.id, "margin", event.target.value)}/></label>
