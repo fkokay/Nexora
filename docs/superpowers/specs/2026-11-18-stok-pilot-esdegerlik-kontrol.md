@@ -105,7 +105,7 @@ Kaynaklar:
 | Liste: depo bazında, 50'şer kayıtla sayfalı | `hareketTablosu` ← `hareketler`, `paging: server`, `pageSize 50` | karşılandı | |
 | Ters kayıt: zorunlu gerekçe, `POST …/{entryId}/reverse {reason}` | `tersKayitDugmesi` (satır işlemi). "Ters kayıt gerekçesi" istemi zorunludur ve `{reason}` gönderilir. Ters kaydı olan veya kendisi ters kayıt olan satırda pasiftir. (test: aynı) | karşılandı | |
 | Ters kayıttan sonra liste kullanılabilir kalır | Ters kayıttan sonra `liste` seçimi ve hareket satırları korunur; ikinci ters kayıt kendi `entryId`'siyle gider. (test: `reversal keeps the movement list usable`) | karşılandı | |
-| Ters kayıttan sonra liste bakiyesi hemen güncellenir | Pencere açıkken `bakiye` yenilenmez (yenilenirse seçim düşer). Liste bakiyesi pencere kapatılıp Yenile (F5) ile güncellenir. Depolar ve son hareketler hemen yenilenir. | fark | |
+| Ters kayıttan sonra liste bakiyesi hemen güncellenir | Pencere açıkken `bakiye` yenilenmez; yenilenseydi seçim düşerdi. Pencereyi kapatmak da listeyi yenilemez; liste bakiyesi yalnız Yenile (F5) ile güncellenir. Depolar ve son hareketler hemen yenilenir. | fark | |
 
 ## 4. Stok kartı formu
 
@@ -115,11 +115,11 @@ Kaynaklar:
 |---|---|---|---|
 | Düzenleme açılışı; birimler, özel alanlar, varyantlar ve reçeteler paralel yüklenir | `kartPenceresi` (çekmece). `kart` (`stok.kart.getir`) ve ona bağlı `birimler`, `ozelTanimlar`, `ozelDegerler`, `varyantlar`, `receteler` sorguları yüklenir. | karşılandı | |
 | Kaynak okumaları yüklenirken kayıt | Bir kaynak okuması (ör. özel alan değerleri) yüklenirken Kaydet hiçbir şey yazmaz ve "Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin." gösterir. (test: `save while a source read loads writes nothing`; Task 7 düzeltmesi) | karşılandı | |
-| Değişiklik izleme: değişen alan sayacı, çıkışta onay | Yedi kart formCard'ı `trackChanges: true` ve `recordKey` taşır. Kirli kayıtta Yeni ve kayıt değiştirme onay ister. | karşılandı | |
+| Değişiklik izleme: değişen alan sayacı, çıkışta onay | Yedi kart formCard'ı `trackChanges: true` ve `recordKey` taşır. Kirli kayıtta Yeni, kayıt değiştirme ve pencereyi kapatma "Kaydedilmemiş değişiklikler kaybolacak" onayını sorar. (test: `esc on a dirty card asks before closing`) | karşılandı | |
 | Her değişen alanda "Önceki: …" gösterimi | Yok | kapsam dışı | |
-| Sekme durumları (tamam / boş / hata) | `kartSekmeleri` (8 sekme). Geçersiz kayıtta ilk hatalı sekmeye geçilir. | karşılandı | |
+| Sekme durumları (tamam / boş / hata) | `kartSekmeleri` (8 sekme) yalnız hata durumunu gösterir: hata işareti ve hata sayısı. Geçersiz kayıtta ilk hatalı sekmeye geçilir. "Tamam" ve "boş" durumları yoktur. | fark | |
 | Ctrl+S kaydeder | Ctrl+S, kart penceresinin kayıt dizisini çalıştırır (test: `yeni then save posts exactly one card`) | karşılandı | |
-| Esc kapatır | Pencere kabı Esc ile kapanır. Çalışma zamanı davranışıdır; bu testlerde doğrulanmadı, canlıda bakılacak. | karşılandı | |
+| Esc kapatır | Esc pencereyi kapatır. Kirli kayıtta önce onay sorulur. (test: `esc on a dirty card asks before closing`) | karşılandı | |
 | F2 yeni kayıt; kaydedilmemiş değişiklikte onay | `formDialog` Yeni yolu. Açık pencerede F2, kirliyse "Kaydedilmemiş değişiklikler kaybolacak" onayını sorar. | karşılandı | |
 | PgUp / PgDn önceki ve sonraki kayda geçer | Yok | kapsam dışı | |
 | Eşzamanlılık: `rowVersion`, çakışmada 409 | `guncelle`, `pasifeAl` ve `aktifEt`, `rowVersion`'ı kaynak `kart` satırından alır. 409 metni gösterilir. (test: `aç then save …`, `deactivate …`) | karşılandı | |

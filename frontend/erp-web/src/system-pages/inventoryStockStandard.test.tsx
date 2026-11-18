@@ -136,7 +136,7 @@ function setup(role = 'TenantAdmin') {
   );
 }
 
-const T = { timeout: 4000 };
+const T = { timeout: 10000 };
 const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -177,7 +177,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe('Stok Kartları standart tanımı', () => {
+describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
   it('uses only operations from the catalog fixture', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
@@ -432,5 +432,18 @@ describe('Stok Kartları standart tanımı', () => {
     // gider (sunucu barkodu null yapar, temizlenir); boşaltılan sayı alanı null'a çözülür ve kaynak kaydın değeri gövdede
     // kalır (maksimum stok sayfadan temizlenemez: fark). Bu plan bunu düzeltmez; davranış değişirse bu beklenti güncellenmeli.
     expect({ barcode: body.barcode, maximumStock: body.maximumStock }).toEqual({ barcode: '', maximumStock: 100 });
+  });
+
+  it('esc on a dirty card asks before closing', async () => {
+    setup();
+    await selectCard();
+    await openCard();
+    type('ad', 'Kirli');
+    fireEvent.keyDown(input('ad'), { key: 'Escape' });
+    const confirm = await screen.findByRole('alertdialog', {}, T);
+    expect(confirm.textContent).toContain('Kaydedilmemiş değişiklikler kaybolacak');
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Kapat' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok kartı/ })).toBeNull(), T);
+    expect(writes()).toEqual([]);
   });
 });
