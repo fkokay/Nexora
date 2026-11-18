@@ -204,7 +204,7 @@ internal static class CustomPageQueryEndpoints
                 .Select(x => new { x.Code, x.DefinitionJson }).SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
             // Rights first (keyed by the stored code), so a user without View cannot probe query ids.
-            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct);
+            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return Results.Json(new { error = "Bu sayfayı görüntüleme yetkiniz yok." }, statusCode: StatusCodes.Status403Forbidden);
             return await RunAsync(page.Code, page.DefinitionJson, queryId, request, tenant, userId, rights, isPreview: false, platformDb, http, ct);
         }).RequireRateLimiting(RateLimitPolicy);

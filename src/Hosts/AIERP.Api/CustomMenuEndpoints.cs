@@ -125,7 +125,8 @@ public static class CustomMenuEndpoints
     {
         var targets = Targets.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
         var pages = await db.TenantCustomPages.AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.IsPublished && !x.IsArchived)
+            // System pages (@<screenKey>) replace standard screens and are reached through them, never as menu targets.
+            .Where(x => x.TenantId == tenantId && x.IsPublished && !x.IsArchived && x.ScreenKey == null)
             .OrderBy(x => x.Name)
             .Select(x => new { x.Code, x.Name })
             .ToListAsync(ct);
