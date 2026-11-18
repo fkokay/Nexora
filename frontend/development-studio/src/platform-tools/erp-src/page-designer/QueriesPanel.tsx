@@ -1,13 +1,19 @@
 import { useState } from "react";
-import { Database, Play, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Database, Play, Plus, Search, Trash2 } from "lucide-react";
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
 import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
 import { bindingPath } from "./pageBindings";
+import { ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, findOperation, mergedParameters, type ErpCatalog, type ErpOperation } from "./erpOperations";
 
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid";
 export type PageQueryParameter = { name: string; binding: string; type: QueryParameterType };
 export type QueryKind = "read" | "insert" | "update" | "delete";
-export type PageQuery = { id: string; name: string; kind: QueryKind; sql: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
+/**
+ * Sayfa sorgusu: ya SQL (`sql`) ya da ERP işlemi (`operation`). Düzenleyicide `operation` anahtarı varsa (boş da olsa)
+ * sorgu ERP işlemi modundadır; SQL metni mod değişiminde kaybolmasın diye durumda kalır, kayıtta atılır.
+ */
+export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
+export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
@@ -102,21 +108,82 @@ type Props = {
   onRemove: (id: string) => void;
   /** Yazma türünde `confirmWrite` true gönderilir; etkilenen kayıt sayısı döner (okumada null). */
   onPreview: (id: string, confirmWrite: boolean) => Promise<number | null>;
+  /** ERP işlem kataloğu; alınamazsa ERP işlemi modu kapalıdır. */
+  catalog: ErpCatalog;
+  /** Kaynak okuma işlemini (ör. stok.kart.getir) sayfaya yeni bir sorgu olarak ekler. */
+  onAddSourceQuery: (operation: ErpOperation) => void;
 };
 
+const parameterPlaces: Record<string, string> = { route: "yol", query: "sorgu", body: "gövde" };
+
+/** Modüle göre gruplanmış, aranabilir ERP işlemi seçici. Kullanımdan kalkan işlemler gizlenir, yetkisizler pasiftir. */
+function OperationPicker({ operations, value, disabled, onPick }: { operations: ErpOperation[]; value: ErpOperation | undefined; disabled: boolean; onPick: (operation: ErpOperation) => void }) {
+  const [open, setOpen] = useState(!value);
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLocaleLowerCase("tr-TR");
+  const visible = operations.filter((operation) => !operation.deprecated
+    && (!term || operation.label.toLocaleLowerCase("tr-TR").includes(term) || operation.name.toLowerCase().includes(term) || operation.module.toLocaleLowerCase("tr-TR").includes(term)));
+  const modules = [...new Set(visible.map((operation) => operation.module))];
+  return <div className="pd-op-picker">
+    <button type="button" className="pd-op-current" aria-expanded={open} disabled={disabled} onClick={() => setOpen((current) => !current)}>
+      {value ? <span><b>{value.label}</b><small>{value.name}</small></span> : <span className="pd-op-placeholder">ERP işlemi seçin</span>}
+      {open ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+    </button>
+    {open && !disabled && <div className="pd-op-menu" onKeyDown={(event) => { if (event.key === "Escape" && value) setOpen(false); }}>
+      <label className="pd-search"><Search size={13}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="İşlem ara" aria-label="ERP işlemi ara"/></label>
+      <div className="pd-op-list" role="listbox" aria-label="ERP işlemleri">
+        {modules.length === 0 ? <p className="pd-query-muted">Eşleşen işlem yok.</p> : modules.map((module) => <div className="pd-op-group" role="group" aria-label={module} key={module}>
+          <p className="pd-op-group-head">{module}</p>
+          {visible.filter((operation) => operation.module === module).map((operation) => <button type="button" role="option" key={operation.name}
+            aria-selected={operation.name === value?.name} className={operation.name === value?.name ? "is-selected" : undefined}
+            disabled={!operation.allowed} title={operation.allowed ? undefined : ERP_NOT_ALLOWED}
+            onClick={() => { onPick(operation); setOpen(false); setSearch(""); }}>
+            <span>{operation.label}</span><small>{operation.name}</small>
+          </button>)}
+        </div>)}
+      </div>
+    </div>}
+  </div>;
+}
+
 /** Tasarımcının "Sorgular" sekmesi: sorgu kartları, seçili sorgunun SQL'i, parametreleri ve önizlemesi. */
-export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview }: Props) {
+export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery }: Props) {
   const [running, setRunning] = useState<string | null>(null);
   const [affected, setAffected] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const selected = queries.find((query) => query.id === selectedId) ?? null;
   const write = !!selected && isWriteKind(selected.kind);
+  const erpMode = !!selected && isOperationQuery(selected);
+  const operation = selected ? findOperation(catalog, selected.operation) : undefined;
+  const operations = catalog.status === "ready" ? catalog.operations : [];
+  // ERP yazma işlemleri Studio önizlemesinde hiç çalışmaz (yalnız yayımlanmış sayfada düğmeyle).
+  const erpWrite = erpMode && (write || operation?.kind === "write");
+  const runBlockedReason = erpWrite ? ERP_WRITE_PREVIEW_BLOCKED : erpMode && !operation ? "Önce bir ERP işlemi seçin." : previewBlockedReason;
+  const sourceOperation = operation?.sourceOperation ? findOperation(catalog, operation.sourceOperation) : undefined;
+  const sourceQuery = operation?.sourceOperation ? queries.find((query) => query.operation === operation.sourceOperation) : undefined;
+  const operationProblem = !erpMode || !selected?.operation || catalog.status !== "ready" ? null
+    : !operation ? `ERP işlemi bulunamadı: ${selected.operation}` : operation.deprecated ? `ERP işlemi artık kullanılamıyor: ${selected.operation}` : null;
+  const pickOperation = (picked: ErpOperation) => {
+    if (!selected) return;
+    onUpdate(selected.id, {
+      operation: picked.name, kind: picked.pageKind, runOn: picked.kind === "read" ? "load" : "manual",
+      parameters: picked.parameters.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType })),
+    });
+  };
+  const setMode = (toErp: boolean) => {
+    if (!selected || toErp === erpMode) return;
+    // SQL'e dönüşte parametreler SQL metninden yeniden çıkarılır (sql yaması bunu tetikler).
+    // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
+    onUpdate(selected.id, toErp ? { operation: "", parameters: [] }
+      : { operation: undefined, sql: selected.sql ?? "SELECT 1 AS Deger", kind: "read", runOn: "load", parameters: [] });
+  };
   const preview = selected ? previews[selected.id] : undefined;
   // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
   const ownSuggestions = selected ? suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${selected.name.toLowerCase()}.`)) : suggestions;
   const run = async (query: PageQuery) => {
     const id = query.id;
     const writing = isWriteKind(query.kind);
+    if (isOperationQuery(query) && writing) return;
     if (writing && !window.confirm(WRITE_CONFIRM)) return;
     setRunning(id);
     setErrors((current) => { const next = { ...current }; delete next[id]; return next; });
@@ -137,7 +204,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
         return <li key={query.id}>
           <button type="button" className={`pd-query-card ${query.id === selectedId ? "is-selected" : ""}`} aria-pressed={query.id === selectedId} onClick={() => onSelect(query.id)}>
             <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className={`pd-query-kind${isWriteKind(query.kind) ? " is-write" : ""}`}>{queryKindLabels[query.kind]}</span></span>
-            <small>{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnLabels[query.runOn]}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
+            <small>{isOperationQuery(query) ? "ERP işlemi · " : ""}{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnLabels[query.runOn]}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
           </button>
         </li>;
       })}</ul>}
@@ -146,6 +213,14 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
 
     {selected && <section className="pd-query-detail" aria-label={`${selected.name} sorgusu`}>
       <fieldset className="pd-fieldset" disabled={!editable}>
+        <div className="pd-field">Kaynak<div className="pd-segment pd-query-mode" role="group" aria-label="Sorgu kaynağı">
+          <button type="button" aria-pressed={!erpMode} className={!erpMode ? "active" : ""} onClick={() => setMode(false)}>SQL sorgusu</button>
+          <button type="button" aria-pressed={erpMode} className={erpMode ? "active" : ""} disabled={!erpMode && catalog.status !== "ready"}
+            title={catalog.status === "failed" ? ERP_CATALOG_FAILED : catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : undefined}
+            onClick={() => setMode(true)}>ERP işlemi</button>
+        </div>
+        {catalog.status === "failed" && <small className="pd-query-warning">{ERP_CATALOG_FAILED}</small>}
+        </div>
         <div className="pd-field-row pd-query-meta">
           <label className="pd-field">Ad<input className="pd-query-name" value={selected.name} maxLength={64} spellCheck={false}
             onChange={(event) => onUpdate(selected.id, { name: event.target.value }, `query:${selected.id}:name`)}/></label>
@@ -154,14 +229,57 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
               <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
             </select></label>}
         </div>
-        <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
-          {(Object.keys(queryKindLabels) as QueryKind[]).map((kind) => <button type="button" key={kind} aria-pressed={selected.kind === kind} className={`${selected.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
-            onClick={() => { if (kind !== selected.kind) onUpdate(selected.id, isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
-        </div></div>
+        {erpMode ? <div className="pd-field">Tür<small>{queryKindLabels[selected.kind]} · seçilen işlemden gelir.</small></div>
+          : <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
+            {(Object.keys(queryKindLabels) as QueryKind[]).map((kind) => <button type="button" key={kind} aria-pressed={selected.kind === kind} className={`${selected.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
+              onClick={() => { if (kind !== selected.kind) onUpdate(selected.id, isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
+          </div></div>}
         {nameProblem(selected.name, takenNames(selected.id)) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames(selected.id))}</small>}
       </fieldset>
+      {erpMode ? <>
+        <div className="pd-field">ERP işlemi<small>Sayfa yalnız katalogdaki işlemi çağırır; adres ve yöntem işlemden gelir, kullanıcının kendi yetkisiyle çalışır.</small>
+          {catalog.status === "ready" ? <OperationPicker key={selected.id} operations={operations} value={operation} disabled={!editable} onPick={pickOperation}/>
+            : selected.operation ? <code className="pd-op-raw">{selected.operation}</code>
+              : <p className="pd-query-muted">{catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : ERP_CATALOG_FAILED}</p>}
+          {operationProblem && <small className="pd-query-warning">{operationProblem}</small>}
+          {operation && !operation.allowed && <small className="pd-query-warning">{ERP_NOT_ALLOWED}.</small>}
+        </div>
+        {operation?.sourceOperation && (sourceQuery
+          ? <p className="pd-binding-note">Bağlanmayan alanlar “{sourceOperation?.label ?? operation.sourceOperation}” sorgusundaki kayıttan korunur.</p>
+          : <div className="pd-op-source-warning" role="status">
+            <small className="pd-query-warning">Bu işlem güncellenecek kaydı “{sourceOperation?.label ?? operation.sourceOperation}” okuma sorgusundan alır; sayfada böyle bir sorgu yok.</small>
+            <button type="button" className="pd-button small" disabled={!editable || !sourceOperation || queries.length >= MAX_QUERIES}
+              title={queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : undefined}
+              onClick={() => { if (sourceOperation) onAddSourceQuery(sourceOperation); }}><Plus size={13}/>Ekle</button>
+          </div>)}
+        <div className="pd-field">Parametreler<small>Adlar ve türler işlemden gelir; <b>*</b> zorunludur.</small>
+          {(() => {
+            const rows = operation ? mergedParameters<QueryParameterType>(operation, selected.parameters)
+              : selected.parameters.map((parameter) => ({ ...parameter, spec: undefined }));
+            if (rows.length === 0) return <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>;
+            const fromSource = (place: string | undefined) => place === "route" && !!operation?.sourceOperation;
+            return <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
+              {rows.map((row) => {
+                const required = !!row.spec?.required;
+                const empty = row.binding.trim() === "";
+                const invalid = empty ? required && !fromSource(row.spec?.in) : !bindingPath(row.binding);
+                const update = (binding: string) => onUpdate(selected.id, {
+                  parameters: rows.map((item) => ({ name: item.name, binding: item.name === row.name ? binding : item.binding, type: item.type })),
+                }, `query:${selected.id}:param:${row.name}`);
+                return <tr key={row.name}>
+                  <td><code title={row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
+                  <td><BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
+                    placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/></td>
+                  <td><small>{parameterTypes.find(([value]) => value === row.type)?.[1] ?? row.type}</small></td>
+                </tr>;
+              })}
+            </tbody></table>;
+          })()}
+          {selected.parameters.some((parameter) => parameter.binding.trim() !== "" && !bindingPath(parameter.binding)) && <small className="pd-query-warning">Bağlanan her parametre tek bir <code>{"{{…}}"}</code> ifadesi olmalıdır.</small>}
+        </div>
+      </> : <>
       <div className="pd-field">SQL<small>{sqlStatements[selected.kind]} Değerleri <code>@ad</code> parametreleriyle verin.</small>
-        <SqlQueryEditor queryId={selected.id} value={selected.sql} readOnly={!editable} schema={schema}
+        <SqlQueryEditor queryId={selected.id} value={selected.sql ?? ""} readOnly={!editable} schema={schema}
           onChange={(sql) => onUpdate(selected.id, { sql }, `query:${selected.id}:sql`)}/>
       </div>
       <div className="pd-field">Parametreler<small>Adlar SQL'deki <code>@ad</code> ifadelerinden otomatik gelir.</small>
@@ -181,12 +299,13 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
           </tbody></table>}
         {selected.parameters.some((parameter) => !bindingPath(parameter.binding)) && <small className="pd-query-warning">Her parametre tek bir <code>{"{{…}}"}</code> ifadesine bağlanmalıdır.</small>}
       </div>
+      </>}
       <div className="pd-query-actions">
-        <button type="button" className="pd-button small primary" disabled={!editable || !!previewBlockedReason || running !== null} title={previewBlockedReason ?? undefined}
-          onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>
+        <button type="button" className="pd-button small primary" disabled={!editable || !!runBlockedReason || running !== null} title={runBlockedReason ?? undefined}
+          onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write && !erpMode ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>
         <button type="button" className="pd-button small danger" disabled={!editable} onClick={() => onRemove(selected.id)}><Trash2 size={13}/>Sorguyu sil</button>
       </div>
-      {previewBlockedReason && editable && <small className="pd-query-muted">{previewBlockedReason}</small>}
+      {runBlockedReason && editable && <small className="pd-query-muted">{runBlockedReason}</small>}
       {errors[selected.id] && <div className="pd-query-error" role="alert">{errors[selected.id]}</div>}
       {write && affected[selected.id] !== undefined && <div className="pd-query-affected" role="status">{affected[selected.id].toLocaleString("tr-TR")} kayıt etkilendi.</div>}
       {!write && preview && <div className="pd-query-result">

@@ -248,6 +248,7 @@ app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
 app.MapCustomPageAccessEndpoints();
 app.MapCustomPageQueryEndpoints();
+app.MapErpOperationCatalogEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();
@@ -1917,6 +1918,14 @@ stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCont
     var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Code).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays, x.PurchaseListPrice, x.SalesListPrice, x.PriceCurrencyCode, x.PurchaseVatPercent, x.SalesVatPercent, x.ExciseTaxPercent, x.CommunicationTaxPercent, x.PurchaseDiscountPercent, x.SalesDiscountPercent, x.MaximumStock, x.ReorderPoint, x.SafetyStock, x.NetWeight, x.GrossWeight, x.Length, x.Width, x.Height, x.ProductImageUrl, x.PurchaseAccountCode, x.SalesAccountCode, x.CostAccountCode, x.MarketplaceProductId, x.ParentStockItemId, x.IsVariantParent, x.WithholdingTaxPercent, x.StampTaxPercent)).ToListAsync();
     return Results.Ok(new StockItemPage(items, page, pageSize, total));
+});
+stockItems.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var item = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays, x.PurchaseListPrice, x.SalesListPrice, x.PriceCurrencyCode, x.PurchaseVatPercent, x.SalesVatPercent, x.ExciseTaxPercent, x.CommunicationTaxPercent, x.PurchaseDiscountPercent, x.SalesDiscountPercent, x.MaximumStock, x.ReorderPoint, x.SafetyStock, x.NetWeight, x.GrossWeight, x.Length, x.Width, x.Height, x.ProductImageUrl, x.PurchaseAccountCode, x.SalesAccountCode, x.CostAccountCode, x.MarketplaceProductId, x.ParentStockItemId, x.IsVariantParent, x.WithholdingTaxPercent, x.StampTaxPercent))
+        .SingleOrDefaultAsync();
+    return item is null ? Results.NotFound() : Results.Ok(item);
 });
 stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {

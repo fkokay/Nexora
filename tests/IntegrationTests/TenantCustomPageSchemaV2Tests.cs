@@ -24,6 +24,128 @@ public sealed class TenantCustomPageSchemaV2Tests
         if (contains is not null) Assert.Contains(contains, error);
     }
 
+    private static object OpQuery(string id, string name, string kind, string operation, string runOn = "manual", params object[] parameters) =>
+        new { id, name, kind, operation, parameters, runOn };
+
+    private static object StockList() => OpQuery("liste", "kartlar", "read", "stok.kart.listele", "load", Param("q", "{{arama.value}}"));
+    private static object StockRead() => OpQuery("oku", "kart", "read", "stok.kart.getir", "load", Param("id", "{{kartlar.rows[0].id}}", "guid"));
+    private static readonly object SearchInput = new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } };
+
+    [Fact]
+    public void Accepts_operation_query_and_binds_to_table()
+    {
+        var json = V2([StockList()], [SearchInput, new { id = "t1", type = "dataTable", props = new { query = "liste" } }]);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        var query = Assert.Single(TenantCustomPageQueries.ReadQueries(json));
+        Assert.Equal("stok.kart.listele", query.Operation);
+        Assert.Equal("", query.Sql);
+        // Runtime consumers keep the operation name; only SQL text is stripped.
+        Assert.Contains("stok.kart.listele", TenantCustomPageQueries.WithoutQuerySql(json));
+    }
+
+    [Fact]
+    public void Rejects_unknown_operation()
+    {
+        AssertRejected(V2([OpQuery("q1", "x", "read", "yok.islem", "load")]), "ERP işlemi bulunamadı: yok.islem");
+    }
+
+    [Fact]
+    public void Rejects_sql_and_operation_together()
+    {
+        AssertRejected(V2([new { id = "q1", name = "x", kind = "read", sql = "SELECT 1 AS x", operation = "stok.kart.listele", parameters = Array.Empty<object>(), runOn = "load" }]));
+        // Neither sql nor operation.
+        AssertRejected(V2([new { id = "q1", name = "x", kind = "read", parameters = Array.Empty<object>(), runOn = "load" }]));
+    }
+
+    [Fact]
+    public void Rejects_kind_mismatch()
+    {
+        AssertRejected(V2([OpQuery("q1", "sil", "update", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "guid"))]), "stok.kart.sil");
+        AssertRejected(V2([OpQuery("q1", "liste", "read", "stok.kart.olustur", "manual", Param("code", "{{bugun}}"), Param("name", "{{bugun}}"))]));
+    }
+
+    [Fact]
+    public void Rejects_parameter_type_mismatch()
+    {
+        AssertRejected(V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "text"))]), "id");
+        // Unknown parameter names and missing required parameters are rejected too.
+        AssertRejected(V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "guid"), Param("fazla", "{{bugun}}"))]), "fazla");
+        AssertRejected(V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual")]), "id");
+        // A write operation still runs only manually.
+        AssertRejected(V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "load", Param("id", "{{bugun}}", "guid"))]), "manual");
+    }
+
+    [Fact]
+    public void Rejects_update_without_source_read_on_page()
+    {
+        AssertRejected(V2([OpQuery("q1", "kaydet", "update", "stok.kart.guncelle", "manual", Param("name", "{{arama.value}}"))], [SearchInput]), "stok.kart.getir");
+    }
+
+    [Fact]
+    public void Accepts_update_with_source_read_and_actionBar_save()
+    {
+        var json = V2(
+            [StockList(), StockRead(), OpQuery("kaydet", "kartKaydet", "update", "stok.kart.guncelle", "manual", Param("name", "{{arama.value}}"))],
+            [SearchInput, new { id = "t1", type = "dataTable", props = new { query = "liste" } }, new { id = "ab1", type = "actionBar", props = new { saveQuery = "kaydet" } }]);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        // A write operation cannot feed a table, same as a write SQL query.
+        AssertRejected(V2([StockList(), StockRead(), OpQuery("kaydet", "kartKaydet", "update", "stok.kart.guncelle", "manual")],
+            [new { id = "t1", type = "dataTable", props = new { query = "kaydet" } }]));
+    }
+
+    [Fact]
+    public void Accepts_operation_query_with_more_than_20_parameters()
+    {
+        var names = new[] { "code", "name", "barcode", "unitCode", "category", "priceCurrencyCode", "productImageUrl", "purchaseAccountCode",
+            "salesAccountCode", "costAccountCode", "marketplaceProductId", "trackingMode", "rowVersion" };
+        var decimals = new[] { "minimumStock", "purchaseVatPercent", "salesVatPercent", "exciseTaxPercent", "communicationTaxPercent",
+            "purchaseDiscountPercent", "salesDiscountPercent", "safetyStock", "withholdingTaxPercent", "stampTaxPercent", "netWeight", "grossWeight" };
+        var parameters = names.Select(x => Param(x, "{{arama.value}}")).Concat(decimals.Select(x => Param(x, "{{arama.value}}", "decimal"))).ToArray();
+        Assert.Equal(25, parameters.Length);
+        var json = V2([StockList(), StockRead(), OpQuery("kaydet", "kartKaydet", "update", "stok.kart.guncelle", "manual", parameters)], [SearchInput]);
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+
+        // SQL queries keep the 20-parameter limit.
+        var sqlParameters = Enumerable.Range(1, 21).Select(i => Param($"p{i}", "{{arama.value}}")).ToArray();
+        var sql = "SELECT " + string.Join(", ", Enumerable.Range(1, 21).Select(i => $"@p{i} AS c{i}"));
+        AssertRejected(V2([Query("q1", "liste", sql, sqlParameters)], [SearchInput]), "20");
+    }
+
+    [Fact]
+    public void Deprecated_operation_is_rejected_for_new_use_but_kept_where_the_page_already_uses_it()
+    {
+        // The production catalog has no deprecated operation; a test lookup marks one as deprecated.
+        Assert.True(Api.ErpOperationCatalog.TryGet("stok.kart.sil", out var real));
+        var deprecated = real with { Deprecated = true };
+        bool Lookup(string name, out Api.ErpOperation operation)
+        {
+            if (name == deprecated.Name) { operation = deprecated; return true; }
+            return Api.ErpOperationCatalog.TryGet(name, out operation);
+        }
+        var json = V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "guid"))]);
+
+        Assert.False(TenantCustomPageSchema.Validate(json, out var error, null, Lookup));
+        Assert.Equal("ERP işlemi artık kullanılamıyor: stok.kart.sil", error);
+        Assert.False(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.listele" }, Lookup));
+        Assert.True(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.sil" }, Lookup), error);
+        // The production lookup still accepts it: nothing is deprecated there.
+        Assert.True(TenantCustomPageSchema.Validate(json, out error), error);
+    }
+
+    [Fact]
+    public void Operation_names_are_collected_from_saved_definitions()
+    {
+        var withOps = V2([StockList(), StockRead()], [SearchInput]);
+        var withSql = V2([Query("q1", "liste", "SELECT 1 AS x")]);
+        Assert.Equal(new HashSet<string> { "stok.kart.listele", "stok.kart.getir" }, TenantCustomPageQueries.OperationNames(withOps, withSql, "{bozuk"));
+        Assert.True(TenantCustomPageQueries.HasSqlQueries(withSql));
+        Assert.False(TenantCustomPageQueries.HasSqlQueries(withOps));
+        // Fails safe: an entry that is not clearly an operation query counts as SQL.
+        Assert.True(TenantCustomPageQueries.HasSqlQueries("""{"schemaVersion":2,"queries":[{"id":"q1"}],"components":[]}"""));
+        Assert.False(TenantCustomPageQueries.HasSqlQueries("""{"schemaVersion":1,"components":[]}"""));
+        Assert.True(TenantCustomPageQueries.HasQueries(withOps));
+    }
+
     [Fact]
     public void Accepts_v1_definition_unchanged()
     {

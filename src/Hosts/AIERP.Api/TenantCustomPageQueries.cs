@@ -3,7 +3,9 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 internal sealed record PageQueryParameter(string Name, string Binding, string Type);
-internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn);
+/// <summary>A page query: either SQL text (<see cref="Sql"/>) or a named ERP operation (<see cref="Operation"/>, Sql is then empty).</summary>
+internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn,
+    string? Operation = null);
 
 /// <summary>Pure helpers for schema v2 page queries: reading, binding paths, SQL parameter names and dependency cycles.</summary>
 internal static partial class TenantCustomPageQueries
@@ -27,6 +29,7 @@ internal static partial class TenantCustomPageQueries
 
     /// <summary>
     /// Returns the definition with <c>queries[].sql</c> removed, for runtime consumers that only run queries by id.
+    /// <c>queries[].operation</c> is kept: the runtime calls named ERP operations itself.
     /// Definitions without queries are returned unchanged.
     /// </summary>
     internal static string WithoutQuerySql(string definitionJson)
@@ -53,7 +56,8 @@ internal static partial class TenantCustomPageQueries
                 if (query.TryGetProperty("parameters", out var list) && list.ValueKind == JsonValueKind.Array)
                     foreach (var parameter in list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object))
                         parameters.Add(new PageQueryParameter(Text(parameter, "name"), Text(parameter, "binding"), Text(parameter, "type")));
-                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn")));
+                var operation = query.TryGetProperty("operation", out var op) && op.ValueKind == JsonValueKind.String ? op.GetString() : null;
+                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"), operation));
             }
             return result;
         }
@@ -75,6 +79,76 @@ internal static partial class TenantCustomPageQueries
         }
         catch (JsonException) { return false; }
     }
+
+    /// <summary>
+    /// Structural check: a v2 definition with at least one query that is not a pure ERP operation query. Operation queries
+    /// (an <c>operation</c> key and no <c>sql</c> key) carry no SQL and run against their own endpoint with the user's
+    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasSqlQueries(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind != JsonValueKind.Object
+                    || query.TryGetProperty("sql", out _) || !query.TryGetProperty("operation", out _));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>
+    /// Structural check: a v2 definition with an ERP operation query that is not a pure read (query kind other than
+    /// <c>read</c>, or a named operation that is unknown or a write). Fails safe like <see cref="HasSqlQueries"/>: an
+    /// operation entry that cannot be classified counts as a write. Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasWriteOperationQueries(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind == JsonValueKind.Object
+                    && query.TryGetProperty("operation", out var operation)
+                    && !(query.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "read"
+                         && operation.ValueKind == JsonValueKind.String
+                         && AIERP.Api.ErpOperationCatalog.TryGet(operation.GetString()!, out var op) && op.Kind == "read"));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>
+    /// Structural check (v1 or v2, nested children included): a component of type <c>code</c> whose <c>props.javascript</c>
+    /// is a non-blank string. Code components can reach page data and operations, so authoring them needs SQL-level trust.
+    /// Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasCodeScript(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 64 });
+            return HasCodeScript(document.RootElement);
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool HasCodeScript(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array) return element.EnumerateArray().Any(HasCodeScript);
+        if (element.ValueKind != JsonValueKind.Object) return false;
+        if (element.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "code"
+            && element.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object
+            && props.TryGetProperty("javascript", out var script) && script.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(script.GetString())) return true;
+        return element.EnumerateObject().Any(property => HasCodeScript(property.Value));
+    }
+
+    /// <summary>ERP operation names used by any of the given stored definitions (malformed ones contribute nothing).</summary>
+    internal static IReadOnlySet<string> OperationNames(params string?[] definitions) =>
+        definitions.Where(x => x is not null).SelectMany(x => ReadQueries(x!)).Select(x => x.Operation)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Names of <c>@parameters</c> used in the SQL text (without '@'), compared case-insensitively. String literals,

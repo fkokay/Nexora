@@ -9,20 +9,53 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
     public async Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role,
         ResolvedPlatformPermission permission, CancellationToken cancellationToken = default)
     {
-        var membership = await db.TenantMemberships.AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.UserId == userId)
-            .Select(x => new { x.Role, UserIsActive = x.User.IsActive, TenantIsActive = x.Tenant.IsActive })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (membership is null || !membership.UserIsActive || !membership.TenantIsActive
-            || !string.Equals(membership.Role, role, StringComparison.Ordinal)) return false;
-        // TenantAdmin remains the existing tenant-wide administrator role and cannot be locked out by policy edits.
-        if (string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
-            && !string.Equals(permission.Permission.ResourceType, "erp.payroll-compensation", StringComparison.Ordinal)) return true;
-
+        if (!await IsActiveMemberAsync(tenantId, userId, role, cancellationToken)) return false;
+        if (AdminBypass(role, permission)) return true;
         var rules = await db.TenantPermissionRules.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive && x.PermissionCode == permission.Permission.Code
                 && (x.SubjectUserId == userId || x.SubjectRole == role))
             .ToListAsync(cancellationToken);
+        return Evaluate(permission, rules);
+    }
+
+    /// <summary>Batch form of <see cref="IsAllowedAsync"/>: one membership query and one rules query for all permissions.</summary>
+    public async Task<IReadOnlyList<bool>> IsAllowedManyAsync(Guid tenantId, Guid userId, string role,
+        IReadOnlyList<ResolvedPlatformPermission> permissions, CancellationToken cancellationToken = default)
+    {
+        var decisions = new bool[permissions.Count];
+        if (permissions.Count == 0 || !await IsActiveMemberAsync(tenantId, userId, role, cancellationToken)) return decisions;
+        var codes = permissions.Where(x => !AdminBypass(role, x)).Select(x => x.Permission.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var rules = codes.Length == 0 ? [] : await db.TenantPermissionRules.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive && codes.Contains(x.PermissionCode)
+                && (x.SubjectUserId == userId || x.SubjectRole == role))
+            .ToListAsync(cancellationToken);
+        // SQL Server compares PermissionCode case-insensitively (as the single-permission query does), so group the same way.
+        var byCode = rules.ToLookup(x => x.PermissionCode, StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < permissions.Count; index++)
+        {
+            var permission = permissions[index];
+            decisions[index] = AdminBypass(role, permission) || Evaluate(permission, byCode[permission.Permission.Code].ToList());
+        }
+        return decisions;
+    }
+
+    private async Task<bool> IsActiveMemberAsync(Guid tenantId, Guid userId, string role, CancellationToken cancellationToken)
+    {
+        var membership = await db.TenantMemberships.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.UserId == userId)
+            .Select(x => new { x.Role, UserIsActive = x.User.IsActive, TenantIsActive = x.Tenant.IsActive })
+            .SingleOrDefaultAsync(cancellationToken);
+        return membership is not null && membership.UserIsActive && membership.TenantIsActive
+            && string.Equals(membership.Role, role, StringComparison.Ordinal);
+    }
+
+    // TenantAdmin remains the existing tenant-wide administrator role and cannot be locked out by policy edits.
+    private static bool AdminBypass(string role, ResolvedPlatformPermission permission) =>
+        string.Equals(role, "TenantAdmin", StringComparison.Ordinal)
+        && !string.Equals(permission.Permission.ResourceType, "erp.payroll-compensation", StringComparison.Ordinal);
+
+    private static bool Evaluate(ResolvedPlatformPermission permission, List<TenantPermissionRule> rules)
+    {
         if (permission.Attributes.TryGetValue("resource.collectionRowsFiltered", out var rowFilteredCollection)
             && string.Equals(rowFilteredCollection, "true", StringComparison.OrdinalIgnoreCase))
         {
