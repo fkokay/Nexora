@@ -188,6 +188,9 @@ export function usePageQueries(options: {
     if ((source && latestStates.current[source.name]?.loading) || (mapSource && latestStates.current[mapSource.name]?.loading)) {
       throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
     }
+    // Özel alan kaydı tüm değerleri değiştirir: kaynak okuması hiç çalışmadıysa ya da hata verdiyse boş/eksik eşlem yazılmaz.
+    const mapState = mapSource ? latestStates.current[mapSource.name] : undefined;
+    if (mapSource && (!mapState || !mapState.ran || mapState.error)) throw new Error("Özel alan değerleri yüklenemedi; kayıt yapılmadı.");
     const row = sourceRow(op);
     const mismatch = sourceRecordError(op, values, row);
     if (mismatch) throw new Error(mismatch);

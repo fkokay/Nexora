@@ -231,6 +231,29 @@ describe('usePageQueries Faz A işlem alanları', () => {
     expect(JSON.parse(init.body)).toEqual({ values: { RENK: 'Kırmızı', BOY: '10' } });
   });
 
+  it('body map write is refused when the source read failed', async () => {
+    apiMock.mockRejectedValue(new Error('Sunucu hatası.'));
+    const valuesQuery: PageQueryDefinition = { id: 'v1', name: 'degerler', kind: 'read', runOn: 'load', operation: 'stok.kart.ozelAlanDegerleri',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }, { name: 'RENK', binding: '{{ad.value}}', type: 'text' }] };
+    const { result } = setup([valuesQuery, saveQuery], faz);
+    await waitFor(() => expect(result.current.states.degerler.error).toBe('Sunucu hatası.'));
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    await expect(result.current.runWrite(saveQuery, { id: guid, RENK: 'x' })).rejects.toThrow('Özel alan değerleri yüklenemedi; kayıt yapılmadı.');
+    expect(apiMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('body map write is refused when the source never ran', async () => {
+    const valuesQuery: PageQueryDefinition = { id: 'v1', name: 'degerler', kind: 'read', runOn: 'manual', operation: 'stok.kart.ozelAlanDegerleri',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const { result } = setup([valuesQuery, saveQuery], faz);
+    await expect(result.current.runWrite(saveQuery, { id: guid, RENK: 'x' })).rejects.toThrow('Özel alan değerleri yüklenemedi; kayıt yapılmadı.');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   it('body map write without a source query sends nothing', async () => {
     const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
       parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
