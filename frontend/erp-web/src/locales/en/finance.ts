@@ -1114,6 +1114,18 @@ export const english: Record<string, string> = {
   'Düzenlemek için İşlemler › Düzenle': 'To edit, use Actions › Edit',
   'Bütçe senaryosu': 'Budget scenario',
   'Fark (gerçekleşen − plan)': 'Variance (actual − plan)',
+  // Doğrudan nakit bütçesi (list type A and the plan surface)
+  'Nakit bütçesi taslağını yalnız firma yöneticisi oluşturur': 'Only a company administrator creates a cash budget draft',
+  'Henüz plan yok. Bir taslak oluşturarak başlayın.': 'No plans yet. Start by creating a draft.',
+  'Henüz plan yok. Firma yöneticisi bir nakit bütçesi oluşturduğunda burada görünür.': 'No plans yet. They appear here when a company administrator creates a cash budget.',
+  'Bu durumda nakit bütçesi yok.': 'No cash budget in this status.',
+  'Nakit bütçesini yalnız firma yöneticisi düzenler ve onaylar': 'Only a company administrator edits and approves a cash budget',
+  'Onaylı nakit bütçesi değiştirilemez': 'An approved cash budget cannot be changed',
+  'Nakit bütçesi': 'Cash budget',
+  'Taslak · tahminlere dahil edilmez': 'Draft · not included in forecasts',
+  'Nakit bütçesi özeti': 'Cash budget summary',
+  'Planlanan tahsilat': 'Planned collections',
+  'plan': 'plans',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1121,6 +1133,10 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) fişini aç$/, 'Open entry $1'],
   [/^(.+?) hesap ekstresini aç$/, 'Open the statement of $1'],
   [/^(.+?) ekstresini aç$/, 'Open statement $1'],
+  [/^(\d+) nakit bütçesi$/, '$1 cash budgets'],
+  [/^Onaylayan: (.+)$/, 'Approved by: $1'],
+  [/^(\d+) satır · ([A-Z]{3})$/, '$1 lines · $2'],
+  [/^Aç: (.+)$/, 'Open: $1'],
   [/^(.+?) bütçesini aç$/, 'Open budget $1'],
   [/^(\d+) bütçe senaryosu$/, '$1 budget scenarios'],
   [/^(\d+)\/(\d+) satır eşleşti$/, '$1/$2 lines matched'],

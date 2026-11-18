@@ -74,20 +74,34 @@ const now = new Date();
 const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
 // --- Interaction steps (the only part that follows the UI) ---
+// The list opens a plan on the detail surface; Yeni is the İşlem Çubuğu command, Düzenle / Onayla are in İşlemler.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+function menuItem(id: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  return document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`);
+}
+const closeMenu = () => {
+  if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+};
 async function openPlan(name: string) {
+  const back = screen.queryByRole('button', { name: 'Listeye dön' });
+  if (back) {
+    fireEvent.click(back);
+    await settle(50);
+  }
   fireEvent.click(screen.getByRole('button', { name: `Aç: ${name}` }));
   await settle();
 }
 async function approve() {
-  fireEvent.click(screen.getByRole('button', { name: 'Onayla' }));
+  fireEvent.click(menuItem('cash-budget-approve')!);
   await settle();
 }
 async function startNew() {
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni nakit bütçesi' }));
+  fireEvent.click(bar().querySelector<HTMLElement>('[data-command="new"]')!);
   await settle(100);
 }
 async function startEdit() {
-  fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  fireEvent.click(menuItem('cash-budget-edit')!);
   await settle(100);
 }
 function fillNewDraft() {
@@ -100,9 +114,14 @@ async function submitDraft() {
   await settle();
 }
 const forecastCalls = () => fetchCalls.filter((call) => call.url.startsWith('/api/finance/cash-flow/forecast')).length;
-const editorOpen = () => !!screen.queryByLabelText(/Plan adı/);
-const approveVisible = () => !!screen.queryByRole('button', { name: 'Onayla' });
-const createVisible = () => !!screen.queryByRole('button', { name: 'Yeni nakit bütçesi' });
+const editorOpen = () => !!document.querySelector('.direct-cash-budget-editor');
+const approveVisible = () => {
+  const item = menuItem('cash-budget-approve');
+  const enabled = !!item && item.getAttribute('aria-disabled') !== 'true';
+  closeMenu();
+  return enabled;
+};
+const createVisible = () => bar().querySelector<HTMLElement>('[data-command="new"]')?.getAttribute('aria-disabled') !== 'true';
 // ---
 
 describe('Doğrudan nakit bütçesi (characterization)', () => {

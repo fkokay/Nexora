@@ -6,21 +6,20 @@ type Props = { rows: Row[]; loading: boolean };
 
 export default function DirectCashBudgetForecast({ rows, loading }: Props) {
   return (
+    <>
     <section
-      className="panel direct-cash-budget-forecast"
+      className="fin-cash-forecast"
       aria-labelledby="direct-cash-forecast-title"
     >
-      <div className="panel-heading">
-        <div>
-          <h2 id="direct-cash-forecast-title">
-            Onaylı planların nakit tahminine etkisi
-          </h2>
-          <p>
-            Önümüzdeki 12 ay · tahsilat ve ödeme satırları para birimi bazında
-            ayrıdır.
-          </p>
-        </div>
-      </div>
+      <header className="fin-cash-forecast-head">
+        <h2 id="direct-cash-forecast-title">
+          Onaylı planların nakit tahminine etkisi
+        </h2>
+        <p>
+          Önümüzdeki 12 ay · tahsilat ve ödeme satırları para birimi bazında
+          ayrıdır.
+        </p>
+      </header>
       <div
         className="ledger-list"
         role="region"
@@ -36,9 +35,9 @@ export default function DirectCashBudgetForecast({ rows, loading }: Props) {
             <tr>
               <th scope="col">Dönem</th>
               <th scope="col">Döviz</th>
-              <th scope="col">Planlanan tahsilat</th>
-              <th scope="col">Planlanan ödeme</th>
-              <th scope="col">Net nakit değişimi</th>
+              <th scope="col" className="nx-num">Planlanan tahsilat</th>
+              <th scope="col" className="nx-num">Planlanan ödeme</th>
+              <th scope="col" className="nx-num">Net nakit değişimi</th>
             </tr>
           </thead>
           <tbody>
@@ -46,20 +45,17 @@ export default function DirectCashBudgetForecast({ rows, loading }: Props) {
               <tr key={`${row.currencyCode}-${row.periodStart}`}>
                 <td data-label="Dönem">{formatMonth(row.periodStart)}</td>
                 <td data-label="Döviz">{row.currencyCode}</td>
-                <td data-label="Planlanan tahsilat">
+                <td data-label="Planlanan tahsilat" className="nx-num">
                   {money(row.directCashBudgetInflows, row.currencyCode)}
                 </td>
-                <td data-label="Planlanan ödeme">
+                <td data-label="Planlanan ödeme" className="nx-num">
                   {money(row.directCashBudgetOutflows, row.currencyCode)}
                 </td>
-                <td data-label="Net nakit değişimi">
-                  <b>
-                    {money(
-                      row.directCashBudgetInflows -
-                        row.directCashBudgetOutflows,
-                      row.currencyCode,
-                    )}
-                  </b>
+                <td data-label="Net nakit değişimi" className="nx-num">
+                  {money(
+                    row.directCashBudgetInflows - row.directCashBudgetOutflows,
+                    row.currencyCode,
+                  )}
                 </td>
               </tr>
             ))}
@@ -73,12 +69,13 @@ export default function DirectCashBudgetForecast({ rows, loading }: Props) {
           </tbody>
         </AdvancedDataGrid>
       </div>
+    </section>
       <div className="boundary-note">
         <span>
           Tahmin satırları yalnızca planlama bilgisidir. Onay, tahsilat/ödeme
           veya yevmiye kaydı başlatmaz.
         </span>
       </div>
-    </section>
+    </>
   );
 }
