@@ -27,8 +27,11 @@ function Amounts({ rows }: { rows: CurrencyAmount[] }) {
   );
 }
 
+type Side = "Receivable" | "Payable";
 type Options = {
   icons: { open: LucideIcon; payable: LucideIcon; dueSoon: LucideIcon; bounced: LucideIcon };
+  /** Portföyde / Verilen as filters: the list shows that direction's Portföyde records (the card's own query). */
+  portfolioFilter?: { active: (side: Side) => boolean; toggle: (side: Side) => void };
 };
 
 /**
@@ -50,6 +53,8 @@ export function portfolioCards(tiles: PortfolioTiles | null, loading: boolean, o
       value: tiles ? <Amounts rows={tiles.receivableOpen} /> : empty,
       icon: options.icons.open,
       hint: tiles ? <span>{`${tiles.receivableOpenCount} alınan çek/senet`}</span> : undefined,
+      filterActive: options.portfolioFilter?.active("Receivable"),
+      onFilter: options.portfolioFilter ? () => options.portfolioFilter!.toggle("Receivable") : undefined,
     },
     {
       id: "payable",
@@ -57,6 +62,8 @@ export function portfolioCards(tiles: PortfolioTiles | null, loading: boolean, o
       value: tiles ? <Amounts rows={tiles.payableOpen} /> : empty,
       icon: options.icons.payable,
       hint: tiles ? <span>{`${tiles.payableOpenCount} açık verilen çek/senet`}</span> : undefined,
+      filterActive: options.portfolioFilter?.active("Payable"),
+      onFilter: options.portfolioFilter ? () => options.portfolioFilter!.toggle("Payable") : undefined,
     },
     {
       id: "due-soon",

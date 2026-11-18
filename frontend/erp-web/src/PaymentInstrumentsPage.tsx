@@ -21,7 +21,6 @@ import {
   formatAmount,
   formatDate,
 } from "./document-detail/DocumentDetailLayout";
-import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import {
   portfolioCards,
   type PortfolioTiles,
@@ -88,8 +87,6 @@ function redesignedColumns(fields: ScreenField[] | null): ScreenField[] {
   return PAYMENT_INSTRUMENT_COLUMNS.map((column) => {
     const saved = byKey.get(column.key);
     if (!saved) return column;
-    // The ⋯ column keeps its own width and pin: the old view sized it for four inline buttons.
-    if (column.key === "actions") return { ...column, position: saved.position };
     return {
       ...column,
       visible: saved.visible,
@@ -596,40 +593,6 @@ export default function PaymentInstrumentsPage({
               : formatAmount(item.amount, item.currencyCode)}
           </span>
         );
-      case "actions": {
-        const actions = isAdmin ? allowedActions(item) : [];
-        return (
-          <SalesRowActionsMenu label={item.instrumentNumber}>
-            <button
-              type="button"
-              role="menuitem"
-              className="sales-row-menu-item"
-              onClick={() => setSelectedId(item.id)}
-            >
-              Ayrıntılar
-            </button>
-            {actions.length > 0 && <div role="separator" className="sales-row-menu-separator" />}
-            {actions.map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                role="menuitem"
-                className={`sales-row-menu-item${kind === "bounce" || kind === "cancel" ? " danger-action" : ""}`}
-                disabled={busy}
-                onClick={() => void action(item, kind)}
-              >
-                {kind === "collect"
-                  ? collectLabel(item)
-                  : kind === "endorse"
-                    ? "Ciro et"
-                    : kind === "bounce"
-                      ? "Karşılıksız"
-                      : "İptal"}
-              </button>
-            ))}
-          </SalesRowActionsMenu>
-        );
-      }
       default:
         return "—";
     }
@@ -707,6 +670,25 @@ export default function PaymentInstrumentsPage({
       <ListSummaryCards
         cards={portfolioCards(tiles, tilesLoading, {
           icons: { open: Wallet, payable: Wallet, dueSoon: CalendarClock, bounced: tiles?.bouncedCount ? XCircle : AlertTriangle },
+          // Portföyde / Verilen filter the list with today's filters (direction tab + Portföyde status chip); the type
+          // chip and the search are cleared so the list shows what the card counts.
+          portfolioFilter: {
+            active: (side) => direction === side && filter === "Portfolio" && kindFilter === "All" && !searchTerm,
+            toggle: (side) => {
+              const on = direction === side && filter === "Portfolio" && kindFilter === "All" && !searchTerm;
+              setPage(1);
+              setSelectedId(null);
+              if (on) {
+                setFilter("All");
+                return;
+              }
+              setDirection(side);
+              setFilter("Portfolio");
+              setKindFilter("All");
+              setSearchDraft("");
+              setSearchTerm("");
+            },
+          },
         })}
       />
       <DetailTabs<Direction>

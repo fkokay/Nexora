@@ -276,4 +276,32 @@ describe('Çek ve Senet (characterization)', () => {
     expect(actionLabels()).toEqual([]);
     expect(posts()).toEqual([]);
   });
+
+  it('the rows carry no ⋯ menu: the record actions are only in İşlemler, on the selected row', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    const grid = document.querySelector<HTMLElement>('.pi-list table')!;
+    expect(grid.querySelectorAll('tbody button, tbody [role="menu"]')).toHaveLength(0);
+    expect(within(grid).queryByText('Ayrıntılar')).toBeNull();
+  });
+
+  it('Portföyde / Verilen cards filter the list with the direction and the Portföyde status (type and search cleared); again clears the status', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    await chip(/^Çek/);
+    await search('Akdeniz');
+    const card = (label: string) =>
+      [...document.querySelectorAll<HTMLElement>('.nx-summary-item')].find((node) => node.textContent?.includes(label))!;
+    fireEvent.click(card('Verilen'));
+    await settle(600);
+    expect(mainListUrls().at(-1)).toBe('page=1&pageSize=25&direction=Payable&status=Portfolio');
+    expect(card('Verilen').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(card('Portföyde'));
+    await settle(600);
+    expect(mainListUrls().at(-1)).toBe('page=1&pageSize=25&direction=Receivable&status=Portfolio');
+    fireEvent.click(card('Portföyde'));
+    await settle(600);
+    expect(mainListUrls().at(-1)).toBe('page=1&pageSize=25&direction=Receivable');
+    expect(card('Portföyde').getAttribute('aria-pressed')).toBe('false');
+  });
 });
