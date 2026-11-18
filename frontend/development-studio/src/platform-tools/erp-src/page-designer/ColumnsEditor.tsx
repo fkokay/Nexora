@@ -12,7 +12,8 @@ export const toneLabels: Record<Tone, string> = { success: "Olumlu", warning: "D
 const toneOrder: Tone[] = ["success", "warning", "danger", "info"];
 const ROW_HEIGHT = 38;
 const DETAIL_HEIGHT = 232;
-const VIEW_HEIGHT = 440;
+/** Sanal liste için ekranın en az bu kadarı çizilir; liste pencereyi doldurur (yüksekliği CSS belirler). */
+const VIEW_HEIGHT = 900;
 const OVERSCAN = 8;
 
 type Patch = Record<string, string[] | undefined>;
@@ -102,7 +103,7 @@ export function ColumnsEditor({ available, selected, formats, totals, totalsAllo
     </div>
     <small className="pd-coled-hint">Shift ile “Göster” kutusuna tıklayarak aralığı birlikte gösterin ya da gizleyin. Tutamaçta ↑/↓ ile de taşınır.{!canDrag && term.trim() !== "" ? " Arama açıkken sürükleme kapalıdır." : ""}</small>
     {problem && <small className="pd-query-warning" role="alert">{problem}</small>}
-    <div className="pd-coled-scroll" style={{ maxHeight: VIEW_HEIGHT }} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} role="table" aria-label="Sütunlar" aria-rowcount={rows.length + 1}>
+    <div className="pd-coled-scroll" onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} role="table" aria-label="Sütunlar" aria-rowcount={rows.length + 1}>
       <div className="pd-coled-row is-head" role="row">
         <span/><span role="columnheader">Göster</span><span role="columnheader">Başlık</span><span role="columnheader">Kaynak</span><span role="columnheader">Biçim</span><span role="columnheader">Birim</span><span role="columnheader">Toplam</span><span/>
       </div>
