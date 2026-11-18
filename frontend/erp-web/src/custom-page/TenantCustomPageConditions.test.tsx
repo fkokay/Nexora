@@ -13,6 +13,9 @@ const tokenFor = (payload: Record<string, unknown>) => `h.${btoa(JSON.stringify(
 
 let writes: string[] = [];
 
+// Kaydet komutu sayfanın komut kaydı (etki) çalıştıktan sonra etkinleşir; ilk çizimde basılan Ctrl+S'i kimse dinlemez.
+const saveReady = () => waitFor(() => expect(document.querySelector('[data-command="save"]')?.getAttribute('aria-disabled')).not.toBe('true'));
+
 function mockPage(components: unknown[], queries: unknown[] = []) {
   api.mockImplementation(async (endpoint: string) => {
     if (endpoint.endsWith('/published')) {
@@ -86,6 +89,7 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
     // Sekmenin sahiplendiği giriş üst düzeyde ayrıca çizilmez.
     expect(container.querySelectorAll('#page-input-kod')).toHaveLength(1);
+    await saveReady();
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     await waitFor(() => expect(screen.getAllByRole('tab')[0].getAttribute('aria-selected')).toBe('true'));
     const kod = container.querySelector<HTMLInputElement>('#page-input-kod')!;
@@ -99,6 +103,7 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
     fireEvent.change(kod, { target: { value: 'A1' } });
     await waitFor(() => expect(container.querySelector('.tenant-page-input-error')).toBeNull());
     expect(screen.getAllByRole('tab')[0].classList.contains('is-error')).toBe(false);
+    await saveReady();
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     await waitFor(() => expect(writes).toEqual(['qi']));
   });
@@ -112,6 +117,7 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
       { id: 'not', type: 'input', name: 'not', props: { inputType: 'text', label: 'Not' } },
     ], [insertQuery]);
     await screen.findAllByRole('tab');
+    await saveReady();
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     await waitFor(() => expect(screen.getAllByRole('tab')[0].classList.contains('is-error')).toBe(true));
     expect(container.querySelector('.tenant-page-tab-badge')?.textContent).toBe('1');
@@ -129,6 +135,7 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
     ], [insertQuery]);
     await screen.findByText('Başlık');
     expect(screen.queryByLabelText('Kod')).toBeNull();
+    await saveReady();
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     await waitFor(() => expect(writes).toEqual(['qi']));
   });
