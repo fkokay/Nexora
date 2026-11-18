@@ -28,7 +28,7 @@ internal static class TenantCustomPageSchema
       "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage",
       "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals",
       "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts",
-      "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
+      "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "hidden" };
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
     private const int MaxMoreButtons = 10;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
@@ -305,10 +305,16 @@ internal static class TenantCustomPageSchema
             {
                 if (prop.Name is "css" or "javascript")
                 {
-                    var maxCodeLength = prop.Name == "css" ? 4000 : 4000;
+                    var maxCodeLength = prop.Name == "javascript" && context.V2 ? 20000 : 4000;
                     if (typeText != "code" || prop.Value.ValueKind != JsonValueKind.String || (prop.Value.GetString()?.Length ?? 0) > maxCodeLength
                         || prop.Name == "css" && HasExternalCss(prop.Value.GetString() ?? ""))
-                    { error = $"'{prop.Name}' yalnızca yalıtılmış kod bileşeninde, 4 KiB sınırında kullanılabilir."; return false; }
+                    { error = $"'{prop.Name}' yalnızca yalıtılmış kod bileşeninde, {(maxCodeLength == 20000 ? "20000" : "4000")} karakter sınırında kullanılabilir."; return false; }
+                    continue;
+                }
+                if (prop.Name == "hidden")
+                {
+                    if (typeText != "code" || prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    { error = "'hidden' yalnızca kod bileşeninde ve doğru/yanlış değeriyle kullanılabilir."; return false; }
                     continue;
                 }
                 if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
