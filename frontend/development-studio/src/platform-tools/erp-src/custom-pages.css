@@ -587,3 +587,4 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-new-items li{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--pd-line);border-radius:8px;background:#fff}
 .pd-new-items-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#22223a}
 .pd-new-items-kind{padding:2px 7px;border-radius:999px;background:#eef1f7;color:#55647c;font-size:10.5px;font-weight:700}
+.pd-inline{display:grid;grid-template-columns:90px 1fr auto;gap:4px;align-items:center;margin-bottom:4px}

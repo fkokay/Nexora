@@ -37,6 +37,8 @@ import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
+import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
+import { usePageParams, type PageParams } from "./pageNavigation";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 
@@ -118,6 +120,8 @@ type PageRuntime = {
   tablePaging: (table: ComponentDefinition) => { page: number; pageSize: number; onPage: (page: number) => void } | undefined;
   /** En güncel bağlama kapsamı (ref): bekleyen işlemler render anındaki kapsamı değil bunu okur. */
   currentScope: () => PageScope;
+  /** Bu sayfanın çalışma sekmesi anahtarı (gezinme eylemi aynı sekmede açarken yerine geçilecek sekme). */
+  tabKey?: string;
   writeWith: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => Promise<WriteResult>;
   /** Kayıt dizisini (`saveSequence`) ya da istemli tek yazmayı çalıştırır (İşlem Çubuğu, düğme, pencere, satır işlemi). */
   runSequence: (source: SequenceSource) => Promise<void>;
@@ -188,7 +192,7 @@ type SequenceSource = {
   /** Tablonun satır işlemi: başarıdan sonra yalnız `refreshQueries` yenilenir (seçim ve açık pencere korunur). */
   rowAction?: boolean;
 };
-type ButtonAction = { type: "query" | "sequence" | "openDialog" | "workflow"; rights: string[]; query?: PageQueryDefinition };
+type ButtonAction = { type: "query" | "sequence" | "openDialog" | "workflow" | "navigate"; rights: string[]; query?: PageQueryDefinition };
 export type RowAction = {
   id: string; label: string; visible: (row: Record<string, unknown>) => boolean;
   /** Pasifse nedeni, değilse null. */
@@ -227,6 +231,11 @@ function buttonActionOf(props: Record<string, unknown>, queryById: Record<string
     return { type: "sequence", rights: [...new Set(steps.map((query) => query!.kind))] };
   }
   if (props.actionType === "openDialog") return typeof props.dialogId === "string" && dialogIds.has(props.dialogId) ? { type: "openDialog", rights: ["view"] } : null;
+  // Gezinme (bağlantı, ERP ekranı, sayfa) veri yazmaz; hedef tıklamada kapsamla çözülür ve yeniden doğrulanır.
+  if (isNavigationType(props.actionType)) {
+    const target = props.actionType === "link" ? props.href : props.actionType === "erpPage" ? props.pageKey : props.pageCode;
+    return typeof target === "string" && target !== "" ? { type: "navigate", rights: ["view"] } : null;
+  }
   return null;
 }
 const actionAllowed = (action: ButtonAction | null, rights: Record<string, boolean | undefined>) => !!action && action.rights.every((right) => rights[right] === true);
@@ -519,6 +528,15 @@ function QueryActionButton({ component, props, label, runtime, disabled: conditi
     if (disabled) return;
     setFeedback(null);
     if (action.type === "openDialog") { runtime.openDialog(props.dialogId as string, opener); return; }
+    if (action.type === "navigate") {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        const failure = await runNavigation(component.props ?? {}, runtime.currentScope, runtime.tabKey);
+        if (failure && mounted.current) setFeedback({ tone: "error", text: failure });
+      } finally { inFlight.current = false; }
+      return;
+    }
     if (usesSequence(action, props)) {
       await runtime.runSequence({
         props: component.props ?? {}, name: component.name,
@@ -1024,6 +1042,12 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       latest.current.openDialog(props.dialogId as string, document.activeElement instanceof HTMLElement ? document.activeElement : null);
       return;
     }
+    if (action?.type === "navigate") {
+      onStatus(null);
+      void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey)
+        .then((failure) => { if (failure && mounted.current) onStatus({ tone: "error", text: failure }); });
+      return;
+    }
     if (usesSequence(action, props)) {
       onStatus(null);
       void latest.current.runSequence(sequenceSource(component.props ?? {}, component.name));
@@ -1129,8 +1153,10 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId }: {
+function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
+  /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
+  tabKey?: string; pageParams: PageParams;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   const touchedRef = useRef(touched);
@@ -1286,7 +1312,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
-    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states };
+    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams } };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
     for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
     // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
@@ -2072,6 +2098,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     // Satır işlemi de satır değiştirir: kayıt tablosunda kirli sayfa önce sorar; Vazgeç işlemi de çalıştırmaz.
     userSelect(tableName, row, () => {
       if (action.type === "openDialog") { openDialog(props.dialogId as string, opener); return; }
+      if (action.type === "navigate") {
+        onStatus(null);
+        void runNavigation(props, () => mergeOverlay(currentScope(), overlay), tabKey).then((failure) => { if (failure) onStatus({ tone: "error", text: failure }); });
+        return;
+      }
       if (usesSequence(action, props)) { onStatus(null); void sequenceRef.current({ props, name: button.name, overlay, onStatus, onBusy: () => undefined, rowAction: true }); return; }
       if (!action.query) return;
       if (action.query.kind === "read") { rerun([action.query.id]); return; }
@@ -2226,7 +2257,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     dialogs, openDialog, closeDialog, saveDialog, dialogStatus, dialogBusy, dialogOpener: (id) => dialogOpeners.current[id] ?? null,
     dialogOwned, rowOwned, buttonById,
     buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds),
-    runRowAction, tableStatus,
+    runRowAction, tableStatus, tabKey,
     gridFor, blockFor, cardChanges, componentErrorIds, requestCloseDialog, isDirty, startNew,
     queryAllowed: runtimeQueryAllowed,
     formDialog: formDialogId ? {
@@ -2278,6 +2309,8 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   // The router passes inline callbacks; keep them out of the load effect's dependencies.
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
+  const tabKey = previewId ? `custom-page-preview:${previewId}` : systemScreenKey ?? (code ? `custom-page:${code}` : undefined);
+  const pageParams = usePageParams(tabKey);
 
   useEffect(() => {
     let active = true;
@@ -2331,6 +2364,6 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
     <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
-    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} />
+    <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} />
   </main>;
 }

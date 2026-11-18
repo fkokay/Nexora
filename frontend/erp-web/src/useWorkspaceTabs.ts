@@ -3,6 +3,7 @@ import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
 import { standalonePageTitle } from './workspace-navigation'
+import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from './pageNavigation'
 
 type Tab = { id: string; label: string }
 type Props = {
@@ -54,6 +55,29 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       ? current.map(tab => tab.id === nextPage ? { ...tab, label: knownLabel || tab.label } : tab)
       : [...current, { id: nextPage, label }])
   }, [pageResults, moduleTabs, locale, onSelectModule, clearTabLimitNotice])
+
+  /**
+   * Özel sayfanın gezinme eylemi: `replace` ise hedef, açan sekmenin (`from`) yerine açılır. Açan sekme açık değilse, kirliyse
+   * ya da hedef zaten açıksa hedef normal yolla (yeni sekme ya da var olan sekmeye geçiş) açılır.
+   */
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail
+      if (!request || typeof request.page !== 'string' || request.page === '') return
+      const from = request.from
+      const canReplace = request.replace && !!from && from !== request.page && request.page !== 'launcher' && request.page !== 'dashboard'
+        && moduleTabs.some(tab => tab.id === from) && !moduleTabs.some(tab => tab.id === request.page) && !dirtyTabs.has(from)
+      if (!canReplace) { setPage(request.page); return }
+      const result = pageResults.find(item => item.page === request.page)
+      if (result?.selection) onSelectModule(result.selection)
+      const label = result?.label || standalonePageTitle(request.page, locale) || request.page.replace(/[-_]/g, ' ')
+      clearTabLimitNotice()
+      setActivePage(request.page)
+      setModuleTabs(current => current.map(tab => tab.id === from ? { id: request.page, label } : tab))
+    }
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen)
+  }, [moduleTabs, dirtyTabs, pageResults, locale, onSelectModule, setPage, clearTabLimitNotice])
 
   const removeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return
