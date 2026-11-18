@@ -46,7 +46,7 @@ import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KI
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
 import { BasicInspector, InspectorModeToggle } from "./page-designer/BasicInspector";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
-import { OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
+import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
 import { conditionTerms, stringEntries } from "./page-designer/gridColumnSettings";
 import { ColumnsEditor } from "./page-designer/ColumnsEditor";
 import { designerShortcutsBlocked } from "./page-designer/designerModals";
@@ -151,7 +151,9 @@ const managedKeys = new Set(["text", "title", "label", "description", "value", "
   // Proje 4: form kartının tek satır (süzgeç) dizilimi, koşullu genişlik ve değer etiketleri.
   "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
   // İşlem Çubuğu Yeni / Aç / kayıttan sonra düğmeleri ve sayfa başlığı olan başlık.
-  "newButton", "openButton", "afterSaveButton", "pageTitle"]);
+  "newButton", "openButton", "afterSaveButton", "pageTitle",
+  // Izgara tablo araçları (yoksa açık; kapalıysa false yazılır).
+  "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -2988,6 +2990,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>
               <div className="pd-field">Yoğunluk<div className="pd-segment">{([["comfort", "Rahat"], ["dense", "Sık"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit} className={(selected.props.density === "comfort" ? "comfort" : "dense") === value ? "active" : ""} onClick={() => patchComponent(selected.id, { density: value === "dense" ? undefined : value })}>{label}</button>)}</div></div>
               <RowActionsFields table={selected} components={definition.components} parts={["empty"]} serverPaged={pagingOn} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
+              <GridToolsField props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
               <details className="pd-settings-advanced">
                 <summary>Gelişmiş (iç boşluk, dış boşluk, köşe, renkler, ham koşul ifadesi)</summary>
                 {boxFields}

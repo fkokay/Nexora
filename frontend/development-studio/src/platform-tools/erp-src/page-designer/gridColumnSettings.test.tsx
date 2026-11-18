@@ -1,6 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ColumnsEditor } from "./ColumnsEditor";
+import { GRID_TOOLS, GridToolsField, gridToolPatch } from "./GridSettingsFields";
 import { parseColumnFormats } from "./cellFormat";
 import {
   columnValueLabels, conditionTerms, joinConditionTerms, orphanEntries, pairValue, parseWidthWhen, renameTone, setPair, setTone, setValueLabel,
@@ -147,5 +148,18 @@ describe("tek düzenleme yalnız kendi girdisine dokunur", () => {
 
   it("biçim girdileri sütun ayarlarından etkilenmez", () => {
     expect(parseColumnFormats(stockList.columnFormats)["status"]).toBe("status");
+  });
+});
+
+describe("tablo araçları", () => {
+  it("kapatınca false yazılır, açınca özellik silinir", () => {
+    expect(gridToolPatch("showPivot", false)).toEqual({ showPivot: false });
+    expect(gridToolPatch("showPivot", true)).toEqual({ showPivot: undefined });
+  });
+  it("özellik yoksa açık, false ise kapalı gösterilir ve açılışta yama yazılmaz", () => {
+    const onPatch = vi.fn();
+    const html = renderToString(<GridToolsField props={{ showExport: false }} onPatch={onPatch}/>);
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(html.match(/checked=""/g)?.length).toBe(GRID_TOOLS.length - 1);
   });
 });

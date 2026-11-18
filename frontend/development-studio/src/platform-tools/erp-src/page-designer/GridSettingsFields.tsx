@@ -106,3 +106,20 @@ export function OpenRowField({ table, components, labelOf, disabled, onPatchBar 
     <small>İşlem Çubuğu’nun “Aç” komutudur; sayfadaki tüm listelerde ortaktır.{button && !usesTable ? ` Seçilen düğme bu listenin seçili satırını (${table.name ? `{{${table.name}.seciliSatir…}}` : "liste adı yok"}) kullanmıyor; bu listede çift tıklama satırı yalnız seçer.` : ""}</small>
   </div>;
 }
+
+export const GRID_TOOLS = [
+  ["showGridSearch", "Arama kutusu"], ["showColumnFilters", "Sütun süzgeçleri"], ["showColumnChooser", "Sütun seçici"],
+  ["showExport", "Dışa aktarma (XLSX/CSV)"], ["showPivot", "Pivot görünümü"],
+] as const;
+export type GridToolKey = typeof GRID_TOOLS[number][0];
+
+/** Açma/kapama yaması: kapalıysa `false` yazılır, açılınca özellik silinir (yoksa açık; kayıt sade kalır). */
+export const gridToolPatch = (key: GridToolKey, on: boolean): Partial<Record<GridToolKey, false | undefined>> => ({ [key]: on ? undefined : false });
+
+/** "Tablo araçları": ızgara üst çubuğundaki araçlar (yoksa hepsi açık). */
+export function GridToolsField({ props, disabled, onPatch }: { props: Record<string, unknown>; disabled?: boolean; onPatch: (patch: Partial<Record<GridToolKey, false | undefined>>) => void }) {
+  return <div className="pd-field">Tablo araçları<small>ERP'de listenin üst çubuğunda gösterilir; kapatılan araç çizilmez.</small>
+    <div className="pd-grid-tools">{GRID_TOOLS.map(([key, label]) => <label key={key} className="pd-check pd-switch">
+      <input type="checkbox" role="switch" checked={props[key] !== false} disabled={disabled} onChange={(event) => onPatch(gridToolPatch(key, event.target.checked))}/>{label}</label>)}</div>
+  </div>;
+}
