@@ -34,17 +34,18 @@ export type PromptOptions = ConfirmOptions & {
   multiline?: boolean;
 };
 
-type Request =
+type Request = { id: number } & (
   | { kind: "confirm"; options: ConfirmOptions; resolve: (value: boolean) => void }
-  | { kind: "prompt"; options: PromptOptions; resolve: (value: string | null) => void };
+  | { kind: "prompt"; options: PromptOptions; resolve: (value: string | null) => void });
 
 const queue: Request[] = [];
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((listener) => listener());
+let nextId = 0;
 
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
-    queue.push({ kind: "confirm", options, resolve });
+    queue.push({ id: ++nextId, kind: "confirm", options, resolve });
     notify();
   });
 }
@@ -52,7 +53,7 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
 /** Resolves to the entered text (untrimmed) or null when cancelled. */
 export function promptDialog(options: PromptOptions): Promise<string | null> {
   return new Promise((resolve) => {
-    queue.push({ kind: "prompt", options, resolve });
+    queue.push({ id: ++nextId, kind: "prompt", options, resolve });
     notify();
   });
 }
@@ -61,10 +62,6 @@ const t = (text: string) => localizedUiText(text);
 
 export function ConfirmDialogHost() {
   const [, setVersion] = useState(0);
-  const [value, setValue] = useState("");
-  const [touched, setTouched] = useState(false);
-  const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const listener = () => setVersion((version) => version + 1);
     listeners.add(listener);
@@ -73,24 +70,32 @@ export function ConfirmDialogHost() {
     };
   }, []);
   const current = queue[0];
+  if (!current) return null;
+  // Her istek kendi örneğiyle çizilir: değer ilk render'da istekten alınır. Eskiden bir etki değeri sonradan sıfırlıyordu;
+  // istem görünür olup etki henüz çalışmadan yazılan gerekçe silinir, zorunlu istem gönderilemezdi.
+  return <ConfirmDialogView key={current.id} current={current} onDone={() => setVersion((version) => version + 1)} />;
+}
+
+function ConfirmDialogView({ current, onDone }: { current: Request; onDone: () => void }) {
+  const [value, setValue] = useState(() => (current.kind === "prompt" ? (current.options.defaultValue ?? "") : ""));
+  const [touched, setTouched] = useState(false);
+  const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!current) return;
-    setValue(current.kind === "prompt" ? (current.options.defaultValue ?? "") : "");
-    setTouched(false);
     const focus = window.setTimeout(() => (current.kind === "prompt" ? fieldRef.current : confirmRef.current)?.focus(), 0);
     return () => window.clearTimeout(focus);
   }, [current]);
-  if (!current) return null;
 
   const { options } = current;
   const tone = options.tone ?? "warning";
   const missing = current.kind === "prompt" && current.options.required && !value.trim();
   function finish(accepted: boolean) {
-    const request = queue.shift();
-    if (!request) return;
+    // Yalnız çizilen istek kapanır (çift tıklama sıradaki isteği kapatmaz).
+    if (queue[0] !== current) return;
+    const request = queue.shift()!;
     if (request.kind === "confirm") request.resolve(accepted);
     else request.resolve(accepted ? value : null);
-    setVersion((version) => version + 1);
+    onDone();
   }
   function submit(event: FormEvent) {
     event.preventDefault();
