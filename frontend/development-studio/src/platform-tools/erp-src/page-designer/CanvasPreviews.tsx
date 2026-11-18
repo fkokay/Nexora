@@ -73,10 +73,10 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
     <div className="custom-page-preview-card-head"><b>{title}</b><small>{subtitle}</small></div>
     {paging?.search && <div className="pd-grid-search">{paging.search}</div>}
     {advanced && <div className="pd-adv-toolbar" aria-hidden="true">
-      <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>
-      <span className="pd-adv-menu">Sütun filtreleri</span><span className="pd-adv-menu">Sütunlar</span>
+      {props.showGridSearch !== false && <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>}
+      {props.showColumnFilters !== false && <span className="pd-adv-menu">Sütun filtreleri</span>}{props.showColumnChooser !== false && <span className="pd-adv-menu">Sütunlar</span>}
       <span className="pd-adv-count">{paging ? number(paging.total) : rows.length} kayıt</span>
-      <span className="pd-adv-btn">XLSX</span><span className="pd-adv-btn">CSV</span><span className="pd-adv-btn">Pivot görünümü</span>
+      {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span><span className="pd-adv-btn">CSV</span></>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
     </div>}
     <div className={`custom-page-preview-grid-scroll${advanced ? " is-advanced" : ""}`}><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}${advanced ? " is-advanced" : ""}`}>
       <thead><tr>{advanced && <th className="pd-adv-check-cell">{check}</th>}{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
@@ -338,7 +338,8 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
 type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
-export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
+/** `title`: ERP'deki gibi işlem çubuğunun üstündeki başlık satırı (sayfa adı ve `titleCount` varsa "N kayıt"). */
+export function ActionBarPreview({ bound, moreCount, style, title, count }: { bound: ActionBarBound; moreCount: number; style: CSSProperties; title?: string; count?: string | null }) {
   // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
   const primary = bound.save ? "save" : bound.new ? "new" : "";
   const button = (id: string, label: string, key: string, on: boolean) =>
@@ -346,6 +347,7 @@ export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBar
     <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"} · ${key}`} data-shortcut={key}>{id === "new" ? "+ " : ""}{label}</span>;
   const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
   return <div className="pd-actionbar-wrap" style={style}>
+    {title && <div className="pd-page-title"><h1>{title}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>}
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
       {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", bound.open === true)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
       <span className="pd-bar-sep" />

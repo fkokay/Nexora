@@ -65,6 +65,11 @@ type Capability = { canRead: boolean; canCreate: boolean; canUpdate: boolean; ca
 type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar" | "tabs" | "editableGrid" | "customFieldsBlock" | "dialog" | "image";
 type PropValue = string | number | boolean | string[];
 type PageComponent = { id: string; type: ComponentType; name?: string; props: Record<string, PropValue>; children?: unknown };
+/** Kart / bölümün `children` dizisindeki bileşenler (tuval önizlemesi için; geçersiz öğeler atlanır). */
+function childComponentsOf(component: PageComponent): PageComponent[] {
+  return Array.isArray(component.children) ? component.children.filter((child): child is PageComponent =>
+    !!child && typeof child === "object" && typeof (child as PageComponent).id === "string" && typeof (child as PageComponent).type === "string") : [];
+}
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
 type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
@@ -753,7 +758,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Tuvalde açık olan sekme (Sekmeler kimliği → sekme sırası); yalnız tasarımcı görünümüdür, tanıma yazılmaz.
   const [activeTabs, setActiveTabs] = useState<Record<string, number>>({});
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
-  const [showGrid, setShowGrid] = useState(true);
+  // Sütun kılavuzları varsayılan gizlidir (şeffaf bileşenlerin arkasından görünüp üst üste binmiş gibi durur); sürüklerken her zaman görünür.
+  const [showGrid, setShowGrid] = useState(false);
   const [device, setDevice] = useState<Device>("desktop");
   const [newPageDialog, setNewPageDialog] = useState<"create" | "template" | null>(null);
   const [queryEditorOpen, setQueryEditorOpen] = useState(false);
@@ -1879,10 +1885,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const shown = interpolate(props.value, designScope());
         return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={shown || "Değer girin"} description={String(props.description || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
       } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
-      case "card": case "section": return <article key={component.id} className={`custom-page-preview-card ${component.type === "section" ? "is-section" : ""}`} style={style}><b>{String(props.title || titleFor(component.type))}</b>{props.description && <p>{String(props.description)}</p>}</article>;
+      case "card": case "section": {
+        // Kartın içindeki bileşenler (düğme, etiket, sekmeler…) ERP'deki gibi kartın içinde çizilir.
+        const inner = childComponentsOf(component);
+        return <article key={component.id} className={`custom-page-preview-card ${component.type === "section" ? "is-section" : ""}${inner.length > 0 ? " has-children" : ""}`} style={style}>
+          {(props.title || inner.length === 0) && <b>{String(props.title || titleFor(component.type))}</b>}{props.description && <p>{String(props.description)}</p>}
+          {inner.length > 0 && <div className="pd-card-children">{inner.map((child) => <div key={child.id} className={`pd-card-child is-${child.type}`}>{renderOne(child)}</div>)}</div>}
+        </article>;
+      }
       case "divider": return <hr key={component.id} className="custom-page-preview-divider" style={style} />;
       case "spacer": return <div key={component.id} className="custom-page-preview-spacer" style={style} />;
-      case "button": return <div key={component.id} className="custom-page-preview-action" style={style}><button type="button" tabIndex={-1} className="custom-page-preview-button">{String(props.label || "İşlem")}</button></div>;
+      case "button": return <div key={component.id} className="custom-page-preview-action" style={style}><button type="button" tabIndex={-1} className="custom-page-preview-button">{String(props.text || props.label || "İşlem")}</button></div>;
       case "dataTable": if (typeof props.query === "string") {
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
@@ -2012,7 +2025,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Sekmedeki ve penceredeki bileşenler yalnız sahibinin içinde, satır işlemi düğmeleri listenin İşlemler sütununda çizilir
   // (kod bileşeni iki kez çalışmasın diye üst düzeyde hiç oluşturulmaz).
-  const tabOwned = tabOwnedIds(definition.components);
+  // Kartların içindeki Sekmeler de sahip sayılır: sekmelerdeki bileşenler üst düzeyde ayrıca çizilmez.
+  const cardInner = definition.components.flatMap((component) => component.type === "card" || component.type === "section" ? childComponentsOf(component) : []);
+  const tabOwned = new Set([...tabOwnedIds(definition.components), ...tabOwnedIds(cardInner as typeof definition.components)]);
   const nested = new Set([...tabOwned, ...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]);
   // Sayfadaki Sekmeler bileşeninin kabı (TabsCanvas) seçim ve sürükleme durumuna bağlı olduğundan bu önbelleğin dışında
   // çizilir; içindeki bileşenlerin önizlemesi burada bir kez hazırlanır. Pencerenin içindeki Sekmeler durağan önizlemedir.
@@ -2139,7 +2154,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Olay işleyicileri `live` üzerinden güncel işlevleri çağırır; örnek veri rozeti `sampleHintKey` ile izlenir.
   }), [definition, selectedComponentId, device, canEdit, rendered, ownedIds, tabIds, nestedIds, movedIds, sampleHintKey, activeTabs, dragStore]);
   const canvasLayoutKey = useMemo(() => `${device}|${definition.components.map((component) => component.id).join(",")}`, [device, definition]);
-  const canvasGuides = useMemo(() => showGrid ? <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div> : null, [showGrid, device]);
+  const canvasGuides = useMemo(() => <div className={`pd-grid-guides${showGrid ? " is-on" : ""}`} aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>, [showGrid, device]);
+  /** İşlem çubuğunun `titleCount` bağlaması (`{{sorgu.meta.alan}}`): sorgu önizlemesinin değeri, yoksa "N". */
+  const titleCountSample = (raw: unknown): string | null => {
+    if (typeof raw !== "string" || !raw.trim()) return null;
+    const match = /^\{\{\s*([\w-]+)\.meta\.(\w+)\s*\}\}$/.exec(raw.trim());
+    const query = match ? definition.queries.find((item) => item.name === match[1]) : undefined;
+    const value = query ? queryPreviews[query.id]?.meta?.[match![2]] : undefined;
+    return value == null ? "N" : Number.isFinite(Number(value)) ? Number(value).toLocaleString("tr-TR") : String(value);
+  };
   const canvasEmpty = <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>;
   const canvasHandlers = useMemo(() => ({
     onDragOver: (event: DragEvent<HTMLElement>) => live.current.dragOverCanvas(event),
@@ -2551,6 +2574,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
+            {(() => {
+              // ERP'deki gibi işlem çubuklu sayfada başlık satırı ayrı durur: sayfa adı ve `titleCount` varsa "N kayıt".
+              const bar = definition.components.find((item) => item.type === "actionBar");
+              if (!bar) return null;
+              const count = titleCountSample(bar.props.titleCount);
+              return <div className="pd-page-title"><h1>{name || "Yeni sayfa"}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>;
+            })()}
             <CanvasGrid store={dragStore} gridRef={gridRef} blocks={canvasBlocks} layoutKey={canvasLayoutKey} guides={canvasGuides} empty={canvasEmpty}
               placeholderFor={placeholderFor} onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}/>
           </div>

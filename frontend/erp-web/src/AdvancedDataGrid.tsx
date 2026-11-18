@@ -103,6 +103,12 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   toolbarContainer?: HTMLElement | null;
   /** Hides the grid's own XLSX/CSV buttons when the page offers export elsewhere. */
   hideExport?: boolean;
+  /** Hides the column filters tool (toolbar and view menu). */
+  hideFilters?: boolean;
+  /** Hides the column chooser tool (toolbar and view menu). */
+  hideColumnChooser?: boolean;
+  /** Hides the pivot view tool (toolbar and view menu). */
+  hidePivot?: boolean;
   /** Receives the grid's export functions while mounted, so the page can offer them (e.g. CSV in the actions menu). */
   exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
@@ -478,6 +484,9 @@ export default function AdvancedDataGrid({
   onEditRows,
   toolbarContainer,
   hideExport = false,
+  hideFilters = false,
+  hideColumnChooser = false,
+  hidePivot = false,
   exportActionsRef,
   ...tableProps
 }: Props) {
@@ -1932,7 +1941,7 @@ export default function AdvancedDataGrid({
             <kbd>/</kbd>
           </label>
         )}
-        {(!serverData || serverData.supported?.filters !== false) && (
+        {!hideFilters && (!serverData || serverData.supported?.filters !== false) && (
           <details className="advanced-grid-menu" data-grid-tool ref={filtersMenuRef}>
             <summary>
               {labels.filters}
@@ -2020,6 +2029,7 @@ export default function AdvancedDataGrid({
             </div>
           </details>
         )}
+        {!hideColumnChooser && (
         <details className="advanced-grid-menu" data-grid-tool ref={columnsMenuRef}>
           <summary>{labels.columns}</summary>
           <div className="advanced-grid-popover advanced-grid-columns">
@@ -2102,6 +2112,7 @@ export default function AdvancedDataGrid({
             </div>
           </div>
         </details>
+        )}
         <span className="advanced-grid-count">
           {totalRows} {labels.rows}
           {selectedRows.length > 0 && (
@@ -2194,6 +2205,7 @@ export default function AdvancedDataGrid({
             />
           </>
         )}
+        {!hidePivot && (
         <button
           type="button"
           className={`advanced-grid-action${pivotOpen ? " active" : ""}`}
@@ -2203,6 +2215,7 @@ export default function AdvancedDataGrid({
         >
           {labels.pivot}
         </button>
+        )}
         <button
           type="button"
           className="advanced-grid-action advanced-grid-icon-action"
@@ -2250,7 +2263,7 @@ export default function AdvancedDataGrid({
               }
               onKeyDown={moveViewMenuFocus}
             >
-              {(!serverData || serverData.supported?.filters !== false) && (
+              {!hideFilters && (!serverData || serverData.supported?.filters !== false) && (
                 <button
                   type="button"
                   role="menuitem"
@@ -2260,6 +2273,7 @@ export default function AdvancedDataGrid({
                   {filterEntries.length > 0 && <b>{filterEntries.length}</b>}
                 </button>
               )}
+              {!hideColumnChooser && (
               <button
                 type="button"
                 role="menuitem"
@@ -2267,6 +2281,8 @@ export default function AdvancedDataGrid({
               >
                 <span>{labels.columns}</span>
               </button>
+              )}
+              {!hidePivot && (
               <button
                 type="button"
                 role="menuitem"
@@ -2276,6 +2292,7 @@ export default function AdvancedDataGrid({
                 <span>{labels.pivot}</span>
                 {pivotOpen && <span aria-hidden="true">✓</span>}
               </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -2491,7 +2508,7 @@ export default function AdvancedDataGrid({
           {labels.loading}
         </div>
       )}
-      {pivotOpen && (
+      {pivotOpen && !hidePivot && (
         <section className="advanced-grid-pivot">
           <header>
             <b>{labels.pivot}</b>

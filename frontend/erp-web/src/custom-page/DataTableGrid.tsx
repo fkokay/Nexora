@@ -15,7 +15,16 @@ import "./data-table-grid.css";
  * (`nexora.grid.<gridId>`) gelir. Ham `QueryTable` ile aynı özellikleri alır; sayfa seçimi (`<tablo>.seciliSatir`)
  * ızgaranın güncel satırıdır, onay kutuları ise yalnız ızgara içi çoklu seçimdir.
  */
+/** Tasarımcıdaki tablo araçları: kaydedilmemişse açıktır (false = gizli). */
+export type GridTools = { search: boolean; filters: boolean; columns: boolean; export: boolean; pivot: boolean };
+export const ALL_GRID_TOOLS: GridTools = { search: true, filters: true, columns: true, export: true, pivot: true };
+/** dataTable props → araçlar: `showGridSearch`, `showColumnFilters`, `showColumnChooser`, `showExport`, `showPivot`. */
+export function gridToolsOf(props: Record<string, unknown> | undefined): GridTools {
+  const on = (key: string) => props?.[key] !== false;
+  return { search: on("showGridSearch"), filters: on("showColumnFilters"), columns: on("showColumnChooser"), export: on("showExport"), pivot: on("showPivot") };
+}
 export type DataTableGridProps = {
+  tools?: GridTools;
   /** Görünüm ayarlarının anahtarı: `custom-page.<sayfaKodu>.<bileşenId>`. */
   gridId: string;
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
@@ -57,7 +66,7 @@ const labeledCell = (labels: Record<string, Record<string, string>>, code: strin
 const rowKey = (index: number) => `r${index}`;
 const keyIndex = (key: string | null) => key && /^r\d+$/.test(key) ? Number(key.slice(1)) : -1;
 
-export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {} }: DataTableGridProps) {
+export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS }: DataTableGridProps) {
   // Seçilen sütunlar tasarımcının seçim sırasıyla; başlık `columnLabels` ile değişebilir.
   const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
     .map((column) => columnLabels[code] ? { ...column, label: columnLabels[code] } : column)) : [];
@@ -124,6 +133,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
             <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
                 externalPagination={!!paging} enableRowSelection={false} selectable
+                hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hidePivot={!tools.pivot}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>
                   {visible.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "nx-num" : undefined}>{column.label || column.code}</th>)}

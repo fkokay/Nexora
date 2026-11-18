@@ -47,6 +47,8 @@ internal static class TenantCustomPageSchema
       "requiredWhen",
       // Proje 4: compact one-row formCard (e.g. the filter row above a list), conditional width and per-value cell labels.
       "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
+      // Gelişmiş tablo araçları (yoksa açık): arama, sütun süzgeçleri, sütun seçici, dışa aktarma, pivot.
+      "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot",
       // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
       "titleCount",
       // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
@@ -59,6 +61,7 @@ internal static class TenantCustomPageSchema
       "pageTitle" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
+    private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton" };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
@@ -1300,7 +1303,8 @@ internal static class TenantCustomPageSchema
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
         ["closeInput"] = ["card"],
-        ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"]
+        ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
+        ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1347,6 +1351,8 @@ internal static class TenantCustomPageSchema
             "dataTable" when props.TryGetProperty("valueLabels", out var valueLabels) && !(valueLabels.ValueKind == JsonValueKind.Array
                 && valueLabels.GetArrayLength() is >= 1 and <= MaxValueLabels && valueLabels.EnumerateArray().All(x => MatchesSafely(ValueLabelItem, x))) =>
                 Fail($"'valueLabels' 1–{MaxValueLabels} adet kolon:değer=Etiket öğesi içermelidir.", out error),
+            "dataTable" when GridToolFlags.FirstOrDefault(flag => props.TryGetProperty(flag, out var value) && !IsBool(value)) is { } badFlag =>
+                Fail($"'{badFlag}' true veya false olmalıdır.", out error),
             "dataTable" when !ValidItems(props, "columnLabels", ColumnLabelItem, MaxColumnMaps) =>
                 Fail($"'columnLabels' 1–{MaxColumnMaps} adet kolon=Başlık öğesi içermelidir.", out error),
             "dataTable" when !ValidItems(props, "columnUnits", ColumnUnitItem, MaxColumnMaps) =>
