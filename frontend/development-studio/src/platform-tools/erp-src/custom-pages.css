@@ -557,3 +557,21 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-query-custom-add input{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .pd-query-custom-type{display:inline-flex;align-items:center;gap:4px}
 .pd-query-custom-type .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:0;background:transparent;color:var(--pd-danger)}
+/* Arama kutusu önizlemesi: ERP LookupInput (arama simgeli kutu + seçenek listesi) görünümü; etkileşimsizdir */
+.pd-lookup{display:grid;gap:4px}
+.pd-lookup-box{position:relative;display:block}
+.pd-lookup-box svg{position:absolute;top:50%;left:9px;color:#667085;transform:translateY(-50%)}
+.pd-binding-preview-input .pd-lookup-box input{padding-left:28px}
+.pd-lookup-list{display:grid;margin:0;padding:3px 0;border:1px solid var(--page-border);border-radius:6px;background:#fff;list-style:none;font-weight:400}
+.pd-lookup-list li{display:grid;padding:4px 9px;color:var(--page-ink);font-size:12px}
+.pd-lookup-list li small{color:#667085;font-size:11px}
+.pd-lookup-list li:first-child:not(.pd-lookup-empty){background:var(--dl-primary-soft,#e8f0fd)}
+.pd-lookup-empty{color:#667085!important}
+/* Sunucu sayfalı liste: başlıktaki arama girişi ve ERP PagedTableFooter altbilgisi (düğmeler tuvalde kapalı) */
+.pd-grid-search{max-width:320px;margin:0 0 8px}
+.pd-pager{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;color:var(--dl-muted,#667085);font-size:12px}
+.pd-pager-range{color:var(--dl-text,#1b2430);font-weight:600;font-variant-numeric:tabular-nums}
+.pd-pager-meta{padding:1px 8px;border-radius:999px;background:var(--dl-head,#f7f8fa)}
+.pd-pager-grow{flex:1}
+.pd-pager button{min-height:26px;padding:0 10px;border:1px solid var(--dl-line,#dfe3e9);border-radius:6px;background:var(--dl-surface,#fff);color:var(--dl-muted,#667085);font:inherit}
+.pd-pager button:disabled{opacity:.6}
