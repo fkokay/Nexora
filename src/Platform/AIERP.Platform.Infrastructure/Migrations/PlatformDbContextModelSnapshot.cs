@@ -9321,7 +9321,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasAlternateKey("TenantId", "Id");
 
-                    b.HasIndex("TenantId", "Code")
+                    b.HasIndex("TenantId", "Type", "Code")
                         .IsUnique();
 
                     b.ToTable("FinancialAccounts");
