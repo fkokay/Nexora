@@ -89,7 +89,7 @@ describe('İnsan kaynakları frame', () => {
     renderScreen(<HumanResourcesPage token="t" role="TenantUser" />);
     await screen.findByText('Ayşe Demir');
     await waitFor(() => expect(enabled('refresh')).toBe(true));
-    expect(enabled('new')).toBe(false);
+    expect(command('new')).toBeNull();
   });
 });
 

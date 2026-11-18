@@ -52,7 +52,7 @@ describe('buildPageCommands', () => {
       expect(commands[id]?.run).toBeUndefined();
     }
     expect(commands.refresh?.run).toBeTypeOf('function');
-    expect(Object.values(commands).some((spec) => !Array.isArray(spec) && spec?.primary)).toBe(false);
+    expect(Object.values(commands).some((spec) => typeof spec === 'object' && !Array.isArray(spec) && spec?.primary)).toBe(false);
   });
 
   it('saveQuery insert + hak: birincil, run yazar', () => {

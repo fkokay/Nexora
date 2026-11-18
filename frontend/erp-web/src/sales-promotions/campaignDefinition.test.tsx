@@ -414,9 +414,9 @@ describe('Kampanyalar definition screen', () => {
   it('a TenantUser sees the campaign read-only and can still apply it to a draft quote', async () => {
     renderPage('TenantUser');
     await settle();
-    // No Yeni / Sil for them (the bar shows the commands as not available here).
-    expect((commandReason(command('new')) ?? '')).toBe('Bu ekranda kullanılamaz');
-    expect((commandReason(command('delete')) ?? '')).toBe('Bu ekranda kullanılamaz');
+    // No Yeni / Sil for them (the bar does not draw commands the screen does not register).
+    expect(command('new')).toBeNull();
+    expect(command('delete')).toBeNull();
     await select('KMP-KIS');
     expect(field(/^Kampanya adı/).disabled).toBe(true);
     expect(field(/^Kampanya kodu/).disabled).toBe(true);

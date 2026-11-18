@@ -18,9 +18,19 @@ usePageCommands({
 });
 ```
 
-- **Sekiz standart düğme her ekranda aynı sırada durur:** Yeni (F2) · Aç (Enter) · Kaydet (Ctrl+S) · Sil (Ctrl+Del) |
-  Yenile (F5) · Filtre (Ctrl+F) | Yazdır (Ctrl+P) · Excel (Ctrl+E). Kullanılamayan düğme gizlenmez; soluk çizilir,
-  nedeni `title` ve ekran okuyucu metni olarak verilir (`disabledReason`; komut yoksa "Bu ekranda kullanılamaz").
+- **Standart düğmeler sabit sırada durur, ekranın türüne göre açılır:** Yeni (F2) · Aç (Enter) · Kaydet (Ctrl+S) ·
+  Sil (Ctrl+Del) | Yenile (F5) · Filtre (Ctrl+F) | Yazdır (Ctrl+P) · Excel (Ctrl+E). Kural tek yerdedir
+  (`offersCommand`, `src/commands/types.ts`); çubuk ve kısayollar aynı kuralı kullanır:
+  - Hiçbir kaynağın kaydetmediği komut **gizlenir** (eski "Bu ekranda kullanılamaz" soluk düğmesi yok). Liste
+    ekranları `save` kaydetmez, bu yüzden listede Kaydet çıkmaz ve Ctrl+S bir şey yapmaz.
+  - Kaydedilmiş ama şu an kullanılamayan komut soluk çizilir; nedeni `title` ve ekran okuyucu metni olarak verilir
+    (`disabledReason`, ör. "Önce bir kayıt seçin", salt okunur kayıtta "Banka ekstresi salt okunurdur").
+  - **Kayıt formu ekranı:** etkin `form` kaynağı birincil Kaydet'i sahipleniyorsa (RecordFormPage, sayfa diyaloğu,
+    birincil `FormSaveCommand`) kayıt defteri `screen: 'form'` hesaplar; Aç, Filtre ve Excel gizlenir, kısayolları
+    (Enter, Ctrl+F, Ctrl+E) çalışmaz. Listenin yanında duran form birincil olmayan Kaydet kaydeder
+    (`FormSaveCommand primary={false}`) ya da `besideList` taşır (tanım ekranının bölmesindeki, `.nx-def-pane`
+    içindeki RecordFormPage bunu kendiliğinden ekler, ör. Raf ve Konumlar); ekran liste olarak kalır.
+  - Ayırıcı yalnızca iki yanında düğme kalan gruplar arasında çizilir.
 - **Birincil komut** (`primary: true`) mavi dolgulu çizilir; ekranda en fazla bir tane olur (liste: Yeni, açık form: Kaydet).
 - **Geri Al** (Ctrl+Z) yalnızca sayfa `undo` kaydettiğinde, İşlemler'in solunda görünür.
 - **İşlemler** (Alt+İ) menüsü sayfanın `more` öğelerini listeler: eski satır menüsü ("⋯") işlemleri, alan tanımları,
