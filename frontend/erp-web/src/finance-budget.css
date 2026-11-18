@@ -4,6 +4,30 @@
   width: 100%;
   min-width: 0;
 }
+/* Bütçe Planlama as list type A: the kit's 12px rhythm (header → bar → cards → toolbar → list). */
+#root .finance-page.fin-budget-page.list-v2 { gap: 12px; }
+#root .finance-page.fin-budget-page.list-v2 > :is(.alert, .notice) { margin: 0; }
+/* The plan surface: the monthly grid sits in its card, edge to edge. */
+#root .budget-detail .budget-detail-box > .dd-tabs { padding: 0 12px; border-bottom: 1px solid var(--nx-line); }
+#root .budget-detail .budget-detail-box .cf-tabbody { display: grid; gap: 10px; padding: 0; }
+/* Single layer: the plan grid and its tools are flat inside the card (no second box, no own height cap). */
+#root .app-shell .budget-detail .budget-detail-box :is(.ledger-list, .advanced-grid, .advanced-grid-scroll) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#root .app-shell .budget-detail .budget-detail-box :is(.ledger-list, .advanced-grid-scroll) { max-height: none !important; }
+#root .app-shell .budget-detail .budget-detail-box .ledger-list { overflow: visible !important; }
+#root .app-shell .budget-detail .budget-detail-box .advanced-grid-toolbar {
+  border: 0 !important;
+  border-bottom: 1px solid var(--nx-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .app-shell .budget-detail .budget-detail-box .advanced-grid-search { border-radius: var(--nx-radius-control, 6px) !important; }
+#root .budget-detail .budget-detail-box .budget-currency-warning,
+#root .budget-detail .budget-detail-box .budget-state { margin: 12px; }
 
 .finance-budget-page > .page-heading,
 .finance-budget-page .panel-heading,

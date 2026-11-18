@@ -1097,6 +1097,23 @@ export const english: Record<string, string> = {
   'Satır önizler · Boşluk işaretle · İşlemler › Bu kaynağı aktar / Seçilenleri aktar': 'Row previews · Space tick · Actions › Post this source / Post selected',
   'aktarıma hazır': 'ready to post',
   'İşlemler › Bu kaynağı aktar. Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.': 'Actions › Post this source. A posted entry cannot be changed; corrections are made with a reversal.',
+  // Bütçe Planlama (list type A and the plan surface)
+  'Bütçe taslağını yalnız firma yöneticisi oluşturur': 'Only a company administrator creates a budget draft',
+  'Bütçe senaryosu silinemez': 'A budget scenario cannot be deleted',
+  'Senaryo': 'Scenario',
+  'Gerçekleşen': 'Actual',
+  'Gerçekleşme': 'Achieved',
+  'Bütçeler yükleniyor…': 'Loading budgets…',
+  'Henüz bütçe senaryosu yok.': 'No budget scenarios yet.',
+  'Bu durumda bütçe yok.': 'No budget in this status.',
+  '↑↓ gez · Enter aç · Çift tık aç': '↑↓ move · Enter open · Double-click open',
+  'Bütçe taslağını yalnız firma yöneticisi düzenler ve onaylar': 'Only a company administrator edits and approves a budget draft',
+  'Onaylı bütçe değiştirilemez': 'An approved budget cannot be changed',
+  'Senaryo güncel baz para biriminde değil': 'The scenario is not in the current base currency',
+  'Satırı olmayan taslak onaylanamaz': 'A draft without lines cannot be approved',
+  'Düzenlemek için İşlemler › Düzenle': 'To edit, use Actions › Edit',
+  'Bütçe senaryosu': 'Budget scenario',
+  'Fark (gerçekleşen − plan)': 'Variance (actual − plan)',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1104,6 +1121,8 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) fişini aç$/, 'Open entry $1'],
   [/^(.+?) hesap ekstresini aç$/, 'Open the statement of $1'],
   [/^(.+?) ekstresini aç$/, 'Open statement $1'],
+  [/^(.+?) bütçesini aç$/, 'Open budget $1'],
+  [/^(\d+) bütçe senaryosu$/, '$1 budget scenarios'],
   [/^(\d+)\/(\d+) satır eşleşti$/, '$1/$2 lines matched'],
   [/^Fiş dengeli değil: alacağa (.+?) ekleyin ya da borcu azaltın\.$/, 'Voucher is not balanced: add $1 to credits or reduce debits.'],
   [/^Fiş dengeli değil: borca (.+?) ekleyin ya da alacağı azaltın\.$/, 'Voucher is not balanced: add $1 to debits or reduce credits.'],

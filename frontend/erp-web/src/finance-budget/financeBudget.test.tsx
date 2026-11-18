@@ -75,20 +75,38 @@ async function settle(ms = 400) {
 const calls = (path: string) => fetchCalls.filter((call) => call.url.split('?')[0] === path).map(({ method, body }) => ({ method, body }));
 
 // --- Interaction steps (the only part that follows the UI) ---
+// The list opens a plan on the detail surface; Yeni is the İşlem Çubuğu command, Düzenle / Onayla are in İşlemler.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+function menuItem(id: string) {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  return document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`);
+}
+const closeMenu = () => {
+  if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+};
 async function openPlan(name: string) {
-  fireEvent.click(screen.getAllByRole('button', { name: new RegExp(name) })[0]);
+  if (screen.queryByLabelText('Satır 1 hesap')) {
+    fireEvent.click(screen.getAllByRole('button', { name: /Vazgeç/ })[0]);
+    await settle(50);
+  }
+  const back = screen.queryByRole('button', { name: 'Listeye dön' });
+  if (back) {
+    fireEvent.click(back);
+    await settle(50);
+  }
+  fireEvent.click(screen.getByRole('button', { name: `${name} bütçesini aç` }));
   await settle();
 }
 async function approve() {
-  fireEvent.click(screen.getByRole('button', { name: 'Onayla' }));
+  fireEvent.click(menuItem('budget-approve')!);
   await settle();
 }
 async function startNew() {
-  fireEvent.click(screen.getByRole('button', { name: /Yeni bütçe/ }));
+  fireEvent.click(bar().querySelector<HTMLElement>('[data-command="new"]')!);
   await settle(100);
 }
 async function startEdit() {
-  fireEvent.click(screen.getAllByRole('button', { name: 'Düzenle' })[0]);
+  fireEvent.click(menuItem('budget-edit')!);
   await settle(100);
 }
 function fillNewDraft() {
@@ -100,8 +118,13 @@ async function submitDraft() {
   fireEvent.submit(screen.getByLabelText(/Satır 1 hesap/).closest('form')!);
   await settle();
 }
-const approveVisible = () => screen.queryByRole('button', { name: 'Onayla' }) !== null;
-const createVisible = () => screen.queryByRole('button', { name: /Yeni bütçe/ }) !== null;
+const approveVisible = () => {
+  const item = menuItem('budget-approve');
+  const enabled = !!item && item.getAttribute('aria-disabled') !== 'true';
+  closeMenu();
+  return enabled;
+};
+const createVisible = () => bar().querySelector<HTMLElement>('[data-command="new"]')?.getAttribute('aria-disabled') !== 'true';
 // ---
 
 describe('Bütçe Planlama (characterization)', () => {

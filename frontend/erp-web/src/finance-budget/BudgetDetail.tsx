@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import AdvancedDataGrid from "../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../screenViewGridLayout";
-import { DetailTabs } from "../document-detail/DocumentDetailLayout";
+import { DetailTabs, DetailTiles } from "../document-detail/DocumentDetailLayout";
+import { DocumentSurface } from "../document-page/DocumentSurface";
+import { PageCommandsSlot, documentOpenCommands } from "../commands/PageCommandsSlot";
+import type { MenuCommand, PageCommands } from "../commands/types";
+import { budgetUsage } from "./BudgetPlanList";
 import type { BudgetLayoutField, Line, PlanView } from "./types";
 
 type BudgetTab = "monthly" | "accounts";
@@ -17,6 +21,11 @@ type Props = {
   busy: boolean;
   onEdit: (plan: PlanView) => void;
   onApprove: () => void;
+  onClose: () => void;
+  onNew: () => void;
+  onRefresh: () => void;
+  /** Page error / notice, shown under the surface header. */
+  messages?: ReactNode;
   money: (amount: number, currency?: string) => string;
 };
 
@@ -31,40 +40,89 @@ export default function BudgetDetail({
   busy,
   onEdit,
   onApprove,
+  onClose,
+  onNew,
+  onRefresh,
+  messages,
   money,
 }: Props) {
   const [tab, setTab] = useState<BudgetTab>("monthly");
   const approved = isApproved(selected.plan.status);
+  const plan = selected.plan;
+  const usage = budgetUsage(plan, baseCurrency);
+  const variance = plan.currencyCode === baseCurrency ? plan.actualTotal - plan.plannedTotal : null;
+  // Same conditions as the former header buttons (draft, firma yöneticisi, base currency, not busy).
+  const actionReason = !admin
+    ? "Bütçe taslağını yalnız firma yöneticisi düzenler ve onaylar"
+    : !draft
+      ? "Onaylı bütçe değiştirilemez"
+      : currencyMismatch
+        ? "Senaryo güncel baz para biriminde değil"
+        : controlsLocked
+          ? "İşlem sürüyor…"
+          : undefined;
+  const more: MenuCommand[] = [
+    { id: "budget-edit", label: "Düzenle", disabledReason: actionReason, run: () => onEdit(selected) },
+    {
+      id: "budget-approve",
+      label: busy ? "Onaylanıyor…" : "Onayla",
+      disabledReason: actionReason ?? (selected.lines.length === 0 ? "Satırı olmayan taslak onaylanamaz" : undefined),
+      run: onApprove,
+    },
+  ];
+  const commands: PageCommands = {
+    ...documentOpenCommands(onRefresh),
+    new: admin ? { disabledReason: controlsLocked ? "İşlem sürüyor…" : undefined, run: onNew } : { disabledReason: "Bütçe taslağını yalnız firma yöneticisi oluşturur" },
+    save: { disabledReason: "Düzenlemek için İşlemler › Düzenle" },
+    delete: { disabledReason: "Bütçe senaryosu silinemez" },
+    more,
+  };
   return (
-    <section className="cf-detail budget-detail" aria-labelledby="budget-detail-title">
-      <header className="cf-detail-head">
-        <div className="cf-detail-title">
-          <h2 id="budget-detail-title">{selected.plan.name}</h2>
-          <span className={`cf-state${approved ? " is-active" : ""}`}>{approved ? "Onaylı" : "Taslak"}</span>
-        </div>
-        <p className="cf-detail-sub">
-          {selected.plan.fiscalYear} · {selected.plan.currencyCode} ·{" "}
+    <>
+    <PageCommandsSlot commands={commands} />
+    <DocumentSurface
+      variant="detail"
+      className="budget-detail"
+      title="Bütçe senaryosu"
+      eyebrow="Bütçe senaryosu"
+      code={plan.name}
+      status={approved ? { label: "Onaylı", tone: "success" } : { label: "Taslak", tone: "warning" }}
+      meta={
+        <span>
+          {plan.fiscalYear} · {plan.currencyCode} ·{" "}
           {approved
-            ? `Onaylandı${selected.plan.approvedAt ? ` (${selected.plan.approvedAt.slice(0, 10).split("-").reverse().join(".")})` : ""}`
+            ? `Onaylandı${plan.approvedAt ? ` (${plan.approvedAt.slice(0, 10).split("-").reverse().join(".")})` : ""}`
             : "Onay için taslağı oluşturan dışında bir firma yöneticisi gerekir"}
-        </p>
-        {draft && admin && !currencyMismatch && (
-          <div className="cf-detail-actions">
-            <button type="button" className="secondary" onClick={() => onEdit(selected)} disabled={controlsLocked}>
-              Düzenle
-            </button>
-            <button
-              type="button"
-              className="primary"
-              disabled={controlsLocked || selected.lines.length === 0}
-              onClick={onApprove}
-              aria-busy={busy}
-            >
-              {busy ? "Onaylanıyor…" : "Onayla"}
-            </button>
-          </div>
-        )}
-      </header>
+        </span>
+      }
+      onClose={onClose}
+      hints={["Alt+İ işlemler"]}
+      footerStatus={
+        <span>
+          <span>{`${selected.lines.length} satır`}</span> · <span>Plan</span> <b>{money(plan.plannedTotal, plan.currencyCode)}</b>
+        </span>
+      }
+    >
+      {messages}
+      <DetailTiles
+        label="Bütçe özeti"
+        items={[
+          { label: "Plan", value: money(plan.plannedTotal, plan.currencyCode), hint: <span>{`${plan.fiscalYear} · ${plan.lineCount} satır`}</span> },
+          {
+            label: "Yevmiye gerçekleşeni",
+            value: money(plan.actualTotal, baseCurrency || plan.currencyCode),
+            progress: usage === null ? undefined : Math.min(1, Math.max(0, usage)),
+            hint: usage === null ? undefined : <span>{`Planın %${(usage * 100).toLocaleString("tr-TR", { maximumFractionDigits: 0 })} gerçekleşti`}</span>,
+          },
+          {
+            label: "Fark (gerçekleşen − plan)",
+            value: variance === null ? "—" : money(variance, baseCurrency),
+            tone: variance !== null && variance < 0 ? "warning" : "default",
+            hint: <span>{variance === null ? "Para birimleri farklı; fark hesaplanmaz" : "Satır bazında yön için tabloya bakın"}</span>,
+          },
+        ]}
+      />
+      <div className="dd-box budget-detail-box">
       <DetailTabs<BudgetTab>
         label="Bütçe ayrıntıları"
         value={tab}
@@ -179,7 +237,9 @@ export default function BudgetDetail({
         </div>
       )}
       </div>
-    </section>
+      </div>
+    </DocumentSurface>
+    </>
   );
 }
 
