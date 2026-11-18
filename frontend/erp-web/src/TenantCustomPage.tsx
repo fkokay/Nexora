@@ -37,6 +37,7 @@ import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { iterationOf, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import "./tenant-custom-page.css";
+import "./system-pages/system-pages.css";
 
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
@@ -1990,22 +1991,38 @@ function operationInputErrors(queries: PageQueryDefinition[], states: Record<str
   return result;
 }
 
-export default function TenantCustomPage({ code, previewId, token }: { code?: string; previewId?: string; token: string }) {
+type TenantCustomPageProps = {
+  code?: string; previewId?: string; token: string;
+  /** System mode: the page key of a built-in screen whose firm design or standard is served by `/api/system-pages`. */
+  systemScreenKey?: string;
+  onOpenLegacy?: () => void;
+  /** Called on a 404 in system mode (stale runtime map) instead of showing an error. */
+  onSystemPageMissing?: () => void;
+};
+
+export default function TenantCustomPage({ code, previewId, token, systemScreenKey, onOpenLegacy, onSystemPageMissing }: TenantCustomPageProps) {
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // The router passes inline callbacks; keep them out of the load effect's dependencies.
+  const onMissingRef = useRef(onSystemPageMissing);
+  onMissingRef.current = onSystemPageMissing;
 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(""); setPage(null);
     const endpoint = previewId
       ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview`
-      : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+      : systemScreenKey
+        ? `/api/system-pages/${encodeURIComponent(systemScreenKey)}/published`
+        : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+    let missing = false;
     // api() maps every 403 to a generic text; the published endpoint's own 403 message
     // ("Bu sayfayı görüntüleme yetkiniz yok.") travels on the error as serverError.
     void api<PublishedPage>(endpoint, token)
       .catch((cause: unknown) => {
         const failure = cause as Error & { status?: number; serverError?: string };
+        if (systemScreenKey && !previewId && failure.status === 404) { missing = true; throw cause; }
         throw failure.status === 403 && failure.serverError ? new Error(failure.serverError) : cause;
       })
       .then((result) => {
@@ -2014,13 +2031,21 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
         if ((definition.schemaVersion !== 1 && definition.schemaVersion !== 2) || !Array.isArray(definition.components)) throw new Error("Yayımlanan sayfa tanımı geçersiz.");
         setPage(result);
       })
-      .catch((cause: unknown) => { if (active) setError((cause as Error).message || "Sayfa yüklenemedi."); })
-      .finally(() => { if (active) setLoading(false); });
+      .then(() => { if (active) setLoading(false); }, (cause: unknown) => {
+        if (!active) return;
+        // Stale map: stay in the loading state while the router falls back to the legacy screen.
+        if (missing) { onMissingRef.current?.(); return; }
+        setError((cause as Error).message || "Sayfa yüklenemedi.");
+        setLoading(false);
+      });
     return () => { active = false; };
-  }, [code, previewId, token]);
+  }, [code, previewId, systemScreenKey, token]);
 
+  const legacyLink = onOpenLegacy
+    ? <button type="button" className="link-button system-page-legacy-link" onClick={onOpenLegacy}>Eski ekranda aç</button>
+    : null;
   if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
-  if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span></div>;
+  if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span>{legacyLink}</div>;
 
   let components: ComponentDefinition[] = [];
   let queryDefinitions: ReturnType<typeof readPageQueries> = [];
@@ -2030,11 +2055,11 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
     components = Array.isArray(definition.components) ? definition.components : [];
     isV2 = definition.schemaVersion === 2;
     if (isV2) queryDefinitions = readPageQueries(definition);
-  } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.</div>; }
+  } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.{legacyLink}</div>; }
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div></header>
+    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
     <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} />
   </main>;
 }

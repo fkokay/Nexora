@@ -41,6 +41,9 @@
 .pd-message.error{border-color:#f3c6ca;background:#fff5f6;color:#9f1f2b}
 .pd-message.success{border-color:#bfe6d2;background:#f0fbf5;color:#1c6b47}
 .pd-message.readonly{border-color:#e3dcfb;background:#faf8ff;color:#4c3a99}
+.pd-message.warning{border-color:#f5d9b8;background:#fff8ef;color:#8a4b0c}
+.pd-message.info{border-color:#cfe0f7;background:#f4f8ff;color:#1f4f99}
+.pd-message.info ul{margin:4px 0 0;padding-left:18px}
 
 .pd-workspace{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;gap:10px;min-height:0;align-items:start}
 .pd-left,.pd-right{position:sticky;top:70px;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100vh - 82px);overflow:hidden;border:1px solid var(--pd-line);border-radius:12px;background:#fff}
@@ -575,3 +578,12 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-pager-grow{flex:1}
 .pd-pager button{min-height:26px;padding:0 10px;border:1px solid var(--dl-line,#dfe3e9);border-radius:6px;background:var(--dl-surface,#fff);color:var(--dl-muted,#667085);font:inherit}
 .pd-pager button:disabled{opacity:.6}
+
+/* Sistem sayfası "Yeni" şeridi: standart tanımdaki yeni öğeler */
+.pd-new-items{margin:0 0 10px;padding:10px 12px;border:1px solid #d8d0fb;border-radius:10px;background:#f8f6ff;color:#3f2f8f}
+.pd-new-items-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pd-new-items-head b{flex:1;min-width:0;font-size:13px}
+.pd-new-items ul{display:grid;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.pd-new-items li{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--pd-line);border-radius:8px;background:#fff}
+.pd-new-items-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#22223a}
+.pd-new-items-kind{padding:2px 7px;border-radius:999px;background:#eef1f7;color:#55647c;font-size:10.5px;font-weight:700}

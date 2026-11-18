@@ -18,6 +18,7 @@ import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
 import { WorkspacePageRouter } from "./WorkspacePageRouter";
+import type { SystemPageMap } from "./system-pages/useSystemPageMap";
 import { CustomerReferenceSidebar } from "./customers/components/CustomerReferenceSidebar";
 import {
   WorkspaceTabs,
@@ -221,6 +222,7 @@ type Props = {
   notice: string;
   platformStatus: string;
   selectedModuleMenu: ModuleMenuSelection | null;
+  systemPages: SystemPageMap;
   pendingCustomerInvoiceId: string | null;
   pendingPurchaseSupplier: { id: string; name: string } | null;
   initialCustomerSearch: string;
@@ -290,6 +292,7 @@ export function WorkspaceShellPage(props: Props) {
     notice,
     platformStatus,
     selectedModuleMenu,
+    systemPages,
     pendingCustomerInvoiceId,
     pendingPurchaseSupplier,
     initialCustomerSearch,
@@ -531,6 +534,7 @@ export function WorkspaceShellPage(props: Props) {
                 locale={locale}
                 platformStatus={platformStatus}
                 selectedModuleMenu={selectedModuleMenu}
+                systemPages={systemPages}
                 pendingCustomerInvoiceId={pendingCustomerInvoiceId}
                 onInitialInvoiceOpened={onInitialInvoiceOpened}
                 pendingPurchaseSupplier={pendingPurchaseSupplier}

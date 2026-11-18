@@ -1,0 +1,260 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Xunit;
+
+public sealed class SystemPageStandardsTests
+{
+    private const string Key = "inventory-warehouses";
+
+    [Fact]
+    public void Embedded_standards_are_valid()
+    {
+        Assert.Empty(SystemPageStandards.Validate(SystemPageStandards.EmbeddedFiles()));
+        var standard = SystemPageStandards.All[Key];
+        Assert.Equal(1, standard.Version);
+        Assert.Equal("preview", standard.Stage);
+        Assert.Equal("Depo Yönetimi", standard.Title);
+        Assert.Equal("Stok & Depo", standard.Module);
+        Assert.Contains(standard.Items, x => x.Key == "component:depoListesi" && x.Kind == "component" && x.Id == "depoListesi"
+            && x.Requires.SequenceEqual(new[] { "query:depolar" }));
+        Assert.Contains(standard.Items, x => x.Key == "query:depolar" && x.Kind == "query" && x.Id == "depolar" && x.Since == 1);
+        var view = Assert.Single(standard.ScreenViews);
+        Assert.Equal("depoListesi", view.Component);
+        Assert.Equal("isActive", view.Fields["status"]);
+        Assert.True(SystemPageStandards.TryGet(Key, out var same));
+        Assert.Same(standard, same);
+        Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
+        Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
+    }
+
+    [Fact]
+    public void Embedded_set_wraps_static_standards()
+    {
+        ISystemPageStandardSet set = new EmbeddedSystemPageStandardSet();
+        Assert.True(set.TryGet(Key, out var standard));
+        Assert.Same(SystemPageStandards.All[Key], standard);
+        Assert.Equal(SystemPageStandards.All.Count, set.All.Count);
+    }
+
+    [Fact]
+    public void Versions_file_matches()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "SystemPageStandards.versions.txt");
+        var lines = File.ReadAllLines(path).Select(x => x.Trim()).Where(x => x.Length > 0).ToArray();
+        Assert.Equal(lines.OrderBy(x => x, StringComparer.Ordinal), lines);
+        foreach (var line in lines)
+        {
+            var parts = line.Split('=');
+            Assert.True(SystemPageStandards.TryGet(parts[0], out var standard), $"Standart kaldırılamaz: {parts[0]}");
+            Assert.True(standard.Version >= int.Parse(parts[1]), $"Standart sürümü düşemez: {parts[0]}");
+        }
+        // Every current standard is recorded, so the next change has a floor to compare against.
+        Assert.Equal(SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal), lines.Select(x => x.Split('=')[0]));
+    }
+
+    [Fact]
+    public void Every_restricted_version_validates()
+    {
+        foreach (var standard in SystemPageStandards.All.Values)
+            for (var k = 1; k <= standard.Version; k++)
+                Assert.True(TenantCustomPageSchema.Validate(SystemPageStandards.Restrict(standard, k), out var error), $"{standard.ScreenKey} v{k}: {error}");
+    }
+
+    [Fact]
+    public void SyntheticId_is_stable()
+    {
+        Assert.Equal(Guid.Parse("34787a42-4aa1-54ec-a9da-3a23e2bb2cf0"), SystemPageStandards.SyntheticId(Key));
+        Assert.Equal(SystemPageStandards.SyntheticId(Key), SystemPageStandards.SyntheticId(Key));
+        Assert.NotEqual(SystemPageStandards.SyntheticId(Key), SystemPageStandards.SyntheticId("inventory-transfers"));
+    }
+
+    [Fact]
+    public void Restrict_drops_later_items_and_their_layout_references()
+    {
+        var envelope = Demo();
+        envelope["version"] = 2;
+        var items = envelope["items"]!.AsObject();
+        items["component:yeniDugme"] = new JsonObject { ["since"] = 2, ["label"] = "Yeni düğme" };
+        items["component:islemCubugu"] = new JsonObject { ["since"] = 1, ["label"] = "İşlem çubuğu" };
+        items["component:sekmeler"] = new JsonObject { ["since"] = 1, ["label"] = "Sekmeler", ["requires"] = new JsonArray("component:depoListesi") };
+        var components = envelope["definition"]!["components"]!.AsArray();
+        components.Add(JsonNode.Parse("""{ "id": "yeniDugme", "type": "button", "name": "yeniDugme", "props": { "label": "Yeni" } }"""));
+        components.Add(JsonNode.Parse("""{ "id": "islemCubugu", "type": "actionBar", "name": "islemCubugu", "props": { "moreButtons": ["yeniDugme"], "exportTable": "depoListesi" } }"""));
+        components.Add(JsonNode.Parse("""{ "id": "sekmeler", "type": "tabs", "name": "sekmeler", "props": { "tabs": ["Liste=depoListesi", "Diğer=yeniDugme"] } }"""));
+        var json = envelope.ToJsonString();
+
+        // The full v2 definition and the v1 restriction (without yeniDugme) both validate.
+        Assert.Empty(Errors(json));
+        var standard = SystemPageStandards.Load([(Key + ".json", json)])[Key];
+        var v1 = JsonNode.Parse(SystemPageStandards.Restrict(standard, 1))!;
+        var ids = v1["components"]!.AsArray().Select(x => (string)x!["id"]!).ToArray();
+        Assert.Equal(new[] { "depoListesi", "islemCubugu", "sekmeler" }, ids);
+        var actionBar = v1["components"]!.AsArray().Single(x => (string)x!["id"]! == "islemCubugu")!;
+        Assert.Null(actionBar["props"]!["moreButtons"]);
+        Assert.Equal("depoListesi", (string)actionBar["props"]!["exportTable"]!);
+        var tabs = v1["components"]!.AsArray().Single(x => (string)x!["id"]! == "sekmeler")!["props"]!["tabs"]!.AsArray();
+        Assert.Equal(new[] { "Liste=depoListesi", "Diğer=" }, tabs.Select(x => (string)x!));
+        Assert.Single(v1["queries"]!.AsArray());
+        Assert.Equal(4, JsonNode.Parse(SystemPageStandards.Restrict(standard, 2))!["components"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public void Restrict_keeps_required_items_of_included_items()
+    {
+        var envelope = Demo();
+        envelope["version"] = 2;
+        envelope["items"]!["query:depolar"]!["since"] = 2;
+        var json = envelope.ToJsonString();
+        Assert.Empty(Errors(json));
+        var standard = SystemPageStandards.Load([(Key + ".json", json)])[Key];
+        var v1 = JsonNode.Parse(SystemPageStandards.Restrict(standard, 1))!;
+        Assert.Equal("depolar", (string)v1["queries"]![0]!["id"]!);
+    }
+
+    [Fact]
+    public void Rejects_sql_query()
+    {
+        var envelope = Demo();
+        envelope["items"]!["query:sqlSorgu"] = new JsonObject { ["since"] = 1, ["label"] = "SQL" };
+        envelope["definition"]!["queries"]!.AsArray().Add(JsonNode.Parse(
+            """{ "id": "sqlSorgu", "name": "sqlSorgu", "kind": "read", "sql": "SELECT 1 AS x", "parameters": [], "runOn": "load" }"""));
+        AssertError(envelope, "sqlSorgu");
+    }
+
+    [Fact]
+    public void Rejects_code_component_at_any_depth()
+    {
+        var envelope = Demo();
+        envelope["items"]!["component:bolum"] = new JsonObject { ["since"] = 1, ["label"] = "Bölüm" };
+        envelope["definition"]!["components"]!.AsArray().Add(JsonNode.Parse(
+            """{ "id": "bolum", "type": "section", "props": { "title": "Bölüm" }, "children": [ { "id": "kodParcasi", "type": "code", "props": { "javascript": "1" } } ] }"""));
+        AssertError(envelope, "kodParcasi");
+    }
+
+    [Fact]
+    public void Rejects_missing_item_for_top_level_id()
+    {
+        var envelope = Demo();
+        envelope["items"]!.AsObject().Remove("query:depolar");
+        envelope["items"]!["component:depoListesi"]!.AsObject().Remove("requires");
+        AssertError(envelope, "query:depolar");
+    }
+
+    [Fact]
+    public void Rejects_extra_item()
+    {
+        var envelope = Demo();
+        envelope["items"]!["component:hayalet"] = new JsonObject { ["since"] = 1, ["label"] = "Hayalet" };
+        AssertError(envelope, "component:hayalet");
+    }
+
+    [Fact]
+    public void Rejects_since_greater_than_version()
+    {
+        var envelope = Demo();
+        envelope["items"]!["query:depolar"]!["since"] = 2;
+        AssertError(envelope, "query:depolar");
+    }
+
+    [Fact]
+    public void Rejects_unknown_requires()
+    {
+        var envelope = Demo();
+        envelope["items"]!["component:depoListesi"]!["requires"] = new JsonArray("query:yok");
+        AssertError(envelope, "query:yok");
+    }
+
+    [Fact]
+    public void Rejects_screen_key_not_in_menu()
+    {
+        var envelope = Demo();
+        envelope["screenKey"] = "olmayan-ekran";
+        Assert.Contains(Errors(envelope.ToJsonString(), "olmayan-ekran.json"), x => x.Contains("olmayan-ekran", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejects_file_name_different_from_screen_key()
+    {
+        var errors = Errors(Demo().ToJsonString(), "inventory-transfers.json");
+        Assert.Contains(errors, x => x.Contains("inventory-transfers", StringComparison.Ordinal) && x.Contains(Key, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejects_screen_view_field_not_in_catalog()
+    {
+        var envelope = Demo();
+        envelope["screenViews"]![0]!["fields"]!["olmayanAlan"] = "code";
+        AssertError(envelope, "olmayanAlan");
+    }
+
+    [Fact]
+    public void Rejects_mapped_column_not_in_operation_result()
+    {
+        var envelope = Demo();
+        envelope["screenViews"]![0]!["fields"]!["availability"] = "olmayanSutun";
+        AssertError(envelope, "olmayanSutun");
+    }
+
+    [Fact]
+    public void Rejects_v1_definition()
+    {
+        var envelope = Demo();
+        envelope["definition"] = JsonNode.Parse("""{ "schemaVersion": 1, "components": [ { "id": "depoListesi", "type": "text", "props": { "text": "x" } } ] }""");
+        envelope["items"] = JsonNode.Parse("""{ "component:depoListesi": { "since": 1, "label": "Metin" } }""");
+        envelope["screenViews"] = new JsonArray();
+        AssertError(envelope, "schemaVersion");
+    }
+
+    [Fact]
+    public void Rejects_invalid_restricted_version()
+    {
+        // v1 holds the table but not its query, and nothing declares the dependency.
+        var envelope = Demo();
+        envelope["version"] = 2;
+        envelope["items"]!["query:depolar"]!["since"] = 2;
+        envelope["items"]!["component:depoListesi"]!.AsObject().Remove("requires");
+        AssertError(envelope, "v1");
+    }
+
+    [Fact]
+    public void All_errors_are_reported()
+    {
+        var envelope = Demo();
+        envelope["items"]!["component:hayalet"] = new JsonObject { ["since"] = 1, ["label"] = "Hayalet" };
+        envelope["screenViews"]![0]!["fields"]!["olmayanAlan"] = "code";
+        var errors = Errors(envelope.ToJsonString());
+        Assert.Contains(errors, x => x.Contains("component:hayalet", StringComparison.Ordinal));
+        Assert.Contains(errors, x => x.Contains("olmayanAlan", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Load_throws_listing_every_error()
+    {
+        var envelope = Demo();
+        envelope["items"]!["component:hayalet"] = new JsonObject { ["since"] = 1, ["label"] = "Hayalet" };
+        var exception = Assert.Throws<InvalidOperationException>(() => SystemPageStandards.Load([(Key + ".json", envelope.ToJsonString())]));
+        Assert.Contains("component:hayalet", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Catalog_adapters_expose_menu_and_screen_view_fields()
+    {
+        Assert.Contains(Key, StandardMenuEndpoints.PageKeys);
+        Assert.True(TenantScreenViewEndpoints.TryGetCatalogFields(Key, out var fields));
+        Assert.Contains(fields, x => x.Key == "status" && x.DefaultVisible);
+        Assert.False(TenantScreenViewEndpoints.TryGetCatalogFields("INVENTORY-WAREHOUSES", out _));
+        Assert.False(TenantScreenViewEndpoints.TryGetCatalogFields("no-such-view", out _));
+    }
+
+    private static JsonObject Demo() =>
+        JsonNode.Parse(SystemPageStandards.EmbeddedFiles().Single(x => x.FileName == Key + ".json").Json)!.AsObject();
+
+    private static IReadOnlyList<string> Errors(string json, string fileName = Key + ".json") =>
+        SystemPageStandards.Validate([(fileName, json)]);
+
+    private static void AssertError(JsonObject envelope, string offending)
+    {
+        var errors = Errors(envelope.ToJsonString());
+        Assert.True(errors.Any(x => x.Contains(offending, StringComparison.Ordinal)), $"'{offending}' içeren hata yok: {string.Join(" | ", errors)}");
+    }
+}

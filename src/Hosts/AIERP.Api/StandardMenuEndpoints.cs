@@ -21,6 +21,8 @@ public static class StandardMenuEndpoints
         new("manufacturing-recipes", "Tanımlı reçeteler", "Üretim"), new("manufacturing-recipe-create", "Reçete oluştur", "Üretim"), new("manufacturing-work-centers", "İş merkezleri", "Üretim"), new("manufacturing-work-center-create", "İş merkezi tanımla", "Üretim"), new("manufacturing-orders", "Üretim emirleri", "Üretim"), new("manufacturing-mrp", "Malzeme planlama", "Üretim"), new("manufacturing-cost-variance", "Maliyet analizi", "Üretim"),
         new("reports", "Rapor oluşturucu", "Platform Uyarlama"), new("ai-settings", "AI sağlayıcı ayarları", "Platform Uyarlama"), new("audit", "İşlem kayıtları", "Yönetim"), new("access", "İzin politikaları", "Yönetim"), new("settings", "Ayarlar", "Yönetim")
     ];
+    /// <summary>Page keys of the standard menu; declared after <see cref="Catalog"/> so static initialization sees it.</summary>
+    internal static IReadOnlySet<string> PageKeys { get; } = Catalog.Select(x => x.Page).ToHashSet(StringComparer.Ordinal);
     public static void MapStandardMenuEndpoints(this WebApplication app)
     {
         var menus = app.MapGroup("/api/custom-menus/standard").RequireAuthorization();
