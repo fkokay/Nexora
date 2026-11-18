@@ -1,12 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { ListToolbar } from "../../list-page/ListToolbar";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
-import type {
-  BuiltInScreenLayoutField,
-  CustomerLocationProvinceView,
-  TurkeyLocationOption,
-} from "../../erp-types";
+import { type FormEvent } from "react";
+import type { BuiltInScreenLayoutField } from "../../erp-types";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import "../../purchasing-record-forms.css";
 
@@ -22,17 +15,21 @@ type ProvinceFormProps = {
   name: string;
   active: boolean;
   busy: boolean;
+  error?: string;
+  onDismissError?: () => void;
   onNameChange: (value: string) => void;
   onActiveChange: (value: boolean) => void;
   onSubmit: (event: FormEvent) => void;
   onCancel: () => void;
 };
 
-function ProvinceForm({
+export function ProvinceForm({
   editingId,
   name,
   active,
   busy,
+  error,
+  onDismissError,
   onNameChange,
   onActiveChange,
   onSubmit,
@@ -41,24 +38,21 @@ function ProvinceForm({
   return (
     <RecordFormPage
       variant="dialog"
-      className={`prf-embedded${editingId ? "" : " prf-no-cancel"}`}
-      title={editingId ? "İl Tanımını Düzenle" : "Yeni İl Tanımı"}
+      title={editingId ? "İli düzenle" : "Yeni il"}
       mode={editingId ? "edit" : "create"}
       busy={busy}
-      saveLabel={editingId ? "İl tanımını kaydet" : "İl ekle"}
+      saveLabel={editingId ? "Kaydet" : "İl ekle"}
       onSubmit={onSubmit}
-      onCancel={() => {
-        if (editingId) onCancel();
-      }}
+      onCancel={onCancel}
+      error={error}
+      onDismissError={onDismissError}
       status={
         <span>
-          {editingId
-            ? "Seçili il tanımını düzenleyin."
-            : "Yeni il tanımı ekleyin."}
+          Pasif iller ve ilçeleri yeni adres seçimlerinde gösterilmez.
         </span>
       }
     >
-      <RecordFormGroup title="İl Kimliği" bodyClassName="rf-identity prf-identity-2">
+      <RecordFormGroup title="İl Kimliği" bodyClassName="rf-identity">
         <label>
           <span>İl adı <RequiredMark /></span>
           <input
@@ -84,187 +78,5 @@ function ProvinceForm({
         </label>
       </RecordFormGroup>
     </RecordFormPage>
-  );
-}
-
-type ProvinceGridProps = {
-  provinces: CustomerLocationProvinceView[];
-  districts: { provinceId: number }[];
-  selectedProvinceId: number;
-  loading: boolean;
-  busy: boolean;
-  onSelect: (id: number) => void;
-  onEdit: (item: CustomerLocationProvinceView) => void;
-  onToggle: (item: TurkeyLocationOption) => void;
-  fields?: BuiltInScreenLayoutField[];
-};
-
-function ProvinceGrid({
-  provinces,
-  districts,
-  selectedProvinceId,
-  loading,
-  busy,
-  onSelect,
-  onEdit,
-  onToggle,
-  fields,
-  toolbarContainer,
-}: ProvinceGridProps & { toolbarContainer?: HTMLElement | null }) {
-  const visibleFields = (fields?.length ? fields : defaultProvinceFields)
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) =>
-      a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
-    );
-  function renderCell(item: CustomerLocationProvinceView, key: string) {
-    switch (key) {
-      case "name":
-        return <b>{item.name}</b>;
-      case "status":
-        return item.isActive ? "Aktif" : "Pasif";
-      case "districtCount":
-        return districts.filter((district) => district.provinceId === item.id)
-          .length;
-      case "actions":
-        return (
-          <>
-            <button
-              type="button"
-              className="row-action"
-              onClick={(event) => {
-                event.stopPropagation();
-                onEdit(item);
-              }}
-            >
-              Düzenle
-            </button>
-            <button
-              type="button"
-              className="row-action"
-              disabled={busy}
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggle(item);
-              }}
-            >
-              {item.isActive ? "Pasife al" : "Etkinleştir"}
-            </button>
-          </>
-        );
-      default:
-        return null;
-    }
-  }
-  return (
-    <div className="ledger-list">
-      <AdvancedDataGrid
-        className="customer-table"
-        gridId="customer-provinces"
-        {...screenViewGridDefaults(visibleFields)}
-        externalPagination
-        hideSearch
-        enableRowSelection={false}
-        toolbarContainer={toolbarContainer}
-      >
-        <thead>
-          <tr>
-            {visibleFields.map((field) => (
-              <th key={field.key}>{field.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {provinces.map((item) => (
-            <tr
-              key={item.id}
-              className={
-                selectedProvinceId === item.id ? "erp-selected-row" : ""
-              }
-              onClick={() => onSelect(item.id)}
-            >
-              {visibleFields.map((field) => (
-                <td key={field.key}>{renderCell(item, field.key)}</td>
-              ))}
-            </tr>
-          ))}
-          {!loading && provinces.length === 0 && (
-            <tr>
-              <td colSpan={Math.max(visibleFields.length, 1)} className="table-empty">
-                İl tanımı bulunamadı.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </AdvancedDataGrid>
-    </div>
-  );
-}
-
-type Props = ProvinceFormProps & ProvinceGridProps & {
-  totalCount: number;
-  query: string;
-  onQueryChange: (value: string) => void;
-};
-
-export function ProvinceSection(props: Props) {
-  const {
-    provinces,
-    totalCount,
-    districts,
-    selectedProvinceId,
-    loading,
-    busy,
-    onSelect,
-    onEdit,
-    onToggle,
-    editingId,
-    name,
-    active,
-    onNameChange,
-    onActiveChange,
-    onSubmit,
-    onCancel,
-    query,
-    onQueryChange,
-    fields,
-  } = props;
-  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
-  return (
-    <section className="panel list-v2-list">
-      <div className="panel-heading">
-        <div>
-          <h2>İl tanımları</h2>
-          <p>{totalCount} il · varsayılan Türkiye listesi</p>
-        </div>
-      </div>
-      <ListToolbar
-        search={query}
-        onSearchChange={onQueryChange}
-        searchPlaceholder="İl adı ara"
-        toolsSlotRef={setToolsSlot}
-      />
-      <ProvinceGrid
-        provinces={provinces}
-        districts={districts}
-        selectedProvinceId={selectedProvinceId}
-        loading={loading}
-        busy={busy}
-        onSelect={onSelect}
-        onEdit={onEdit}
-        onToggle={onToggle}
-        fields={fields}
-        toolbarContainer={toolsSlot}
-      />
-      <ProvinceForm
-        editingId={editingId}
-        name={name}
-        active={active}
-        busy={busy}
-        onNameChange={onNameChange}
-        onActiveChange={onActiveChange}
-        onSubmit={onSubmit}
-        onCancel={onCancel}
-      />
-    </section>
   );
 }
