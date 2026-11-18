@@ -6,6 +6,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { FinancePage } from '../FinancePages';
+import { commandReason } from '../action-bar/commandReason';
 
 const account = (id: string, code: string, name: string, type: 'Cash' | 'Bank', balance: number, transactionCount: number, isActive = true) => ({
   id, code, name, type, currencyCode: 'TRY', balance, transactionCount, isActive, createdAt: '2026-01-02T10:00:00Z',
@@ -80,7 +81,7 @@ async function settle(ms = 300) {
 }
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 function menuItem(id: string) {
   if (!document.querySelector('[role="menu"]')) fireEvent.click(command('more'));
   return document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!;

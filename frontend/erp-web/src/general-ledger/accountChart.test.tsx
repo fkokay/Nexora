@@ -6,6 +6,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import GeneralLedgerPage from '../GeneralLedgerPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const account = (id: string, code: string, name: string, extra: Record<string, unknown> = {}) => ({
   id, code, name, isActive: true, statementSection: 'Asset', hasMovements: false, accountType: 'Asset', normalBalance: 'Debit',
@@ -87,7 +88,7 @@ async function selectAccount(code: string) {
 }
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const barCommand = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
-const barReason = (id: string) => barCommand(id).getAttribute('title') ?? '';
+const barReason = (id: string) => commandReason(barCommand(id)) ?? '';
 async function runBar(id: string) {
   fireEvent.click(barCommand(id));
   await settle(50);

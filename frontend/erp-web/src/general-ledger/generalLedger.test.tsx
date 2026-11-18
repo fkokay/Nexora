@@ -7,6 +7,7 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { localDateString } from '../erpApi';
 import GeneralLedgerPage from '../GeneralLedgerPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const account = (id: string, code: string, name: string, isActive = true) => ({
   id, code, name, isActive, statementSection: 'Unclassified', hasMovements: false, accountType: 'Unclassified', normalBalance: 'Both',
@@ -182,7 +183,7 @@ describe('Yevmiye fişi (characterization)', () => {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 function menuItem(id: string) {
   if (!document.querySelector('[role="menu"]')) fireEvent.click(command('more'));
   return document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!;

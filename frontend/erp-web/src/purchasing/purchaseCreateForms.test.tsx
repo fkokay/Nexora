@@ -8,6 +8,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import SupplierOrdersPage from '../SupplierOrdersPage';
 import PurchaseInvoiceEntryPage from '../PurchaseInvoiceEntryPage';
 import StandaloneSupplierInvoiceDraftPage from '../StandaloneSupplierInvoiceDraftPage';
+import { commandReason } from '../action-bar/commandReason';
 
 /*
  * Satınalma oluşturma ekranları: yeni satınalma siparişi, mal kabul faturası girişi, bağımsız fatura taslakları.
@@ -339,7 +340,7 @@ describe('Mal kabul faturası girişi: liste ve belge oluşturma görünümü', 
   it('a click makes the receipt current without opening the form; Aç opens it', async () => {
     renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
     await screen.findByText('MK-0009');
-    expect(command('open').getAttribute('title')).toContain('Önce bir kayıt seçin');
+    expect(commandReason(command('open'))).toContain('Önce bir kayıt seçin');
     selectRow('MK-0009');
     await waitFor(() => expect(enabled('open')).toBe(true));
     expect(document.querySelector('.record-form')).toBeNull();
@@ -408,7 +409,7 @@ describe('Bağımsız fatura taslakları: liste tipi ve belge oluşturma görün
       { label: 'Muhasebeleştir', reason: 'Önce bir kayıt seçin' },
     ]);
     selectRow('BF-d2');
-    await waitFor(() => expect(command('open').getAttribute('title')).toContain('Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.'));
+    await waitFor(() => expect(commandReason(command('open'))).toContain('Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.'));
     expect(openMenu().slice(0, 2)).toEqual([
       { label: 'Düzenle', reason: 'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.' },
       { label: 'Muhasebeleştir', reason: 'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.' },

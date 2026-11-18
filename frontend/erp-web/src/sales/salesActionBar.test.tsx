@@ -14,6 +14,7 @@ import SalesCustomerRequestsPage from '../sales-customer-requests/SalesCustomerR
 import SalesReturnsPage from '../SalesReturnsPage';
 import SalesDistributionPage from '../SalesDistributionPage';
 import SalesPromotionsPage from '../SalesPromotionsPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const warehouses = [{ id: 'w1', code: 'D1', name: 'Ana depo', isActive: true }];
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 25, totalCount: items.length });
@@ -108,7 +109,7 @@ const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
 const primary = (id: string) => command(id).getAttribute('data-primary') === 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function openMenu() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

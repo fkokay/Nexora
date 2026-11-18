@@ -169,3 +169,20 @@
 #root .list-v2-title--crumb, #root .rf-title--crumb { flex-wrap: wrap; }
 #root .list-v2-title--crumb > .workspace-breadcrumb,
 #root .rf-title--crumb > .workspace-breadcrumb { flex: 0 0 100%; margin: 0 0 2px; min-height: 0; }
+
+/* Shortcut tooltip (ActionTooltip): "Kaydet · Ctrl+S" under the button on hover (400 ms) and keyboard focus. Fixed to
+   the viewport and out of the flow, so it never shifts the bar. */
+.nx-action-tip {
+  position: fixed;
+  z-index: 1200;
+  max-width: 320px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--nx-ink);
+  box-shadow: 0 4px 12px rgba(15, 27, 45, 0.18);
+  color: #fff;
+  font: 500 11.5px/1.35 var(--nx-font);
+  white-space: nowrap;
+  pointer-events: none;
+}
+html[data-theme="dark"] .nx-action-tip { background: #e7edf5; color: #17263a; }

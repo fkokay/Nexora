@@ -17,6 +17,7 @@ import { useState } from 'react';
 import ManufacturingMrpPage from '../ManufacturingMrpPage';
 import { orderNextStep, orderPageFigures, orderStatusTag } from './orderList';
 import type { ManufacturingOrder } from './types';
+import { commandReason } from '../action-bar/commandReason';
 
 const op = (id: string, status: string, scheduled: boolean, extra: Record<string, unknown> = {}) => ({
   id, sequence: 10, workCenterId: 'wc1', workCenterCode: 'WC-01', workCenterName: 'Dolum hattı', setupMinutes: 10, runMinutes: 50,
@@ -126,7 +127,7 @@ function renderScreen(view: ReactNode) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 function openMenu() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

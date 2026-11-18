@@ -9,6 +9,7 @@ import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import { CustomersPage } from '../CustomersPage';
 import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel } from './customerLabels';
 import { CustomerDetailPanel } from './components/CustomerDetailPanel';
+import { commandReason } from '../action-bar/commandReason';
 
 const customer = (id: string, extra: Record<string, unknown> = {}) => ({
   id, code: `C-${id}`, name: `Cari ${id}`, type: 'Customer', taxNumber: '1234567890', isActive: true, createdAt: '2026-11-01',
@@ -95,7 +96,7 @@ function renderList(role = 'TenantAdmin', onNavigate = vi.fn()) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function menuItems() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
