@@ -102,11 +102,19 @@ const gets = (path: string) => fetchCalls.filter((call) => call.method === 'GET'
 const anyId = expect.any(String);
 
 // --- Interaction steps (the only part that follows the UI) ---
+// The credit opens from its code in the grid; the credit-wide commands are in İşlemler, row buttons stay on the rows.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const closeMenu = () => {
+  if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+};
 async function openCredit(code: string) {
-  fireEvent.click(screen.getAllByText(code)[0].closest('button')!);
+  closeMenu();
+  const grid = screen.getByRole('table', { name: 'Krediler' });
+  fireEvent.click(within(grid).getByRole('button', { name: `Aç: ${code}` }));
   await settle(100);
 }
 async function openTab(name: string) {
+  closeMenu();
   fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
   await settle(100);
 }
@@ -115,8 +123,13 @@ const rowActions = (name: string | RegExp) =>
   screen.queryAllByRole('button', { name }).filter((button) => !button.closest('[aria-modal="true"]'));
 const rowAction = (name: string) => rowActions(name)[0] ?? null;
 /** A command that acts on the opened credit as a whole. */
-function creditAction(label: string): HTMLButtonElement | null {
-  return (screen.queryAllByRole('button').find((button) => button.textContent?.trim() === label) as HTMLButtonElement | undefined) ?? null;
+function creditAction(label: string): HTMLElement | null {
+  const button = screen
+    .queryAllByRole('button')
+    .find((candidate) => candidate.textContent?.trim() === label && !candidate.closest('[aria-modal="true"]'));
+  if (button) return button;
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.includes(label)) ?? null;
 }
 const available = (item: HTMLButtonElement | HTMLElement | null) =>
   !!item && !(item as HTMLButtonElement).disabled && item.getAttribute('aria-disabled') !== 'true';
@@ -130,6 +143,7 @@ async function confirm(label: string) {
   await settle();
 }
 function setEffectiveCost(value: string) {
+  closeMenu();
   fireEvent.change(screen.getByLabelText(/İlk işlem maliyeti/), { target: { value } });
 }
 // ---
@@ -247,6 +261,19 @@ describe('Krediler & Finansman: credit-level writes (characterization)', () => {
     await runCreditAction('Teminat ekle');
     expect(onNavigate).toHaveBeenLastCalledWith('finance-credit-security-create', 'Teminat kaydı');
     expect(JSON.parse(sessionStorage.getItem('credit-facility-operation-draft')!)).toEqual({ facilityId: 'f3', view: 'security-create' });
+  });
+
+  it('İşlemler › Geri ödeme kaydet (new with the credit surface) opens the repayment screen with the credit; a closed credit cannot', async () => {
+    const onNavigate = vi.fn();
+    renderScreen(<CreditFacilitiesPage token="t" role="TenantAdmin" onNavigate={onNavigate} />);
+    await settle(900);
+    await openCredit('KRD-001');
+    await runCreditAction('Geri ödeme kaydet');
+    expect(onNavigate).toHaveBeenLastCalledWith('finance-credit-repayment-create', 'Kredi geri ödemesi');
+    expect(JSON.parse(sessionStorage.getItem('credit-facility-operation-draft')!)).toEqual({ facilityId: 'f1', view: 'repayment-create' });
+    await openCredit('KRD-003');
+    expect(available(creditAction('Geri ödeme kaydet'))).toBe(false);
+    expect(writes()).toEqual([]);
   });
 
   it('a company user can preview interest but not post it, and gets no row writes and no Teminat ekle', async () => {

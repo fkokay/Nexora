@@ -6,6 +6,7 @@ import {
 import "../../finance-record-forms.css";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
+import { StatusTag } from "../../list-page/StatusTag";
 import type { Facility, ScreenField, Security } from "../types";
 
 const defaultSecurityFields: ScreenField[] = [
@@ -59,6 +60,9 @@ type Props = {
   onNotesChange: (value: string) => void;
 };
 
+const MONEY_KEYS = new Set(["amount", "commissionAmount"]);
+const SECURITY_WIDTHS: Record<string, number> = { code: 150, facilityCode: 110, parties: 220, amount: 120, commissionAmount: 100, issueDate: 95, expiryDate: 95, status: 100, notes: 160, actions: 170 };
+
 export function CreditSecuritiesPanel(props: Props) {
   const currency =
     props.facilities.find((facility) => facility.id === props.facilityId)
@@ -95,8 +99,18 @@ export function CreditSecuritiesPanel(props: Props) {
         return item.expiryDate;
       case "status":
         return (
-          <span
-            className={`status-badge ${item.alert === "Expired" ? "danger" : item.alert === "Expiring" ? "warning" : ""}`}
+          <StatusTag
+            tone={
+              item.status === "Released"
+                ? "off"
+                : item.status === "Called"
+                  ? "bad"
+                  : item.alert === "Expired"
+                    ? "bad"
+                    : item.alert === "Expiring"
+                      ? "warn"
+                      : "ok"
+            }
           >
             {item.status === "Released"
               ? "Serbest"
@@ -107,7 +121,7 @@ export function CreditSecuritiesPanel(props: Props) {
                   : item.alert === "Expiring"
                     ? "Yaklaşıyor"
                     : "Etkin"}
-          </span>
+          </StatusTag>
         );
       case "notes":
         return item.notes || "—";
@@ -142,11 +156,23 @@ export function CreditSecuritiesPanel(props: Props) {
     <section
       className={
         props.embedded
-          ? "cf-securities"
+          ? "dd-box cf-box cf-securities"
           : `panel credit-records-panel${props.showCreateForm ? " credit-operation-page" : ""}`
       }
       aria-labelledby="credit-securities-title"
     >
+      {props.embedded ? (
+        <header className="cf-box-head">
+          <h3 id="credit-securities-title">Teminat ve garantiler</h3>
+          <span>
+            Kredi limitine bağlı teminatları izleyin; kayıtlar nakit akışına veya muhasebeye otomatik tutar eklemez.
+          </span>
+          <span className="cf-box-tags">
+            <StatusTag tone={props.expiredCount ? "bad" : "off"}>{`${props.expiredCount} vadesi geçmiş`}</StatusTag>
+            <StatusTag tone={props.expiringCount ? "warn" : "off"}>{`${props.expiringCount} 30 gün içinde`}</StatusTag>
+          </span>
+        </header>
+      ) : (
       <div className={props.embedded ? "cf-pane-head" : "credit-records-heading"}>
         <div>
           {!props.embedded && (
@@ -190,6 +216,7 @@ export function CreditSecuritiesPanel(props: Props) {
           )}
         </div>
       </div>
+      )}
       {props.isAdmin && props.showCreateForm && (
         <RecordFormPage
           variant="dialog"
@@ -391,7 +418,7 @@ export function CreditSecuritiesPanel(props: Props) {
           </div>
         ) : (
           <div
-            className="credit-table-wrap"
+            className={props.embedded ? "dd-grid credit-table-wrap" : "credit-table-wrap"}
             role="region"
             aria-label="Teminat ve garanti listesi"
             tabIndex={0}
@@ -399,7 +426,7 @@ export function CreditSecuritiesPanel(props: Props) {
             <AdvancedDataGrid
               className="customer-table credit-table"
               gridId="finance-credit-securities"
-              {...screenViewGridDefaults(columns)}
+              {...screenViewGridDefaults(columns, (field) => SECURITY_WIDTHS[field.key])}
               externalPagination
               hideSearch
               enableRowSelection={false}
@@ -411,7 +438,9 @@ export function CreditSecuritiesPanel(props: Props) {
               <thead>
                 <tr>
                   {columns.map((field) => (
-                    <th key={field.key}>{field.label}</th>
+                    <th key={field.key} className={MONEY_KEYS.has(field.key) ? "nx-num dd-num" : undefined}>
+                      {field.label}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -419,7 +448,9 @@ export function CreditSecuritiesPanel(props: Props) {
                 {props.securities.map((item) => (
                   <tr key={item.id}>
                     {columns.map((field) => (
-                      <td key={field.key}>{renderCell(item, field.key)}</td>
+                      <td key={field.key} className={MONEY_KEYS.has(field.key) ? "nx-num dd-num" : undefined}>
+                        {renderCell(item, field.key)}
+                      </td>
                     ))}
                   </tr>
                 ))}

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -69,18 +69,26 @@ const writes = () => fetchCalls.filter((call) => call.method !== 'GET').map(({ u
 const gets = (path: string) => fetchCalls.filter((call) => call.method === 'GET' && call.url === path).length;
 
 // --- Interaction steps (the only part that follows the UI) ---
-// Yeni is the İşlem Çubuğu command; the selected credit's operations are in İşlemler.
+// Yeni is the İşlem Çubuğu command; a click on a grid row makes the credit current and its operations are in İşlemler
+// ("Hareket kaydet" is labelled "Kullandırım kaydet" there).
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 async function selectFacility(code: string) {
   if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
-  fireEvent.click(screen.getAllByText(code)[0].closest('button')!);
+  const grid = screen.getByRole('table', { name: 'Krediler' });
+  fireEvent.click(within(grid).getByText(code).closest('tr')!);
   await settle(100);
 }
-const IDS = { 'Hareket kaydet': 'cf-movement', 'Taksit planla': 'cf-schedule', 'Krediyi kapat': 'cf-status', 'Krediyi etkinleştir': 'cf-status' } as const;
+const IDS = {
+  'Hareket kaydet': ['cf-movement', 'Kullandırım kaydet'],
+  'Taksit planla': ['cf-schedule', 'Taksit planla'],
+  'Krediyi kapat': ['cf-status', 'Krediyi kapat'],
+  'Krediyi etkinleştir': ['cf-status', 'Krediyi etkinleştir'],
+} as const;
 function command(label: keyof typeof IDS): HTMLElement | null {
   if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
-  const item = document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${IDS[label]}"]`);
-  return item && item.textContent?.includes(label) ? item : null;
+  const [id, text] = IDS[label];
+  const item = document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`);
+  return item && item.textContent?.includes(text) ? item : null;
 }
 const enabled = (item: HTMLElement | null) => !!item && item.getAttribute('aria-disabled') !== 'true';
 async function run(label: keyof typeof IDS) {

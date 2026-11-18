@@ -1146,6 +1146,23 @@ export const english: Record<string, string> = {
   'Kredi ayrıntısı sağdaki panelde': 'Credit details are in the right-hand panel',
   'Kredi silinmez; İşlemler › Krediyi kapat': 'A credit is not deleted; use Actions › Close credit',
   'Listelenecek kredi yok': 'No credits to list',
+  // Krediler & Finansman: list type A, credit surface (modul-finans-6)
+  'Kredi': 'Credit',
+  'Henüz kredi veya finansman kaydı yok. İlk kaydı Yeni ile oluşturabilirsiniz.': 'No credit or financing records yet. Create the first one with New.',
+  'Limit': 'Limit',
+  'Kullandırım kaydet': 'Record drawdown',
+  'Geri ödeme kaydet': 'Record repayment',
+  'Yıllık faiz oranı tanımlı değil': 'No annual interest rate defined',
+  'Faiz tahakkukunu yalnız firma yöneticisi muhasebeleştirir': 'Only the company administrator posts the interest accrual',
+  'Kredi kaydı düzenlenmez; işlemler İşlemler menüsünde': 'Credit records are not edited; operations are in the Actions menu',
+  'Krediler & Finansman': 'Credits & Financing',
+  'Kredi bilgileri': 'Credit details',
+  'planlanan toplam': 'planned total',
+  'İşlemler › Bu ay faiz önizle · Önceki ayı muhasebeleştir': 'Actions › Preview this month\'s interest · Post previous month',
+  'Faiz tahakkuk önizlemesi': 'Interest accrual preview',
+  'henüz muhasebeleştirilmedi': 'not posted yet',
+  'Ay': 'Month',
+  'Tahakkuk': 'Accrual',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -1249,4 +1266,9 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^Güncel kur \(([A-Z]{3})\)$/, 'Current rate ($1)'],
   [/^Kur %5 artarsa \(([A-Z]{3})\)$/, 'Rate +5% ($1)'],
   [/^Kur %5 düşerse \(([A-Z]{3})\)$/, 'Rate −5% ($1)'],
+  [/^(\d+) açık taksit$/, '$1 open installments'],
+  [/^(.+) ödeme planı tablosu$/, '$1 payment schedule table'],
+  [/^(.+) hareket tablosu$/, '$1 movement table'],
+  [/^(\d+) vadesi geçmiş$/, '$1 expired'],
+  [/^(\d+) 30 gün içinde$/, '$1 within 30 days'],
 ]

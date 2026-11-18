@@ -458,9 +458,8 @@ html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-bal
 .credit-operation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .credit-facilities-page .credit-page-action-buttons { align-items: center; }
 /*
- * Krediler ve finansman list (Taslak 21): tiles, credit list column + selected credit with
- * underline tabs, collapsible exposure. Builds on finance-hub.css (.fh-page, .fh-tile) and
- * document-detail's .dd-tabs. Scoped under #root .cf-page because the shared .app-shell rules use
+ * Krediler ve finansman (mockup 09 map): list type A (summary card, toolbar, grid, footer), the opened credit on the
+ * document surface (tiles, .dd-tabs, one .dd-box per tab) and the collapsible exposure under the list. Scoped under #root .cf-page because the shared .app-shell rules use
  * !important; class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog"
  * (global-components.css restyles every class containing them).
  */
@@ -472,228 +471,57 @@ html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-bal
   max-width: none;
 }
 #root .cf-page > .credit-setup-grid:empty { display: none; }
-#root .app-shell .cf-page .heading-actions :is(.primary, .secondary) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  white-space: nowrap;
-}
-#root .cf-page .fh-tile-value { flex-direction: column; align-items: flex-start; gap: 2px; }
-#root .cf-page .fh-tile-value.is-muted-value { color: var(--fh-muted); font-weight: 600; }
-#root .cf-page .cf-bar {
-  display: block;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--cf-bar-track);
-}
-#root .cf-page .cf-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--cf-bar); }
 
-/* Two columns: credit list (240px) and the selected credit; stacked below 1100px. */
-#root .cf-page .cf-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
-@media (max-width: 1099px) {
-  #root .cf-page .cf-layout { grid-template-columns: minmax(0, 1fr); }
-}
-#root .cf-page .cf-list-column { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-#root .cf-page .cf-filters { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-#root .cf-page .cf-search-row { display: flex; align-items: center; gap: 6px; }
-#root .cf-page .cf-search {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 34px;
-  margin: 0;
-  padding: 0 9px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-  color: var(--fh-muted);
-}
-#root .app-shell .cf-page .cf-search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--fh-ink);
-  font-size: 13px;
-}
-#root .cf-page .cf-filters .list-v2-chips { flex-wrap: wrap; }
-#root .cf-page .cf-items { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-#root .app-shell .cf-page .cf-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 5px;
-  width: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--fh-line);
-  border-radius: 8px;
-  background: var(--fh-paper) !important;
-  color: var(--fh-ink) !important;
-  font: inherit !important;
-  font-weight: 400 !important;
-  text-align: left;
-  cursor: pointer;
-}
-#root .app-shell .cf-page .cf-item:hover { border-color: var(--cf-select-line); }
-#root .app-shell .cf-page .cf-item.is-selected {
-  border-color: var(--cf-select-line);
-  background: var(--cf-select) !important;
-  box-shadow: inset 3px 0 0 var(--cf-select-line);
-}
-#root .cf-page .cf-item.is-closed .cf-item-usage { color: var(--fh-muted); }
-#root .cf-page .cf-item-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-#root .cf-page .cf-item-top b { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
-#root .cf-page .cf-type,
-#root .cf-page .cf-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border: 1px solid var(--fh-line);
-  border-radius: 999px;
-  background: var(--fh-band);
-  color: var(--fh-muted);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-#root .cf-page .cf-state.is-active { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); color: var(--nx-ok); }
-#root .cf-page .cf-item-meta { color: var(--fh-muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-#root .cf-page .cf-item-usage {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 8px;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-}
-#root .cf-page .cf-item-usage b { font-weight: 700; }
-#root .cf-page .cf-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 14px;
-  border: 1px dashed var(--fh-line);
-  border-radius: 8px;
-  color: var(--fh-muted);
-  font-size: 13px;
-}
-#root .cf-page .cf-empty strong { color: var(--fh-ink); }
+/* List (type A): the 30-day card lists one amount per currency; the footer carries the per-currency limit line. */
+#root .cf-page .cf-card-lines { display: flex; flex-direction: column; gap: 2px; }
+#root .cf-page .cf-overdue { color: var(--nx-bad); font-weight: 600; }
+#root .cf-page .cf-footer-currency { color: var(--nx-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .cf-page .cf-footer-currency b { color: var(--nx-ink); font-weight: 600; }
 
-/* Selected credit */
-#root .cf-page .cf-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-width: 0;
-  border: 1px solid var(--fh-line);
-  border-radius: 8px;
-  background: var(--fh-paper);
-}
-#root .cf-page .cf-detail-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 14px 16px 10px;
-}
-#root .cf-page .cf-detail-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
-#root .app-shell .cf-page .cf-detail-title h2 {
-  margin: 0;
-  color: var(--fh-ink) !important;
-  font-size: 18px !important;
-  font-weight: 700 !important;
-  overflow-wrap: anywhere;
-}
-#root .cf-page .cf-detail-sub { grid-column: 1; margin: 0; color: var(--fh-muted); font-size: 13px; overflow-wrap: anywhere; }
-#root .cf-page .cf-detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-#root .app-shell .cf-page .cf-detail-actions .secondary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
-#root .app-shell .cf-page .cf-detail-actions .sales-row-actions-trigger {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-}
-#root .cf-page .cf-detail .dd-tabs { padding: 0 8px; }
-#root .cf-page .cf-tabbody { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px 16px; }
-#root .cf-page .cf-info {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px 24px;
-  margin: 0;
-}
-#root .cf-page .cf-info > div { min-width: 0; }
-#root .cf-page .cf-info dt { margin: 0 0 3px; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
-#root .cf-page .cf-info dd {
-  margin: 0;
-  color: var(--fh-ink);
-  font-size: 14px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-#root .cf-page .cf-info .is-emphasis dd { font-weight: 700; }
-#root .cf-page .cf-interest { display: flex; flex-direction: column; gap: 16px; }
-#root .cf-page .cf-subsection { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-#root .cf-page .cf-subsection + .cf-subsection { padding-top: 16px; border-top: 1px solid var(--fh-line-soft); }
-#root .cf-page .cf-pane-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px 16px;
-}
-#root .cf-page .cf-pane-head > div:first-child { flex: 1 1 260px; min-width: 0; }
-#root .app-shell .cf-page .cf-pane-head h3 {
-  margin: 0 0 2px;
-  color: var(--fh-ink) !important;
-  font-size: 14px !important;
-  font-weight: 700 !important;
-}
-#root .cf-page .cf-pane-head p { margin: 0; color: var(--fh-muted); font-size: 12.5px; line-height: 1.45; }
-#root .cf-page .cf-pane-actions,
-#root .cf-page .cf-securities .credit-row-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
-#root .app-shell .cf-page .cf-pane-actions .secondary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
-#root .cf-page .cf-inline-field { display: grid; gap: 4px; margin: 0; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
-#root .app-shell .cf-page .cf-inline-field input {
-  width: 150px;
-  height: 34px;
+/* The opened credit (document surface): tiles, tabs and one single-layer box per tab. */
+#root .cf-surface .cf-surface-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .cf-surface .cf-tabbody { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .cf-surface .cf-box { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :not(.dd-grid, .dd-lines-wrap) { margin-inline: 14px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :first-child { margin-top: 12px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :last-child:not(.dd-grid, .dd-lines-wrap) { margin-bottom: 12px; }
+#root .cf-surface .cf-box-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+#root .app-shell .cf-surface .cf-box-head h3 { margin: 0; color: var(--nx-ink); font-size: 13px; font-weight: 650; }
+#root .cf-surface .cf-box-head > span { color: var(--nx-muted); font-size: 12px; line-height: 1.45; }
+#root .cf-surface .cf-box-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+#root .cf-surface .cf-box .fh-note,
+#root .cf-surface .cf-box .fh-empty { margin: 0; }
+#root .cf-surface .cf-effective-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+#root .cf-surface .cf-inline-field { display: grid; gap: 4px; margin: 0; color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root .app-shell .cf-surface .cf-inline-field input {
+  box-sizing: border-box;
+  width: 160px;
+  min-height: 31px;
   padding: 0 8px;
-  border: 1px solid var(--fh-line);
+  border: 1px solid var(--nx-line);
   border-radius: 6px;
-  background: var(--fh-paper);
-  color: var(--fh-ink);
-  font-size: 13px;
+  background: var(--nx-surface);
+  color: var(--nx-ink);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
-#root .cf-page .cf-securities { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-#root .cf-page .cf-securities > .cf-pane-head { align-items: center; }
-#root .cf-page .cf-tabbody .credit-table-wrap { border-color: var(--fh-line); }
+#root .app-shell .cf-surface .cf-effective-form .secondary { min-height: 31px; border-radius: 6px; }
+#root .cf-surface .cf-interest-table { max-width: 360px; }
+#root .cf-surface .cf-total-row td { font-weight: 600; }
+/* Tab grids sit on the box edge: no second frame, no fixed legacy header colours. */
+#root .cf-surface .cf-box .credit-table-wrap { border: 0; border-top: 1px solid var(--nx-line); border-radius: 0; }
+#root .cf-surface .cf-box .credit-table { min-width: 680px; }
+#root .cf-surface .cf-box .credit-table th { background: var(--nx-table-head); color: var(--nx-muted); }
+#root .cf-surface .cf-box .credit-table td { font-variant-numeric: tabular-nums; }
+#root .cf-surface .cf-box .credit-table :is(th, td).nx-num { text-align: right; white-space: nowrap; }
+#root .cf-surface .cf-box .credit-row-actions .row-action { color: var(--nx-primary); }
+#root .cf-surface .cf-box .credit-row-actions .row-action:hover { background: var(--nx-primary-soft); }
+#root .cf-surface .cf-box .credit-row-actions .danger-action { color: var(--nx-bad); }
+#root .cf-surface .cf-box .credit-table td small { display: block; color: var(--nx-muted); font-size: 11px; }
+#root .cf-surface .cf-box .credit-table caption { padding: 6px 14px; color: var(--nx-muted); font-size: 12px; text-align: left; }
+#root .cf-surface .credit-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .cf-surface .cf-box .fh-note { color: var(--nx-muted); font-size: 12px; line-height: 1.5; }
+#root .cf-surface .cf-box .fh-empty { color: var(--nx-muted); font-size: 12.5px; }
 
 /* Collapsible exposure section at the bottom (closed by default). */
 #root .cf-page .cf-exposure {
@@ -713,16 +541,10 @@ html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-bal
   cursor: pointer;
 }
 #root .cf-page .cf-exposure > summary small { color: var(--fh-muted); font-size: 12.5px; font-weight: 500; }
-#root .cf-page .cf-exposure > summary .is-danger,
-#root .cf-page .fh-tile-hint .is-danger { color: var(--fh-danger); font-weight: 600; }
+#root .cf-page .cf-exposure > summary .is-danger { color: var(--fh-danger); font-weight: 600; }
 #root .cf-page .cf-exposure[open] { padding: 0 16px 16px; }
 #root .cf-page .cf-exposure[open] > summary { margin: 0 -16px 10px; border-bottom: 1px solid var(--fh-line-soft); }
 #root .cf-page .cf-exposure .credit-exposure { display: grid; gap: 12px; margin-top: 10px; }
-
-@media (max-width: 640px) {
-  #root .cf-page .cf-detail-head { grid-template-columns: minmax(0, 1fr); }
-  #root .cf-page .cf-detail-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
-}
 
 @media(max-width:640px) {
   .credit-facilities-page .credit-page-actions { align-items: flex-start; flex-direction: column; }
