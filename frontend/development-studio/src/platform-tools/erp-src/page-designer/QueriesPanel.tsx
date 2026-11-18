@@ -3,9 +3,10 @@ import { ChevronDown, ChevronUp, Database, Play, Plus, Search, Trash2 } from "lu
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
 import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
 import { bindingPath } from "./pageBindings";
-import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, findOperation, mergedParameters, type ErpCatalog, type ErpOperation, type ErpOperationParameter } from "./erpOperations";
+import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, collectionBinding, collectionCandidates, collectionRoot, findOperation, isCollectionType, mergedParameters, type CollectionKind, type ErpCatalog, type ErpOperation, type ErpOperationParameter } from "./erpOperations";
 
-export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid";
+/** `list`/`map` yalnız ERP işlemi parametrelerinde (katalogdan) gelir; SQL parametre türü seçicisinde hiç sunulmaz. */
+export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid" | "list" | "map";
 export type PageQueryParameter = { name: string; binding: string; type: QueryParameterType };
 export type QueryKind = "read" | "insert" | "update" | "delete";
 /**
@@ -22,11 +23,17 @@ export const isWriteKind = (kind: QueryKind) => kind !== "read";
 export const MAX_QUERIES = 30;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar"];
+// "onceki" kayıt dizisinde bir önceki adımın sonucudur (sunucuda yalnız ValidName'de ayrılmış; koşul kökü değildir).
+export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
 const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";
 const parameterTypes: [QueryParameterType, string][] = [["text", "Metin"], ["int", "Tam sayı"], ["decimal", "Ondalık"], ["date", "Tarih"], ["bool", "Evet/Hayır"], ["guid", "Kimlik (GUID)"]];
+const collectionTypeLabels: Record<CollectionKind, string> = { list: "Liste", map: "Eşlem" };
+/** Parametre türünün görünen adı (SQL türleri ve koleksiyonlar). */
+export const parameterTypeLabel = (type: string) => isCollectionType(type) ? collectionTypeLabels[type] : parameterTypes.find(([value]) => value === type)?.[1] ?? type;
+const collectionOptionSuffix: Record<CollectionKind, string> = { list: "Düzenlenebilir tablo", map: "Özel alanlar" };
+const collectionEmptyHint: Record<CollectionKind, string> = { list: "Önce sayfaya bir düzenlenebilir tablo ekleyin.", map: "Önce sayfaya bir özel alanlar bloğu ekleyin." };
 const runOnLabels: Record<PageQuery["runOn"], string> = { load: "Açılışta + değişince", manual: "Elle" };
 
 /** Sorgu/bileşen adı kuralları (sunucudaki şemayla aynı); sorun yoksa null. */
@@ -81,7 +88,8 @@ export function sqlParameterNames(sql: string): string[] {
 export function syncParameters(sql: string, existing: PageQueryParameter[], remembered: (name: string) => PageQueryParameter | undefined, defaultBinding: (name: string) => string): PageQueryParameter[] {
   return sqlParameterNames(sql).slice(0, MAX_QUERY_PARAMETERS).map((name) => {
     const previous = existing.find((parameter) => parameter.name.toLowerCase() === name.toLowerCase()) ?? remembered(name);
-    return previous ? { ...previous, name } : { name, binding: defaultBinding(name), type: "text" };
+    // Koleksiyon türleri SQL'de yoktur: ERP işleminden kalan list/map türü metne döner.
+    return previous ? { ...previous, name, type: isCollectionType(previous.type) ? "text" : previous.type } : { name, binding: defaultBinding(name), type: "text" };
   });
 }
 
@@ -113,6 +121,8 @@ type Props = {
   catalog: ErpCatalog;
   /** Kaynak okuma işlemini (ör. stok.kart.getir) sayfaya yeni bir sorgu olarak ekler. */
   onAddSourceQuery: (operation: ErpOperation) => void;
+  /** Sayfa bileşenleri: `list`/`map` parametrelerinin bağlanabileceği tablo ve blokları listelemek için. */
+  components?: { type: string; name?: string; props?: Record<string, unknown> }[];
 };
 
 const parameterPlaces: Record<string, string> = { route: "yol", query: "sorgu", body: "gövde" };
@@ -165,7 +175,24 @@ function CustomFieldAdder({ taken, disabled, onAdd }: { taken: string[]; disable
 }
 
 /** Tasarımcının "Sorgular" sekmesi: sorgu kartları, seçili sorgunun SQL'i, parametreleri ve önizlemesi. */
-export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery }: Props) {
+const STALE_OPTION = "__stale";
+
+/** Koleksiyon parametresinin bağlaması: uygun tablo/blok seçici; artık uygun olmayan eski bağlama da gösterilir ki temizlenebilsin. */
+function CollectionSelect({ kind, binding, candidates, name, disabled, onChange }: { kind: CollectionKind; binding: string; candidates: string[]; name: string; disabled: boolean; onChange: (binding: string) => void }) {
+  const current = collectionRoot(kind, binding);
+  const stale = binding.trim() !== "" && (!current || !candidates.includes(current));
+  return <>
+    <select value={stale ? STALE_OPTION : current ?? ""} disabled={disabled} aria-label={`${name} bağlaması`} aria-invalid={stale ? true : undefined}
+      onChange={(event) => { const value = event.target.value; if (value !== STALE_OPTION) onChange(value ? collectionBinding(kind, value) : ""); }}>
+      <option value="">Bağlanmadı</option>
+      {candidates.map((candidate) => <option key={candidate} value={candidate}>{`${candidate} (${collectionOptionSuffix[kind]})`}</option>)}
+      {stale && <option value={STALE_OPTION}>{binding}</option>}
+    </select>
+    {candidates.length === 0 && <small className="pd-query-muted">{collectionEmptyHint[kind]}</small>}
+  </>;
+}
+
+export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery, components = [] }: Props) {
   const [running, setRunning] = useState<string | null>(null);
   const [affected, setAffected] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -286,18 +313,20 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
                   const required = !!row.spec?.required;
                   const custom = row.custom === true;
                   const empty = row.binding.trim() === "";
-                  const invalid = empty ? required && !fromSource(row.spec?.in) : !bindingPath(row.binding);
+                  const collection = row.spec && isCollectionType(row.spec.type) ? row.spec.type : null;
+                  const invalid = empty ? required && !fromSource(row.spec?.in) : collection ? !collectionRoot(collection, row.binding) : !bindingPath(row.binding);
                   const update = (binding: string) => onUpdate(selected.id, {
                     parameters: toParameters(rows.map((item) => item.name === row.name ? { ...item, binding } : item)),
                   }, `query:${selected.id}:param:${row.name}`);
                   return <tr key={row.name}>
                     <td><code title={custom ? "Özel alan (gövde eşlemesi)" : row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
-                    <td><BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
-                      placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : custom ? "Bağlanmazsa korunur" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/></td>
+                    <td>{collection ? <CollectionSelect kind={collection} binding={row.binding} candidates={collectionCandidates(collection, components)} name={row.name} disabled={!editable} onChange={update}/>
+                      : <BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
+                        placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : custom ? "Bağlanmazsa korunur" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/>}</td>
                     <td>{custom ? <span className="pd-query-custom-type"><small>Metin</small>
                       <button type="button" className="pd-icon-button" aria-label={`${row.name} özel alanını kaldır`} disabled={!editable}
                         onClick={() => onUpdate(selected.id, { parameters: toParameters(rows.filter((item) => item.name !== row.name)) })}><Trash2 size={12}/></button></span>
-                      : <small>{parameterTypes.find(([value]) => value === row.type)?.[1] ?? row.type}</small>}</td>
+                      : <small>{parameterTypeLabel(row.type)}</small>}</td>
                   </tr>;
                 })}
               </tbody></table>}
