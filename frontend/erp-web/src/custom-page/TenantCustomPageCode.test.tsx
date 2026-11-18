@@ -44,9 +44,16 @@ async function open(options: { rights?: Record<string, boolean>; previewId?: str
   await screen.findByText('A1');
   const iframe = view.container.querySelector('iframe')!;
   const frameWindow = iframe.contentWindow!;
-  const posted = vi.spyOn(frameWindow, 'postMessage').mockImplementation(() => undefined);
+  const k = /key="([0-9a-f]{32})"/.exec(iframe.getAttribute('srcdoc') ?? '')![1];
+  // Doğru anahtarlı iletiler `k` olmadan kaydedilir; yanlış/eksik anahtar `wrongKey` ile görünür.
+  const posted = vi.fn();
+  vi.spyOn(frameWindow, 'postMessage').mockImplementation(((message: unknown, target: unknown) => {
+    const { k: key, ...rest } = message as Record<string, unknown>;
+    posted(key === k ? rest : { ...rest, wrongKey: key ?? null }, target);
+  }) as typeof frameWindow.postMessage);
   const send = (data: unknown, source: unknown = frameWindow) => {
-    const event = new MessageEvent('message', { data });
+    const payload = data && typeof data === 'object' && !('k' in data) ? { ...data, k } : data;
+    const event = new MessageEvent('message', { data: payload });
     Object.defineProperty(event, 'source', { value: source });
     act(() => { window.dispatchEvent(event); });
   };
@@ -160,6 +167,28 @@ describe('TenantCustomPage kod köprüsü', () => {
     send({ nx: 1, answer: asks()[1].ask, cancel: false });
     await waitFor(() => expect(posted).toHaveBeenCalledWith({ nx: 1, event: 'afterSave', payload: { query: 'kaydet', sonuc: null } }, '*'));
     expect(api.mock.calls.some(([endpoint]) => String(endpoint).includes('/queries/qw/'))).toBe(true);
+  });
+
+  it('ERP kataloğu yüklenemese de load olayı yayımlanır', async () => {
+    const withOperation = definition({ queries: [
+      { id: 'ql', name: 'kayitlar', kind: 'read', runOn: 'load', parameters: [] },
+      { id: 'qo', name: 'stoklar', kind: 'read', runOn: 'load', operation: 'stok.kart.liste', parameters: [] },
+    ] });
+    api.mockImplementation(async (endpoint: string) => {
+      if (endpoint.endsWith('/published')) return { id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true }, definitionJson: JSON.stringify(withOperation) };
+      if (endpoint === '/api/custom-pages/erp-operations') throw new Error('katalog kapalı');
+      if (endpoint.includes('/queries/ql/')) return { columns: [{ code: 'code', label: 'Kod' }], rows: [{ code: 'A1' }], rowCount: 1 };
+      throw new Error(`beklenmeyen ${endpoint}`);
+    });
+    const view = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText(/ERP işlem kataloğu yüklenemedi/);
+    const iframe = view.container.querySelector('iframe')!;
+    const k = /key="([0-9a-f]{32})"/.exec(iframe.getAttribute('srcdoc') ?? '')![1];
+    const posted = vi.spyOn(iframe.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+    const event = new MessageEvent('message', { data: { nx: 1, k, id: 1, type: 'on', event: 'load' } });
+    Object.defineProperty(event, 'source', { value: iframe.contentWindow });
+    act(() => { window.dispatchEvent(event); });
+    await waitFor(() => expect(posted).toHaveBeenCalledWith({ nx: 1, k, event: 'load', payload: {} }, '*'));
   });
 
   it('başka pencereden gelen sahte istek yok sayılır', async () => {

@@ -1,5 +1,5 @@
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createRateLimiter, handleBridgeRequest, isolatedCodeDocument, parseBridgeRequest, type BridgeEvent, type BridgeHost } from "./codeBridge";
+import { createBridgeNonce, createRateLimiter, handleBridgeRequest, isolatedCodeDocument, parseBridgeRequest, type BridgeEvent, type BridgeHost } from "./codeBridge";
 import type { BeforeSaveVerdict, PageEventFrame, PageEvents } from "./pageEvents";
 
 export const RATE_LIMIT_MESSAGE = "Çok fazla istek; biraz bekleyin.";
@@ -9,7 +9,13 @@ const MAX_CANCEL_MESSAGE = 500;
 /**
  * Yalıtılmış kod bileşeni çerçevesi ve köprünün sayfa tarafı. `sandbox="allow-scripts"` (asla allow-same-origin)
  * nedeniyle çerçevenin kökeni opaktır; bu yüzden yanıtlar `"*"` hedefiyle gider ve hiçbir zaman sır (belirteç, başka
- * bileşenin kodu) içermez. İleti yalnız `event.source === iframe.contentWindow` (boş olmayan) ise işlenir.
+ * bileşenin kodu) içermez. İleti yalnız `event.source === iframe.contentWindow` (boş olmayan) ise ve belge başına
+ * üretilen anahtarı (`k`) taşıyorsa işlenir; anahtar yalnız srcdoc'taki köprü betiğinin kapanışındadır, çerçeve
+ * başka bir belgeye yönlenirse yeni belge anahtarı bilmez ve hiçbir isteği yanıtlanmaz.
+ *
+ * Kalan risk: sayfadan çerçeveye itilen olaylar (select/afterSave/load, beforeSave sorusu) `"*"` hedefiyle gider;
+ * yönlenen belge bunları ikinci `load` gelip köprü kapanana kadar alabilir. Bu yüzden itilen yüklerde yalnız sayfa
+ * verisi bulunur (belirteç yok) ve ikinci load'da köprü kalıcı olarak kapanır.
  */
 export function CodeFrame({ id, css, javascript, hidden, style, title, host, events }: {
   id: string; css: string; javascript: string; hidden: boolean; style?: CSSProperties; title: string; host: BridgeHost; events: PageEvents;
@@ -19,10 +25,14 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
   const hostRef = useRef(host);
   hostRef.current = host;
   const [height, setHeight] = useState<number | null>(null);
-  const srcDoc = useMemo(() => isolatedCodeDocument(css, javascript), [css, javascript]);
-  // Yeni kod gelince taze bir iframe öğesi (yeni anahtar) kurulur; yönlenip kapanmış çerçeve yalnız böyle sıfırlanır.
+  // Yeni kod gelince yeni köprü anahtarı ve taze bir iframe öğesi (yeni React anahtarı) kurulur; yönlenip kapanmış
+  // çerçeve yalnız böyle sıfırlanır.
   const generationRef = useRef(0);
-  const generation = useMemo(() => { generationRef.current += 1; return generationRef.current; }, [srcDoc]);
+  const { srcDoc, nonce, generation } = useMemo(() => {
+    generationRef.current += 1;
+    const key = createBridgeNonce();
+    return { srcDoc: isolatedCodeDocument(css, javascript, key), nonce: key, generation: generationRef.current };
+  }, [css, javascript]);
 
   // Düzen etkisi: dinleyici, iframe’i ekleyen aynı commit’te bağlanır; çerçevenin ilk satırdaki iletisi kaybolmaz.
   useLayoutEffect(() => {
@@ -32,20 +42,24 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
     const asks = new Map<number, (verdict: BeforeSaveVerdict) => void>();
     let askSequence = 0;
     const target = () => frameRef.current?.contentWindow ?? null;
-    const post = (message: unknown) => {
+    const post = (message: Record<string, unknown>) => {
       if (disposed) return;
       const frameWindow = target();
       if (!frameWindow) return;
-      try { frameWindow.postMessage(message, "*"); } catch { /* klonlanamayan yanıt ya da kalkan çerçeve: düşer */ }
+      // Çerçeve, anahtarı taşımayan (başka kaynaktan gelen) iletileri yok sayar.
+      try { frameWindow.postMessage({ ...message, k: nonce }, "*"); } catch { /* klonlanamayan yanıt ya da kalkan çerçeve: düşer */ }
     };
     const endpoint: PageEventFrame = {
       subscribed: (event) => !disposed && subscriptions.has(event),
       post,
-      ask: (query) => new Promise<BeforeSaveVerdict>((resolve) => {
-        if (disposed) { resolve(null); return; }
+      ask: (query, signal) => new Promise<BeforeSaveVerdict>((resolve) => {
+        if (disposed || signal.aborted) { resolve(null); return; }
         askSequence += 1;
-        asks.set(askSequence, resolve);
-        post({ nx: 1, event: "beforeSave", payload: { query }, ask: askSequence });
+        const ask = askSequence;
+        asks.set(ask, resolve);
+        // Süre dolunca soru silinir; geç gelen yanıt bulunamaz ve düşer.
+        signal.addEventListener("abort", () => { if (asks.delete(ask)) resolve(null); }, { once: true });
+        post({ nx: 1, event: "beforeSave", payload: { query }, ask });
       }),
     };
     const bridgeHost: BridgeHost = {
@@ -67,8 +81,10 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
     const onMessage = (event: MessageEvent) => {
       const frameWindow = target();
       if (!frameWindow || event.source !== frameWindow) return;
+      // Ucuz ön denetim: biçim ve belge anahtarı, ayrıştırma, hız sınırı ve boyut (JSON) denetiminden önce.
       const data = event.data as Record<string, unknown> | null;
-      if (data && typeof data === "object" && data.nx === 1 && typeof data.answer === "number" && !("type" in data)) {
+      if (!data || typeof data !== "object" || data.nx !== 1 || data.k !== nonce) return;
+      if (typeof data.answer === "number" && !("type" in data)) {
         const resolve = asks.get(data.answer);
         if (!resolve) return;
         asks.delete(data.answer);
@@ -82,10 +98,12 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
         if (request.id !== undefined) post({ nx: 1, replyTo: request.id, ok: false, error: request.error });
         return;
       }
-      if (!limiter.tryAcquire()) { post({ nx: 1, replyTo: request.id, ok: false, error: RATE_LIMIT_MESSAGE }); return; }
+      // setHeight ve on eşzamanlı ve ucuzdur: kotadan muaf (yine de geçerli biçim ve boyut gerekir).
+      const metered = request.type !== "setHeight" && request.type !== "on";
+      if (metered && !limiter.tryAcquire()) { post({ nx: 1, replyTo: request.id, ok: false, error: RATE_LIMIT_MESSAGE }); return; }
       void handleBridgeRequest(request, bridgeHost)
         .then((reply) => post({ nx: 1, replyTo: request.id, ...reply }))
-        .finally(() => limiter.release());
+        .finally(() => { if (metered) limiter.release(); });
     };
 
     const frameElement = frameRef.current;
@@ -113,7 +131,7 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
     window.addEventListener("message", onMessage);
     unregister = events.register(endpoint);
     return shutdown;
-  }, [events, srcDoc]);
+  }, [events, srcDoc, nonce]);
 
   const frameStyle: CSSProperties = hidden ? { display: "none" } : { ...style, ...(height !== null ? { height: `${height}px` } : {}) };
   return <iframe key={generation} ref={frameRef} data-component-id={id} className="tenant-page-code-frame" style={frameStyle} title={title}

@@ -13,20 +13,36 @@ function makeHost(overrides: Partial<BridgeHost> = {}): BridgeHost {
   };
 }
 
+/** Belge anahtarı srcdoc'taki köprü betiğinden okunur (gerçek çerçevede yalnız köprü kapanışındadır). */
+const nonceOf = (iframe: HTMLIFrameElement) => /key="([0-9a-f]{32})"/.exec(iframe.getAttribute('srcdoc') ?? '')![1];
+
+/** postMessage'ı izler: doğru anahtarlı iletiler `k` olmadan kaydedilir, yanlış/eksik anahtar `wrongKey` ile görünür. */
+function watchFrame(frameWindow: Window, key: string) {
+  const posted = vi.fn();
+  vi.spyOn(frameWindow, 'postMessage').mockImplementation(((message: unknown, target: unknown) => {
+    const { k, ...rest } = message as Record<string, unknown>;
+    posted(k === key ? rest : { ...rest, wrongKey: k ?? null }, target);
+  }) as typeof frameWindow.postMessage);
+  return posted;
+}
+
 function mount(options: { host?: BridgeHost; events?: PageEvents; hidden?: boolean } = {}) {
   const host = options.host ?? makeHost();
   const events = options.events ?? createPageEvents();
   const view = render(<CodeFrame id="c1" css="" javascript="" hidden={options.hidden ?? false} title="Kod" host={host} events={events} style={{ gridColumn: 'span 6' }} />);
   const iframe = view.container.querySelector('iframe')!;
   const frameWindow = iframe.contentWindow!;
-  const posted = vi.spyOn(frameWindow, 'postMessage').mockImplementation(() => undefined);
-  const send = (data: unknown, source: unknown = frameWindow) => {
-    const event = new MessageEvent('message', { data });
+  const k = nonceOf(iframe);
+  const posted = watchFrame(frameWindow, k);
+  // Anahtar verilmemiş nesne iletilerine çerçevenin anahtarı eklenir; yanlış anahtar testleri `k`yı açıkça verir.
+  const send = (data: unknown, source: unknown = frameWindow, key: string = k) => {
+    const payload = data && typeof data === 'object' && !('k' in data) ? { ...data, k: key } : data;
+    const event = new MessageEvent('message', { data: payload });
     Object.defineProperty(event, 'source', { value: source });
     act(() => { window.dispatchEvent(event); });
   };
   const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
-  return { ...view, host, events, iframe, frameWindow, posted, send, flush };
+  return { ...view, host, events, iframe, frameWindow, k, posted, send, flush };
 }
 
 describe('CodeFrame', () => {
@@ -100,6 +116,99 @@ describe('CodeFrame', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(verdict).toEqual({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE });
     expect(BEFORE_SAVE_TIMEOUT_MESSAGE).toBe('Kod bileşeni yanıt vermedi; işlem iptal edildi.');
+  });
+
+  it('belge anahtarı yanlış ya da eksikse yanıt yok, host çağrılmaz', async () => {
+    const { host, send, flush, posted, k, events } = mount();
+    expect(k).toMatch(/^[0-9a-f]{32}$/);
+    send({ nx: 1, id: 1, type: 'get', path: 'a', k: 'f'.repeat(32) });
+    send({ nx: 1, id: 2, type: 'get', path: 'a', k: undefined });
+    send({ nx: 1, id: 3, type: 'get', path: 'x'.repeat(70000), k: 'yanlis' });
+    send({ nx: 1, id: 4, type: 'rm', k: 0 });
+    send({ nx: 1, id: 5, type: 'on', event: 'beforeSave', k: k.toUpperCase() });
+    await flush();
+    expect(host.get).not.toHaveBeenCalled();
+    expect(host.subscribe).not.toHaveBeenCalled();
+    expect(posted).not.toHaveBeenCalled();
+    await expect(events.beforeSave('q')).resolves.toBeNull();
+    send({ nx: 1, id: 6, type: 'get', path: 'a' });
+    await flush();
+    expect(posted).toHaveBeenCalledWith({ nx: 1, replyTo: 6, ok: true, result: 'A1' }, '*');
+  });
+
+  it('beforeSave yanıtı da anahtar taşımalı', async () => {
+    const { send, flush, posted, events } = mount();
+    send({ nx: 1, id: 1, type: 'on', event: 'beforeSave' });
+    await flush();
+    let verdict: unknown;
+    const pending = events.beforeSave('kaydet').then((value) => { verdict = value; });
+    const ask = posted.mock.calls.map(([message]) => message as { ask?: number }).find((message) => typeof message.ask === 'number')!;
+    send({ nx: 1, answer: ask.ask, cancel: true, message: 'sahte', k: 'f'.repeat(32) });
+    await flush();
+    expect(verdict).toBeUndefined();
+    send({ nx: 1, answer: ask.ask, cancel: true, message: 'Kod: iptal' });
+    await pending;
+    expect(verdict).toEqual({ cancel: true, message: 'Kod: iptal' });
+  });
+
+  it('setHeight ve on dakikalık kotadan muaftır', async () => {
+    const { host, send, flush, posted } = mount();
+    for (let id = 1; id <= 120; id += 1) { send({ nx: 1, id, type: 'get', path: 'a' }); await flush(); }
+    send({ nx: 1, id: 121, type: 'get', path: 'a' });
+    await flush();
+    expect(posted).toHaveBeenCalledWith({ nx: 1, replyTo: 121, ok: false, error: 'Çok fazla istek; biraz bekleyin.' }, '*');
+    send({ nx: 1, id: 122, type: 'setHeight', px: 50 });
+    send({ nx: 1, id: 123, type: 'on', event: 'select' });
+    send({ nx: 1, id: 124, type: 'setHeight', px: 'x' });
+    await flush();
+    expect(posted).toHaveBeenCalledWith({ nx: 1, replyTo: 122, ok: true, result: true }, '*');
+    expect(posted).toHaveBeenCalledWith({ nx: 1, replyTo: 123, ok: true, result: true }, '*');
+    expect(posted).toHaveBeenCalledWith({ nx: 1, replyTo: 124, ok: false, error: 'Geçersiz istek: setHeight' }, '*');
+    expect(host.setHeight).toHaveBeenCalledWith(50);
+    expect(host.subscribe).toHaveBeenCalledWith('select');
+  });
+
+  it('beforeSave süre dolunca bekleyen soru silinir; geç yanıt düşer', async () => {
+    vi.useFakeTimers();
+    const events = createPageEvents();
+    const register = vi.spyOn(events, 'register');
+    const { send, flush, posted } = mount({ events });
+    const endpoint = register.mock.calls[0][0];
+    send({ nx: 1, id: 1, type: 'on', event: 'beforeSave' });
+    await flush();
+    const deadline = new AbortController();
+    let direct: unknown = 'bekliyor';
+    void endpoint.ask('q', deadline.signal).then((value) => { direct = value; });
+    deadline.abort();
+    await flush();
+    expect(direct).toBeNull();
+
+    let verdict: unknown;
+    void events.beforeSave('kaydet').then((value) => { verdict = value; });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(verdict).toEqual({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE });
+    const asks = posted.mock.calls.map(([message]) => message as { ask?: number }).filter((message) => typeof message.ask === 'number');
+    expect(asks).toHaveLength(2);
+    // Geç yanıtlar bulunamaz (girdi silindi); hata vermez, sonucu değiştirmez.
+    for (const ask of asks) send({ nx: 1, answer: ask.ask, cancel: true, message: 'geç' });
+    await flush();
+    expect(verdict).toEqual({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE });
+    const listen = vi.fn();
+    const aborted = { aborted: true, addEventListener: listen } as unknown as AbortSignal;
+    await expect(endpoint.ask('q', aborted)).resolves.toBeNull();
+    expect(listen).not.toHaveBeenCalled();
+  });
+
+  it('pageEvents: süre dolunca çerçeveye verilen sinyal iptal edilir', async () => {
+    vi.useFakeTimers();
+    const events = createPageEvents();
+    let signal: AbortSignal | undefined;
+    events.register({ subscribed: () => true, post: () => undefined, ask: (_query, given) => { signal = given; return new Promise(() => undefined); } });
+    const pending = events.beforeSave('q');
+    expect(signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(3000);
+    await expect(pending).resolves.toEqual({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE });
+    expect(signal?.aborted).toBe(true);
   });
 
   it('beforeSave: abone yoksa beklemeden null', async () => {
@@ -178,8 +287,13 @@ describe('CodeFrame', () => {
     view.rerender(<CodeFrame id="c1" css="" javascript="yeni()" hidden={false} title="Kod" host={host} events={view.events} />);
     const fresh = view.container.querySelector('iframe')!;
     expect(fresh).not.toBe(view.iframe);
-    const freshPosted = vi.spyOn(fresh.contentWindow!, 'postMessage').mockImplementation(() => undefined);
-    view.send({ nx: 1, id: 7, type: 'get', path: 'a' }, fresh.contentWindow);
+    const freshKey = nonceOf(fresh);
+    expect(freshKey).not.toBe(view.k);
+    const freshPosted = watchFrame(fresh.contentWindow!, freshKey);
+    view.send({ nx: 1, id: 8, type: 'get', path: 'a' }, fresh.contentWindow);
+    await view.flush();
+    expect(freshPosted).not.toHaveBeenCalled();
+    view.send({ nx: 1, id: 7, type: 'get', path: 'a' }, fresh.contentWindow, freshKey);
     await view.flush();
     expect(freshPosted).toHaveBeenCalledWith({ nx: 1, replyTo: 7, ok: true, result: 'A1' }, '*');
   });

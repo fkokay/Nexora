@@ -709,8 +709,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const isPreview = Boolean(previewId);
   const writeFor = (query: PageQueryDefinition, confirmWrite: boolean) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite);
 
-  // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır.
-  const loadSettled = isV2 && queryDefinitions.every((query) => query.kind !== "read" || query.runOn !== "load" || !states[query.name]?.loading);
+  // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır. ERP kataloğu yüklenemediyse
+  // işlem sorguları hiç çalışmaz; onlar sonuçlanmış sayılır (load yine yayımlanır).
+  const operationsFailed = Boolean(erpOperations.error);
+  const loadSettled = isV2 && queryDefinitions.every((query) => query.kind !== "read" || query.runOn !== "load"
+    || (query.operation !== undefined && operationsFailed) || !states[query.name]?.loading);
   useEffect(() => { if (loadSettled && !events.isLoaded()) events.emit("load", {}); }, [loadSettled, events]);
 
   // Köprü (BridgeHost) bir kez kurulur ve sayfanın en güncel durumunu okur; çerçeve her girdiye güvenilmez gözle bakar.

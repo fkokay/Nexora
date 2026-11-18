@@ -89,7 +89,7 @@ export async function handleBridgeRequest(request: BridgeRequest, host: BridgeHo
   }
 }
 
-/** Çerçeve başına hız sınırı: aynı anda en çok 4 çağrı, kayan 60 sn'de en çok 120 çağrı. */
+/** Çerçeve başına hız sınırı: aynı anda en çok 4 çağrı, kayan 60 sn'de en çok 120 çağrı (setHeight/on kotadan muaftır; CodeFrame). */
 export function createRateLimiter(now: () => number): { tryAcquire(): boolean; release(): void } {
   let inFlight = 0;
   const started: number[] = [];
@@ -106,17 +106,30 @@ export function createRateLimiter(now: () => number): { tryAcquire(): boolean; r
   };
 }
 
+/** Belge başına köprü anahtarı: 16 rastgele bayt, onaltılık (32 karakter). */
+export function createBridgeNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+const NONCE_PATTERN = /^[0-9a-f]{32}$/;
+
 /**
- * Çerçeve içinde kullanıcı kodundan önce çalışan `window.nexora` API'si. Yalnız `window.parent` kaynaklı iletileri
- * işler. İçeriği `</script` barındırmamalıdır (ayrı <script> içinde gömülür).
+ * Çerçeve içinde kullanıcı kodundan önce çalışan `window.nexora` API'si. Yalnız `window.parent` kaynaklı ve doğru
+ * anahtarı (`k`) taşıyan iletileri işler; her isteğe ve beforeSave yanıtına `k` ekler. Anahtar yalnız köprü kapanışında
+ * tutulur (betik öğesi kendini belgeden siler). İçeriği `</script` barındırmamalıdır (ayrı <script> içinde gömülür).
  */
-export const bridgeScript = `(function(){
+export function bridgeScript(nonce: string): string {
+  if (!NONCE_PATTERN.test(nonce)) throw new Error("Geçersiz köprü anahtarı.");
+  return `(function(){
 "use strict";
-var host=window.parent,nextId=1,pending={},handlers={load:[],select:[],beforeSave:[],afterSave:[]},subscribed={};
-function call(type,args){return new Promise(function(resolve,reject){var id=nextId++;pending[id]={resolve:resolve,reject:reject};var message={nx:1,id:id,type:type};for(var key in args){if(Object.prototype.hasOwnProperty.call(args,key))message[key]=args[key];}try{host.postMessage(message,"*");}catch(cause){delete pending[id];reject(new Error("İstek gönderilemedi."));}});}
+var host=window.parent,key="${nonce}",nextId=1,pending={},handlers={load:[],select:[],beforeSave:[],afterSave:[]},subscribed={};
+try{var self=typeof document!=="undefined"&&document.currentScript;if(self&&self.parentNode)self.parentNode.removeChild(self);}catch(ignore){}
+function call(type,args){return new Promise(function(resolve,reject){var id=nextId++;pending[id]={resolve:resolve,reject:reject};var message={nx:1,k:key,id:id,type:type};for(var name in args){if(Object.prototype.hasOwnProperty.call(args,name))message[name]=args[name];}try{host.postMessage(message,"*");}catch(cause){delete pending[id];reject(new Error("İstek gönderilemedi."));}});}
 function cancelOf(value){if(value===false)return{cancel:true,message:"Kod bileşeni işlemi iptal etti."};if(value&&typeof value==="object"&&value.cancel===true)return{cancel:true,message:typeof value.message==="string"&&value.message?value.message:"Kod bileşeni işlemi iptal etti."};return null;}
-function answerBeforeSave(ask,payload){var list=handlers.beforeSave.slice();Promise.all(list.map(function(handler){try{return Promise.resolve(handler(payload)).then(cancelOf,function(cause){return{cancel:true,message:cause&&cause.message?String(cause.message):"Kod bileşeni hata verdi."};});}catch(cause){return Promise.resolve({cancel:true,message:cause&&cause.message?String(cause.message):"Kod bileşeni hata verdi."});}})).then(function(results){var first=null;for(var i=0;i<results.length;i++){if(results[i]){first=results[i];break;}}var answer=first?{nx:1,answer:ask,cancel:true,message:first.message}:{nx:1,answer:ask,cancel:false};try{host.postMessage(answer,"*");}catch(ignore){}});}
-window.addEventListener("message",function(event){if(event.source!==host)return;var data=event.data;if(!data||typeof data!=="object"||data.nx!==1)return;
+function answerBeforeSave(ask,payload){var list=handlers.beforeSave.slice();Promise.all(list.map(function(handler){try{return Promise.resolve(handler(payload)).then(cancelOf,function(cause){return{cancel:true,message:cause&&cause.message?String(cause.message):"Kod bileşeni hata verdi."};});}catch(cause){return Promise.resolve({cancel:true,message:cause&&cause.message?String(cause.message):"Kod bileşeni hata verdi."});}})).then(function(results){var first=null;for(var i=0;i<results.length;i++){if(results[i]){first=results[i];break;}}var answer=first?{nx:1,k:key,answer:ask,cancel:true,message:first.message}:{nx:1,k:key,answer:ask,cancel:false};try{host.postMessage(answer,"*");}catch(ignore){}});}
+window.addEventListener("message",function(event){if(event.source!==host)return;var data=event.data;if(!data||typeof data!=="object"||data.nx!==1||data.k!==key)return;
 if(typeof data.replyTo==="number"){var entry=pending[data.replyTo];if(!entry)return;delete pending[data.replyTo];if(data.ok===true)entry.resolve(data.result);else entry.reject(new Error(typeof data.error==="string"?data.error:"İstek başarısız."));return;}
 if(data.event==="beforeSave"&&typeof data.ask==="number"){answerBeforeSave(data.ask,data.payload);return;}
 var list=typeof data.event==="string"&&Object.prototype.hasOwnProperty.call(handlers,data.event)?handlers[data.event].slice():[];for(var i=0;i<list.length;i++){try{list[i](data.payload);}catch(cause){setTimeout(function(){throw cause;});}}});
@@ -128,10 +141,11 @@ callOperation:function(name,values){return call("callOperation",{name:name,value
 setHeight:function(px){return call("setHeight",{px:px});},
 on:function(event,handler){if(!Object.prototype.hasOwnProperty.call(handlers,event))throw new Error("Bilinmeyen olay: "+event);if(typeof handler!=="function")throw new Error("İşleyici bir işlev olmalı.");handlers[event].push(handler);if(!subscribed[event]){subscribed[event]=true;call("on",{event:event}).catch(function(){subscribed[event]=false;});}}});
 })();`;
+}
 
 const CODE_FRAME_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';";
 
 /** Yalıtılmış kod bileşeni belgesi: CSP değişmedi; köprü betiği kullanıcı kodundan önce, ayrı bir betikte çalışır. */
-export function isolatedCodeDocument(css: string, javascript: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CODE_FRAME_CSP}"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${bridgeScript}</script><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
+export function isolatedCodeDocument(css: string, javascript: string, nonce: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CODE_FRAME_CSP}"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${bridgeScript(nonce)}</script><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 }

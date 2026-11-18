@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BRIDGE_VERSION, bridgeScript, createRateLimiter, handleBridgeRequest, isolatedCodeDocument, parseBridgeRequest, type BridgeHost } from './codeBridge';
+import { BRIDGE_VERSION, bridgeScript, createBridgeNonce, createRateLimiter, handleBridgeRequest, isolatedCodeDocument, parseBridgeRequest, type BridgeHost } from './codeBridge';
 
 const CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';";
 
@@ -119,23 +119,25 @@ describe('createRateLimiter', () => {
   });
 });
 
+const KEY = '0123456789abcdef0123456789abcdef';
+
 describe('isolatedCodeDocument', () => {
   it('mevcut CSP\'yi aynen içerir', () => {
-    expect(isolatedCodeDocument('', '')).toContain(`<meta http-equiv="Content-Security-Policy" content="${CSP}">`);
+    expect(isolatedCodeDocument('', '', KEY)).toContain(`<meta http-equiv="Content-Security-Policy" content="${CSP}">`);
   });
 
   it('köprü betiği kullanıcı kodundan önce ve ayrı bir betikte gelir', () => {
-    const doc = isolatedCodeDocument('', 'console.log("KULLANICI")');
+    const doc = isolatedCodeDocument('', 'console.log("KULLANICI")', KEY);
     const bridge = doc.indexOf('window.nexora');
     const user = doc.indexOf('KULLANICI');
     expect(bridge).toBeGreaterThan(-1);
     expect(bridge).toBeLessThan(user);
     expect(doc.slice(bridge, user)).toContain('</script><script>');
-    expect(bridgeScript).not.toMatch(/<\/script/i);
+    expect(bridgeScript(KEY)).not.toMatch(/<\/script/i);
   });
 
   it('kullanıcı kodundaki </script ve </style kaçışlanır', () => {
-    const doc = isolatedCodeDocument('a</style>b', 'x="</script><b>"');
+    const doc = isolatedCodeDocument('a</style>b', 'x="</script><b>"', KEY);
     expect(doc).not.toContain('x="</script>');
     expect(doc).toContain('x="<\\/script><b>"');
     expect(doc).toContain('a<\\/style>b');
@@ -143,7 +145,16 @@ describe('isolatedCodeDocument', () => {
 
   it('sürüm 1', () => {
     expect(BRIDGE_VERSION).toBe(1);
-    expect(bridgeScript).toContain('version:1');
+    expect(bridgeScript(KEY)).toContain('version:1');
+  });
+
+  it('anahtar belgeye gömülür; geçersiz anahtar reddedilir; üretilen anahtar 16 bayt onaltılık ve her seferinde farklı', () => {
+    expect(isolatedCodeDocument('', '', KEY)).toContain(`key="${KEY}"`);
+    expect(() => bridgeScript('"};alert(1);//')).toThrow();
+    expect(() => bridgeScript('')).toThrow();
+    const first = createBridgeNonce();
+    expect(first).toMatch(/^[0-9a-f]{32}$/);
+    expect(createBridgeNonce()).not.toBe(first);
   });
 });
 
@@ -154,16 +165,18 @@ describe('bridgeScript', () => {
     const parent = { postMessage: (message: unknown) => posted.push(message) };
     let listener: Listener | undefined;
     const win: Record<string, unknown> = { parent, addEventListener: (_type: string, fn: Listener) => { listener = fn; } };
-    new Function('window', 'parent', bridgeScript)(win, parent);
-    const deliver = (data: unknown, source: unknown = parent) => listener?.({ source, data });
+    new Function('window', 'parent', bridgeScript(KEY))(win, parent);
+    const deliver = (data: unknown, source: unknown = parent, key: unknown = KEY) => listener?.({ source, data: data && typeof data === 'object' && !('k' in data) ? { ...data, k: key } : data });
     return { nexora: win.nexora as Record<string, (...args: unknown[]) => unknown>, posted, deliver, parent };
   }
 
   it('istek gönderir, yanıtı çözer, başka kaynağı yok sayar', async () => {
     const { nexora, posted, deliver } = boot();
     const result = nexora.get('liste.seciliSatir.code') as Promise<unknown>;
-    expect(posted[0]).toEqual({ nx: 1, id: 1, type: 'get', path: 'liste.seciliSatir.code' });
+    expect(posted[0]).toEqual({ nx: 1, k: KEY, id: 1, type: 'get', path: 'liste.seciliSatir.code' });
     deliver({ nx: 1, replyTo: 1, ok: true, result: 'SAHTE' }, {});
+    deliver({ nx: 1, replyTo: 1, ok: true, result: 'ANAHTARSIZ', k: undefined });
+    deliver({ nx: 1, replyTo: 1, ok: true, result: 'YANLIS' }, undefined, 'f'.repeat(32));
     deliver({ nx: 1, replyTo: 1, ok: true, result: 'A1' });
     await expect(result).resolves.toBe('A1');
     const failing = nexora.runQuery('q') as Promise<unknown>;
@@ -176,9 +189,9 @@ describe('bridgeScript', () => {
     nexora.on('beforeSave', () => true);
     nexora.on('beforeSave', async () => ({ cancel: true, message: 'Kod: iptal' }));
     nexora.on('beforeSave', () => false);
-    expect(posted).toEqual([{ nx: 1, id: 1, type: 'on', event: 'beforeSave' }]);
+    expect(posted).toEqual([{ nx: 1, k: KEY, id: 1, type: 'on', event: 'beforeSave' }]);
     deliver({ nx: 1, event: 'beforeSave', payload: { query: 'kaydet' }, ask: 9 });
-    await vi.waitFor(() => expect(posted).toContainEqual({ nx: 1, answer: 9, cancel: true, message: 'Kod: iptal' }));
+    await vi.waitFor(() => expect(posted).toContainEqual({ nx: 1, k: KEY, answer: 9, cancel: true, message: 'Kod: iptal' }));
   });
 
   it('beforeSave: iptal yoksa cancel:false; olaylar işleyicilere gider', async () => {
@@ -186,9 +199,12 @@ describe('bridgeScript', () => {
     const select = vi.fn();
     nexora.on('select', select);
     nexora.on('beforeSave', () => undefined);
+    deliver({ nx: 1, event: 'select', payload: { table: 't', row: { a: 0 } } }, undefined, 'f'.repeat(32));
+    deliver({ nx: 1, event: 'select', payload: { table: 't', row: { a: 0 } }, k: undefined });
+    expect(select).not.toHaveBeenCalled();
     deliver({ nx: 1, event: 'select', payload: { table: 't', row: { a: 1 } } });
     expect(select).toHaveBeenCalledWith({ table: 't', row: { a: 1 } });
     deliver({ nx: 1, event: 'beforeSave', payload: { query: 'q' }, ask: 3 });
-    await vi.waitFor(() => expect(posted).toContainEqual({ nx: 1, answer: 3, cancel: false }));
+    await vi.waitFor(() => expect(posted).toContainEqual({ nx: 1, k: KEY, answer: 3, cancel: false }));
   });
 });

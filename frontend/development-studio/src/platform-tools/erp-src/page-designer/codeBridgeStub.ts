@@ -6,23 +6,40 @@ export const BRIDGE_VERSION = 1;
 export const READ_ONLY_PREVIEW = "Tasarımcıda yalnız okuma önizlenir.";
 export const RATE_LIMITED = "Çok fazla istek; biraz bekleyin.";
 export const MAX_JAVASCRIPT_LENGTH = 20000;
-export const MAX_IN_FLIGHT = 4;
+/** Kayan 60 sn'de en çok 120 istek (setHeight/on muaf; ERP ile aynı). Taklit yanıtlar eşzamanlıdır: uçuşta sınırı gerekmez. */
 export const MAX_PER_MINUTE = 120;
+export const RATE_WINDOW_MS = 60_000;
 const MAX_PAYLOAD_CHARS = 64 * 1024;
+const MAX_NAME_CHARS = 512;
 const EVENTS = new Set(["load", "select", "beforeSave", "afterSave"]);
+/** ERP `isName` ile aynı: boş olmayan, kırpılmayan, en çok 512 karakter metin. */
+const isName = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_NAME_CHARS;
+
+/** Belge başına köprü anahtarı: 16 rastgele bayt, onaltılık (32 karakter). ERP createBridgeNonce ile aynı. */
+export function createBridgeNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+const NONCE_PATTERN = /^[0-9a-f]{32}$/;
 
 /**
- * Çerçeveye eklenen köprü betiği; kullanıcı betiğinden önce çalışır. ERP tarafındaki köprüyle aynı API:
- * get, setInput, runQuery, callOperation, setHeight (Promise döner) ve on(olay, işleyici).
+ * Çerçeveye eklenen köprü betiği; kullanıcı betiğinden önce çalışır. ERP tarafındaki köprüyle aynı API ve anlam:
+ * get, setInput, runQuery, callOperation, setHeight (Promise döner) ve on(olay, işleyici) — on bilinmeyen olay ya da
+ * işlev olmayan işleyicide eşzamanlı fırlatır, her olay için ana sayfaya yalnız bir kez abone olur. Yalnız
+ * `window.parent` kaynaklı ve belge anahtarını (`k`) taşıyan iletileri işler; her isteğe ve yanıta `k` ekler.
  */
-export const BRIDGE_SCRIPT = `(function(){
+export function bridgeScript(nonce: string): string {
+  if (!NONCE_PATTERN.test(nonce)) throw new Error("Geçersiz köprü anahtarı.");
+  return `(function(){
 "use strict";
-var seq=0,pending={},handlers={load:[],select:[],beforeSave:[],afterSave:[]};
+var host=window.parent,key="${nonce}",seq=0,pending={},handlers={load:[],select:[],beforeSave:[],afterSave:[]},subscribed={};
+try{var self=typeof document!=="undefined"&&document.currentScript;if(self&&self.parentNode)self.parentNode.removeChild(self);}catch(ignore){}
 function known(event){return typeof event==="string"&&Object.prototype.hasOwnProperty.call(handlers,event);}
-function call(type,args){return new Promise(function(resolve,reject){var id=++seq;pending[id]={resolve:resolve,reject:reject};var message={nx:1,id:id,type:type};for(var key in args){if(Object.prototype.hasOwnProperty.call(args,key))message[key]=args[key];}try{parent.postMessage(message,"*");}catch(error){delete pending[id];reject(new Error("İstek gönderilemedi."));}});}
-function answer(ask,cancel,message){var reply={nx:1,answer:ask,cancel:cancel};if(typeof message==="string"&&message)reply.message=message;parent.postMessage(reply,"*");}
+function call(type,args){return new Promise(function(resolve,reject){var id=++seq;pending[id]={resolve:resolve,reject:reject};var message={nx:1,k:key,id:id,type:type};for(var name in args){if(Object.prototype.hasOwnProperty.call(args,name))message[name]=args[name];}try{host.postMessage(message,"*");}catch(error){delete pending[id];reject(new Error("İstek gönderilemedi."));}});}
+function answer(ask,cancel,message){var reply={nx:1,k:key,answer:ask,cancel:cancel};if(typeof message==="string"&&message)reply.message=message;try{host.postMessage(reply,"*");}catch(ignore){}}
 window.addEventListener("message",function(event){
-if(event.source!==parent)return;var data=event.data;if(!data||data.nx!==1)return;
+if(event.source!==host)return;var data=event.data;if(!data||typeof data!=="object"||data.nx!==1||data.k!==key)return;
 if(typeof data.replyTo==="number"){var entry=pending[data.replyTo];if(!entry)return;delete pending[data.replyTo];if(data.ok===true)entry.resolve(data.result);else entry.reject(new Error(typeof data.error==="string"?data.error:"İstek başarısız."));return;}
 if(!known(data.event))return;var list=handlers[data.event].slice();
 if(data.event==="beforeSave"){if(typeof data.ask!=="number")return;var ask=data.ask;
@@ -36,11 +53,12 @@ version:${BRIDGE_VERSION},
 get:function(path){return call("get",{path:path});},
 setInput:function(name,value){return call("setInput",{name:name,value:value});},
 runQuery:function(name){return call("runQuery",{name:name});},
-callOperation:function(name,values){return call("callOperation",{name:name,values:values});},
+callOperation:function(name,values){return call("callOperation",{name:name,values:values===undefined?{}:values});},
 setHeight:function(px){return call("setHeight",{px:px});},
-on:function(event,handler){if(!known(event))return Promise.reject(new Error("Bilinmeyen olay: "+String(event)));if(typeof handler!=="function")return Promise.reject(new Error("İşleyici bir fonksiyon olmalı."));handlers[event].push(handler);return call("on",{event:event});}
+on:function(event,handler){if(!known(event))throw new Error("Bilinmeyen olay: "+event);if(typeof handler!=="function")throw new Error("İşleyici bir işlev olmalı.");handlers[event].push(handler);if(!subscribed[event]){subscribed[event]=true;call("on",{event:event}).catch(function(){subscribed[event]=false;});}}
 });
 })();`;
+}
 
 /** Taklit ana sayfanın veri kaynağı: tuval önizleme kapsamı ve sorgu önizleme satırları. */
 export type StubHostData = {
@@ -65,14 +83,14 @@ export function answerStubRequest(data: Record<string, unknown>, host: StubHostD
   if (size > MAX_PAYLOAD_CHARS) return { reply: fail("İstek çok büyük (en fazla 64 KB).") };
   switch (data.type) {
     case "get": {
-      if (typeof data.path !== "string" || data.path.length > 256) return { reply: fail("Yol metin olmalı.") };
-      return { reply: { ok: true, result: clone(host.get(data.path.trim())) } };
+      if (!isName(data.path)) return { reply: fail("Yol metin olmalı.") };
+      return { reply: { ok: true, result: clone(host.get(data.path)) } };
     }
     case "setInput":
-      if (typeof data.name !== "string") return { reply: fail("Giriş adı metin olmalı.") };
+      if (!isName(data.name)) return { reply: fail("Giriş adı metin olmalı.") };
       return { reply: fail(READ_ONLY_PREVIEW) };
     case "runQuery": {
-      if (typeof data.name !== "string") return { reply: fail("Sorgu adı metin olmalı.") };
+      if (!isName(data.name)) return { reply: fail("Sorgu adı metin olmalı.") };
       const query = host.query(data.name);
       if (query.kind === "write") return { reply: fail(READ_ONLY_PREVIEW) };
       if (query.kind === "unknown") return { reply: fail(`Sayfada "${data.name.slice(0, 64)}" adlı sorgu yok.`) };
@@ -80,7 +98,7 @@ export function answerStubRequest(data: Record<string, unknown>, host: StubHostD
       return { reply: { ok: true, result: clone({ rows: query.rows, rowCount: query.rowCount }) } };
     }
     case "callOperation": {
-      if (typeof data.name !== "string") return { reply: fail("İşlem adı metin olmalı.") };
+      if (!isName(data.name)) return { reply: fail("İşlem adı metin olmalı.") };
       if (data.values !== undefined && (data.values === null || typeof data.values !== "object" || Array.isArray(data.values))) return { reply: fail("İşlem değerleri nesne olmalı.") };
       const kind = host.operation(data.name);
       if (kind === "write") return { reply: fail(READ_ONLY_PREVIEW) };
@@ -103,6 +121,6 @@ export function answerStubRequest(data: Record<string, unknown>, host: StubHostD
 }
 
 const CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';";
-/** Yalıtılmış kod önizlemesi belgesi: CSP değişmez; köprü betiği kullanıcı betiğinden önce gelir. */
-export const codePreviewDocument = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${BRIDGE_SCRIPT}</script><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
+/** Yalıtılmış kod önizlemesi belgesi: CSP değişmez; köprü betiği (belge anahtarıyla) kullanıcı betiğinden önce gelir. */
+export const codePreviewDocument = (css: string, javascript: string, nonce: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${bridgeScript(nonce)}</script><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 

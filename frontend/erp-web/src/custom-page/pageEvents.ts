@@ -9,9 +9,9 @@ export type BeforeSaveVerdict = { cancel: true; message: string } | null;
 export type PageEventFrame = {
   subscribed(event: BridgeEvent): boolean;
   /** Çerçeveye olay iletisi gönderir; çerçeve kalktıysa sessizce düşer. */
-  post(message: unknown): void;
-  /** beforeSave sorusu; çerçeve kalkarsa null ile çözülür. */
-  ask(query: string): Promise<BeforeSaveVerdict>;
+  post(message: Record<string, unknown>): void;
+  /** beforeSave sorusu; çerçeve kalkarsa ya da `signal` iptal edilirse (süre doldu) null ile çözülür ve bekleyen soru silinir. */
+  ask(query: string, signal: AbortSignal): Promise<BeforeSaveVerdict>;
 };
 
 export type PageEvents = {
@@ -38,9 +38,20 @@ export function createPageEvents(): PageEvents {
       const askers = [...frames].filter((frame) => frame.subscribed("beforeSave"));
       if (askers.length === 0) return Promise.resolve(null);
       return new Promise<BeforeSaveVerdict>((resolve) => {
-        const timer = setTimeout(() => resolve({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE }), BEFORE_SAVE_TIMEOUT_MS);
-        void Promise.all(askers.map((frame) => frame.ask(query).catch((): BeforeSaveVerdict => null)))
-          .then((verdicts) => { clearTimeout(timer); resolve(verdicts.find((verdict) => verdict !== null) ?? null); });
+        const deadline = new AbortController();
+        let settled = false;
+        const timer = setTimeout(() => {
+          settled = true;
+          resolve({ cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE });
+          // Süresi dolan sorular çerçevelerde silinir (geç yanıt beklenmez, bekleyen girdi sızmaz).
+          deadline.abort();
+        }, BEFORE_SAVE_TIMEOUT_MS);
+        void Promise.all(askers.map((frame) => frame.ask(query, deadline.signal).catch((): BeforeSaveVerdict => null)))
+          .then((verdicts) => {
+            if (settled) return;
+            clearTimeout(timer);
+            resolve(verdicts.find((verdict) => verdict !== null) ?? null);
+          });
       });
     },
     register(frame) {
