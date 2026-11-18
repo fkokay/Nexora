@@ -141,6 +141,49 @@ describe('CodeFrame', () => {
     expect(iframe.style.gridColumn).toBe('span 6');
   });
 
+  it('çerçeve yönlenirse (ikinci load) köprü kalıcı olarak kapanır', async () => {
+    let resolve!: (value: unknown) => void;
+    const host = makeHost({ runQuery: vi.fn(() => new Promise<unknown>((done) => { resolve = done; })) });
+    const view = mount({ host });
+    const load = () => act(() => { view.iframe.dispatchEvent(new Event('load')); });
+    load();
+    view.send({ nx: 1, id: 1, type: 'get', path: 'a' });
+    view.send({ nx: 1, id: 2, type: 'on', event: 'beforeSave' });
+    view.send({ nx: 1, id: 3, type: 'on', event: 'select' });
+    view.send({ nx: 1, id: 4, type: 'runQuery', name: 'q' });
+    await view.flush();
+    expect(view.posted).toHaveBeenCalledWith({ nx: 1, replyTo: 1, ok: true, result: 'A1' }, '*');
+    let verdict: unknown = 'bekliyor';
+    const pending = view.events.beforeSave('q').then((value) => { verdict = value; });
+    view.posted.mockClear();
+    vi.mocked(host.get).mockClear();
+
+    load();
+    await pending;
+    expect(verdict).toBeNull();
+    view.send({ nx: 1, id: 5, type: 'get', path: 'a' });
+    resolve({ rows: [], rowCount: 0 });
+    await view.flush();
+    act(() => view.events.emit('select', { table: 't', row: null }));
+    await expect(view.events.beforeSave('q')).resolves.toBeNull();
+    expect(host.get).not.toHaveBeenCalled();
+    expect(view.posted).not.toHaveBeenCalled();
+
+    // Aynı kodla yeniden çizim çerçeveyi diriltmez; yeni kod taze bir iframe ile köprüyü yeniden kurar.
+    view.rerender(<CodeFrame id="c1" css="" javascript="" hidden={false} title="Kod" host={host} events={view.events} />);
+    expect(view.container.querySelector('iframe')).toBe(view.iframe);
+    view.send({ nx: 1, id: 6, type: 'get', path: 'a' });
+    await view.flush();
+    expect(host.get).not.toHaveBeenCalled();
+    view.rerender(<CodeFrame id="c1" css="" javascript="yeni()" hidden={false} title="Kod" host={host} events={view.events} />);
+    const fresh = view.container.querySelector('iframe')!;
+    expect(fresh).not.toBe(view.iframe);
+    const freshPosted = vi.spyOn(fresh.contentWindow!, 'postMessage').mockImplementation(() => undefined);
+    view.send({ nx: 1, id: 7, type: 'get', path: 'a' }, fresh.contentWindow);
+    await view.flush();
+    expect(freshPosted).toHaveBeenCalledWith({ nx: 1, replyTo: 7, ok: true, result: 'A1' }, '*');
+  });
+
   it('unmount drops pending replies', async () => {
     let resolve!: (value: unknown) => void;
     const host = makeHost({ runQuery: vi.fn(() => new Promise<unknown>((done) => { resolve = done; })) });

@@ -20,6 +20,9 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
   hostRef.current = host;
   const [height, setHeight] = useState<number | null>(null);
   const srcDoc = useMemo(() => isolatedCodeDocument(css, javascript), [css, javascript]);
+  // Yeni kod gelince taze bir iframe öğesi (yeni anahtar) kurulur; yönlenip kapanmış çerçeve yalnız böyle sıfırlanır.
+  const generationRef = useRef(0);
+  const generation = useMemo(() => { generationRef.current += 1; return generationRef.current; }, [srcDoc]);
 
   // Düzen etkisi: dinleyici, iframe’i ekleyen aynı commit’te bağlanır; çerçevenin ilk satırdaki iletisi kaybolmaz.
   useLayoutEffect(() => {
@@ -85,18 +88,34 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
         .finally(() => limiter.release());
     };
 
-    window.addEventListener("message", onMessage);
-    const unregister = events.register(endpoint);
-    return () => {
+    const frameElement = frameRef.current;
+    let shutDown = false;
+    let unregister = () => undefined as void;
+    const shutdown = () => {
+      if (shutDown) return;
+      shutDown = true;
       disposed = true;
       window.removeEventListener("message", onMessage);
+      frameElement?.removeEventListener("load", onLoad);
       unregister();
+      // Bekleyen sorular null ile çözülür; uçuştaki isteklerin yanıtları `disposed` nedeniyle düşer (yönlenen belgeye veri gitmez).
       asks.forEach((resolve) => resolve(null));
       asks.clear();
     };
+    // srcdoc belgesi tek bir load verir. İkinci load, çerçevenin kendini başka bir belgeye yönlendirdiği anlamına gelir
+    // (aynı contentWindow korunur, event.source denetimi tek başına yetmez): köprü bu çerçeve için kalıcı olarak kapanır.
+    let loads = 0;
+    function onLoad() {
+      loads += 1;
+      if (loads > 1) shutdown();
+    }
+    frameElement?.addEventListener("load", onLoad);
+    window.addEventListener("message", onMessage);
+    unregister = events.register(endpoint);
+    return shutdown;
   }, [events, srcDoc]);
 
   const frameStyle: CSSProperties = hidden ? { display: "none" } : { ...style, ...(height !== null ? { height: `${height}px` } : {}) };
-  return <iframe ref={frameRef} data-component-id={id} className="tenant-page-code-frame" style={frameStyle} title={title}
+  return <iframe key={generation} ref={frameRef} data-component-id={id} className="tenant-page-code-frame" style={frameStyle} title={title}
     sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={srcDoc} aria-hidden={hidden || undefined} />;
 }
