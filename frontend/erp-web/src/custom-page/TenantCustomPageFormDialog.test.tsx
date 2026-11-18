@@ -175,13 +175,13 @@ describe('Kayıt penceresi (formDialog)', () => {
     setup();
     await selectRow();
     await ready('open');
-    const row = document.querySelector<HTMLElement>('.tenant-page-table tbody tr')!;
-    expect(row.getAttribute('aria-selected')).toBe('true');
+    const row = document.querySelector<HTMLElement>('.tenant-page-data-grid tbody tr')!;
+    expect(row.getAttribute('aria-current')).toBe('true');
     row.focus();
     fireEvent.keyDown(row, { key: 'Enter' });
     await screen.findByRole('dialog', { name: 'Stok kartı' });
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(row.getAttribute('aria-selected')).toBe('true');
+    expect(row.getAttribute('aria-current')).toBe('true');
     await waitFor(() => expect(input('in-ad').value).toBe('Var olan'));
     type('in-ad', 'Düzenlendi');
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Kaydet' }));

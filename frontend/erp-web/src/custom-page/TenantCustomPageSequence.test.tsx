@@ -90,7 +90,9 @@ const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('ari
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const pageStatus = () => document.querySelector('.tenant-custom-page-content > .tenant-page-action-status')?.textContent;
 const ctrlS = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 's', ctrlKey: true });
-const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+// Izgaranın sütun seçici ve filtreleri de sütun etiketini taşır; sayfa girişi ızgara dışında aranır.
+const pageField = (label: string) => screen.getAllByLabelText(label).find((element) => !element.closest('.advanced-grid'))!;
+const type = (label: string, value: string) => fireEvent.change(pageField(label), { target: { value } });
 
 beforeEach(() => { calls = []; failUnits = 0; api.mockReset(); });
 afterEach(() => {
@@ -126,7 +128,7 @@ describe('Kayıt dizisi', () => {
     await waitFor(() => expect(pageStatus()).toBe('İşlem tamamlandı. (1 işlem)'));
     expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual(['POST /api/stock/items']);
     calls = [];
-    fireEvent.click(document.querySelector('.tenant-page-table tbody tr')!);
+    fireEvent.click(document.querySelector('.tenant-page-data-grid tbody tr')!);
     await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/items/${G2}`)).toBe(true));
     await new Promise((resolve) => setTimeout(resolve, 20));
     fireEvent.click(command('save'));
@@ -183,7 +185,7 @@ describe('Kayıt dizisi', () => {
       q('qs', 'ozet', 'read', 'stok.ozet', [], 'manual'), guncelle, birimEdit,
     ]);
     await screen.findByText('Var olan');
-    const row = () => document.querySelector<HTMLElement>('.tenant-page-table tbody tr')!;
+    const row = () => document.querySelector<HTMLElement>('.tenant-page-data-grid tbody tr')!;
     fireEvent.click(row());
     await waitFor(() => expect(calls.filter((call) => call.method === 'GET' && call.url === `/api/stock/items/${G2}`)).toHaveLength(1));
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -196,7 +198,7 @@ describe('Kayıt dizisi', () => {
     await waitFor(() => expect(calls.filter((call) => call.method === 'GET' && call.url === `/api/stock/items/${G2}`)).toHaveLength(2));
     await waitFor(() => expect(calls.filter((call) => call.url === '/api/stock/summary')).toHaveLength(1));
     expect(listReads()).toBe(before);
-    expect(row().getAttribute('aria-selected')).toBe('true');
+    expect(row().getAttribute('aria-current')).toBe('true');
   });
 });
 
@@ -369,11 +371,11 @@ describe('Yeni ve kayıt tablosu seçimi', () => {
     ], [q('ql', 'liste', 'read', 'stok.kart.liste', [], 'load'), q('qk', 'kart', 'read', 'stok.kart.getir', [['id', '{{liste.seciliSatir.id}}', 'guid']], 'load'), olustur, guncelle]);
     fireEvent.click(await screen.findByText('Var olan'));
     await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/items/${G2}`)).toBe(true));
-    const row = () => document.querySelector('.tenant-page-table tbody tr')!;
-    await waitFor(() => expect(row().getAttribute('aria-selected')).toBe('true'));
+    const row = () => document.querySelector('.tenant-page-data-grid tbody tr')!;
+    await waitFor(() => expect(row().getAttribute('aria-current')).toBe('true'));
     await ready('new');
     fireEvent.click(command('new'));
-    await waitFor(() => expect(row().getAttribute('aria-selected')).toBe('false'));
+    await waitFor(() => expect(row().getAttribute('aria-current')).toBeNull());
     // Yeni seçime bağlı kart okumasını hemen boşaltır: hemen yazılan değer sonradan sıfırlanmaz, hemen kaydetmek de oluşturur.
     type('Ad', 'Yeni kart');
     await ready('save');

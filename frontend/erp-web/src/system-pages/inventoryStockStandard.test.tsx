@@ -152,14 +152,14 @@ const gets = (path: string) => calls.filter((call) => call.method === 'GET' && c
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
-const listRow = (name: string) => screen.getByText(name, { selector: '.tenant-page-table td' }).closest('tr') as HTMLElement;
+const listRow = (name: string) => screen.getByText(name, { selector: '.tenant-page-data-grid td' }).closest('tr') as HTMLElement;
 const menuItem = async (name: RegExp) => {
   fireEvent.click(command('more'));
   return screen.findByRole('menuitem', { name });
 };
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 const selectCard = async (name = 'Kalem', id = S1) => {
-  fireEvent.click(await screen.findByText(name, { selector: '.tenant-page-table td' }, T));
+  fireEvent.click(await screen.findByText(name, { selector: '.tenant-page-data-grid td' }, T));
   await waitFor(() => expect(gets(`/api/stock/items/${id}`).length).toBeGreaterThan(0), T);
   await ready('open');
 };
@@ -187,7 +187,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('list requests balances page with filters and paging', async () => {
     setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     const first = gets('/api/warehouses/balances/page')[0];
     expect(query(first.url).get('page')).toBe('1');
     expect(query(first.url).get('pageSize')).toBe('25');
@@ -199,7 +199,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('metrics show formatted page meta and minimum filter toggles', async () => {
     setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     const metric = (title: string) => screen.getByText(title, { selector: '.tenant-metric-label' }).closest('article') as HTMLElement;
     await waitFor(() => expect(metric('Stok değeri').querySelector('strong')?.textContent).toBe('1.234,50'), T);
     expect(metric('Stok değeri').textContent).toContain('bu sayfa · TRY');
@@ -241,19 +241,19 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
     const { container } = setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     // One compact toolbar row (no card heading) holding search, Depo, Minimum altı, Pasif and Detay paneli.
     const toolbar = screen.getByRole('region', { name: 'Süzgeçler' });
     expect(toolbar.classList.contains('is-inline')).toBe(true);
     expect(toolbar.querySelector('h3')).toBeNull();
     for (const id of ['aramaKutusu', 'depoSecimi', 'minimumAlti', 'pasifler', 'detayPaneli']) expect(toolbar.contains(input(id))).toBe(true);
     expect(container.querySelector('.tenant-page-table-search')).toBeNull();
-    const list = container.querySelector('.tenant-page-table') as HTMLElement;
+    const list = container.querySelector('.tenant-page-data-grid') as HTMLElement;
     expect(list.style.gridColumn).toBe('span 12');
-    expect(Array.from(list.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
+    expect(Array.from(list.querySelectorAll('th:not(.advanced-grid-select-cell)')).map((th) => th.textContent)).toEqual([
       'Stok kodu', 'Stok adı', 'Kategori', 'Depo bakiyesi', 'Rezerve', 'Kullanılabilir', 'Minimum', 'Stok değeri', 'Maliyetsiz miktar', 'Durum',
     ]);
-    const cells = Array.from(listRow('Kalem').querySelectorAll('td')).map((td) => td.textContent);
+    const cells = Array.from(listRow('Kalem').querySelectorAll('td:not(.advanced-grid-select-cell)')).map((td) => td.textContent);
     expect(cells).toEqual(['KLM', 'Kalem', 'Kırtasiye', '5 ADET', '1 ADET', '4 ADET', '10', '25,00 TRY', '0 ADET', 'Minimum altı']);
     const strip = screen.getByText('Negatif stok koruması açık').closest('.tenant-page-status-strip') as HTMLElement;
     expect(strip.classList.contains('tone-success')).toBe(true);
@@ -308,7 +308,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('yeni opens the card screen in its own tab', async () => {
     setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await ready('new');
     fireEvent.keyDown(document.body, { key: 'F2' });
     await waitFor(() => expect(navigations).toHaveLength(1), T);
@@ -322,7 +322,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('aç opens the selected card on the card screen; Enter and double click too', async () => {
     setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await waitFor(() => expect(commandReason(command('open'))).toBe('Önce bir kayıt seçin'), T);
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
     await selectCard();
@@ -338,13 +338,13 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     fireEvent.doubleClick(listRow('Defter'));
     await waitFor(() => expect(navigations).toHaveLength(3), T);
     expect(navigations[2]).toEqual({ page: 'inventory-stock-create', params: { id: S2 }, replace: false, from: 'inventory-stock' });
-    expect(listRow('Defter').getAttribute('aria-selected')).toBe('true');
+    expect(listRow('Defter').getAttribute('aria-current')).toBe('true');
     expect(writes()).toEqual([]);
   });
 
   it('a save on the card screen refreshes the open list', async () => {
     setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await settle(100);
     const before = gets('/api/warehouses/balances/page').length;
     // Kart ekranının afterSaveButton gezinmesi (listeye dön + yenile).
@@ -369,7 +369,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     // Depo süzgeci listeyi yeniden yükler; aynı kart seçili kalır.
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
     await settle(100);
-    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
+    expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
     fireEvent.click(await menuItem(/Hareketler \/ ekle/));
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
     await within(dialog).findByText('Hareket 3', {}, T);
@@ -384,7 +384,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır, yeni hareket için yeniden seçmek gerekmez.
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(1), T);
     await settle(100);
-    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
+    expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
     calls = [];
     fireEvent.click(await menuItem(/Hareketler \/ ekle/));
     const again = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
@@ -436,7 +436,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     // İstemli satır işlemi yalnız refreshQueries'i yeniler; liste (bakiye) yenilenmez, seçim ve başlık korunur.
     expect(screen.getByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' })).toBe(dialog);
     await settle(100);
-    expect(listRow('Kalem').getAttribute('aria-selected')).toBe('true');
+    expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
     expect(within(dialog).getByText('Hareket 2')).toBeTruthy();
     await reverse('Hareket 2', 'İkinci');
     await waitFor(() => expect(writes()).toHaveLength(2), T);

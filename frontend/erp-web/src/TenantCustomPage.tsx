@@ -29,6 +29,7 @@ import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
+import { DataTableGrid } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
@@ -973,7 +974,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           }];
         }) : [];
         const limit = tableLimit(props.limit);
-        return <QueryTable key={component.id} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
+        return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
