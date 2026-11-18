@@ -21,7 +21,8 @@ export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", inser
 export const isWriteKind = (kind: QueryKind) => kind !== "read";
 // schemaVersion 2 sınırı (sunucudaki MaxQueries); Studio her zaman v2 kaydeder.
 export const MAX_QUERIES = 30;
-export const MAX_QUERY_PARAMETERS = 20;
+export { MAX_QUERY_PARAMETERS } from "./queryDraft";
+import { MAX_QUERY_PARAMETERS } from "./queryDraft";
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 // "onceki" kayıt dizisinde bir önceki adımın sonucudur (sunucuda yalnız ValidName'de ayrılmış; koşul kökü değildir).
 export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki"];
@@ -44,54 +45,7 @@ export function nameProblem(value: string, taken: string[]): string | null {
   return null;
 }
 
-const isParameterChar = (char: string) => /[A-Za-z0-9_@#$]/.test(char);
-/**
- * SQL metninde geçen @parametre adları (ilk geçiş sırası, büyük/küçük harf duyarsız tekil). Sunucudaki
- * TenantCustomPageQueries.SqlParameterNames ile aynı kurallar: dizgiler, [köşeli]/"tırnaklı" adlar, yorumlar
- * ve @@sistem değişkenleri sayılmaz.
- */
-export function sqlParameterNames(sql: string): string[] {
-  const names: string[] = [];
-  const seen = new Set<string>();
-  for (let index = 0; index < sql.length; index++) {
-    const current = sql[index];
-    if (current === "'" || current === "[" || current === "\"") {
-      const closing = current === "[" ? "]" : current;
-      index++;
-      while (index < sql.length) {
-        if (sql[index] === closing && sql[index + 1] === closing) { index += 2; continue; }
-        if (sql[index] === closing) break;
-        index++;
-      }
-      continue;
-    }
-    if (current === "-" && sql[index + 1] === "-") { while (index < sql.length && sql[index] !== "\n") index++; continue; }
-    if (current === "/" && sql[index + 1] === "*") { const end = sql.indexOf("*/", index + 2); index = end < 0 ? sql.length : end + 1; continue; }
-    if (current !== "@") continue;
-    const start = index + 1;
-    if (sql[start] === "@") { index = start; while (index + 1 < sql.length && isParameterChar(sql[index + 1])) index++; continue; }
-    let stop = start;
-    while (stop < sql.length && isParameterChar(sql[stop])) stop++;
-    if (stop > start) {
-      const name = sql.slice(start, stop);
-      if (!seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); names.push(name); }
-    }
-    index = stop - 1;
-  }
-  return names;
-}
-
-/**
- * Parametre listesini SQL'deki adlara eşitler; var olan parametrelerin bağlaması ve türü korunur. Yazarken adı geçici
- * olarak bozulan (ör. "@tarih" → "@tari" → "@tarih") parametreler için `remembered` önceki ayarı verir.
- */
-export function syncParameters(sql: string, existing: PageQueryParameter[], remembered: (name: string) => PageQueryParameter | undefined, defaultBinding: (name: string) => string): PageQueryParameter[] {
-  return sqlParameterNames(sql).slice(0, MAX_QUERY_PARAMETERS).map((name) => {
-    const previous = existing.find((parameter) => parameter.name.toLowerCase() === name.toLowerCase()) ?? remembered(name);
-    // Koleksiyon türleri SQL'de yoktur: ERP işleminden kalan list/map türü metne döner.
-    return previous ? { ...previous, name, type: isCollectionType(previous.type) ? "text" : previous.type } : { name, binding: defaultBinding(name), type: "text" };
-  });
-}
+export { sqlParameterNames, syncParameters } from "./queryDraft";
 
 const sqlStatements: Record<QueryKind, string> = {
   read: "Yalnız tek bir SELECT ya da WITH sorgusu.",
@@ -192,6 +146,179 @@ function CollectionSelect({ kind, binding, candidates, name, disabled, onChange 
   </>;
 }
 
+/** Önizleme düğmesinin kapalı olma nedeni (ERP yazma işlemi, işlem seçilmedi ya da sayfa durumu); yoksa null. */
+export function queryRunBlockedReason(query: PageQuery, catalog: ErpCatalog, previewBlockedReason: string | null): string | null {
+  const erpMode = isOperationQuery(query);
+  const operation = findOperation(catalog, query.operation);
+  if (erpMode && (isWriteKind(query.kind) || operation?.kind === "write")) return ERP_WRITE_PREVIEW_BLOCKED;
+  if (erpMode && !operation) return "Önce bir ERP işlemi seçin.";
+  return previewBlockedReason;
+}
+
+export type QueryDetailProps = {
+  query: PageQuery;
+  queries: PageQuery[];
+  editable: boolean;
+  schema: SqlSchemaTable[];
+  suggestions: BindingSuggestion[];
+  /** Bu sorgu dışında sayfada alınmış adlar (küçük harf). */
+  takenNames: string[];
+  onUpdate: (patch: Partial<PageQuery>, coalesceKey?: string) => void;
+  catalog: ErpCatalog;
+  onAddSourceQuery?: (operation: ErpOperation) => void;
+  components?: { type: string; name?: string; props?: Record<string, unknown> }[];
+  /** Alanın kabul ettiği sorgu türleri (ör. ızgara yalnız okuma); tür seçici ve ERP işlem listesi buna göre süzülür. */
+  allowedKinds?: QueryKind[];
+};
+
+/** Seçili sorgunun düzenleyicisi (kaynak, ad, tür, ERP işlemi ya da SQL, parametreler): Sorgular sekmesi ve "Yeni sorgu" penceresi kullanır. */
+export function QueryDetailFields({ query, queries, editable, schema, suggestions, takenNames, onUpdate, catalog, onAddSourceQuery, components = [], allowedKinds }: QueryDetailProps) {
+  const write = isWriteKind(query.kind);
+  const erpMode = isOperationQuery(query);
+  const operation = findOperation(catalog, query.operation);
+  const operations = catalog.status === "ready" ? catalog.operations : [];
+  const pickable = allowedKinds ? operations.filter((item) => allowedKinds.includes(item.pageKind)) : operations;
+  const sourceOperation = operation?.sourceOperation ? findOperation(catalog, operation.sourceOperation) : undefined;
+  const sourceQuery = operation?.sourceOperation ? queries.find((item) => item.operation === operation.sourceOperation) : undefined;
+  const operationProblem = !erpMode || !query.operation || catalog.status !== "ready" ? null
+    : !operation ? `ERP işlemi bulunamadı: ${query.operation}` : operation.deprecated ? `ERP işlemi artık kullanılamıyor: ${query.operation}` : null;
+  const pickOperation = (picked: ErpOperation) => {
+    onUpdate({
+      operation: picked.name, kind: picked.pageKind, runOn: picked.kind === "read" ? "load" : "manual",
+      parameters: picked.parameters.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType })),
+    });
+  };
+  const setMode = (toErp: boolean) => {
+    if (toErp === erpMode) return;
+    // SQL'e dönüşte parametreler SQL metninden yeniden çıkarılır (sql yaması bunu tetikler).
+    // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
+    const sqlKind: QueryKind = !allowedKinds || allowedKinds.includes("read") ? "read" : allowedKinds[0];
+    onUpdate(toErp ? { operation: "", parameters: [] }
+      : { operation: undefined, sql: query.sql ?? (sqlKind === "read" ? "SELECT 1 AS Deger" : ""), kind: sqlKind, runOn: sqlKind === "read" ? "load" : "manual", parameters: [] });
+  };
+  // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
+  const ownSuggestions = suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${query.name.toLowerCase()}.`));
+  return <>
+      <fieldset className="pd-fieldset" disabled={!editable}>
+        <div className="pd-field">Kaynak<div className="pd-segment pd-query-mode" role="group" aria-label="Sorgu kaynağı">
+          <button type="button" aria-pressed={!erpMode} className={!erpMode ? "active" : ""} onClick={() => setMode(false)}>SQL sorgusu</button>
+          <button type="button" aria-pressed={erpMode} className={erpMode ? "active" : ""} disabled={!erpMode && catalog.status !== "ready"}
+            title={catalog.status === "failed" ? ERP_CATALOG_FAILED : catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : undefined}
+            onClick={() => setMode(true)}>ERP işlemi</button>
+        </div>
+        {catalog.status === "failed" && <small className="pd-query-warning">{ERP_CATALOG_FAILED}</small>}
+        </div>
+        <div className="pd-field-row pd-query-meta">
+          <label className="pd-field">Ad<input className="pd-query-name" value={query.name} maxLength={64} spellCheck={false}
+            onChange={(event) => onUpdate({ name: event.target.value }, `query:${query.id}:name`)}/></label>
+          {write ? <div className="pd-field">Çalışma<small className="pd-query-manual">Yalnız düğmeyle çalışır.</small></div>
+            : <label className="pd-field">Çalışma<select value={query.runOn} onChange={(event) => onUpdate({ runOn: event.target.value as PageQuery["runOn"] })}>
+              <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
+            </select></label>}
+        </div>
+        {erpMode ? <div className="pd-field">Tür<small>{queryKindLabels[query.kind]} · seçilen işlemden gelir.</small></div>
+          : <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
+            {(Object.keys(queryKindLabels) as QueryKind[]).filter((kind) => !allowedKinds || allowedKinds.includes(kind)).map((kind) => <button type="button" key={kind} aria-pressed={query.kind === kind} className={`${query.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
+              onClick={() => { if (kind !== query.kind) onUpdate(isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
+          </div></div>}
+        {nameProblem(query.name, takenNames) && <small className="pd-query-warning">{nameProblem(query.name, takenNames)}</small>}
+      </fieldset>
+      {erpMode ? <>
+        <div className="pd-field">ERP işlemi<small>Sayfa yalnız katalogdaki işlemi çağırır; adres ve yöntem işlemden gelir, kullanıcının kendi yetkisiyle çalışır.</small>
+          {catalog.status === "ready" ? <OperationPicker key={query.id} operations={pickable} value={operation} disabled={!editable} onPick={pickOperation}/>
+            : query.operation ? <code className="pd-op-raw">{query.operation}</code>
+              : <p className="pd-query-muted">{catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : ERP_CATALOG_FAILED}</p>}
+          {operationProblem && <small className="pd-query-warning">{operationProblem}</small>}
+          {operation && !operation.allowed && <small className="pd-query-warning">{ERP_NOT_ALLOWED}.</small>}
+        </div>
+        {operation?.sourceOperation && (sourceQuery
+          ? <p className="pd-binding-note">Bağlanmayan alanlar “{sourceOperation?.label ?? operation.sourceOperation}” sorgusundaki kayıttan korunur.</p>
+          : <div className="pd-op-source-warning" role="status">
+            <small className="pd-query-warning">Bu işlem güncellenecek kaydı “{sourceOperation?.label ?? operation.sourceOperation}” okuma sorgusundan alır; sayfada böyle bir sorgu yok.</small>
+            <button type="button" className="pd-button small" disabled={!editable || !sourceOperation || !onAddSourceQuery || queries.length >= MAX_QUERIES}
+              title={queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : undefined}
+              onClick={() => { if (sourceOperation && onAddSourceQuery) onAddSourceQuery(sourceOperation); }}><Plus size={13}/>Ekle</button>
+          </div>)}
+        <div className="pd-field">Parametreler<small>Adlar ve türler işlemden gelir; <b>*</b> zorunludur.</small>
+          {(() => {
+            const rows: { name: string; binding: string; type: QueryParameterType; spec?: ErpOperationParameter; custom?: boolean }[] = operation
+              ? mergedParameters<QueryParameterType>(operation, query.parameters)
+              : query.parameters.map((parameter) => ({ ...parameter, spec: undefined }));
+            const fromSource = (place: string | undefined) => place === "route" && !!operation?.sourceOperation;
+            const toParameters = (items: typeof rows) => items.map((item) => ({ name: item.name, binding: item.binding, type: item.type }));
+            const bodyMap = operation?.bodyMap ?? null;
+            const mapSource = bodyMap ? findOperation(catalog, bodyMap.sourceOperation) : undefined;
+            return <>
+              {rows.length === 0 ? <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>
+                : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
+                {rows.map((row) => {
+                  const required = !!row.spec?.required;
+                  const custom = row.custom === true;
+                  const empty = row.binding.trim() === "";
+                  const collection = row.spec && isCollectionType(row.spec.type) ? row.spec.type : null;
+                  const invalid = empty ? required && !fromSource(row.spec?.in) : collection ? !collectionRoot(collection, row.binding) : !bindingPath(row.binding);
+                  const update = (binding: string) => onUpdate({
+                    parameters: toParameters(rows.map((item) => item.name === row.name ? { ...item, binding } : item)),
+                  }, `query:${query.id}:param:${row.name}`);
+                  return <tr key={row.name}>
+                    <td><code title={custom ? "Özel alan (gövde eşlemesi)" : row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
+                    <td>{collection ? <CollectionSelect kind={collection} binding={row.binding} candidates={collectionCandidates(collection, components)} name={row.name} disabled={!editable} onChange={update}/>
+                      : <BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
+                        placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : custom ? "Bağlanmazsa korunur" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/>}</td>
+                    <td>{custom ? <span className="pd-query-custom-type"><small>Metin</small>
+                      <button type="button" className="pd-icon-button" aria-label={`${row.name} özel alanını kaldır`} disabled={!editable}
+                        onClick={() => onUpdate({ parameters: toParameters(rows.filter((item) => item.name !== row.name)) })}><Trash2 size={12}/></button></span>
+                      : <small>{parameterTypeLabel(row.type)}</small>}</td>
+                  </tr>;
+                })}
+              </tbody></table>}
+              {operation && bodyMap && <>
+                <CustomFieldAdder key={query.id} disabled={!editable || rows.length >= MAX_QUERY_PARAMETERS}
+                  taken={rows.map((row) => row.name.toLowerCase())}
+                  onAdd={(code) => onUpdate({ parameters: [...toParameters(rows), { name: code, binding: "", type: "text" }] })}/>
+                <p className="pd-binding-note">Bağlanmayan özel alanlar “{mapSource?.label ?? bodyMap.sourceOperation}” sorgusundaki değerleriyle korunur.</p>
+              </>}
+            </>;
+          })()}
+          {query.parameters.some((parameter) => parameter.binding.trim() !== "" && !bindingPath(parameter.binding)) && <small className="pd-query-warning">Bağlanan her parametre tek bir <code>{"{{…}}"}</code> ifadesi olmalıdır.</small>}
+        </div>
+      </> : <>
+      <div className="pd-field">SQL<small>{sqlStatements[query.kind]} Değerleri <code>@ad</code> parametreleriyle verin.</small>
+        <SqlQueryEditor queryId={query.id} value={query.sql ?? ""} readOnly={!editable} schema={schema}
+          onChange={(sql) => onUpdate({ sql }, `query:${query.id}:sql`)}/>
+      </div>
+      <div className="pd-field">Parametreler<small>Adlar SQL'deki <code>@ad</code> ifadelerinden otomatik gelir.</small>
+        {query.parameters.length === 0 ? <p className="pd-query-muted">Bu sorguda parametre yok.</p>
+          : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
+            {query.parameters.map((parameter, index) => {
+              const update = (patch: Partial<PageQueryParameter>, key?: string) => onUpdate({ parameters: query.parameters.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }, key);
+              return <tr key={parameter.name}>
+                <td><code>@{parameter.name}</code></td>
+                <td><BindingInput value={parameter.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={!bindingPath(parameter.binding)} placeholder="{{girisAdi.value}}"
+                  ariaLabel={`@${parameter.name} bağlaması`} onChange={(binding) => update({ binding }, `query:${query.id}:param:${parameter.name}`)}/></td>
+                <td><select value={parameter.type} disabled={!editable} aria-label={`@${parameter.name} türü`} onChange={(event) => update({ type: event.target.value as QueryParameterType })}>
+                  {parameterTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select></td>
+              </tr>;
+            })}
+          </tbody></table>}
+        {query.parameters.some((parameter) => !bindingPath(parameter.binding)) && <small className="pd-query-warning">Her parametre tek bir <code>{"{{…}}"}</code> ifadesine bağlanmalıdır.</small>}
+      </div>
+      </>}
+  </>;
+}
+
+/** Okuma önizlemesinin sonuç tablosu (ilk 20 satır). */
+export function QueryResultTable({ preview }: { preview: QueryPreview }) {
+  return <div className="pd-query-result">
+    <small>{preview.rowCount.toLocaleString("tr-TR")} satır{preview.rowCount > 20 ? " · ilk 20 satır gösteriliyor" : ""}{preview.truncated ? " · sonuç 5.000 satırda kesildi" : ""}</small>
+    {preview.columns.length === 0 ? <p className="pd-query-muted">Sorgu sütun döndürmedi.</p>
+      : <div className="pd-query-result-scroll"><table><thead><tr>{preview.columns.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
+        <tbody>{preview.rows.length === 0 ? <tr><td colSpan={preview.columns.length}>Kayıt yok.</td></tr>
+          : preview.rows.slice(0, 20).map((row, rowIndex) => <tr key={rowIndex}>{preview.columns.map((column) => <td key={column.code}>{cellText(row[column.code])}</td>)}</tr>)}</tbody></table></div>}
+  </div>;
+}
+
 export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery, components = [] }: Props) {
   const [running, setRunning] = useState<string | null>(null);
   const [affected, setAffected] = useState<Record<string, number>>({});
@@ -199,32 +326,8 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
   const selected = queries.find((query) => query.id === selectedId) ?? null;
   const write = !!selected && isWriteKind(selected.kind);
   const erpMode = !!selected && isOperationQuery(selected);
-  const operation = selected ? findOperation(catalog, selected.operation) : undefined;
-  const operations = catalog.status === "ready" ? catalog.operations : [];
-  // ERP yazma işlemleri Studio önizlemesinde hiç çalışmaz (yalnız yayımlanmış sayfada düğmeyle).
-  const erpWrite = erpMode && (write || operation?.kind === "write");
-  const runBlockedReason = erpWrite ? ERP_WRITE_PREVIEW_BLOCKED : erpMode && !operation ? "Önce bir ERP işlemi seçin." : previewBlockedReason;
-  const sourceOperation = operation?.sourceOperation ? findOperation(catalog, operation.sourceOperation) : undefined;
-  const sourceQuery = operation?.sourceOperation ? queries.find((query) => query.operation === operation.sourceOperation) : undefined;
-  const operationProblem = !erpMode || !selected?.operation || catalog.status !== "ready" ? null
-    : !operation ? `ERP işlemi bulunamadı: ${selected.operation}` : operation.deprecated ? `ERP işlemi artık kullanılamıyor: ${selected.operation}` : null;
-  const pickOperation = (picked: ErpOperation) => {
-    if (!selected) return;
-    onUpdate(selected.id, {
-      operation: picked.name, kind: picked.pageKind, runOn: picked.kind === "read" ? "load" : "manual",
-      parameters: picked.parameters.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType })),
-    });
-  };
-  const setMode = (toErp: boolean) => {
-    if (!selected || toErp === erpMode) return;
-    // SQL'e dönüşte parametreler SQL metninden yeniden çıkarılır (sql yaması bunu tetikler).
-    // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
-    onUpdate(selected.id, toErp ? { operation: "", parameters: [] }
-      : { operation: undefined, sql: selected.sql ?? "SELECT 1 AS Deger", kind: "read", runOn: "load", parameters: [] });
-  };
+  const runBlockedReason = selected ? queryRunBlockedReason(selected, catalog, previewBlockedReason) : previewBlockedReason;
   const preview = selected ? previews[selected.id] : undefined;
-  // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
-  const ownSuggestions = selected ? suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${selected.name.toLowerCase()}.`)) : suggestions;
   const run = async (query: PageQuery) => {
     const id = query.id;
     const writing = isWriteKind(query.kind);
@@ -257,112 +360,8 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
       title={queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : undefined}><Plus size={13}/>Sorgu ekle</button>
 
     {selected && <section className="pd-query-detail" aria-label={`${selected.name} sorgusu`}>
-      <fieldset className="pd-fieldset" disabled={!editable}>
-        <div className="pd-field">Kaynak<div className="pd-segment pd-query-mode" role="group" aria-label="Sorgu kaynağı">
-          <button type="button" aria-pressed={!erpMode} className={!erpMode ? "active" : ""} onClick={() => setMode(false)}>SQL sorgusu</button>
-          <button type="button" aria-pressed={erpMode} className={erpMode ? "active" : ""} disabled={!erpMode && catalog.status !== "ready"}
-            title={catalog.status === "failed" ? ERP_CATALOG_FAILED : catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : undefined}
-            onClick={() => setMode(true)}>ERP işlemi</button>
-        </div>
-        {catalog.status === "failed" && <small className="pd-query-warning">{ERP_CATALOG_FAILED}</small>}
-        </div>
-        <div className="pd-field-row pd-query-meta">
-          <label className="pd-field">Ad<input className="pd-query-name" value={selected.name} maxLength={64} spellCheck={false}
-            onChange={(event) => onUpdate(selected.id, { name: event.target.value }, `query:${selected.id}:name`)}/></label>
-          {write ? <div className="pd-field">Çalışma<small className="pd-query-manual">Yalnız düğmeyle çalışır.</small></div>
-            : <label className="pd-field">Çalışma<select value={selected.runOn} onChange={(event) => onUpdate(selected.id, { runOn: event.target.value as PageQuery["runOn"] })}>
-              <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
-            </select></label>}
-        </div>
-        {erpMode ? <div className="pd-field">Tür<small>{queryKindLabels[selected.kind]} · seçilen işlemden gelir.</small></div>
-          : <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
-            {(Object.keys(queryKindLabels) as QueryKind[]).map((kind) => <button type="button" key={kind} aria-pressed={selected.kind === kind} className={`${selected.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
-              onClick={() => { if (kind !== selected.kind) onUpdate(selected.id, isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
-          </div></div>}
-        {nameProblem(selected.name, takenNames(selected.id)) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames(selected.id))}</small>}
-      </fieldset>
-      {erpMode ? <>
-        <div className="pd-field">ERP işlemi<small>Sayfa yalnız katalogdaki işlemi çağırır; adres ve yöntem işlemden gelir, kullanıcının kendi yetkisiyle çalışır.</small>
-          {catalog.status === "ready" ? <OperationPicker key={selected.id} operations={operations} value={operation} disabled={!editable} onPick={pickOperation}/>
-            : selected.operation ? <code className="pd-op-raw">{selected.operation}</code>
-              : <p className="pd-query-muted">{catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : ERP_CATALOG_FAILED}</p>}
-          {operationProblem && <small className="pd-query-warning">{operationProblem}</small>}
-          {operation && !operation.allowed && <small className="pd-query-warning">{ERP_NOT_ALLOWED}.</small>}
-        </div>
-        {operation?.sourceOperation && (sourceQuery
-          ? <p className="pd-binding-note">Bağlanmayan alanlar “{sourceOperation?.label ?? operation.sourceOperation}” sorgusundaki kayıttan korunur.</p>
-          : <div className="pd-op-source-warning" role="status">
-            <small className="pd-query-warning">Bu işlem güncellenecek kaydı “{sourceOperation?.label ?? operation.sourceOperation}” okuma sorgusundan alır; sayfada böyle bir sorgu yok.</small>
-            <button type="button" className="pd-button small" disabled={!editable || !sourceOperation || queries.length >= MAX_QUERIES}
-              title={queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : undefined}
-              onClick={() => { if (sourceOperation) onAddSourceQuery(sourceOperation); }}><Plus size={13}/>Ekle</button>
-          </div>)}
-        <div className="pd-field">Parametreler<small>Adlar ve türler işlemden gelir; <b>*</b> zorunludur.</small>
-          {(() => {
-            const rows: { name: string; binding: string; type: QueryParameterType; spec?: ErpOperationParameter; custom?: boolean }[] = operation
-              ? mergedParameters<QueryParameterType>(operation, selected.parameters)
-              : selected.parameters.map((parameter) => ({ ...parameter, spec: undefined }));
-            const fromSource = (place: string | undefined) => place === "route" && !!operation?.sourceOperation;
-            const toParameters = (items: typeof rows) => items.map((item) => ({ name: item.name, binding: item.binding, type: item.type }));
-            const bodyMap = operation?.bodyMap ?? null;
-            const mapSource = bodyMap ? findOperation(catalog, bodyMap.sourceOperation) : undefined;
-            return <>
-              {rows.length === 0 ? <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>
-                : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
-                {rows.map((row) => {
-                  const required = !!row.spec?.required;
-                  const custom = row.custom === true;
-                  const empty = row.binding.trim() === "";
-                  const collection = row.spec && isCollectionType(row.spec.type) ? row.spec.type : null;
-                  const invalid = empty ? required && !fromSource(row.spec?.in) : collection ? !collectionRoot(collection, row.binding) : !bindingPath(row.binding);
-                  const update = (binding: string) => onUpdate(selected.id, {
-                    parameters: toParameters(rows.map((item) => item.name === row.name ? { ...item, binding } : item)),
-                  }, `query:${selected.id}:param:${row.name}`);
-                  return <tr key={row.name}>
-                    <td><code title={custom ? "Özel alan (gövde eşlemesi)" : row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
-                    <td>{collection ? <CollectionSelect kind={collection} binding={row.binding} candidates={collectionCandidates(collection, components)} name={row.name} disabled={!editable} onChange={update}/>
-                      : <BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
-                        placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : custom ? "Bağlanmazsa korunur" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/>}</td>
-                    <td>{custom ? <span className="pd-query-custom-type"><small>Metin</small>
-                      <button type="button" className="pd-icon-button" aria-label={`${row.name} özel alanını kaldır`} disabled={!editable}
-                        onClick={() => onUpdate(selected.id, { parameters: toParameters(rows.filter((item) => item.name !== row.name)) })}><Trash2 size={12}/></button></span>
-                      : <small>{parameterTypeLabel(row.type)}</small>}</td>
-                  </tr>;
-                })}
-              </tbody></table>}
-              {operation && bodyMap && <>
-                <CustomFieldAdder key={selected.id} disabled={!editable || rows.length >= MAX_QUERY_PARAMETERS}
-                  taken={rows.map((row) => row.name.toLowerCase())}
-                  onAdd={(code) => onUpdate(selected.id, { parameters: [...toParameters(rows), { name: code, binding: "", type: "text" }] })}/>
-                <p className="pd-binding-note">Bağlanmayan özel alanlar “{mapSource?.label ?? bodyMap.sourceOperation}” sorgusundaki değerleriyle korunur.</p>
-              </>}
-            </>;
-          })()}
-          {selected.parameters.some((parameter) => parameter.binding.trim() !== "" && !bindingPath(parameter.binding)) && <small className="pd-query-warning">Bağlanan her parametre tek bir <code>{"{{…}}"}</code> ifadesi olmalıdır.</small>}
-        </div>
-      </> : <>
-      <div className="pd-field">SQL<small>{sqlStatements[selected.kind]} Değerleri <code>@ad</code> parametreleriyle verin.</small>
-        <SqlQueryEditor queryId={selected.id} value={selected.sql ?? ""} readOnly={!editable} schema={schema}
-          onChange={(sql) => onUpdate(selected.id, { sql }, `query:${selected.id}:sql`)}/>
-      </div>
-      <div className="pd-field">Parametreler<small>Adlar SQL'deki <code>@ad</code> ifadelerinden otomatik gelir.</small>
-        {selected.parameters.length === 0 ? <p className="pd-query-muted">Bu sorguda parametre yok.</p>
-          : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
-            {selected.parameters.map((parameter, index) => {
-              const update = (patch: Partial<PageQueryParameter>, key?: string) => onUpdate(selected.id, { parameters: selected.parameters.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) }, key);
-              return <tr key={parameter.name}>
-                <td><code>@{parameter.name}</code></td>
-                <td><BindingInput value={parameter.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={!bindingPath(parameter.binding)} placeholder="{{girisAdi.value}}"
-                  ariaLabel={`@${parameter.name} bağlaması`} onChange={(binding) => update({ binding }, `query:${selected.id}:param:${parameter.name}`)}/></td>
-                <td><select value={parameter.type} disabled={!editable} aria-label={`@${parameter.name} türü`} onChange={(event) => update({ type: event.target.value as QueryParameterType })}>
-                  {parameterTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select></td>
-              </tr>;
-            })}
-          </tbody></table>}
-        {selected.parameters.some((parameter) => !bindingPath(parameter.binding)) && <small className="pd-query-warning">Her parametre tek bir <code>{"{{…}}"}</code> ifadesine bağlanmalıdır.</small>}
-      </div>
-      </>}
+      <QueryDetailFields query={selected} queries={queries} editable={editable} schema={schema} suggestions={suggestions} takenNames={takenNames(selected.id)}
+        onUpdate={(patch, coalesceKey) => onUpdate(selected.id, patch, coalesceKey)} catalog={catalog} onAddSourceQuery={onAddSourceQuery} components={components}/>
       <div className="pd-query-actions">
         <button type="button" className="pd-button small primary" disabled={!editable || !!runBlockedReason || running !== null} title={runBlockedReason ?? undefined}
           onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write && !erpMode ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>
@@ -371,13 +370,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
       {runBlockedReason && editable && <small className="pd-query-muted">{runBlockedReason}</small>}
       {errors[selected.id] && <div className="pd-query-error" role="alert">{errors[selected.id]}</div>}
       {write && affected[selected.id] !== undefined && <div className="pd-query-affected" role="status">{affected[selected.id].toLocaleString("tr-TR")} kayıt etkilendi.</div>}
-      {!write && preview && <div className="pd-query-result">
-        <small>{preview.rowCount.toLocaleString("tr-TR")} satır{preview.rowCount > 20 ? " · ilk 20 satır gösteriliyor" : ""}{preview.truncated ? " · sonuç 5.000 satırda kesildi" : ""}</small>
-        {preview.columns.length === 0 ? <p className="pd-query-muted">Sorgu sütun döndürmedi.</p>
-          : <div className="pd-query-result-scroll"><table><thead><tr>{preview.columns.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
-            <tbody>{preview.rows.length === 0 ? <tr><td colSpan={preview.columns.length}>Kayıt yok.</td></tr>
-              : preview.rows.slice(0, 20).map((row, rowIndex) => <tr key={rowIndex}>{preview.columns.map((column) => <td key={column.code}>{cellText(row[column.code])}</td>)}</tr>)}</tbody></table></div>}
-      </div>}
+      {!write && preview && <QueryResultTable preview={preview}/>}
     </section>}
   </div>;
 }
