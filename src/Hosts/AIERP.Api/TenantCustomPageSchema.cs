@@ -1,6 +1,6 @@
 using System.Text.Json;
-using AIERP.Api;
 using System.Text.RegularExpressions;
+using AIERP.Api;
 
 /// <summary>
 /// Validates declarative page data. Optional CSS/JavaScript is accepted only by the isolated code component and stays
@@ -68,6 +68,9 @@ internal static class TenantCustomPageSchema
     private sealed class Context(int version)
     {
         public bool V2 { get; } = version == 2;
+        public ErpOperationLookup Lookup { get; init; } = ErpOperationCatalog.TryGet;
+        /// <summary>Operation names the page already used before this save; deprecated ones stay accepted.</summary>
+        public IReadOnlySet<string> ExistingOperations { get; init; } = new HashSet<string>();
         public HashSet<string> Ids { get; } = new(StringComparer.Ordinal);
         public HashSet<string> Names { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Query id to kind (read, insert, update or delete).</summary>
@@ -94,7 +97,17 @@ internal static class TenantCustomPageSchema
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
-    public static bool Validate(string json, out string? error)
+    public static bool Validate(string json, out string? error) => Validate(json, out error, null, ErpOperationCatalog.TryGet);
+
+    /// <summary>
+    /// <paramref name="existingOperations"/> are the ERP operation names the page's current saved or published definition
+    /// already uses: a deprecated operation is rejected only for new use, so a page that already has it stays editable.
+    /// </summary>
+    internal static bool Validate(string json, out string? error, IReadOnlySet<string>? existingOperations) =>
+        Validate(json, out error, existingOperations, ErpOperationCatalog.TryGet);
+
+    /// <summary>Test seam: <paramref name="lookup"/> replaces the production catalog.</summary>
+    internal static bool Validate(string json, out string? error, IReadOnlySet<string>? existingOperations, ErpOperationLookup lookup)
     {
         error = null;
         var bytes = System.Text.Encoding.UTF8.GetByteCount(json);
@@ -109,7 +122,7 @@ internal static class TenantCustomPageSchema
             if (version is not (1 or 2) || !OnlyKeys(root, version == 2 ? RootKeysV2 : RootKeys)
                 || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array || components.GetArrayLength() > MaxComponents)
             { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli components dizisi içermelidir."; return false; }
-            var context = new Context(version);
+            var context = new Context(version) { Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>() };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
             foreach (var component in components.EnumerateArray())
@@ -199,23 +212,23 @@ internal static class TenantCustomPageSchema
         var parametersElement = query.GetProperty("parameters");
         if (parametersElement.ValueKind != JsonValueKind.Array || parametersElement.GetArrayLength() > maxParameters)
         { error = $"'{name}' sorgusu en fazla {maxParameters} parametre içerebilir."; return false; }
-    foreach (var parameter in parametersElement.EnumerateArray())
-    {
-        if (parameter.ValueKind != JsonValueKind.Object || !OnlyKeys(parameter, ParameterKeys) || ParameterKeys.Any(key => !parameter.TryGetProperty(key, out _)))
-        { error = $"'{name}' sorgusu: parametreler yalnız name, binding ve type alanlarını içermelidir."; return false; }
-        var parameterName = StringOf(parameter, "name");
-        if (parameterName is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(parameterName))
-        { error = $"'{name}' sorgusu: '{parameterName}' ayrılmış bir addır; başka bir parametre adı seçin."; return false; }
-        if (!TenantCustomPageQueries.IsValidName(parameterName) || !declared.Add(parameterName!))
-        { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
-        var type = StringOf(parameter, "type");
-        if (type is null || !ParameterTypes.Contains(type))
-        { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin türü text, int, decimal, date, bool veya guid olmalıdır."; return false; }
-        var binding = StringOf(parameter, "binding");
-        if (binding is null || !TenantCustomPageQueries.TryParseBindingPath(binding, out _))
-        { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin bağlaması tek bir {{{{yol}}}} ifadesi olmalıdır."; return false; }
-        parameters.Add(new PageQueryParameter(parameterName, binding, type));
-    }
+        foreach (var parameter in parametersElement.EnumerateArray())
+        {
+            if (parameter.ValueKind != JsonValueKind.Object || !OnlyKeys(parameter, ParameterKeys) || ParameterKeys.Any(key => !parameter.TryGetProperty(key, out _)))
+            { error = $"'{name}' sorgusu: parametreler yalnız name, binding ve type alanlarını içermelidir."; return false; }
+            var parameterName = StringOf(parameter, "name");
+            if (parameterName is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(parameterName))
+            { error = $"'{name}' sorgusu: '{parameterName}' ayrılmış bir addır; başka bir parametre adı seçin."; return false; }
+            if (!TenantCustomPageQueries.IsValidName(parameterName) || !declared.Add(parameterName!))
+            { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
+            var type = StringOf(parameter, "type");
+            if (type is null || !ParameterTypes.Contains(type))
+            { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin türü text, int, decimal, date, bool veya guid olmalıdır."; return false; }
+            var binding = StringOf(parameter, "binding");
+            if (binding is null || !TenantCustomPageQueries.TryParseBindingPath(binding, out _))
+            { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin bağlaması tek bir {{{{yol}}}} ifadesi olmalıdır."; return false; }
+            parameters.Add(new PageQueryParameter(parameterName, binding, type));
+        }
         return true;
     }
 
@@ -228,9 +241,10 @@ internal static class TenantCustomPageSchema
         List<PageQuery> result, List<(string Name, string Operation, string Source)> pendingSources, out string? error)
     {
         var operationName = StringOf(query, "operation");
-        if (operationName is null || !ErpOperationCatalog.TryGet(operationName, out var operation))
+        if (operationName is null || !context.Lookup(operationName, out var operation))
         { error = UnknownOperationError(operationName ?? ""); return false; }
-        if (operation.Deprecated) { error = DeprecatedOperationError(operationName); return false; }
+        if (operation.Deprecated && !context.ExistingOperations.Contains(operationName))
+        { error = DeprecatedOperationError(operationName); return false; }
         if (kind != operation.PageKind)
         { error = $"'{name}' sorgusu: '{operationName}' işlemi için tür {operation.PageKind} olmalıdır."; return false; }
         if (!ReadParameters(query, name, MaxOperationQueryParameters, out var parameters, out _, out error)) return false;

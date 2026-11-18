@@ -81,6 +81,29 @@ internal static partial class TenantCustomPageQueries
     }
 
     /// <summary>
+    /// Structural check: a v2 definition with at least one query that is not a pure ERP operation query. Operation queries
+    /// (an <c>operation</c> key and no <c>sql</c> key) carry no SQL and run against their own endpoint with the user's
+    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasSqlQueries(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind != JsonValueKind.Object
+                    || query.TryGetProperty("sql", out _) || !query.TryGetProperty("operation", out _));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>ERP operation names used by any of the given stored definitions (malformed ones contribute nothing).</summary>
+    internal static IReadOnlySet<string> OperationNames(params string?[] definitions) =>
+        definitions.Where(x => x is not null).SelectMany(x => ReadQueries(x!)).Select(x => x.Operation)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
     /// Names of <c>@parameters</c> used in the SQL text (without '@'), compared case-insensitively. String literals,
     /// [bracketed] and "quoted" identifiers, comments and <c>@@system</c> variables are ignored.
     /// </summary>

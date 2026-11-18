@@ -21,6 +21,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
     private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private const string PublishWithoutAccess = "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin.";
+    private const string PublishWithoutAccessForOperations = "Bu sayfa sorgu veya ERP işlemi içeriyor; yayımlamadan önce erişim kuralı seçin.";
 
     internal static object StaticDefinition() =>
         new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = "Sabit" } } } };
@@ -162,6 +163,50 @@ public sealed class CustomPageQueryRulesIntegrationTests
         // Ayse's membership is TenantUser; a stale TenantAdmin role claim is not enough.
         SetIdentity(client, Ayse, "TenantAdmin");
         Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "stale-admin", QueryDefinition())).StatusCode);
+    }
+
+    internal static object OperationDefinition() => new
+    {
+        schemaVersion = 2,
+        queries = new object[]
+        {
+            new
+            {
+                id = "q1", name = "kartlar", kind = "read", runOn = "load", operation = "stok.kart.listele",
+                parameters = new object[] { new { name = "q", binding = "{{arama.value}}", type = "text" } }
+            }
+        },
+        components = new object[]
+        {
+            new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } },
+            new { id = "c2", type = "dataTable", name = "izgara", props = new { query = "q1" } }
+        }
+    };
+
+    [Fact]
+    public async Task Tenant_user_designer_can_publish_operation_only_page_but_it_needs_an_access_row()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        // A designer with customization rights may write operation-only pages: they carry no SQL and run with the user's own token.
+        SetIdentity(client, Ayse, "TenantUser");
+        var created = await CreateDraftAsync(client, "op-page", OperationDefinition());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var draftId = await IdOf(created);
+        Assert.Contains("stok.kart.listele", (await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{draftId}")).GetProperty("definitionJson").GetString());
+
+        var blocked = await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+        Assert.Equal(PublishWithoutAccessForOperations, (await blocked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/op-page/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
+
+        // Adding SQL to the page is still admin-only.
+        var sqlDraft = await CreateDraftAsync(client, "op-page", QueryDefinition());
+        Assert.Equal(HttpStatusCode.Forbidden, sqlDraft.StatusCode);
     }
 
     [Fact]

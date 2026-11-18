@@ -8,6 +8,19 @@ public interface IPlatformPermissionAuthorizer
 {
     Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role, ResolvedPlatformPermission permission,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One decision per permission, in order, with the same semantics as <see cref="IsAllowedAsync"/>. Implementations
+    /// may resolve the membership and rules once for the whole batch; the default asks one by one.
+    /// </summary>
+    async Task<IReadOnlyList<bool>> IsAllowedManyAsync(Guid tenantId, Guid userId, string role,
+        IReadOnlyList<ResolvedPlatformPermission> permissions, CancellationToken cancellationToken = default)
+    {
+        var decisions = new bool[permissions.Count];
+        for (var index = 0; index < permissions.Count; index++)
+            decisions[index] = await IsAllowedAsync(tenantId, userId, role, permissions[index], cancellationToken);
+        return decisions;
+    }
 }
 
 public static class PlatformPermissionCatalog

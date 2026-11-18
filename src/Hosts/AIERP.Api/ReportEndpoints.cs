@@ -5979,24 +5979,33 @@ public static class ReportEndpoints
             ["fxRevaluationLines"] = ("erp.fx-revaluations", false),
         };
 
-    internal static async Task<bool> CanReadReportSourceAsync(string source, Guid tenantId, Guid userId, string role,
+    private static async Task<bool> CanReadReportSourceAsync(string source, Guid tenantId, Guid userId, string role,
         HttpContext context, CancellationToken ct)
     {
+        if (!TryReportSourcePermission(source, tenantId, userId, role, out var permission)) return false;
+        var authorizer = context.RequestServices.GetRequiredService<AIERP.Platform.Application.IPlatformPermissionAuthorizer>();
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
+    }
+
+    /// <summary>The read permission a report source needs; false when the source has no mapping.</summary>
+    internal static bool TryReportSourcePermission(string source, Guid tenantId, Guid userId, string role,
+        out AIERP.Platform.Application.ResolvedPlatformPermission permission)
+    {
+        permission = null!;
         // A source without a mapping must never fall back to tenant-wide access.
         if (!ReportSourcePermissions.TryGetValue(source, out var mapping)) return false;
-        var permission = AIERP.Platform.Application.PlatformPermissionCatalog.Definitions
+        var definition = AIERP.Platform.Application.PlatformPermissionCatalog.Definitions
             .FirstOrDefault(x => x.Code == $"{mapping.ResourceType}.read");
-        if (permission is null) return false;
+        if (definition is null) return false;
         var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
-            ["resource.type"] = permission.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
             ["request.method"] = "GET", ["request.action"] = "read"
         };
         if (mapping.RowFiltered) attributes["resource.collectionRowsFiltered"] = "true";
-        var authorizer = context.RequestServices.GetRequiredService<AIERP.Platform.Application.IPlatformPermissionAuthorizer>();
-        return await authorizer.IsAllowedAsync(tenantId, userId, role,
-            new AIERP.Platform.Application.ResolvedPlatformPermission(permission, attributes), ct);
+        permission = new AIERP.Platform.Application.ResolvedPlatformPermission(definition, attributes);
+        return true;
     }
 
     private static bool TryTenantContext(ClaimsPrincipal user, out Guid tenantId, out Guid userId, out string role)

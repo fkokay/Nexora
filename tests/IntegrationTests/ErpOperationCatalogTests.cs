@@ -31,6 +31,7 @@ public sealed class ErpOperationCatalogTests
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Reader = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid Writer = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     [Fact]
     public async Task Every_operation_matches_a_registered_endpoint()
@@ -125,7 +126,9 @@ public sealed class ErpOperationCatalogTests
         {
             foreach (var code in new[] { "erp.custom-menus.read", "erp.stock-items.read", "erp.stock-items.delete" })
                 platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
-            platformDb.TenantPermissionRules.Add(Rule("erp.stock-items.delete", TenantPermissionEffect.Deny));
+            platformDb.TenantPermissionRules.Add(Rule("erp.stock-items.delete", TenantPermissionEffect.Deny, Reader));
+            platformDb.TenantPermissionRules.Add(Rule("erp.stock-items.create", TenantPermissionEffect.Allow, Writer));
+            platformDb.TenantPermissionRules.Add(Rule("erp.reports.execute", TenantPermissionEffect.Allow, Writer));
         });
         using var client = factory.CreateClient();
 
@@ -166,6 +169,19 @@ public sealed class ErpOperationCatalogTests
         Assert.False(readerOps["stok.kart.olustur"].GetProperty("allowed").GetBoolean());
         Assert.False(readerOps["stok.kart.pasifeAl"].GetProperty("allowed").GetBoolean());
         Assert.False(readerOps["rapor.stockItems"].GetProperty("allowed").GetBoolean());
+
+        SetIdentity(client, Writer, "TenantUser");
+        var writerOps = await GetOperationsAsync(client);
+        Assert.True(writerOps["stok.kart.olustur"].GetProperty("allowed").GetBoolean());
+        // Report run permission plus the source's own read permission.
+        Assert.True(writerOps["rapor.stockItems"].GetProperty("allowed").GetBoolean());
+        Assert.False(writerOps["rapor.customers"].GetProperty("allowed").GetBoolean());
+        // The delete rule allows it, but the DELETE handler itself only accepts TenantAdmin.
+        Assert.False(writerOps["stok.kart.sil"].GetProperty("allowed").GetBoolean());
+        Assert.True(ErpOperationCatalog.TryGet("stok.kart.sil", out var delete) && delete.RequiresTenantAdmin);
+        Assert.DoesNotContain(ErpOperationCatalog.All, x => x.Deprecated);
+        // The wire contract carries no RequiresTenantAdmin field.
+        Assert.False(writerOps["stok.kart.sil"].TryGetProperty("requiresTenantAdmin", out _));
     }
 
     [Fact]
@@ -198,9 +214,10 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/stock/items/{Guid.NewGuid():D}")).StatusCode);
     }
 
-    private static TenantPermissionRule Rule(string code, TenantPermissionEffect effect) => new()
+    private static TenantPermissionRule Rule(string code, TenantPermissionEffect effect, Guid? user = null) => new()
     {
-        TenantId = TenantA, SubjectType = TenantPermissionSubjectType.Role, SubjectRole = "TenantUser", PermissionCode = code,
+        TenantId = TenantA, SubjectType = user is null ? TenantPermissionSubjectType.Role : TenantPermissionSubjectType.User,
+        SubjectRole = user is null ? "TenantUser" : null, SubjectUserId = user, PermissionCode = code,
         ResourceType = PlatformPermissionCatalog.Definitions.Single(x => x.Code == code).ResourceType, Effect = effect, IsActive = true
     };
 
@@ -224,7 +241,9 @@ public sealed class ErpOperationCatalogTests
         });
         var admin = new AppUser { Id = Admin, Email = "admin@example.invalid", DisplayName = "Admin", IsActive = true };
         var reader = new AppUser { Id = Reader, Email = "reader@example.invalid", DisplayName = "Reader", IsActive = true };
-        db.Users.AddRange(admin, reader);
+        var writer = new AppUser { Id = Writer, Email = "writer@example.invalid", DisplayName = "Writer", IsActive = true };
+        db.Users.AddRange(admin, reader, writer);
+        db.TenantMemberships.Add(new TenantMembership { TenantId = TenantA, UserId = Writer, Tenant = tenant, User = writer, Role = "TenantUser" });
         db.TenantMemberships.Add(new TenantMembership { TenantId = TenantA, UserId = Admin, Tenant = tenant, User = admin, Role = "TenantAdmin" });
         db.TenantMemberships.Add(new TenantMembership { TenantId = TenantA, UserId = Reader, Tenant = tenant, User = reader, Role = "TenantUser" });
         rules(db);
