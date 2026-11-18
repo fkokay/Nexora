@@ -37,8 +37,8 @@ function eventLabel(event: InstrumentEvent, item: Item) {
   }
 }
 
-/** History from the event log; falls back to the dates on the record while the log is unavailable. */
-function timeline(item: Item, events: InstrumentEvent[] | null): TimelineEntry[] {
+/** History from the event log; falls back to the dates on the record while the log is unavailable (side panel and record). */
+export function instrumentTimeline(item: Item, events: InstrumentEvent[] | null): TimelineEntry[] {
   if (events && events.length)
     return events.map((event) => ({
       key: event.id,
@@ -117,7 +117,7 @@ export function PaymentInstrumentSidePanel({
     baseCurrency && item.currencyCode === baseCurrency
       ? formatAmount(item.amount)
       : formatAmount(item.amount, item.currencyCode);
-  const entries = timeline(item, events);
+  const entries = instrumentTimeline(item, events);
   return (
     <aside className="pi-side fh-box" aria-label="Seçili çek/senet">
       <p className="pi-side-eyebrow">

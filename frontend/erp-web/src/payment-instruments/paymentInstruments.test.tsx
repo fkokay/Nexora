@@ -23,17 +23,24 @@ const accounts = [
   { id: 'f2', name: 'Döviz kasası', code: 'KASA-USD', type: 'Cash', currencyCode: 'USD', isActive: true },
 ];
 let listTotal = 2;
+// Rows the list no longer returns (an action moved them out of the filter) and the record an action POST returns.
+let leftList = new Set<string>();
+let actionResult: ((id: string) => unknown) | null = null;
+let events: Record<string, unknown[]> = {};
 
 const fetchCalls: Array<{ url: string; method: string; body: unknown }> = [];
 function respond(url: string, method: string): unknown {
   const parsed = new URL(url, 'http://localhost');
   const path = parsed.pathname;
   if (path === '/api/finance/payment-instruments/' && method === 'GET') {
-    const rows = parsed.searchParams.get('direction') === 'Payable' ? payable : receivable;
+    const rows = (parsed.searchParams.get('direction') === 'Payable' ? payable : receivable).filter((row) => !leftList.has(row.id));
     const pageSize = Number(parsed.searchParams.get('pageSize'));
     return { items: rows.slice(0, pageSize), page: 1, pageSize, totalCount: pageSize === 25 ? listTotal : rows.length, summary: { openByCurrency: [{ currencyCode: 'TRY', amount: 12500 }], dueCount: 0, bouncedCount: 0 } };
   }
-  if (/^\/api\/finance\/payment-instruments\/[^/]+\/events$/.test(path)) return [];
+  const eventsPath = /^\/api\/finance\/payment-instruments\/([^/]+)\/events$/.exec(path);
+  if (eventsPath) return events[eventsPath[1]] ?? [];
+  const actionPath = /^\/api\/finance\/payment-instruments\/([^/]+)\/[a-z]+$/.exec(path);
+  if (actionPath && method === 'POST') return actionResult ? actionResult(actionPath[1]) : { ok: true };
   if (/^\/api\/finance\/payment-instruments\//.test(path)) return { ok: true };
   if (path === '/api/finance/accounts') return accounts;
   if (path === '/api/finance/currency') return { baseCurrencyCode: 'TRY' };
@@ -64,6 +71,9 @@ afterEach(() => {
   cleanup();
   fetchCalls.length = 0;
   listTotal = 2;
+  leftList = new Set();
+  actionResult = null;
+  events = {};
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -152,6 +162,19 @@ async function submitCreate() {
 }
 const formField = (label: RegExp) => screen.getAllByLabelText(label).find((node) => node.closest('form') && node.tagName === 'INPUT')!;
 const createAvailable = () => bar().querySelector<HTMLElement>('[data-command="new"]')?.getAttribute('aria-disabled') !== 'true';
+const surface = () => document.querySelector<HTMLElement>('.pi-surface');
+const listRow = (instrumentNumber: string) =>
+  within(document.querySelector<HTMLElement>('.pi-list table')!).getByRole('button', { name: instrumentNumber }).closest('tr')!;
+async function openWithAc(instrumentNumber: string) {
+  await selectRow(instrumentNumber);
+  fireEvent.click(bar().querySelector<HTMLElement>('[data-command="open"]')!);
+  await settle(100);
+}
+async function escape() {
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  await settle(50);
+}
+const barReason = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)?.getAttribute('aria-disabled') === 'true';
 const actionLabels = () => {
   const labels = menuItems()
     .filter((node) => node.getAttribute('aria-disabled') !== 'true')
@@ -309,5 +332,141 @@ describe('Çek ve Senet (characterization)', () => {
     await settle(600);
     expect(mainListUrls().at(-1)).toBe('page=1&pageSize=25&direction=Receivable');
     expect(card('Portföyde').getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('Çek ve Senet kaydı', () => {
+  it('Aç, Enter and a double click on the row, and Enter / a double click on the number open the record; a click only selects; Esc returns', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    fireEvent.click(listRow('SN-2001'));
+    await settle(100);
+    expect(surface()).toBeNull();
+    fireEvent.click(within(listRow('SN-2001')).getByRole('button', { name: 'SN-2001' }));
+    await settle(100);
+    expect(surface()).toBeNull();
+    const opens: Array<[string, () => void]> = [
+      ['Aç', () => fireEvent.click(bar().querySelector<HTMLElement>('[data-command="open"]')!)],
+      ['row Enter', () => {
+        listRow('CK-1001').focus();
+        fireEvent.keyDown(listRow('CK-1001'), { key: 'Enter' });
+      }],
+      ['row double click', () => fireEvent.doubleClick(listRow('CK-1001').querySelector('td:nth-child(2)')!)],
+      ['number Enter', () => fireEvent.keyDown(within(listRow('CK-1001')).getByRole('button', { name: 'CK-1001' }), { key: 'Enter' })],
+      ['number double click', () => fireEvent.doubleClick(within(listRow('CK-1001')).getByRole('button', { name: 'CK-1001' }))],
+    ];
+    for (const [how, open] of opens) {
+      open();
+      await settle(100);
+      expect(surface(), how).not.toBeNull();
+      const expected = how === 'Aç' ? 'SN-2001' : 'CK-1001';
+      expect(within(surface()!).getByRole('heading', { level: 1 }).textContent, how).toBe(`${how === 'Aç' ? 'Senet' : 'Çek'} ${expected}`);
+      await escape();
+      expect(surface(), how).toBeNull();
+    }
+  });
+
+  it('shows the record and its event history from GET …/events (no other request); the list commands are not active', async () => {
+    events = { i1: [
+      { id: 'e1', eventType: 'Created', previousStatus: null, newStatus: 'Portfolio', eventDate: '2026-11-02', note: null, financialAccountTransactionId: null, createdAt: '2026-11-02T09:00:00Z' },
+      { id: 'e2', eventType: 'Bounced', previousStatus: 'Portfolio', newStatus: 'Bounced', eventDate: '2026-11-10', note: 'Yetersiz bakiye', financialAccountTransactionId: null, createdAt: '2026-11-10T09:00:00Z' },
+    ] };
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    const before = fetchCalls.length;
+    await openWithAc('CK-1001');
+    const history = within(surface()!).getByRole('region', { name: 'Olay geçmişi' });
+    expect(within(history).getByText('Portföye alındı')).toBeTruthy();
+    expect(within(history).getByText('Yetersiz bakiye')).toBeTruthy();
+    expect(within(surface()!).getByText('Akdeniz Market Ltd.', { selector: 'dd' })).toBeTruthy();
+    expect(fetchCalls.slice(before).filter((call) => call.method !== 'GET')).toEqual([]);
+    // The history of the selected row is already loaded: opening it sends nothing.
+    expect(fetchCalls.slice(before)).toEqual([]);
+    // The hidden list's Excel / Filtre do not act; Yenile reloads the list (the record's source) and its history.
+    expect(barReason('export')).toBe(true);
+    expect(barReason('filter')).toBe(true);
+    expect(barReason('save')).toBe(true);
+    expect(menuItems().some((node) => node.dataset.item === 'export-csv')).toBe(false);
+    closeMenu();
+    const reloads = mainListUrls().length;
+    fireEvent.click(bar().querySelector<HTMLElement>('[data-command="refresh"]')!);
+    await settle();
+    expect(mainListUrls().length).toBe(reloads + 1);
+    expect(fetchCalls.filter((call) => call.url === '/api/finance/payment-instruments/i1/events').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('on the open record İşlemler send the same requests as on the list (collect takes the account chosen on the record)', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    await openWithAc('CK-1001');
+    // Esc in an action prompt closes the prompt only.
+    await runAction('Ciro et');
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    await settle(50);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(surface()).not.toBeNull();
+    await runAction('Tahsil et');
+    expect(posts()).toEqual([]);
+    expect(within(surface()!).getByText('Tahsilat/ödeme için finans hesabı seçin.')).toBeTruthy();
+    expect(document.activeElement).toBe(within(surface()!).getByLabelText('CS-0001 finans hesabı'));
+    chooseAccount('CS-0001', 'f1');
+    await runAction('Tahsil et');
+    await answerDialog(null, 'Devam');
+    await settle();
+    await runAction('Ciro et');
+    await answerDialog('Ciro notu', 'Devam');
+    await answerDialog('Ege Gıda A.Ş.', 'Ciro et');
+    await settle();
+    await runAction('Karşılıksız');
+    await answerDialog('Yetersiz bakiye', 'Karşılıksız işaretle');
+    await settle();
+    await runAction('İptal');
+    await answerDialog('', 'Devam');
+    await answerDialog(null, 'İptal et');
+    await settle();
+    const common = { requestId: expect.any(String), rowVersion: 'rv-i1', eventDate: today };
+    expect(posts()).toEqual([
+      { url: '/api/finance/payment-instruments/i1/collect', body: { ...common, financialAccountId: 'f1', endorsedTo: null, note: null } },
+      { url: '/api/finance/payment-instruments/i1/endorse', body: { ...common, financialAccountId: null, endorsedTo: 'Ege Gıda A.Ş.', note: 'Ciro notu' } },
+      { url: '/api/finance/payment-instruments/i1/bounce', body: { ...common, financialAccountId: null, endorsedTo: null, note: 'Yetersiz bakiye' } },
+      { url: '/api/finance/payment-instruments/i1/cancel', body: { ...common, financialAccountId: null, endorsedTo: null, note: null } },
+    ]);
+    expect(surface()).not.toBeNull();
+    expect(within(surface()!).getByText('CS-0001: İptal.')).toBeTruthy();
+  });
+
+  it('a record that leaves the filtered list after an action stays open with the returned copy (status, row version); without one it closes', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    await openWithAc('CK-1001');
+    leftList = new Set(['i1']);
+    actionResult = (id) => ({ ...receivable.find((row) => row.id === id)!, status: 'Bounced', rowVersion: 'rv-i1-2' });
+    await runAction('Karşılıksız');
+    await answerDialog('Yetersiz bakiye', 'Karşılıksız işaretle');
+    await settle();
+    expect(surface()).not.toBeNull();
+    expect(within(surface()!).getAllByText('Karşılıksız').length).toBeGreaterThan(0);
+    expect(actionLabels()).toEqual(['Tahsil et']);
+    chooseAccount('CS-0001', 'f1');
+    actionResult = null;
+    await runAction('Tahsil et');
+    await answerDialog(null, 'Devam');
+    await settle();
+    expect(posts().map((call) => [call.url, (call.body as { rowVersion: string }).rowVersion])).toEqual([
+      ['/api/finance/payment-instruments/i1/bounce', 'rv-i1'],
+      ['/api/finance/payment-instruments/i1/collect', 'rv-i1-2'],
+    ]);
+    // No record in the reply and the list no longer has it: the stale copy is not kept.
+    expect(surface()).toBeNull();
+    expect(screen.getByText('CS-0001: Tahsil/ödeme edildi.')).toBeTruthy();
+  });
+
+  it('a company user sees the record without actions', async () => {
+    renderScreen(<PaymentInstrumentsPage token="t" role="TenantUser" />);
+    await settle(900);
+    await openWithAc('CK-1001');
+    expect(surface()).not.toBeNull();
+    expect(within(surface()!).queryByLabelText('CS-0001 finans hesabı')).toBeNull();
+    expect(actionLabels()).toEqual([]);
   });
 });

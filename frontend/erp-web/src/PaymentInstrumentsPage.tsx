@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import { AlertTriangle, CalendarClock, ShieldCheck, Wallet, XCircle } from "lucide-react";
 import type { GridExportActions } from "./AdvancedDataGrid";
-import { PageCommandsSlot } from "./commands/PageCommandsSlot";
-import { csvExportCommand } from "./commands/gridCommands";
+import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
+import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { ListSummaryCards } from "./list-page/ListSummaryCards";
 import { ListFooter } from "./list-page/ListFooter";
@@ -31,6 +31,7 @@ import {
   PaymentInstrumentGrid,
 } from "./payment-instruments/components/PaymentInstrumentGrid";
 import { PaymentInstrumentSidePanel } from "./payment-instruments/components/PaymentInstrumentSidePanel";
+import { PaymentInstrumentDocument } from "./payment-instruments/components/PaymentInstrumentDocument";
 import type {
   Counterparty,
   Direction,
@@ -123,6 +124,9 @@ export default function PaymentInstrumentsPage({
     [collectAccount, setCollectAccount] = useState<Record<string, string>>({});
   const [savedFields, setSavedFields] = useState<ScreenField[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Aç / Enter / double click open the record on its own surface (the list stays mounted, hidden).
+  const [openedId, setOpenedId] = useState<string | null>(null),
+    [openedCopy, setOpenedCopy] = useState<Item | null>(null);
   const [events, setEvents] = useState<InstrumentEvent[] | null>(null),
     [eventsLoading, setEventsLoading] = useState(false),
     [eventsError, setEventsError] = useState("");
@@ -317,7 +321,15 @@ export default function PaymentInstrumentsPage({
 
   const selected =
     items.find((item) => item.id === selectedId) ?? items[0] ?? null;
-  const selectedKey = selected?.id ?? "";
+  // The open record: the list's row while it is on the page, else the last copy the API returned for it (an action can
+  // move it out of the filtered page). Never another row.
+  const opened = openedId
+    ? (items.find((item) => item.id === openedId) ?? (openedCopy?.id === openedId ? openedCopy : null))
+    : null;
+  useEffect(() => {
+    if (openedId && !opened) setOpenedId(null);
+  }, [openedId, opened]);
+  const selectedKey = opened?.id ?? selected?.id ?? "";
   useEffect(() => {
     if (!selectedKey) {
       setEvents(null);
@@ -525,7 +537,7 @@ export default function PaymentInstrumentsPage({
     setError("");
     setNotice("");
     try {
-      await request(
+      const result = await request<Item | undefined>(
         `/api/finance/payment-instruments/${item.id}/${kind}`,
         "POST",
         {
@@ -539,6 +551,9 @@ export default function PaymentInstrumentsPage({
       );
       setNotice(`${item.code}: ${eventType}.`);
       setSelectedId(item.id);
+      // The open record keeps the API's updated copy (status, row version) in case it leaves the filtered page; without
+      // one it is shown only while the reloaded list still has it.
+      if (openedId === item.id) setOpenedCopy(result?.id === item.id ? result : null);
       setRevision((value) => value + 1);
       await load();
     } catch (cause) {
@@ -548,18 +563,42 @@ export default function PaymentInstrumentsPage({
     }
   }
 
+  function openDocument(item: Item) {
+    setSelectedId(item.id);
+    setOpenedCopy(item);
+    setOpenedId(item.id);
+    setError("");
+    setNotice("");
+  }
+  function closeDocument() {
+    setOpenedId(null);
+    setOpenedCopy(null);
+  }
+  function refresh() {
+    if (loading || busy) return;
+    setRevision((value) => value + 1);
+    void load();
+  }
+
   function renderCell(field: ScreenField, item: Item) {
     switch (field.key) {
       case "instrumentNumber":
         return (
           <span className="pi-two">
             <span className="pi-number">
-              {/* The keyboard path to a row (Tab, Enter): it selects the record for the side panel and İşlemler. */}
+              {/* The keyboard path to a row: a click selects the record for the side panel and İşlemler; Enter or a
+                  double click opens it. */}
               <button
                 type="button"
                 className="erp-link-button pi-number-link"
                 aria-pressed={item.id === selected?.id}
                 onClick={() => setSelectedId(item.id)}
+                onDoubleClick={() => openDocument(item)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.defaultPrevented) return;
+                  event.preventDefault();
+                  openDocument(item);
+                }}
               >
                 {item.instrumentNumber}
               </button>
@@ -606,46 +645,74 @@ export default function PaymentInstrumentsPage({
     }
   }
 
-  // İşlemler: today's side-panel / row-menu actions for the selected record, with the same conditions (allowedActions,
-  // firma yöneticisi, not busy); a disabled item says why.
-  const selectedActions = selected && isAdmin ? allowedActions(selected) : [];
-  const actionReason = (kind: RowAction): string | undefined => {
-    if (!isAdmin) return "Çek/senet işlemlerini yalnız firma yöneticisi yapar";
-    if (!selected) return "Önce bir kayıt seçin";
-    if (busy) return "İşlem sürüyor…";
-    if (selectedActions.includes(kind)) return undefined;
-    switch (kind) {
-      case "collect":
-        return "Yalnız portföydeki veya karşılıksız kayıt tahsil / ödenir";
-      case "endorse":
-        return "Yalnız portföydeki alınan çek ciro edilir";
-      case "bounce":
-        return "Karşılıksız veya iptal edilmiş kayıtta kullanılamaz";
-      default:
-        return "Yalnız portföydeki kayıt iptal edilir";
-    }
-  };
-  const actionItem = (kind: RowAction, label: string): MenuCommand => ({
-    id: `pi-${kind}`,
-    label,
-    disabledReason: actionReason(kind),
-    run: () => {
-      if (selected) void action(selected, kind);
-    },
-  });
-  const commands: PageCommands = {
-    new: isAdmin
-      ? { primary: true, disabledReason: busy ? "İşlem sürüyor…" : undefined, run: openCreate }
-      : { disabledReason: "Çek/senet kaydını yalnız firma yöneticisi ekler" },
-    open: { disabledReason: "Çek/senet ayrıntısı ve geçmişi sağdaki panelde" },
-    delete: { disabledReason: "Çek/senet silinmez; İşlemler › İptal" },
-    more: [
-      actionItem("collect", selected ? collectLabel(selected) : "Tahsil et"),
+  // İşlemler: today's side-panel / row-menu actions for the selected record (or the open record), with the same
+  // conditions (allowedActions, firma yöneticisi, not busy); a disabled item says why.
+  function actionCommands(target: Item | null): MenuCommand[] {
+    const targetActions = target && isAdmin ? allowedActions(target) : [];
+    const actionReason = (kind: RowAction): string | undefined => {
+      if (!isAdmin) return "Çek/senet işlemlerini yalnız firma yöneticisi yapar";
+      if (!target) return "Önce bir kayıt seçin";
+      if (busy) return "İşlem sürüyor…";
+      if (targetActions.includes(kind)) return undefined;
+      switch (kind) {
+        case "collect":
+          return "Yalnız portföydeki veya karşılıksız kayıt tahsil / ödenir";
+        case "endorse":
+          return "Yalnız portföydeki alınan çek ciro edilir";
+        case "bounce":
+          return "Karşılıksız veya iptal edilmiş kayıtta kullanılamaz";
+        default:
+          return "Yalnız portföydeki kayıt iptal edilir";
+      }
+    };
+    const actionItem = (kind: RowAction, label: string): MenuCommand => ({
+      id: `pi-${kind}`,
+      label,
+      disabledReason: actionReason(kind),
+      run: () => {
+        if (target) void action(target, kind);
+      },
+    });
+    return [
+      actionItem("collect", target ? collectLabel(target) : "Tahsil et"),
       actionItem("endorse", "Ciro et"),
       actionItem("bounce", "Karşılıksız"),
       actionItem("cancel", "İptal"),
-      csvExportCommand(gridExportRef),
-    ],
+    ];
+  }
+  const newCommand: PageCommands["new"] = isAdmin
+    ? {
+        primary: !opened,
+        disabledReason: busy ? "İşlem sürüyor…" : undefined,
+        run: () => {
+          // The create drawer belongs to the list: an open record goes back to it first.
+          closeDocument();
+          openCreate();
+        },
+      }
+    : { disabledReason: "Çek/senet kaydını yalnız firma yöneticisi ekler" };
+  const deleteCommand = { disabledReason: "Çek/senet silinmez; İşlemler › İptal" };
+  const commands: PageCommands = {
+    new: newCommand,
+    open: {
+      disabledReason: selected ? undefined : "Önce bir kayıt seçin",
+      run: () => {
+        // Enter on a focused row runs Aç before the row selects itself: open the focused row.
+        const id = focusedRecordId() ?? selected?.id;
+        const target = items.find((row) => row.id === id);
+        if (target) openDocument(target);
+      },
+    },
+    delete: deleteCommand,
+    more: [...actionCommands(selected), csvExportCommand(gridExportRef)],
+  };
+  // The open record owns the bar (the hidden list does not): Yenile reloads it, Excel / Filtre are closed.
+  const documentCommands: PageCommands = {
+    ...documentOpenCommands(refresh),
+    new: newCommand,
+    save: { disabledReason: "Çek/senet kaydı düzenlenmez; işlemler İşlemler menüsünde" },
+    delete: deleteCommand,
+    more: actionCommands(opened),
   };
   const pageRange = items.length
     ? `${((page - 1) * PAGE_SIZE + 1).toLocaleString("tr-TR")}–${((page - 1) * PAGE_SIZE + items.length).toLocaleString("tr-TR")}`
@@ -653,13 +720,13 @@ export default function PaymentInstrumentsPage({
 
   return (
     <div className="page-content payment-instruments-page pi-page fh-page list-v2">
-      {!showCreate && <PageCommandsSlot commands={commands} />}
+      {!showCreate && !opened && <PageCommandsSlot commands={commands} />}
       <ListPageHeader
         title="Çek ve senet"
         description="Alınan ve verilen çek/senetleri vadeleri ve durum geçmişiyle izleyin."
         count={loading && totalCount === 0 ? null : (tabCounts.Receivable ?? 0) + (tabCounts.Payable ?? 0) || totalCount}
       />
-      {error && (
+      {error && !opened && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button onClick={() => setError("")} aria-label="Uyarıyı kapat">
@@ -667,7 +734,7 @@ export default function PaymentInstrumentsPage({
           </button>
         </div>
       )}
-      {notice && (
+      {notice && !opened && (
         <div className="notice" role="status">
           {notice}
           <button onClick={() => setNotice("")} aria-label="Bildirimi kapat">
@@ -734,11 +801,7 @@ export default function PaymentInstrumentsPage({
               setSelectedId(null);
               setKindFilter(value);
             }}
-            onRefresh={() => {
-              if (loading || busy) return;
-              setRevision((value) => value + 1);
-              void load();
-            }}
+            onRefresh={refresh}
             toolsSlotRef={setToolsSlot}
           />
           <section className="pi-list list-v2-list" aria-label="Çek ve senet listesi">
@@ -749,10 +812,11 @@ export default function PaymentInstrumentsPage({
               loading={loading}
               selectedId={selected?.id ?? null}
               onSelect={(item) => setSelectedId(item.id)}
+              onOpen={openDocument}
               renderCell={renderCell}
               exportActionsRef={gridExportRef}
             />
-            <ListFooter hints="Satır seçer · İşlemler seçili kayda uygulanır">
+            <ListFooter hints="Tık seçer · Çift tık / Enter açar · İşlemler seçili kayda uygulanır">
               {totalCount > PAGE_SIZE ? (
                 <span className="pi-pagination">
                   <ListPagination page={page} total={totalCount} pageSize={PAGE_SIZE} loading={loading} onPageChange={setPage} />
@@ -773,8 +837,9 @@ export default function PaymentInstrumentsPage({
             </span>
           </p>
         </div>
+        {/* While a record is open its surface has the history and the account list; the hidden panel stays empty. */}
         <PaymentInstrumentSidePanel
-          item={selected}
+          item={opened ? null : selected}
           events={events}
           eventsLoading={eventsLoading}
           eventsError={eventsError}
@@ -786,9 +851,30 @@ export default function PaymentInstrumentsPage({
             if (!selected) return;
             setCollectAccount((current) => ({ ...current, [selected.id]: value }));
           }}
-          accountSelectRef={accountSelectRef}
+          accountSelectRef={opened ? undefined : accountSelectRef}
         />
       </div>
+      {opened && (
+        <PaymentInstrumentDocument
+          key={opened.id}
+          item={opened}
+          events={events}
+          eventsLoading={eventsLoading}
+          eventsError={eventsError}
+          isAdmin={isAdmin}
+          baseCurrency={baseCurrency}
+          accounts={accounts}
+          accountId={collectAccount[opened.id] || ""}
+          onAccountChange={(value) => setCollectAccount((current) => ({ ...current, [opened.id]: value }))}
+          accountSelectRef={accountSelectRef}
+          commands={documentCommands}
+          error={error}
+          notice={notice}
+          onDismissError={() => setError("")}
+          onDismissNotice={() => setNotice("")}
+          onClose={closeDocument}
+        />
+      )}
       <DetailDrawer
         open={showCreate}
         label="Portföye ekle"

@@ -42,6 +42,7 @@
 #root .app-shell .pi-page table.pi-table { width: 100%; }
 #root .app-shell .pi-page table.pi-table :is(th, td) { vertical-align: middle; }
 #root .app-shell .pi-page table.pi-table tbody tr { cursor: pointer; }
+#root .app-shell .pi-page table.pi-table tbody tr:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
 #root .app-shell .pi-page table.pi-table tbody tr.is-selected td {
   background: var(--pi-select) !important;
 }
@@ -213,3 +214,60 @@
   #root .pi-page .dd-drawer,
   #root .pi-page .dd-drawer-scrim { display: none; }
 }
+
+/* Çek / senet kaydı (DocumentSurface, portalled out of .pi-page): info and history cards side by side, one column when narrow. */
+#root .pi-surface .pi-surface-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .pi-surface .pi-surface-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+#root .pi-surface .pi-surface-box { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#root .app-shell .pi-surface .pi-surface-box h3 { margin: 0; color: var(--nx-text); font-size: 13px; font-weight: 650; }
+#root .pi-surface .fh-note { margin: 0; color: var(--nx-muted); font-size: 12px; line-height: 1.5; }
+#root .pi-surface .pi-surface-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+#root .pi-surface .pi-surface-collect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--nx-line-soft);
+}
+#root .pi-surface .pi-side-field { display: grid; gap: 4px; max-width: 360px; margin: 0; color: var(--nx-muted); font-size: 12px; font-weight: 600; }
+#root .app-shell .pi-surface .pi-side-field select {
+  width: 100%;
+  min-width: 0;
+  height: var(--nx-control-h);
+  padding: 0 8px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 13px;
+}
+#root .pi-surface .pi-timeline { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+#root .pi-surface .pi-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 0 10px;
+}
+#root .pi-surface .pi-timeline li:not(:last-child)::before {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: var(--nx-line);
+  content: "";
+}
+#root .pi-surface .pi-timeline-dot { width: 9px; height: 9px; margin: 4px 0 0 2px; border-radius: 50%; background: var(--nx-muted); }
+#root .pi-surface .pi-timeline li:last-child .pi-timeline-dot { background: var(--nx-primary); }
+#root .pi-surface .pi-timeline li.is-danger .pi-timeline-dot { background: var(--nx-bad); }
+#root .pi-surface .pi-timeline-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+#root .pi-surface .pi-timeline-text b { color: var(--nx-text); font-weight: 600; }
+#root .pi-surface .pi-timeline li.is-danger .pi-timeline-text b { color: var(--nx-bad); }
+#root .pi-surface .pi-timeline li.is-muted .pi-timeline-text b { color: var(--nx-muted); }
+#root .pi-surface .pi-timeline-text small { color: var(--nx-muted); font-size: 12px; overflow-wrap: anywhere; }

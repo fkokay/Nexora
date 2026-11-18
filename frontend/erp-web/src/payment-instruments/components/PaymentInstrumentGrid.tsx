@@ -33,6 +33,8 @@ type Props = {
   loading: boolean;
   selectedId: string | null;
   onSelect: (item: Item) => void;
+  /** Double click / Enter on a row (Enter through the bar's Aç, which reads the focused row) opens the record. */
+  onOpen: (item: Item) => void;
   /** Page-level toolbar element that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
   renderCell: (field: ScreenField, item: Item) => ReactNode;
@@ -46,6 +48,7 @@ export function PaymentInstrumentGrid({
   loading,
   selectedId,
   onSelect,
+  onOpen,
   toolbarContainer,
   renderCell,
   exportActionsRef,
@@ -94,10 +97,28 @@ export function PaymentInstrumentGrid({
               key={item.id}
               className={item.id === selectedId ? "is-selected" : undefined}
               aria-selected={item.id === selectedId}
+              data-record-id={item.id}
+              tabIndex={0}
               // The whole row selects the instrument for the side column (İşlemler act on it); links keep their own action.
               onClick={(event) => {
                 if ((event.target as HTMLElement).closest("button, a, input, select")) return;
                 onSelect(item);
+              }}
+              onDoubleClick={(event) => {
+                if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+                event.preventDefault();
+                onOpen(item);
+              }}
+              onKeyDown={(event) => {
+                // On Enter the bar's Aç has already opened the focused row; this is the fallback. Space selects.
+                if (event.target !== event.currentTarget || event.defaultPrevented) return;
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onOpen(item);
+                } else if (event.key === " ") {
+                  event.preventDefault();
+                  onSelect(item);
+                }
               }}
             >
               {fields.map((field) => (
