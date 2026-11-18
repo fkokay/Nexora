@@ -1,4 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderPlain, screen, waitFor, within } from '@testing-library/react';
+import { CommandProvider } from '../commands/CommandProvider';
+// Gelişmiş ızgara (dataTable) sayfa komutlarını kaydeder; uygulamadaki gibi CommandProvider içinde çizilir.
+const render = (ui: Parameters<typeof renderPlain>[0]) => renderPlain(ui, { wrapper: CommandProvider });
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TenantCustomPage from '../TenantCustomPage';
 import { lookupOptions } from './LookupInput';

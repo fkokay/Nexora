@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderPlain, screen, waitFor } from '@testing-library/react';
+import { CommandProvider } from '../commands/CommandProvider';
+// Gelişmiş ızgara (dataTable) sayfa komutlarını kaydeder; uygulamadaki gibi CommandProvider içinde çizilir.
+const render = (ui: Parameters<typeof renderPlain>[0]) => renderPlain(ui, { wrapper: CommandProvider });
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import TenantCustomPage, { PageInput, QueryTable } from '../TenantCustomPage';
 import { parseColumnFormats } from './cellFormat';

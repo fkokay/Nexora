@@ -77,10 +77,12 @@ function setup(components: unknown[], queries: unknown[]) {
 const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'));
 const writes = () => calls.filter((call) => call.method !== 'GET');
-const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
-const adValue = () => (screen.getByLabelText('Ad') as HTMLInputElement).value;
+// Izgaranın sütun seçici ve filtreleri de sütun etiketini taşır; sayfa girişi ızgara dışında aranır.
+const pageField = (label: string) => screen.getAllByLabelText(label).find((element) => !element.closest('.advanced-grid'))!;
+const type = (label: string, value: string) => fireEvent.change(pageField(label), { target: { value } });
+const adValue = () => (pageField('Ad') as HTMLInputElement).value;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
-const cardRow = (index: number) => document.querySelectorAll<HTMLElement>('[data-testid="kartlar"] tbody tr, .tenant-page-table tbody tr')[index];
+const cardRow = (index: number) => document.querySelectorAll<HTMLElement>('[data-testid="kartlar"] tbody tr, .tenant-page-data-grid tbody tr')[index];
 const selectCard = async (index: number, expected: string) => {
   fireEvent.click(cardRow(index));
   await waitFor(() => expect(adValue()).toBe(expected));
@@ -129,15 +131,15 @@ describe('Değişiklik izleme', () => {
     expect(within(confirm).getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
     fireEvent.click(within(confirm).getByRole('button', { name: 'Vazgeç' }));
     await settle();
-    expect(cardRow(0).getAttribute('aria-selected')).toBe('true');
-    expect(cardRow(1).getAttribute('aria-selected')).toBe('false');
+    expect(cardRow(0).getAttribute('aria-current')).toBe('true');
+    expect(cardRow(1).getAttribute('aria-current')).toBeNull();
     expect(adValue()).toBe('Değişti');
     expect(calls.some((call) => call.url === `/api/stock/items/${G3}`)).toBe(false);
     fireEvent.click(cardRow(1));
     confirm = await screen.findByRole('alertdialog');
     fireEvent.click(within(confirm).getByRole('button', { name: 'Devam' }));
     await waitFor(() => expect(adValue()).toBe('Diğer'));
-    expect(cardRow(1).getAttribute('aria-selected')).toBe('true');
+    expect(cardRow(1).getAttribute('aria-current')).toBe('true');
   });
 
   it('refresh-driven selection clear does not confirm', async () => {
@@ -147,7 +149,7 @@ describe('Değişiklik izleme', () => {
     type('Ad', 'Değişti');
     fireEvent.click(command('refresh'));
     await waitFor(() => expect(calls.filter((call) => call.url === '/api/stock/items')).toHaveLength(2));
-    await waitFor(() => expect(cardRow(0).getAttribute('aria-selected')).toBe('false'));
+    await waitFor(() => expect(cardRow(0).getAttribute('aria-current')).toBeNull());
     await settle();
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });

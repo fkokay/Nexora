@@ -174,7 +174,9 @@ function setupPaged(components: unknown[]) {
   );
 }
 
-const firstCell = () => document.querySelector('.tenant-page-table tbody td')?.textContent;
+const firstCell = () => document.querySelector('.tenant-page-data-grid tbody td:not(.advanced-grid-select-cell)')?.textContent;
+// Izgaranın kendi (gizli) alt satırı da Önceki/Sonraki içerir; sayfalı listenin alt satırı ayrıca aranır.
+const pagerButton = (name: string) => within(document.querySelector<HTMLElement>('.tenant-page-pager')!).getByRole('button', { name });
 const pagerRange = () => document.querySelector('.tenant-page-pager-range')?.textContent;
 
 describe('Sunucu sayfalı liste', () => {
@@ -186,27 +188,27 @@ describe('Sunucu sayfalı liste', () => {
     expect(urls).toEqual(['/api/warehouses/balances/page?page=1&pageSize=10']);
     // Arama girişi liste başlığında çizilir, üst düzeyde ayrıca çizilmez.
     expect(screen.getAllByLabelText('Ara')).toHaveLength(1);
-    expect(document.querySelector('.tenant-page-table .tenant-page-table-search input')).not.toBeNull();
+    expect(document.querySelector('.tenant-page-data-grid .tenant-page-table-search input')).not.toBeNull();
   });
 
   it('footer shows range and total', async () => {
     setupPaged([searchInput, pagedTable()]);
     await waitFor(() => expect(pagerRange()).toBe('1–25 / 340'));
     expect(screen.getByText('Sayfa 1 / 14')).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Önceki' }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    expect((pagerButton('Önceki') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(pagerButton('Sonraki'));
     await waitFor(() => expect(firstCell()).toBe('P2-1'));
     expect(pagerRange()).toBe('26–50 / 340');
     expect(screen.getByText('Sayfa 2 / 14')).toBeTruthy();
     expect(urls.at(-1)).toBe('/api/warehouses/balances/page?page=2&pageSize=25');
-    expect(document.querySelector('tfoot td')!.textContent).toBe('Sayfa toplamı · 25 kayıt');
+    expect(document.querySelector('.tenant-page-grid-totals dt')!.textContent).toBe('Sayfa toplamı · 25 kayıt');
   });
 
   it('search resets page and drops stale page', async () => {
     setupPaged([searchInput, pagedTable()]);
     await waitFor(() => expect(firstCell()).toBe('P1-1'));
     hold = (url) => url.includes('page=5');
-    for (let click = 0; click < 4; click += 1) fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    for (let click = 0; click < 4; click += 1) fireEvent.click(pagerButton('Sonraki'));
     expect(screen.getByText('Sayfa 5 / 14')).toBeTruthy();
     await waitFor(() => expect(held).toHaveLength(1));
     fireEvent.change(screen.getByLabelText('Ara'), { target: { value: 'x' } });
@@ -238,11 +240,11 @@ describe('Sunucu sayfalı liste', () => {
   it('clamps to the last page when the total shrinks and re-runs', async () => {
     setupPaged([searchInput, pagedTable({ pageSize: 100 })]);
     await waitFor(() => expect(firstCell()).toBe('P1-1'));
-    for (let click = 0; click < 2; click += 1) fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    for (let click = 0; click < 2; click += 1) fireEvent.click(pagerButton('Sonraki'));
     await waitFor(() => expect(firstCell()).toBe('P3-1'));
     // Kayıtlar başka yerde silindi: sayfa 4 isteği 150 toplamla boş döner; son sayfaya (2) geçilir ve sorgu yeniden çalışır.
     shrunkTotal = 150;
-    fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    fireEvent.click(pagerButton('Sonraki'));
     await waitFor(() => expect(firstCell()).toBe('P2-1'));
     expect(urls.at(-1)).toBe('/api/warehouses/balances/page?page=2&pageSize=100');
     expect(pagerRange()).toBe('101–150 / 150');
@@ -361,7 +363,7 @@ function setupRowActions(buttonProps: Record<string, unknown> = {}) {
     if (endpoint === '/api/stock/movements') return movementRows;
     return { id: 'r1' };
   });
-  render(<TenantCustomPage code="p" token="t" />);
+  render(<CommandProvider><TenantCustomPage code="p" token="t" /></CommandProvider>);
   return calls;
 }
 
@@ -371,14 +373,14 @@ describe('Satır işlemleri (sayfa)', () => {
   it('row action resolves against its row', async () => {
     const calls = setupRowActions();
     await screen.findByText('B3');
-    const rowsEl = () => Array.from(document.querySelectorAll<HTMLElement>('.tenant-page-table tbody tr'));
+    const rowsEl = () => Array.from(document.querySelectorAll<HTMLElement>('.tenant-page-data-grid tbody tr'));
     fireEvent.click(rowsEl()[2]);
-    await waitFor(() => expect(rowsEl()[2].getAttribute('aria-selected')).toBe('true'));
+    await waitFor(() => expect(rowsEl()[2].getAttribute('aria-current')).toBe('true'));
     fireEvent.click(within(rowsEl()[0]).getByRole('button', { name: 'Ters kayıt' }));
     await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/movements/${G1}/reverse`)).toBe(true));
     expect(calls.filter((call) => call.url.endsWith('/reverse'))).toHaveLength(1);
-    await waitFor(() => expect(rowsEl()[0].getAttribute('aria-selected')).toBe('true'));
-    expect(rowsEl()[2].getAttribute('aria-selected')).toBe('false');
+    await waitFor(() => expect(rowsEl()[0].getAttribute('aria-current')).toBe('true'));
+    expect(rowsEl()[2].getAttribute('aria-current')).toBeNull();
   });
 
   it('row action disabledWhen per row', async () => {
