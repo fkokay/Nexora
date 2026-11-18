@@ -89,19 +89,22 @@ public static class WebImageUpdateEndpoints
             {
                 var ct = app.Lifetime.ApplicationStopping;
                 var entered = false;
+                var timer = new DeploymentStepTimer();
                 void Report(string status, string output)
                 {
+                    // Terminal states end with the step timing line so the Studio shows where the time went.
+                    if (status is "Succeeded" or "Failed") output += $"\nSüreler: {timer.Summary()}";
                     var job = Jobs[body.DeploymentId];
                     Jobs[body.DeploymentId] = (job.Tenant, job.Project, job.Status with { Status = status, Output = output.Length > 48000 ? output[^48000..] : output });
                 }
                 try
                 {
-                    await gate.WaitAsync(ct); entered = true;
+                    await timer.TimeAsync("queue", () => gate.WaitAsync(ct)); entered = true;
                     var root = Path.Combine(config["WebImageUpdate:WorkRoot"] ?? "/deployer-state/web-updates", body.DeploymentId.ToString("N"));
                     var source = Path.Combine(root, "source");
                     Directory.CreateDirectory(source);
                     Report("Building", "Doğrulanmış sürüm paketi açılıyor.");
-                    await extract(body, source, ct);
+                    await timer.TimeAsync("extract", () => extract(body, source, ct));
                     var buildTargets = new Dictionary<string, (string Resource, string Dockerfile)>(StringComparer.Ordinal)
                     {
                         ["erp-web"] = ("WebUpdate.Dockerfile", "Dockerfile.web-update"),
@@ -135,7 +138,7 @@ public static class WebImageUpdateEndpoints
                         }
                         if (service == "erp-web") args.AddRange(["--build-arg", $"VITE_STUDIO_URL={config["WebImageUpdate:StudioUrl"] ?? "/"}"]);
                         args.AddRange(["-t", imageNames[service], "-f", Path.Combine(source, buildTargets[service].Dockerfile), source]);
-                        var build = await docker(args, TimeSpan.FromMinutes(service == "workspace-sandbox" ? 45 : 30), ct);
+                        var build = await timer.TimeAsync($"build:{service}", () => docker(args, TimeSpan.FromMinutes(service == "workspace-sandbox" ? 45 : 30), ct));
                         buildOutput.Add(build.Output);
                         if (build.Code != 0) { Report("Failed", string.Join('\n', buildOutput)); return; }
                     }
@@ -155,19 +158,24 @@ public static class WebImageUpdateEndpoints
                     await File.WriteAllTextAsync(overlay, System.Text.Json.JsonSerializer.Serialize(new { services = images.ToDictionary(x => x.Key, x => (object)new { image = x.Value }) }), ct);
                     Report("Deploying", string.Join('\n', buildOutput) + "\nYalnız değişen projelerin konteynerleri yenileniyor.");
                     (int Code, string Output) deploy;
-                    try { deploy = await docker(prefix.Concat(["up", "-d", "--no-build", "--no-deps", "--wait", "--wait-timeout", "180", .. body.Targets]), TimeSpan.FromMinutes(4), ct); }
+                    try { deploy = await timer.TimeAsync("up+health", () => docker(prefix.Concat(["up", "-d", "--no-build", "--no-deps", "--wait", "--wait-timeout", "180", .. body.Targets]), TimeSpan.FromMinutes(4), ct)); }
                     catch (Exception ex) { app.Logger.LogError(ex, "Application deployment interrupted; attempting rollback"); deploy = (-1, "Uygulama konteynerleri yenilenirken işlem kesildi."); }
                     if (deploy.Code != 0)
                     {
                         await File.WriteAllTextAsync(overlay, System.Text.Json.JsonSerializer.Serialize(new { services = previousImages.ToDictionary(x => x.Key, x => (object)new { image = x.Value }) }), CancellationToken.None);
-                        var rollback = await docker(prefix.Concat(["up", "-d", "--no-build", "--no-deps", "--wait", "--wait-timeout", "180", .. body.Targets]), TimeSpan.FromMinutes(4), CancellationToken.None);
+                        var rollback = await timer.TimeAsync("rollback", () => docker(prefix.Concat(["up", "-d", "--no-build", "--no-deps", "--wait", "--wait-timeout", "180", .. body.Targets]), TimeSpan.FromMinutes(4), CancellationToken.None));
                         Report("Failed", string.Join('\n', buildOutput) + "\n" + deploy.Output + (rollback.Code == 0 ? "\nÖnceki imajlara dönüldü." : "\nÖnceki imajlara dönüş başarısız; sunucu müdahalesi gerekli.") + "\n" + rollback.Output);
                         return;
                     }
                     Report(deploy.Code == 0 ? "Succeeded" : "Failed", string.Join('\n', buildOutput) + "\n" + deploy.Output);
                 }
                 catch (Exception ex) { app.Logger.LogError(ex, "ERP application image update failed {JobId}", body.DeploymentId); Report("Failed", "Web ve API imaj güncellemesi tamamlanamadı. Sunucu kayıtlarını kontrol edin."); }
-                finally { if (entered) gate.Release(); Interlocked.Exchange(ref active, 0); }
+                finally
+                {
+                    if (entered) gate.Release();
+                    Interlocked.Exchange(ref active, 0);
+                    app.Logger.LogInformation("Application image update {JobId} timing: {Timing}", body.DeploymentId, timer.Summary());
+                }
             });
             return Results.Accepted(value: Jobs[body.DeploymentId].Status);
         }).RequireAuthorization();
