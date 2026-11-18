@@ -6,7 +6,13 @@ using AIERP.Platform.Application;
 
 namespace AIERP.Api;
 
-internal sealed record ErpOperationParameter(string Name, string In, string Type, bool Required);
+/// <summary>A field of a <c>list</c> parameter's items: a scalar type, or <c>map</c> (one level, string values).</summary>
+internal sealed record ErpOperationParameterItem(string Code, string Label, string DataType, bool Required);
+internal sealed record ErpOperationParameter(string Name, string In, string Type, bool Required)
+{
+    /// <summary>The item fields of a <c>list</c> parameter; null for every other type (wire: <c>items</c>).</summary>
+    public IReadOnlyList<ErpOperationParameterItem>? Items { get; init; }
+}
 internal sealed record ErpOperationColumn(string Code, string Label, string DataType);
 internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns)
 {
@@ -86,7 +92,10 @@ internal static class ErpOperationCatalog
         ["stockItemId"] = "Stok kartı kimliği", ["quantityOnHand"] = "Eldeki miktar", ["belowMinimum"] = "Minimum altında",
         ["reservedQuantity"] = "Rezerve miktar", ["availableQuantity"] = "Kullanılabilir miktar", ["valuationAmountBase"] = "Stok değeri",
         ["unvaluedQuantity"] = "Maliyetsiz miktar", ["baseCurrencyCode"] = "Ana para birimi", ["factorToBase"] = "Ana birim katsayısı",
-        ["parentLocationId"] = "Üst konum"
+        ["parentLocationId"] = "Üst konum",
+        ["customFields"] = "Özel alanlar", ["variants"] = "Varyantlar", ["attributes"] = "Özellikler",
+        ["tracking"] = "Lot / seri dağılımı", ["trackingCode"] = "Lot / seri kodu", ["expiryDate"] = "Son kullanma tarihi",
+        ["values"] = "Özel alan değerleri"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -119,7 +128,8 @@ internal static class ErpOperationCatalog
                 List(stockItemColumns, "items")),
             Read(StockModule, StockItemRead, "Stok kartı getir", StockItemRoute, [id], new ErpOperationResult("record", null, stockItemColumns)),
             Write(StockModule, "stok.kart.olustur", "Stok kartı oluştur", "insert", "POST", "/api/stock/items",
-                BodyParameters<StockItemWriteRequest>(sourceBacked: false), Record(stockItemColumns), null, null),
+                [.. BodyParameters<StockItemWriteRequest>(sourceBacked: false), MapParameter("customFields"),
+                    ListParameter<StockItemVariantWriteRequest>("variants")], Record(stockItemColumns), null, null),
             // Update and state changes return the updated StockItemView; unbound body fields come from the source read.
             Write(StockModule, "stok.kart.guncelle", "Stok kartı güncelle", "update", "PUT", StockItemRoute,
                 [id, .. BodyParameters<StockItemUpdateRequest>(sourceBacked: true)], Record(stockItemColumns), StockItemRead, null),
@@ -184,14 +194,16 @@ internal static class ErpOperationCatalog
         yield return Write(StockModule, "stok.kart.birimSil", "Stok kartından birim sil", "delete", "DELETE", StockItemRoute + "/units/{conversionId}",
             [id, Route("conversionId")], None, null, null, requiresTenantAdmin: true);
         // values is a code → value map: codes the page does not bind keep the values read by stok.kart.ozelAlanDegerleri.
+        // The declared values map (Faz B) is merged over those source values; it never replaces them wholesale.
         yield return Write(StockModule, "stok.kart.ozelAlanKaydet", "Stok kartı özel alanlarını kaydet", "update", "PUT", StockItemRoute + "/custom-fields",
-            [id], List(Columns<StockCustomFieldValueView>(), null), null, null)
+            [id, MapParameter("values")], List(Columns<StockCustomFieldValueView>(), null), null, null)
             with { BodyMap = new ErpOperationBodyMap("values", "stok.kart.ozelAlanDegerleri", "code", "value") };
         yield return Read(StockModule, "stok.hareket.listele", "Depo stok hareketleri", transactionsRoute, [warehouseId, stockItemId, .. paging],
             List(transactionColumns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
-        // Lot/serial tracking allocations are a list and stay out of the catalog.
+        // Lot/serial tracking allocations are a list parameter (Faz B), bound to an editable grid's rows.
         yield return Write(StockModule, "stok.hareket.ekle", "Stok hareketi ekle", "insert", "POST", transactionsRoute,
-            [warehouseId, stockItemId, .. BodyParameters<InventoryTransactionWriteRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
+            [warehouseId, stockItemId, .. BodyParameters<InventoryTransactionWriteRequest>(sourceBacked: false),
+                ListParameter<InventoryTrackingAllocationRequest>("tracking")], Record(transactionColumns), null, null);
         // A reversal writes a new linked entry; the original movement is never changed.
         yield return Write(StockModule, "stok.hareket.tersKayit", "Stok hareketini ters kayıtla düzelt", "insert", "POST", transactionsRoute + "/{entryId}/reverse",
             [warehouseId, stockItemId, Route("entryId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
@@ -247,13 +259,26 @@ internal static class ErpOperationCatalog
         ScalarMembers<T>().Where(x => !exclude.Contains(x.Name, StringComparer.Ordinal))
             .Select(x => new ErpOperationParameter(x.Name, "body", x.Type, !sourceBacked && x.Required)).ToArray();
 
-    private static IEnumerable<(string Name, string Type, bool Required)> ScalarMembers<T>()
+    /// <summary>
+    /// A body <c>list</c> parameter whose items are the scalar fields of <typeparamref name="T"/> plus its string maps
+    /// (<c>map</c>). Collection parameters are never required: an unbound one keeps the key out of the body.
+    /// </summary>
+    private static ErpOperationParameter ListParameter<T>(string name) =>
+        new(name, "body", "list", false)
+        {
+            Items = ScalarMembers<T>(includeMaps: true).Select(x => new ErpOperationParameterItem(x.Name, Label(x.Name), x.Type, x.Required)).ToArray()
+        };
+
+    /// <summary>A body <c>map</c> parameter: a code → string value object (custom field values).</summary>
+    private static ErpOperationParameter MapParameter(string name) => new(name, "body", "map", false);
+
+    private static IEnumerable<(string Name, string Type, bool Required)> ScalarMembers<T>(bool includeMaps = false)
     {
         var nullability = new NullabilityInfoContext();
         var constructor = typeof(T).GetConstructors().OrderByDescending(x => x.GetParameters().Length).First();
         foreach (var parameter in constructor.GetParameters())
         {
-            var type = DataType(parameter.ParameterType);
+            var type = DataType(parameter.ParameterType) ?? (includeMaps && IsStringMap(parameter.ParameterType) ? "map" : null);
             if (type is null) continue;
             var nullable = Nullable.GetUnderlyingType(parameter.ParameterType) is not null
                 || (!parameter.ParameterType.IsValueType && nullability.Create(parameter).WriteState == NullabilityState.Nullable);
@@ -272,6 +297,9 @@ internal static class ErpOperationCatalog
         if (type == typeof(DateOnly) || type == typeof(DateTime) || type == typeof(DateTimeOffset)) return "date";
         return null;
     }
+
+    private static bool IsStringMap(Type type) =>
+        type == typeof(IReadOnlyDictionary<string, string>) || type == typeof(IReadOnlyDictionary<string, string?>);
 
     private static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 

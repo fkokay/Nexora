@@ -71,6 +71,13 @@ internal static class TenantCustomPageSchema
     internal static string DeprecatedOperationError(string name) => $"ERP işlemi artık kullanılamıyor: {name}";
     private static readonly HashSet<string> ParameterKeys = new(StringComparer.Ordinal) { "name", "binding", "type" };
     private static readonly HashSet<string> ParameterTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
+    /// <summary>Collection types: only ERP operation queries accept them (bound to a grid's rows or a custom-fields block's values).</summary>
+    private static readonly HashSet<string> CollectionParameterTypes = new(StringComparer.Ordinal) { "list", "map" };
+    /// <summary>
+    /// Names reserved for the page runtime beyond <see cref="TenantCustomPageQueries.ReservedNames"/>: <c>onceki</c> is the
+    /// previous save-sequence step's result. Not added to ReservedNames, which also overwrites SQL parameter values.
+    /// </summary>
+    private static readonly HashSet<string> RuntimeReservedNames = new(StringComparer.OrdinalIgnoreCase) { "onceki" };
 
     private sealed class Context(int version)
     {
@@ -115,6 +122,11 @@ internal static class TenantCustomPageSchema
         public List<PagedTable> PendingPagedTables { get; } = [];
         /// <summary>Page queries by id, from <see cref="ValidateQueries"/>' result list.</summary>
         public Dictionary<string, PageQuery> QueryById { get; } = new(StringComparer.Ordinal);
+        /// <summary>
+        /// list/map operation parameters and their binding (<c>{{root.satirlar}}</c> / <c>{{root.degerler}}</c>); Path is the
+        /// binding path without braces. The roots are resolved against the page components after the component loop.
+        /// </summary>
+        public List<(string Query, string Parameter, string Kind /* list|map */, string Root, string Path)> PendingCollectionBindings { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -209,7 +221,7 @@ internal static class TenantCustomPageSchema
             if (kind == "read" ? !ReportEndpoints.TryValidateReadOnlySql(sql, out sqlError) : !ReportEndpoints.TryValidateWriteSql(sql, kind, out sqlError))
             { error = $"'{name}' sorgusu: {sqlError}"; return false; }
 
-            if (!ReadParameters(query, name!, MaxQueryParameters, out var parameters, out var declared, out error)) return false;
+            if (!ReadParameters(query, name!, MaxQueryParameters, allowCollections: false, out var parameters, out var declared, out error)) return false;
             var used = TenantCustomPageQueries.SqlParameterNames(sql);
             if (used.FirstOrDefault(x => !declared.Contains(x)) is { } undeclared)
             { error = $"'{name}' sorgusu tanımlanmamış bir parametre kullanıyor: @{undeclared}."; return false; }
@@ -230,7 +242,7 @@ internal static class TenantCustomPageSchema
     }
 
     /// <summary>Reads and checks a query's parameter list (names unique case-insensitively, known types, single-path bindings).</summary>
-    private static bool ReadParameters(JsonElement query, string name, int maxParameters, out List<PageQueryParameter> parameters,
+    private static bool ReadParameters(JsonElement query, string name, int maxParameters, bool allowCollections, out List<PageQueryParameter> parameters,
         out HashSet<string> declared, out string? error)
     {
         error = null;
@@ -250,7 +262,7 @@ internal static class TenantCustomPageSchema
             if (!TenantCustomPageQueries.IsValidName(parameterName) || !declared.Add(parameterName!))
             { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
             var type = StringOf(parameter, "type");
-            if (type is null || !ParameterTypes.Contains(type))
+            if (type is null || !(ParameterTypes.Contains(type) || (allowCollections && CollectionParameterTypes.Contains(type))))
             { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin türü text, int, decimal, date, bool veya guid olmalıdır."; return false; }
             var binding = StringOf(parameter, "binding");
             if (binding is null || !TenantCustomPageQueries.TryParseBindingPath(binding, out _))
@@ -275,7 +287,7 @@ internal static class TenantCustomPageSchema
         { error = DeprecatedOperationError(operationName); return false; }
         if (kind != operation.PageKind)
         { error = $"'{name}' sorgusu: '{operationName}' işlemi için tür {operation.PageKind} olmalıdır."; return false; }
-        if (!ReadParameters(query, name, MaxOperationQueryParameters, out var parameters, out _, out error)) return false;
+        if (!ReadParameters(query, name, MaxOperationQueryParameters, allowCollections: true, out var parameters, out _, out error)) return false;
         foreach (var parameter in parameters)
         {
             var declared = operation.Parameters.FirstOrDefault(x => string.Equals(x.Name, parameter.Name, StringComparison.Ordinal));
@@ -290,6 +302,7 @@ internal static class TenantCustomPageSchema
             }
             if (declared.Type != parameter.Type)
             { error = $"'{name}' sorgusundaki '{parameter.Name}' parametresinin türü {declared.Type} olmalıdır."; return false; }
+            if (CollectionParameterTypes.Contains(declared.Type) && !RecordCollectionBinding(name, parameter, context, out error)) return false;
         }
         var missing = operation.Parameters.FirstOrDefault(x => x.Required
             && (x.In == "body" || (x.In == "route" && operation.SourceOperation is null))
@@ -307,6 +320,28 @@ internal static class TenantCustomPageSchema
         }
         context.QueryKinds.Add(id, kind);
         result.Add(new PageQuery(id, name, kind, "", parameters, StringOf(query, "runOn")!, operationName));
+        error = null;
+        return true;
+    }
+
+    private static readonly Regex CollectionBindingPath = new(@"^([A-Za-z_][A-Za-z0-9_]{0,63})\.(satirlar|degerler)$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A list parameter binds exactly <c>{{grid.satirlar}}</c> and a map parameter exactly <c>{{blok.degerler}}</c>;
+    /// the pair is kept for the component rules, which check the root's component type.
+    /// </summary>
+    private static bool RecordCollectionBinding(string name, PageQueryParameter parameter, Context context, out string? error)
+    {
+        var segment = parameter.Type == "list" ? "satirlar" : "degerler";
+        var match = TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path) ? CollectionBindingPath.Match(path) : Match.Empty;
+        if (!match.Success || match.Groups[2].Value != segment || !TenantCustomPageQueries.IsValidName(match.Groups[1].Value))
+        {
+            error = parameter.Type == "list"
+                ? $"'{name}' sorgusundaki '{parameter.Name}' parametresi {{{{<ızgara>.satirlar}}}} biçiminde bağlanmalıdır."
+                : $"'{name}' sorgusundaki '{parameter.Name}' parametresi {{{{<blok>.degerler}}}} biçiminde bağlanmalıdır.";
+            return false;
+        }
+        context.PendingCollectionBindings.Add((name, parameter.Name, parameter.Type, match.Groups[1].Value, path));
         error = null;
         return true;
     }
@@ -345,7 +380,7 @@ internal static class TenantCustomPageSchema
         if (name is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(name)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
         if (!TenantCustomPageQueries.IsValidName(name))
         { error = "Sorgu ve bileşen adları harf veya _ ile başlamalı, en fazla 64 harf/rakam/_ içermelidir."; return false; }
-        if (TenantCustomPageQueries.ReservedNames.Contains(name!)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
+        if (TenantCustomPageQueries.ReservedNames.Contains(name!) || RuntimeReservedNames.Contains(name!)) { error = $"'{name}' ayrılmış bir addır; başka bir ad seçin."; return false; }
         if (!context.Names.Add(name!)) { error = $"'{name}' adı sayfada birden fazla kez kullanılıyor (büyük/küçük harf fark etmez)."; return false; }
         return true;
     }

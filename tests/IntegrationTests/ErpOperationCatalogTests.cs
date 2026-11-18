@@ -94,8 +94,6 @@ public sealed class ErpOperationCatalogTests
         // A prefixed column keeps the label of its inner code.
         Assert.Equal("Kod", page.Result.Columns.Single(x => x.Code == "balance.code").Label);
         Assert.Equal("Eldeki miktar", page.Result.Columns.Single(x => x.Code == "balance.quantityOnHand").Label);
-        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.ekle", out var add));
-        Assert.DoesNotContain(add.Parameters, x => x.Name == "tracking");
         Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverse));
         Assert.True(reverse.Parameters.Single(x => x.Name == "reason").Required);
     }
@@ -111,9 +109,10 @@ public sealed class ErpOperationCatalogTests
         Assert.Contains(source.Result.Columns, x => x.Code == map.KeyColumn);
         Assert.Contains(source.Result.Columns, x => x.Code == map.ValueColumn);
         Assert.Null(save.SourceOperation);
-        var id = Assert.Single(save.Parameters);
-        Assert.Equal("id", id.Name);
-        Assert.True(id.Required);
+        Assert.Equal(["id", "values"], save.Parameters.Select(x => x.Name));
+        Assert.True(save.Parameters[0].Required);
+        // The declared map parameter is the body map's property (Faz B).
+        Assert.Equal("map", save.Parameters.Single(x => x.Name == map.Property).Type);
         Assert.All(ErpOperationCatalog.All.Where(x => x.BodyMap is not null), x => Assert.Equal("write", x.Kind));
     }
 
@@ -292,6 +291,119 @@ public sealed class ErpOperationCatalogTests
         }
     }
 
+    private static readonly HashSet<string> ScalarTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
+
+    [Fact]
+    public void Collection_parameters_are_body_and_optional()
+    {
+        var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
+            .Where(x => x.p.Type is "list" or "map").ToArray();
+        Assert.Equal(4, collections.Length);
+        foreach (var (op, parameter) in collections)
+        {
+            Assert.Equal("body", parameter.In);
+            Assert.False(parameter.Required, $"{op.Name}.{parameter.Name}");
+            if (parameter.Type == "map") { Assert.Null(parameter.Items); continue; }
+            Assert.NotNull(parameter.Items);
+            Assert.NotEmpty(parameter.Items);
+            Assert.All(parameter.Items, item => Assert.True(ScalarTypes.Contains(item.DataType) || item.DataType == "map", $"{parameter.Name}.{item.Code}"));
+        }
+        // Scalar parameters carry no items.
+        Assert.All(ErpOperationCatalog.All.SelectMany(x => x.Parameters).Where(x => x.Type is not ("list" or "map")), x => Assert.Null(x.Items));
+    }
+
+    /// <summary>Parameter names of every operation before Faz B (Proje 1 and Faz A), in catalog order.</summary>
+    private static readonly IReadOnlyDictionary<string, string> FazAParameterNames = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["stok.kart.listele"] = "q,page,pageSize",
+        ["stok.kart.getir"] = "id",
+        ["stok.kart.olustur"] = "code,name,barcode,unitCode,category,minimumStock,isActive,trackingMode,procurementLeadTimeDays,manufacturingLeadTimeDays,purchaseListPrice,salesListPrice,priceCurrencyCode,purchaseVatPercent,salesVatPercent,exciseTaxPercent,communicationTaxPercent,purchaseDiscountPercent,salesDiscountPercent,maximumStock,reorderPoint,safetyStock,netWeight,grossWeight,length,width,height,productImageUrl,purchaseAccountCode,salesAccountCode,costAccountCode,marketplaceProductId,withholdingTaxPercent,stampTaxPercent",
+        ["stok.kart.guncelle"] = "id,code,name,barcode,unitCode,category,minimumStock,rowVersion,trackingMode,procurementLeadTimeDays,manufacturingLeadTimeDays,purchaseListPrice,salesListPrice,priceCurrencyCode,purchaseVatPercent,salesVatPercent,exciseTaxPercent,communicationTaxPercent,purchaseDiscountPercent,salesDiscountPercent,maximumStock,reorderPoint,safetyStock,netWeight,grossWeight,length,width,height,productImageUrl,purchaseAccountCode,salesAccountCode,costAccountCode,marketplaceProductId,withholdingTaxPercent,stampTaxPercent",
+        ["stok.kart.sil"] = "id",
+        ["stok.kart.pasifeAl"] = "id,rowVersion",
+        ["stok.kart.aktifEt"] = "id,rowVersion",
+        ["stok.kart.hareketleri"] = "stockItemId,page,pageSize",
+        ["stok.kart.varyantlari"] = "id",
+        ["stok.kart.ozelAlanDegerleri"] = "id",
+        ["stok.bakiye.sayfa"] = "warehouseId,q,belowMinimumOnly,page,pageSize",
+        ["depo.konumlari"] = "warehouseId",
+        ["stok.kart.birimleri"] = "id",
+        ["stok.kart.birimEkle"] = "id,unitCode,factorToBase",
+        ["stok.kart.birimSil"] = "id,conversionId",
+        ["stok.kart.ozelAlanKaydet"] = "id",
+        ["stok.hareket.listele"] = "warehouseId,stockItemId,page,pageSize",
+        ["stok.hareket.ekle"] = "warehouseId,stockItemId,entryDate,direction,quantity,description,unitCostBase,unitCode,storageLocationId",
+        ["stok.hareket.tersKayit"] = "warehouseId,stockItemId,entryId,reason",
+        ["stok.kart.depoBakiyeleri"] = "id",
+    };
+
+    [Fact]
+    public void Collection_parameters_only_extend_three_operations()
+    {
+        var additions = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["stok.kart.olustur"] = ["customFields", "variants"],
+            ["stok.hareket.ekle"] = ["tracking"],
+            ["stok.kart.ozelAlanKaydet"] = ["values"]
+        };
+        foreach (var op in ErpOperationCatalog.All)
+        {
+            var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',') : [])
+                .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);
+            Assert.Equal(expected, op.Parameters.Select(x => x.Name));
+        }
+    }
+
+    [Fact]
+    public void Variant_items_follow_write_request()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("stok.kart.olustur", out var create));
+        var variants = create.Parameters.Single(x => x.Name == "variants");
+        Assert.Equal("list", variants.Type);
+        Assert.Equal(
+            [("code", "Kod", "text", true), ("name", "Ad", "text", true), ("barcode", "Barkod", "text", false), ("attributes", "Özellikler", "map", true)],
+            variants.Items!.Select(x => (x.Code, x.Label, x.DataType, x.Required)));
+        var customFields = create.Parameters.Single(x => x.Name == "customFields");
+        Assert.Equal(("map", "body", false), (customFields.Type, customFields.In, customFields.Required));
+
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.ekle", out var add));
+        var tracking = add.Parameters.Single(x => x.Name == "tracking");
+        Assert.Equal("list", tracking.Type);
+        Assert.Equal(
+            [("trackingCode", "Lot / seri kodu", "text", true), ("quantity", "Miktar", "decimal", true), ("expiryDate", "Son kullanma tarihi", "date", false)],
+            tracking.Items!.Select(x => (x.Code, x.Label, x.DataType, x.Required)));
+    }
+
+    [Fact]
+    public async Task Catalog_endpoint_returns_parameter_items()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var ops = await GetOperationsAsync(client);
+
+        var parameters = ops["stok.kart.olustur"].GetProperty("parameters").EnumerateArray().ToArray();
+        var id = ops["stok.kart.getir"].GetProperty("parameters").EnumerateArray().Single(x => x.GetProperty("name").GetString() == "id");
+        Assert.Equal(JsonValueKind.Null, id.GetProperty("items").ValueKind);
+        var variants = parameters.Single(x => x.GetProperty("name").GetString() == "variants");
+        Assert.Equal("list", variants.GetProperty("type").GetString());
+        Assert.Equal("body", variants.GetProperty("in").GetString());
+        Assert.False(variants.GetProperty("required").GetBoolean());
+        var items = variants.GetProperty("items");
+        Assert.Equal(4, items.GetArrayLength());
+        Assert.Equal("attributes", items[3].GetProperty("code").GetString());
+        Assert.Equal("Özellikler", items[3].GetProperty("label").GetString());
+        Assert.Equal("map", items[3].GetProperty("dataType").GetString());
+        Assert.True(items[3].GetProperty("required").GetBoolean());
+        var customFields = parameters.Single(x => x.GetProperty("name").GetString() == "customFields");
+        Assert.Equal("map", customFields.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.Null, customFields.GetProperty("items").ValueKind);
+        // Every scalar parameter of every operation carries items: null.
+        Assert.All(ops.Values.SelectMany(op => op.GetProperty("parameters").EnumerateArray())
+            .Where(x => x.GetProperty("type").GetString() != "list"), x => Assert.Equal(JsonValueKind.Null, x.GetProperty("items").ValueKind));
+    }
+
     [Fact]
     public void Names_are_append_only()
     {
@@ -384,7 +496,8 @@ public sealed class ErpOperationCatalogTests
             foreach (var parameter in op.Parameters)
             {
                 Assert.Contains(parameter.In, new[] { "route", "query", "body" });
-                Assert.Contains(parameter.Type, types);
+                // Faz B: list and map parameters exist only in the body.
+                Assert.Contains(parameter.Type, parameter.In == "body" ? [.. types, "list", "map"] : types);
                 if (parameter.In != "route") continue;
                 var variants = op.RouteVariants.Where(x => x.When == parameter.Name).ToArray();
                 if (variants.Length > 0)

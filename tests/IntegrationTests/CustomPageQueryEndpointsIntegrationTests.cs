@@ -18,7 +18,7 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class CustomPageQueryEndpointsIntegrationTests
 {
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    internal static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Mehmet = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private const string Code = "musteri-panosu";
@@ -256,7 +256,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         return id;
     }
 
-    private static async Task<WebApplication> StartApplicationAsync(RecordingQueryConnectionFactory factory)
+    internal static async Task<WebApplication> StartApplicationAsync(RecordingQueryConnectionFactory factory)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -291,7 +291,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         return app;
     }
 
-    private static void SetIdentity(HttpClient client, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");
@@ -301,7 +301,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Role", role);
     }
 
-    private sealed class RecordingQueryConnectionFactory(bool unavailable) : ITenantQueryConnectionFactory
+    internal sealed class RecordingQueryConnectionFactory(bool unavailable) : ITenantQueryConnectionFactory
     {
         public int Calls { get; private set; }
         public TenantQueryAccess? LastAccess { get; private set; }
