@@ -291,6 +291,33 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     [Fact]
+    public void Runtime_rights_widen_only_operation_only_definitions()
+    {
+        var viewOnly = new CustomPageRights(true, false, false, false);
+        var definition = JsonNode.Parse(StandardV1Json())!.AsObject();
+        Assert.Equal(new CustomPageRightsView(true, true, true, true), SystemPageEndpoints.RuntimeRights(viewOnly, definition.ToJsonString()));
+        // No view: nothing is widened.
+        Assert.Equal(new CustomPageRightsView(false, false, false, false),
+            SystemPageEndpoints.RuntimeRights(CustomPageRights.None, definition.ToJsonString()));
+
+        // Operation queries plus one SQL query: the access rules apply unchanged.
+        var mixed = definition.DeepClone().AsObject();
+        mixed["queries"]!.AsArray().Add(JsonNode.Parse(
+            """{ "id": "sqlSorgu", "name": "sqlSorgu", "kind": "read", "sql": "SELECT 1 AS x", "parameters": [], "runOn": "load" }"""));
+        Assert.Equal(new CustomPageRightsView(true, false, false, false), SystemPageEndpoints.RuntimeRights(viewOnly, mixed.ToJsonString()));
+        Assert.Equal(new CustomPageRightsView(true, true, false, false),
+            SystemPageEndpoints.RuntimeRights(new CustomPageRights(true, true, false, false), mixed.ToJsonString()));
+
+        // A malformed query entry (neither sql nor operation, or not an object) counts as SQL.
+        foreach (var entry in new[] { """{ "id": "bozuk", "name": "bozuk", "kind": "read" }""", "\"metin\"" })
+        {
+            var malformed = definition.DeepClone().AsObject();
+            malformed["queries"]!.AsArray().Add(JsonNode.Parse(entry));
+            Assert.Equal(new CustomPageRightsView(true, false, false, false), SystemPageEndpoints.RuntimeRights(viewOnly, malformed.ToJsonString()));
+        }
+    }
+
+    [Fact]
     public async Task Published_404_when_neither()
     {
         await using var app = await StartApplicationAsync();
