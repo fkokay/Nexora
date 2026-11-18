@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRateLimiter, handleBridgeRequest, isolatedCodeDocument, parseBridgeRequest, type BridgeEvent, type BridgeHost } from "./codeBridge";
 import type { BeforeSaveVerdict, PageEventFrame, PageEvents } from "./pageEvents";
 
@@ -21,7 +21,8 @@ export function CodeFrame({ id, css, javascript, hidden, style, title, host, eve
   const [height, setHeight] = useState<number | null>(null);
   const srcDoc = useMemo(() => isolatedCodeDocument(css, javascript), [css, javascript]);
 
-  useEffect(() => {
+  // Düzen etkisi: dinleyici, iframe’i ekleyen aynı commit’te bağlanır; çerçevenin ilk satırdaki iletisi kaybolmaz.
+  useLayoutEffect(() => {
     let disposed = false;
     const limiter = createRateLimiter(() => Date.now());
     const subscriptions = new Set<BridgeEvent>();

@@ -76,6 +76,15 @@ describe('TenantCustomPage kod köprüsü', () => {
     send({ nx: 1, id: 2, type: 'get', path: 'kullanici' });
     await reply(2);
     expect(JSON.stringify(posted.mock.calls)).not.toContain('"t"');
+    send({ nx: 1, id: 3, type: 'get', path: 'kayitlar.rows[1].code' });
+    expect(await reply(3)).toEqual({ nx: 1, replyTo: 3, ok: true, result: 'B2' });
+    send({ nx: 1, id: 4, type: 'get', path: 'liste.seciliSatir.code' });
+    expect(await reply(4)).toEqual({ nx: 1, replyTo: 4, ok: true, result: null });
+    fireEvent.click(screen.getByText('B2'));
+    send({ nx: 1, id: 5, type: 'get', path: 'liste.seciliSatir.code' });
+    expect(await reply(5)).toEqual({ nx: 1, replyTo: 5, ok: true, result: 'B2' });
+    send({ nx: 1, id: 6, type: 'get', path: 'kayitlar.constructor' });
+    expect(await reply(6)).toEqual({ nx: 1, replyTo: 6, ok: true, result: null });
   });
 
   it('setInput girişi günceller; bilinmeyen giriş hata döner', async () => {
