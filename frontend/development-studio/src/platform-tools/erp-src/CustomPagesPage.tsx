@@ -1171,7 +1171,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         .map((column) => `${column.code}=${sanitizeSafeValue(column.label || column.code).slice(0, 60) || "Alan"}`);
     }
   };
-  const clearDrag = () => { setDropTarget(null); setCanvasDrop(null); setDragging(null); };
+  // Sürükleme bitince (bırakma ya da Esc) bekleyen konum hesabı da iptal edilir; yoksa sonraki sürüklemede hayalet yer tutucu kalır.
+  const cancelCanvasHit = () => { cancelAnimationFrame(canvasFrame.current); canvasFrame.current = 0; canvasHit.current = null; };
+  const clearDrag = () => { cancelCanvasHit(); setDropTarget(null); setCanvasDrop(null); setDragging(null); };
   // `detach`: tuvalde sayfaya bırakılan sekme bileşeni sekmesinden çıkar (Katmanlar'daki sıralama sekmeyi değiştirmez).
   const dropAt = (targetIndex: number, event: DragEvent, detach = false) => {
     event.preventDefault();
@@ -1234,6 +1236,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     canvasFrame.current = requestAnimationFrame(() => {
       canvasFrame.current = 0;
       const hit = canvasHit.current;
+      canvasHit.current = null;
       const grid = gridRef.current;
       if (!hit || !grid) return;
       const element = hit.target instanceof Element ? hit.target.closest<HTMLElement>("[data-page-index], [data-page-placeholder]") : null;
@@ -1439,13 +1442,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     });
     setSelectedComponentId(copyId);
   };
-  // Sekmedeki bileşen kendi sekmesinde (sekme sırası ERP'deki sıradır), diğerleri sayfa dizisinde taşınır.
+  // Sekmedeki bileşen tuvalde (araç çubuğu, Alt+↑/↓) kendi sekmesinde taşınır: sekme sırası ERP'deki sıradır.
+  // Katmanlar'daki ↑/↓ her zaman sayfa dizisini değiştirir.
+  const moveInTab = (id: string, delta: -1 | 1) => commit((state) => {
+    const moved = moveWithinTab(state.components, id, delta);
+    return moved ? { ...state, components: moved } : state;
+  });
   const moveComponent = (index: number, delta: number) => commit((state) => {
-    const id = state.components[index]?.id;
-    if (id && tabLocation(state.components, id)) {
-      const moved = moveWithinTab(state.components, id, delta < 0 ? -1 : 1);
-      return moved ? { ...state, components: moved } : state;
-    }
     const next = [...state.components]; const target = index + delta;
     if (target < 0 || target >= next.length) return state;
     [next[index], next[target]] = [next[target], next[index]];
@@ -1676,7 +1679,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && event.altKey && selectedComponentId) {
       event.preventDefault();
       const index = definition.components.findIndex((component) => component.id === selectedComponentId);
-      if (index >= 0) moveComponent(index, event.key === "ArrowUp" ? -1 : 1);
+      if (tabLocation(definition.components, selectedComponentId)) moveInTab(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
+      else if (index >= 0) moveComponent(index, event.key === "ArrowUp" ? -1 : 1);
     }
   };
   useEffect(() => {
@@ -1930,10 +1934,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const location = tabLocation(definition.components, id);
       if (!child || !location) return null;
       const count = tabs[location.tabIndex]?.ids.length ?? 0;
-      const index = definition.components.indexOf(child);
       return <>
-        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
-        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
+        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => moveInTab(id, -1)}><ArrowUp size={13}/></button>
+        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => moveInTab(id, 1)}><ArrowDown size={13}/></button>
         <button type="button" title="Sekmeden çıkar" aria-label="Sekmeden çıkar" onClick={() => detachFromTab(id)}><ArrowUpFromLine size={13}/></button>
         <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => duplicateComponent(id)}><Copy size={13}/></button>
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(id)}><Trash2 size={13}/></button>
@@ -1949,7 +1952,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       toolbarFor={childToolbar}
       onActivate={(index) => setActiveTabs((value) => value[component.id] === index ? value : { ...value, [component.id]: index })}
       onSelect={setSelectedComponentId}
-      onClaimDrag={() => { if (canvasDrop !== null) setCanvasDrop(null); }}
+      onClaimDrag={() => { cancelCanvasHit(); if (canvasDrop !== null) setCanvasDrop(null); }}
       onDrop={(tabIndex, position, event) => dropIntoTab(component.id, tabIndex, position, event)}
       onItemDragStart={(id, event) => {
         if (resizing.current) { event.preventDefault(); return; }
@@ -2334,7 +2337,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               const taken = item.type === "actionBar" && !!actionBarOf(definition.components);
               return <button type="button" key={item.type} className="pd-palette-item" draggable={canEdit && !taken} disabled={!canEdit || taken} title={taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined}
                 onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-component", item.type); event.dataTransfer.effectAllowed = "copy"; setDragging(item.type); }}
-                onDragEnd={() => { setDragging(null); setDropTarget(null); }}
+                onDragEnd={clearDrag}
                 onClick={() => addComponent(item, insertIndex())}><span className="pd-palette-icon"><Icon size={15}/></span><span>{item.label}</span></button>;
             })}</div>;
           })}
@@ -2346,7 +2349,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             return <li key={component.id} className={`${selectedComponentId === component.id ? "is-selected" : ""} ${dropTarget?.index === index ? `drop-${dropTarget.edge}-v` : ""}`}
               draggable={canEdit}
               onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
-              onDragEnd={() => { setDragging(null); setDropTarget(null); }}
+              onDragEnd={clearDrag}
               onDragOver={(event) => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); const edge = event.clientY < rect.top + rect.height / 2 ? "before" : "after"; if (dropTarget?.index !== index || dropTarget.edge !== edge) setDropTarget({ index, edge }); }}
               onDrop={(event) => dropAt(dropTarget?.index === index && dropTarget.edge === "after" ? index + 1 : index, event)}>
               <button type="button" className="pd-layer-open" onClick={() => setSelectedComponentId(component.id)}><Icon size={14}/><span><b>{summaryOf(component)}</b><small>{titleFor(component.type)} · {spanOf(component)}/12</small></span></button>
@@ -2383,7 +2386,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
             <div ref={gridRef} className={`pd-grid ${dragging ? "is-dragging" : ""}`}
               onDragOver={dragOverCanvas}
-              onDragLeave={(event) => { const next = event.relatedTarget as Node | null; if (!next || !event.currentTarget.contains(next)) setCanvasDrop(null); }}
+              onDragLeave={(event) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { cancelCanvasHit(); setCanvasDrop(null); } }}
               onDrop={(event) => dropAt(canvasDrop ?? definition.components.length, event, true)}>
               {showGrid && <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>}
               {definition.components.length === 0 && pagePlaceholderAt === null && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setLeftTab("templates"); }}><LayoutTemplate size={14}/>Şablonları göster</button>}</div>}
@@ -2424,6 +2427,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {selectedTabLocation && selectedTabOwner && <div className="pd-tab-location">
             <small>Konum: <button type="button" className="pd-link-button" onClick={() => setSelectedComponentId(selectedTabOwner.id)} title="Sekmeler bileşenini seç">{summaryOf(selectedTabOwner)}</button> › {selectedTabLabel}</small>
             {canEdit && <button type="button" className="pd-button small" onClick={() => detachFromTab(selected.id)} title="Bileşen sayfaya, kendi yerine geri alınır"><ArrowUpFromLine size={13}/>Sekmeden çıkar</button>}
+            {canEdit && <small className="pd-tab-list-hint">"Sekmeden çıkar" ile bileşen sayfaya geri alınır.</small>}
           </div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
             <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>

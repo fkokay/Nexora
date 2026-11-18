@@ -216,7 +216,12 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
   const current = active >= 0 && active < tabs.length ? active : 0;
   const ids = tabs[current]?.ids ?? [];
   const accepting = !!draggingId && canEdit && tabs.length > 0 && acceptsTab(current);
-  useEffect(() => { if (!draggingId) setHover(null); }, [draggingId]);
+  // Sürükleme bitince bekleyen konum hesabı da iptal edilir (sonraki sürüklemede hayalet yer tutucu kalmasın).
+  useEffect(() => {
+    if (draggingId) return;
+    cancelAnimationFrame(frame.current); frame.current = 0; pending.current = null;
+    setHover(null);
+  }, [draggingId]);
   useEffect(() => { setHover(null); }, [current]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // Sürüklenen bileşen zaten bu sekmede ve yerinden oynamıyorsa yer tutucu gösterilmez (soluk kopyası yerini belirtir).
@@ -228,8 +233,9 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
   const hitTest = () => {
     frame.current = 0;
     const hit = pending.current;
+    pending.current = null;
     const panel = panelRef.current;
-    if (!hit || !panel) return;
+    if (!hit || !panel || !draggingId) return;
     const item = hit.target instanceof Element ? hit.target.closest<HTMLElement>("[data-tab-pos], [data-tab-placeholder]") : null;
     if (item && item.closest(".pd-tabs-canvas-panel") === panel) {
       if (item.dataset.tabPlaceholder !== undefined) return; // yer tutucunun üstünde: konum korunur
@@ -256,8 +262,12 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
     onDrop(current, position, event);
   };
   const leavePanel = (event: DragEvent<HTMLDivElement>) => {
-    const next = event.relatedTarget as Node | null;
-    if (!next || !event.currentTarget.contains(next)) setHover(null);
+    // relatedTarget sürüklemede bazı tarayıcılarda boş gelir; imlecin kabın dışına çıkıp çıkmadığına bakılır.
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) {
+      cancelAnimationFrame(frame.current); frame.current = 0; pending.current = null;
+      setHover(null);
+    }
   };
   const commitRename = (index: number, value: string) => { setEditing(null); onRename(index, value); };
   const placeholder = (tabLabel: string) => <div key="__placeholder" data-flip="__placeholder" data-tab-placeholder="" className="pd-drop-placeholder"
