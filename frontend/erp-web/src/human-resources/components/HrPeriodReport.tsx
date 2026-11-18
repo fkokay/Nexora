@@ -23,7 +23,10 @@ type Props = {
   to: string;
   onFromChange: (value: string) => void;
   onToChange: (value: string) => void;
-  /** Loads the summary (each load is written to the audit log, so it only runs on request: button, F9, İşlemler). */
+  /**
+   * Runs the report (each load is written to the audit log, so it only runs on request: button, F9, İşlemler). The
+   * caller validates the dates first, also while the parameters are hidden (see `focusInvalidHrReportParam`).
+   */
   onRun: () => void;
   busy: boolean;
   summary: HrPeriodSummary | null;
@@ -34,6 +37,15 @@ type Props = {
 };
 
 export const HR_REPORT_FORM_ID = "hr-report-params";
+
+/** Moves the focus to the first invalid report parameter and shows the browser's message for it. */
+export function focusInvalidHrReportParam(form: HTMLFormElement) {
+  const invalid = Array.from(form.elements).find(
+    (element): element is HTMLInputElement => element instanceof HTMLInputElement && !element.checkValidity(),
+  );
+  invalid?.focus();
+  form.reportValidity();
+}
 
 /**
  * Dönem özeti as a report screen (approved mockup 04 "Rapor ekranı"): parameters on the left (Ctrl+. hides them), the
@@ -59,15 +71,9 @@ export function HrPeriodReport({
   const number = (value: number) => value.toLocaleString(isEn ? "en-US" : "tr-TR");
   const duration = (minutes: number) =>
     `${number(Math.floor(minutes / 60))}${tr(" sa", " h")} ${minutes % 60}${tr(" dk", " min")}`;
-  /** F9 / İşlemler: the same validation as the button when the parameters are shown. */
+  /** F9: the same path as İşlemler › Raporu çalıştır (the caller validates, also with the parameters hidden). */
   const run = () => {
-    if (busy) return;
-    const form = document.getElementById(HR_REPORT_FORM_ID) as HTMLFormElement | null;
-    if (form && !form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-    onRun();
+    if (!busy) onRun();
   };
   useWindowKeyDown(true, (event) => {
     const root = rootRef.current;

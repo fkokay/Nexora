@@ -215,6 +215,42 @@ describe('İK Dönem özeti (report 04)', () => {
     fireEvent.click(command('export'));
     await waitFor(() => expect(gets()).toContain('/api/hr/period-summary.csv?from=2026-10-01&to=2026-10-30'));
   });
+
+  // With the parameters hidden the form is not in the DOM; F9 / İşlemler › Raporu çalıştır must still not send a
+  // request with an empty date: the parameters open and the first empty field takes the focus.
+  const summaryGets = () => gets().filter((url) => url.startsWith('/api/hr/period-summary?')).length;
+  async function hideParamsWithEmptyStart() {
+    await openTab(/Dönem özeti/);
+    change(document.body, 'Başlangıç', '');
+    fireEvent.click(screen.getByRole('button', { name: /Gizle/ }));
+    expect(screen.queryByLabelText('Başlangıç')).toBeNull();
+  }
+  it('F9 with hidden parameters and an empty date sends nothing and opens the parameters', async () => {
+    await hideParamsWithEmptyStart();
+    const before = summaryGets();
+    fireEvent.keyDown(window, { key: 'F9' });
+    const start = await screen.findByLabelText('Başlangıç');
+    await waitFor(() => expect(document.activeElement).toBe(start));
+    expect(summaryGets()).toBe(before);
+  });
+  it('İşlemler › Raporu çalıştır with hidden parameters and an empty date sends nothing and opens the parameters', async () => {
+    await hideParamsWithEmptyStart();
+    const before = summaryGets();
+    fireEvent.click(command('more'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Raporu çalıştır/ }));
+    const start = await screen.findByLabelText('Başlangıç');
+    await waitFor(() => expect(document.activeElement).toBe(start));
+    expect(summaryGets()).toBe(before);
+  });
+  it('F9 with hidden, filled parameters runs the summary', async () => {
+    await openTab(/Dönem özeti/);
+    change(document.body, 'Başlangıç', '2026-10-01');
+    change(document.body, 'Bitiş', '2026-10-31');
+    fireEvent.click(screen.getByRole('button', { name: /Gizle/ }));
+    fireEvent.keyDown(window, { key: 'F9' });
+    await waitFor(() => expect(gets()).toContain('/api/hr/period-summary?from=2026-10-01&to=2026-10-31'));
+    expect(screen.queryByLabelText('Başlangıç')).toBeNull();
+  });
 });
 
 describe('İK Bordro kural setleri (definition 04-alt)', () => {

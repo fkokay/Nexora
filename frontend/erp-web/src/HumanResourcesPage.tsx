@@ -16,7 +16,7 @@ import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./human-resources.css";
 import ModuleRecordForm from "./human-resources/components/ModuleRecordForm";
-import { HR_REPORT_FORM_ID, HrPeriodReport } from "./human-resources/components/HrPeriodReport";
+import { focusInvalidHrReportParam, HR_REPORT_FORM_ID, HrPeriodReport } from "./human-resources/components/HrPeriodReport";
 import { HrDefinitionRecord, HrDefinitionScreen } from "./human-resources/components/HrDefinition";
 import { RecordFormGroup } from "./record-form/RecordForm";
 import { HrStatusTag, hrStatusLabel } from "./human-resources/hrStatus";
@@ -947,7 +947,15 @@ export default function HumanResourcesPage({
   const [reportFrom, setReportFrom] = useState(`${today.slice(0, 7)}-01`),
     [reportTo, setReportTo] = useState(today),
     [summary, setSummary] = useState<HrSummary | null>(null),
-    [reportParamsOpen, setReportParamsOpen] = useState(true);
+    [reportParamsOpen, setReportParamsOpen] = useState(true),
+    // Set when a run found an empty date while the parameters were hidden: once they are shown, focus that field.
+    [reportParamsFocusPending, setReportParamsFocusPending] = useState(false);
+  useEffect(() => {
+    if (!reportParamsFocusPending || !reportParamsOpen) return;
+    setReportParamsFocusPending(false);
+    const form = document.getElementById(HR_REPORT_FORM_ID) as HTMLFormElement | null;
+    if (form) focusInvalidHrReportParam(form);
+  }, [reportParamsFocusPending, reportParamsOpen]);
   const [taxYear, setTaxYear] = useState("2026"),
     [effectiveFrom, setEffectiveFrom] = useState(today),
     [effectiveTo, setEffectiveTo] = useState(""),
@@ -2096,6 +2104,23 @@ export default function HumanResourcesPage({
       ),
     );
   }
+  /**
+   * Raporu çalıştır (button, F9, İşlemler): never sends an empty date. With the parameters shown the form's own
+   * validation decides; hidden, the form is not rendered, so the same required-date check opens the parameters and
+   * focuses the first empty field instead.
+   */
+  function runReport() {
+    const form = document.getElementById(HR_REPORT_FORM_ID) as HTMLFormElement | null;
+    if (form ? !form.checkValidity() : !reportFrom || !reportTo) {
+      if (form) focusInvalidHrReportParam(form);
+      else {
+        setReportParamsOpen(true);
+        setReportParamsFocusPending(true);
+      }
+      return;
+    }
+    void loadSummary();
+  }
   async function loadSummary() {
     setBusy(true);
     setError("");
@@ -3065,11 +3090,7 @@ export default function HumanResourcesPage({
               label: tr("Raporu çalıştır", "Run report"),
               shortcut: "F9",
               disabledReason: busyReason,
-              run: () => {
-                const form = document.getElementById(HR_REPORT_FORM_ID) as HTMLFormElement | null;
-                if (form && !form.checkValidity()) form.reportValidity();
-                else void loadSummary();
-              },
+              run: runReport,
             },
             {
               id: "report-params",
@@ -4191,7 +4212,7 @@ export default function HumanResourcesPage({
                 to={reportTo}
                 onFromChange={setReportFrom}
                 onToChange={setReportTo}
-                onRun={() => void loadSummary()}
+                onRun={runReport}
                 busy={busy}
                 summary={summary}
                 paramsOpen={reportParamsOpen}
