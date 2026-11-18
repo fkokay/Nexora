@@ -2632,6 +2632,8 @@ export default function HumanResourcesPage({
   const payrollDraftVisibleFields = hrVisibleScreenFields(
     payrollDraftScreenFields,
   );
+  // List type: the former row buttons are in İşlemler, so the grid drops the actions column.
+  const payrollDraftGridFields = payrollDraftVisibleFields.filter((field) => field.key !== "actions");
   const payrollRuleSetVisibleFields = hrVisibleScreenFields(
     payrollRuleSetScreenFields,
   );
@@ -2752,6 +2754,7 @@ export default function HumanResourcesPage({
   const currentCompensation =
     section === "compensation" && compensationAccess.view ? compensationRows.find((x) => x.id === hrCurrent) : undefined;
   const pickFirst = tr("Önce bir kayıt seçin", "Select a record first");
+  const currentRun = section === "runs" && compensationAccess.view ? payrollRunRows.find((x) => x.id === hrCurrent) : undefined;
   const adminOnly = tr("Yalnız firma yöneticisi düzenleyebilir", "Only a company administrator can edit");
   /** Aç / Enter / double click: the record's existing edit form; otherwise the focus moves to its panel. */
   function openHrRecord(id: string) {
@@ -2764,6 +2767,11 @@ export default function HumanResourcesPage({
     if (section === "attendance" && admin) {
       const record = attendance.find((x) => x.id === id);
       if (record) setEditingAttendance(record);
+      return;
+    }
+    if (section === "runs") {
+      // A draft has no edit form: Aç shows its immutable inputs below the list (former "Girdileri incele").
+      void viewPayrollRunSnapshot(id);
       return;
     }
     window.setTimeout(() => document.querySelector<HTMLElement>(".hr-ld")?.focus(), 0);
@@ -2864,7 +2872,32 @@ export default function HumanResourcesPage({
         ),
     });
   }
-  const listTab = section === "employees" || section === "leave" || section === "attendance" || (section === "compensation" && compensationAccess.view);
+  if (currentRun) {
+    // Former row buttons of Bordro taslakları, with their conditions (busy; Formül taslağı needs the change right).
+    hrMore.push(
+      { id: "run-snapshot", label: tr("Girdileri incele", "Inspect inputs"), disabledReason: busyReason, run: () => void viewPayrollRunSnapshot(currentRun.id) },
+      { id: "run-preview", label: tr("Hesap önizlemesi", "Preview calculation"), disabledReason: busyReason, run: () => void previewPayrollRunComponents(currentRun.id) },
+    );
+    if (compensationAccess.change)
+      hrMore.push({
+        id: "run-calculate",
+        label: tr("Formül taslağını kaydet", "Save formula draft"),
+        disabledReason: busyReason,
+        run: () => void calculatePayrollRun(currentRun.id),
+      });
+    hrMore.push({
+      id: "run-calculations",
+      label: tr("Kayıtlı sonuçlar", "Saved results"),
+      disabledReason: busyReason,
+      run: () => void viewPayrollRunCalculations(currentRun.id),
+    });
+  }
+  const listTab =
+    section === "employees" ||
+    section === "leave" ||
+    section === "attendance" ||
+    (section === "compensation" && compensationAccess.view) ||
+    (section === "runs" && compensationAccess.view);
   if (listTab) hrMore.push(csvExportCommand(hrGridExportRef));
   // Definition screens (mockup 04 "Tanım ekranı"): the current row is shown read-only on the right (no PUT; a change is
   // a new version sent for approval), Yeni (F2) opens the create form there, Onayla / Reddet are in İşlemler.
@@ -3015,7 +3048,7 @@ export default function HumanResourcesPage({
         more: definitionMore,
       }
     : null;
-  const hrCurrentRecord = currentEmployee ?? currentLeave ?? currentAttendance ?? currentCompensation;
+  const hrCurrentRecord = currentEmployee ?? currentLeave ?? currentAttendance ?? currentCompensation ?? currentRun;
   // Dönem özeti is a report (mockup 04): record commands are unavailable, Excel downloads the summary CSV.
   const notInReport = tr("Raporda kullanılamaz", "Not available in a report");
   const reportCommands: PageCommands | null =
@@ -3074,7 +3107,9 @@ export default function HumanResourcesPage({
                   ? tr("İzin talebi silinemez; İşlemler'den iptal edin.", "Leave requests cannot be deleted; cancel from Actions.")
                   : section === "attendance"
                     ? tr("Puantaj kaydı silinemez; Aç ile düzeltin.", "Attendance records cannot be deleted; correct them with Open.")
-                    : tr("Ücret kaydı silinemez; yeni sürüm girin.", "Compensation records cannot be deleted; enter a new version."),
+                    : section === "runs"
+                      ? tr("Bordro taslağı silinemez.", "Payroll drafts cannot be deleted.")
+                      : tr("Ücret kaydı silinemez; yeni sürüm girin.", "Compensation records cannot be deleted; enter a new version."),
           },
         }
       : {}),
@@ -4957,13 +4992,15 @@ export default function HumanResourcesPage({
                       <AdvancedDataGrid
                         className="hr-table"
                         gridId="hr-payroll-drafts"
-                        {...screenViewGridDefaults(payrollDraftVisibleFields)}
+                        {...screenViewGridDefaults(payrollDraftGridFields)}
+                        {...hrGridSelection(hrCurrent, setHrCurrent, hrGridExportRef, isEn)}
+                        aria-label={tr("Bordro taslağı kayıtları", "Payroll draft records")}
                         hideSearch
                         toolbarContainer={gridToolsSlot}
                       >
                         <thead>
                           <tr>
-                            {payrollDraftVisibleFields.map((field) => (
+                            {payrollDraftGridFields.map((field) => (
                               <th
                                 key={field.key}
                                 style={hrScreenFieldStyle(field)}
@@ -4984,8 +5021,8 @@ export default function HumanResourcesPage({
                               blockers = JSON.parse(run.blockersJson);
                             } catch {}
                             return (
-                              <tr key={run.id}>
-                                {payrollDraftVisibleFields.map((field) => (
+                              <tr key={run.id} {...hrRowProps(run.id, openHrRecord)}>
+                                {payrollDraftGridFields.map((field) => (
                                 <td
                                   key={field.key}
                                   style={hrScreenFieldStyle(field)}
@@ -5022,53 +5059,6 @@ export default function HumanResourcesPage({
                                   new Date(run.createdAt).toLocaleString(
                                     isEn ? "en-US" : "tr-TR",
                                   )
-                                  ) : field.key === "actions" ? (
-                                  <>
-                                  <button
-                                    className="secondary"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void viewPayrollRunSnapshot(run.id)
-                                    }
-                                  >
-                                    {tr("Girdileri incele", "Inspect inputs")}
-                                  </button>
-                                  <button
-                                    className="secondary"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void previewPayrollRunComponents(run.id)
-                                    }
-                                  >
-                                    {tr(
-                                      "Hesap önizlemesi",
-                                      "Preview calculation",
-                                    )}
-                                  </button>
-                                  {compensationAccess.change && (
-                                    <button
-                                      className="secondary"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void calculatePayrollRun(run.id)
-                                      }
-                                    >
-                                      {tr(
-                                        "Formül taslağını kaydet",
-                                        "Save formula draft",
-                                      )}
-                                    </button>
-                                  )}
-                                  <button
-                                    className="secondary"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      void viewPayrollRunCalculations(run.id)
-                                    }
-                                  >
-                                    {tr("Kayıtlı sonuçlar", "Saved results")}
-                                  </button>
-                                  </>
                                   ) : null}
                                 </td>
                                 ))}
@@ -5080,7 +5070,7 @@ export default function HumanResourcesPage({
                               <td
                                 colSpan={Math.max(
                                   1,
-                                  payrollDraftVisibleFields.length,
+                                  payrollDraftGridFields.length,
                                 )}
                               >
                                 {tr(
@@ -5093,6 +5083,7 @@ export default function HumanResourcesPage({
                         </tbody>
                       </AdvancedDataGrid>
                     </div>
+                    <HrListFooter shown={payrollRunRows.length} loaded={payrollRuns.length} cap={100} isEn={isEn} />
                     {selectedRunSnapshot && (
                       <div className="hr-panel">
                         <h3>

@@ -40,7 +40,7 @@ const run = {
 function respond(url: string): unknown {
   const path = url.split('?')[0];
   if (path === '/api/hr/employees/') return [employee('e1', 'P-001', 'Ayşe Demir')];
-  if (path === '/api/hr/payroll/compensation/capabilities') return { canView: true, canChange: true, canApprove: true };
+  if (path === '/api/hr/payroll/compensation/capabilities') return { view: true, change: true, approve: true };
   if (path === '/api/hr/payroll/rule-sets/') return [ruleSet];
   if (path === '/api/hr/payroll/workplace-assignments/') return [assignment];
   if (path === '/api/hr/payroll/workplace-calendars/') return [calendar];
@@ -253,7 +253,7 @@ describe('İK İşyeri ve takvim (three definitions)', () => {
   });
 });
 
-describe.skip('İK Bordro taslakları (list type)', () => {
+describe('İK Bordro taslakları (list type)', () => {
   it('row actions are in İşlemler for the current draft', async () => {
     await openTab(/Bordro taslakları/);
     const table = await screen.findByRole('table', { name: 'Bordro taslağı kayıtları' });
