@@ -282,6 +282,52 @@ describe('İş merkezleri and Malzeme planlama frames', () => {
     expect(screen.getByText('İş merkezi oluşturuldu.')).toBeTruthy();
   });
 
+  it('İş merkezleri: the calendar and setup-rule PUT bodies', async () => {
+    renderScreen(<ManufacturingWorkCentersPage token="t" onNavigate={vi.fn()} />);
+    const [cell] = await screen.findAllByText('Dolum hattı');
+    fireEvent.click(cell);
+    const pane = await screen.findByRole('complementary', { name: 'Seçili iş merkezi ayrıntısı' });
+    fireEvent.click(within(pane).getByRole('tab', { name: 'Çalışma takvimi' }));
+    const start = await within(pane).findByLabelText('Vardiya başlangıcı');
+    await waitFor(() => expect((start as HTMLInputElement).disabled).toBe(false));
+    fireEvent.change(start, { target: { value: '07:30' } });
+    fireEvent.change(within(pane).getByLabelText('Vardiya bitişi'), { target: { value: '16:00' } });
+    await act(async () => {
+      fireEvent.click(within(pane).getByRole('button', { name: 'Takvimi kaydet' }));
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      method: 'PUT',
+      path: '/api/manufacturing/work-centers/wc1/calendar',
+      body: { workingDaysMask: 31, shiftStartMinuteOfDay: 450, shiftEndMinuteOfDay: 960, capacityOverrides: [], annualCapacityRules: [], shiftRotations: [] },
+    });
+    // Setup rules: one transition A → B, 15 minutes.
+    let add: HTMLElement | null = null;
+    for (const tab of ['Genel', 'İstisnalar', 'Çalışma takvimi']) {
+      fireEvent.click(within(pane).getByRole('tab', { name: tab }));
+      add = within(pane).queryByRole('button', { name: 'Geçiş ekle' });
+      if (add) break;
+    }
+    fireEvent.click(add!);
+    // The row is keyed by its family codes, so it is looked up again after each change.
+    const ruleInput = (index: number) => {
+      const ruleRows = pane.querySelectorAll<HTMLElement>('.calendar-override-row');
+      return ruleRows[ruleRows.length - 1].querySelectorAll<HTMLInputElement>('input')[index];
+    };
+    fireEvent.change(ruleInput(0), { target: { value: 'A' } });
+    fireEvent.change(ruleInput(1), { target: { value: 'B' } });
+    fireEvent.change(ruleInput(2), { target: { value: '15' } });
+    await act(async () => {
+      fireEvent.click(within(pane).getByRole('button', { name: 'Kuralları kaydet' }));
+    });
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toEqual({
+      method: 'PUT',
+      path: '/api/manufacturing/work-centers/wc1/setup-rules',
+      body: { rules: [{ fromSetupFamilyCode: 'A', toSetupFamilyCode: 'B', setupMinutes: 15, isTransitionAllowed: true }] },
+    });
+  });
+
   it('İş merkezi tanımla (create page): the POST body', async () => {
     renderScreen(<ManufacturingWorkCenterCreatePage token="t" onNavigate={vi.fn()} />);
     const name = await screen.findByPlaceholderText('Montaj hattı');
