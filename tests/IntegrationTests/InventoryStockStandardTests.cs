@@ -298,8 +298,8 @@ public sealed class InventoryStockStandardTests
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
         Assert.True(components.Length <= 100, $"Bileşen sayısı {components.Length} > 100");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
-        // The card form moved to inventory-stock-create (51 components, 11 queries); Yeni and Aç are two navigation buttons.
-        Assert.Equal(47, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
+        // The card form moved to inventory-stock-create (51 components, 11 queries); the action bar opens it for Yeni and Aç.
+        Assert.Equal(45, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
         Assert.Equal(14, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
@@ -315,25 +315,25 @@ public sealed class InventoryStockStandardTests
     public void Yeni_and_ac_open_the_card_screen()
     {
         // Legacy: the list has no card form; Yeni (F2) and Aç (Enter / double click) open "Yeni stok kartı" in its own tab.
+        // The action bar opens the page itself (flat props); there are no hidden Yeni / Aç buttons.
         var props = Props("komutlar");
-        Assert.Equal("yeniDugme", (string)props["newButton"]!);
-        Assert.Equal("acDugme", (string)props["openButton"]!);
+        Assert.Null(props["newButton"]);
+        Assert.Null(props["openButton"]);
+        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)props["newAction"]!, (string)props["newPageCode"]!, (string)props["newTarget"]!));
+        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)props["openAction"]!, (string)props["openPageCode"]!, (string)props["openTarget"]!));
+        Assert.Equal("liste", (string)props["openTable"]!);
+        Assert.Equal(new[] { "id={{liste.seciliSatir.stockItem.id}}" }, Strings(props["openParams"]));
         Assert.Null(props["formDialog"]);
         Assert.Null(props["newInputs"]);
         // Legacy title row: "Stok Kartları  N kayıt" above the action bar.
         Assert.Equal("{{bakiye.meta.totalCount}}", (string)props["titleCount"]!);
         Assert.Null(props["saveQuery"]);
         Assert.Null(props["saveSequence"]);
-        var create = Props("yeniDugme");
-        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)create["actionType"]!, (string)create["pageCode"]!, (string)create["target"]!));
-        Assert.Null(create["params"]);
-        var open = Props("acDugme");
-        Assert.Equal(("page", "@inventory-stock-create", "newTab"), ((string)open["actionType"]!, (string)open["pageCode"]!, (string)open["target"]!));
-        Assert.Equal(new[] { "id={{liste.seciliSatir.stockItem.id}}" }, Strings(open["params"]));
-        Assert.Equal("liste.seciliSatir.stockItem.id != null", (string)open["visibleWhen"]!);
+        Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! is "yeniDugme" or "acDugme");
         var requires = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar").Requires;
-        Assert.Contains("component:yeniDugme", requires);
-        Assert.Contains("component:acDugme", requires);
+        Assert.Contains("component:liste", requires);
+        Assert.DoesNotContain("component:yeniDugme", requires);
+        Assert.DoesNotContain(SystemPageStandards.All[Key].Items, x => x.Key is "component:yeniDugme" or "component:acDugme");
         // The card form lives on its own screen.
         Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! is "kartPenceresi" or "kartSekmeleri" or "kod");
         Assert.DoesNotContain(AllComponents(), x => (string)x["type"]! == "formCard" && x["props"]?["recordKey"] is not null);
