@@ -25,6 +25,17 @@ export function ownedInputIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+/** Sunucu sayfalı (`paging: "server"`) veri listelerinin `searchInput` girişleri: liste başlığında çizilir, üst düzeyde çizilmez. */
+export function tableSearchInputIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dataTable" || component.props?.paging !== "server") continue;
+    const id = component.props?.searchInput;
+    if (typeof id === "string" && id.trim()) owned.add(id.trim());
+  }
+  return owned;
+}
+
 const MAX_TABS = 8;
 const MAX_TAB_IDS = 20;
 
