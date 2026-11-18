@@ -286,6 +286,9 @@ export function JournalLedgerView({
       )
     ) : null;
 
+  // "—" only until the first result: a reload (Yenile, a filter, after a reversal) keeps the last figures meanwhile.
+  const firstLoad = loading && entries.length === 0 && entryTotal === 0;
+
   return (
     <>
       <PageCommandsSlot commands={commands} />
@@ -300,14 +303,14 @@ export function JournalLedgerView({
           {
             id: "count",
             label: "Fiş sayısı",
-            value: loading ? "—" : entryTotal.toLocaleString("tr-TR"),
+            value: firstLoad ? "—" : entryTotal.toLocaleString("tr-TR"),
             icon: BookOpen,
             hint: filtered ? <span>seçili filtre</span> : <span>tümü</span>,
           },
           {
             id: "amount",
             label: "Borç = alacak toplamı",
-            value: loading || entries.length === 0 ? "—" : money(pageDebit),
+            value: firstLoad || entries.length === 0 ? "—" : money(pageDebit),
             icon: CircleDollarSign,
             hint: (
               <>
@@ -330,7 +333,7 @@ export function JournalLedgerView({
           {
             id: "reversals",
             label: "Ters kayıt",
-            value: loading ? "—" : reversalsOnPage.toLocaleString("tr-TR"),
+            value: firstLoad ? "—" : reversalsOnPage.toLocaleString("tr-TR"),
             icon: RotateCcw,
             hint: <span>bu sayfa</span>,
           },

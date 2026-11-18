@@ -10,7 +10,7 @@ import {
 } from "../../document-detail/DocumentDetailLayout";
 import { journalSourceTypeLabel } from "../sourceTypeLabels";
 import { displayDate, formatAmount } from "../ledgerReportUtils";
-import { entryCreatedLabel, entrySourceText } from "../journalEntries";
+import { entryCreatedLabel, entrySourceText, isBalanced } from "../journalEntries";
 
 const sourceStatus = (sourceType: string): DocumentStatus => ({
   label: journalSourceTypeLabel(sourceType),
@@ -47,7 +47,7 @@ export function JournalEntryDocument({ summary, detail, error, reversal, reverse
   if (head) chain.push({ key: "self", code: head.code, label: "Bu fiş", kind: "Yevmiye fişi", current: true });
   if (reversal) chain.push({ key: "reversal", code: reversal.code, label: "Ters kaydı", kind: "Ters kayıt", onOpen: () => onOpenEntry(reversal.id) });
   else if (isReversed) chain.push({ key: "reversal", label: "Ters kaydı", kind: "Ters kayıt" });
-  const balanced = detail ? detail.totalDebit === detail.totalCredit : true;
+  const balanced = detail ? isBalanced(detail) : true;
   return (
     <DocumentSurface
       variant="detail"

@@ -231,11 +231,13 @@ export function AccountChartView({
     !dirtyRef.current || (await confirmDialog({ title, message: DISCARD, confirmLabel: "Devam" }));
   const focusList = () =>
     window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(".nx-def-list tr.is-selected, .nx-def-list tr.glch-row")?.focus(), 0);
-  async function requestAccount(account: LedgerAccount) {
-    if ((formOpen && account.id === editingId && !showMovements) || busyRef.current) return;
-    if (!(await confirmDiscard("Vazgeç"))) return;
+  /** Shows `account` in the card; resolves false when the user kept the unsaved card instead. */
+  async function requestAccount(account: LedgerAccount): Promise<boolean> {
+    if ((formOpen && account.id === editingId && !showMovements) || busyRef.current) return true;
+    if (!(await confirmDiscard("Vazgeç"))) return false;
     setShowMovements(false);
     actions.onEdit(account);
+    return true;
   }
   async function close() {
     if (!formOpen || busyRef.current || !(await confirmDiscard("Vazgeç"))) return;
@@ -285,9 +287,14 @@ export function AccountChartView({
       const next = rows[rows.indexOf(event.currentTarget) + (event.key === "ArrowDown" ? 1 : -1)];
       if (!next) return;
       event.preventDefault();
+      const from = event.currentTarget;
       next.focus();
       const target = accounts.find((row) => row.id === next.dataset.accountId);
-      if (target) void requestAccount(target);
+      // Kept the unsaved card: the focus goes back to the row the card shows (or the row it left), so they agree.
+      if (target)
+        void requestAccount(target).then((moved) => {
+          if (!moved) (rows.find((row) => row.dataset.accountId === editingId) ?? from).focus();
+        });
     }
   };
   const reverseIcon = (account: LedgerAccount, ytd: Ytd) =>

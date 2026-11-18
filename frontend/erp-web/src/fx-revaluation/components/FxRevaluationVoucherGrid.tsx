@@ -28,8 +28,8 @@ export default function FxRevaluationVoucherGrid({
               <th>Fiş</th>
               <th>Dönem sonu</th>
               <th>Döviz kalemi</th>
-              <th>Borç</th>
-              <th>Alacak</th>
+              <th className={compact ? "nx-num" : undefined}>Borç</th>
+              <th className={compact ? "nx-num" : undefined}>Alacak</th>
               <th></th>
             </tr>
           </thead>

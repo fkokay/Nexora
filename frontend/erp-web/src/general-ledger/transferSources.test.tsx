@@ -171,6 +171,11 @@ describe('Aktarılabilir Kaynaklar (characterization)', () => {
     await settle(1200);
     await settle();
     await tickRows([1, 2, 3]);
+    // The visible symptom: the item still counts none and stays closed with its reason.
+    const item = menuItem('transfer-selected');
+    expect(item.textContent).toContain('Seçilenleri aktar (0)');
+    expect(item.disabled).toBe(true);
+    expect(item.getAttribute('title')).toBe('Aktarıma hazır kaynakları işaretleyin');
     await transferTicked();
     expect(calls(TRANSFER)).toEqual([]);
   });

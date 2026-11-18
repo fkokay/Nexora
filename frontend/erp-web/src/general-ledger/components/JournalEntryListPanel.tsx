@@ -11,7 +11,7 @@ import {
 } from "../../sales/components/SalesListDetailPanel";
 import { journalSourceTone, journalSourceTypeLabel } from "../sourceTypeLabels";
 import { displayDate, formatAmount } from "../ledgerReportUtils";
-import { entryCreatedLabel, entrySourceText } from "../journalEntries";
+import { entryCreatedLabel, entrySourceText, isBalanced } from "../journalEntries";
 
 const TABS = [
   { id: "lines", label: "Satırlar" },
@@ -47,7 +47,7 @@ export function JournalEntryListPanel({ entry, detail, error, reversal, reversed
         <>
           <StatusTag tone={journalSourceTone(entry.sourceType)}>{journalSourceTypeLabel(entry.sourceType)}</StatusTag>
           {entry.accountingBasis && <StatusTag tone="off">{entry.accountingBasis}</StatusTag>}
-          {entry.totalDebit === entry.totalCredit && <StatusTag tone="ok">Dengeli</StatusTag>}
+          {isBalanced(entry) && <StatusTag tone="ok">Dengeli</StatusTag>}
           {isReversed && <StatusTag tone="warn">Ters kaydı var</StatusTag>}
         </>
       }

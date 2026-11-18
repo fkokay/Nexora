@@ -3,6 +3,10 @@ import { journalSourceTypeLabel } from "./sourceTypeLabels";
 
 /** Helpers of the journal ledger list, its panel and the read-only entry document. */
 
+/** Debit equals credit to the kuruş (as the voucher form checks it), not by floating-point equality. */
+export const isBalanced = (entry: { totalDebit: number; totalCredit: number }) =>
+  Math.round(entry.totalDebit * 100) === Math.round(entry.totalCredit * 100);
+
 /** Long legacy codes keep the prefix and the last 8 characters: "YV-…1a2b3c4d". */
 export const shortenEntryCode = (code: string) => {
   if (code.length <= 16) return code;

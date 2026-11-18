@@ -15,7 +15,7 @@
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-radius-card);
   background: var(--nx-surface);
-  box-shadow: 0 8px 24px rgba(15, 27, 45, 0.18);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 18%, transparent);
 }
 #root .gl-account-options li {
   display: flex;

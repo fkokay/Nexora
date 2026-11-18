@@ -110,14 +110,16 @@ export function LedgerMappingsView({
 
   const confirmDiscard = async (title: string) =>
     !dirtyRef.current || (await confirmDialog({ title, message: DISCARD, confirmLabel: "Devam" }));
-  async function requestRow(key: string) {
-    if (key === selectedKey || savingRef.current) return;
-    if (!(await confirmDiscard("Vazgeç"))) return;
+  /** Shows the mapping `key` in the card; resolves false when the user kept the unsaved card instead. */
+  async function requestRow(key: string): Promise<boolean> {
+    if (key === selectedKey || savingRef.current) return true;
+    if (!(await confirmDiscard("Vazgeç"))) return false;
     const mapping = mappings.find((row) => row.mappingKey === key);
     setSelectedKey(key);
     setDraft(mapping && statusOf(mapping) === "mapped" ? mapping.accountId || "" : "");
     setError("");
     setNotice("");
+    return true;
   }
   async function close() {
     if (!selected || savingRef.current || !(await confirmDiscard("Vazgeç"))) return;
@@ -193,8 +195,12 @@ export function LedgerMappingsView({
       const next = all[all.indexOf(event.currentTarget) + (event.key === "ArrowDown" ? 1 : -1)];
       if (!next) return;
       event.preventDefault();
+      const from = event.currentTarget;
       next.focus();
-      void requestRow(next.dataset.mappingKey!);
+      // Kept the unsaved card: the focus goes back to the row the card shows (or the row it left), so they agree.
+      void requestRow(next.dataset.mappingKey!).then((moved) => {
+        if (!moved) (all.find((row) => row.dataset.mappingKey === selectedKey) ?? from).focus();
+      });
     }
   };
 

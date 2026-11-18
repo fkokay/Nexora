@@ -280,6 +280,22 @@ describe('Hesap planı (characterization)', () => {
     expect(barReason('delete')).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
   });
 
+  it('↓ over an unsaved card: refusing keeps the card and puts the focus back on its row', async () => {
+    await openChart();
+    await selectAccount('100');
+    fireEvent.change(field(/^Hesap adı/), { target: { value: 'Değişti' } });
+    await settle(50);
+    const row = (id: string) => document.querySelector<HTMLElement>(`.nx-def-list tr[data-account-id="${id}"]`)!;
+    row('a100').focus();
+    fireEvent.keyDown(row('a100'), { key: 'ArrowDown' });
+    await settle(50);
+    expect(screen.getByText('Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Vazgeç/ }).at(-1)!);
+    await settle(50);
+    expect(field(/^Hesap adı/).value).toBe('Değişti');
+    expect(document.activeElement).toBe(row('a100'));
+  });
+
   it('keeps the saved account open in the card after Kaydet', async () => {
     overrides.set('/api/finance/general-ledger/accounts', (_url, init) =>
       init?.method === 'POST' ? account('a120', '120', 'Alıcılar') : [...accounts, account('a120', '120', 'Alıcılar')]);
