@@ -1,4 +1,4 @@
-import { Children, type CSSProperties, type ReactNode } from "react";
+import { Children, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, Receipt, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 
@@ -131,7 +131,32 @@ export function ContextPanelPreview({ title, row, fields, related, style }: {
   </aside>;
 }
 
-type ActionBarBound = { new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+/**
+ * ERP PageTabs önizlemesi: varsayılan sekme açık başlar, sekme başlığına tıklayınca o sekme gösterilir (yalnız tuvalde).
+ * Sekmenin bileşenleri sahibin içinde çizilir; tıklanan bileşen müfettişte seçilir.
+ */
+export function TabsPreview({ tabs, defaultTab, renderOwned, spanFor, onSelect, style }: {
+  tabs: { label: string; ids: string[] }[]; defaultTab: number; renderOwned: (id: string) => ReactNode; spanFor: (id: string) => number;
+  onSelect: (id: string) => void; style: CSSProperties;
+}) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const fallback = Number.isInteger(defaultTab) && defaultTab >= 0 && defaultTab < tabs.length ? defaultTab : 0;
+  const active = picked !== null && picked < tabs.length ? picked : fallback;
+  if (tabs.length === 0) return <section className="pd-layout-block pd-tabs-preview" style={style}><p className="pd-tabs-empty">Sekme ekleyin</p></section>;
+  return <section className="pd-layout-block pd-tabs-preview" style={style}>
+    <div className="pd-tabs-preview-list" role="tablist" aria-label="Sekmeler">
+      {tabs.map((tab, index) => <button type="button" role="tab" key={index} tabIndex={-1} aria-selected={index === active}
+        className={index === active ? "is-active" : undefined} onClick={(event) => { event.stopPropagation(); setPicked(index); }}>{tab.label}</button>)}
+    </div>
+    <div className="pd-tabs-preview-panel" role="tabpanel">
+      {tabs[active].ids.length === 0 ? <p className="pd-tabs-empty">Bu sekmeye bileşen seçin</p>
+        : tabs[active].ids.map((id) => <div key={id} className="pd-tabs-preview-item" style={{ gridColumn: `span ${spanFor(id)}` }}
+          title="Düzenlemek için tıklayın" onClick={(event) => { event.stopPropagation(); onSelect(id); }}>{renderOwned(id)}</div>)}
+    </div>
+  </section>;
+}
+
+type ActionBarBound ={ new: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
 export function ActionBarPreview({ bound, moreCount, style }: { bound: ActionBarBound; moreCount: number; style: CSSProperties }) {
