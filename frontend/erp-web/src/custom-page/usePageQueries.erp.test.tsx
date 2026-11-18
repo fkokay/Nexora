@@ -186,6 +186,60 @@ describe('usePageQueries ERP işlemleri', () => {
   });
 });
 
+describe('usePageQueries Faz A işlem alanları', () => {
+  const balanceOp: ErpOperation = { ...base, name: 'stok.bakiye.sayfa', label: 'Bakiyeler', kind: 'read', pageKind: 'read', method: 'GET',
+    route: '/api/warehouses/balances/page', parameters: [],
+    result: { shape: 'list', rowsPath: 'items', columns, flatten: ['balance'], metaPaths: ['totalCount', 'belowMinimumCount'] } };
+  const valuesOp: ErpOperation = { ...base, name: 'stok.kart.ozelAlanDegerleri', label: 'Özel alan değerleri', kind: 'read', pageKind: 'read', method: 'GET',
+    route: '/api/stock/items/{id}/custom-fields', parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }],
+    result: { shape: 'list', rowsPath: 'items', columns: [] } };
+  const saveOp: ErpOperation = { ...base, name: 'stok.kart.ozelAlanKaydet', label: 'Özel alanları kaydet', kind: 'write', pageKind: 'update', method: 'PUT',
+    route: '/api/stock/items/{id}/custom-fields', parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }],
+    result: { shape: 'none', rowsPath: null, columns: [] },
+    bodyMap: { property: 'values', sourceOperation: 'stok.kart.ozelAlanDegerleri', keyColumn: 'code', valueColumn: 'value' } };
+  const faz = new Map([balanceOp, valuesOp, saveOp].map((op) => [op.name, op]));
+
+  it('read state exposes meta', async () => {
+    apiMock.mockResolvedValue({ items: [{ balance: { code: 'A' } }], totalCount: 7, belowMinimumCount: 2, extra: 1 });
+    const query: PageQueryDefinition = { id: 'b1', name: 'bakiye', kind: 'read', runOn: 'load', operation: 'stok.bakiye.sayfa', parameters: [] };
+    const { result } = setup([query], faz);
+    await waitFor(() => expect(result.current.states.bakiye.ran).toBe(true));
+    expect((result.current.scope.bakiye as QueryState).meta?.totalCount).toBe(7);
+    expect(result.current.states.bakiye.meta).toEqual({ totalCount: 7, belowMinimumCount: 2 });
+    expect(result.current.states.bakiye.rows[0]['balance.code']).toBe('A');
+  });
+
+  it('body map write waits for source rows', async () => {
+    let release: (value: unknown) => void = () => {};
+    apiMock.mockImplementation((_url: string, _token: string, init: { method: string }) => init.method === 'GET'
+      ? new Promise((resolve) => { release = resolve; })
+      : Promise.resolve({ ok: true }));
+    const valuesQuery: PageQueryDefinition = { id: 'v1', name: 'degerler', kind: 'read', runOn: 'load', operation: 'stok.kart.ozelAlanDegerleri',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }, { name: 'RENK', binding: '{{ad.value}}', type: 'text' }] };
+    const { result } = setup([valuesQuery, saveQuery], faz);
+    await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(1));
+    await expect(result.current.runWrite(saveQuery, { id: guid, RENK: 'Kırmızı' })).rejects.toThrow('Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.');
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    await act(async () => { release({ items: [{ code: 'RENK', value: 'Mavi' }, { code: 'BOY', value: '10' }] }); });
+    await waitFor(() => expect(result.current.states.degerler.ran).toBe(true));
+    await act(async () => { await result.current.runWrite(saveQuery, { id: guid, RENK: 'Kırmızı' }); });
+    const [url, , init] = apiMock.mock.calls[1];
+    expect(url).toBe(`/api/stock/items/${guid}/custom-fields`);
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ values: { RENK: 'Kırmızı', BOY: '10' } });
+  });
+
+  it('body map write without a source query sends nothing', async () => {
+    const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const { result } = setup([saveQuery], faz);
+    await expect(result.current.runWrite(saveQuery, { id: guid, RENK: 'x' })).rejects.toThrow('Kaynak kayıt yüklenmedi; önce bir kayıt seçin.');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('useErpOperations', () => {
   it('fetches the catalog once per token, only when enabled', async () => {
     apiMock.mockResolvedValue({ operations: [listOp, getOp] });

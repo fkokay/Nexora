@@ -18,6 +18,8 @@ export type QueryState = {
   sonuc?: unknown;
   /** ERP işleminin sunucu doğrulama hataları (işlem parametre adına göre). */
   fieldErrors?: Record<string, string>;
+  /** ERP okuma işleminin üst bilgileri (`metaPaths`); `{{sorgu.meta.totalCount}}` ile bağlanabilir. */
+  meta?: Record<string, unknown>;
 };
 /** ERP yazma işleminde `sonuc` sunucunun JSON yanıtıdır (SQL yazmalarında yoktur). */
 export type WriteResult = { affectedRows: number; sonuc?: unknown };
@@ -129,6 +131,15 @@ export function usePageQueries(options: {
     const source = sourceQueryOf(op);
     return (source && latestStates.current[source.name]?.rows[0]) ?? null;
   };
+  /** Gövde eşlemesinin kaynak sorgusu: sayfada `operation === op.bodyMap.sourceOperation` olan okuma sorgusu. */
+  const mapSourceQueryOf = (op: ErpOperation) => op.bodyMap
+    ? queries.find((candidate) => candidate.kind === "read" && candidate.operation === op.bodyMap!.sourceOperation) : undefined;
+  /** Kaynak sorgu yanıt almış ve yüklenmiyorsa satırları; aksi halde null (istek kurulmaz). */
+  const mapSourceRows = (op: ErpOperation): Record<string, unknown>[] | null => {
+    const source = mapSourceQueryOf(op);
+    const state = source ? latestStates.current[source.name] : undefined;
+    return state && state.ran && !state.loading ? state.rows : null;
+  };
   /** 403 her zaman genel yetki metniyle gösterilir; sunucunun `error` gövdesi (serverError) onu ezmesin. */
   const operationFailure = (cause: unknown): unknown => (cause as { status?: number } | null)?.status === 403
     ? Object.assign(new Error("Bu işlem için yetkiniz yok."), { status: 403 }) : cause;
@@ -173,11 +184,14 @@ export function usePageQueries(options: {
     const op = operationOf(query);
     const source = sourceQueryOf(op);
     // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
-    if (source && latestStates.current[source.name]?.loading) throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
+    const mapSource = mapSourceQueryOf(op);
+    if ((source && latestStates.current[source.name]?.loading) || (mapSource && latestStates.current[mapSource.name]?.loading)) {
+      throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
+    }
     const row = sourceRow(op);
     const mismatch = sourceRecordError(op, values, row);
     if (mismatch) throw new Error(mismatch);
-    const request = buildOperationRequest(op, values, row);
+    const request = buildOperationRequest(op, values, row, mapSourceRows(op));
     setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(false)), fieldErrors: undefined } }));
     try {
       const json = await api<unknown>(request.url, token, operationInit(request));
