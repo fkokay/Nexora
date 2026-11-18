@@ -560,4 +560,62 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(P(tbl, new { id = "t2", type = "dataTable", props = new { exportTable = "t1" } }), "yalnızca İşlem Çubuğu");
         AssertRejected(P(new { id = "ab1", type = "actionBar", props = new { }, children = new object[] { Btn("b1") } }), "alt bileşen");
     }
+
+    private static string CodeJson(int version, object props) => JsonSerializer.Serialize(new
+    {
+        schemaVersion = version,
+        components = new object[] { new { id = "k1", type = "code", props } }
+    });
+
+    [Fact]
+    public void Accepts_hidden_code_component_v2()
+    {
+        var json = CodeJson(2, new { javascript = "nexora.on('load',()=>{})", hidden = true });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
+
+    [Fact]
+    public void Rejects_hidden_on_non_code()
+    {
+        var json = V2(components: [new { id = "t1", type = "text", props = new { text = "x", hidden = true } }]);
+        AssertRejected(json, "hidden");
+    }
+
+    [Fact]
+    public void Rejects_non_bool_hidden_on_code()
+    {
+        AssertRejected(CodeJson(2, new { javascript = "1", hidden = "yes" }), "hidden");
+    }
+
+    [Fact]
+    public void Accepts_20000_char_javascript_in_v2()
+    {
+        var json = CodeJson(2, new { javascript = new string('a', 20000) });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+    }
+
+    [Fact]
+    public void Rejects_20001_char_javascript_in_v2()
+    {
+        AssertRejected(CodeJson(2, new { javascript = new string('a', 20001) }), "javascript");
+    }
+
+    [Fact]
+    public void Keeps_4000_char_limit_in_v1()
+    {
+        Assert.True(TenantCustomPageSchema.Validate(CodeJson(1, new { javascript = new string('a', 4000) }), out var error), error);
+        AssertRejected(CodeJson(1, new { javascript = new string('a', 4001) }), "javascript");
+    }
+
+    [Fact]
+    public void Keeps_4000_char_css_limit_in_v2()
+    {
+        AssertRejected(CodeJson(2, new { css = new string('a', 4001) }), "css");
+    }
+
+    [Fact]
+    public void Rejects_hidden_in_v1()
+    {
+        AssertRejected(CodeJson(1, new { javascript = "1", hidden = true }));
+    }
 }
