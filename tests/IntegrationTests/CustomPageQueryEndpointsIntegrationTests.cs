@@ -235,7 +235,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
 
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
-        var run =await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { q = "x" } });
+        var run = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { q = "x" } });
         Assert.Equal(HttpStatusCode.BadRequest, run.StatusCode);
         Assert.Equal("ERP işlemi sayfa üzerinden doğrudan çalıştırılır.", (await run.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
         Assert.Equal(0, factory.Calls);

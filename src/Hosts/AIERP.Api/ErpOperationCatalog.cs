@@ -11,7 +11,17 @@ internal sealed record ErpOperationColumn(string Code, string Label, string Data
 internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns);
 internal sealed record ErpOperation(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
     IReadOnlyList<ErpOperationParameter> Parameters, ErpOperationResult Result, string? SourceOperation,
-    IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated = false);
+    IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated = false, bool RequiresTenantAdmin = false)
+{
+    /// <summary>
+    /// The endpoint handler itself rejects anyone but a TenantAdmin, beyond the permission catalog. Server-side only:
+    /// it is folded into <c>allowed</c> and is not part of the wire contract.
+    /// </summary>
+    public bool RequiresTenantAdmin { get; init; } = RequiresTenantAdmin;
+}
+
+/// <summary>Resolves an operation by name; <see cref="ErpOperationCatalog.TryGet"/> in production.</summary>
+internal delegate bool ErpOperationLookup(string name, out ErpOperation operation);
 
 /// <summary>Wire form of a catalog entry: the operation plus whether the caller may run it.</summary>
 internal sealed record ErpOperationView(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
@@ -91,7 +101,8 @@ internal static class ErpOperationCatalog
             // Update and state changes return the updated StockItemView; unbound body fields come from the source read.
             Write("stok.kart.guncelle", "Stok kartı güncelle", "update", "PUT", StockItemRoute,
                 [id, .. BodyParameters<StockItemUpdateRequest>(sourceBacked: true)], Record(stockItemColumns), StockItemRead, null),
-            Write("stok.kart.sil", "Stok kartı sil", "delete", "DELETE", StockItemRoute, [id], None, null, null),
+            // The DELETE handler itself only accepts TenantAdmin, whatever the permission rules say.
+            Write("stok.kart.sil", "Stok kartı sil", "delete", "DELETE", StockItemRoute, [id], None, null, null, requiresTenantAdmin: true),
             // confirmation is fixed: a page cannot bind it to false, and it is not offered as a parameter.
             Write("stok.kart.pasifeAl", "Stok kartını pasife al", "update", "POST", StockItemRoute + "/deactivate",
                 [id, .. BodyParameters<StockItemStateChangeRequest>(sourceBacked: true, exclude: "confirmation")],
@@ -131,8 +142,10 @@ internal static class ErpOperationCatalog
         new(name, label, StockModule, "read", "read", "GET", route, parameters, result, null, null, Since);
 
     private static ErpOperation Write(string name, string label, string pageKind, string method, string route,
-        IReadOnlyList<ErpOperationParameter> parameters, ErpOperationResult result, string? sourceOperation, IReadOnlyDictionary<string, object?>? fixedBody) =>
-        new(name, label, StockModule, "write", pageKind, method, route, parameters, result, sourceOperation, fixedBody, Since);
+        IReadOnlyList<ErpOperationParameter> parameters, ErpOperationResult result, string? sourceOperation, IReadOnlyDictionary<string, object?>? fixedBody,
+        bool requiresTenantAdmin = false) =>
+        new(name, label, StockModule, "write", pageKind, method, route, parameters, result, sourceOperation, fixedBody, Since,
+            RequiresTenantAdmin: requiresTenantAdmin);
 
     private static IReadOnlyList<ErpOperationColumn> Columns<T>() =>
         ScalarMembers<T>().Select(x => new ErpOperationColumn(x.Name, Label(x.Name), x.Type)).ToArray();
@@ -183,7 +196,7 @@ internal static class ErpOperationCatalog
     internal static void MapErpOperationCatalogEndpoints(this WebApplication app)
     {
         app.MapGroup("/api/custom-pages").WithTags("Tenant Custom Pages").RequireAuthorization()
-            .MapGet("/erp-operations", async (ClaimsPrincipal user, HttpContext context, EndpointDataSource endpoints,
+            .MapGet("/erp-operations", async (ClaimsPrincipal user, EndpointDataSource endpoints,
                 IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
             {
                 if (!Guid.TryParse(user.FindFirstValue("tenant_id"), out var tenantId)
@@ -191,10 +204,33 @@ internal static class ErpOperationCatalog
                 var role = user.FindFirstValue("role");
                 if (string.IsNullOrWhiteSpace(role)) return Results.Forbid();
                 var patterns = RoutePatterns.GetValue(endpoints, BuildRoutePatterns);
-                var views = new List<ErpOperationView>(Operations.Count);
-                foreach (var op in Operations)
+                // Many operations share a permission (every stock read, every report run); each distinct permission is
+                // decided once, and the whole set in one authorizer batch (one membership and one rules lookup).
+                var distinct = new List<ResolvedPlatformPermission>();
+                var indexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
+                var needs = new int[Operations.Count][];
+                for (var index = 0; index < Operations.Count; index++)
                 {
-                    var allowed = !op.Deprecated && await IsAllowedAsync(op, patterns, tenantId, userId, role, authorizer, context, ct);
+                    var permissions = RequiredPermissions(Operations[index], patterns, tenantId, userId, role);
+                    needs[index] = permissions?.Select(permission =>
+                    {
+                        var key = PermissionKey(permission);
+                        if (!indexByKey.TryGetValue(key, out var position))
+                        {
+                            position = distinct.Count;
+                            indexByKey[key] = position;
+                            distinct.Add(permission);
+                        }
+                        return position;
+                    }).ToArray() ?? [-1];
+                }
+                var decisions = await authorizer.IsAllowedManyAsync(tenantId, userId, role, distinct, ct);
+                var views = new List<ErpOperationView>(Operations.Count);
+                for (var index = 0; index < Operations.Count; index++)
+                {
+                    var op = Operations[index];
+                    // Deprecated operations still report the caller's rights; Studio hides them by the deprecated flag.
+                    var allowed = needs[index].All(position => position >= 0 && decisions[position]);
                     views.Add(new ErpOperationView(op.Name, op.Label, op.Module, op.Kind, op.PageKind, op.Method, op.Route, op.Parameters,
                         op.Result, op.SourceOperation, op.FixedBody, op.Since, op.Deprecated, allowed));
                 }
@@ -215,14 +251,16 @@ internal static class ErpOperationCatalog
     }
 
     /// <summary>
-    /// Mirrors the route permission check the endpoint itself would run for this user (fails closed when the endpoint or
-    /// its permission cannot be resolved). Report operations also need the per-source read check of <c>/api/reports/run</c>.
-    /// Handler-internal checks (for example TenantAdmin-only deletes) are not reflected here.
+    /// Permissions the caller needs for this operation: the route permission the endpoint itself would check, plus the
+    /// per-source read check of <c>/api/reports/run</c> for report operations. Null means never allowed: the endpoint or
+    /// its permission cannot be resolved (fail closed), or the handler itself only accepts TenantAdmin.
     /// </summary>
-    private static async Task<bool> IsAllowedAsync(ErpOperation op, IReadOnlyDictionary<string, string> patterns, Guid tenantId, Guid userId,
-        string role, IPlatformPermissionAuthorizer authorizer, HttpContext context, CancellationToken ct)
+    private static IReadOnlyList<ResolvedPlatformPermission>? RequiredPermissions(ErpOperation op, IReadOnlyDictionary<string, string> patterns,
+        Guid tenantId, Guid userId, string role)
     {
-        if (!patterns.TryGetValue($"{op.Method} {op.Route}", out var rawPattern)) return false;
+        var isTenantAdmin = role == "TenantAdmin";
+        if (op.RequiresTenantAdmin && !isTenantAdmin) return null;
+        if (!patterns.TryGetValue($"{op.Method} {op.Route}", out var rawPattern)) return null;
         var routeValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var path = Regex.Replace(op.Route, @"\{([A-Za-z]+)\}", match =>
         {
@@ -232,13 +270,15 @@ internal static class ErpOperationCatalog
             return value;
         });
         if (!PlatformPermissionCatalog.TryResolve(path, op.Method, rawPattern, routeValues, tenantId, userId, role, out var resolved)
-            || resolved is null) return false;
-        if (!await authorizer.IsAllowedAsync(tenantId, userId, role, resolved, ct)) return false;
-        if (op.Route == "/api/reports/run" && op.FixedBody?["source"] is string source)
-        {
-            if (source == "workflowInstances" && role != "TenantAdmin") return false;
-            return await ReportEndpoints.CanReadReportSourceAsync(source, tenantId, userId, role, context, ct);
-        }
-        return true;
+            || resolved is null) return null;
+        if (op.Route != "/api/reports/run" || op.FixedBody?["source"] is not string source) return [resolved];
+        // Same order as RunAsync: workflowInstances is admin-only, then the source's own read permission.
+        if (source == "workflowInstances" && !isTenantAdmin) return null;
+        return ReportEndpoints.TryReportSourcePermission(source, tenantId, userId, role, out var sourcePermission)
+            ? [resolved, sourcePermission] : null;
     }
+
+    private static string PermissionKey(ResolvedPlatformPermission permission) =>
+        permission.Permission.Code + "|" + string.Join(";", permission.Attributes
+            .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => $"{x.Key}={x.Value}"));
 }

@@ -112,10 +112,38 @@ public sealed class TenantCustomPageSchemaV2Tests
     }
 
     [Fact]
-    public void Rejects_deprecated_operation_message_is_defined()
+    public void Deprecated_operation_is_rejected_for_new_use_but_kept_where_the_page_already_uses_it()
     {
-        // No operation is deprecated yet; the rule is exercised through the schema helper directly.
-        Assert.Equal("ERP işlemi artık kullanılamıyor: stok.kart.sil", TenantCustomPageSchema.DeprecatedOperationError("stok.kart.sil"));
+        // The production catalog has no deprecated operation; a test lookup marks one as deprecated.
+        Assert.True(Api.ErpOperationCatalog.TryGet("stok.kart.sil", out var real));
+        var deprecated = real with { Deprecated = true };
+        bool Lookup(string name, out Api.ErpOperation operation)
+        {
+            if (name == deprecated.Name) { operation = deprecated; return true; }
+            return Api.ErpOperationCatalog.TryGet(name, out operation);
+        }
+        var json = V2([OpQuery("q1", "sil", "delete", "stok.kart.sil", "manual", Param("id", "{{bugun}}", "guid"))]);
+
+        Assert.False(TenantCustomPageSchema.Validate(json, out var error, null, Lookup));
+        Assert.Equal("ERP işlemi artık kullanılamıyor: stok.kart.sil", error);
+        Assert.False(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.listele" }, Lookup));
+        Assert.True(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.sil" }, Lookup), error);
+        // The production lookup still accepts it: nothing is deprecated there.
+        Assert.True(TenantCustomPageSchema.Validate(json, out error), error);
+    }
+
+    [Fact]
+    public void Operation_names_are_collected_from_saved_definitions()
+    {
+        var withOps = V2([StockList(), StockRead()], [SearchInput]);
+        var withSql = V2([Query("q1", "liste", "SELECT 1 AS x")]);
+        Assert.Equal(new HashSet<string> { "stok.kart.listele", "stok.kart.getir" }, TenantCustomPageQueries.OperationNames(withOps, withSql, "{bozuk"));
+        Assert.True(TenantCustomPageQueries.HasSqlQueries(withSql));
+        Assert.False(TenantCustomPageQueries.HasSqlQueries(withOps));
+        // Fails safe: an entry that is not clearly an operation query counts as SQL.
+        Assert.True(TenantCustomPageQueries.HasSqlQueries("""{"schemaVersion":2,"queries":[{"id":"q1"}],"components":[]}"""));
+        Assert.False(TenantCustomPageQueries.HasSqlQueries("""{"schemaVersion":1,"components":[]}"""));
+        Assert.True(TenantCustomPageQueries.HasQueries(withOps));
     }
 
     [Fact]

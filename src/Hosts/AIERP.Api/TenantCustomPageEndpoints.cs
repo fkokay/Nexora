@@ -85,12 +85,13 @@ internal static class TenantCustomPageEndpoints
         {
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "create", ct)) return Results.Forbid();
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
-            if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition, out var json, out var error)) return Results.BadRequest(new { error });
-            var code = request!.Code.Trim();
+            var code = request.Code?.Trim() ?? "";
             // A new draft for a code whose published page or open draft has queries is admin-only too; otherwise a
-            // non-admin could replace a query page with a static one.
+            // non-admin could replace a query page with a static one. Their operations also stay usable if deprecated.
             var liveDefinitions = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived)
                 .Select(x => x.DefinitionJson).ToListAsync(ct);
+            if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition,
+                    TenantCustomPageQueries.OperationNames([.. liveDefinitions]), out var json, out var error)) return Results.BadRequest(new { error });
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, [json!, .. liveDefinitions])) return Results.Forbid();
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
@@ -112,7 +113,11 @@ internal static class TenantCustomPageEndpoints
             if (page.IsPublished || page.IsArchived) return Results.Conflict(new { error = "Yayımlanmış/geçmiş sayfa doğrudan düzenlenemez; aynı code ile yeni taslak açın." });
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             if (request.ExpectedRevision != page.Revision) return Results.Conflict(new { error = "Taslak güncel değil. Son sürümü yeniden yükleyin.", currentRevision = page.Revision });
-            if (!ValidMetadata(page.Code, request.Name, request.Description, request.Definition, out var json, out var error)) return Results.BadRequest(new { error });
+            // Operations the stored draft or the published page already use stay accepted even if since deprecated.
+            var publishedDefinition = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == page.Code && x.IsPublished)
+                .Select(x => x.DefinitionJson).FirstOrDefaultAsync(ct);
+            if (!ValidMetadata(page.Code, request.Name, request.Description, request.Definition,
+                    TenantCustomPageQueries.OperationNames(page.DefinitionJson, publishedDefinition), out var json, out var error)) return Results.BadRequest(new { error });
             // Both the stored draft and the incoming definition count: a non-admin may neither add nor remove queries.
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, page.DefinitionJson, json!)) return Results.Forbid();
             page.Name = request!.Name.Trim(); page.Description = CleanDescription(request.Description); page.DefinitionJson = json!;
@@ -152,17 +157,24 @@ internal static class TenantCustomPageEndpoints
             var draft = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
             if (draft is null) return Results.NotFound();
             if (draft.IsPublished || request?.ExpectedRevision != draft.Revision) return Results.Conflict(new { error = "Taslak değişti veya zaten yayımlandı.", currentRevision = draft.Revision });
-            if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error)) return Results.BadRequest(new { error });
             var previous = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == draft.Code && x.IsPublished, ct);
+            // A deprecated operation the published page already uses may be published again; new use is rejected.
+            if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error, TenantCustomPageQueries.OperationNames(previous?.DefinitionJson)))
+                return Results.BadRequest(new { error });
             // Replacing a published query page (even with a static draft) is admin-only.
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, previous is null ? [draft.DefinitionJson] : [draft.DefinitionJson, previous.DefinitionJson]))
                 return Results.Forbid();
             if (TenantCustomPageQueries.HasQueries(draft.DefinitionJson))
             {
-                // Without a saved row a query page would silently become AdminsOnly; require an explicit choice.
+                // Without a saved row a query or ERP operation page would silently become AdminsOnly; require an explicit choice.
                 var platformDb = http.RequestServices.GetRequiredService<PlatformDbContext>();
                 if (!await platformDb.TenantCustomPageAccesses.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.PageCode == draft.Code, ct))
-                    return Results.Conflict(new { error = "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin." });
+                    return Results.Conflict(new
+                    {
+                        error = TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson)
+                            ? "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin."
+                            : "Bu sayfa sorgu veya ERP işlemi içeriyor; yayımlamadan önce erişim kuralı seçin."
+                    });
             }
             if (HasUnconfiguredForm(draft.DefinitionJson)) return Results.Conflict(new { error = "Sayfadaki her özel form bileşeni için yayımlanmış bir form seçin." });
             var referencedForms = ReferencedFormCodes(draft.DefinitionJson);
@@ -223,7 +235,8 @@ internal static class TenantCustomPageEndpoints
         });
     }
 
-    private static bool ValidMetadata(string? code, string? name, string? description, JsonElement definition, out string? json, out string? error)
+    private static bool ValidMetadata(string? code, string? name, string? description, JsonElement definition,
+        IReadOnlySet<string> existingOperations, out string? json, out string? error)
     {
         json = null; error = null;
         if (!ValidCode(code) || string.IsNullOrWhiteSpace(name) || name.Trim().Length > 120 || (description?.Length ?? 0) > 500)
@@ -231,7 +244,7 @@ internal static class TenantCustomPageEndpoints
         if (definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) { error = "Sayfa tanımı gerekli."; return false; }
         json = definition.GetRawText();
         // Size limits depend on the schema version (v1: 64 KiB, v2: 128 KiB) and are enforced by the schema.
-        if (!TenantCustomPageSchema.Validate(json, out error)) { json = null; return false; }
+        if (!TenantCustomPageSchema.Validate(json, out error, existingOperations)) { json = null; return false; }
         return true;
     }
     internal static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
@@ -284,18 +297,19 @@ internal static class TenantCustomPageEndpoints
     }
     /// <summary>
     /// Pages whose definition contains SQL queries may only be written by a verified TenantAdmin (role claim and current
-    /// membership). The Platform database is resolved only when one of the definitions has queries.
+    /// membership). The Platform database is resolved only when one of the definitions has SQL queries. Pages that only
+    /// bind ERP operations need no such gate: operations run against their own endpoints with the user's own token.
     /// </summary>
     private static async Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
         params string[] definitions)
     {
-        if (!definitions.Any(TenantCustomPageQueries.HasQueries)) return true;
+        if (!definitions.Any(TenantCustomPageQueries.HasSqlQueries)) return true;
         var platformDb = http.RequestServices.GetRequiredService<PlatformDbContext>();
         return await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
     }
     /// <summary>
     /// Query SQL in designer responses is shown only to a verified TenantAdmin (role claim and current membership); other
-    /// users get the definition without <c>queries[].sql</c>. Definitions without queries need no check.
+    /// users get the definition without <c>queries[].sql</c>. Definitions without SQL queries need no check.
     /// </summary>
     private static Task<bool> QuerySqlVisibleAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
         params string[] definitions) => QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, definitions);
