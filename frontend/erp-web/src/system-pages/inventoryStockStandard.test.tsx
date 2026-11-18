@@ -222,7 +222,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
 
   it('legacy title row: breadcrumb, title and record count above the action bar, inside the page column', async () => {
     const { container } = setup();
-    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     const title = screen.getByRole('heading', { level: 1, name: 'Stok Kartları' });
     const heading = title.closest('.list-v2-heading') as HTMLElement;
     expect(heading).toBeTruthy();
