@@ -28,6 +28,7 @@
     <Content Include="..\..\deploy\sql\Install-TenantProvisioningBoundary.sql" Link="Install-TenantProvisioningBoundary.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="ErpOperationCatalog.names.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\conditions.vectors.json" Link="PageConditionVectors.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\frontend\erp-web\src\custom-page\gridColumns.vectors.json" Link="GridColumnVectors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

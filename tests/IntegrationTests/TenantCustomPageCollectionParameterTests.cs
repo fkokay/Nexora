@@ -28,6 +28,15 @@ public sealed class TenantCustomPageCollectionParameterTests
         new { id = "c2", type = "input", name = "ad", props = new { inputType = "text" } }
     ];
 
+    /// <summary>The components the collection bindings resolve to (Faz B component rules): a variant grid and a custom-fields block.</summary>
+    private static readonly object VariantGrid =
+        new { id = "g1", type = "editableGrid", name = "varyant", props = new { gridMode = "matrix", matrixCode = "{{kod.value}}", matrixName = "{{ad.value}}" } };
+
+    private static readonly object CustomFieldsBlock =
+        new { id = "cf", type = "customFieldsBlock", name = "ozel", props = new { definitionsQuery = "tanimlar" } };
+
+    private static object Definitions() => OpQuery("tanimlar", "tanimlar", "read", "stok.ozelAlanTanimlari", "load");
+
     private static object Create(params object[] extra) =>
         OpQuery("olustur", "olustur", "insert", "stok.kart.olustur", "manual",
             [Param("code", "{{kod.value}}"), Param("name", "{{ad.value}}"), .. extra]);
@@ -45,13 +54,13 @@ public sealed class TenantCustomPageCollectionParameterTests
     [Fact]
     public void Accepts_list_parameter_with_satirlar_binding()
     {
-        AssertAccepted(V2([Create(Param("variants", "{{varyant.satirlar}}", "list"))], CardInputs));
+        AssertAccepted(V2([Create(Param("variants", "{{varyant.satirlar}}", "list"))], [.. CardInputs, VariantGrid]));
     }
 
     [Fact]
     public void Accepts_map_parameter_with_degerler_binding()
     {
-        AssertAccepted(V2([Create(Param("customFields", "{{ozel.degerler}}", "map"))], CardInputs));
+        AssertAccepted(V2([Definitions(), Create(Param("customFields", "{{ozel.degerler}}", "map"))], [.. CardInputs, CustomFieldsBlock]));
     }
 
     [Fact]
@@ -90,7 +99,8 @@ public sealed class TenantCustomPageCollectionParameterTests
     [
         new { id = "t0", type = "input", name = "arama", props = new { inputType = "text" } },
         new { id = "t1", type = "dataTable", name = "liste", props = new { query = "liste" } },
-        new { id = "c2", type = "input", name = "renk", props = new { inputType = "text" } }
+        new { id = "c2", type = "input", name = "renk", props = new { inputType = "text" } },
+        CustomFieldsBlock
     ];
 
     private static object StockList() => OpQuery("liste", "kartlar", "read", "stok.kart.listele", "load", Param("q", "{{arama.value}}"));
@@ -105,7 +115,7 @@ public sealed class TenantCustomPageCollectionParameterTests
     [Fact]
     public void Accepts_values_map_on_body_map_operation()
     {
-        AssertAccepted(V2([StockList(), CustomFieldRead(), CustomFieldSave()], BodyMapComponents));
+        AssertAccepted(V2([StockList(), Definitions(), CustomFieldRead(), CustomFieldSave()], BodyMapComponents));
         // Faz A's same-id rule still applies.
         AssertRejected(V2([StockList(), CustomFieldRead(), CustomFieldSave("{{liste.rows[0].id}}")], BodyMapComponents),
             "'id' bağlaması 'stok.kart.ozelAlanDegerleri' sorgusununkiyle aynı olmalıdır.");
@@ -148,7 +158,7 @@ public sealed class TenantCustomPageCollectionParameterTests
         {
             schemaVersion = 2,
             queries = new[] { SqlRead(), Create(Param("variants", "{{varyant.satirlar}}", "list")) },
-            components = CardInputs
+            components = CardInputs.Append(VariantGrid).ToArray()
         };
         var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = PageCode, name = "Stok kartı", definition });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);

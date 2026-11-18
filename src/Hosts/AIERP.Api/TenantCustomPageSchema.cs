@@ -11,12 +11,14 @@ internal static class TenantCustomPageSchema
 {
     private const int MaxBytesV1 = 64 * 1024;
     private const int MaxBytesV2 = 128 * 1024;
-    private const int MaxComponents = 80;
+    private const int MaxComponentsV1 = 80;
+    /// <summary>Faz B: tabs and dialogs own top-level components by id, so v2 pages need more of them.</summary>
+    private const int MaxComponentsV2 = 120;
     private const int MaxQueries = 30;
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -33,7 +35,12 @@ internal static class TenantCustomPageSchema
       "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab",
       "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
       "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta",
-      "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage" };
+      "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
+      // Proje 2 Faz B: save sequences, row actions, editable grids, custom fields, dialogs, images and change tracking.
+      "saveSequence", "stopOnError", "sequenceWhen", "rowActions", "emptyText", "limit", "promptLabel", "promptRequired", "dialogId",
+      "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
+      "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit",
+      "recordKey", "trackChanges" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
@@ -54,9 +61,11 @@ internal static class TenantCustomPageSchema
     private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
-    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason" };
+    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
-    private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200 };
+    private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
+        ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200 };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -127,8 +136,29 @@ internal static class TenantCustomPageSchema
         /// binding path without braces. The roots are resolved against the page components after the component loop.
         /// </summary>
         public List<(string Query, string Parameter, string Kind /* list|map */, string Root, string Path)> PendingCollectionBindings { get; } = [];
+        // ---- Proje 2 Faz B ----
+        /// <summary>Component name (exact) to id; binding roots are matched ordinally.</summary>
+        public Dictionary<string, string> ComponentIdsByName { get; } = new(StringComparer.Ordinal);
+        /// <summary>Button id to its actionType ("" when omitted).</summary>
+        public Dictionary<string, string> ButtonActionTypes { get; } = new(StringComparer.Ordinal);
+        /// <summary>dialogId values of openDialog buttons.</summary>
+        public List<string> PendingDialogRefs { get; } = [];
+        /// <summary>dialog <c>contains</c> lists; resolved after the tabs.</summary>
+        public List<(string DialogId, List<string> Ids)> PendingDialogContains { get; } = [];
+        /// <summary>dataTable <c>rowActions</c> lists; resolved after the dialogs.</summary>
+        public List<(string TableId, List<string> Ids)> PendingRowActions { get; } = [];
+        /// <summary>saveSequence lists by owner component id.</summary>
+        public List<(string OwnerId, List<string> Steps)> PendingSequences { get; } = [];
+        /// <summary>editableGrid components by name.</summary>
+        public Dictionary<string, GridInfo> GridModesByName { get; } = new(StringComparer.Ordinal);
+        /// <summary>Names of customFieldsBlock components.</summary>
+        public HashSet<string> CustomFieldBlocks { get; } = new(StringComparer.Ordinal);
+        /// <summary>Query ids run on their own (actionBar/dialog saveQuery, deleteQuery, button queryId): never grid-iterating.</summary>
+        public HashSet<string> DirectWriteQueries { get; } = new(StringComparer.Ordinal);
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
+
+    private sealed record GridInfo(string Id, string Name, string Mode, IReadOnlyList<string> Columns, string? SourceQuery);
 
     private sealed record PagedTable(string Id, string? Name, string? QueryId, string PageParam, string PageSizeParam, string? SearchInput, List<string> FooterMetaKeys);
 
@@ -155,8 +185,9 @@ internal static class TenantCustomPageSchema
                 && versionElement.ValueKind == JsonValueKind.Number && versionElement.TryGetInt32(out var number) ? number : 0;
             if (version == 1 && bytes > MaxBytesV1) { error = "Sayfa tanımı 64 KiB sınırını aşıyor."; return false; }
             if (version is not (1 or 2) || !OnlyKeys(root, version == 2 ? RootKeysV2 : RootKeys)
-                || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array || components.GetArrayLength() > MaxComponents)
-            { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli components dizisi içermelidir."; return false; }
+                || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array
+                || components.GetArrayLength() > (version == 2 ? MaxComponentsV2 : MaxComponentsV1))
+            { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli (sürüm 2: 120) components dizisi içermelidir."; return false; }
             var context = new Context(version) { Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>() };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
@@ -405,7 +436,7 @@ internal static class TenantCustomPageSchema
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
         { error ??= "Bileşen adı metin olmalıdır."; return false; }
         var componentName = component.TryGetProperty("name", out var validName) ? validName.GetString() : null;
-        if (componentName is not null) context.ExactNames.Add(componentName);
+        if (componentName is not null) { context.ExactNames.Add(componentName); context.ComponentIdsByName[componentName] = idText; }
         if (component.TryGetProperty("props", out var props))
         {
             if (context.V2 && props.ValueKind == JsonValueKind.Object && props.EnumerateObject().Count() > MaxPropsV2)
@@ -453,9 +484,9 @@ internal static class TenantCustomPageSchema
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
             if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String
-                || actionType.GetString() is not ("workflow" or "query") || actionType.GetString() == "query" && !context.V2))
+                || actionType.GetString() is not ("workflow" or "query" or "sequence" or "openDialog") || actionType.GetString() != "workflow" && !context.V2))
             {
-                error = context.V2 ? "Düğme eylem türü iş akışı (workflow) veya sorgu (query) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
+                error = context.V2 ? "Düğme eylem türü iş akışı (workflow), sorgu (query), kayıt dizisi (sequence) veya pencere (openDialog) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
                 return false;
             }
             if (props.TryGetProperty("workflowId", out var workflowId) && (typeText != "button" || workflowId.ValueKind != JsonValueKind.String || !string.IsNullOrEmpty(workflowId.GetString()) && !Guid.TryParse(workflowId.GetString(), out _)))
@@ -473,16 +504,18 @@ internal static class TenantCustomPageSchema
                 && props.TryGetProperty("optionsQuery", out var selectOptions) && selectOptions.ValueKind == JsonValueKind.String)
                 context.SelectInputsWithOptions.Add(idText);
             if (context.V2 && !ValidateActionBarProps(props, typeText, context, out error)) return false;
+            if (context.V2 && !ValidateFazBProps(props, idText, componentName, typeText, context, out error)) return false;
             if (typeText == "dataTable" && props.TryGetProperty("query", out var anyTableQuery) && anyTableQuery.ValueKind == JsonValueKind.String)
                 context.QueryTables.Add(idText);
             if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
                 context.NamedQueryTables.Add(idText);
         }
-        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs")
+        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs" or "editableGrid" or "customFieldsBlock" or "dialog")
         { error = $"'{typeText}' bileşeni için props gerekli."; return false; }
         if (component.TryGetProperty("children", out var children))
         {
-            if (typeText is not ("section" or "card") || children.ValueKind != JsonValueKind.Array || children.GetArrayLength() > MaxComponents)
+            if (typeText is not ("section" or "card") || children.ValueKind != JsonValueKind.Array
+                || children.GetArrayLength() > (context.V2 ? MaxComponentsV2 : MaxComponentsV1))
             { error = "Yalnızca section/card bileşenleri alt bileşen alabilir."; return false; }
             foreach (var child in children.EnumerateArray()) if (!ValidateComponent(child, context, depth + 1, out error)) return false;
         }
@@ -578,7 +611,7 @@ internal static class TenantCustomPageSchema
         foreach (var key in new[] { "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts" })
             if (props.TryGetProperty(key, out _) && !AllowedOn(key, typeText))
             { error = $"'{key}' özelliği bu bileşen türünde kullanılamaz."; return false; }
-        if (props.TryGetProperty("columns", out var columns) && typeText == "formCard"
+        if (props.TryGetProperty("columns", out var columns) && typeText is "formCard" or "customFieldsBlock"
             && (columns.ValueKind != JsonValueKind.Number || !columns.TryGetInt32(out var columnCount) || columnCount is < 1 or > 3))
         { error = "Form kartının 'columns' değeri 1, 2 veya 3 olmalıdır."; return false; }
         List<string>? inputIds = null;
@@ -621,10 +654,11 @@ internal static class TenantCustomPageSchema
         error = null;
         if (typeText != "actionBar")
         {
+            // Faz B: a dialog has its own save query.
             foreach (var key in ActionBarProps)
-                if (props.TryGetProperty(key, out _))
+                if (props.TryGetProperty(key, out _) && !(key == "saveQuery" && typeText == "dialog"))
                 { error = $"'{key}' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir."; return false; }
-            return true;
+            return typeText != "dialog" || ValidateSaveQueries(props, context, out error);
         }
         foreach (var (key, expected) in new[] { ("newInputs", "input"), ("moreButtons", "button") })
         {
@@ -652,6 +686,13 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
+        return ValidateSaveQueries(props, context, out error);
+    }
+
+    /// <summary>saveQuery (actionBar, dialog) and deleteQuery (actionBar): kinds; the ids are kept for the Faz B grid-iteration rule.</summary>
+    private static bool ValidateSaveQueries(JsonElement props, Context context, out string? error)
+    {
+        error = null;
         foreach (var (key, kinds) in new[] { ("saveQuery", "insert veya update"), ("deleteQuery", "delete") })
         {
             if (!props.TryGetProperty(key, out var q)) continue;
@@ -660,6 +701,7 @@ internal static class TenantCustomPageSchema
             { error = $"'{key}' sorgusu sayfada yok: {queryId ?? "?"}."; return false; }
             if (key == "saveQuery" ? kind is not ("insert" or "update") : kind != "delete")
             { error = $"'{key}' {kinds} türünde bir sorgu olmalıdır: {queryId}."; return false; }
+            context.DirectWriteQueries.Add(queryId);
         }
         return true;
     }
@@ -701,7 +743,7 @@ internal static class TenantCustomPageSchema
         foreach (var (ownerId, tableId) in context.PendingTables)
             if (!context.NamedQueryTables.Contains(tableId))
             { error = $"'{ownerId}' bağlam panelinin 'table' değeri sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {tableId}."; return false; }
-        return ResolveFazAReferences(context, owners, out error);
+        return ResolveFazAReferences(context, owners, out error) && ResolveFazBReferences(context, owners, out error);
     }
 
     private static bool ValidateMapItems(string property, JsonElement value, bool allowedOnType, int maxItems, Regex pattern, string format, out string? error)
@@ -732,9 +774,11 @@ internal static class TenantCustomPageSchema
         error = null;
         if (typeText != "button")
         {
-            var misplaced = props.EnumerateObject().Select(p => p.Name).FirstOrDefault(ButtonQueryProps.Contains);
+            // Faz B: a dialog re-runs read queries after its save, like a button.
+            var misplaced = props.EnumerateObject().Select(p => p.Name)
+                .FirstOrDefault(x => ButtonQueryProps.Contains(x) && !(x == "refreshQueries" && typeText == "dialog"));
             if (misplaced is not null) { error = $"'{misplaced}' özelliği yalnızca düğme bileşeninde kullanılabilir."; return false; }
-            return true;
+            return typeText != "dialog" || ValidateRefreshQueries(props, context, out error);
         }
         var isQueryAction = props.TryGetProperty("actionType", out var actionType) && actionType.ValueKind == JsonValueKind.String && actionType.GetString() == "query";
         string? queryId = null;
@@ -746,8 +790,15 @@ internal static class TenantCustomPageSchema
         if (isQueryAction && string.IsNullOrEmpty(queryId)) { error = "Sorgu eylemli düğme için queryId gerekli."; return false; }
         if (!string.IsNullOrEmpty(queryId) && !context.QueryKinds.ContainsKey(queryId))
         { error = $"Düğmenin sorgusu sayfada tanımlı değil: {queryId}."; return false; }
+        if (!string.IsNullOrEmpty(queryId)) context.DirectWriteQueries.Add(queryId);
         if (props.TryGetProperty("confirmEnabled", out var confirmEnabled) && confirmEnabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "Düğmenin confirmEnabled değeri true veya false olmalıdır."; return false; }
+        return ValidateRefreshQueries(props, context, out error);
+    }
+
+    private static bool ValidateRefreshQueries(JsonElement props, Context context, out string? error)
+    {
+        error = null;
         if (props.TryGetProperty("refreshQueries", out var refresh))
         {
             if (refresh.ValueKind != JsonValueKind.Array || refresh.GetArrayLength() > MaxRefreshQueries || refresh.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String))
@@ -799,7 +850,7 @@ internal static class TenantCustomPageSchema
         foreach (var key in new[] { "visibleWhen", "disabledWhen" })
         {
             if (!props.TryGetProperty(key, out var condition)) continue;
-            if (key == "disabledWhen" && typeText is not ("button" or "input"))
+            if (key == "disabledWhen" && typeText is not ("button" or "input" or "editableGrid" or "customFieldsBlock"))
             { error = "'disabledWhen' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
             if (condition.ValueKind != JsonValueKind.String)
             { error = $"'{key}' koşulu geçersiz: ifade metin olmalı"; return false; }
@@ -809,7 +860,7 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("disabledReason", out _))
         {
-            if (typeText is not ("button" or "input"))
+            if (typeText is not ("button" or "input" or "editableGrid" or "customFieldsBlock"))
             { error = "'disabledReason' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
             if (!props.TryGetProperty("disabledWhen", out _))
             { error = "'disabledReason' için 'disabledWhen' de tanımlı olmalıdır."; return false; }
@@ -1002,6 +1053,8 @@ internal static class TenantCustomPageSchema
                 { error = $"Sekmeler yalnız üst düzey bileşenleri içerebilir: {ownedId}"; return false; }
                 if (type is "tabs" or "actionBar")
                 { error = $"Sekmeler sekme veya İşlem Çubuğu bileşeni içeremez: {ownedId}"; return false; }
+                if (type == "dialog")
+                { error = $"Sekmeler pencere bileşeni içeremez: {ownedId}"; return false; }
                 if (!owners.TryAdd(ownedId, tabsId))
                 { error = $"'{ownedId}' birden fazla sekmede veya yerleşimde kullanılamaz."; return false; }
             }
@@ -1036,6 +1089,392 @@ internal static class TenantCustomPageSchema
             { error = $"'searchInput' sayfadaki bir metin girişi olmalıdır: {searchInput}"; return false; }
             if (!owners.TryAdd(searchInput, table.Id))
             { error = $"'{searchInput}' birden fazla sekmede veya yerleşimde kullanılamaz."; return false; }
+        }
+        return true;
+    }
+
+    // ---- Proje 2 Faz B: save sequences, row actions, editable grids, custom fields, dialogs, images and change tracking ----
+
+    private const int MaxSequenceSteps = 8;
+    private const int MaxSequenceWhen = 8;
+    private const int MaxRowActions = 4;
+    private const int MaxGridColumns = 12;
+    private const int MaxDialogContains = 20;
+    private static readonly Regex SequenceWhenItem = new(@"^([A-Za-z0-9_-]{1,64})=(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex IterationBindingPath = new(@"^([A-Za-z_][A-Za-z0-9_]*)\.(eklenenSatir|silinenSatir)\.(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
+
+    /// <summary>The component types each Faz B prop is allowed on.</summary>
+    private static readonly Dictionary<string, string[]> FazBPropTypes = new(StringComparer.Ordinal)
+    {
+        ["saveSequence"] = ["actionBar", "dialog", "button"], ["stopOnError"] = ["actionBar", "dialog", "button"],
+        ["sequenceWhen"] = ["actionBar", "dialog", "button"],
+        ["rowActions"] = ["dataTable"], ["emptyText"] = ["dataTable"], ["limit"] = ["dataTable"],
+        ["promptLabel"] = ["button"], ["promptRequired"] = ["button"], ["dialogId"] = ["button"],
+        ["gridMode"] = ["editableGrid"], ["sourceQuery"] = ["editableGrid"], ["rowKey"] = ["editableGrid"], ["gridColumns"] = ["editableGrid"],
+        ["maxRows"] = ["editableGrid"], ["addLabel"] = ["editableGrid"], ["fixedRowLabel"] = ["editableGrid"],
+        ["matrixCode"] = ["editableGrid"], ["matrixName"] = ["editableGrid"],
+        ["definitionsQuery"] = ["customFieldsBlock"], ["valuesQuery"] = ["customFieldsBlock"],
+        ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"],
+        ["height"] = ["image"], ["fit"] = ["image"],
+        ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"]
+    };
+
+    private static bool IsStaticTextUpTo(JsonElement value, int max) => value.ValueKind == JsonValueKind.String && value.GetString()!.Length <= max;
+
+    /// <summary>A non-empty array of 1–<paramref name="max"/> distinct non-empty strings.</summary>
+    private static bool TryReadIds(JsonElement value, int max, out List<string> ids)
+    {
+        ids = [];
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() is < 1 || value.GetArrayLength() > max) return false;
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(item.GetString())) return false;
+            ids.Add(item.GetString()!);
+        }
+        return ids.Distinct(StringComparer.Ordinal).Count() == ids.Count;
+    }
+
+    /// <summary>Result column codes of an operation query; null for SQL queries (not checked).</summary>
+    private static IReadOnlyList<string>? OperationColumns(string queryId, Context context) =>
+        context.QueryById.TryGetValue(queryId, out var query) && query.Operation is { } operation && context.Lookup(operation, out var found)
+            ? found.Result.Columns.Select(x => x.Code).ToArray() : null;
+
+    /// <summary>v2 props added in Proje 2 Faz B; id references are collected here and resolved after the component loop.</summary>
+    private static bool ValidateFazBProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
+    {
+        error = null;
+        foreach (var prop in props.EnumerateObject())
+            if (FazBPropTypes.TryGetValue(prop.Name, out var types) && !types.Contains(typeText, StringComparer.Ordinal))
+            { error = $"'{prop.Name}' özelliği bu bileşen türünde kullanılamaz."; return false; }
+        return typeText switch
+        {
+            "actionBar" or "dialog" or "button" when !ValidateSequenceProps(props, id, typeText, context, out error) => false,
+            "button" => ValidateButtonFazBProps(props, id, name, context, out error),
+            "dataTable" => ValidateTableFazBProps(props, id, name, context, out error),
+            "editableGrid" => ValidateGridProps(props, id, name, context, out error),
+            "customFieldsBlock" => ValidateCustomFieldsBlock(props, id, name, context, out error),
+            "dialog" => ValidateDialogProps(props, id, context, out error),
+            "image" => ValidateImageProps(props, out error),
+            "formCard" when props.TryGetProperty("trackChanges", out var track) && !IsBool(track) =>
+                Fail("'trackChanges' true veya false olmalıdır.", out error),
+            _ => true
+        };
+    }
+
+    private static bool Fail(string message, out string? error) { error = message; return false; }
+
+    private static bool ValidateSequenceProps(JsonElement props, string id, string typeText, Context context, out string? error)
+    {
+        error = null;
+        var hasSequence = props.TryGetProperty("saveSequence", out var sequence);
+        if (typeText == "button")
+        {
+            var isSequenceButton = StringOf(props, "actionType") == "sequence";
+            if (!isSequenceButton)
+            {
+                if (hasSequence) return Fail("'saveSequence' yalnız İşlem Çubuğu, pencere ve kayıt dizisi (sequence) düğmesinde kullanılabilir.", out error);
+            }
+            else
+            {
+                if (props.TryGetProperty("queryId", out _)) return Fail("Kayıt dizisi düğmesinde 'queryId' kullanılamaz.", out error);
+                if (!hasSequence) return Fail("Kayıt dizisi düğmesi için 'saveSequence' gerekli.", out error);
+            }
+        }
+        foreach (var key in new[] { "stopOnError", "sequenceWhen" })
+            if (!hasSequence && props.TryGetProperty(key, out _))
+            { error = $"'{key}' yalnız 'saveSequence' ile kullanılabilir."; return false; }
+        if (!hasSequence) return true;
+        if (props.TryGetProperty("saveQuery", out _)) return Fail("'saveSequence' ve 'saveQuery' birlikte kullanılamaz.", out error);
+        if (!TryReadIds(sequence, MaxSequenceSteps, out var steps)
+            || steps.Any(step => !context.QueryKinds.TryGetValue(step, out var kind) || kind == "read"))
+            return Fail("'saveSequence' 1–8 adet farklı yazma sorgusu kimliği içermelidir.", out error);
+        if (props.TryGetProperty("stopOnError", out var stopOnError) && !IsBool(stopOnError))
+            return Fail("'stopOnError' true veya false olmalıdır.", out error);
+        if (props.TryGetProperty("sequenceWhen", out var when))
+        {
+            if (when.ValueKind != JsonValueKind.Array || when.GetArrayLength() > MaxSequenceWhen)
+                return Fail($"'sequenceWhen' en fazla {MaxSequenceWhen} adet sorguKimliği=koşul öğesi içermelidir.", out error);
+            foreach (var item in when.EnumerateArray())
+            {
+                Match match;
+                try { match = item.ValueKind == JsonValueKind.String ? SequenceWhenItem.Match(item.GetString()!) : Match.Empty; }
+                catch (RegexMatchTimeoutException) { match = Match.Empty; }
+                if (!match.Success) return Fail("'sequenceWhen' öğeleri sorguKimliği=koşul biçiminde olmalıdır.", out error);
+                var step = match.Groups[1].Value;
+                if (!steps.Contains(step, StringComparer.Ordinal)) return Fail($"'sequenceWhen' adımı dizide yok: {step}", out error);
+                if (!PageConditionExpression.TryParse(match.Groups[2].Value, out var roots, out var reason))
+                    return Fail($"'sequenceWhen' koşulu geçersiz: {reason}", out error);
+                // Conditions are evaluated once, before the first step: there is no previous step result yet.
+                if (roots.Any(RuntimeReservedNames.Contains))
+                    return Fail("'sequenceWhen' koşulu 'onceki' kullanamaz; adımlar başlamadan değerlendirilir.", out error);
+                context.PendingConditionRoots.Add(("sequenceWhen", roots));
+            }
+        }
+        context.PendingSequences.Add((id, steps));
+        return true;
+    }
+
+    private static bool ValidateButtonFazBProps(JsonElement props, string id, string? name, Context context, out string? error)
+    {
+        error = null;
+        var actionType = StringOf(props, "actionType") ?? "";
+        context.ButtonActionTypes[id] = actionType;
+        var hasPrompt = props.TryGetProperty("promptLabel", out _);
+        if (hasPrompt)
+        {
+            if (actionType is not ("query" or "sequence"))
+                return Fail("'promptLabel' yalnız sorgu (query) veya kayıt dizisi (sequence) düğmesinde kullanılabilir.", out error);
+            if (name is null) return Fail($"Gerekçe soran düğmenin adı olmalıdır: {id}", out error);
+        }
+        if (props.TryGetProperty("promptRequired", out var promptRequired))
+        {
+            if (!hasPrompt) return Fail("'promptRequired' için 'promptLabel' de tanımlı olmalıdır.", out error);
+            if (!IsBool(promptRequired)) return Fail("'promptRequired' true veya false olmalıdır.", out error);
+        }
+        var hasDialog = props.TryGetProperty("dialogId", out var dialogId);
+        if (actionType == "openDialog")
+        {
+            if (!hasDialog || dialogId.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(dialogId.GetString()))
+                return Fail("Pencere açan düğme için 'dialogId' gerekli.", out error);
+            context.PendingDialogRefs.Add(dialogId.GetString()!);
+        }
+        else if (hasDialog) return Fail("'dialogId' yalnız pencere açan (openDialog) düğmede kullanılabilir.", out error);
+        return true;
+    }
+
+    private static bool ValidateTableFazBProps(JsonElement props, string id, string? name, Context context, out string? error)
+    {
+        error = null;
+        var hasQuery = props.TryGetProperty("query", out var query) && query.ValueKind == JsonValueKind.String;
+        if (props.TryGetProperty("rowActions", out var rowActions))
+        {
+            if (!TryReadIds(rowActions, MaxRowActions, out var ids))
+                return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.", out error);
+            if (name is null) return Fail($"Satır işlemleri için veri listesinin adı olmalıdır: {id}", out error);
+            if (!hasQuery) return Fail($"Satır işlemleri yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
+            context.PendingRowActions.Add((id, ids));
+        }
+        if (props.TryGetProperty("emptyText", out var emptyText) && !IsStaticTextUpTo(emptyText, 120))
+            return Fail("'emptyText' en fazla 120 karakterlik metin olmalıdır.", out error);
+        if (props.TryGetProperty("limit", out var limit))
+        {
+            if (props.TryGetProperty("paging", out _)) return Fail("'limit' sunucu sayfalı listede kullanılamaz.", out error);
+            if (!hasQuery || !IsIntIn(limit, 1, 100))
+                return Fail("'limit' yalnız sorguya bağlı veri listesinde 1–100 arasında bir tam sayı olabilir.", out error);
+        }
+        return true;
+    }
+
+    private static bool ValidateGridProps(JsonElement props, string id, string? name, Context context, out string? error)
+    {
+        error = null;
+        var mode = StringOf(props, "gridMode");
+        if (mode is not ("stage" or "list" or "matrix")) return Fail("'gridMode' stage, list veya matrix olmalıdır.", out error);
+        if (name is null) return Fail($"Düzenlenebilir tablonun adı olmalıdır: {id}", out error);
+        var stage = mode == "stage";
+        var matrix = mode == "matrix";
+        string? sourceQuery = null;
+        var hasSource = props.TryGetProperty("sourceQuery", out var source);
+        if (stage != hasSource || hasSource && (source.ValueKind != JsonValueKind.String || !context.IsReadQuery(source.GetString())))
+            return Fail("'sourceQuery' yalnız stage kipinde ve sayfadaki bir okuma sorgusu olabilir.", out error);
+        if (hasSource) sourceQuery = source.GetString();
+        if (props.TryGetProperty("rowKey", out var rowKey))
+        {
+            if (!stage) return Fail("'rowKey' yalnız stage kipinde kullanılabilir.", out error);
+            if (rowKey.ValueKind != JsonValueKind.String || rowKey.GetString()!.Length is < 1 or > 128)
+                return Fail("'rowKey' 1–128 karakterlik sütun adı olmalıdır.", out error);
+            if (OperationColumns(sourceQuery!, context) is { } sourceColumns && !sourceColumns.Contains(rowKey.GetString(), StringComparer.Ordinal))
+                return Fail($"'rowKey' kaynak sorgunun sütunu olmalıdır: {rowKey.GetString()}", out error);
+        }
+        var columns = new List<string>();
+        var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
+        if (matrix)
+        {
+            foreach (var key in new[] { "gridColumns", "maxRows", "fixedRowLabel" })
+                if (props.TryGetProperty(key, out _)) { error = $"'{key}' varyant (matrix) kipinde kullanılamaz."; return false; }
+            if (!props.TryGetProperty("matrixCode", out _) || !props.TryGetProperty("matrixName", out _))
+                return Fail("Varyant tablosu için 'matrixCode' ve 'matrixName' gerekli.", out error);
+        }
+        else
+        {
+            foreach (var key in new[] { "matrixCode", "matrixName" })
+                if (props.TryGetProperty(key, out _)) { error = $"'{key}' yalnız varyant (matrix) kipinde kullanılabilir."; return false; }
+            if (!hasColumns || gridColumns.ValueKind != JsonValueKind.Array || gridColumns.GetArrayLength() is < 1 or > MaxGridColumns)
+                return Fail($"'gridColumns' 1–{MaxGridColumns} adet sütun tanımı içermelidir.", out error);
+            foreach (var item in gridColumns.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String) return Fail("'gridColumns' öğesi geçersiz: metin değil", out error);
+                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out _, out var reason))
+                    return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
+                if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
+                columns.Add(code);
+            }
+            if (props.TryGetProperty("maxRows", out var maxRows) && !IsIntIn(maxRows, 1, 200))
+                return Fail("'maxRows' 1 ile 200 arasında bir tam sayı olmalıdır.", out error);
+        }
+        if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
+            return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
+        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery);
+        return true;
+    }
+
+    private static bool ValidateCustomFieldsBlock(JsonElement props, string id, string? name, Context context, out string? error)
+    {
+        error = null;
+        if (name is null) return Fail($"Özel alanlar bloğunun adı olmalıdır: {id}", out error);
+        foreach (var (key, required, columns, message) in new[]
+        {
+            ("definitionsQuery", true, new[] { "code", "label", "dataType" }, "'definitionsQuery' sorgusunun sonucu code, label ve dataType sütunlarını içermelidir."),
+            ("valuesQuery", false, new[] { "code", "value" }, "'valuesQuery' sorgusunun sonucu code ve value sütunlarını içermelidir.")
+        })
+        {
+            if (!props.TryGetProperty(key, out var query))
+            {
+                if (required) { error = $"'{key}' sayfadaki bir okuma sorgusu olmalıdır."; return false; }
+                continue;
+            }
+            if (query.ValueKind != JsonValueKind.String || !context.IsReadQuery(query.GetString()))
+            { error = $"'{key}' sayfadaki bir okuma sorgusu olmalıdır: {(query.ValueKind == JsonValueKind.String ? query.GetString() : "?")}"; return false; }
+            if (OperationColumns(query.GetString()!, context) is { } resultColumns && columns.Any(x => !resultColumns.Contains(x, StringComparer.Ordinal)))
+            { error = message; return false; }
+        }
+        context.CustomFieldBlocks.Add(name);
+        return true;
+    }
+
+    private static bool ValidateDialogProps(JsonElement props, string id, Context context, out string? error)
+    {
+        error = null;
+        if (!props.TryGetProperty("contains", out var contains) || !TryReadIds(contains, MaxDialogContains, out var ids))
+            return Fail($"'contains' 1–{MaxDialogContains} adet farklı bileşen kimliği içermelidir.", out error);
+        if (props.TryGetProperty("presentation", out _) && StringOf(props, "presentation") is not ("dialog" or "drawer"))
+            return Fail("'presentation' dialog veya drawer olmalıdır.", out error);
+        if (props.TryGetProperty("saveLabel", out var saveLabel) && !IsStaticTextUpTo(saveLabel, 40))
+            return Fail("'saveLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
+        foreach (var key in new[] { "closeOnSave", "resetOnOpen" })
+            if (props.TryGetProperty(key, out var flag) && !IsBool(flag)) { error = $"'{key}' true veya false olmalıdır."; return false; }
+        context.PendingDialogContains.Add((id, ids));
+        return true;
+    }
+
+    private static bool ValidateImageProps(JsonElement props, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("height", out var height) && !IsIntIn(height, 40, 400))
+            return Fail("'height' 40 ile 400 arasında bir tam sayı olmalıdır.", out error);
+        if (props.TryGetProperty("fit", out _) && StringOf(props, "fit") is not ("contain" or "cover"))
+            return Fail("'fit' contain veya cover olmalıdır.", out error);
+        return true;
+    }
+
+    /// <summary>
+    /// Post-loop checks of Faz B references, after <see cref="ResolveFazAReferences"/> and sharing its <paramref name="owners"/>:
+    /// dialog contents then row actions are owned by id, collection bindings resolve to grids and blocks, and grid-iterating
+    /// queries and save sequences are checked.
+    /// </summary>
+    private static bool ResolveFazBReferences(Context context, Dictionary<string, string> owners, out string? error)
+    {
+        error = null;
+        foreach (var dialogId in context.PendingDialogRefs)
+            if (!context.ComponentTypesById.TryGetValue(dialogId, out var type) || type != "dialog")
+                return Fail($"Açılacak pencere sayfada yok: {dialogId}", out error);
+        foreach (var (dialogId, ids) in context.PendingDialogContains)
+            foreach (var ownedId in ids)
+            {
+                if (!context.ComponentTypesById.TryGetValue(ownedId, out var type)) return Fail($"Pencerenin bileşeni sayfada yok: {ownedId}", out error);
+                if (!context.TopLevelIds.Contains(ownedId)) return Fail($"Pencereler yalnız üst düzey bileşenleri içerebilir: {ownedId}", out error);
+                if (type is "dialog" or "actionBar") return Fail($"Pencere pencere veya İşlem Çubuğu içeremez: {ownedId}", out error);
+                if (!owners.TryAdd(ownedId, dialogId)) return Fail($"'{ownedId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
+            }
+        var menuButtons = context.PendingActionRefs.Where(x => x.Property == "moreButtons").Select(x => x.ComponentId).ToHashSet(StringComparer.Ordinal);
+        foreach (var (tableId, ids) in context.PendingRowActions)
+            foreach (var buttonId in ids)
+            {
+                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog"))
+                    return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi veya pencere düğmesi içermelidir.", out error);
+                if (menuButtons.Contains(buttonId)) return Fail($"Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
+                if (!owners.TryAdd(buttonId, tableId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
+            }
+        return ResolveCollectionBindings(context, out error) && ResolveGridIteration(context, out error) && ResolveSequences(context, out error);
+    }
+
+    private static bool ResolveCollectionBindings(Context context, out string? error)
+    {
+        error = null;
+        foreach (var (queryName, parameterName, kind, root, _) in context.PendingCollectionBindings)
+        {
+            if (kind == "map")
+            {
+                if (!context.CustomFieldBlocks.Contains(root))
+                    return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi bir özel alanlar bloğuna bağlanmalıdır.", out error);
+                continue;
+            }
+            if (!context.GridModesByName.TryGetValue(root, out var grid) || grid.Mode is not ("list" or "matrix"))
+                return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi listeli veya varyant kipinde bir düzenlenebilir tabloya bağlanmalıdır.", out error);
+            var query = context.QueryById.Values.First(x => x.Name == queryName);
+            var items = query.Operation is { } operationName && context.Lookup(operationName, out var operation)
+                ? operation.Parameters.FirstOrDefault(x => x.Name == parameterName)?.Items ?? [] : [];
+            if (grid.Mode == "matrix")
+            {
+                if (new[] { "code", "name", "attributes" }.Any(code => !items.Any(x => x.Code == code)))
+                    return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresinin alanları varyant tablosu için code, name ve attributes içermelidir.", out error);
+                continue;
+            }
+            foreach (var code in grid.Columns)
+            {
+                var item = items.FirstOrDefault(x => x.Code == GridColumnSpec.RootOf(code));
+                // A dotted column writes into a map item; a plain column into a scalar item.
+                if (item is null || code.Contains('.') != (item.DataType == "map"))
+                    return Fail($"'{grid.Name}' tablosunun '{code}' sütunu '{parameterName}' parametresinin alanlarında yok.", out error);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A parameter bound to <c>{{grid.eklenenSatir.x}}</c> / <c>{{grid.silinenSatir.x}}</c> makes its query run once per staged row
+    /// of a stage grid. Such a query iterates one (grid, list) pair and runs only as a save-sequence step.
+    /// </summary>
+    private static bool ResolveGridIteration(Context context, out string? error)
+    {
+        error = null;
+        foreach (var query in context.QueryById.Values)
+        {
+            var pairs = new HashSet<(string, string)>();
+            foreach (var parameter in query.Parameters)
+            {
+                Match match;
+                try { match = TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path) ? IterationBindingPath.Match(path) : Match.Empty; }
+                catch (RegexMatchTimeoutException) { match = Match.Empty; }
+                if (!match.Success) continue;
+                var (root, list, column) = (match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value);
+                if (!context.GridModesByName.TryGetValue(root, out var grid) || grid.Mode != "stage")
+                    return Fail($"'{query.Name}' sorgusundaki '{parameter.Name}' parametresi stage kipinde bir düzenlenebilir tabloya bağlanmalıdır.", out error);
+                pairs.Add((root, list));
+                if (pairs.Count > 1) return Fail($"'{query.Name}' adımı en fazla bir ızgara listesini dolaşabilir.", out error);
+                // Removed rows are source rows: any source column (unchecked for SQL sources); added rows carry the grid columns.
+                var known = grid.Columns.Contains(column, StringComparer.Ordinal)
+                    || list == "silinenSatir" && (OperationColumns(grid.SourceQuery!, context) is not { } sourceColumns || sourceColumns.Contains(column, StringComparer.Ordinal));
+                if (!known)
+                    return Fail($"'{query.Name}' sorgusundaki '{parameter.Name}' parametresi '{grid.Name}' tablosunda olmayan bir sütuna bağlı: {column}", out error);
+            }
+            if (pairs.Count > 0 && context.DirectWriteQueries.Contains(query.Id))
+                return Fail($"'{query.Name}' sorgusu ızgara satırlarına bağlı; yalnız kayıt dizisinde kullanılabilir.", out error);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A second step that starts from the source record would send the pre-sequence rowVersion and fail with a conflict.
+    /// </summary>
+    private static bool ResolveSequences(Context context, out string? error)
+    {
+        error = null;
+        foreach (var (_, steps) in context.PendingSequences)
+        {
+            var sourceBacked = steps.Count(step => context.QueryById.TryGetValue(step, out var query) && query.Operation is { } operationName
+                && context.Lookup(operationName, out var operation) && operation.SourceOperation is not null);
+            if (sourceBacked > 1) return Fail("Bir kayıt dizisinde kaynak kayıttan başlayan en fazla bir adım olabilir.", out error);
         }
         return true;
     }
