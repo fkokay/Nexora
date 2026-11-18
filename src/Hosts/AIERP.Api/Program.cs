@@ -154,10 +154,13 @@ builder.Services.AddRateLimiter(o =>
 });
 // Custom page write runs (published and preview): 60 per user per minute, checked in the handler.
 builder.Services.AddSingleton<CustomPageWriteRateLimiter>();
+// System page standards and the standard-version bound of custom-page PUTs.
+builder.Services.AddSystemPages();
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Trace-Id")));
 builder.Services.AddOpenApi();
 var app = builder.Build();
+_ = SystemPageStandards.All; // An invalid embedded system page standard fails startup.
 app.UseExceptionHandler();
 app.Use(async (context, next) =>
 {
@@ -246,6 +249,7 @@ app.MapCustomFormEndpoints();
 app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
+app.MapSystemPageEndpoints();
 app.MapCustomPageAccessEndpoints();
 app.MapCustomPageQueryEndpoints();
 app.MapErpOperationCatalogEndpoints();

@@ -33,6 +33,7 @@ import {
 } from "./workspace-storage";
 
 import { financePageTitles } from "./financeCatalog";
+import { useSystemPageMap } from "./system-pages/useSystemPageMap";
 import {
   shellText,
   inventoryPageTitles,
@@ -169,6 +170,8 @@ function AppContent() {
       return null;
     }
   });
+  // System page runtime map: fetched once per tenant selection; page keys stay unchanged.
+  const systemPages = useSystemPageMap(token, tenant?.id ?? "");
   useEffect(() => {
     if (!embeddedStudioTool) return;
     const receiveStudioSession = (event: MessageEvent<unknown>) => {
@@ -943,6 +946,7 @@ function AppContent() {
       notice={notice}
       platformStatus={platformStatus}
       selectedModuleMenu={selectedModuleMenu}
+      systemPages={systemPages}
       pendingCustomerInvoiceId={pendingCustomerInvoiceId}
       pendingPurchaseSupplier={pendingPurchaseSupplier}
       initialCustomerSearch={globalCustomerSearch}

@@ -911,6 +911,43 @@ internal static class TenantScreenViewEndpoints
         return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
     }
 
+    /// <summary>Read-only view of a catalog entry's static fields; the key must match exactly (ordinal).</summary>
+    internal static bool TryGetCatalogFields(string key, out IReadOnlyList<(string Key, string Label, bool DefaultVisible)> fields)
+    {
+        if (TryGetCatalog(key, out var catalog) && string.Equals(catalog.Key, key, StringComparison.Ordinal))
+        {
+            fields = catalog.Fields.Select(x => (x.Key, x.Label, x.DefaultVisible)).ToArray();
+            return true;
+        }
+        fields = [];
+        return false;
+    }
+
+    /// <summary>
+    /// The published "Görünümü düzenle" view of <paramref name="screenViewKey"/> as one state per catalog field (customer
+    /// custom fields included), or null without a published view. <c>DiffersFromDefault</c> is true when the field's label,
+    /// position, width or section differs from the catalog default; visibility alone does not count.
+    /// </summary>
+    internal static async Task<IReadOnlyList<ScreenViewFieldState>?> ReadPublishedFieldStatesAsync(TenantDbContext db, Guid tenantId,
+        string screenViewKey, CancellationToken ct)
+    {
+        if (!TryGetCatalog(screenViewKey, out var catalog) || !string.Equals(catalog.Key, screenViewKey, StringComparison.Ordinal)) return null;
+        catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
+        var view = await db.TenantScreenViews.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == catalog.Key && x.IsPublished, ct);
+        if (view is null) return null;
+        var defaults = catalog.Fields.Select((field, index) => (field, index)).ToDictionary(x => x.field.Key, StringComparer.Ordinal);
+        static string? section(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+        return ToView(view, catalog).Fields.Where(x => defaults.ContainsKey(x.Key))
+            .Select((field, position) =>
+            {
+                var (standard, index) = defaults[field.Key];
+                var differs = !string.Equals(field.Label, standard.Label, StringComparison.Ordinal) || position != index
+                    || field.Width is not null || !string.Equals(section(field.Section), section(standard.Section), StringComparison.Ordinal);
+                return new ScreenViewFieldState(field.Key, field.Label, field.Visible, differs);
+            }).ToArray();
+    }
+
     private static bool TryGetCatalog(string key, out ScreenViewCatalog catalog)
     {
         if (string.Equals(key, "hr-employees", StringComparison.OrdinalIgnoreCase))

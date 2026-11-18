@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Data\vuk-useful-life-catalog-2026.json" />
+    <EmbeddedResource Include="SystemPages\Standards\*.json" />
     <Content Include="..\..\..\docs\schemas\gib\ebeyanname-v133-2026-10-02\**\*.*">
       <Link>schemas\gib\ebeyanname-v133-2026-10-02\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

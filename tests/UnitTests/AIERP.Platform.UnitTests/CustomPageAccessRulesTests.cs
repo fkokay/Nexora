@@ -111,6 +111,34 @@ public sealed class CustomPageAccessRulesTests
         Assert.Equal("erp.tenant-customizations", previewPermission!.Permission.ResourceType);
     }
 
+    [Theory]
+    [InlineData("/api/system-pages/runtime", "GET", "/api/system-pages/runtime")]
+    [InlineData("/api/system-pages/inventory-warehouses/published", "GET", "/api/system-pages/{screenKey}/published")]
+    public void System_page_runtime_routes_resolve_to_custom_menu_read_permission(string path, string method, string route)
+    {
+        // The runtime map and a published system page are tenant navigation, like /api/custom-pages/{code}/published.
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, route,
+            new Dictionary<string, string?> { ["screenKey"] = "inventory-warehouses" }, Guid.NewGuid(), User, "TenantUser", out var permission);
+        Assert.True(resolved);
+        Assert.Equal("erp.custom-menus", permission!.Permission.ResourceType);
+        Assert.Equal("read", permission.Permission.Action);
+    }
+
+    [Theory]
+    [InlineData("/api/system-pages", "GET", "/api/system-pages", "read")]
+    [InlineData("/api/system-pages/inventory-warehouses/new-items", "GET", "/api/system-pages/{screenKey}/new-items", "read")]
+    [InlineData("/api/system-pages/inventory-warehouses/history", "GET", "/api/system-pages/{screenKey}/history", "read")]
+    [InlineData("/api/system-pages/inventory-warehouses/draft", "POST", "/api/system-pages/{screenKey}/draft", "create")]
+    [InlineData("/api/system-pages/inventory-warehouses/reset", "POST", "/api/system-pages/{screenKey}/reset", "update")]
+    public void System_page_management_routes_resolve_to_tenant_customization_permission(string path, string method, string route, string action)
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve(path, method, route,
+            new Dictionary<string, string?> { ["screenKey"] = "inventory-warehouses" }, Guid.NewGuid(), User, "TenantAdmin", out var permission);
+        Assert.True(resolved);
+        Assert.Equal("erp.tenant-customizations", permission!.Permission.ResourceType);
+        Assert.Equal(action, permission.Permission.Action);
+    }
+
     [Fact]
     public void Erp_operation_catalog_route_resolves_to_custom_page_runtime_read_permission()
     {

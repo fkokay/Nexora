@@ -125,12 +125,20 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
         });
         modelBuilder.Entity<TenantCustomPage>(e =>
         {
-            e.ToTable("TenantCustomPages", table => table.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1"));
+            e.ToTable("TenantCustomPages", table =>
+            {
+                table.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1");
+                // A system row is linked to its screen only through the code "@<screenKey>" and always has a base version.
+                table.HasCheckConstraint("CK_TenantCustomPages_ScreenKey",
+                    "[ScreenKey] IS NULL OR ([Code] = '@' + [ScreenKey] AND [StandardVersion] IS NOT NULL AND [StandardVersion] >= 1)");
+            });
             e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.TenantId, x.Id });
             e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished }, "IX_TenantCustomPages_Published").IsUnique().HasFilter("[IsPublished] = 1");
             e.HasIndex(x => new { x.TenantId, x.Code, x.IsPublished, x.IsArchived }, "IX_TenantCustomPages_Draft").IsUnique().HasFilter("[IsPublished] = 0 AND [IsArchived] = 0");
             e.HasIndex(x => new { x.TenantId, x.Code, x.UpdatedAt });
+            e.HasIndex(x => new { x.TenantId, x.ScreenKey }, "IX_TenantCustomPages_ScreenKey").HasFilter("[ScreenKey] IS NOT NULL");
             e.Property(x => x.Code).HasMaxLength(40).IsUnicode(false).IsRequired();
+            e.Property(x => x.ScreenKey).HasMaxLength(40).IsUnicode(false);
             e.Property(x => x.Name).HasMaxLength(120).IsRequired(); e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.Revision).IsConcurrencyToken();

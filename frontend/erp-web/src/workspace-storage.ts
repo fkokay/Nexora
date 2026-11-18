@@ -21,6 +21,9 @@ export function getInitialPage(standaloneStudio:boolean,embeddedStudioTool=false
   if (publishedCustomPage && /^[a-z0-9_-]{1,40}$/i.test(publishedCustomPage)) return `custom-page:${publishedCustomPage}`
   const requestedPlatformTool=query.get('platformTool')
   if(requestedPlatformTool&&platformCustomizationPages.includes(requestedPlatformTool))return requestedPlatformTool
+  // ?page=<key> opens a built-in screen directly (e.g. a system page link); anything else is ignored.
+  const requestedPage=query.get('page')
+  if(requestedPage&&/^[a-z0-9-]{1,39}$/.test(requestedPage)&&isPersistablePage(requestedPage))return requestedPage
   try{const activeTenant=JSON.parse(localStorage.getItem(activeTenantKey)||'null') as Tenant|null;if(!localStorage.getItem(tokenKey)||!activeTenant?.id)return 'launcher';const workspace=JSON.parse(sessionStorage.getItem(workspaceStorageKey(activeTenant.id))||'null') as {activePage?:unknown}|null;const preferences=readWorkspacePreferences();if(preferences.restoreTabs===false)return 'launcher';return typeof workspace?.activePage==='string'&&isPersistablePage(workspace.activePage)?workspace.activePage:'launcher'}catch{return 'launcher'}
 }
 export function readWorkspaceTabs(tenantId:string|undefined):Array<{id:string;label:string}>{

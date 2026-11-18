@@ -3058,6 +3058,10 @@ public sealed class TenantCustomPage
     public int Revision { get; set; } = 1;
     public bool IsPublished { get; set; }
     public bool IsArchived { get; set; }
+    /// <summary>Standard ERP screen this firm design replaces; set only on <c>@&lt;screenKey&gt;</c> rows.</summary>
+    public string? ScreenKey { get; set; }
+    /// <summary>Standard version the firm design is based on (or last acknowledged); set only on system rows.</summary>
+    public int? StandardVersion { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -3079,6 +3083,7 @@ public sealed class TenantCustomPageRevision
     public string ChangeKind { get; set; } = "Updated";
     public Guid ChangedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public int? StandardVersion { get; set; }
 }
 
 /// <summary>Per-page access settings keyed by page code; draft and published rows of the same code share them.</summary>
