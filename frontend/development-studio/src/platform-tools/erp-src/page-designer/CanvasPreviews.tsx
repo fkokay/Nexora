@@ -438,10 +438,12 @@ export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned
 }) {
   const [open, setOpen] = useState(false);
   const kind = presentation === "drawer" ? "Çekmece" : "Pencere";
-  return <section className="pd-layout-block pd-tabs-preview" style={style}>
-    <div className="pd-tabs-preview-list">
-      <button type="button" tabIndex={-1} aria-expanded={open} className={open ? "is-active" : undefined}
-        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}>{`${kind}: ${title || "Başlıksız"} · ${ids.length} bileşen`} {open ? "▴" : "▾"}</button>
+  return <section className="pd-layout-block pd-dialog-preview" style={style}>
+    <div className="pd-dialog-head">
+      <span className="pd-dialog-icon" aria-hidden="true">{presentation === "drawer" ? "▥" : "▢"}</span>
+      <span className="pd-dialog-title"><b>{title || "Başlıksız"}</b><small>{kind} · {ids.length} bileşen · ERP'de düğmeyle açılır</small></span>
+      <button type="button" tabIndex={-1} aria-expanded={open} className="pd-dialog-toggle"
+        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}>{open ? "İçini gizle ▴" : "İçini göster ▾"}</button>
     </div>
     {open && <>
       <div className="pd-tabs-preview-panel">

@@ -674,3 +674,12 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-card-child{flex:0 0 auto;min-width:0}
 .pd-card-child.is-tabs,.pd-card-child.is-dataTable,.pd-card-child.is-contextPanel,.pd-card-child.is-formCard{flex:1 1 100%}
 .pd-card-child .pd-tabs-preview-panel{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}
+
+/* Pencere / çekmece önizlemesi: başlık şeridi ve "İçini göster" (kapalıyken tek satırlık sönük şerit yerine). */
+.pd-dialog-preview{border:1px solid var(--page-border);border-radius:10px;background:var(--page-surface,#fff);overflow:hidden}
+.pd-dialog-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border-bottom:1px solid var(--page-border)}
+.pd-dialog-icon{display:grid;place-items:center;width:28px;height:28px;border-radius:7px;background:#eef2ff;color:#4f46e5;font-size:14px}
+.pd-dialog-title{display:grid;min-width:0}.pd-dialog-title b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pd-dialog-title small{color:#667085;font-size:11px}
+.pd-dialog-toggle{margin-left:auto;border:1px solid var(--page-border);border-radius:7px;background:#fff;padding:4px 10px;font:inherit;font-size:12px;font-weight:600;color:#344054;cursor:pointer}
+.pd-dialog-preview .pd-tabs-preview-panel{padding:10px 12px}
+.pd-dialog-preview>.custom-page-preview-card-head{justify-content:flex-end;gap:6px;padding:0 12px 10px}

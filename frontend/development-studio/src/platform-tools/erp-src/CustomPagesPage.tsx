@@ -1781,7 +1781,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // "İşlemler" menüsüne taşınan düğmeler ERP'de kendi yerinde çizilmez; tuvalde de gizlenir (katmanlardan seçilebilir kalır).
   const movedIds = useMemo(() => movedButtonIds(definition.components), [definition]);
   // Sekmelere alınan bileşenler üst düzeyde çizilmez; Sekmeler bileşeninin içinde varsayılan (ya da tıklanan) sekmede görünür.
-  const tabIds = useMemo(() => tabOwnedIds(definition.components), [definition]);
+  // Kartların içindeki Sekmelerin bileşenleri de sahipli sayılır (üst düzeyde boş blok ve rozet bırakmasın).
+  const tabIds = useMemo(() => new Set([...tabOwnedIds(definition.components),
+    ...tabOwnedIds(definition.components.flatMap((component) => component.type === "card" || component.type === "section" ? childComponentsOf(component) : []) as typeof definition.components)]), [definition]);
   // Pencerenin içerdiği bileşenler ve listelerin satır işlemi düğmeleri de üst düzeyde çizilmez (pencerede / İşlemler sütununda görünür).
   const nestedIds = useMemo(() => new Set([...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]), [definition]);
   runQueryPreviewRef.current = runQueryPreview;
@@ -2137,16 +2139,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // dragover'da yalnız ızgara (yer tutucu) çizilir, 80+ bloğun sarmalayıcısı ve önizlemesi React tarafından atlanır.
   const canvasBlocks = useMemo<CanvasBlock[]>(() => definition.components.map((component, index) => {
     const isSelected = selectedComponentId === component.id;
+    const owned = ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id));
     const element = <div key={component.id} data-flip={component.id} data-page-index={index}
-      className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
+      className={`pd-block ${owned ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
       style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
       onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: component.id }); }}
       onDragEnd={() => live.current.clearDrag()}>
       <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
-      {isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
-      {samples.badge(component.type === "dataTable" || component.type === "metric" ? (typeof component.props.query === "string" ? component.props.query : null) : component.type === "input" && typeof component.props.optionsQuery === "string" ? component.props.optionsQuery : null)}
+      {/* Sahibinin içinde çizilen (gizli) blokta rozetler de çizilmez: aksi hâlde boşlukta üst üste biner. */}
+      {!owned && isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
+      {!owned && samples.badge(component.type === "dataTable" || component.type === "metric" ? (typeof component.props.query === "string" ? component.props.query : null) : component.type === "input" && typeof component.props.optionsQuery === "string" ? component.props.optionsQuery : null)}
       {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="pd-block-edit" title="Tüm ayarlar" aria-label="Tüm ayarlar" onClick={() => { setRightMode("inspector"); setSettingsId(component.id); }}>✎ Düzenle</button>
         <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => live.current.moveComponent(index, -1)}><ArrowUp size={13}/></button>
