@@ -278,6 +278,15 @@ public static class PlatformPermissionCatalog
         else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.customer-locations");
+        else if (path.Equals("/api/system-pages", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/system-pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            // The runtime map and a published system page are tenant navigation, like /api/custom-pages/{code}/published;
+            // the catalog, drafts, reset, "Yeni" items and history are low-code customization.
+            var runtime = normalizedRoute.Equals("/api/system-pages/runtime", StringComparison.OrdinalIgnoreCase)
+                || normalizedRoute.EndsWith("/{screenKey}/published", StringComparison.OrdinalIgnoreCase);
+            resource = Resources.First(x => x.ResourceType == (runtime ? "erp.custom-menus" : "erp.tenant-customizations"));
+        }
         else if (path.Equals("/api/custom-pages", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))
         {
