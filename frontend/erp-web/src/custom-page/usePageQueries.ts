@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
@@ -155,7 +155,8 @@ export function usePageQueries(options: {
       const request = buildOperationRequest(op, values, source);
       const json = await api<unknown>(request.url, token, operationInit(request));
       if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
-      const next: QueryState = { ...mapOperationResult(op, json), truncated: false, loading: false, error: "", ran: true };
+      const mapped = mapOperationResult(op, json);
+      const next: QueryState = { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true };
       setStates((current) => ({ ...current, [query.name]: next }));
       return next;
     } catch (cause) {
@@ -173,7 +174,10 @@ export function usePageQueries(options: {
     const source = sourceQueryOf(op);
     // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
     if (source && latestStates.current[source.name]?.loading) throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
-    const request = buildOperationRequest(op, values, sourceRow(op));
+    const row = sourceRow(op);
+    const mismatch = sourceRecordError(op, values, row);
+    if (mismatch) throw new Error(mismatch);
+    const request = buildOperationRequest(op, values, row);
     setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(false)), fieldErrors: undefined } }));
     try {
       const json = await api<unknown>(request.url, token, operationInit(request));

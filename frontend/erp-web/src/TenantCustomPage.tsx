@@ -283,6 +283,7 @@ function writeErrorText(configured: string, cause: unknown): string {
 function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  // ERP işlemi yazmaları da (SQL yazmaları gibi) sayfanın insert/update/delete hakkını ister; sunucu yalnız işlemin kendi iznine bakar, istemci bilerek daha sıkıdır.
   const allowed = runtime.rights[query.kind === "read" ? "view" : query.kind] === true;
   const mounted = useRef(true);
   // Okuma yeniden çalıştırmada çift tıklamayı engeller; yazmalar sayfanın ortak kilidini (runtime.writeLock) kullanır.

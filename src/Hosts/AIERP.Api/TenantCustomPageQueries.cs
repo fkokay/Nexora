@@ -98,6 +98,53 @@ internal static partial class TenantCustomPageQueries
         catch (JsonException) { return false; }
     }
 
+    /// <summary>
+    /// Structural check: a v2 definition with an ERP operation query that is not a pure read (query kind other than
+    /// <c>read</c>, or a named operation that is unknown or a write). Fails safe like <see cref="HasSqlQueries"/>: an
+    /// operation entry that cannot be classified counts as a write. Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasWriteOperationQueries(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind == JsonValueKind.Object
+                    && query.TryGetProperty("operation", out var operation)
+                    && !(query.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "read"
+                         && operation.ValueKind == JsonValueKind.String
+                         && AIERP.Api.ErpOperationCatalog.TryGet(operation.GetString()!, out var op) && op.Kind == "read"));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>
+    /// Structural check (v1 or v2, nested children included): a component of type <c>code</c> whose <c>props.javascript</c>
+    /// is a non-blank string. Code components can reach page data and operations, so authoring them needs SQL-level trust.
+    /// Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasCodeScript(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 64 });
+            return HasCodeScript(document.RootElement);
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool HasCodeScript(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array) return element.EnumerateArray().Any(HasCodeScript);
+        if (element.ValueKind != JsonValueKind.Object) return false;
+        if (element.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "code"
+            && element.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object
+            && props.TryGetProperty("javascript", out var script) && script.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(script.GetString())) return true;
+        return element.EnumerateObject().Any(property => HasCodeScript(property.Value));
+    }
+
     /// <summary>ERP operation names used by any of the given stored definitions (malformed ones contribute nothing).</summary>
     internal static IReadOnlySet<string> OperationNames(params string?[] definitions) =>
         definitions.Where(x => x is not null).SelectMany(x => ReadQueries(x!)).Select(x => x.Operation)

@@ -53,6 +53,33 @@ describe('usePageQueries ERP işlemleri', () => {
     await waitFor(() => expect(result.current.states.kartlar.ran).toBe(true));
     expect(apiMock).toHaveBeenCalledWith('/api/stock/items?q=ko', 't', { method: 'GET' });
     expect(result.current.states.kartlar).toMatchObject({ rows: [{ id: guid }], rowCount: 5, columns, loading: false, error: '' });
+    expect(result.current.states.kartlar.truncated).toBe(true);
+  });
+
+  it('a list holding every row is not truncated', async () => {
+    apiMock.mockResolvedValue({ items: [{ id: guid }], totalCount: 1 });
+    const { result } = setup([listQuery], catalog);
+    await waitFor(() => expect(result.current.states.kartlar.ran).toBe(true));
+    expect(result.current.states.kartlar.truncated).toBe(false);
+  });
+
+  it('source-backed write without a loaded source row sends nothing', async () => {
+    const { result } = setup([updateQuery], catalog);
+    await expect(result.current.runWrite(updateQuery, { name: 'B' })).rejects.toThrow('Kaynak kayıt yüklenmedi; önce bir kayıt seçin.');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  it('source-backed write refuses a bound id that differs from the source row', async () => {
+    apiMock.mockResolvedValue({ Id: guid, name: 'A', rowVersion: 'AAA=' });
+    const { result } = setup([getQuery, updateQuery], catalog);
+    await waitFor(() => expect(result.current.states.kart.rows).toHaveLength(1));
+    const other = '3f2504e0-4f89-11d3-9a0c-0305e82c3302';
+    await expect(result.current.runWrite(updateQuery, { id: other, name: 'B' })).rejects.toThrow('Kaynak kayıt seçili kayıtla eşleşmiyor.');
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    // Same id in another case matches.
+    apiMock.mockResolvedValue({ id: guid });
+    await act(async () => { await result.current.runWrite(updateQuery, { id: guid.toUpperCase(), name: 'B' }); });
+    expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
   it('waits until catalog loads', async () => {
@@ -115,7 +142,10 @@ describe('usePageQueries ERP işlemleri', () => {
   it('runtime 403 shows the generic rights text even with a server error body', async () => {
     const denied = () => Object.assign(new Error('Bu işlem için yetkiniz yok.'), { status: 403, serverError: 'permission_denied' });
     apiMock.mockImplementation(async () => { throw denied(); });
-    const { result } = setup([listQuery, updateQuery], catalog);
+    // Source-less write so the 403 comes from the server, not from the missing source row.
+    const sourceless = new Map(catalog);
+    sourceless.set(updateOp.name, { ...updateOp, sourceOperation: null });
+    const { result } = setup([listQuery, updateQuery], sourceless);
     await waitFor(() => expect(result.current.states.kartlar.error).toBe('Bu işlem için yetkiniz yok.'));
     let thrown: (Error & { serverError?: string }) | undefined;
     await act(async () => { await result.current.runWrite({ ...updateQuery, operation: 'stok.kart.guncelle' }, { id: guid, name: 'B' }).catch((cause) => { thrown = cause; }); });

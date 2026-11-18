@@ -24,12 +24,13 @@ public sealed class PlatformPermissionAuthorizer(PlatformDbContext db) : IPlatfo
     {
         var decisions = new bool[permissions.Count];
         if (permissions.Count == 0 || !await IsActiveMemberAsync(tenantId, userId, role, cancellationToken)) return decisions;
-        var codes = permissions.Where(x => !AdminBypass(role, x)).Select(x => x.Permission.Code).Distinct(StringComparer.Ordinal).ToArray();
+        var codes = permissions.Where(x => !AdminBypass(role, x)).Select(x => x.Permission.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var rules = codes.Length == 0 ? [] : await db.TenantPermissionRules.AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive && codes.Contains(x.PermissionCode)
                 && (x.SubjectUserId == userId || x.SubjectRole == role))
             .ToListAsync(cancellationToken);
-        var byCode = rules.ToLookup(x => x.PermissionCode, StringComparer.Ordinal);
+        // SQL Server compares PermissionCode case-insensitively (as the single-permission query does), so group the same way.
+        var byCode = rules.ToLookup(x => x.PermissionCode, StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < permissions.Count; index++)
         {
             var permission = permissions[index];
