@@ -10,7 +10,7 @@
 html[data-theme='dark'] :is(.app-shell, .module-launcher) :is(
   .accounting-rule-profiles, .settings-main, .settings-sidebar, .workflow-template,
   .ai-live-evaluation, .ledger-basis-toolbar, .purchase-request-table-wrap,
-  .contracts-summary, .purchase-note-overview,
+  .contracts-summary,
   .sales-distribution-kpis > article, .workflow-summary > div, .finance-summary-strip > div,
   .tenant-license-command-summary, .launcher-assistant-composer > div, .table-empty,
   .customer-create-tabs, .customer-detail-facts > div, .customer-export-menu > div,
@@ -116,8 +116,6 @@ html[data-theme='dark'] .module-launcher :is(
 
 /* Record links and table text written in dark blue or navy for light tables. */
 html[data-theme='dark'] .app-shell .inventory-record-pick { color: var(--nx-primary-strong); }
-html[data-theme='dark'] .app-shell .purchase-requests-page .purchase-request-code { color: #8cc4f5; }
-html[data-theme='dark'] .app-shell .purchase-requests-page .purchase-request-table td { color: var(--erp-color-text); }
 html[data-theme='dark'] .app-shell .manufacturing-order-select:is(:hover, [aria-pressed='true']) { color: var(--nx-primary-strong); }
 
 /* The shared row hover in global-components.css is light and !important; tables whose cells

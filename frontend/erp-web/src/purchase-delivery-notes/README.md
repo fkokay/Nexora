@@ -14,5 +14,5 @@
   line quantities (`DeliveryNoteComposePanel`) and the order's notes with receipt link / unlink
   (`OrderDeliveryNotesPanel`, buttons only). Requests and bodies are unchanged.
 
-Shared record types and default screen-view fields live in `types.ts`. `components/DeliveryNotesOverview.tsx` is unused.
+Shared record types and default screen-view fields live in `types.ts`.
 The page remains the default export consumed by the existing router.
