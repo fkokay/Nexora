@@ -54,12 +54,12 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled, 
 }
 
 /** "sütun=Etiket" listesi: sütun seçimi ve etiket metni; "=" ve SafeValue'nun reddettiği parçalar temizlenir. */
-export function FieldListEditor({ columns, value, onChange, disabled }: {
-  columns: { code: string; label: string }[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean;
+export function FieldListEditor({ columns, value, onChange, disabled, max = MAX_ITEMS, addLabel = "Alan ekle" }: {
+  columns: { code: string; label: string }[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean; max?: number; addLabel?: string;
 }) {
   const rows = parseFieldList(value);
   const usable = columns.filter((column) => isSafeColumnCode(column.code) && !column.code.includes("="));
-  const write = (next: { code: string; label: string }[]) => onChange(next.slice(0, MAX_ITEMS).map((item) => `${item.code}=${item.label}`));
+  const write = (next: { code: string; label: string }[]) => onChange(next.slice(0, max).map((item) => `${item.code}=${item.label}`));
   const labelFor = (column: { code: string; label: string }) => sanitizeSafeValue(column.label || column.code).slice(0, 60) || sanitizeSafeValue(column.code).slice(0, 60) || "Alan";
   const free = usable.find((column) => !rows.some((row) => row.code === column.code));
   return <div className="pd-tonemap">
@@ -77,6 +77,6 @@ export function FieldListEditor({ columns, value, onChange, disabled }: {
       }}/>
       <button type="button" className="pd-icon-button" aria-label={`Alan ${index + 1} sil`} disabled={disabled} onClick={() => write(rows.filter((_, i) => i !== index))}><X size={13}/></button>
     </div>)}
-    <button type="button" className="pd-button small" disabled={disabled || !free || rows.length >= MAX_ITEMS} onClick={() => { if (free) write([...rows, { code: free.code, label: labelFor(free) }]); }}><Plus size={13}/>Alan ekle</button>
+    <button type="button" className="pd-button small" disabled={disabled || !free || rows.length >= max} onClick={() => { if (free) write([...rows, { code: free.code, label: labelFor(free) }]); }}><Plus size={13}/>{addLabel}</button>
   </div>;
 }
