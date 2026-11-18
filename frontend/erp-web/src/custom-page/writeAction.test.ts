@@ -67,3 +67,41 @@ describe('runWriteAction', () => {
     expect(inFlight.current).toBe(false);
   });
 });
+
+describe('runWriteAction kod bileşeni kancaları', () => {
+  it('beforeSave cancel blocks write', async () => {
+    const beforeWrite = vi.fn(async () => ({ cancel: true as const, message: 'Kod: iptal' }));
+    const afterWrite = vi.fn();
+    const { write, opts, inFlight } = setup({ confirm: { enabled: false }, beforeWrite, afterWrite });
+    expect(await runWriteAction(opts)).toEqual({ ok: false, error: 'Kod: iptal' });
+    expect(write).not.toHaveBeenCalled();
+    expect(afterWrite).not.toHaveBeenCalled();
+    expect(beforeWrite).toHaveBeenCalledWith(query);
+    expect(inFlight.current).toBe(false);
+  });
+
+  it('beforeSave iptal etmezse yazar ve afterWrite sonucu alır', async () => {
+    const write = vi.fn(async () => ({ affectedRows: 1, sonuc: { id: 7 } }));
+    const afterWrite = vi.fn();
+    const { opts } = setup({ confirm: { enabled: false }, write, beforeWrite: async () => null, afterWrite });
+    expect(await runWriteAction(opts)).toEqual({ ok: true, affectedRows: 1, sonuc: { id: 7 } });
+    expect(afterWrite).toHaveBeenCalledWith(query, { affectedRows: 1, sonuc: { id: 7 } });
+  });
+
+  it('beforeSave onaydan önce sorulur; iptalde onay penceresi açılmaz', async () => {
+    const { opts } = setup({ beforeWrite: async () => ({ cancel: true as const, message: 'Kod: iptal' }) });
+    await runWriteAction(opts);
+    expect(confirmDialog).not.toHaveBeenCalled();
+  });
+
+  it('beforeSave hata verirse yazma iptal edilir', async () => {
+    const { write, opts } = setup({ confirm: { enabled: false }, beforeWrite: async () => { throw new Error('x'); } });
+    expect(await runWriteAction(opts)).toEqual({ ok: false, error: 'Kod bileşeni yanıt vermedi; işlem iptal edildi.' });
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('afterWrite hatası yazma sonucunu bozmaz', async () => {
+    const { opts } = setup({ confirm: { enabled: false }, afterWrite: () => { throw new Error('x'); } });
+    expect(await runWriteAction(opts)).toEqual({ ok: true, affectedRows: 2 });
+  });
+});

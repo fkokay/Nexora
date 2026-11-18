@@ -87,7 +87,7 @@ describe('usePageQueries ERP işlemleri', () => {
     await waitFor(() => expect(result.current.states.kart.rows).toHaveLength(1));
     let written: unknown;
     await act(async () => { written = await result.current.runWrite(updateQuery, { name: 'B' }); });
-    expect(written).toEqual({ affectedRows: 1 });
+    expect(written).toEqual({ affectedRows: 1, sonuc: { id: guid, saved: true } });
     const [url, token, init] = apiMock.mock.calls[1];
     expect(url).toBe(`/api/stock/items/${guid}`);
     expect(token).toBe('t');

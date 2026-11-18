@@ -4,14 +4,17 @@ import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import TenantWorkflowAction from "./TenantWorkflowAction";
-import { bindingPath, displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
-import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
+import { bindingPath, displayText, interpolate, resolvePath, type PageScope } from "./custom-page/pageBindings";
+import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import { runWriteAction } from "./custom-page/writeAction";
-import { isolatedCodeDocument } from "./custom-page/codeBridge";
+import type { BridgeHost } from "./custom-page/codeBridge";
+import { CodeFrame } from "./custom-page/CodeFrame";
+import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
+import { mapOperationResult, type ErpOperation } from "./custom-page/erpOperations";
 import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
@@ -64,7 +67,10 @@ type PageRuntime = {
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
   isPreview: boolean;
-  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<WriteResult>;
+  /** Kod bileşenleri arası olay merkezi (load/select/beforeSave/afterSave) ve köprünün sayfa tarafı. */
+  events: PageEvents;
+  codeHost: BridgeHost;
   /** `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğmeler: sayfada çizilmez. */
   movedButtons: Set<string>;
   /** Sayfadaki tüm yazma yolları (sorgu düğmeleri, İşlem Çubuğu, Ctrl+S) için tek uçuş kilidi. */
@@ -306,6 +312,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
         try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
       },
       errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+      ...codeWriteHooks(runtime.events),
     });
     if ("ok" in result && result.ok) {
       if (mounted.current) setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
@@ -473,7 +480,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const form = forms.find((item) => item.code === formCode);
       return form ? <div key={component.id} className="tenant-page-form-wrap" style={style}><EmbeddedCustomForm form={form} token={token} /></div> : <section className="tenant-page-block tenant-page-form" style={style} key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
     }
-    case "code": return <iframe key={component.id} className="tenant-page-code-frame" style={style} title={title || "Yalıtılmış özel kod"} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={isolatedCodeDocument(textValue(props.css), textValue(props.javascript))} />;
+    case "code": return <CodeFrame key={component.id} id={component.id} css={textValue(props.css)} javascript={textValue(props.javascript)}
+      hidden={props.hidden === true} style={style} title={title || "Yalıtılmış özel kod"} host={runtime?.codeHost ?? INERT_CODE_HOST} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
     case "alert": {
       const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
       return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
@@ -494,6 +502,28 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
 }
 
 const inputIsCheckbox = (input: ComponentDefinition | undefined) => textValue(input?.props?.inputType, "text") === "checkbox";
+
+/** Sayfa yazma yollarının kod bileşeni kancaları: beforeSave sorusu ve afterSave olayı. */
+const codeWriteHooks = (events: PageEvents) => ({
+  beforeWrite: (query: PageQueryDefinition) => events.beforeSave(query.name),
+  afterWrite: (query: PageQueryDefinition, result: WriteResult) => events.emit("afterSave", { query: query.name, sonuc: result.sonuc ?? null }),
+});
+
+/** v1 sayfalarda bağlama/sorgu yoktur: köprü yalnız yüksekliği ve abonelikleri kabul eder, veri isteklerini reddeder. */
+const V1_BRIDGE_ERROR = "Bu sayfada kod köprüsü kullanılamaz.";
+const INERT_CODE_HOST: BridgeHost = {
+  get: () => { throw new Error(V1_BRIDGE_ERROR); },
+  setInput: () => { throw new Error(V1_BRIDGE_ERROR); },
+  runQuery: async () => { throw new Error(V1_BRIDGE_ERROR); },
+  callOperation: async () => { throw new Error(V1_BRIDGE_ERROR); },
+  subscribe: () => undefined,
+  setHeight: () => undefined,
+};
+const INERT_PAGE_EVENTS = createPageEvents();
+
+const NO_RIGHTS = "Bu işlem için yetkiniz yok.";
+const WRITE_BUSY = "Başka bir yazma işlemi sürüyor; biraz sonra yeniden deneyin.";
+const CATALOG_WAIT_MS = 10_000;
 
 /**
  * Sayfadaki `actionBar` bileşeninin komutlarını kabuğun İşlem Çubuğu'na kaydeder (yalnız actionBar varken bağlanır;
@@ -529,6 +559,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
       },
       errorText: (cause) => writeErrorText(errorPrefix, cause),
+      ...codeWriteHooks(latest.current.events),
     });
     if (!mounted.current || !("ok" in result)) return;
     if (result.ok) {
@@ -664,20 +695,111 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   };
 
   // ERP işlem kataloğu yalnız işlem kullanan sayfalarda getirilir; SQL sorgulu sayfalar ek istek yapmaz.
+  // Kod bileşeni callOperation çağırınca katalog ilk kez o an istenir (kod kullanmayan sayfalar ek istek yapmaz).
   const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
-  const erpOperations = useErpOperations(token, usesOperations);
-  const { states, scope, rerun, runWrite } = usePageQueries({
+  const [codeWantsOperations, setCodeWantsOperations] = useState(false);
+  const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
+  const { states, scope, rerun, runWrite, runRead, callOperation } = usePageQueries({
     queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
     operations: erpOperations.operations,
   });
   const inputErrors = operationInputErrors(queryDefinitions, states);
+  const events = useMemo(() => createPageEvents(), []);
+  const rights = page.rights ?? { view: true };
+  const isPreview = Boolean(previewId);
+  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite);
+
+  // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır.
+  const loadSettled = isV2 && queryDefinitions.every((query) => query.kind !== "read" || query.runOn !== "load" || !states[query.name]?.loading);
+  useEffect(() => { if (loadSettled && !events.isLoaded()) events.emit("load", {}); }, [loadSettled, events]);
+
+  // Köprü (BridgeHost) bir kez kurulur ve sayfanın en güncel durumunu okur; çerçeve her girdiye güvenilmez gözle bakar.
+  const codeLatest = useRef({ scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations });
+  codeLatest.current = { scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations };
+  const catalogWaiters = useRef(new Set<() => void>());
+  useEffect(() => {
+    if (!erpOperations.operations && !erpOperations.error) return;
+    const waiters = [...catalogWaiters.current];
+    catalogWaiters.current.clear();
+    waiters.forEach((wake) => wake());
+  }, [erpOperations.operations, erpOperations.error]);
+  useEffect(() => () => { catalogWaiters.current.forEach((wake) => wake()); catalogWaiters.current.clear(); }, []);
+  const codeHost = useMemo<BridgeHost>(() => {
+    const catalog = async (): Promise<Map<string, ErpOperation>> => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const { operations, error } = codeLatest.current.erpOperations;
+        if (operations) return operations;
+        if (error) throw new Error(`ERP işlem kataloğu yüklenemedi: ${error}`);
+        if (attempt === 1) break;
+        setCodeWantsOperations(true);
+        await new Promise<void>((resolve) => {
+          const wake = () => { clearTimeout(timer); catalogWaiters.current.delete(wake); resolve(); };
+          const timer = setTimeout(wake, CATALOG_WAIT_MS);
+          catalogWaiters.current.add(wake);
+        });
+      }
+      throw new Error("ERP işlem kataloğu yüklenemedi.");
+    };
+    return {
+      get: (path) => resolvePath(codeLatest.current.scope, path),
+      setInput: (name, value) => {
+        const input = codeLatest.current.inputs.find((candidate) => candidate.name === name);
+        if (!input) throw new Error(`Giriş bulunamadı: ${name}`);
+        const raw: InputRaw = inputIsCheckbox(input) ? value === true || value === "true" : value === null ? "" : String(value);
+        setTouched((current) => ({ ...current, [input.id]: raw }));
+      },
+      runQuery: async (name) => {
+        const current = codeLatest.current;
+        const query = current.queryDefinitions.find((candidate) => candidate.name === name);
+        if (!query) throw new Error(`Sorgu bulunamadı: ${name}`);
+        if (current.rights[query.kind === "read" ? "view" : query.kind] !== true) throw new Error(NO_RIGHTS);
+        if (query.kind === "read") {
+          const state = await current.runRead(query.id);
+          return { rows: state.rows, rowCount: state.rowCount };
+        }
+        const outcome = await runWriteAction({
+          query, isPreview: current.isPreview, inFlight: writeLock, confirm: { enabled: false },
+          write: (target, confirmWrite) => codeLatest.current.writeFor(target, confirmWrite),
+          errorText: (cause) => writeErrorText("", cause),
+          ...codeWriteHooks(events),
+        });
+        if (outcome.ok) return { affectedRows: outcome.affectedRows, sonuc: outcome.sonuc ?? null };
+        if ("busy" in outcome) throw new Error(WRITE_BUSY);
+        if ("cancelled" in outcome) throw new Error("İşlem iptal edildi.");
+        throw new Error(outcome.error);
+      },
+      callOperation: async (name, values) => {
+        const op = (await catalog()).get(name);
+        if (!op) throw new Error(`ERP işlemi bulunamadı: ${name}`);
+        const current = codeLatest.current;
+        // Yazma işlemi sayfanın ekle/güncelle/sil hakkını ister; tutarsız (yazma + pageKind "read") giriş reddedilir.
+        const right = op.kind === "read" ? "view" : op.pageKind === "read" ? null : op.pageKind;
+        if (!op.allowed || !right || current.rights[right] !== true) throw new Error(NO_RIGHTS);
+        if (op.kind === "read") {
+          const mapped = mapOperationResult(op, await current.callOperation(op, values));
+          return { rows: mapped.rows, rowCount: mapped.rowCount };
+        }
+        if (current.isPreview) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
+        if (writeLock.current) throw new Error(WRITE_BUSY);
+        writeLock.current = true;
+        try { return { sonuc: await current.callOperation(op, values) }; } finally { writeLock.current = false; }
+      },
+      subscribe: () => undefined,
+      setHeight: () => undefined,
+    };
+  }, [events]);
+
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues: effective(states).raw,
     setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
     selections,
-    select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, inputErrors, ownedInputs, inputById, tableById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
-    writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
+    select: (tableName, row) => {
+      setSelections((current) => ({ ...current, [tableName]: row }));
+      // Güncelleyicinin dışında: StrictMode güncelleyiciyi iki kez çalıştırır.
+      events.emit("select", { table: tableName, row });
+    },
+    queryById, inputErrors, ownedInputs, inputById, tableById, rights, rerun, isPreview,
+    writeFor, events, codeHost,
     movedButtons, writeLock, actionStatus,
   } : undefined;
 
