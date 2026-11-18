@@ -92,6 +92,44 @@ export function withFilterBindings(query: PageQuery, barName: string, params: Qu
   return parameters === query.parameters ? query : { ...query, parameters };
 }
 
+/**
+ * Artık süzgeç alanına ait olmayan `{{<ad>.<x>}}` bağlamalarını boşaltır (`keep` dışındakiler). Yalnız ERP işlemi sorgusunda:
+ * bağlanmamış işlem parametresi gönderilmez; SQL sorgusunda parametre SQL'de kullanıldığı için dokunulmaz.
+ */
+export function withoutFilterBindings(query: PageQuery, barName: string, keep: string[]): PageQuery {
+  if (query.operation === undefined) return query;
+  const prefix = `{{${barName}.`;
+  let touched = false;
+  const parameters = query.parameters.map((parameter) => {
+    const binding = parameter.binding.trim();
+    if (!binding.startsWith(prefix) || keep.includes(binding.slice(prefix.length, -2))) return parameter;
+    touched = true;
+    return { ...parameter, binding: "" };
+  });
+  return touched ? { ...query, parameters } : query;
+}
+
+/** Sütuna denk gelen sorgu parametresi: aynı ad ya da noktalı kodun son bölümü (ör. stockItem.category → @category). */
+export function paramForColumn(code: string, params: QueryParam[]): QueryParam | undefined {
+  return params.find((param) => param.name === code) ?? params.find((param) => param.name === code.split(".").pop());
+}
+
+/** Sorguda artık olmayan parametreler süzgeçten (ve aramadan) düşer; bilinmeyen sorgu/katalogda (`params` null) dokunulmaz. */
+export function withoutStaleParams(props: Record<string, unknown>, params: QueryParam[] | null): Record<string, unknown> {
+  if (!params) return props;
+  const known = new Set(params.map((param) => param.name));
+  let next = props;
+  if (typeof props.searchParam === "string" && !known.has(props.searchParam)) { next = { ...next }; delete next.searchParam; }
+  const specs = parseFilterEntries(props.filters);
+  if (specs.some((spec) => spec.param && !known.has(spec.param))) {
+    // Yalnız parametreye bağlı satır (anahtarı parametre adı) kalkar; sütun süzgeci sayfada uygulanmaya döner.
+    const kept = specs.flatMap((spec) => !spec.param || known.has(spec.param) ? [spec] : spec.key === spec.param ? [] : [{ ...spec, param: undefined }]);
+    next = { ...next, filters: kept.map(formatFilterEntry) };
+    if (kept.length === 0) delete (next as Record<string, unknown>).filters;
+  }
+  return next;
+}
+
 /** Bağlaması süzgeç alanına gitmeyen parametreler (sorgu düzenlenemiyorsa kullanıcıya gösterilir). */
 export function unboundFilterParams(query: PageQuery | undefined, barName: string, params: string[]): string[] {
   return params.filter((name) => query?.parameters.find((parameter) => parameter.name === name)?.binding.trim() !== filterBinding(barName, name));

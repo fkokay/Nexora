@@ -2,8 +2,8 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FilterBarFields } from "./FilterBarFields";
 import {
-  filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, isSearchableColumn, parseFilterEntries, setFilter, toggleSearchColumn,
-  unboundFilterParams, withFilterBindings,
+  filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, isSearchableColumn, paramForColumn, parseFilterEntries, setFilter, toggleSearchColumn,
+  unboundFilterParams, withFilterBindings, withoutFilterBindings, withoutStaleParams,
 } from "./filterBarSettings";
 import type { PageQuery } from "./QueriesPanel";
 
@@ -52,6 +52,23 @@ describe("süzgeç alanı ayarları", () => {
     expect(withFilterBindings(bound, "stokSuzgec", [{ name: "q", type: "text" }])).toBe(bound);
     expect(unboundFilterParams(bakiye, "stokSuzgec", ["q", "warehouseId"])).toEqual(["q", "warehouseId"]);
     expect(unboundFilterParams(bound, "stokSuzgec", ["q", "includeInactive"])).toEqual([]);
+  });
+
+  it("artık ait olmayan bağlamalar yalnız ERP işlemi sorgusundan kalkar; sütun son bölümüyle parametreye denk gelir; eskiyen parametre düşer", () => {
+    const bound = withFilterBindings(bakiye, "stokSuzgec", [{ name: "q", type: "text" }, { name: "warehouseId", type: "guid" }]);
+    const cleared = withoutFilterBindings(bound, "stokSuzgec", ["q"]);
+    expect(cleared.parameters.find((parameter) => parameter.name === "warehouseId")?.binding).toBe("");
+    expect(cleared.parameters.find((parameter) => parameter.name === "q")?.binding).toBe("{{stokSuzgec.q}}");
+    expect(withoutFilterBindings(cleared, "stokSuzgec", ["q"])).toBe(cleared);
+    const sql: PageQuery = { id: "q1", name: "liste", kind: "read", runOn: "load", sql: "SELECT 1", parameters: [{ name: "tur", binding: "{{suzgec.tur}}", type: "text" }] };
+    expect(withoutFilterBindings(sql, "suzgec", [])).toBe(sql);
+    const params = [{ name: "category", type: "text" }, { name: "status", type: "text" }];
+    expect(paramForColumn("stockItem.category", params)?.name).toBe("category");
+    expect(paramForColumn("status", params)?.name).toBe("status");
+    expect(paramForColumn("balance.code", params)).toBeUndefined();
+    const props = { search: true, searchParam: "q", filters: ["includeInactive|toggle|row|includeInactive", "stockItem.category|select|more|category", "status|auto|row"] };
+    expect(withoutStaleParams(props, [{ name: "q", type: "text" }])).toEqual({ search: true, searchParam: "q", filters: ["stockItem.category|select|more", "status|auto|row"] });
+    expect(withoutStaleParams(props, null)).toBe(props);
   });
 
   it("kullanılan parametreler, arama sütunları ve kayıt öncesi sorunlar", () => {

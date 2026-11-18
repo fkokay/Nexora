@@ -1,6 +1,6 @@
 import {
   FILTER_KIND_LABELS, FILTER_PLACE_LABELS, MAX_FILTERS, MAX_SEARCH_COLUMNS, SEARCH_RESET, SERVER_KINDS, isSearchableColumn, parseFilterEntries, setFilter, toggleSearchColumn,
-  unboundFilterParams, filterBarParams, type FilterKind, type FilterPlace, type FilterSpec, type QueryParam,
+  unboundFilterParams, filterBarParams, paramForColumn, type FilterKind, type FilterPlace, type FilterSpec, type QueryParam,
 } from "./filterBarSettings";
 import type { PageQuery } from "./QueriesPanel";
 
@@ -25,12 +25,17 @@ export function FilterBarFields({ name, props, tables, tableId, columns, formats
   const search = props.search === true;
   const searchColumns = Array.isArray(props.searchColumns) ? props.searchColumns.filter((item): item is string => typeof item === "string") : [];
   const paramNamed = new Map(queryParams.map((param) => [param.name, param]));
+  // Sütun satırı, aynı adlı (ya da noktalı kodun son bölümüyle aynı adlı) sorgu parametresine kendiliğinden bağlanır.
+  const columnRows: Row[] = columns.map((column) => {
+    const param = paramForColumn(column.code, queryParams);
+    return { key: column.code, label: column.label || column.code, column: true, param: param?.name, paramType: param?.type, searchable: isSearchableColumn(formats[column.code], column.dataType) };
+  });
+  const usedParams = new Set([...columnRows.map((row) => row.param), ...specs.filter((spec) => columns.some((column) => column.code === spec.key)).map((spec) => spec.param)]);
   const rows: Row[] = [
-    ...columns.map((column) => ({ key: column.code, label: column.label || column.code, column: true, param: paramNamed.get(column.code)?.name, paramType: paramNamed.get(column.code)?.type,
-      searchable: isSearchableColumn(formats[column.code], column.dataType) })),
-    ...queryParams.filter((param) => !columns.some((column) => column.code === param.name)).map((param) => ({ key: param.name, label: `@${param.name}`, column: false, param: param.name, paramType: param.type, searchable: false })),
+    ...columnRows,
+    ...queryParams.filter((param) => !usedParams.has(param.name)).map((param) => ({ key: param.name, label: `@${param.name}`, column: false, param: param.name, paramType: param.type, searchable: false })),
     // Tanımda olup artık listede olmayan anahtarlar da kaldırılabilsin.
-    ...specs.filter((spec) => !columns.some((column) => column.code === spec.key) && !paramNamed.has(spec.key)).map((spec) => ({ key: spec.key, label: spec.label || spec.key, column: false, param: spec.param, searchable: false })),
+    ...specs.filter((spec) => !columns.some((column) => column.code === spec.key) && !(paramNamed.has(spec.key) && !usedParams.has(spec.key))).map((spec) => ({ key: spec.key, label: spec.label || spec.key, column: false, param: spec.param, searchable: false })),
   ];
   const columnLabel = (code: string) => columns.find((column) => column.code === code)?.label || code;
   const patchFilter = (row: Row, patch: Partial<FilterSpec> | null) => onPatch({ filters: emptyToUndefined(setFilter(props.filters, row.key, patch, { key: row.key, kind: row.paramType === "bool" ? "toggle" : "auto", place: "row", ...(row.param ? { param: row.param } : {}) })) });
@@ -90,8 +95,16 @@ export function FilterBarFields({ name, props, tables, tableId, columns, formats
               </span>
               <span role="cell">{on && <select aria-label={`${row.label} yeri`} value={spec!.place} disabled={disabled} onChange={(event) => patchFilter(row, { place: event.target.value as FilterPlace })}>
                 {(Object.keys(FILTER_PLACE_LABELS) as FilterPlace[]).map((place) => <option key={place} value={place}>{FILTER_PLACE_LABELS[place]}</option>)}</select>}</span>
-              <span role="cell">{on && (server ? <span className="pd-filterbar-apply">Sunucu<span className="pd-tag">parametre</span></span>
-                : <span className="pd-filterbar-apply">Bu sayfada{paged && <small className="pd-query-warning">{`Süzgeç yalnız görünen sayfaya uygulanır; sunucuda süzmek için sorguya @${row.key.split(".").pop()} parametresi ekleyin.`}</small>}</span>)}</span>
+              <span role="cell">{on && <span className="pd-filterbar-apply">
+                {row.column && queryParams.length > 0
+                  ? <select aria-label={`${row.label} uygulaması`} value={spec!.param ?? ""} disabled={disabled} onChange={(event) => patchFilter(row, { param: event.target.value || undefined })}>
+                    <option value="">Bu sayfada</option>
+                    {queryParams.map((param) => <option key={param.name} value={param.name}>Sunucu · @{param.name}</option>)}
+                  </select>
+                  : <span>{server ? "Sunucu" : "Bu sayfada"}</span>}
+                {server && <span className="pd-tag">parametre</span>}
+                {!server && paged && <small className="pd-query-warning">{`Süzgeç yalnız görünen sayfaya uygulanır; sunucuda süzmek için sorguya @${row.key.split(".").pop()} parametresi ekleyin.`}</small>}
+              </span>}</span>
             </div>;
           })}
           {rows.length === 0 && <p className="pd-binding-note">Izgaranın sorgu önizlemesi çalışınca sütunlar listelenir.</p>}

@@ -53,7 +53,7 @@ import { designerShortcutsBlocked } from "./page-designer/designerModals";
 import { readInspectorMode, writeInspectorMode, type InspectorMode } from "./page-designer/inspectorBasicFields";
 import { proposeColumns } from "./page-designer/columnEditing";
 import { FilterBarFields } from "./page-designer/FilterBarFields";
-import { filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings } from "./page-designer/filterBarSettings";
+import { filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings, withoutFilterBindings, withoutStaleParams } from "./page-designer/filterBarSettings";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string; screenKey?: string | null };
@@ -481,9 +481,18 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       // Tablo sorgulu ızgara olmalı; seçenek kaynağı okuma sorgusu olmalı; arama kapalıyken aramaya bağlı özellikler kalkar.
       const table = typeof props.table === "string" ? byId.get(props.table) : undefined;
       const tableOk = !!table && table.type === "dataTable" && typeof table.props.query === "string" && table.props.query !== "";
-      const next = { ...props };
+      let next: PageComponent["props"] = { ...props };
       let touched = false;
       if (!tableOk && "table" in next) { delete next.table; touched = true; }
+      // Sorguda artık olmayan parametreler süzgeçten düşer (ERP kataloğu yüklenmediyse işlem sorgusuna dokunulmaz).
+      const tableQuery = tableOk ? definition.queries.find((query) => query.id === table!.props.query) : undefined;
+      if (tableQuery) {
+        const paging = isPagedTable(table!) ? Object.values(pagingParams(table!.props)) : [];
+        const op = isOperationQuery(tableQuery) && options.catalog ? findOperation(options.catalog, tableQuery.operation) : undefined;
+        const params = isOperationQuery(tableQuery) ? (op ? filterableParams(tableQuery, op.parameters, paging) : null) : filterableParams(tableQuery, null, paging);
+        const cleaned = withoutStaleParams(next, params);
+        if (cleaned !== next) { next = cleaned as PageComponent["props"]; touched = true; }
+      }
       if ("filters" in next) {
         const cleaned = parseFilterEntries(next.filters).map((spec) => spec.options && !readIds.has(spec.options.query) ? { ...spec, options: undefined } : spec).map(formatFilterEntry);
         if (!sameList(next.filters, cleaned)) { if (cleaned.length > 0) next.filters = cleaned; else delete next.filters; touched = true; }
@@ -564,7 +573,15 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       : withPagingBindings(query, table, params));
   }
   // Süzgeç alanının parametreleri listenin sorgusuna {{<ad>.<parametre>}} ile bağlanır (sunucu kuralı). SQL sorgusunda yalnız
-  // tanımlı parametreler, ERP işleminde yalnız işlemin parametreleri bağlanır.
+  // tanımlı parametreler, ERP işleminde yalnız işlemin parametreleri bağlanır. Önce süzgeç alanına artık ait olmayan
+  // {{<ad>.<x>}} bağlamaları (kaldırılan süzgeç, silinen ya da başka tabloya bağlanan alan) ERP işlemi sorgularından kalkar.
+  const barNames = new Set([...components, ...(options.previous?.components ?? [])].filter((item) => item.type === "filterBar" && !!item.name).map((item) => item.name!));
+  for (const barName of barNames) {
+    const current = components.find((item) => item.type === "filterBar" && item.name === barName);
+    const currentTable = current && typeof current.props.table === "string" ? components.find((item) => item.id === current.props.table) : undefined;
+    const currentQuery = currentTable && typeof currentTable.props.query === "string" ? currentTable.props.query : undefined;
+    queries = queries.map((query) => withoutFilterBindings(query, barName, current && query.id === currentQuery ? filterBarParams(current.props) : []));
+  }
   for (const component of components) {
     if (component.type !== "filterBar" || !component.name || typeof component.props.table !== "string") continue;
     const table = components.find((item) => item.id === component.props.table);

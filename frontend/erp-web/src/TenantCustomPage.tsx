@@ -1477,6 +1477,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     if (previewId) return;
     for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
   }, [filterValues, filterBars, previewId, page.code]);
+  const visibleCache = useRef(new Map<string, { state: QueryState; key: string; result: QueryState }>());
   /** Süzgeç alanının tablosu, sorgusu ve türü/etiketi/seçenekleri çözülmüş süzgeçleri; tablo ya da sorgu yoksa null. */
   const filterBarModel = (filterBar: ComponentDefinition, states: Record<string, QueryState>) => {
     const props = filterBar.props ?? {};
@@ -2598,14 +2599,21 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       };
     },
     visibleRows: (table, state) => {
+      const bars = filterBars.filter((filterBar) => filterBar.props?.table === table.id);
+      if (bars.length === 0) return state;
+      // Aynı satırlar ve aynı süzgeç değerleri için aynı sonuç döner (ızgara her çizimde yeni dizi görmesin).
+      const key = JSON.stringify(bars.map((filterBar) => filterValues[filterBar.id] ?? null));
+      const cached = visibleCache.current.get(table.id);
+      if (cached && cached.state === state && cached.key === key) return cached.result;
       let rows = state.rows;
-      for (const filterBar of filterBars) {
-        if (filterBar.props?.table !== table.id) continue;
+      for (const filterBar of bars) {
         const model = filterBarModel(filterBar, states);
         if (model) rows = applyClientFilters(rows, model.filters, model.values, model.search ? { columns: model.searchColumns, server: !!model.searchParam } : null, model.labels);
       }
       // Sunucu sayfalı listede toplam kayıt sunucunundur; süzgeç yalnız görünen sayfaya uygulanır.
-      return rows === state.rows ? state : { ...state, rows, rowCount: table.props?.paging === "server" ? state.rowCount : rows.length };
+      const result = rows === state.rows ? state : { ...state, rows, rowCount: table.props?.paging === "server" ? state.rowCount : rows.length };
+      visibleCache.current.set(table.id, { state, key, result });
+      return result;
     },
   } : undefined;
 
