@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRequiredValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { SOURCE_LOADING } from "./recordMessages";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
@@ -75,13 +76,19 @@ export function usePageQueries(options: {
   /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
   rerun: (queryIds: string[]) => void;
   /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. Önizlemede `confirmWrite` açık onayı taşır. */
-  runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean) => Promise<WriteResult>;
+  runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean, cleared?: ReadonlySet<string>) => Promise<WriteResult>;
   /** Okuma sorgusunu hemen çalıştırır ve sonucunu bekler; çalıştırılamazsa reddeder. */
   runRead: (queryId: string) => Promise<QueryState>;
   /** ERP işlemini doğrudan çağırır (yetki ve önizleme denetimi çağıranındır); JSON yanıtını döner. */
   callOperation: (op: ErpOperation, values: Record<string, unknown>) => Promise<unknown>;
   /** Verilen yazma sorgularının (ad) `sonuc` ve `fieldErrors` değerlerini temizler (sonraki kayıt yeni oluşturma ile başlar). */
   clearResults: (queryNames: string[]) => void;
+  /**
+   * Verilen okuma sorgularının (ad) satırlarını hemen boşaltır, süren çalıştırmalarını geçersiz kılar ve sonraki parametre
+   * değişiminde gecikmesiz yeniden çalışmalarını sağlar (Yeni: seçimi kalkan kaydın ayrıntısı okuma gecikmesini beklemez).
+   * Sıfırlanan okumalara parametreyle bağlanan okumalar da geçişli olarak sıfırlanır; sıfırlanan tüm adlar döner.
+   */
+  resetReads: (queryNames: string[]) => string[];
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
@@ -162,8 +169,8 @@ export function usePageQueries(options: {
       const op = operationOf(query);
       if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
       const source = sourceRow(op);
-      // Yol parametresi henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
-      if (missingRouteValue(op, values, source)) {
+      // Yol parametresi ya da zorunlu süzgeç henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
+      if (missingRequiredValue(op, values, source)) {
         if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
         const idle = emptyState(false);
         setStates((current) => ({ ...current, [query.name]: idle }));
@@ -185,14 +192,14 @@ export function usePageQueries(options: {
     }
   };
 
-  const runOperationWrite = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<WriteResult> => {
+  const runOperationWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, cleared?: ReadonlySet<string>): Promise<WriteResult> => {
     if (previewId) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
     const op = operationOf(query);
     const source = sourceQueryOf(op);
     // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
     const mapSource = mapSourceQueryOf(op);
     if ((source && latestStates.current[source.name]?.loading) || (mapSource && latestStates.current[mapSource.name]?.loading)) {
-      throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
+      throw new Error(SOURCE_LOADING);
     }
     // Özel alan kaydı tüm değerleri değiştirir: kaynak okuması hiç çalışmadıysa ya da hata verdiyse boş/eksik eşlem yazılmaz.
     const mapState = mapSource ? latestStates.current[mapSource.name] : undefined;
@@ -205,7 +212,7 @@ export function usePageQueries(options: {
     const row = sourceRow(op);
     const mismatch = sourceRecordError(op, values, row);
     if (mismatch) throw new Error(mismatch);
-    const request = buildOperationRequest(op, values, row, mapSourceRows(op));
+    const request = buildOperationRequest(op, values, row, mapSourceRows(op), cleared);
     setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(false)), fieldErrors: undefined } }));
     try {
       const json = await api<unknown>(request.url, token, operationInit(request));
@@ -271,8 +278,8 @@ export function usePageQueries(options: {
     const request = buildOperationRequest(op, values, null);
     try { return await api<unknown>(request.url, token, operationInit(request)); } catch (cause) { throw operationFailure(cause); }
   };
-  const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false): Promise<WriteResult> => {
-    if (query.operation !== undefined) return runOperationWrite(query, values);
+  const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false, cleared?: ReadonlySet<string>): Promise<WriteResult> => {
+    if (query.operation !== undefined) return runOperationWrite(query, values, cleared);
     const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(confirmWrite ? { parameters: values, confirmWrite: true } : { parameters: values }),
@@ -293,6 +300,37 @@ export function usePageQueries(options: {
       }
       return next;
     });
+  };
+
+  const resetReads = (queryNames: string[]): string[] => {
+    // Geçişli: sıfırlanan bir okumaya bağlanan okumalar da (ör. `kart` → birimler, özel alan değerleri, varyantlar) hemen
+    // boşalır; yoksa eski kaydın satırları 300 ms gecikme boyunca kalır ve gecikme bitince yazılan değerler silinirdi.
+    const reset = new Set(queries.filter((query) => query.kind === "read" && queryNames.includes(query.name)).map((query) => query.name));
+    for (let grew = reset.size > 0; grew;) {
+      grew = false;
+      for (const query of queries) {
+        if (query.kind !== "read" || reset.has(query.name)) continue;
+        const bound = query.parameters.some((parameter) => {
+          const root = bindingPath(parameter.binding)?.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
+          return !!root && reset.has(root);
+        });
+        if (bound) { reset.add(query.name); grew = true; }
+      }
+    }
+    const reads = [...reset];
+    if (reads.length === 0) return reads;
+    for (const name of reads) {
+      sequences.current.set(name, (sequences.current.get(name) ?? 0) + 1);
+      const pending = timers.current.get(name);
+      if (pending !== undefined) { clearTimeout(pending); timers.current.delete(name); }
+      lastKeys.current.delete(name);
+    }
+    setStates((current) => {
+      const next = { ...current };
+      for (const name of reads) if (current[name]) next[name] = emptyState(false);
+      return next;
+    });
+    return reads;
   };
 
   useEffect(() => {
@@ -318,5 +356,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults };
+  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads };
 }

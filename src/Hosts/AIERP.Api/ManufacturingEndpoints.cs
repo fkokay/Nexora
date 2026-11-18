@@ -518,10 +518,11 @@ public static class ManufacturingEndpoints
             finally { if (transaction is not null) await transaction.DisposeAsync(); }
         }).WithName("ConvertMrpPlanRecommendations");
 
-        boms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        boms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct, Guid? productStockItemId = null) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var rows = await db.BillOfMaterials.AsNoTracking().Where(x => x.TenantId == tenantId)
+                .Where(x => productStockItemId == null || x.ProductStockItemId == productStockItemId)
                 .OrderBy(x => x.Code).Select(x => new BomView(x.Id, x.Code, x.Name, x.ProductStockItemId,
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.Code + " · " + s.Name).FirstOrDefault() ?? "",
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.TrackingMode.ToString()).FirstOrDefault() ?? "None",

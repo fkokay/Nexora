@@ -1,5 +1,6 @@
 import type { MenuCommand, PageCommands } from "../commands/types";
 import { idList } from "./layoutRefs";
+import { RECORD_LOADING, RECORD_UNREADABLE } from "./recordMessages";
 
 /** İşlem Çubuğu (`actionBar`) bileşeninin komut kuralları: saf işlevler, React'e bağlı değildir. */
 
@@ -38,6 +39,15 @@ export type PageActionDeps = {
   buttonGate?: (id: string) => { hidden?: boolean; disabled?: boolean; disabledReason?: string } | undefined;
   /** Silme sorgusu, seçimi olmayan bir tablonun `seciliSatir` alanına bağlıysa true. */
   deleteNeedsSelection: boolean;
+  /** Sorgunun bağlı ERP işlemine (katalog `allowed`) izin var mı; SQL sorgusu ve bilinmeyen sorgu için true. */
+  queryAllowed: (id: string) => boolean;
+  /**
+   * `actionBar.formDialog` (kayıt penceresi): Yeni pencerede yeni kayıt başlatır (`startNew(focusId)`), Aç seçili kaydı
+   * pencerede açar. `hasRecord`: pencerenin bir formCard'ının kayıt tablosunda seçim var.
+   */
+  formDialog?: { open(): void; startNew(focusId: string | undefined): void; hasRecord: boolean; recordLoading?: boolean;
+    /** Kayıt anahtarının okuması hata verdi ya da boş döndü: Aç pasiftir (pencere seçili kaydı yeni kayıt sanmasın). */
+    recordFailed?: boolean };
   run: {
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
@@ -73,6 +83,9 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const gatedAll = (rights: string[], run: () => void) =>
     rights.some((right) => !deps.rights[right]) ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
   const gated = (right: string, run: () => void) => gatedAll([right], run);
+  // Tek sorgulu yazma, sayfa hakkına ek olarak bağlı ERP işleminin katalog iznini de ister (dizi adımları çalışırken denetlenir).
+  const gatedQuery = (queryId: string, right: string, run: () => void) => deps.queryAllowed(queryId) ? gated(right, run) : { disabledReason: NO_RIGHT };
+  const formDialog = deps.formDialog;
 
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
@@ -84,13 +97,17 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   });
 
   return {
-    new: newIds.length > 0
+    new: formDialog ? { run: () => formDialog.startNew(newIds[0]), primary: !saveBound }
+      : newIds.length > 0
       ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
       : unbound,
-    open: unbound,
+    open: !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
+      : formDialog.recordLoading ? { disabledReason: RECORD_LOADING }
+      : formDialog.recordFailed ? { disabledReason: RECORD_UNREADABLE } : { run: () => formDialog.open() },
     save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
-      : saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
+      : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
     delete: !deleteBound ? unbound
+      : !deps.queryAllowed(deleteId) ? { disabledReason: NO_RIGHT }
       : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }
       : gated("delete", () => deps.run.write(deleteId, "delete")),
     refresh: { run: () => deps.run.refresh() },

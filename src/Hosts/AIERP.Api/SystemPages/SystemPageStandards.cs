@@ -351,7 +351,7 @@ internal static class SystemPageStandards
             if (type == "actionBar")
             {
                 foreach (var key in new[] { "newInputs", "moreButtons" }) StripList(props, key, removed, dropWhenEmpty: true);
-                foreach (var key in new[] { "focusInput", "exportTable", "saveQuery", "deleteQuery" })
+                foreach (var key in new[] { "focusInput", "exportTable", "saveQuery", "deleteQuery", "formDialog" })
                     if (props[key] is JsonValue value && value.TryGetValue<string>(out var id) && removed.Contains(id)) props.Remove(key);
             }
             if (type is "formCard" or "filterChips" or "facetPanel") StripList(props, "inputs", removed, dropWhenEmpty: false);

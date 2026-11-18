@@ -25,6 +25,9 @@ public sealed class SystemPageStandardsTests
         Assert.Same(standard, same);
         Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
+        Assert.Equal(new[] { "inventory-stock", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
+        foreach (var each in SystemPageStandards.All.Values)
+            Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");
     }
 
     [Fact]
@@ -96,6 +99,31 @@ public sealed class SystemPageStandardsTests
         Assert.Equal(new[] { "Liste=depoListesi", "Diğer=" }, tabs.Select(x => (string)x!));
         Assert.Single(v1["queries"]!.AsArray());
         Assert.Equal(4, JsonNode.Parse(SystemPageStandards.Restrict(standard, 2))!["components"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public void Restrict_drops_form_dialog_of_a_later_dialog()
+    {
+        var envelope = Demo();
+        envelope["version"] = 2;
+        var items = envelope["items"]!.AsObject();
+        items["component:notGirisi"] = new JsonObject { ["since"] = 2, ["label"] = "Not" };
+        items["component:pencere"] = new JsonObject { ["since"] = 2, ["label"] = "Pencere", ["requires"] = new JsonArray("component:notGirisi") };
+        items["component:islemCubugu"] = new JsonObject { ["since"] = 1, ["label"] = "İşlem çubuğu" };
+        var components = envelope["definition"]!["components"]!.AsArray();
+        components.Add(JsonNode.Parse("""{ "id": "notGirisi", "type": "input", "name": "notGirisi", "props": { "inputType": "text" } }"""));
+        components.Add(JsonNode.Parse("""{ "id": "pencere", "type": "dialog", "name": "pencere", "props": { "contains": ["notGirisi"] } }"""));
+        components.Add(JsonNode.Parse("""{ "id": "islemCubugu", "type": "actionBar", "name": "islemCubugu", "props": { "formDialog": "pencere", "exportTable": "depoListesi" } }"""));
+        var json = envelope.ToJsonString();
+
+        Assert.Empty(Errors(json));
+        var standard = SystemPageStandards.Load([(Key + ".json", json)])[Key];
+        var v1Json = SystemPageStandards.Restrict(standard, 1);
+        Assert.True(TenantCustomPageSchema.Validate(v1Json, out var error), error);
+        var actionBar = JsonNode.Parse(v1Json)!["components"]!.AsArray().Single(x => (string)x!["id"]! == "islemCubugu")!;
+        Assert.Null(actionBar["props"]!["formDialog"]);
+        Assert.Equal("pencere", (string)JsonNode.Parse(SystemPageStandards.Restrict(standard, 2))!["components"]!.AsArray()
+            .Single(x => (string)x!["id"]! == "islemCubugu")!["props"]!["formDialog"]!);
     }
 
     [Fact]

@@ -89,6 +89,16 @@ public sealed class TenantCustomPageComponentsFazATests
     }
 
     [Fact]
+    public void Accepts_requiredWhen_only_on_inputs()
+    {
+        AssertAccepted(V2([SqlQuery("q1", "kart")], [Input("i1", "miktar", new { inputType = "number", requiredWhen = "kart.rows[0].x != null" })]));
+        AssertRejected(V2(components: [Heading("h1", new { text = "x", requiredWhen = "kullanici.rol == 'TenantUser'" })]),
+            "'requiredWhen' yalnız giriş bileşeninde kullanılabilir.");
+        AssertRejected(V2(components: [Input("i1", "miktar", new { inputType = "number", requiredWhen = "yok.value == 1" })]),
+            "'requiredWhen' koşulu sayfada olmayan bir ada başvuruyor: yok");
+    }
+
+    [Fact]
     public void Rejects_disabledReason_without_disabledWhen()
     {
         AssertRejected(V2(components: [new { id = "b1", type = "button", props = new { label = "Kaydet", disabledReason = "Yetkiniz yok" } }]),
