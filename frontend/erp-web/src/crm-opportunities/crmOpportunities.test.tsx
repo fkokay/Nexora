@@ -7,6 +7,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import CrmOpportunitiesPage from '../CrmOpportunitiesPage';
 import { CrmOpportunityDetail } from './components/CrmOpportunityDetail';
+import { commandReason } from '../action-bar/commandReason';
 
 const opp = (id: string, stage: string, extra: Record<string, unknown> = {}) => ({
   id, code: `FRS-${id}`, name: `Fırsat ${id}`, customerId: 'c1', customerName: 'Akdeniz Gıda', stage, estimatedValue: 1000,
@@ -66,7 +67,7 @@ async function settle(ms = 500) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 const grid = () => document.querySelector<HTMLElement>('.list-v2-list table')!;
 const row = (code: string) => within(grid()).getAllByText(code)[0].closest('tr')!;
 function menuItems() {

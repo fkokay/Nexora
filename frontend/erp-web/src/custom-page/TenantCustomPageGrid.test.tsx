@@ -120,7 +120,7 @@ const pageStatus = () => document.querySelector('.tenant-custom-page-content > .
 const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 const addRow = (grid = 'Satır ekle') => fireEvent.click(screen.getByRole('button', { name: grid }));
-const cardRow = (index: number) => document.querySelectorAll<HTMLElement>('.tenant-page-table tbody tr')[index];
+const cardRow = (index: number) => document.querySelectorAll<HTMLElement>('.tenant-page-data-grid tbody tr')[index];
 const selectCard = async (index = 0) => {
   await screen.findByText('Var olan');
   fireEvent.click(cardRow(index));
@@ -192,7 +192,7 @@ describe('Düzenlenebilir tablo', () => {
     await waitFor(() => expect(pageStatus()).toBe('Stok kartına birim ekle (satır 2/2) başarısız: Birim kodu geçersiz. Önceki 2 işlem kaydedildi; kalan adımlar çalıştırılmadı.'));
     await waitFor(() => expect(calls.filter((call) => call.method === 'GET' && call.url === `/api/stock/items/${G2}`)).toHaveLength(2));
     await settle();
-    expect(cardRow(0).getAttribute('aria-selected')).toBe('true');
+    expect(cardRow(0).getAttribute('aria-current')).toBe('true');
     expect((screen.getByLabelText('Ad') as HTMLInputElement).value).toBe('Yeni ad');
     expect((screen.getByLabelText('Birim (satır 2)') as HTMLInputElement).value).toBe('KOLI');
     expect(screen.queryByLabelText('Birim (satır 3)')).toBeNull();

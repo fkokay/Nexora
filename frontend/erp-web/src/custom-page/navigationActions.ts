@@ -82,7 +82,8 @@ export const INVALID_SCREEN = "Açılacak ekran bulunamadı.";
  * `noopener,noreferrer` ile açılır; ERP ekranı ve sayfa çalışma alanına istenir (`from`: bu sayfanın sekme anahtarı).
  * Hata metni ya da null döner.
  */
-export async function runNavigation(props: Record<string, unknown>, scope: () => PageScope, from?: string): Promise<string | null> {
+export async function runNavigation(props: Record<string, unknown>, scope: () => PageScope, from?: string,
+  options?: { refreshTarget?: boolean }): Promise<string | null> {
   if (props.confirmEnabled === true) {
     const text = typeof props.confirmText === "string" ? interpolate(props.confirmText, scope()).trim() : "";
     const confirmed = await confirmDialog({ title: text || "Devam edilsin mi?", confirmLabel: "Devam", cancelLabel: "Vazgeç" });
@@ -95,6 +96,6 @@ export async function runNavigation(props: Record<string, unknown>, scope: () =>
     else window.location.assign(target.url);
     return null;
   }
-  openWorkspacePage({ page: target.page, params: target.params, replace: target.replace, from });
+  openWorkspacePage({ page: target.page, params: target.params, replace: target.replace, from, ...(options?.refreshTarget ? { refresh: true } : {}) });
   return null;
 }

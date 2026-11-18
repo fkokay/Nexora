@@ -8,6 +8,7 @@ import InventoryWarehousesPage from '../InventoryWarehousesPage';
 import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { LOCATION_REQUEST_EVENT, LOCATION_REQUEST_KEY } from '../warehouse-locations/locationRequest';
+import { commandReason } from '../action-bar/commandReason';
 
 // Depolar and Raf ve Konumlar as definition screens (mockup 04 "2 · Tanım ekranı" / "2b · Sil onayı"):
 // list on the left, the selected record's form on the right, Sil explains why it is blocked and offers Pasife al.
@@ -168,7 +169,7 @@ describe('Depolar definition screen', () => {
     expect(within(card).queryByRole('textbox')).toBeNull();
     // Nothing changed: Kaydet says why it is not needed.
     expect(enabled('save')).toBe(false);
-    expect(command('save').title).toBe('Kaydedilecek değişiklik yok');
+    expect((commandReason(command('save')) ?? '')).toBe('Kaydedilecek değişiklik yok');
   });
 
   it('moves to the next warehouse with ↓ and asks before leaving a changed form', async () => {
@@ -303,7 +304,7 @@ describe('Depolar definition screen', () => {
     renderScreen(<InventoryWarehousesPage token="t" role="TenantAdmin" />);
     await settle();
     expect(enabled('delete')).toBe(false);
-    expect(command('delete').title).toBe('Önce bir kayıt seçin');
+    expect((commandReason(command('delete')) ?? '')).toBe('Önce bir kayıt seçin');
     await selectWarehouse('D1');
     expect(enabled('delete')).toBe(true);
     await act(async () => {
@@ -335,7 +336,7 @@ describe('Depolar definition screen', () => {
     expect(field(/^Depo kodu/).value).toBe('D1');
     // A passive warehouse: nothing more Sil could offer.
     expect(enabled('delete')).toBe(false);
-    expect(command('delete').title).toBe('Depolar silinemez; bu depo zaten pasif.');
+    expect((commandReason(command('delete')) ?? '')).toBe('Depolar silinemez; bu depo zaten pasif.');
     // The saved row version is the one the status change returned.
     fireEvent.change(field(/^Depo adı/), { target: { value: 'Ana depo 2' } });
     await act(async () => {
@@ -359,7 +360,7 @@ describe('Depolar definition screen', () => {
     });
     await settle();
     expect(enabled('new')).toBe(false);
-    expect(command('new').title).toBe('İşlem sürüyor…');
+    expect((commandReason(command('new')) ?? '')).toBe('İşlem sürüyor…');
     await selectWarehouse('D2');
     fireEvent.keyDown(document.body, { key: 'F2' });
     fireEvent.keyDown(listRegion(), { key: 'Escape' });
@@ -529,7 +530,7 @@ describe('Depolar definition screen', () => {
     await selectWarehouse('D1');
     fireEvent.change(field(/^Depo adı/), { target: { value: 'X' } });
     expect(enabled('delete')).toBe(false);
-    expect(command('delete').title).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
+    expect((commandReason(command('delete')) ?? '')).toBe('Önce değişiklikleri kaydedin veya vazgeçin');
   });
 
   it('keeps the status change in İşlemler away from a form with unsaved changes', async () => {
@@ -678,7 +679,7 @@ describe('Raf ve Konumlar definition screen', () => {
     const put = calls('PUT', /^\/api\/warehouses\/w1\/locations\/l1$/);
     expect(bodyOf(put[0])).toEqual({ code: 'A-01', name: 'Raf A', parentLocationId: null, isActive: false, rowVersion: 'L1' });
     expect(within(rowOf('Raf A')).getByText('Pasif')).toBeTruthy();
-    expect(command('delete').title).toBe('Konumlar silinemez; bu konum zaten pasif.');
+    expect((commandReason(command('delete')) ?? '')).toBe('Konumlar silinemez; bu konum zaten pasif.');
   });
 
   it('Yeni (F2) opens the create form, which says why it cannot be saved yet', async () => {
@@ -690,7 +691,7 @@ describe('Raf ve Konumlar definition screen', () => {
     expect(within(pane()).getByRole('heading', { name: 'Konum oluştur' })).toBeTruthy();
     expect(primary('save')).toBe(true);
     expect(enabled('save')).toBe(false);
-    expect(command('save').title).toBe('Konum kodu ve adı zorunludur.');
+    expect((commandReason(command('save')) ?? '')).toBe('Konum kodu ve adı zorunludur.');
     fireEvent.change(field(/^Konum kodu/), { target: { value: 'b-02' } });
     fireEvent.change(field(/^Konum adı/), { target: { value: 'Raf B' } });
     await act(async () => {

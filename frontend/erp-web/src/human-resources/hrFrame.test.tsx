@@ -8,6 +8,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import HumanResourcesPage from '../HumanResourcesPage';
 import { hrStatusLabel, hrStatusTone } from './hrStatus';
+import { commandReason } from '../action-bar/commandReason';
 
 const employee = (id: string, code: string, fullName: string, status: string) => ({
   id, personnelCode: code, fullName, department: 'Üretim', jobTitle: 'Operatör', employmentCategory: null, hireDate: '2024-01-01',
@@ -99,7 +100,7 @@ describe('İnsan kaynakları lists (list type)', () => {
     fireEvent.click(command('more'));
     return items;
   };
-  const reason = (id: string) => command(id).getAttribute('title') ?? '';
+  const reason = (id: string) => commandReason(command(id)) ?? '';
 
   it('Personel: single click selects and shows the panel; no Düzenle buttons; Aç opens the edit form', async () => {
     renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);

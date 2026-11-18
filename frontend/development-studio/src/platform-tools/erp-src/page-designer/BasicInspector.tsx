@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
-import { IconSelect, ToneSelect } from "./DesignLanguageFields";
+import { IconSelect, alertIconOptions, ToneSelect } from "./DesignLanguageFields";
 import { queryKindLabels, type PageQuery } from "./QueriesPanel";
 import { ALL_KINDS, QueryFieldActions, READ_KINDS, type QueryBinder } from "./QueryEditorDialog";
 import { chipSummary, dropOnto, selectableColumns, setVisible, visibleCodes, type ColumnsResult, type SourceColumn } from "./columnEditing";
@@ -113,7 +113,8 @@ export function BasicInspector(props: BasicInspectorProps) {
               <QueryFieldActions kinds={READ_KINDS} target={target} value={queryId} componentId={component.id} bind={props.bindMetric} disabled={disabled}/></>}
         </div>;
       case "icon":
-        return <div key={field} className="pd-field">Simge<IconSelect value={typeof p.icon === "string" ? p.icon : undefined} disabled={disabled} onChange={(icon) => onPatch({ icon })}/></div>;
+        return <div key={field} className="pd-field">Simge<IconSelect value={typeof p.icon === "string" ? p.icon : undefined} disabled={disabled} onChange={(icon) => onPatch({ icon })}
+          options={component.type === "alert" ? alertIconOptions : undefined}/></div>;
       case "tone":
         return <div key={field} className="pd-field">Ton<ToneSelect value={(["info", "success", "warning", "danger"] as const).find((tone) => tone === p.variant)} disabled={disabled} onChange={(tone) => onPatch({ variant: tone })}/></div>;
       case "inputType":
