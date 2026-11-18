@@ -277,12 +277,18 @@ describe('Çek ve Senet (characterization)', () => {
     expect(posts()).toEqual([]);
   });
 
-  it('the rows carry no ⋯ menu: the record actions are only in İşlemler, on the selected row', async () => {
+  it('the rows carry no ⋯ menu: the record actions are only in İşlemler; the number button selects the row (keyboard path)', async () => {
     renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
     await settle(900);
     const grid = document.querySelector<HTMLElement>('.pi-list table')!;
-    expect(grid.querySelectorAll('tbody button, tbody [role="menu"]')).toHaveLength(0);
+    expect(grid.querySelectorAll('tbody [role="menu"], tbody details, tbody [aria-haspopup]')).toHaveLength(0);
     expect(within(grid).queryByText('Ayrıntılar')).toBeNull();
+    const number = within(grid).getByRole('button', { name: 'SN-2001' });
+    expect(number.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(number);
+    await settle(100);
+    expect(number.getAttribute('aria-pressed')).toBe('true');
+    expect(actionLabels()).toEqual(['Tahsil et']);
   });
 
   it('Portföyde / Verilen cards filter the list with the direction and the Portföyde status (type and search cleared); again clears the status', async () => {

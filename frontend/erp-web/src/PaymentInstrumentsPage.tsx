@@ -554,7 +554,15 @@ export default function PaymentInstrumentsPage({
         return (
           <span className="pi-two">
             <span className="pi-number">
-              <b>{item.instrumentNumber}</b>
+              {/* The keyboard path to a row (Tab, Enter): it selects the record for the side panel and İşlemler. */}
+              <button
+                type="button"
+                className="erp-link-button pi-number-link"
+                aria-pressed={item.id === selected?.id}
+                onClick={() => setSelectedId(item.id)}
+              >
+                {item.instrumentNumber}
+              </button>
               {item.status !== "Portfolio" && (
                 <StatusTag tone={statusTone[item.status]}>{statusText[item.status]}</StatusTag>
               )}

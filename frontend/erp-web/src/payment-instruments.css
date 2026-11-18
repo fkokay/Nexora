@@ -58,18 +58,11 @@
 }
 #root .app-shell .pi-page .pi-two small.pi-overdue { color: var(--fh-danger) !important; font-weight: 600; }
 #root .pi-page .pi-number { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+#root .app-shell .pi-page .pi-number .pi-number-link { padding: 0; border: 0; background: none; color: var(--fh-ink); font: inherit; font-weight: 700; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+#root .app-shell .pi-page .pi-number .pi-number-link:hover { color: var(--nx-primary); text-decoration: underline; }
 #root .pi-page .pi-number b,
 #root .pi-page .pi-strong { color: var(--fh-ink); font-weight: 700; overflow-wrap: anywhere; }
 #root .pi-page .pi-amount { color: var(--nx-text); font-weight: 400; font-variant-numeric: tabular-nums; }
-
-/* ⋯ trigger inside the grid */
-#root .app-shell .pi-page table.pi-table .sales-row-actions-trigger {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-}
 
 #root .pi-page .pi-empty {
   display: flex;
