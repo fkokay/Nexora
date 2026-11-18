@@ -23,7 +23,8 @@ export const isWriteKind = (kind: QueryKind) => kind !== "read";
 export const MAX_QUERIES = 30;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar"];
+// "onceki" kayıt dizisinde bir önceki adımın sonucudur (sunucuda yalnız ValidName'de ayrılmış; koşul kökü değildir).
+export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
 const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";
