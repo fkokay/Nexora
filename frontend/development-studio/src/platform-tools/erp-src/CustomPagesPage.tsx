@@ -27,7 +27,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefau
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields } from "./page-designer/RowActionsFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
-import { BAR_COMMAND_PROPS, barBound, barCommandProblem, migrateBarButtons } from "./page-designer/barCommands";
+import { BAR_COMMAND_PROPS, barBound, barCommandProblem, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
@@ -506,13 +506,11 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       single("newButton", (id) => isButton(id) && !("formDialog" in next));
       single("openButton", (id) => isButton(id) && !("formDialog" in next));
       single("afterSaveButton", isButton);
-      // Düz Yeni / Aç: Aç'ın listesi silinince sayfa grubu da kalkar; temizlenecek girişi ya da penceresi kalmayan seçim kalkar.
+      // Düz Aç: listesi silinince sayfa grubu da kalkar (eksik giriş / pencere seçimi kaydetmede uyarılır, burada silinmez).
       if ("openTable" in next && !(typeof next.openTable === "string" && (() => { const table = byId.get(next.openTable as string); return table?.type === "dataTable" && !!table.name && typeof table.props.query === "string" && table.props.query !== ""; })())) {
         for (const key of ["openAction", "openPageCode", "openTarget", "openTable", "openParams"]) delete next[key];
         touched = true;
       }
-      if (next.newAction === "clear" && !("newInputs" in next)) { delete next.newAction; touched = true; }
-      for (const key of ["newAction", "openAction"]) if (next[key] === "dialog" && !("formDialog" in next)) { delete next[key]; touched = true; }
       single("saveQuery", (id) => writeKinds.get(id) === "insert" || writeKinds.get(id) === "update");
       single("deleteQuery", (id) => writeKinds.get(id) === "delete");
       if (cleanSequence(next, writeKinds)) touched = true;
@@ -2383,6 +2381,22 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       : typeof selected.props.saveQuery === "string" && selected.props.saveQuery !== "" ? "query"
         : barSaveChoice?.id === selected.id ? barSaveChoice.mode : "query";
   const eligibleTables = definition.components.filter((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
+  // İşlem Çubuğu Yeni / Aç / kaydettikten sonra grupları: Basit ve Gelişmiş kipte aynı alanlar. Eski düğme bağını kaldıran seçim,
+  // başka yerde kullanılmayan düğmeyi de aynı geri alma adımında siler.
+  const barCommandFields = selected?.type === "actionBar" ? <BarCommandFields props={selected.props} screens={erpScreens}
+    pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
+    tables={eligibleTables.map((table) => ({ id: table.id, name: table.name!,
+      columns: (queryPreviews[String(table.props.query)]?.columns ?? []).filter((column) => /^[A-Za-z0-9_.]+$/.test(column.code)) }))}
+    dialogs={pageDialogs.map((dialog) => ({ id: dialog.id, label: `${summaryOf(dialog)}${dialog.name ? ` (${dialog.name})` : ""}` }))}
+    buttonLabel={(id) => pageButtons.find((button) => button.id === id)?.label ?? id}
+    newInputsField={<>
+      <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
+      {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
+    </>}
+    suggestions={bindingSuggestions} disabled={!canEdit}
+    onPatch={(patch) => commit((state) => patchBarCommands(state, selected.id, patch))}
+    canMigrate={migrateBarButtons(definition).moved.length > 0}
+    onMigrate={() => commit((state) => migrateBarButtons(state).definition)}/> : null;
   const contextTable = selected?.type === "contextPanel" && typeof selected.props.table === "string" ? eligibleTables.find((component) => component.id === selected.props.table) : undefined;
   const contextColumns = contextTable ? queryPreviews[String(contextTable.props.query)]?.columns ?? [] : [];
   const contextFields = selected?.type === "contextPanel" ? parseFieldList(selected.props.fields) : [];
@@ -2621,6 +2635,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               bindTable={bindDataQuery} bindMetric={bindDataQuery} bindButton={bindButtonQuery}
               onUpdate={(key, value) => updateComponent(selected.id, key, value)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
               onAdvanced={() => setInspectorMode("advanced")} onOpenSettings={() => setSettingsId(selected.id)}/>
+            {barCommandFields}
           </fieldset>}
           <SettingsHost open={settingsOpen} hidden={inspectorMode === "basic"} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
             extra={selected.type === "dataTable" && (selectedQueryRef || selectedSource) ? <section className="pd-inspector-section pd-settings-wide" data-settings-section="Sütunlar"><div className="pd-inspector-section-body">
@@ -2858,19 +2873,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
             {selected.type === "actionBar" && section("layout", "Komutlar", <>
               <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
-              <BarCommandFields props={selected.props} screens={erpScreens}
-                pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
-                tables={eligibleTables.map((table) => ({ id: table.id, name: table.name!,
-                  columns: (queryPreviews[String(table.props.query)]?.columns ?? []).filter((column) => /^[A-Za-z0-9_.]+$/.test(column.code)) }))}
-                dialogs={pageDialogs.map((dialog) => ({ id: dialog.id, label: `${summaryOf(dialog)}${dialog.name ? ` (${dialog.name})` : ""}` }))}
-                buttonLabel={(id) => pageButtons.find((button) => button.id === id)?.label ?? id}
-                newInputsField={<>
-                  <InputPicker inputs={pageInputs} value={barNewInputs} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { newInputs: next.length > 0 ? next : undefined })}/>
-                  {pageInputs.length === 0 && <small>Önce sayfaya bir giriş kutusu ekleyin.</small>}
-                </>}
-                suggestions={bindingSuggestions} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}
-                canMigrate={migrateBarButtons(definition).moved.length > 0}
-                onMigrate={() => commit((state) => migrateBarButtons(state).definition)}/>
+              {barCommandFields}
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {

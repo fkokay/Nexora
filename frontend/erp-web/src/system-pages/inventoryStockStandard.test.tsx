@@ -119,7 +119,7 @@ function setup(role = 'TenantAdmin') {
       return {
         id: 'sp', code: '@inventory-stock', name: standard.title, description: null, revision: 1, forms: [],
         rights: { view: true, insert: true, update: true, delete: true }, screenKey: 'inventory-stock', source: 'standard', standardVersion: 1,
-        definitionJson: JSON.stringify(standard.definition),
+        definitionJson: JSON.stringify(definition),
       };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations };
@@ -169,7 +169,26 @@ const chooseWarehouse = async () => {
   fireEvent.click(await screen.findByRole('option', { name: /Merkez/ }));
 };
 
+/**
+ * Aynı sayfanın eski biçimi: Yeni ve Aç gizli "Sayfa aç" düğmelerine (newButton / openButton) bağlı. Eski kayıtlı tanımlar
+ * aynen çalışmalıdır; düz özellikli standartla aynı gezinmeleri vermelidir.
+ */
+function legacyDefinition(): Definition {
+  const legacy = structuredClone(standard.definition);
+  const bar = legacy.components.find((component) => component.type === 'actionBar')!;
+  const props = { ...bar.props };
+  for (const key of ['newAction', 'newPageCode', 'newTarget', 'openAction', 'openPageCode', 'openTarget', 'openTable', 'openParams']) delete props[key];
+  bar.props = { ...props, newButton: 'yeniDugme', openButton: 'acDugme' };
+  legacy.components.push(
+    { id: 'yeniDugme', type: 'button', props: { text: 'Yeni stok kartı', actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab' } },
+    { id: 'acDugme', type: 'button', props: { text: 'Stok kartını aç', actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab',
+      params: ['id={{liste.seciliSatir.stockItem.id}}'], visibleWhen: 'liste.seciliSatir.stockItem.id != null' } });
+  return legacy;
+}
+let definition: Definition = standard.definition;
+
 beforeEach(() => {
+  definition = standard.definition;
   calls = []; failures = []; valuesGate = null; operations = catalog.operations; navigations = []; api.mockReset();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
@@ -306,7 +325,10 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(command('open').getAttribute('aria-disabled')).not.toBe('true');
   });
 
-  it('yeni opens the card screen in its own tab', async () => {
+  // Düz özellikli standart ve eski gizli düğmeli tanım aynı gezinmeleri verir.
+  for (const [variant, make] of [['', () => standard.definition], [' (legacy newButton/openButton)', legacyDefinition]] as const) {
+  it(`yeni opens the card screen in its own tab${variant}`, async () => {
+    definition = make();
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await ready('new');
@@ -320,7 +342,8 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()).toEqual([]);
   });
 
-  it('aç opens the selected card on the card screen; Enter and double click too', async () => {
+  it(`aç opens the selected card on the card screen; Enter and double click too${variant}`, async () => {
+    definition = make();
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await waitFor(() => expect(commandReason(command('open'))).toBe('Önce bir kayıt seçin'), T);
@@ -341,6 +364,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(listRow('Defter').getAttribute('aria-current')).toBe('true');
     expect(writes()).toEqual([]);
   });
+  }
 
   it('a save on the card screen refreshes the open list', async () => {
     setup();

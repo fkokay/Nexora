@@ -88,7 +88,28 @@ function openTableOf(button: Comp, components: Comp[]): string | undefined {
   return table?.id;
 }
 
-export type BarMigration = { definition: Def; moved: string[]; skipped: string[] };
+/** Başka hiçbir bileşenin göstermediği düğmeleri tanımdan çıkarır. */
+function dropUnusedButtons<T extends Def>(definition: T, ids: string[]): T {
+  const unused = new Set(ids.filter((id) => definition.components.find((component) => component.id === id)?.type === "button"
+    && !definition.components.some((component) => component.id !== id && references(component, id))));
+  return unused.size === 0 ? definition : { ...definition, components: definition.components.filter((component) => !unused.has(component.id)) } as T;
+}
+
+/**
+ * Komutlar grubundaki bir seçimi çubuğa uygular (undefined siler). Seçim eski düğme bağını kaldırıyorsa, artık hiçbir yerde
+ * kullanılmayan düğme de silinir; aksi halde sayfada görünür hale gelirdi.
+ */
+export function patchBarCommands<T extends Def>(definition: T, barId: string, patch: Patch): T {
+  const bar = definition.components.find((component) => component.id === barId);
+  if (!bar) return definition;
+  const props: Record<string, Value> = { ...bar.props };
+  for (const [key, value] of Object.entries(patch)) { if (value === undefined) delete props[key]; else props[key] = value; }
+  const dropped = LEGACY_KEYS.filter((key) => text(bar.props[key]) !== "" && !(key in props)).map((key) => text(bar.props[key]));
+  const next = { ...definition, components: definition.components.map((component) => component.id === barId ? { ...component, props } : component) } as T;
+  return dropUnusedButtons(next, dropped);
+}
+
+export type BarMigration ={ definition: Def; moved: string[]; skipped: string[] };
 
 /**
  * Eski düğme bağlarını düz özelliklere çevirir; düğmeyi başka hiçbir yer kullanmıyorsa siler. Tek tanım dönüşümüdür
@@ -123,9 +144,7 @@ export function migrateBarButtons<T extends Def>(definition: T): BarMigration & 
     candidates.push(id);
   }
   if (moved.length === 0) return { definition, moved, skipped };
-  const nextBar: Comp = { ...bar, props };
-  const rest = definition.components.map((component) => component.id === bar.id ? nextBar : component);
-  const unused = new Set(candidates.filter((id) => !rest.some((component) => component.id !== id && references(component, id))));
-  return { definition: { ...definition, components: rest.filter((component) => !unused.has(component.id)) } as T, moved, skipped };
+  const next = { ...definition, components: definition.components.map((component) => component.id === bar.id ? { ...bar, props } : component) } as T;
+  return { definition: dropUnusedButtons(next, candidates), moved, skipped };
 }
 
