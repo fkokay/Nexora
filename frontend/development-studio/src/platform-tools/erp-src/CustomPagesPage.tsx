@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import {
   Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Plus, Redo2,
-  Rows3, Save, Search, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
+  RotateCcw, Rows3, Save, Search, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
@@ -28,9 +28,11 @@ import { TabsFields, tabsValue, type TabEntry } from "./page-designer/TabsFields
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import "./custom-pages.css";
 
-type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
-type PageDetail = PageSummary & { definitionJson: string };
-type PageRevision = { id: string; revision: number; name: string; description: string | null; changeKind: string; changedByUserId: string; createdAt: string; definitionJson: string };
+type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string; screenKey?: string | null };
+type PageDetail = PageSummary & { definitionJson: string; standardVersion?: number | null };
+/** `/api/system-pages` listesindeki bir standart (yalnız sistem kipinin kullandığı alanlar). */
+type SystemPageInfo = { screenKey: string; title: string; stage: "preview" | "ready"; version: number; canEdit: boolean };
+type PageRevision = { id: string; revision: number; name: string; description: string | null; changeKind: string; changedByUserId: string; createdAt: string; definitionJson: string; customPageId?: string };
 type CustomFormSummary = { id: string; code: string; name: string; status: string };
 type WorkflowOption = { id: string; code: string; name: string; status: string };
 type ReportSource = { code: string; label: string; columns: { code: string; label: string; dataType: string }[]; aggregates: { code: string; label: string }[] };
@@ -392,6 +394,10 @@ const summaryOf = (component: PageComponent) => {
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
 const FULLSCREEN_STORAGE_KEY = "nexora.pageDesigner.fullscreen";
 const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
+const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
+const SYSTEM_PAGE_PREVIEW_STAGE = "Bu standart tanım önizleme aşamasında; eski ekranın tüm işlevlerini içermez.";
+const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
+const SYSTEM_PAGE_RESET_CONFIRM = "Taslak, Nexora standart tasarımının güncel sürümüyle değiştirilsin mi? Yayımlayana kadar ERP'deki ekran değişmez.";
 /** Sunucudaki TenantCustomPageQueries.HasQueries ile aynı: schemaVersion 2 ve boş olmayan queries dizisi. */
 const definitionHasQueries = (definitionJson: string | undefined) => {
   if (!definitionJson) return false;
@@ -480,9 +486,18 @@ function StaticOptionsField({ value, onChange }: { value: string[]; onChange: (n
   </>;
 }
 
-type Props = { token: string; role: string; platformOrigin?: string; initialPageId?: string | null; initialCreate?: boolean; embedded?: boolean; onBack?: () => void };
+type Props = {
+  token: string; role: string; platformOrigin?: string; initialPageId?: string | null; initialCreate?: boolean; embedded?: boolean; onBack?: () => void;
+  /** Sistem kipi: açılan sayfa `@<systemScreenKey>` kodlu firma tasarımıdır. */
+  systemScreenKey?: string;
+  /** "Tasarımcıda aç" yanıtındaki aktarım notları; bir kez, kapatılabilir bildirim olarak gösterilir. */
+  importNotes?: string[];
+};
 
-export default function CustomPagesPage({ token, role, platformOrigin, initialPageId, initialCreate = false, onBack }: Props) {
+export default function CustomPagesPage({ token, role, platformOrigin, initialPageId, initialCreate = false, onBack, systemScreenKey, importNotes }: Props) {
+  const systemMode = !!systemScreenKey;
+  const [systemInfo, setSystemInfo] = useState<SystemPageInfo | null>(null);
+  const [importNotesOpen, setImportNotesOpen] = useState(() => (importNotes?.length ?? 0) > 0);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [history, setHistory] = useState<PageRevision[]>([]);
   const [formEditorOpen, setFormEditorOpen] = useState(false);
@@ -534,11 +549,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kayıtlı tanımı SQL sorgusu içeren sayfayı (sunucudaki kuralla aynı) yalnız tenant yöneticisi değiştirebilir.
   const storedHasQueries = useMemo(() => definitionHasQueries(current?.definitionJson), [current?.definitionJson]);
   const queryPageLocked = storedHasQueries && !isAdmin;
+  // Sistem sayfası yazmaları doğrulanmış firma yöneticisi ister; liste yanıtı yoksa rol talebine bakılır (sunucu yine denetler).
+  const systemAdmin = !systemMode || (systemInfo ? systemInfo.canEdit : isAdmin);
+  const systemLocked = systemMode && !systemAdmin;
   const canEdit = current
-    ? !current.isPublished && !!capabilities?.canUpdate && !queryPageLocked
-    : creating && !!capabilities?.canCreate;
+    ? !current.isPublished && !!capabilities?.canUpdate && !queryPageLocked && systemAdmin
+    : creating && !!capabilities?.canCreate && !systemMode;
   // Sorgu eklemek, SQL düzenlemek ve önizlemek yalnız tenant yöneticisine açıktır.
   const queryEditable = canEdit && isAdmin;
+  // Sistem kipinde erişim paneli yalnız SQL sorgusu varken anlamlıdır (ERP işlemlerinin yetkisini uç noktalar verir).
+  const hasSqlQueries = definition.queries.some((query) => !isOperationQuery(query));
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
   const selected = definition.components.find((component) => component.id === selectedComponentId) ?? null;
 
@@ -561,9 +581,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     finally { setLoading(false); }
   }, [request]);
   const refreshHistory = useCallback(async (pageId: string) => {
-    setHistory(await request<PageRevision[]>(`/api/custom-pages/${pageId}/history`).catch(() => []));
-  }, [request]);
+    // Sistem sayfasında yayın ve geri yükleme yeni satır açar; geçmiş ekran anahtarının bütün satırlarından okunur.
+    const url = systemScreenKey ? `/api/system-pages/${encodeURIComponent(systemScreenKey)}/history` : `/api/custom-pages/${pageId}/history`;
+    setHistory(await request<PageRevision[]>(url).catch(() => []));
+  }, [request, systemScreenKey]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!systemScreenKey) return;
+    let active = true;
+    void request<SystemPageInfo[]>("/api/system-pages")
+      .then((items) => { if (active) setSystemInfo(Array.isArray(items) ? items.find((item) => item.screenKey === systemScreenKey) ?? null : null); })
+      .catch(() => { if (active) setSystemInfo(null); });
+    return () => { active = false; };
+  }, [request, systemScreenKey]);
   useEffect(() => {
     if (initialActionDone.current || loading) return;
     if (initialCreate) {
@@ -573,7 +603,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       return;
     }
     if (initialPageId) {
-      const page = pages.find((item) => item.id === initialPageId);
+      // Liste sistem satırlarını da (screenKey ile) döner; sistem kipinde taslak az önce açıldığı için
+      // listede henüz görünmüyorsa kimlikle doğrudan açılır.
+      const page = pages.find((item) => item.id === initialPageId) ?? (systemMode ? { id: initialPageId } : undefined);
       if (!page) return;
       initialActionDone.current = true;
       void openPage(page);
@@ -727,7 +759,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     definitionRef.current = next; setDefinition(next); setUndoTick((tick) => tick + 1);
   };
 
-  const openPage = async (item: PageSummary) => {
+  const openPage = async (item: Pick<PageSummary, "id">) => {
     setError(""); setNotice(""); setSaving(true);
     try {
       const detail = await request<PageDetail>(`/api/custom-pages/${item.id}`);
@@ -765,6 +797,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const createFromPublished = async (page: PageSummary) => {
     if (!capabilities?.canCreate) { setError("Yeni taslak oluşturma yetkiniz yok."); return; }
     setSaving(true); setError(""); setNotice("");
+    if (systemScreenKey) {
+      // Sistem sayfasında taslak, ekran anahtarı üzerinden açılır (idempotent: açık taslak varsa o döner).
+      try {
+        const detail = await request<PageDetail>(`/api/system-pages/${encodeURIComponent(systemScreenKey)}/draft`, { method: "POST" });
+        await openPage(detail);
+        await refresh();
+        setNotice("Yayımlanmış firma tasarımından yeni bir taslak açıldı. Yayımlayana kadar ERP'deki ekran değişmez.");
+      } catch (e) { setError((e as Error).message); }
+      finally { setSaving(false); }
+      return;
+    }
     try {
       // Çalışma zamanı uç noktası sorgu SQL'ini göndermez; tam tanım kimlikle okunur.
       const published = await request<PageDetail>(`/api/custom-pages/${encodeURIComponent(page.id)}`);
@@ -778,12 +821,30 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const deleteCurrent = async () => {
     if (!current) return;
     if (!capabilities?.canDelete) { setError("Sayfa silme yetkiniz yok."); return; }
-    if (!window.confirm(`“${current.name}” sayfası silinsin mi? Yayımlanmışsa ERP'den de kaldırılır.`)) return;
+    if (systemMode && !systemAdmin) { setError(SYSTEM_PAGE_ADMIN_ONLY); return; }
+    if (!window.confirm(systemMode ? SYSTEM_PAGE_REMOVE_CONFIRM : `“${current.name}” sayfası silinsin mi? Yayımlanmışsa ERP'den de kaldırılır.`)) return;
     setSaving(true); setError(""); setNotice("");
     try {
       await request<void>(`/api/custom-pages/${current.id}`, { method: "DELETE" });
       setSavedSnapshot(snapshotOf(name, description, definition));
       onBack?.();
+    } catch (e) { setError((e as Error).message); }
+    finally { setSaving(false); }
+  };
+  const resetToStandard = async () => {
+    if (!current || !systemScreenKey) return;
+    if (!systemAdmin) { setError(SYSTEM_PAGE_ADMIN_ONLY); return; }
+    if (!window.confirm(SYSTEM_PAGE_RESET_CONFIRM)) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      // Açık taslak varsa sürümü eşleşmelidir; yayımlı satırdan çağrılırsa sunucu standarttan yeni taslak açar.
+      const reset = await request<PageDetail>(`/api/system-pages/${encodeURIComponent(systemScreenKey)}/reset`, { method: "POST", body: JSON.stringify({ expectedRevision: current.isPublished ? null : current.revision }) });
+      setCurrent(reset); setCreating(false);
+      loadEditor(reset.name, reset.code, reset.description || "", normalizeDefinition(JSON.parse(reset.definitionJson)));
+      setSelectedComponentId(null); setRightMode("inspector");
+      setNotice("Taslak, Nexora standart tasarımının güncel sürümüyle değiştirildi. Yayımlayana kadar ERP'deki ekran değişmez.");
+      await refreshHistory(reset.id);
+      await refresh();
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
   };
@@ -1198,11 +1259,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const revision = history.find((item) => item.id === revisionId);
     if (!revision) { setError("Seçilen geçmiş sürüm bulunamadı. Geçmişi yenileyin."); return; }
     if (current.isPublished ? !capabilities?.canCreate : !capabilities?.canUpdate) { setError("Bu sürümü geri yükleme yetkiniz yok."); return; }
+    if (systemMode && !systemAdmin) { setError(SYSTEM_PAGE_ADMIN_ONLY); return; }
     if (dirty && !window.confirm("Kaydedilmemiş değişiklikleriniz kaybolacak. Geçmiş sürüm yüklensin mi?")) return;
     setSaving(true); setError(""); setNotice("");
     try {
+      // Sistem geçmişi ekranın bütün satırlarını içerir; geri yükleme sürümün ait olduğu satır üzerinden yapılır.
+      const restoreRowId = systemMode ? revision.customPageId ?? current.id : current.id;
       const restored = current.isPublished
-        ? await request<PageDetail>(`/api/custom-pages/${current.id}/restore/${revisionId}`, { method: "POST" })
+        ? await request<PageDetail>(`/api/custom-pages/${restoreRowId}/restore/${revisionId}`, { method: "POST" })
         : await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name: revision.name, description: revision.description, definition: JSON.parse(revision.definitionJson) }) });
       setCurrent(restored);
       loadEditor(restored.name, restored.code, restored.description || "", normalizeDefinition(JSON.parse(restored.definitionJson)));
@@ -1678,7 +1742,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {onBack && <button type="button" className="pd-icon-button" onClick={goBack} title="Sayfa listesine dön" aria-label="Sayfa listesine dön"><ArrowLeft size={17}/></button>}
       <div className="pd-title">
         <div><h2>{name || "Adsız sayfa"}</h2><span className={`pd-status ${status.tone}`}>{status.label}{current ? ` · v${current.revision}` : ""}</span></div>
-        <small>{code ? `/${code}` : "Kod henüz belirlenmedi"}{dirty ? <em className="pd-dirty"> · Kaydedilmemiş değişiklikler</em> : current ? <span className="pd-clean"> · Tüm değişiklikler kaydedildi</span> : null}</small>
+        <small>{systemScreenKey ? `Sistem sayfası · @${systemScreenKey}` : code ? `/${code}` : "Kod henüz belirlenmedi"}{dirty ? <em className="pd-dirty"> · Kaydedilmemiş değişiklikler</em> : current ? <span className="pd-clean"> · Tüm değişiklikler kaydedildi</span> : null}</small>
       </div>
       <div className="pd-topbar-actions">
         <div className="pd-button-group">
@@ -1690,11 +1754,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" className="pd-button" onClick={() => void openErpPreview()} disabled={saving}><Eye size={15}/>{current?.isPublished ? "ERP'de aç" : "ERP'de önizle"}</button>
         {(current ? capabilities?.canUpdate : capabilities?.canCreate) && !current?.isPublished && <button type="button" className="pd-button" onClick={() => void saveDraft()} disabled={saving || !canEdit || (!dirty && !!current)} title="Kaydet (Ctrl+S)"><Save size={15}/>{saving ? "Kaydediliyor…" : "Kaydet"}</button>}
         {!current?.isPublished && capabilities?.canPublish && <button type="button" className="pd-button primary" onClick={() => void publish()} disabled={saving || !canEdit}><Send size={15}/>{dirty || !current ? "Kaydet ve yayımla" : "Yayımla"}</button>}
-        {current?.isPublished && capabilities?.canCreate && !queryPageLocked && <button type="button" className="pd-button primary" onClick={() => void createFromPublished(current)} disabled={saving}><FilePlus2 size={15}/>Yeni taslakta düzenle</button>}
+        {systemMode && current && systemAdmin && capabilities?.canUpdate && <button type="button" className="pd-button" onClick={() => void resetToStandard()} disabled={saving}><RotateCcw size={15}/>Standarda dön</button>}
+        {current?.isPublished && capabilities?.canCreate && !queryPageLocked && systemAdmin && <button type="button" className="pd-button primary" onClick={() => void createFromPublished(current)} disabled={saving}><FilePlus2 size={15}/>Yeni taslakta düzenle</button>}
       </div>
     </header>
-    {(error || notice || (current && !canEdit)) && <div className="pd-messages">
-      {current && !canEdit && <div className="pd-message readonly"><Lock size={14}/><span>{current.isPublished && !queryPageLocked ? "Yayımlanmış sürüm salt okunur. Değişiklik yapmak için yeni bir taslak oluşturun." : queryPageLocked ? QUERY_PAGE_ADMIN_ONLY : "Bu taslağı düzenleme yetkiniz yok; yalnızca görüntüleyebilirsiniz."}</span></div>}
+    {(error || notice || (current && !canEdit) || (systemMode && (importNotesOpen || systemInfo?.stage === "preview"))) && <div className="pd-messages">
+      {current && !canEdit && <div className="pd-message readonly"><Lock size={14}/><span>{systemLocked ? SYSTEM_PAGE_ADMIN_ONLY : current.isPublished && !queryPageLocked ? "Yayımlanmış sürüm salt okunur. Değişiklik yapmak için yeni bir taslak oluşturun." : queryPageLocked ? QUERY_PAGE_ADMIN_ONLY : "Bu taslağı düzenleme yetkiniz yok; yalnızca görüntüleyebilirsiniz."}</span></div>}
+      {systemMode && systemInfo?.stage === "preview" && <div className="pd-message warning"><Info size={14}/><span>{SYSTEM_PAGE_PREVIEW_STAGE}</span></div>}
+      {systemMode && importNotesOpen && importNotes && importNotes.length > 0 && <div className="pd-message info" role="status"><Info size={14}/><span><b>Eski ekrandan aktarım notları</b><ul>{importNotes.map((note, index) => <li key={index}>{note}</li>)}</ul></span><button type="button" aria-label="Kapat" onClick={() => setImportNotesOpen(false)}><X size={14}/></button></div>}
       {error && <div className="pd-message error" role="alert"><span>{error}</span><button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={14}/></button></div>}
       {notice && !error && <div className="pd-message success" role="status"><span>{notice}{previewHref && notice === blockedPreviewNotice && <> <a href={previewHref} target="_blank" rel="noopener noreferrer" onClick={() => { setPreviewHref(null); setNotice(""); }}>ERP önizlemesini aç</a></>}</span><button type="button" aria-label="Kapat" onClick={() => { setNotice(""); setPreviewHref(null); }}><X size={14}/></button></div>}
     </div>}
@@ -1803,7 +1870,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <aside className="pd-right" aria-label={rightMode === "history" ? "Sürüm geçmişi" : "Özellikler"}>
         {rightMode === "history" ? <div className="pd-right-body">
           <div className="pd-right-head"><History size={16}/><div><b>Sürüm geçmişi</b><small>Geri yükleme yayımlanmış sayfada yeni taslak, açık taslakta yeni revizyon oluşturur.</small></div><button type="button" className="pd-icon-button" aria-label="Kapat" onClick={() => setRightMode("inspector")}><X size={15}/></button></div>
-          {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
+          {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && systemAdmin && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
         </div> : selected ? <div className="pd-right-body">
           <div className="pd-right-head"><SelectedIcon size={16}/><div><b>{titleFor(selected.type)}</b><small>{selected.id}</small></div><button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
@@ -2085,7 +2152,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
             <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>
-            <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>
+            {systemScreenKey
+              ? <label className="pd-field">Sayfa kodu<small>Sistem sayfasının kodu ekrana bağlıdır; değiştirilemez.</small><input value={`@${systemScreenKey}`} readOnly aria-readonly="true"/></label>
+              : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}
             <label className="pd-field">Açıklama<textarea rows={3} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Bu sayfanın amacı"/></label>
           </fieldset>
           <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
@@ -2096,8 +2165,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <div><dt>Son kayıt</dt><dd>{current ? new Date(current.updatedAt).toLocaleString("tr-TR") : "Kaydedilmedi"}</dd></div>
           </dl>
           <div className="pd-shortcuts"><b>Kısayollar</b><span><kbd>Ctrl</kbd>+<kbd>S</kbd> Kaydet</span><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> Geri al / yinele</span><span><kbd>Ctrl</kbd>+<kbd>D</kbd> Kopyala</span><span><kbd>Delete</kbd> Sil · <kbd>Alt</kbd>+<kbd>↑↓</kbd> Taşı</span></div>
-          {current && role === "TenantAdmin" && <CustomPageAccessPanel key={current.code} token={token} pageCode={current.code} hasQueries={definition.queries.length > 0}/>}
-          {current && capabilities?.canDelete && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
+          {current && role === "TenantAdmin" && (!systemMode || hasSqlQueries) && <CustomPageAccessPanel key={current.code} token={token} pageCode={current.code} hasQueries={definition.queries.length > 0}/>}
+          {systemMode
+            ? current?.isPublished && capabilities?.canDelete && systemAdmin && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Firma tasarımını kaldır</button>
+            : current && capabilities?.canDelete && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
         </div>}
       </aside>
     </div>

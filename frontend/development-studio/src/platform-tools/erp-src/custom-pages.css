@@ -41,6 +41,9 @@
 .pd-message.error{border-color:#f3c6ca;background:#fff5f6;color:#9f1f2b}
 .pd-message.success{border-color:#bfe6d2;background:#f0fbf5;color:#1c6b47}
 .pd-message.readonly{border-color:#e3dcfb;background:#faf8ff;color:#4c3a99}
+.pd-message.warning{border-color:#f5d9b8;background:#fff8ef;color:#8a4b0c}
+.pd-message.info{border-color:#cfe0f7;background:#f4f8ff;color:#1f4f99}
+.pd-message.info ul{margin:4px 0 0;padding-left:18px}
 
 .pd-workspace{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;gap:10px;min-height:0;align-items:start}
 .pd-left,.pd-right{position:sticky;top:70px;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100vh - 82px);overflow:hidden;border:1px solid var(--pd-line);border-radius:12px;background:#fff}

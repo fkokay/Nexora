@@ -12,7 +12,12 @@ import "./low-code-designer.css";
 
 type Section = "pages" | "reports" | "workflows" | "rules" | "menus" | "data";
 type PageCatalogItem = { key: string; label: string; fields: { key: string; label: string; defaultVisible: boolean }[] };
-type CustomPageCatalogItem = { id: string; code: string; name: string; description?: string | null; isPublished: boolean; revision: number; updatedAt?: string };
+type CustomPageCatalogItem = { id: string; code: string; name: string; description?: string | null; isPublished: boolean; revision: number; updatedAt?: string; screenKey?: string | null };
+type SystemPageItem = { screenKey: string; title: string; description?: string | null; module: string; version: number; stage: "preview" | "ready"; screenViewKeys: string[]; draftId?: string | null; publishedId?: string | null; standardVersion?: number | null; newItemCount: number; canEdit: boolean };
+type SystemPageDraft = { id: string; importNotes?: string[] };
+type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
+const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
+const systemStatus = (page: SystemPageItem) => page.draftId ? { label: "Taslak var", tone: "draft" } : page.publishedId ? { label: "Firma tasarımı yayında", tone: "published" } : { label: "Standart", tone: "standard" };
 type CatalogFilter = "all" | "builtIn" | "custom";
 type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string };
 
@@ -30,10 +35,12 @@ const sectionFor = (id?: string): Section =>
 
 export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin }: Props) {
   const [active, setActive] = useState<Section>(() => sectionFor(initialSection));
-  const [editingCustomPage, setEditingCustomPage] = useState<CustomPageCatalogItem | "new" | null>(null);
+  const [editingCustomPage, setEditingCustomPage] = useState<EditingCustomPage | "new" | null>(null);
   const [editingScreenKey, setEditingScreenKey] = useState<string | null>(null);
   const [pageCatalog, setPageCatalog] = useState<PageCatalogItem[]>([]);
   const [customPageCatalog, setCustomPageCatalog] = useState<CustomPageCatalogItem[]>([]);
+  const [systemPages, setSystemPages] = useState<SystemPageItem[]>([]);
+  const [openingSystemKey, setOpeningSystemKey] = useState<string | null>(null);
   const [pageCatalogLoading, setPageCatalogLoading] = useState(true);
   const [pageCatalogError, setPageCatalogError] = useState("");
   const [pageSearch, setPageSearch] = useState("");
@@ -63,12 +70,18 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         if (!response.ok) throw new Error(`Özel sayfalar yüklenemedi (${response.status}).`);
         return response.json() as Promise<CustomPageCatalogItem[]>;
       }),
+      authenticatedFetch("/api/system-pages", token).then(async (response) => {
+        if (!response.ok) throw new Error(`Sistem sayfaları yüklenemedi (${response.status}).`);
+        return response.json() as Promise<SystemPageItem[]>;
+      }),
     ])
-      .then(([screensResult, customPagesResult]) => {
+      .then(([screensResult, customPagesResult, systemPagesResult]) => {
         if (!current) return;
         if (screensResult.status === "fulfilled") { setPageCatalog(screensResult.value); setPageCatalogError(""); }
         else setPageCatalogError((screensResult.reason as Error).message);
-        setCustomPageCatalog(customPagesResult.status === "fulfilled" ? customPagesResult.value : []);
+        setCustomPageCatalog(customPagesResult.status === "fulfilled" ? customPagesResult.value.filter((page) => !page.screenKey) : []);
+        // Sistem sayfaları alınamazsa kartlar bugünkü gibi kalır; hata gösterilmez.
+        setSystemPages(systemPagesResult.status === "fulfilled" && Array.isArray(systemPagesResult.value) ? systemPagesResult.value : []);
       })
       .finally(() => { if (current) setPageCatalogLoading(false); });
     return () => { current = false; };
@@ -83,13 +96,42 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     } catch (e) { setPageCatalogError((e as Error).message); }
     finally { setDeletingId(null); }
   };
+  const openSystemPage = async (page: SystemPageItem) => {
+    if (!page.canEdit) return;
+    setOpeningSystemKey(page.screenKey); setPageCatalogError("");
+    try {
+      const response = await authenticatedFetch(`/api/system-pages/${encodeURIComponent(page.screenKey)}/draft`, token, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string } | null;
+        throw new Error(body?.error || body?.detail || body?.title || `Sistem sayfası açılamadı (${response.status}).`);
+      }
+      const detail = await response.json() as SystemPageDraft;
+      setEditingCustomPage({ id: detail.id, systemScreenKey: page.screenKey, importNotes: Array.isArray(detail.importNotes) ? detail.importNotes : [] });
+    } catch (e) { setPageCatalogError((e as Error).message); }
+    finally { setOpeningSystemKey(null); }
+  };
+  const systemPageFor = (screenKey: string) => systemPages.find((page) => page.screenViewKeys.includes(screenKey));
+  const unmatchedSystemPages = systemPages.filter((page) => !page.screenViewKeys.some((key) => pageCatalog.some((screen) => screen.key === key)));
+  const builtInCount = pageCatalog.length + unmatchedSystemPages.length;
   const query = pageSearch.trim().toLocaleLowerCase("tr-TR");
   const filteredPages = pageCatalog.filter((page) => page.label.toLocaleLowerCase("tr-TR").includes(query));
+  const filteredSystemPages = unmatchedSystemPages.filter((page) => page.title.toLocaleLowerCase("tr-TR").includes(query) || page.screenKey.includes(query));
   const filteredCustomPages = customPageCatalog.filter((page) => page.name.toLocaleLowerCase("tr-TR").includes(query) || page.code.toLocaleLowerCase("tr-TR").includes(query));
   const editingPage = active === "pages" && !!editingCustomPage;
   const showBuiltIn = catalogFilter !== "custom";
   const showCustom = catalogFilter !== "builtIn";
-  const visibleCount = (showBuiltIn ? filteredPages.length : 0) + (showCustom ? filteredCustomPages.length : 0);
+  const visibleCount = (showBuiltIn ? filteredPages.length + filteredSystemPages.length : 0) + (showCustom ? filteredCustomPages.length : 0);
+  const renderSystemCard = (system: SystemPageItem, title: string, key: string) => {
+    const status = systemStatus(system);
+    return <article key={key} className="lcp-card is-system">
+      <div className="lcp-card-top"><span className="lcp-card-icon system"><LayoutTemplate size={17}/></span><span className="lcp-status system">Sistem sayfası</span></div>
+      <b>{title}</b>
+      <small>{system.module} · @{system.screenKey}</small>
+      <div className="lcp-tags"><span className={`lcp-status ${status.tone}`}>{status.label}</span>{system.stage === "preview" && <span className="lcp-status preview">Önizleme</span>}{system.newItemCount > 0 && <span className="lcp-new-tag">{system.newItemCount} yeni</span>}</div>
+      {system.description && <p>{system.description}</p>}
+      <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={!system.canEdit || openingSystemKey !== null} title={system.canEdit ? undefined : SYSTEM_PAGE_ADMIN_ONLY} onClick={() => void openSystemPage(system)}>{openingSystemKey === system.screenKey ? "Açılıyor…" : "Tasarımcıda aç"}</button></div>
+    </article>;
+  };
   return (
     <main className={`low-code-designer ${editingPage ? "is-designing" : ""}`}>
       {!editingPage && <header className="low-code-designer-header">
@@ -113,18 +155,21 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
 
       <section className="low-code-designer-content" aria-label={sections.find((item) => item.id === active)?.label}>
         {active === "pages" && <div className="low-code-pages-shell">
-          {editingCustomPage ? <CustomPagesPage key={editingCustomPage === "new" ? "new-custom-page" : editingCustomPage.id} token={token} role={role} platformOrigin={platformOrigin} initialPageId={editingCustomPage === "new" ? null : editingCustomPage.id} initialCreate={editingCustomPage === "new"} embedded onBack={() => setEditingCustomPage(null)} />
+          {editingCustomPage ? <CustomPagesPage key={editingCustomPage === "new" ? "new-custom-page" : editingCustomPage.id} token={token} role={role} platformOrigin={platformOrigin} initialPageId={editingCustomPage === "new" ? null : editingCustomPage.id} initialCreate={editingCustomPage === "new"}
+            systemScreenKey={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.systemScreenKey : undefined}
+            importNotes={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.importNotes : undefined}
+            embedded onBack={() => setEditingCustomPage(null)} />
           : editingScreenKey ? <>
             <div className="low-code-pages-actions"><div><h2>{pageCatalog.find((page) => page.key === editingScreenKey)?.label || "Sayfa düzenle"}</h2><p>Başlık, filtreleme ve grid widget’larını düzenleyip canlı önizlemede inceleyin.</p></div><button type="button" onClick={() => setEditingScreenKey(null)}><ArrowLeft size={15}/>Sayfa listesine dön</button></div>
             <BuiltInScreenViewsPage token={token} role={role} initialScreenKey={editingScreenKey} showPageSelector={false} />
           </> : <section className="lcp-catalog" aria-label="Mevcut sayfalar">
             <div className="lcp-catalog-head">
-              <div><h2>Sayfalar</h2><p>{pageCatalog.length} yerleşik · {customPageCatalog.length} özel sayfa. Bir sayfayı açıp tasarımcıda düzenleyin.</p></div>
+              <div><h2>Sayfalar</h2><p>{builtInCount} yerleşik · {customPageCatalog.length} özel sayfa. Bir sayfayı açıp tasarımcıda düzenleyin.</p></div>
               <button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni özel sayfa</button>
             </div>
             <div className="lcp-catalog-tools">
               <div className="lcp-filter" role="group" aria-label="Sayfa türü">
-                {([["all", "Tümü", pageCatalog.length + customPageCatalog.length], ["custom", "Özel", customPageCatalog.length], ["builtIn", "Yerleşik", pageCatalog.length]] as const).map(([value, label, count]) => <button type="button" key={value} className={catalogFilter === value ? "active" : ""} aria-pressed={catalogFilter === value} onClick={() => setCatalogFilter(value)}>{label}<span>{count}</span></button>)}
+                {([["all", "Tümü", builtInCount + customPageCatalog.length], ["custom", "Özel", customPageCatalog.length], ["builtIn", "Yerleşik", builtInCount]] as const).map(([value, label, count]) => <button type="button" key={value} className={catalogFilter === value ? "active" : ""} aria-pressed={catalogFilter === value} onClick={() => setCatalogFilter(value)}>{label}<span>{count}</span></button>)}
               </div>
               <label className="lcp-search"><Search size={15}/><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder="Sayfa adı veya kodu" aria-label="Sayfalarda ara" /></label>
             </div>
@@ -139,12 +184,16 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
                 {page.description && <p>{page.description}</p>}
                 <div className="lcp-card-actions"><button type="button" className="lcp-open" onClick={() => setEditingCustomPage(page)}>Tasarımcıda aç</button>{canDeletePages && <button type="button" className="lcp-delete" aria-label={`${page.name} sayfasını sil`} title="Sayfayı sil" disabled={deletingId === page.id} onClick={() => void deleteCustomPage(page)}><Trash2 size={14}/></button>}</div>
               </article>)}</div></>}
-              {showBuiltIn && filteredPages.length > 0 && <><h3 className="lcp-group-title">Yerleşik sayfalar</h3><div className="lcp-grid">{filteredPages.map((page) => <article key={`screen-${page.key}`} className="lcp-card">
+              {showBuiltIn && filteredPages.length + filteredSystemPages.length > 0 && <><h3 className="lcp-group-title">Yerleşik sayfalar</h3><div className="lcp-grid">{filteredPages.map((page) => {
+                const system = systemPageFor(page.key);
+                const title = page.key === "customers" ? "Cari Hesaplar" : page.label;
+                return system ? renderSystemCard(system, title, `screen-${page.key}`) : <article key={`screen-${page.key}`} className="lcp-card">
                 <div className="lcp-card-top"><span className="lcp-card-icon"><LayoutTemplate size={17}/></span><span className="lcp-status builtin">Yerleşik</span></div>
-                <b>{page.key === "customers" ? "Cari Hesaplar" : page.label}</b>
+                <b>{title}</b>
                 <small>{page.fields.length} düzenlenebilir alan</small>
                 <div className="lcp-card-actions"><button type="button" className="lcp-open" onClick={() => setEditingScreenKey(page.key)}>Görünümü düzenle</button></div>
-              </article>)}</div></>}
+              </article>;
+              })}{filteredSystemPages.map((system) => renderSystemCard(system, system.title, `system-${system.screenKey}`))}</div></>}
             </>}
           </section>}
         </div>}
