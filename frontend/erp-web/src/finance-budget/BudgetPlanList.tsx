@@ -10,6 +10,14 @@ import { ListSummaryCards, type SummaryCard } from "../list-page/ListSummaryCard
 import { ListFooter } from "../list-page/ListFooter";
 import { StatusTag } from "../list-page/StatusTag";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
+import {
+  SalesListDetailEmpty,
+  SalesListDetailPanel,
+  SalesListPanelToggle,
+  SalesPanelFacts,
+  SalesPanelStats,
+} from "../sales/components/SalesListDetailPanel";
+import { useStockDetailPanelOpen } from "../inventory/components/InventoryStockDetailPanel";
 import "../sales/sales-list-v2.css";
 import type { Plan } from "./types";
 
@@ -22,6 +30,8 @@ type Props = {
   onStatusFilterChange: (value: string) => void;
   loading: boolean;
   controlsLocked: boolean;
+  /** A plan is being opened (its GET is running). */
+  opening?: boolean;
   admin: boolean;
   baseCurrency: string;
   onOpen: (plan: Plan) => void;
@@ -61,6 +71,7 @@ export default function BudgetPlanList({
   onStatusFilterChange,
   loading,
   controlsLocked,
+  opening = false,
   admin,
   baseCurrency,
   onOpen,
@@ -71,6 +82,8 @@ export default function BudgetPlanList({
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panel = useStockDetailPanelOpen(active, rootRef);
+  const [ticked, setTicked] = useState<string[]>([]);
   const gridExportRef = useRef<GridExportActions | null>(null);
   const visible = plans.filter(
     (plan) => !statusFilter || isApproved(plan.status) === (statusFilter === "Approved"),
@@ -91,7 +104,15 @@ export default function BudgetPlanList({
   ];
   const commands: PageCommands = {
     new: admin
-      ? { primary: true, disabledReason: controlsLocked || !baseCurrency ? "İşlem sürüyor…" : undefined, run: onNew }
+      ? {
+          primary: true,
+          disabledReason: controlsLocked
+            ? "İşlem sürüyor…"
+            : !baseCurrency
+              ? "Firmanın baz para birimi alınamadı"
+              : undefined,
+          run: onNew,
+        }
       : { disabledReason: "Bütçe taslağını yalnız firma yöneticisi oluşturur" },
     open: {
       disabledReason: current ? (controlsLocked ? "İşlem sürüyor…" : undefined) : "Önce bir kayıt seçin",
@@ -143,6 +164,52 @@ export default function BudgetPlanList({
     }
   };
 
+  // Right panel of the current scenario: the list row's own figures (no extra request).
+  const currentUsage = current ? budgetUsage(current, baseCurrency) : null;
+  const listPanel =
+    panel.open && active ? (
+      current ? (
+        <SalesListDetailPanel
+          label="Bütçe senaryosu özeti"
+          code={String(current.fiscalYear)}
+          title={current.name}
+          tags={
+            <>
+              <StatusTag tone={isApproved(current.status) ? "ok" : "warn"}>{planStatus(current.status)}</StatusTag>
+              <StatusTag tone="off">{current.currencyCode}</StatusTag>
+            </>
+          }
+          tabs={[{ id: "summary", label: "Özet" }]}
+          tab="summary"
+          onTabChange={() => {}}
+          onOpen={() => onOpen(current)}
+          openDisabled={controlsLocked}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        >
+          <SalesPanelStats
+            items={[
+              { label: "Plan", value: money(current.plannedTotal, current.currencyCode) },
+              { label: "Gerçekleşen", value: money(current.actualTotal, baseCurrency || current.currencyCode) },
+            ]}
+          />
+          <SalesPanelFacts
+            items={[
+              { label: "Mali yıl", value: String(current.fiscalYear) },
+              { label: "Satır", value: current.lineCount.toLocaleString("tr-TR") },
+              {
+                label: "Gerçekleşme",
+                value: currentUsage === null ? "—" : `%${(currentUsage * 100).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`,
+              },
+            ]}
+          />
+          <p className="sales-ld-muted">Aylık plan ve gerçekleşen için Aç (Enter).</p>
+        </SalesListDetailPanel>
+      ) : (
+        <SalesListDetailEmpty label="Bütçe senaryosu özeti" text="Özetini görmek için listeden bir senaryo seçin." />
+      )
+    ) : null;
+
   return (
     <>
       {active && <PageCommandsSlot commands={commands} />}
@@ -158,8 +225,9 @@ export default function BudgetPlanList({
             { value: "Approved", label: "Onaylı", count: plans.length - drafts },
           ]}
         />
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
       </ListToolbar>
-      <div ref={rootRef} className="sales-list-body">
+      <div ref={rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
         <section className="list-v2-list fin-budget-list">
           <SalesDocumentGrid
             gridId="studio-finance-budget-plans-v2"
@@ -180,14 +248,24 @@ export default function BudgetPlanList({
             selection={{
               currentId,
               onCurrentChange: setCurrentId,
-              onTickedChange: () => {},
+              onTickedChange: setTicked,
+              // The ticks narrow the grid's export (Excel / CSV write the ticked rows).
+              bulkActions: active
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                : undefined,
               onOpen: (id) => {
                 const plan = visible.find((row) => row.id === id);
                 if (plan && !controlsLocked) onOpen(plan);
               },
             }}
             footer={
-              <ListFooter hints="↑↓ gez · Enter aç · Çift tık aç">
+              <ListFooter hints="↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli">
+                {opening && <span role="status">Açılıyor…</span>}
+                {ticked.length > 0 && (
+                  <span>
+                    <span>{ticked.length}</span> <span>seçili</span>
+                  </span>
+                )}
                 <span>
                   <span>Gösterilen</span>{" "}
                   <span>
@@ -198,6 +276,7 @@ export default function BudgetPlanList({
             }
           />
         </section>
+        {listPanel}
       </div>
     </>
   );

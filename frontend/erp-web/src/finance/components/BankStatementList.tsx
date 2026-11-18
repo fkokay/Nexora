@@ -128,7 +128,8 @@ type Props = {
   onRefresh: () => void;
   onOpen: (statement: BankStatement) => void;
   onImport: () => void;
-  onExport: (format: "xlsx" | "csv") => void;
+  /** Writes the listed statements, or only `ids` (the ticked rows) when given. */
+  onExport: (format: "xlsx" | "csv", ids?: string[]) => void;
 };
 
 /**
@@ -337,6 +338,8 @@ export function BankStatementList({
               currentId,
               onCurrentChange: setCurrentId,
               onTickedChange: setTicked,
+              // The ticks feed the selected-rows export (as on Kasalar / Bankalar).
+              bulkActions: active ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => onExport("xlsx", ticked) }] : undefined,
               onOpen: (id) => {
                 const statement = visibleStatements.find((row) => row.id === id);
                 if (statement) onOpen(statement);

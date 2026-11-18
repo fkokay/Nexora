@@ -1,5 +1,5 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Info, Landmark, X } from "lucide-react";
+import { Info, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
@@ -419,7 +419,8 @@ function FinancePage({
     } catch (e) { setError((e as Error).message); return false; }
     finally { setBusy(false); }
   }
-  async function showDetail(account: { id: string }, page = 1) {
+  /** Loads the statement; resolves false when it could not be loaded (the error is shown). */
+  async function showDetail(account: { id: string }, page = 1): Promise<boolean> {
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -431,8 +432,10 @@ function FinancePage({
           token,
         ),
       );
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
   }
   async function toggle(account: FinancialAccount) {
@@ -814,24 +817,13 @@ function FinancePage({
         </ListPageHeader>
       )}
       {!ledgerViews[section] && !showListHeader && !accountFormOpen && !isReportSection && (
+        // Kasalar / Bankalar never reach this heading (list header, or the account form): it serves the other sections.
         <div className="page-heading">
-          <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
-            {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
-            <div>
-              <p className="eyebrow">FİNANS YÖNETİMİ</p>
-              <h1>{financePageTitles[section]}</h1>
-              <p className="muted">{financePageDescriptions[section]}</p>
-            </div>
+          <div>
+            <p className="eyebrow">FİNANS YÖNETİMİ</p>
+            <h1>{financePageTitles[section]}</h1>
+            <p className="muted">{financePageDescriptions[section]}</p>
           </div>
-          {isAccountsPage && (
-            <div className="heading-actions">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true); }}
-              >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
-            </div>
-          )}
         </div>
       )}
       {accountFormOpen && (
@@ -1153,14 +1145,17 @@ function FinancePage({
           onToggle={(account) => void toggle(account)}
           onDelete={(account) => void deleteAccount(account)}
           onNewMovement={(account) =>
-            void showDetail(account).then(() => {
+            void showDetail(account).then((loaded) => {
+              // Only over a loaded statement: a failed load must not leave the drawer to pop up on the next one.
+              if (!loaded) return;
               setMovementDirection("Inflow");
               setTransferOpen(false);
               setMovementOpen(true);
             })
           }
           onNewTransfer={(account) =>
-            void showDetail(account).then(() => {
+            void showDetail(account).then((loaded) => {
+              if (!loaded) return;
               setToAccountId("");
               setTransferRate("1");
               setMovementOpen(false);
@@ -1183,8 +1178,12 @@ function FinancePage({
           onRefresh={() => void load()}
           onOpen={(statement) => void loadStatement(statement.id)}
           onImport={() => setStatementImportOpen(true)}
-          onExport={(format) =>
-            void exportBankStatements(visibleStatements, format, localDateString()).catch(() =>
+          onExport={(format, ids) =>
+            void exportBankStatements(
+              ids ? visibleStatements.filter((statement) => ids.includes(statement.id)) : visibleStatements,
+              format,
+              localDateString(),
+            ).catch(() =>
               setError(format === "xlsx" ? "XLSX dosyası oluşturulamadı." : "CSV dosyası oluşturulamadı."),
             )
           }

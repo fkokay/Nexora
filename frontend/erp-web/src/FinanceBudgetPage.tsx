@@ -333,11 +333,15 @@ export default function FinanceBudgetPage({
           onStatusFilterChange={setStatusFilter}
           loading={loading}
           controlsLocked={controlsLocked}
+          opening={Boolean(openingPlanId)}
           admin={admin}
           baseCurrency={baseCurrency}
           onOpen={(plan) => void open(plan)}
           onNew={clearForm}
-          onRefresh={() => void load()}
+          onRefresh={() => {
+            // Not while a save / approval / opening is running (as before the redesign).
+            if (!controlsLocked) void load();
+          }}
           money={money}
         />
       )}
@@ -387,7 +391,10 @@ export default function FinanceBudgetPage({
           onApprove={() => void approve()}
           onClose={() => setSelected(null)}
           onNew={clearForm}
-          onRefresh={() => void load()}
+          onRefresh={() => {
+            // Not while a save / approval / opening is running (as before the redesign).
+            if (!controlsLocked) void load();
+          }}
           messages={
             <>
               {error && (

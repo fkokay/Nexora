@@ -10,6 +10,13 @@ import { ListSummaryCards, type SummaryCard } from "../../list-page/ListSummaryC
 import { ListFooter } from "../../list-page/ListFooter";
 import { StatusTag } from "../../list-page/StatusTag";
 import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
+import {
+  SalesListDetailEmpty,
+  SalesListDetailPanel,
+  SalesListPanelToggle,
+  SalesPanelFacts,
+} from "../../sales/components/SalesListDetailPanel";
+import { useStockDetailPanelOpen } from "../../inventory/components/InventoryStockDetailPanel";
 import "../../sales/sales-list-v2.css";
 import { isApproved, type PlanScreenField, type PlanSummary } from "../types";
 
@@ -53,6 +60,9 @@ export default function DirectCashBudgetPlanList({
 }: Props) {
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panel = useStockDetailPanelOpen(active, rootRef);
   const gridExportRef = useRef<GridExportActions | null>(null);
   const openLabel = fields.find((field) => field.key === "actions")?.label ?? "Aç";
   const columns: BuiltInScreenLayoutField[] = fields
@@ -124,6 +134,44 @@ export default function DirectCashBudgetPlanList({
     }
   };
 
+  // Right panel of the current plan: the list row's own fields (no extra request).
+  const listPanel =
+    panel.open && active ? (
+      current ? (
+        <SalesListDetailPanel
+          label="Nakit bütçesi özeti"
+          code={String(current.fiscalYear)}
+          title={current.name}
+          tags={
+            <>
+              <StatusTag tone={isApproved(current.status) ? "ok" : "warn"}>{isApproved(current.status) ? "Onaylı" : "Taslak"}</StatusTag>
+              <StatusTag tone="off">{current.currencyCode}</StatusTag>
+            </>
+          }
+          tabs={[{ id: "summary", label: "Özet" }]}
+          tab="summary"
+          onTabChange={() => {}}
+          onOpen={() => onOpen(current)}
+          openDisabled={busy}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        >
+          <SalesPanelFacts
+            items={[
+              { label: "Mali yıl", value: String(current.fiscalYear) },
+              { label: "Satır", value: current.lineCount.toLocaleString("tr-TR") },
+              { label: "Revizyon", value: String(current.revision) },
+              { label: "Oluşturulma", value: new Date(current.createdAt).toLocaleDateString("tr-TR") },
+              ...(current.approvedAt ? [{ label: "Onay", value: new Date(current.approvedAt).toLocaleDateString("tr-TR") }] : []),
+            ]}
+          />
+          <p className="sales-ld-muted">Aylık giriş ve çıkışlar için Aç (Enter).</p>
+        </SalesListDetailPanel>
+      ) : (
+        <SalesListDetailEmpty label="Nakit bütçesi özeti" text="Özetini görmek için listeden bir plan seçin." />
+      )
+    ) : null;
+
   return (
     <>
       {active && <PageCommandsSlot commands={commands} />}
@@ -139,8 +187,9 @@ export default function DirectCashBudgetPlanList({
             { value: "Approved", label: "Onaylı", count: plans.length - drafts },
           ]}
         />
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
       </ListToolbar>
-      <div className="sales-list-body">
+      <div ref={rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
         <section className="list-v2-list fin-cash-budget-list">
           <SalesDocumentGrid
             gridId="studio-finance-direct-cash-budgets-v2"
@@ -167,14 +216,23 @@ export default function DirectCashBudgetPlanList({
             selection={{
               currentId,
               onCurrentChange: setCurrentId,
-              onTickedChange: noTicks,
+              onTickedChange: setTicked,
+              // The ticks narrow the grid's export (Excel / CSV write the ticked rows).
+              bulkActions: active
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                : undefined,
               onOpen: (id) => {
                 const plan = visible.find((row) => row.id === id);
                 if (plan && !busy) onOpen(plan);
               },
             }}
             footer={
-              <ListFooter hints="↑↓ gez · Enter aç · Çift tık aç">
+              <ListFooter hints="↑↓ gez · Boşluk işaretle · Enter aç · Çift tık aç · Ctrl+. detay paneli">
+                {ticked.length > 0 && (
+                  <span>
+                    <span>{ticked.length}</span> <span>seçili</span>
+                  </span>
+                )}
                 <span>
                   <span>Gösterilen</span>{" "}
                   <span>
@@ -185,9 +243,8 @@ export default function DirectCashBudgetPlanList({
             }
           />
         </section>
+        {listPanel}
       </div>
     </>
   );
 }
-
-const noTicks = () => {};

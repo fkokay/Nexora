@@ -158,10 +158,10 @@ describe('Hesap ekstresi', () => {
     expect(menuItem('movement-void').getAttribute('title')).toBe('Önce ekstreden bir hareket seçin');
     closeMenu();
     fireEvent.click(within(surface).getByText('m3 açıklaması'));
-    expect(menuItem('movement-void').getAttribute('title')).toBe('Yalnız ters kaydı olmayan manuel hareket iptal edilir');
+    expect(menuItem('movement-void').getAttribute('title')).toBe('Ters kayıt satırı iptal edilemez');
     closeMenu();
     fireEvent.click(within(surface).getByText('m2 açıklaması'));
-    expect(menuItem('movement-void').getAttribute('aria-disabled')).toBe('true');
+    expect(menuItem('movement-void').getAttribute('title')).toBe('Yalnız manuel hareket iptal edilir');
     expect(menuItem('transfer-void').getAttribute('aria-disabled')).toBeNull();
     closeMenu();
     fireEvent.click(within(surface).getByText('m1 açıklaması'));

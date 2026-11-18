@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -128,12 +128,14 @@ const createVisible = () => bar().querySelector<HTMLElement>('[data-command="new
 // ---
 
 describe('Bütçe Planlama (characterization)', () => {
-  it('loads plans, accounts and the base currency, then the first plan; opening another plan reads it', async () => {
+  it('loads plans, accounts and the base currency (no plan is opened by itself); opening a plan reads it', async () => {
     renderScreen(<FinanceBudgetPage token="t" role="TenantAdmin" />);
     await settle(900);
     expect(calls('/api/finance/budgets/')[0]).toEqual({ method: 'GET', body: undefined });
     expect(calls('/api/finance/general-ledger/accounts')[0]).toEqual({ method: 'GET', body: undefined });
     expect(calls('/api/finance/currency')[0]).toEqual({ method: 'GET', body: undefined });
+    expect(calls('/api/finance/budgets/b1')).toEqual([]);
+    expect(calls('/api/finance/budgets/b2')).toEqual([]);
     await openPlan('Onaylı bütçe 2026');
     expect(calls('/api/finance/budgets/b2').at(-1)).toEqual({ method: 'GET', body: undefined });
   });
@@ -171,5 +173,21 @@ describe('Bütçe Planlama (characterization)', () => {
     await openPlan('Ana bütçe 2026');
     expect(approveVisible()).toBe(false);
     expect(createVisible()).toBe(false);
+  });
+});
+
+describe('Bütçe Planlama listesi', () => {
+  it('a click makes a scenario current; Ctrl+. shows its summary in the right panel from the list row (no request)', async () => {
+    renderScreen(<FinanceBudgetPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    const before = calls('/api/finance/budgets/b2').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Onaylı bütçe 2026 bütçesini aç' }).closest('tr')!.cells[2]);
+    await settle(100);
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true });
+    await settle(100);
+    const panel = screen.getByRole('complementary', { name: 'Bütçe senaryosu özeti' });
+    expect(within(panel).getByText('Onaylı bütçe 2026')).toBeTruthy();
+    expect(within(panel).getByText('Gerçekleşen')).toBeTruthy();
+    expect(calls('/api/finance/budgets/b2').length).toBe(before);
   });
 });

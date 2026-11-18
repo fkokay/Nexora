@@ -120,7 +120,8 @@ export function BankStatementDetailPanel({
     },
     {
       id: "statement-reconcile",
-      label: "Mutabakatı tamamla",
+      // While a request runs on a fully matched open statement the item says so (the old button did).
+      label: busy && open && !hasOpenLines ? "Kontrol ediliyor…" : "Mutabakatı tamamla",
       disabledReason: !open
         ? "Ekstrenin mutabakatı tamamlandı"
         : hasOpenLines

@@ -108,7 +108,9 @@ export function FinanceAccountStatement({
       disabledReason: !selected
         ? pickReason
         : !isManualMovement(selected)
-          ? "Yalnız ters kaydı olmayan manuel hareket iptal edilir"
+          ? selected.reversalOfId
+            ? "Ters kayıt satırı iptal edilemez"
+            : "Yalnız manuel hareket iptal edilir"
           : busyReason,
       run: () => (selected ? onVoidMovement(selected) : undefined),
     },
