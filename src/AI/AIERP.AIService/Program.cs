@@ -5647,12 +5647,12 @@ app.MapMethods("/studio/projects/{projectId:guid}/web-image-update", ["GET", "PO
                     .Where(x => !string.IsNullOrWhiteSpace(x)).Cast<string>().ToArray();
                 // GitHub caps compare responses at 300 files. In that case, conservatively
                 // rebuild this service because the path list may be incomplete.
-                if (changedFiles.Length >= 300) changedFiles = ["__all_runtime_projects__"];
+                if (changedFiles.Length >= 300) changedFiles = [AIERP.AIService.ApplicationServiceImpact.AllRuntimeProjectsMarker];
                 compareCache[baseRevision] = changedFiles;
             }
-            foreach (var target in MapChangedFilesToApplicationServices(changedFiles))
+            foreach (var target in AIERP.AIService.ApplicationServiceImpact.Map(changedFiles))
                 if (revisions.ContainsKey(target)) targets.Add(target);
-            if (changedFiles.Contains("__all_runtime_projects__", StringComparer.Ordinal)) targets.Add(service);
+            if (changedFiles.Contains(AIERP.AIService.ApplicationServiceImpact.AllRuntimeProjectsMarker, StringComparer.Ordinal)) targets.Add(service);
         }
         if (targets.Count == 0)
         {
@@ -5678,29 +5678,6 @@ app.MapMethods("/studio/projects/{projectId:guid}/web-image-update", ["GET", "PO
     catch (HttpRequestException) { return Results.Problem("Dağıtım servisine erişilemiyor.", statusCode: 503); }
 }).RequireAuthorization();
 app.Run();
-
-static IEnumerable<string> MapChangedFilesToApplicationServices(IEnumerable<string> paths)
-{
-    var services = new HashSet<string>(StringComparer.Ordinal);
-    var dotnetServices = new[] { "platform-api", "ai-service", "plugin-host", "integration-host", "tenant-provisioning-worker", "workspace-runner", "workspace-sandbox" };
-    foreach (var raw in paths)
-    {
-        var path = raw.Replace('\\', '/');
-        if (path == "__all_runtime_projects__") { foreach (var service in dotnetServices.Append("erp-web")) services.Add(service); continue; }
-        if (path.StartsWith("frontend/erp-web/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/ErpWeb.Dockerfile" or "deploy/docker/erp-web.nginx.conf") services.Add("erp-web");
-        if (path.StartsWith("src/Hosts/AIERP.Api/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/Platform.Api.Dockerfile") services.Add("platform-api");
-        if (path.StartsWith("src/AI/AIERP.AIService/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/AIService.Dockerfile") services.Add("ai-service");
-        if (path.StartsWith("src/Extensions/AIERP.PluginHost/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/PluginHost.Dockerfile") services.Add("plugin-host");
-        if (path.StartsWith("src/Extensions/AIERP.IntegrationHost/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/IntegrationHost.Dockerfile") services.Add("integration-host");
-        if (path.StartsWith("src/Hosts/AIERP.TenantProvisioningWorker/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/TenantProvisioningWorker.Dockerfile" or "deploy/docker/tenant-provisioning-worker-entrypoint.sh") services.Add("tenant-provisioning-worker");
-        if (path.StartsWith("src/AI/AIERP.WorkspaceRunner/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/WorkspaceRunner.Dockerfile") services.Add("workspace-runner");
-        if (path.StartsWith("src/AI/AIERP.WorkspaceSandbox/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("deploy/docker/sandbox-overrides/", StringComparison.OrdinalIgnoreCase) || path is "deploy/docker/WorkspaceSandbox.Dockerfile" or "deploy/pip-patches/requirements.txt" or "deploy/pip-patches/update-vendored-sbom.py" or "deploy/npm-patches/package.json" or "deploy/npm-patches/package-lock.json") services.Add("workspace-sandbox");
-        if (path.StartsWith("src/Platform/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("src/Observability/", StringComparison.OrdinalIgnoreCase) ||
-            path is "Directory.Build.props" or "Directory.Build.targets" or "Directory.Packages.props" or "NuGet.config" or "global.json")
-            foreach (var service in dotnetServices) services.Add(service);
-    }
-    return services;
-}
 
 static bool TrySerializeArchitecturePlan(ArchitecturePlan? plan, out string? json)
 {

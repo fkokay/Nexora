@@ -41,6 +41,9 @@
 .pd-message.error{border-color:#f3c6ca;background:#fff5f6;color:#9f1f2b}
 .pd-message.success{border-color:#bfe6d2;background:#f0fbf5;color:#1c6b47}
 .pd-message.readonly{border-color:#e3dcfb;background:#faf8ff;color:#4c3a99}
+.pd-message.warning{border-color:#f5d9b8;background:#fff8ef;color:#8a4b0c}
+.pd-message.info{border-color:#cfe0f7;background:#f4f8ff;color:#1f4f99}
+.pd-message.info ul{margin:4px 0 0;padding-left:18px}
 
 .pd-workspace{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;gap:10px;min-height:0;align-items:start}
 .pd-left,.pd-right{position:sticky;top:70px;display:grid;grid-template-rows:auto minmax(0,1fr);max-height:calc(100vh - 82px);overflow:hidden;border:1px solid var(--pd-line);border-radius:12px;background:#fff}
@@ -308,6 +311,25 @@ body.pd-resizing,body.pd-resizing *{cursor:ew-resize!important;user-select:none}
 .pd-query-actions{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px}
 .pd-query-error{padding:8px 10px;border:1px solid #f3c6ca;border-radius:8px;background:#fff5f6;color:#9f1f2b;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .pd-query-result{display:grid;gap:5px}
+/* ERP işlemi modu: Sorgular panelindeki kart ve değişken listesiyle aynı ölçüler. */
+.pd-op-picker{display:grid;gap:6px}
+.pd-op-current{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:34px;padding:5px 9px;border:1px solid var(--pd-line);border-radius:8px;background:#fff;color:var(--pd-ink);text-align:left}
+.pd-op-current:hover:not(:disabled){border-color:var(--pd-accent-line)}
+.pd-op-current span{display:grid;gap:1px;min-width:0}
+.pd-op-current b{overflow:hidden;font-size:12.5px;text-overflow:ellipsis;white-space:nowrap}
+.pd-op-current small,.pd-op-group button small{overflow:hidden;color:var(--pd-muted);font:400 11px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;text-overflow:ellipsis;white-space:nowrap}
+.pd-op-current .pd-op-placeholder{color:var(--pd-faint);font-size:12.5px;font-weight:400}
+.pd-op-menu{display:grid;gap:6px;padding:6px;border:1px solid var(--pd-line);border-radius:9px;background:var(--pd-soft)}
+.pd-op-list{display:grid;gap:4px;max-height:260px;overflow:auto}
+.pd-op-group{display:grid;gap:2px}
+.pd-op-group-head{margin:0;padding:4px 2px 2px;color:var(--pd-faint);font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.pd-op-group button{display:grid;gap:1px;width:100%;padding:5px 7px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--pd-ink);text-align:left}
+.pd-op-group button span{font-size:12px;font-weight:600}
+.pd-op-group button:hover:not(:disabled),.pd-op-group button:focus-visible{border-color:var(--pd-accent-line);background:#fff}
+.pd-op-group button.is-selected{border-color:var(--pd-accent);background:var(--pd-accent-soft)}
+.pd-op-group button:disabled{opacity:.5;cursor:not-allowed}
+.pd-op-raw{justify-self:start}
+.pd-op-source-warning{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:7px 9px;border:1px solid #f1d9b5;border-radius:8px;background:#fffaf2}
 .pd-query-result small{color:var(--pd-muted);font-size:11px}
 .pd-query-result-scroll{max-height:280px;overflow:auto;border:1px solid var(--pd-line);border-radius:8px}
 .pd-query-result table{width:100%;border-collapse:collapse;font-size:11.5px}
@@ -341,3 +363,227 @@ textarea.pd-binding-input{resize:vertical}
 .pd-action-chips li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-action-chips li button{display:grid;flex:none;place-items:center;width:16px;height:16px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
 .pd-action-chips li button:hover{background:#6844df26}
+
+/* Tam ekran: tasarımcı Studio menüsünün ve üst çubuğunun üstüne çıkar, pencerenin tamamını kullanır.
+   Paneller ve tuval kendi içinde kaydırılır; sayfa kaydırılmaz. Form açılır penceresi (1400) üstte kalır. */
+html.pd-fullscreen-active{overflow:hidden}
+.pd-shell.pd-fullscreen{position:fixed;inset:0;z-index:950;display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:0;padding:10px 12px;overflow:hidden;background:#f4f6fa}
+.pd-fullscreen>.pd-topbar,.pd-fullscreen>.pd-messages{flex:none}
+.pd-fullscreen>.pd-workspace{flex:1 1 auto;align-items:stretch;min-height:0}
+.pd-fullscreen .pd-left,.pd-fullscreen .pd-right{position:static;height:100%;max-height:none}
+.pd-fullscreen .pd-center{height:100%;min-height:0}
+.pd-fullscreen .pd-canvas-scroll{min-height:0}
+.pd-fullscreen .pd-frame:not(.device-tablet):not(.device-mobile){max-width:none}
+.pd-fullscreen-toggle.active{border-color:var(--pd-accent-line);background:var(--pd-accent-soft);color:var(--pd-accent)}
+@media (max-width:760px){
+  .pd-fullscreen-toggle{display:none}
+  html.pd-fullscreen-active{overflow:auto}
+  .pd-shell.pd-fullscreen{position:static;display:grid;height:auto;padding:0;overflow:visible;background:transparent}
+}
+
+/* Kullanılabilir değişkenler listesi (sağ panel). */
+.pd-variables{margin-top:6px;border-top:1px solid #edf0f5}
+.pd-variables .pd-inspector-section-toggle .pd-count{margin-left:auto}
+.pd-variables-body{display:grid;gap:8px;padding:0 0 12px}
+.pd-variables-body .pd-binding-note{margin:0}
+.pd-variable-group{display:grid;gap:2px}
+.pd-variable-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:5px 2px;border:0;background:transparent;color:var(--pd-faint);font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-align:left}
+.pd-variable-group-head span{margin-left:auto;color:var(--pd-faint);font-weight:600}
+.pd-variable-group ul{display:grid;gap:2px;margin:0;padding:0;list-style:none}
+.pd-variable-group li button{display:grid;gap:1px;width:100%;padding:5px 7px;border:1px solid transparent;border-radius:7px;background:transparent;text-align:left}
+.pd-variable-group li button:hover,.pd-variable-group li button:focus-visible{border-color:var(--pd-accent-line);background:var(--pd-accent-soft)}
+.pd-variable-group code{overflow-wrap:anywhere;color:#5132c7;font:600 11.5px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}
+.pd-variable-group small{color:var(--pd-muted);font-size:11px;line-height:1.35}
+.pd-variable-empty{margin:0 2px 4px;color:var(--pd-muted);font-size:11.5px;line-height:1.45}
+.pd-variable-notice{margin:0;padding:6px 8px;border-radius:7px;background:#eefaf4;color:#23734d;font-size:11.5px;overflow-wrap:anywhere}
+.pd-metric-explain{display:block;margin-top:6px;color:var(--pd-muted);font-size:11.5px;line-height:1.45}
+
+/* ERP tasarım dili: tuval önizlemesi ERP'deki özel sayfa gösterimiyle aynı görünür
+   (frontend/erp-web/src/tenant-custom-page.css). Değerler erp-web design/tokens.css --nx-* açık temasından. */
+.pd-frame{--dl-ink:#0f1b2d;--dl-primary:#1f5fd1;--dl-primary-strong:#1846a3;--dl-primary-soft:#e8f0fd;--dl-canvas:#f3f5f8;--dl-surface:#fff;--dl-line:#dfe3e9;--dl-line-soft:#eef1f4;--dl-text:#1b2430;--dl-muted:#667085;--dl-ok:#13804b;--dl-ok-bg:#e5f5ec;--dl-warn:#b45309;--dl-warn-bg:#fdf1e1;--dl-bad:#c4321f;--dl-bad-bg:#fde9e6;--dl-head:#f7f8fa;border-color:var(--dl-line);border-radius:10px;background:var(--dl-canvas);font-family:"Segoe UI",Inter,system-ui,sans-serif}
+.pd-frame .pd-frame-top{min-height:38px;background:var(--dl-ink)}
+.pd-frame .pd-frame-breadcrumb{padding:12px 16px 2px;color:var(--dl-muted)}
+.pd-frame .pd-frame-breadcrumb b{color:var(--dl-text)}
+.pd-frame .pd-grid{--page-border:var(--dl-line);--page-surface:var(--dl-surface);--page-ink:var(--dl-text);--page-muted:var(--dl-muted);--page-accent:var(--dl-primary);gap:12px;padding:10px 16px 24px;font-size:12.5px}
+.pd-frame .pd-grid-guides{inset:10px 16px 24px;gap:12px}
+.pd-frame .custom-page-preview-heading{padding-bottom:6px;border-bottom:0;font-size:19px;font-weight:650;letter-spacing:0}
+.pd-frame .custom-page-preview-text{color:var(--dl-text);font-size:12.5px;line-height:1.6}
+.pd-frame .custom-page-preview-metric,.pd-frame .custom-page-preview-card,.pd-frame .custom-page-preview-progress{border-color:var(--dl-line);background:var(--dl-surface);box-shadow:none}
+.pd-frame .custom-page-preview-metric{gap:2px;min-height:0}
+.pd-frame .custom-page-preview-metric small{color:var(--dl-muted);font-size:11.5px;font-weight:400}
+.pd-frame .custom-page-preview-metric b{font-size:16px;font-weight:650;letter-spacing:0;line-height:1.3;font-variant-numeric:tabular-nums}
+.pd-frame .custom-page-preview-metric span{color:var(--dl-muted);font-size:11px}
+.pd-frame .custom-page-preview-card>b,.pd-frame .custom-page-preview-card-head>b{font-size:13px;font-weight:650}
+.pd-frame .custom-page-preview-card p{color:var(--dl-text)}
+.pd-frame .custom-page-preview-card.is-section{border-left-color:var(--dl-primary)}
+.pd-frame .custom-page-preview-button{min-height:31px;padding:0 12px;border-radius:6px;background:var(--dl-primary);font-size:12.5px;font-weight:600;box-shadow:none}
+.pd-frame .custom-page-preview-alert{padding:10px 12px;border-color:color-mix(in srgb,var(--dl-primary) 30%,#fff);color:var(--dl-primary-strong);background:var(--dl-primary-soft)}
+.pd-frame .custom-page-preview-alert.tone-success{border-color:color-mix(in srgb,var(--dl-ok) 30%,#fff);color:var(--dl-ok);background:var(--dl-ok-bg)}
+.pd-frame .custom-page-preview-alert.tone-warning{border-color:color-mix(in srgb,var(--dl-warn) 30%,#fff);color:var(--dl-warn);background:var(--dl-warn-bg)}
+.pd-frame .custom-page-preview-alert.tone-danger{border-color:color-mix(in srgb,var(--dl-bad) 30%,#fff);color:var(--dl-bad);background:var(--dl-bad-bg)}
+.pd-frame .custom-page-preview-badge{min-height:0;padding:1px 8px!important;border:0;color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-size:11px;font-weight:600;line-height:1.6}
+.pd-frame .custom-page-preview-badge.tone-success{color:var(--dl-ok);background:var(--dl-ok-bg)}
+.pd-frame .custom-page-preview-badge.tone-warning{color:var(--dl-warn);background:var(--dl-warn-bg)}
+.pd-frame .custom-page-preview-badge.tone-danger{color:var(--dl-bad);background:var(--dl-bad-bg)}
+.pd-frame .custom-page-preview-progress progress{height:7px;accent-color:var(--dl-primary)}
+.pd-frame .custom-page-preview-grid-scroll{border-color:var(--dl-line);border-radius:6px}
+.pd-frame .custom-page-preview-grid{font-size:12.5px}
+.pd-frame .custom-page-preview-grid th,.pd-frame .custom-page-preview-grid td{padding:5px 9px;border-bottom-color:var(--dl-line-soft)}
+.pd-frame .custom-page-preview-grid th{padding:7px 9px;border-bottom:1px solid var(--dl-line);background:var(--dl-head);color:var(--dl-muted);font-size:11.5px;font-weight:600}
+.pd-frame .custom-page-preview-row-action{border-color:color-mix(in srgb,var(--dl-primary) 30%,#fff);color:var(--dl-primary-strong);background:var(--dl-primary-soft)}
+.pd-frame .pd-binding-preview-input label{display:grid;gap:3px;color:var(--dl-muted);font-size:11.5px;font-weight:500}
+.pd-frame .pd-binding-preview-input input:not([type="checkbox"]),.pd-frame .pd-binding-preview-input select{min-height:31px;padding:5px 9px;border:1px solid var(--dl-line);border-radius:6px;background:var(--dl-surface);color:var(--dl-text);font:400 12.5px "Segoe UI",Inter,system-ui,sans-serif}
+
+/* Tasarım dili alanları (özet kartı, durum etiketi, liste tablosu) */
+.pd-icon-grid{display:flex;flex-wrap:wrap;gap:3px;padding:2px;border:1px solid var(--pd-line);border-radius:8px;background:var(--pd-soft)}
+.pd-icon-grid button{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:#55647c;font-size:12px;font-weight:600}
+.pd-icon-grid button:hover:not(:disabled){background:#fff}
+.pd-icon-grid button.active{background:#fff;color:#5132c7;box-shadow:0 1px 3px #18244720}
+.pd-tonemap{display:grid;gap:6px}
+.pd-tonemap-row{display:grid;gap:4px;padding:6px;border:1px solid var(--pd-line);border-radius:8px;position:relative}
+.pd-tonemap-row .pd-icon-button{position:absolute;top:4px;right:4px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-tonemap-row input{padding-right:28px}
+.pd-format-list{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.pd-format-list li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pd-format-list li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.pd-format-list select{flex:0 0 auto;max-width:130px}
+
+/* Tasarım dili adım 2a: tuval önizlemeleri ERP (MetricCard / QueryTable) ile aynı görünür. */
+.pd-frame{--dl-row-h-dense:30px;--dl-row-h-comfort:38px}
+.pd-frame .custom-page-preview-metric.is-dl{--metric-tone:var(--dl-primary-strong);--metric-soft:var(--dl-primary-soft);display:flex;flex-direction:row;align-items:center;gap:10px}
+.pd-frame .custom-page-preview-metric.is-dl.tone-success{--metric-tone:var(--dl-ok);--metric-soft:var(--dl-ok-bg)}
+.pd-frame .custom-page-preview-metric.is-dl.tone-warning{--metric-tone:var(--dl-warn);--metric-soft:var(--dl-warn-bg)}
+.pd-frame .custom-page-preview-metric.is-dl.tone-danger{--metric-tone:var(--dl-bad);--metric-soft:var(--dl-bad-bg)}
+.pd-frame .custom-page-preview-metric .pd-metric-icon{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:8px;color:var(--metric-tone);background:var(--metric-soft)}
+.pd-frame .custom-page-preview-metric .pd-metric-body{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.pd-frame .custom-page-preview-metric .pd-metric-label{color:var(--dl-muted);font-size:11.5px;font-weight:400}
+.pd-frame .custom-page-preview-metric .pd-metric-desc{color:var(--dl-muted);font-size:11px;font-weight:400}
+.pd-frame .custom-page-preview-metric.is-dl:is(.tone-warning,.tone-danger) b{color:var(--metric-tone)}
+.pd-frame .custom-page-preview-metric .pd-metric-trend{flex:none;margin-left:auto}
+.pd-frame .custom-page-preview-metric .pd-metric-trend polyline{stroke:var(--dl-primary);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.pd-frame .pd-tag{display:inline-block;padding:1px 8px;border-radius:999px;color:var(--dl-muted);background:var(--dl-line-soft);font-size:11px;font-weight:600;line-height:1.6;white-space:nowrap}
+.pd-frame .pd-tag.tone-info{color:var(--dl-primary-strong);background:var(--dl-primary-soft)}
+.pd-frame .pd-tag.tone-success{color:var(--dl-ok);background:var(--dl-ok-bg)}
+.pd-frame .pd-tag.tone-warning{color:var(--dl-warn);background:var(--dl-warn-bg)}
+.pd-frame .pd-tag.tone-danger{color:var(--dl-bad);background:var(--dl-bad-bg)}
+.pd-frame .custom-page-preview-grid .num{text-align:right;font-variant-numeric:tabular-nums}
+.pd-frame .custom-page-preview-grid td.code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.pd-frame .custom-page-preview-grid td{height:var(--dl-row-h-dense);box-sizing:border-box}
+.pd-frame .custom-page-preview-grid.is-comfort td,.pd-frame .custom-page-preview-grid.is-comfort tfoot td{height:var(--dl-row-h-comfort);padding:8px 9px}
+.pd-frame .custom-page-preview-grid tfoot td{height:var(--dl-row-h-dense);padding:5px 9px;border-top:1px solid var(--dl-line);border-bottom:0;background:var(--dl-head);font-weight:650}
+.pd-frame .custom-page-preview-grid tfoot .pd-total-label{float:left;color:var(--dl-muted);font-weight:600}
+.pd-frame .custom-page-preview-grid tfoot td>.num{float:right}
+.pd-frame .custom-page-preview-grid tfoot td{max-width:none;overflow:visible;text-overflow:clip}
+
+/* Tasarım dili bileşenleri: giriş seçici */
+.pd-input-picker li.is-taken{opacity:.55}
+.pd-input-picker li .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-input-picker li .pd-icon-button:disabled{opacity:.3}
+.pd-taken-hint{margin-left:auto;color:#8a5307;font-size:10.5px;white-space:nowrap}
+.pd-tonemap-row select{max-width:100%}
+
+/* Düzen bileşenleri önizlemeleri: ERP tenant-custom-page.css (form kartı, çipler, yan filtre, bağlam paneli) ile aynı görünüm */
+.pd-frame .pd-layout-block{box-sizing:border-box;min-height:100%;padding:12px 14px;border:1px solid var(--dl-line);border-radius:10px;background:var(--dl-surface)}
+.pd-frame .pd-layout-block h3{margin:0 0 10px;color:var(--dl-text);font-size:13px;font-weight:650}
+.pd-frame .pd-form-card-grid{display:grid;gap:10px 14px}
+.pd-frame .pd-form-card-grid.is-cols-1{grid-template-columns:minmax(0,1fr)}
+.pd-frame .pd-form-card-grid.is-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pd-frame .pd-form-card-grid.is-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pd-frame .pd-form-card-cell{min-width:0}
+.pd-frame .pd-form-card-cell .pd-binding-preview-input{margin:0;padding:0}
+.pd-frame .pd-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pd-frame .pd-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--dl-primary) 30%,var(--dl-surface));border-radius:999px;color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-size:12px;line-height:1.6}
+.pd-frame .pd-chip.is-sample{opacity:.55}
+.pd-frame .pd-chip-label{color:var(--dl-muted)}
+.pd-frame .pd-chip strong{font-weight:600}
+.pd-frame .pd-chip-x{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--dl-muted);font-size:11px}
+.pd-frame .pd-chips-clear,.pd-frame .pd-facet-clear{padding:2px 8px;border-radius:6px;color:var(--dl-primary-strong);font-size:11.5px;font-weight:600}
+.pd-frame .pd-facet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.pd-frame .pd-layout-block.pd-facet .pd-facet-head h3{margin:0}
+.pd-frame .pd-facet-group{display:grid;gap:1px;padding:8px 0;border-top:1px solid var(--dl-line-soft)}
+.pd-frame .pd-facet-label{margin-bottom:3px;color:var(--dl-muted);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.pd-frame .pd-facet-option{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;padding:3px 8px;border-radius:6px;color:var(--dl-text);font-size:12.5px}
+.pd-frame .pd-facet-option.is-selected{color:var(--dl-primary-strong);background:var(--dl-primary-soft);font-weight:600}
+.pd-frame .pd-facet-count{color:var(--dl-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.pd-frame .pd-facet-state{margin:0;color:var(--dl-muted);font-size:11.5px}
+.pd-frame .pd-context-empty{margin:0;padding:18px 8px;color:var(--dl-muted);text-align:center}
+.pd-frame .pd-context-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}
+.pd-frame .pd-context-field{min-width:0;padding:7px 9px;border:1px solid var(--dl-line-soft);border-radius:6px;background:var(--dl-head)}
+.pd-frame .pd-context-field dt{margin:0 0 2px;color:var(--dl-muted);font-size:11px;font-weight:600}
+.pd-frame .pd-context-field dd{margin:0;color:var(--dl-text);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pd-frame .pd-context-related{margin-top:12px;padding-top:10px;border-top:1px solid var(--dl-line-soft)}
+.pd-frame .pd-context-related h4{margin:0 0 6px;color:var(--dl-muted);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.pd-frame .pd-context-related ul{display:grid;margin:0;padding:0;list-style:none}
+.pd-frame .pd-context-related li{padding:5px 0 5px 12px;border-bottom:1px solid var(--dl-line-soft);border-left:2px solid var(--dl-line);font-size:12.5px;overflow-wrap:anywhere}
+.pd-frame .pd-context-related li:last-child{border-bottom:0}
+.pd-frame .pd-context-note{margin:0;color:var(--dl-muted);font-size:11.5px}
+/* Sahiplenilen girişler sahibinin içinde çizilir; kendi konumunda gizlenir (katmanlardan seçilebilir kalır) */
+.pd-block.is-owned{display:none}
+/* İşlem Çubuğu (taslak 06: .bar / .b / .k / .sep) */
+.pd-frame .pd-actionbar-wrap{display:grid;gap:6px}
+.pd-frame .pd-actionbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:6px 12px;border:1px solid var(--dl-line);border-radius:6px;background:#fafbfc}
+.pd-frame .pd-bar-btn{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--dl-text);font-size:12.5px;font-weight:500;white-space:nowrap}
+.pd-frame .pd-bar-btn.is-primary{background:var(--dl-primary);color:#fff}
+.pd-frame .pd-bar-btn.is-off{opacity:.38}
+.pd-frame .pd-bar-btn.is-more{border:1px solid var(--dl-line);background:#fff}
+.pd-frame .pd-bar-key{padding:0 4px;border:1px solid var(--dl-line);border-radius:3px;background:#fff;color:var(--dl-muted);font:10px Consolas,monospace}
+.pd-frame .pd-bar-btn.is-primary .pd-bar-key{border-color:#7fa3e8;background:transparent;color:#fff}
+.pd-frame .pd-bar-sep{width:1px;height:20px;margin:0 6px;background:var(--dl-line)}
+.pd-frame .pd-bar-grow{flex:1}
+.pd-frame .pd-actionbar-note{margin:0;color:var(--dl-muted);font-size:11px}
+.pd-action-key{margin-left:6px;padding:0 4px;border:1px solid var(--pd-line);border-radius:3px;background:#fff;color:#667085;font:10px Consolas,monospace}
+/* Koşullu bileşen işareti: tasarımcıda koşullu bileşen gizlenmez, bu çiple gösterilir */
+.pd-cond-chip{position:absolute;top:4px;right:4px;z-index:3;padding:1px 7px;border:1px solid var(--pd-accent-line);border-radius:999px;background:var(--pd-accent-soft);color:#5132c7;font-size:10.5px;font-weight:600;pointer-events:none}
+/* Tuval önizlemeleri tıklanmaz (.pd-block-render); sekme başlıkları ve sekmedeki bileşenin kabı tıklanabilir, içerik yine tıklanmaz */
+.pd-tabs-preview-list button,.pd-tabs-preview-item{pointer-events:auto}
+.pd-tabs-preview-item{position:relative;min-width:0}
+.pd-tabs-preview-item>*{pointer-events:none}
+/* Sekmeler önizlemesi: ERP PageTabs (sekme listesi + panel) görünümü */
+.pd-frame .pd-tabs-preview{display:grid;gap:10px}
+.pd-frame .pd-tabs-preview-list{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--dl-line)}
+.pd-frame .pd-tabs-preview-list button{margin-bottom:-1px;padding:6px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dl-muted);font-size:12.5px;font-weight:600;cursor:pointer}
+.pd-frame .pd-tabs-preview-list button.is-active{border-bottom-color:var(--dl-primary);color:var(--dl-primary-strong)}
+.pd-frame .pd-tabs-preview-panel{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+.pd-frame .pd-tabs-empty{grid-column:1/-1;margin:0;padding:14px 8px;color:var(--dl-muted);font-size:12px;text-align:center}
+/* Müfettiş: sekme listesi, koşul ve doğrulama alanları, özel alan ekleme */
+.pd-tabs-editor{display:grid;gap:8px}
+.pd-tabs-editor-tab{display:grid;gap:6px;margin:0;padding:8px;border:1px solid var(--pd-line);border-radius:8px;background:var(--pd-soft)}
+.pd-tabs-editor-head{display:flex;align-items:center;gap:4px}
+.pd-tabs-editor-head>input{flex:1;min-width:0}
+.pd-tabs-editor-head .pd-check{font-size:11.5px;white-space:nowrap}
+.pd-tabs-editor-head .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:#55647c}
+.pd-tabs-editor-head .pd-icon-button:disabled{opacity:.3}
+.pd-tabs-editor-head .pd-icon-button.danger{color:var(--pd-danger)}
+.pd-condition-input{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.pd-validation{display:grid;gap:8px;margin-top:4px;padding-top:8px;border-top:1px solid var(--pd-line)}
+.pd-query-custom-add{display:flex;gap:6px}
+.pd-query-custom-add input{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.pd-query-custom-type{display:inline-flex;align-items:center;gap:4px}
+.pd-query-custom-type .pd-icon-button{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:0;background:transparent;color:var(--pd-danger)}
+/* Arama kutusu önizlemesi: ERP LookupInput (arama simgeli kutu + seçenek listesi) görünümü; etkileşimsizdir */
+.pd-lookup{display:grid;gap:4px}
+.pd-lookup-box{position:relative;display:block}
+.pd-lookup-box svg{position:absolute;top:50%;left:9px;color:#667085;transform:translateY(-50%)}
+.pd-binding-preview-input .pd-lookup-box input{padding-left:28px}
+.pd-lookup-list{display:grid;margin:0;padding:3px 0;border:1px solid var(--page-border);border-radius:6px;background:#fff;list-style:none;font-weight:400}
+.pd-lookup-list li{display:grid;padding:4px 9px;color:var(--page-ink);font-size:12px}
+.pd-lookup-list li small{color:#667085;font-size:11px}
+.pd-lookup-list li:first-child:not(.pd-lookup-empty){background:var(--dl-primary-soft,#e8f0fd)}
+.pd-lookup-empty{color:#667085!important}
+/* Sunucu sayfalı liste: başlıktaki arama girişi ve ERP PagedTableFooter altbilgisi (düğmeler tuvalde kapalı) */
+.pd-grid-search{max-width:320px;margin:0 0 8px}
+.pd-pager{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;color:var(--dl-muted,#667085);font-size:12px}
+.pd-pager-range{color:var(--dl-text,#1b2430);font-weight:600;font-variant-numeric:tabular-nums}
+.pd-pager-meta{padding:1px 8px;border-radius:999px;background:var(--dl-head,#f7f8fa)}
+.pd-pager-grow{flex:1}
+.pd-pager button{min-height:26px;padding:0 10px;border:1px solid var(--dl-line,#dfe3e9);border-radius:6px;background:var(--dl-surface,#fff);color:var(--dl-muted,#667085);font:inherit}
+.pd-pager button:disabled{opacity:.6}
+
+/* Sistem sayfası "Yeni" şeridi: standart tanımdaki yeni öğeler */
+.pd-new-items{margin:0 0 10px;padding:10px 12px;border:1px solid #d8d0fb;border-radius:10px;background:#f8f6ff;color:#3f2f8f}
+.pd-new-items-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pd-new-items-head b{flex:1;min-width:0;font-size:13px}
+.pd-new-items ul{display:grid;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.pd-new-items li{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--pd-line);border-radius:8px;background:#fff}
+.pd-new-items-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:#22223a}
+.pd-new-items-kind{padding:2px 7px;border-radius:999px;background:#eef1f7;color:#55647c;font-size:10.5px;font-weight:700}

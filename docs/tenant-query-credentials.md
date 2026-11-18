@@ -15,7 +15,7 @@ SQL raporlarında tek başına yeterli bir sınır yoktur; üç katman birlikte 
 
 1. **Metin doğrulayıcı** (API): yalnız tek bir `SELECT`/`WITH` kabul eder; yazma, kilit, dış kaynak, üç parçalı adlar ve sunucu meta verisini listeleyen adlar (`sys.sysdatabases`, `sys.master_files`, `DB_NAME`, `DB_ID`, `HAS_DBACCESS`, `SUSER_*`, `dm_*`, `xp_*` ...) reddedilir.
 2. **Veritabanı yetkileri:** okuma login'i yalnız kendi kiracı veritabanında `db_datareader` üyesidir; diğer kiracı veritabanlarına ve PlatformDB'ye erişemez.
-3. **Sunucu düzeyi DENY (ZORUNLU DBA adımı):** veritabanı yetkileri sunucu meta verisini gizlemez. `DENY VIEW ANY DATABASE` olmadan login `sys.databases` / `DB_NAME()` ile diğer kiracı veritabanlarının adlarını (dolayısıyla kiracı GUID'lerini) görebilir; `master` içindeki `xp_dirtree`, `xp_fileexist`, `xp_subdirs` ise `public`'e açıktır. Bu DENY'ler `deploy/sql/Grant-TenantQueryPrincipals.sql` içindedir (bkz. adım 3). Provisioning principal'ı sunucu düzeyinde DENY uygulayamaz; bu yüzden betik **yeni kiracılar için de** DBA tarafından çalıştırılmalıdır.
+3. **Sunucu düzeyi DENY (otomatik):** veritabanı yetkileri sunucu meta verisini gizlemez. `DENY VIEW ANY DATABASE` olmadan login `sys.databases` / `DB_NAME()` ile diğer kiracı veritabanlarının adlarını (dolayısıyla kiracı GUID'lerini) görebilir; `master` içindeki `xp_dirtree`, `xp_fileexist`, `xp_subdirs` ise `public`'e açıktır. Sınır betiği bu DENY'leri DBA'nın sahip olduğu iki role koyar: sunucu rolü `NexoraTenantQueryLogins` (`DENY VIEW ANY DATABASE`) ve `master` rolü `NexoraTenantQueryUsers` (üç `xp_*` için `DENY EXECUTE`). İmzalı `master..NexoraEnsureTenantSqlLogin`, `@Component = 3/4` için her oluşturma ve parola yenilemede login'i sunucu rolüne ekler, `master` kullanıcısını oluşturur ve `master` rolüne ekler. İmzalayan sertifikaya yalnız bu iki rol üzerinde `ALTER` ve `master` içinde `ALTER ANY USER` verilir; sunucu genelinde DENY yetkisi verilmez. `deploy/sql/Grant-TenantQueryPrincipals.sql` aynı DENY'leri doğrudan da uygular (derinlemesine savunma).
 
 ## 1. ZORUNLU dağıtım öncesi adım: provisioning sınırını yeniden kur
 
@@ -27,11 +27,11 @@ sqlcmd -S <server> -d master -v TenantProvisioningLoginName=<worker-login> -i de
 
 ## Yeni kiracılar
 
-Tenant Provisioning Worker, ERP kimlik bilgisini oluşturup doğruladıktan sonra iki sorgu login'ini de oluşturur, Vault'a yazar, geri okuyarak doğrular, veritabanı kullanıcısını ve rol üyeliklerini kurar, login'lerin diğer kiracı veritabanlarını ve PlatformDB'yi okuyamadığını doğrular ve okuma login'iyle kendi veritabanına bağlanıp `db_datawriter`, `db_owner`, `db_ddladmin` (ve `sysadmin`) üyesi olmadığını doğrular. **Ek işlem:** sunucu düzeyi DENY'ler için DBA'nın kiracı aktifleştikten sonra adım 3'teki betiği bu kiracı için de çalıştırması gerekir.
+Tenant Provisioning Worker, ERP kimlik bilgisini oluşturup doğruladıktan sonra iki sorgu login'ini de oluşturur, Vault'a yazar, geri okuyarak doğrular, veritabanı kullanıcısını ve rol üyeliklerini kurar, login'lerin diğer kiracı veritabanlarını ve PlatformDB'yi okuyamadığını doğrular ve okuma login'iyle kendi veritabanına bağlanıp `db_datawriter`, `db_owner`, `db_ddladmin` (ve `sysadmin`) üyesi olmadığını doğrular. Sunucu düzeyi DENY'ler login oluşturulurken imzalı yordam tarafından rol üyeliğiyle uygulanır; **yeni kiracı için DBA adımı gerekmez.**
 
 ## Mevcut (Ready) kiracılar
 
-Provisioning principal'ı bilinçli olarak mevcut kiracı veritabanlarına erişemez. Bu yüzden login'ler Worker ile, veritabanı kullanıcıları, rol üyelikleri ve sunucu DENY'leri DBA/migrator tarafından ayrı bir betikle kurulur. Sıra: adım 1, sonra:
+Provisioning principal'ı bilinçli olarak mevcut kiracı veritabanlarına erişemez. Bu yüzden login'ler (ve sunucu DENY rol üyelikleri) Worker ile, veritabanı kullanıcıları ve rol üyelikleri DBA/migrator tarafından ayrı bir betikle kurulur. Sıra: adım 1, sonra:
 
 ## 2. Worker'ı tek seferlik komutla çalıştır
 
@@ -41,17 +41,17 @@ dotnet AIERP.TenantProvisioningWorker.dll --provision-tenant-query-credentials
 
 Argüman tek başına verilmelidir. Komut, aktif ve ERP kataloğu `Ready` olan her kiracı için iki login'i oluşturur (varsa parolasını yeniler), Vault'a yazar ve geri okuyarak doğrular; veritabanına dokunmaz. Bir kiracıdaki hata diğerlerini durdurmaz; hatanın türü ve SQL hata numarası Worker günlüğüne yazılır (kimlik bilgisi yazılmaz). Çıktı `tenants=<n>; failed=<m>` özetini ve başarısız kiracı kimliklerini verir; başarısız kiracı varsa çıkış kodu `1` olur. Komut idempotenttir; başarısız kiracılar için yeniden çalıştırılabilir (başarılı olanların parolası da yenilenir, Vault güncel kalır).
 
-**Döndürme penceresi:** Parola yenilemede önce `ALTER LOGIN` (SQL), sonra Vault yazımı yapılır. Bu iki adım arasında API eski parolayı okuyabildiği için kısa süreli `503` ("Sorgu veritabanı erişimi bu firma için hazır değil.") yanıtları beklenir; komutu düşük trafik saatinde çalıştırın. `--migrate-existing-erp-tenant <tenant-guid>` komutu da migration-only yolunda sorgu kimlik bilgilerini aynı şekilde yeniler. Login `ALTER LOGIN` ile yenilendiği için sunucu DENY'leri korunur.
+**Döndürme penceresi:** Parola yenilemede önce `ALTER LOGIN` (SQL), sonra Vault yazımı yapılır. Bu iki adım arasında API eski parolayı okuyabildiği için kısa süreli `503` ("Sorgu veritabanı erişimi bu firma için hazır değil.") yanıtları beklenir; komutu düşük trafik saatinde çalıştırın. `--migrate-existing-erp-tenant <tenant-guid>` komutu da migration-only yolunda sorgu kimlik bilgilerini aynı şekilde yeniler. Login `ALTER LOGIN` ile yenilendiği için sunucu DENY'leri korunur; yenileme ayrıca eksik rol üyeliklerini tamamlar (eski sınırla oluşturulmuş login'ler bu yolla geriye dönük sertleşir).
 
-## 3. Her kiracı için yetki betiğini çalıştır
+## 3. Mevcut kiracılar için yetki betiğini çalıştır
 
-Her kiracı için (mevcut ve yeni), ilgili login'ler oluşturulduktan sonra DBA/migrator yetkisiyle (sunucu düzeyinde `DENY` verebilen bir principal ile):
+Yalnız mevcut kiracılar için (yeni kiracılarda Worker veritabanı eşlemesini kendisi yapar), ilgili login'ler oluşturulduktan sonra DBA/migrator yetkisiyle (sunucu düzeyinde `DENY` verebilen bir principal ile):
 
 ```bash
 sqlcmd -S <server> -v TenantId=<tenant-guid-N> -i deploy/sql/Grant-TenantQueryPrincipals.sql
 ```
 
-Betik önce `master` içinde **zorunlu** sunucu sertleştirmesini uygular:
+Betik önce `master` içinde sunucu sertleştirmesini doğrudan da uygular (rol üyeliğine ek olarak):
 
 ```sql
 USE [master];
@@ -100,4 +100,14 @@ WHERE [grantee].[name] IN (N'aierp_tr_<N>', N'aierp_tw_<N>') AND [permission].[p
 -- Beklenen: iki satır, state_desc = DENY.
 ```
 
-Bu runbook (sunucu DENY adımı dahil) disposable SQL Server/Vault üzerinde uçtan uca henüz doğrulanmamıştır; ilk canlı uygulama öncesinde disposable ortamda prova edilmelidir.
+Rol üyelikleri (her sorgu login'i için iki satır beklenir):
+
+```sql
+SELECT N'server' AS [Scope], SUSER_NAME([member_principal_id]) AS [Member]
+FROM sys.server_role_members WHERE [role_principal_id] = SUSER_ID(N'NexoraTenantQueryLogins')
+UNION ALL
+SELECT N'master', USER_NAME([member_principal_id])
+FROM master.sys.database_role_members WHERE [role_principal_id] = DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers');
+```
+
+Rol tabanlı sertleştirme `TenantProvisioningSqlBoundaryAcceptanceTests` ile disposable SQL Server 2022 üzerinde doğrulanır: sorgu login'i kendi veritabanına bağlanır, diğer kiracı veritabanlarını göremez (`sys.databases`, `DB_ID`), `xp_dirtree`/`xp_fileexist`/`xp_subdirs` `229` ile reddedilir, Worker rolleri doğrudan değiştiremez ve sınır betiği iki kez üst üste çalışır.

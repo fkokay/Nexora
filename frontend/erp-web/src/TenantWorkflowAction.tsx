@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { api } from "./erpApi";
+import { startPageWorkflow } from "./custom-page/workflowStart";
 import "./tenant-workflow-action.css";
-
-type WorkflowStartResult = { id: string };
 
 export default function TenantWorkflowAction({
   token, workflowId, title, pageCode, componentId,
@@ -21,15 +19,7 @@ export default function TenantWorkflowAction({
     if (!workflowId || busy) return;
     setBusy(true); setMessage(""); setFailed(false);
     try {
-      await api<WorkflowStartResult>(`/api/workflows/definitions/${encodeURIComponent(workflowId)}/instances`, token, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subjectType: "General",
-          subjectTitle: title.slice(0, 160) || "Sayfa işlemi",
-          context: { pageCode, componentId, action: "low-code-button" },
-        }),
-      });
+      await startPageWorkflow(token, workflowId, title, pageCode, componentId);
       setMessage("İş akışı başlatıldı.");
     } catch (cause) {
       setFailed(true);

@@ -204,7 +204,7 @@ internal static class CustomPageQueryEndpoints
                 .Select(x => new { x.Code, x.DefinitionJson }).SingleOrDefaultAsync(ct);
             if (page is null) return Results.NotFound();
             // Rights first (keyed by the stored code), so a user without View cannot probe query ids.
-            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, TenantCustomPageQueries.HasQueries(page.DefinitionJson), userId, role, ct);
+            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return Results.Json(new { error = "Bu sayfayı görüntüleme yetkiniz yok." }, statusCode: StatusCodes.Status403Forbidden);
             return await RunAsync(page.Code, page.DefinitionJson, queryId, request, tenant, userId, rights, isPreview: false, platformDb, http, ct);
         }).RequireRateLimiting(RateLimitPolicy);
@@ -222,6 +222,7 @@ internal static class CustomPageQueryEndpoints
     }
 
     internal const string ForbiddenWriteError = "Bu sayfada bu işlemi yapma yetkiniz yok.";
+    internal const string OperationQueryRunError = "ERP işlemi sayfa üzerinden doğrudan çalıştırılır.";
     internal const string PreviewWriteConfirmationError = "Önizlemede yazan sorgu yalnız açık onayla çalışır.";
 
     /// <summary>Kind-to-right mapping: read → View, insert → Insert, update → Update, delete → Delete.</summary>
@@ -244,6 +245,8 @@ internal static class CustomPageQueryEndpoints
         var query = TenantCustomPageQueries.ReadQueries(definitionJson).FirstOrDefault(x => string.Equals(x.Id, queryId, StringComparison.Ordinal));
         if (query is null || query.Kind is not ("read" or "insert" or "update" or "delete")) return Results.NotFound(new { error = "Sorgu bu sayfada bulunamadı." });
         if (!Allows(rights, query.Kind)) return Results.Json(new { error = ForbiddenWriteError }, statusCode: StatusCodes.Status403Forbidden);
+        // ERP operation queries are called by the page runtime against their own endpoint with the user's token.
+        if (query.Operation is not null) return Results.BadRequest(new { error = OperationQueryRunError });
         // Session variables are bound from the verified claims, never from the request.
         var values = CustomPageQueryParameters.WithSessionValues(query.Parameters, request?.Parameters, CustomPageSession.From(http.User));
         var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, values);

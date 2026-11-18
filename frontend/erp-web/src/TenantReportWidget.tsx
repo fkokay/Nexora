@@ -1,5 +1,7 @@
 import { type CSSProperties, useEffect, useState } from "react";
 import { api } from "./erpApi";
+import { formatCell, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type Tone } from "./custom-page/cellFormat";
+import { MetricCard } from "./custom-page/MetricCard";
 
 type CatalogColumn = { code: string; label: string; dataType?: string };
 type CatalogSource = { code: string; label: string; columns: CatalogColumn[] };
@@ -26,22 +28,21 @@ type Props = {
   rowActionLabel?: string;
   pageCode?: string;
   componentId?: string;
+  columnFormats?: unknown;
+  toneMap?: unknown;
+  density?: unknown;
+  tone?: Tone;
+  icon?: string;
+  trend?: number[];
+  active?: boolean;
+  onActivate?: () => void;
 };
 
 const MAX_ROWS = 50;
-
-function displayValue(value: unknown): string {
-  if (value == null || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Evet" : "Hayır";
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value);
-  }
-  return String(value);
-}
-
 export default function TenantReportWidget({
   kind, source: sourceValue, columns: columnsValue, title, description, fallbackValue, style, token,
-  rowActionsEnabled = false, rowActionWorkflowId, rowActionLabel, pageCode = "", componentId = "",
+  rowActionsEnabled = false, rowActionWorkflowId, rowActionLabel, pageCode = "", componentId = "", columnFormats, toneMap, density,
+  tone = "info", icon, trend, active, onActivate,
 }: Props) {
   const sourceCode = typeof sourceValue === "string" ? sourceValue.trim() : "";
   const selectedColumns = Array.isArray(columnsValue)
@@ -126,17 +127,24 @@ export default function TenantReportWidget({
 
   if (kind === "metric") {
     const value = result ? new Intl.NumberFormat("tr-TR").format(result.totalCount) : fallbackValue || "—";
-    return <article className={`tenant-page-metric tenant-page-report-widget ${status === "error" ? "is-error" : ""}`} style={style}>
-      {title && <span>{title}</span>}
-      {status === "loading" ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong>
-        : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
-          : !sourceCode ? <strong className="tenant-report-unbound">{value}</strong>
-            : <strong>{value}</strong>}
-      {description && <small>{description}</small>}
-      {sourceCode && status === "ready" && result && <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small>}
-    </article>;
+    return <MetricCard title={title} description={description} style={style ?? {}} tone={tone} icon={icon} trend={trend} active={active} onActivate={onActivate} hasError={status === "error"}
+      footer={sourceCode && status === "ready" && result ? <small className="tenant-report-source">{catalog.find((item) => item.code === sourceCode)?.label || sourceCode}</small> : undefined}
+      value={<>
+        {status === "loading" ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong>
+          : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
+            : !sourceCode ? <strong className="tenant-report-unbound">{value}</strong>
+              : <strong>{value}</strong>}
+      </>} />;
   }
 
+  const formats = parseColumnFormats(columnFormats);
+  const tones = parseToneMap(toneMap);
+  const cell = (column: CatalogColumn, row: Record<string, unknown>) => {
+    const text = formatCell(row[column.code], formats[column.code], column.dataType);
+    if (formats[column.code] !== "status" || text === "—") return text;
+    const tone = toneFor(text, tones);
+    return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
+  };
   const resultColumns = result?.columns ?? [];
   const rows = result?.rows ?? [];
   return <section className={`tenant-page-block tenant-page-table tenant-page-report-widget ${status === "error" ? "is-error" : ""}`} style={style}>
@@ -145,10 +153,10 @@ export default function TenantReportWidget({
     {!sourceCode ? <p className="tenant-report-unbound">Bu tablo için veri kaynağı seçilmemiş.</p>
       : status === "loading" ? <div className="tenant-report-state" role="status">Veriler yükleniyor…</div>
         : status === "error" ? <div className="tenant-report-error" role="alert"><span>{error}</span><button type="button" onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</button></div>
-          : <div className="tenant-page-table-scroll"><table>
-              <thead><tr>{resultColumns.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}{rowActionsEnabled && <th scope="col">İşlemler</th>}</tr></thead>
+          : <div className="tenant-page-table-scroll"><table className={density === "comfort" ? "is-comfort" : undefined}>
+              <thead><tr>{resultColumns.map((column) => <th scope="col" key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{rowActionsEnabled && <th scope="col">İşlemler</th>}</tr></thead>
               <tbody>{rows.length === 0 && <tr><td colSpan={resultColumns.length + (rowActionsEnabled ? 1 : 0)} className="tenant-report-state">Gösterilecek kayıt bulunamadı.</td></tr>}{rows.slice(0, MAX_ROWS).map((row, rowIndex) => <tr key={String(row.id ?? row.code ?? rowIndex)}>
-                {resultColumns.map((column) => <td key={column.code}>{displayValue(row[column.code])}</td>)}
+                {resultColumns.map((column) => <td key={column.code} className={[isRightAligned(formats[column.code], column.dataType) ? "num" : "", formats[column.code] === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined}>{cell(column, row)}</td>)}
                 {rowActionsEnabled && <td>{rowActionWorkflowId
                   ? <TenantReportRowAction token={token} workflowId={rowActionWorkflowId} label={rowActionLabel || "İşlemi başlat"} pageCode={pageCode} componentId={componentId} sourceCode={sourceCode} row={row} />
                   : <span className="tenant-report-unbound">İş akışı bağlanmadı</span>}</td>}

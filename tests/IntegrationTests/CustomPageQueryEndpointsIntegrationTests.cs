@@ -18,7 +18,7 @@ namespace AIERP.Api.IntegrationTests;
 public sealed class CustomPageQueryEndpointsIntegrationTests
 {
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    internal static readonly Guid Admin = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid Mehmet = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private const string Code = "musteri-panosu";
@@ -211,6 +211,36 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         Assert.Equal(0, factory.Calls);
     }
 
+    [Fact]
+    public async Task Run_endpoint_rejects_operation_query()
+    {
+        var factory = new RecordingQueryConnectionFactory(unavailable: false);
+        await using var app = await StartApplicationAsync(factory);
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var definition = new
+        {
+            schemaVersion = 2,
+            queries = new object[] { new { id = "q1", name = "kartlar", kind = "read", operation = "stok.kart.listele", runOn = "load",
+                parameters = new object[] { new { name = "q", binding = "{{arama.value}}", type = "text" } } } },
+            components = new object[] { new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } } }
+        };
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Stok", definition });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var preview = await client.PostAsJsonAsync($"/api/custom-pages/{id}/preview/queries/q1/run", new { parameters = new { q = "x" } });
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Equal("ERP işlemi sayfa üzerinden doğrudan çalıştırılır.", (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
+        var run = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { q = "x" } });
+        Assert.Equal(HttpStatusCode.BadRequest, run.StatusCode);
+        Assert.Equal("ERP işlemi sayfa üzerinden doğrudan çalıştırılır.", (await run.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal(0, factory.Calls);
+    }
+
     /// <summary>Publishes a page with query q1 as admin; optionally grants Ayse View. Leaves the admin identity set.</summary>
     private static async Task<Guid> PublishAsync(HttpClient client, bool accessForAyse)
     {
@@ -226,7 +256,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         return id;
     }
 
-    private static async Task<WebApplication> StartApplicationAsync(RecordingQueryConnectionFactory factory)
+    internal static async Task<WebApplication> StartApplicationAsync(RecordingQueryConnectionFactory factory)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -261,7 +291,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         return app;
     }
 
-    private static void SetIdentity(HttpClient client, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");
@@ -271,7 +301,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         client.DefaultRequestHeaders.Add("X-Test-Role", role);
     }
 
-    private sealed class RecordingQueryConnectionFactory(bool unavailable) : ITenantQueryConnectionFactory
+    internal sealed class RecordingQueryConnectionFactory(bool unavailable) : ITenantQueryConnectionFactory
     {
         public int Calls { get; private set; }
         public TenantQueryAccess? LastAccess { get; private set; }

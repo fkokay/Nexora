@@ -1,0 +1,17 @@
+{
+  "screenKey": "inventory-warehouses", "title": "Depo Yönetimi", "description": "Depo tanımlarının listesi.",
+  "module": "Stok & Depo", "version": 1, "stage": "preview",
+  "items": {
+    "component:depoListesi": { "since": 1, "label": "Depo listesi", "requires": ["query:depolar"] },
+    "query:depolar": { "since": 1, "label": "Depoları listele" }
+  },
+  "screenViews": [ { "key": "inventory-warehouses", "component": "depoListesi",
+                     "fields": { "code": "code", "name": "name", "status": "isActive" } } ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [ { "id": "depoListesi", "type": "dataTable", "name": "depoListesi",
+      "props": { "title": "Depolar", "query": "depolar", "columns": ["code", "name", "isActive"],
+                 "columnFormats": ["code=code", "isActive=status"] } } ],
+    "queries": [ { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "parameters": [], "runOn": "load" } ]
+  }
+}

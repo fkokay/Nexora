@@ -154,10 +154,13 @@ builder.Services.AddRateLimiter(o =>
 });
 // Custom page write runs (published and preview): 60 per user per minute, checked in the handler.
 builder.Services.AddSingleton<CustomPageWriteRateLimiter>();
+// System page standards and the standard-version bound of custom-page PUTs.
+builder.Services.AddSystemPages();
 var frontendOrigins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>() ?? [builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173"];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("X-Trace-Id")));
 builder.Services.AddOpenApi();
 var app = builder.Build();
+_ = SystemPageStandards.All; // An invalid embedded system page standard fails startup.
 app.UseExceptionHandler();
 app.Use(async (context, next) =>
 {
@@ -246,8 +249,10 @@ app.MapCustomFormEndpoints();
 app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
+app.MapSystemPageEndpoints();
 app.MapCustomPageAccessEndpoints();
 app.MapCustomPageQueryEndpoints();
+app.MapErpOperationCatalogEndpoints();
 app.MapWorkflowEndpoints();
 app.MapBusinessRuleEndpoints();
 app.MapReportEndpoints();
@@ -1918,6 +1923,14 @@ stockItems.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCont
         .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays, x.PurchaseListPrice, x.SalesListPrice, x.PriceCurrencyCode, x.PurchaseVatPercent, x.SalesVatPercent, x.ExciseTaxPercent, x.CommunicationTaxPercent, x.PurchaseDiscountPercent, x.SalesDiscountPercent, x.MaximumStock, x.ReorderPoint, x.SafetyStock, x.NetWeight, x.GrossWeight, x.Length, x.Width, x.Height, x.ProductImageUrl, x.PurchaseAccountCode, x.SalesAccountCode, x.CostAccountCode, x.MarketplaceProductId, x.ParentStockItemId, x.IsVariantParent, x.WithholdingTaxPercent, x.StampTaxPercent)).ToListAsync();
     return Results.Ok(new StockItemPage(items, page, pageSize, total));
 });
+stockItems.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+{
+    if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
+    var item = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+        .Select(x => new StockItemView(x.Id, x.Code, x.Name, x.Barcode, x.UnitCode, x.Category, x.MinimumStock, x.IsActive, x.CreatedAt, x.RowVersion, x.TrackingMode, x.ProcurementLeadTimeDays, x.ManufacturingLeadTimeDays, x.PurchaseListPrice, x.SalesListPrice, x.PriceCurrencyCode, x.PurchaseVatPercent, x.SalesVatPercent, x.ExciseTaxPercent, x.CommunicationTaxPercent, x.PurchaseDiscountPercent, x.SalesDiscountPercent, x.MaximumStock, x.ReorderPoint, x.SafetyStock, x.NetWeight, x.GrossWeight, x.Length, x.Width, x.Height, x.ProductImageUrl, x.PurchaseAccountCode, x.SalesAccountCode, x.CostAccountCode, x.MarketplaceProductId, x.ParentStockItemId, x.IsVariantParent, x.WithholdingTaxPercent, x.StampTaxPercent))
+        .SingleOrDefaultAsync();
+    return item is null ? Results.NotFound() : Results.Ok(item);
+});
 stockItems.MapPost("/", async (StockItemWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
@@ -2405,6 +2418,7 @@ stockItems.MapDelete("/{id:guid}/units/{conversionId:guid}", async (Guid id, Gui
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
+stockItems.MapStockItemBalanceEndpoints();
 
 var warehouses = app.MapGroup("/api/warehouses").RequireAuthorization();
 warehouses.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
@@ -2884,7 +2898,7 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
-warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2952,7 +2966,7 @@ warehouses.MapGet("/balances/page", async (string? q, bool belowMinimumOnly, int
     return Results.Ok(new InventoryBalancePage(result, page, pageSize, totalCount, belowMinimumCount));
 });
 
-warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, bool belowMinimumOnly, int page, int pageSize, ClaimsPrincipal principal, TenantDbContext db) =>
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();

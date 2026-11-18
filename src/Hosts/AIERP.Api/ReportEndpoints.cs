@@ -338,6 +338,47 @@ public static class ReportEndpoints
         new("sourceCode", "Belge kodu", "text"), new("createdAt", "Oluşturulma", "date")
     ];
 
+    /// <summary>Report builder sources; customSql and workflowInstances are listed only for tenant administrators.</summary>
+    internal static List<ReportSource> CatalogSources(bool includeAdminSources)
+    {
+        var sources = new List<ReportSource>
+        {
+            new("customers", "Cari hesaplar", CustomerColumns, CustomerAggregates),
+            new("salesInvoices", "Satış faturaları", SalesInvoiceColumns, SalesInvoiceAggregates),
+            new("purchaseOrders", "Satın alma siparişleri", PurchaseOrderColumns, PurchaseOrderAggregates),
+            new("purchaseInvoices", "Alış faturaları", PurchaseInvoiceColumns, []),
+            new("purchaseReceipts", "Satın alma mal kabulleri", PurchaseReceiptColumns, []),
+            new("manufacturingOrders", "Üretim emirleri", ManufacturingOrderColumns, ManufacturingOrderAggregates),
+            new("manufacturingWorkCenters", "Üretim iş merkezleri", ManufacturingWorkCenterColumns, []),
+            new("inventoryTransactions", "Stok hareketleri", InventoryTransactionColumns, []),
+            new("salesOrders", "Satış siparişleri", SalesOrderColumns, SalesOrderAggregates),
+            new("salesOrderFulfillment", "Satış siparişi karşılama durumu", SalesOrderFulfillmentColumns, []),
+            new("purchaseOrderFulfillment", "Satın alma siparişi karşılama durumu", PurchaseOrderFulfillmentColumns, []),
+            new("salesQuotes", "Satış teklifleri", SalesQuoteColumns, []),
+            new("purchaseSupplierQuotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteColumns, []),
+            new("supplierPayments", "Tedarikçi ödemeleri", SupplierPaymentColumns, []),
+            new("salesDeliveries", "Satış sevkiyatları", SalesDeliveryColumns, []),
+            new("salesReturns", "Satış iadeleri", SalesReturnColumns, []),
+            new("supplierReturns", "Tedarikçi iadeleri", SupplierReturnColumns, []),
+            new("purchaseRequests", "Satın alma talepleri", PurchaseRequestColumns, PurchaseRequestAggregates),
+            new("stockItems", "Stok kartları", StockItemColumns, StockItemAggregates)
+        };
+        sources.Add(new("warehouseStock", "Depo bazında stok bakiyesi", WarehouseStockColumns, []));
+        sources.Add(new("bankStatements", "Banka ekstreleri", BankStatementColumns, []));
+        sources.Add(new("bankStatementLines", "Banka ekstresi satırları", BankStatementLineColumns, []));
+        sources.Add(new("financialAccountTransactions", "Kasa-banka hareketleri", FinancialAccountTransactionColumns, []));
+        sources.Add(new("financialAccountTransfers", "Kasa-banka hesap transferleri", FinancialAccountTransferColumns, []));
+        sources.Add(new("journalEntryLines", "Muhasebe fiş satırları", JournalEntryLineColumns, []));
+        sources.Add(new("fxRevaluationLines", "Döviz değerleme satırları", FxRevaluationLineColumns, []));
+        sources.Add(new("crmOpportunities", "CRM fırsatları", CrmOpportunityColumns, []));
+        sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
+        sources.Add(new("supplierLedgerEntries", "Tedarikçi hesap hareketleri", SupplierLedgerColumns, []));
+        sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
+        if (includeAdminSources) sources.Insert(0, new("customSql", "SQL sorgusu", [], []));
+        if (includeAdminSources) sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
+        return sources;
+    }
+
     public static void MapReportEndpoints(this WebApplication app)
     {
         var reports = app.MapGroup("/api/reports").WithTags("Tenant Report Builder").RequireAuthorization();
@@ -349,42 +390,7 @@ public static class ReportEndpoints
         reports.MapGet("/catalog", (ClaimsPrincipal user) =>
         {
             if (!TryTenantContext(user, out _, out _, out var role)) return Results.Forbid();
-            var sources = new List<ReportSource>
-            {
-                new("customers", "Cari hesaplar", CustomerColumns, CustomerAggregates),
-                new("salesInvoices", "Satış faturaları", SalesInvoiceColumns, SalesInvoiceAggregates),
-                new("purchaseOrders", "Satın alma siparişleri", PurchaseOrderColumns, PurchaseOrderAggregates),
-                new("purchaseInvoices", "Alış faturaları", PurchaseInvoiceColumns, []),
-                new("purchaseReceipts", "Satın alma mal kabulleri", PurchaseReceiptColumns, []),
-                new("manufacturingOrders", "Üretim emirleri", ManufacturingOrderColumns, ManufacturingOrderAggregates),
-                new("manufacturingWorkCenters", "Üretim iş merkezleri", ManufacturingWorkCenterColumns, []),
-                new("inventoryTransactions", "Stok hareketleri", InventoryTransactionColumns, []),
-                new("salesOrders", "Satış siparişleri", SalesOrderColumns, SalesOrderAggregates),
-                new("salesOrderFulfillment", "Satış siparişi karşılama durumu", SalesOrderFulfillmentColumns, []),
-                new("purchaseOrderFulfillment", "Satın alma siparişi karşılama durumu", PurchaseOrderFulfillmentColumns, []),
-                new("salesQuotes", "Satış teklifleri", SalesQuoteColumns, []),
-                new("purchaseSupplierQuotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteColumns, []),
-                new("supplierPayments", "Tedarikçi ödemeleri", SupplierPaymentColumns, []),
-                new("salesDeliveries", "Satış sevkiyatları", SalesDeliveryColumns, []),
-                new("salesReturns", "Satış iadeleri", SalesReturnColumns, []),
-                new("supplierReturns", "Tedarikçi iadeleri", SupplierReturnColumns, []),
-                new("purchaseRequests", "Satın alma talepleri", PurchaseRequestColumns, PurchaseRequestAggregates),
-                new("stockItems", "Stok kartları", StockItemColumns, StockItemAggregates)
-            };
-            sources.Add(new("warehouseStock", "Depo bazında stok bakiyesi", WarehouseStockColumns, []));
-            sources.Add(new("bankStatements", "Banka ekstreleri", BankStatementColumns, []));
-            sources.Add(new("bankStatementLines", "Banka ekstresi satırları", BankStatementLineColumns, []));
-            sources.Add(new("financialAccountTransactions", "Kasa-banka hareketleri", FinancialAccountTransactionColumns, []));
-            sources.Add(new("financialAccountTransfers", "Kasa-banka hesap transferleri", FinancialAccountTransferColumns, []));
-            sources.Add(new("journalEntryLines", "Muhasebe fiş satırları", JournalEntryLineColumns, []));
-            sources.Add(new("fxRevaluationLines", "Döviz değerleme satırları", FxRevaluationLineColumns, []));
-            sources.Add(new("crmOpportunities", "CRM fırsatları", CrmOpportunityColumns, []));
-            sources.Add(new("customerLedgerEntries", "Cari hareketleri", CustomerLedgerColumns, []));
-            sources.Add(new("supplierLedgerEntries", "Tedarikçi hesap hareketleri", SupplierLedgerColumns, []));
-            sources.Add(new("inventoryTransfers", "Depolar arası transferler", InventoryTransferColumns, []));
-            if (role == "TenantAdmin") sources.Insert(0, new("customSql", "SQL sorgusu", [], []));
-            if (role == "TenantAdmin") sources.Add(new("workflowInstances", "İş akışı geçmişi", WorkflowInstanceColumns, WorkflowInstanceAggregates));
-            return Results.Ok(sources);
+            return Results.Ok(CatalogSources(role == "TenantAdmin"));
         });
 
         reports.MapGet("/companies", async (ClaimsPrincipal user, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -5976,21 +5982,30 @@ public static class ReportEndpoints
     private static async Task<bool> CanReadReportSourceAsync(string source, Guid tenantId, Guid userId, string role,
         HttpContext context, CancellationToken ct)
     {
+        if (!TryReportSourcePermission(source, tenantId, userId, role, out var permission)) return false;
+        var authorizer = context.RequestServices.GetRequiredService<AIERP.Platform.Application.IPlatformPermissionAuthorizer>();
+        return await authorizer.IsAllowedAsync(tenantId, userId, role, permission, ct);
+    }
+
+    /// <summary>The read permission a report source needs; false when the source has no mapping.</summary>
+    internal static bool TryReportSourcePermission(string source, Guid tenantId, Guid userId, string role,
+        out AIERP.Platform.Application.ResolvedPlatformPermission permission)
+    {
+        permission = null!;
         // A source without a mapping must never fall back to tenant-wide access.
         if (!ReportSourcePermissions.TryGetValue(source, out var mapping)) return false;
-        var permission = AIERP.Platform.Application.PlatformPermissionCatalog.Definitions
+        var definition = AIERP.Platform.Application.PlatformPermissionCatalog.Definitions
             .FirstOrDefault(x => x.Code == $"{mapping.ResourceType}.read");
-        if (permission is null) return false;
+        if (definition is null) return false;
         var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["subject.userId"] = userId.ToString("D"), ["subject.role"] = role,
-            ["resource.type"] = permission.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
+            ["resource.type"] = definition.ResourceType, ["resource.tenantId"] = tenantId.ToString("D"),
             ["request.method"] = "GET", ["request.action"] = "read"
         };
         if (mapping.RowFiltered) attributes["resource.collectionRowsFiltered"] = "true";
-        var authorizer = context.RequestServices.GetRequiredService<AIERP.Platform.Application.IPlatformPermissionAuthorizer>();
-        return await authorizer.IsAllowedAsync(tenantId, userId, role,
-            new AIERP.Platform.Application.ResolvedPlatformPermission(permission, attributes), ct);
+        permission = new AIERP.Platform.Application.ResolvedPlatformPermission(definition, attributes);
+        return true;
     }
 
     private static bool TryTenantContext(ClaimsPrincipal user, out Guid tenantId, out Guid userId, out string role)

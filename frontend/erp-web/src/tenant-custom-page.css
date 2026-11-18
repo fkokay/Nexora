@@ -1,88 +1,303 @@
-.tenant-custom-page { max-width: 1440px; margin: 0 auto; padding: 24px; color: var(--nx-text); }
-.tenant-custom-page { --custom-page-gap: 16px; --custom-page-surface: var(--nx-canvas); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-text); --custom-page-accent: var(--nx-primary); }
-.tenant-custom-page-header { display: flex; align-items: center; gap: 14px; padding: 18px 20px; margin-bottom: 20px; background: var(--nx-canvas); border: 1px solid var(--nx-line); border-radius: 14px; }
-.tenant-custom-page-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; color: var(--nx-primary-strong); background: color-mix(in srgb, var(--nx-primary) 7%, var(--nx-surface)); }
-.tenant-custom-page-header h1 { margin: 0; font-size: 1.35rem; }
-.tenant-custom-page-header p { margin: 5px 0 0; color: var(--nx-text); }
+/* Özel sayfa gösterimi — ERP tasarım dili (docs/superpowers/specs/2026-11-16-erp-design-language-design.md §5).
+   Renkler yalnız --nx-* token'larından gelir (koyu tema dahil); ölçüler: yazı 12,5px, kontrol 31px,
+   köşe kontrol 6px / kart 8px, sayılar tabular-nums ve sağa hizalı. Studio tuvali aynı görünümü kopyalar
+   (frontend/development-studio/.../custom-pages.css "custom-page-preview-*"). */
+.tenant-custom-page { --custom-page-gap: 12px; --custom-page-surface: var(--nx-surface); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-muted); --custom-page-accent: var(--nx-primary); max-width: 1720px; margin: 0 auto; padding: 14px 16px 24px; color: var(--nx-text); font-family: var(--nx-font); font-size: 12.5px; }
+.tenant-custom-page-header { display: flex; align-items: center; gap: 12px; padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--nx-line); }
+.tenant-custom-page-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: var(--nx-radius-card); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-custom-page-header h1 { margin: 0; font-size: 19px; font-weight: 650; line-height: 1.25; }
+.tenant-custom-page-header p { margin: 3px 0 0; color: var(--nx-muted); font-size: 12px; }
 .tenant-custom-page-content { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap); }
 .tenant-custom-page-content > * { grid-column: span 12; min-width: 0; }
-.tenant-page-block, .tenant-page-metric { box-sizing: border-box; padding: 18px; border: 1px solid var(--custom-page-line); border-radius: 12px; background: var(--custom-page-surface); box-shadow: 0 2px 8px #17255408; }
-.tenant-page-heading { align-self: end; margin: 0; padding: 0 0 8px; border-bottom: 1px solid var(--custom-page-line); font-size: clamp(20px, 2vw, 28px); line-height: 1.2; letter-spacing: -.035em; }
-.tenant-page-text { margin: 0; color: var(--custom-page-muted); font-size: 13px; line-height: 1.65; }
-.tenant-page-block h3 { margin: 0 0 10px; font-size: 1rem; }
-.tenant-page-block p { margin: 8px 0; color: var(--nx-text); white-space: pre-wrap; }
-.tenant-page-metric { display: flex; flex-direction: column; gap: 7px; }
-.tenant-page-metric span, .tenant-page-metric small { color: var(--nx-text); }
-.tenant-page-metric strong { font-size: 1.6rem; }
+
+/* Kart ve bloklar */
+.tenant-page-block, .tenant-page-metric { box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-block h3 { margin: 0 0 10px; font-size: 13px; font-weight: 650; }
+.tenant-page-block p { margin: 6px 0; color: var(--nx-text); white-space: pre-wrap; line-height: 1.55; }
+.tenant-page-heading { align-self: end; margin: 0; padding: 0 0 6px; font-size: 19px; font-weight: 650; line-height: 1.25; }
+.tenant-page-text { margin: 0; color: var(--nx-text); font-size: 12.5px; line-height: 1.6; }
+.tenant-page-label { align-self: center; font-weight: 600; }
+.tenant-page-spacer { min-height: 8px; }
+
+/* Özet kartı (gösterge): ikon kutusu, etiket/değer/açıklama, sağda eğilim — taslak `.mk` kartı; `.act` = süzgeç uygulanmış */
+.tenant-page-metric { --metric-tone: var(--nx-primary-strong); --metric-soft: var(--nx-primary-soft); display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.tenant-page-metric.tone-success { --metric-tone: var(--nx-ok); --metric-soft: var(--nx-ok-bg); }
+.tenant-page-metric.tone-warning { --metric-tone: var(--nx-warn); --metric-soft: var(--nx-warn-bg); }
+.tenant-page-metric.tone-danger { --metric-tone: var(--nx-bad); --metric-soft: var(--nx-bad-bg); }
+.tenant-metric-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 8px; color: var(--metric-tone); background: var(--metric-soft); }
+.tenant-metric-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.tenant-metric-label { color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-metric strong { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tenant-page-metric:is(.tone-warning, .tone-danger) strong:not(.tenant-report-status) { color: var(--metric-tone); }
+.tenant-page-metric small { color: var(--nx-muted); font-size: 11px; }
+.tenant-metric-trend { flex: none; margin-left: auto; }
+.tenant-metric-trend polyline { stroke: var(--nx-primary); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tenant-page-metric.is-clickable { cursor: pointer; }
+.tenant-page-metric.is-clickable:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-metric.is-active { border-color: color-mix(in srgb, var(--metric-tone) 35%, var(--nx-surface)); background: color-mix(in srgb, var(--metric-soft) 45%, var(--nx-surface)); }
+
+.app-shell .tenant-custom-page .tenant-page-metric small { font-size: 11px !important; }
+
+/* Düğmeler */
 .tenant-page-action { display: flex; align-items: center; }
-.tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: 10px; background: #fff; }
-.tenant-page-button { justify-self: start; min-height: 38px; padding: 9px 15px; border: 0; border-radius: 8px; color: #fff; background: var(--custom-page-accent); font-weight: 700; box-shadow: 0 2px 5px color-mix(in srgb, var(--nx-primary) 14%, transparent); }
 .tenant-page-query-action { display: grid; gap: 6px; justify-items: start; }
-.tenant-page-button:disabled { opacity: .65; cursor: not-allowed; }
-.tenant-page-button.is-danger { background: var(--nx-bad); box-shadow: 0 2px 5px color-mix(in srgb, var(--nx-bad) 14%, transparent); }
-.tenant-page-action-feedback { margin: 0; font-size: 13px; }
+.tenant-page-button, .tenant-page-submit { display: inline-flex; align-items: center; justify-self: start; gap: 6px; min-height: var(--nx-control-h); padding: 0 12px; border: 1px solid var(--nx-primary); border-radius: var(--nx-radius-control); color: var(--nx-on-primary); background: var(--nx-primary); font: 600 12.5px var(--nx-font); cursor: pointer; }
+.tenant-page-button:hover:not(:disabled), .tenant-page-submit:hover:not(:disabled) { background: var(--nx-primary-hover); border-color: var(--nx-primary-hover); }
+.tenant-page-button:focus-visible, .tenant-page-submit:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-button:disabled { opacity: .38; cursor: not-allowed; }
+.tenant-page-submit:disabled { opacity: .6; cursor: wait; }
+.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
+.tenant-page-action-feedback { margin: 0; font-size: 12px; }
 .tenant-page-action-feedback.is-success { color: var(--nx-ok); }
 .tenant-page-action-feedback.is-error { color: var(--nx-bad); }
+/* İşlem Çubuğu durum satırı: yazma/Excel sonucu */
+#root .app-shell .tenant-custom-page .tenant-page-action-status { padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-error { color: var(--nx-bad); background: var(--nx-bad-bg); }
+#root .app-shell .tenant-custom-page .tenant-page-action-status.is-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+
+/* Liste tablosu — taslak 01: başlık 11,5px/600, satır çizgisi line-soft, sayılar sağa hizalı */
 .tenant-page-table { overflow: hidden; }
-.tenant-page-table-scroll { overflow-x: auto; }
-.tenant-page-table table { width: 100%; border-collapse: collapse; }
-.tenant-page-table th, .tenant-page-table td { padding: 10px 12px; border-bottom: 1px solid var(--nx-line); text-align: left; }
-.tenant-page-table th { background: #f7f8fc; }
-.tenant-page-report-widget { min-width: 0; }
-.tenant-page-report-widget.is-error { border-color: #f0b9bb; }
-.tenant-page-table-scroll { max-width: 100%; }
-.tenant-page-table td { max-width: 360px; overflow-wrap: anywhere; }
-.tenant-report-state { padding: 18px 12px; color: var(--custom-page-muted); text-align: center; }
-.tenant-report-status { color: var(--custom-page-muted); font-size: 1rem; }
-.tenant-report-unbound { color: var(--custom-page-muted); }
-.tenant-report-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid #f2c5c6; border-radius: 8px; color: #a32932; background: #fff7f7; }
-.tenant-report-error button { padding: 6px 10px; border: 1px solid #e6b5b8; border-radius: 7px; color: #8c2029; background: #fff; cursor: pointer; }
-.tenant-report-footer { display: flex; justify-content: space-between; gap: 10px; padding-top: 10px; color: var(--custom-page-muted); font-size: 12px; }
-.tenant-page-spacer { min-height: 8px; }
-.tenant-page-alert { box-sizing: border-box; padding: 14px 16px; border: 1px solid #bfdbfe; border-radius: 10px; color: #1e3a8a; background: #eff6ff; }
-.tenant-page-alert strong { display: block; }
-.tenant-page-alert p { margin: 5px 0 0; color: inherit; }
-.tenant-page-alert.tone-success { border-color: #a7e4c4; color: #126344; background: #effaf4; }
-.tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
-.tenant-page-alert.tone-danger { border-color: #f1b8bd; color: #9f2632; background: #fff3f4; }
-.tenant-page-badge { display: inline-flex; align-items: center; width: fit-content; min-height: 26px; padding: 4px 10px; border: 1px solid #bfdbfe; border-radius: 999px; color: #1e40af; background: #eff6ff; font-size: 12px; font-weight: 700; }
-.tenant-page-badge.tone-success { border-color: #b7e6cc; color: #13734d; background: #effaf4; }
-.tenant-page-badge.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
-.tenant-page-badge.tone-danger { border-color: #f1b8bd; color: #9f2632; background: #fff3f4; }
-.tenant-page-list ul { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 20px; }
-.tenant-page-list li { padding-left: 3px; line-height: 1.5; }
-.tenant-page-progress > div { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.tenant-page-progress > div span { color: var(--custom-page-muted); font-variant-numeric: tabular-nums; }
-.tenant-page-progress progress { display: block; width: 100%; height: 10px; overflow: hidden; border: 0; border-radius: 999px; background: #e9eaf3; accent-color: var(--custom-page-accent); }
-.tenant-page-progress progress::-webkit-progress-bar { border-radius: 999px; background: #e9eaf3; }
-.tenant-page-progress progress::-webkit-progress-value { border-radius: 999px; background: var(--custom-page-accent); }
-.tenant-page-form-wrap { box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); border-radius: 12px; background: var(--custom-page-surface); }
-.tenant-page-form-wrap .tenant-page-form { border: 0; box-shadow: none; }
-.tenant-page-form { display: grid; gap: 14px; }
-.tenant-page-form-field { display: grid; gap: 6px; color: var(--nx-text); font-weight: 600; }
-.tenant-page-form-field > span b { color: #c24150; }
-.tenant-page-form-field input:not([type="checkbox"]), .tenant-page-form-field select, .tenant-page-form-field textarea { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--nx-line); border-radius: 8px; color: inherit; background: var(--nx-canvas); font: inherit; font-weight: 400; }
-.tenant-page-form-field textarea { min-height: 96px; resize: vertical; }
-.tenant-page-form-field input[type="checkbox"] { width: 18px; height: 18px; }
-.tenant-page-form-field small { color: var(--nx-text); font-weight: 400; }
-.tenant-page-submit { justify-self: start; padding: 10px 16px; border: 0; border-radius: 8px; color: #fff; background: var(--nx-primary); font-weight: 700; cursor: pointer; }
-.tenant-page-submit:disabled { opacity: .6; cursor: wait; }
-.tenant-page-form-error { color: #b42318 !important; }
-.tenant-page-form-success { border-color: #b9e6d3; background: #f0fbf5; }
-.tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 16px; border: 1px solid var(--nx-line); border-radius: 10px; background: var(--nx-canvas); }
-.tenant-custom-page-error { color: #b42318; background: #fff6f5; border-color: #f5c2be; }
-@media (max-width: 900px) { .tenant-custom-page { padding: 18px; } .tenant-custom-page-content { gap: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
-@media (max-width: 560px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
-.tenant-custom-page-preview-banner{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 13px;border:1px solid color-mix(in srgb, var(--nx-primary) 20%, var(--nx-surface));border-radius:10px;background:color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface));color:var(--nx-primary-strong);font-size:12px}.tenant-custom-page-preview-banner strong{white-space:nowrap}.tenant-custom-page-preview-banner span{color:#665b84}
-.tenant-page-label { align-self: center; font-weight: 600; }
-.tenant-page-input { min-width: 0; }
-.tenant-page-input > label { display: grid; gap: 6px; color: var(--nx-text); font-weight: 600; }
-.tenant-page-input input:not([type="checkbox"]), .tenant-page-input select { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--nx-line); border-radius: 6px; color: inherit; background: var(--nx-surface); font: inherit; font-weight: 400; }
-.tenant-page-input input[type="checkbox"] { width: 18px; height: 18px; justify-self: start; }
-.tenant-page-input-checkbox > label { display: flex; align-items: center; gap: 8px; }
-.tenant-page-query-error { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); border-radius: 8px; }
+.tenant-page-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); }
+.tenant-page-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tenant-page-table th { padding: 7px 9px; border-bottom: 1px solid var(--nx-line); background: var(--nx-table-head); color: var(--nx-muted); font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; }
+.tenant-page-table td { max-width: 360px; height: var(--nx-row-h-dense); padding: 5px 9px; border-bottom: 1px solid var(--nx-line-soft); text-align: left; overflow-wrap: anywhere; }
+.tenant-page-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tenant-page-table tbody tr:last-child td { border-bottom: 0; }
 .tenant-page-row-selectable { cursor: pointer; }
 .tenant-page-row-selectable:hover td { background: var(--nx-table-head); }
 .tenant-page-row-selectable.is-selected td { background: var(--nx-primary-soft); }
+.tenant-page-row-selectable.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--nx-primary); }
 .tenant-page-row-selectable:focus-visible { outline: 2px solid var(--custom-page-accent); outline-offset: -2px; }
-.tenant-page-truncated { margin: 10px 0 0; color: var(--custom-page-muted); font-size: 12px; }
+.tenant-page-truncated { margin: 8px 0 0; color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-report-widget { min-width: 0; }
+.tenant-page-report-widget.is-error { border-color: color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); }
+.tenant-report-state { padding: 16px 12px; color: var(--nx-muted); text-align: center; }
+.tenant-report-status { color: var(--nx-muted); font-size: 12.5px; font-weight: 500; }
+.tenant-report-unbound { color: var(--nx-muted); }
+.tenant-report-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-bad); background: var(--nx-bad-bg); }
+.tenant-report-error button { min-height: 27px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--nx-bad) 35%, var(--nx-surface)); border-radius: var(--nx-radius-control); color: var(--nx-bad); background: var(--nx-surface); cursor: pointer; }
+.tenant-report-footer { display: flex; justify-content: space-between; gap: 10px; padding-top: 8px; color: var(--nx-muted); font-size: 11.5px; }
+
+/* Bildirim kutusu ve durum etiketi: renk anlam taşır (§5.1) */
+.tenant-page-alert { box-sizing: border-box; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-page-alert strong { display: block; font-weight: 650; }
+.tenant-page-alert p { margin: 4px 0 0; color: inherit; }
+.tenant-page-alert.tone-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-alert.tone-danger { border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); color: var(--nx-bad); background: var(--nx-bad-bg); }
+.tenant-page-badge { display: inline-flex; align-items: center; width: fit-content; padding: 1px 8px !important; border: 0; border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 11px; font-weight: 600; line-height: 1.6; }
+.tenant-page-badge.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-badge.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-badge.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
+
+/* Liste ve ilerleme */
+.tenant-page-list ul { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 18px; }
+.tenant-page-list li { padding-left: 3px; line-height: 1.5; }
+.tenant-page-progress > div { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.tenant-page-progress > div span { color: var(--nx-muted); font-variant-numeric: tabular-nums; }
+.tenant-page-progress progress { display: block; width: 100%; height: 7px; overflow: hidden; border: 0; border-radius: 4px; background: var(--nx-line-soft); accent-color: var(--custom-page-accent); }
+.tenant-page-progress progress::-webkit-progress-bar { border-radius: 4px; background: var(--nx-line-soft); }
+.tenant-page-progress progress::-webkit-progress-value { border-radius: 4px; background: var(--custom-page-accent); }
+
+/* Formlar ve giriş kutuları — kontrol 31px, odakta mavi halka */
+.tenant-page-form-wrap { box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-form-wrap .tenant-page-form { border: 0; box-shadow: none; }
+.tenant-page-form { display: grid; gap: 10px; }
+.tenant-page-form-field, .tenant-page-input > label { display: grid; gap: 3px; color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+.tenant-page-form-field > span b { color: var(--nx-bad); }
+.tenant-page-form-field input:not([type="checkbox"]), .tenant-page-form-field select, .tenant-page-form-field textarea,
+.tenant-page-input input:not([type="checkbox"]), .tenant-page-input select { box-sizing: border-box; width: 100%; min-height: var(--nx-control-h); padding: 5px 9px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); color: var(--nx-text); background: var(--nx-surface); font: 400 12.5px var(--nx-font); }
+.tenant-page-form-field input:focus, .tenant-page-form-field select:focus, .tenant-page-form-field textarea:focus,
+.tenant-page-input input:focus, .tenant-page-input select:focus { outline: 0; border-color: var(--nx-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 18%, transparent); }
+.tenant-page-form-field textarea { min-height: 84px; resize: vertical; }
+.tenant-page-form-field input[type="checkbox"], .tenant-page-input input[type="checkbox"] { width: 15px; height: 15px; justify-self: start; accent-color: var(--nx-primary); }
+.tenant-page-form-field small { color: var(--nx-muted); font-size: 11px; font-weight: 400; }
+.tenant-page-form-error { color: var(--nx-bad) !important; }
+.tenant-page-form-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); }
+.tenant-page-input { min-width: 0; }
+.tenant-page-input-error { display: block; margin-top: 3px; color: var(--nx-bad); font-size: 11px; font-weight: 500; }
+.tenant-page-input.is-invalid input:not([type="checkbox"]), .tenant-page-input.is-invalid select { border-color: var(--nx-bad); }
+.tenant-page-input.is-invalid input:focus, .tenant-page-input.is-invalid select:focus { border-color: var(--nx-bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-bad) 18%, transparent); }
+.tenant-page-input input:disabled, .tenant-page-input select:disabled { color: var(--nx-muted); background: var(--nx-line-soft); cursor: not-allowed; }
+.tenant-page-disabled-reason { display: block; margin-top: 3px; color: var(--nx-muted); font-size: 11px; }
+.tenant-page-action:has(.tenant-page-disabled-reason) { flex-wrap: wrap; gap: 4px 8px; }
+.tenant-page-input-checkbox > label { display: flex; align-items: center; gap: 8px; color: var(--nx-text); font-size: 12.5px; }
+.tenant-page-query-error { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-bad); background: var(--nx-bad-bg); }
+
+/* Sayfa durumları ve önizleme şeridi */
+.tenant-custom-page-state { display: flex; align-items: center; gap: 10px; margin: 24px; padding: 14px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+.tenant-custom-page-error { color: var(--nx-bad); background: var(--nx-bad-bg); border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); }
+.tenant-custom-page-preview-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--nx-primary) 25%, var(--nx-surface)); border-radius: var(--nx-radius-card); background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-size: 12px; }
+.tenant-custom-page-preview-banner strong { white-space: nowrap; }
+.tenant-custom-page-preview-banner span { color: var(--nx-muted); }
+
+/* Sekmeler — paneller sayfa gibi 12 sütunlu ızgaradır; etkin olmayan panel `hidden` ile gizlenir */
+.tenant-page-tabs { display: grid; gap: 10px; box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); background: var(--custom-page-surface); }
+.tenant-page-tablist { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--nx-line); }
+.tenant-page-tab { display: inline-flex; align-items: center; gap: 6px; min-height: var(--nx-control-h); margin-bottom: -1px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; color: var(--nx-muted); background: transparent; font: 600 12.5px var(--nx-font); cursor: pointer; }
+.tenant-page-tab:hover { color: var(--nx-text); }
+.tenant-page-tab.is-active { border-bottom-color: var(--nx-primary); color: var(--nx-primary-strong, var(--nx-primary)); }
+.tenant-page-tab:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.tenant-page-tab.is-error { color: var(--nx-bad); }
+.tenant-page-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; color: #fff; background: var(--nx-bad); font-size: 10.5px; font-weight: 700; }
+.tenant-page-tabpanel { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap); }
+.tenant-page-tabpanel > * { grid-column: span 12; min-width: 0; }
+.tenant-page-tabpanel[hidden] { display: none; }
+
+@media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 6 !important; } }
+@media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content, .tenant-page-tabpanel { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 4 !important; } }
+
+/* Durum etiketi, yoğunluk ve toplam satırı — eski kabuk tablo kuralları (.app-shell table … !important) için önekli */
+.tenant-page-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; color: var(--nx-muted); background: var(--nx-line-soft); font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.tenant-page-tag.tone-info { color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
+.tenant-page-tag.tone-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
+.tenant-page-tag.tone-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-tag.tone-danger { color: var(--nx-bad); background: var(--nx-bad-bg); }
+.app-shell .tenant-custom-page .tenant-page-table table.is-comfort td, .app-shell .tenant-custom-page .tenant-page-table table.is-comfort tfoot td { height: var(--nx-row-h-comfort) !important; padding: 8px 9px !important; }
+.app-shell .tenant-custom-page .tenant-page-table td.code { font-family: var(--nx-font-mono); font-size: 12px; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; border-top: 1px solid var(--nx-line) !important; border-bottom: 0 !important; background: var(--nx-table-head) !important; font-weight: 650; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot .tenant-page-total-label { float: left; color: var(--nx-muted); font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-table tfoot td > .num { float: right; }
+/* ERP kabuğunun eski genel kuralları (.app-shell :is(input…), .app-shell … thead th, .app-shell .content button;
+   kısmen !important) özel sayfada tasarım dili ölçülerini ezmesin. Kayıt formlarındaki (.record-form .rf-form)
+   yaklaşımın aynısı: daha özgül seçici, eski kuralda !important olan özelliklerde !important. */
+.app-shell .tenant-custom-page :is(.tenant-page-input, .tenant-page-form-field) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea) {
+  min-height: var(--nx-control-h); padding: 5px 9px; border: 1px solid var(--nx-line) !important; border-radius: var(--nx-radius-control) !important;
+  background-color: var(--nx-surface) !important; color: var(--nx-text) !important; box-shadow: none !important; font: 400 12.5px var(--nx-font) !important;
+}
+.app-shell .tenant-custom-page :is(.tenant-page-input, .tenant-page-form-field) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea):focus {
+  border-color: var(--nx-primary) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 18%, transparent) !important;
+}
+.app-shell .tenant-custom-page .tenant-page-table table thead th {
+  height: auto !important; padding: 7px 9px !important; background: var(--nx-table-head) !important; color: var(--nx-muted) !important; font-size: 11.5px !important; font-weight: 600 !important;
+}
+.app-shell .tenant-custom-page .tenant-page-table table tbody td { height: var(--nx-row-h-dense) !important; padding: 5px 9px !important; font-size: 12.5px; }
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit) {
+  min-height: var(--nx-control-h); height: auto; padding: 0 12px; border: 1px solid var(--nx-primary); border-radius: var(--nx-radius-control);
+  color: var(--nx-on-primary); background: var(--nx-primary); font: 600 12.5px var(--nx-font); box-shadow: none;
+}
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action, .tenant-page-form) button:is(.tenant-page-button, .tenant-page-submit):hover:not(:disabled) { border-color: var(--nx-primary-hover); background: var(--nx-primary-hover); }
+.app-shell .tenant-custom-page :is(.tenant-page-action, .tenant-page-query-action) button.tenant-page-button.is-danger { border-color: var(--nx-bad); background: var(--nx-bad); }
+
+/* Form kartı — taslak `.card` + `.fg3`: girişler 1/2/3 sütunlu ızgarada; girişin kendi genişliği form içinde yok sayılır */
+.tenant-page-form-card-grid { display: grid; gap: 10px 14px; }
+.tenant-page-form-card-grid.is-cols-1 { grid-template-columns: minmax(0, 1fr); }
+.tenant-page-form-card-grid.is-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tenant-page-form-card-cell { min-width: 0; }
+.tenant-page-form-card-cell .tenant-page-input { margin: 0; padding: 0; }
+/* Süzgeç çipleri — taslak `.chips`/`.chip`; ✕ ve Temizle düğmeleri eski kabuk `.content button` kuralını ezmek için önekli */
+.tenant-page-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tenant-page-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); border-radius: 999px; color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-size: 12px; line-height: 1.6; }
+.tenant-page-chip-label { color: var(--nx-muted); }
+.tenant-page-chip strong { font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-chip button { display: inline-grid; place-items: center; width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; border-radius: 50%; color: var(--nx-muted); background: transparent; box-shadow: none; font: 400 11px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-chip button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+.app-shell .tenant-custom-page .tenant-page-chip button:hover { color: var(--nx-bad); background: var(--nx-bad-bg); }
+.app-shell .tenant-custom-page .tenant-page-chips-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-chips-clear:hover { background: var(--nx-primary-soft); }
+
+/* Yan filtre paneli — taslak `.facet`: başlık + Temizle, gruplar, "Tümü"/seçenek satırları (radio), sağda sayı */
+.tenant-page-facet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tenant-page-block.tenant-page-facet .tenant-page-facet-head h3 { margin: 0; }
+.tenant-page-facet-group { display: grid; gap: 1px; padding: 8px 0; border-top: 1px solid var(--nx-line-soft); }
+.tenant-page-facet-label { margin-bottom: 3px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 26px; padding: 3px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-text); background: transparent; box-shadow: none; font: 400 12.5px var(--nx-font); text-align: left; cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option:hover { background: var(--nx-table-head); }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option.is-selected { color: var(--nx-primary-strong); background: var(--nx-primary-soft); font-weight: 600; }
+.app-shell .tenant-custom-page .tenant-page-facet button.tenant-page-facet-option:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.tenant-page-facet-count { color: var(--nx-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.tenant-page-facet-state { margin: 0 !important; color: var(--nx-muted) !important; font-size: 11.5px; }
+.tenant-page-facet-state.is-error { color: var(--nx-bad) !important; }
+.app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear { min-height: 0; padding: 2px 8px; border: 0; border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 11.5px var(--nx-font); cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-facet .tenant-page-facet-clear:hover { background: var(--nx-primary-soft); }
+/* Bağlam paneli — taslak `.det` (başlık), `.st4` (2 sütunlu alan kutuları), `.sect`/`.tl` (ilgili kayıt listesi) */
+.tenant-page-context-empty { margin: 0 !important; padding: 18px 8px; color: var(--nx-muted) !important; text-align: center; white-space: normal !important; }
+.tenant-page-context-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.tenant-page-context-field { min-width: 0; padding: 7px 9px; border: 1px solid var(--nx-line-soft); border-radius: var(--nx-radius-control); background: var(--nx-table-head); }
+.tenant-page-context-field dt { margin: 0 0 2px; color: var(--nx-muted); font-size: 11px; font-weight: 600; }
+.tenant-page-context-field dd { margin: 0; color: var(--nx-text); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tenant-page-context-related { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--nx-line-soft); }
+.tenant-page-context-related h4 { margin: 0 0 6px; color: var(--nx-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.tenant-page-context-related ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.tenant-page-context-related li { padding: 5px 0 5px 12px; border-bottom: 1px solid var(--nx-line-soft); border-left: 2px solid var(--nx-line); font-size: 12.5px; overflow-wrap: anywhere; }
+.tenant-page-context-related li:last-child { border-bottom: 0; }
+.tenant-page-context-note { margin: 0 !important; color: var(--nx-muted) !important; font-size: 11.5px; white-space: normal !important; }
+.tenant-page-context-note.is-error { color: var(--nx-bad) !important; }
+@media (max-width: 900px) { .tenant-page-form-card-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .tenant-page-form-card-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
+/* Eski kabuk `.app-shell h3/h4 !important` başlık kurallarını yalnız yeni bileşenler için ezer */
+.app-shell .tenant-custom-page :is(.tenant-page-form-card, .tenant-page-facet, .tenant-page-context) > h3, .app-shell .tenant-custom-page .tenant-page-facet-head h3 { font-size: 13px !important; font-weight: 650 !important; letter-spacing: normal !important; color: var(--nx-text) !important; }
+.app-shell .tenant-custom-page .tenant-page-context-related h4 { font-size: 11px !important; color: var(--nx-muted) !important; letter-spacing: .04em !important; text-transform: uppercase; }
+
+/* Arama kutusu (inputType: lookup) */
+.tenant-page-lookup { display: grid; gap: 3px; min-width: 0; }
+.tenant-page-lookup > label { color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+.tenant-page-lookup-control { position: relative; min-width: 0; }
+.tenant-page-input .tenant-page-lookup-control input { padding-right: 30px; }
+.tenant-page-lookup-clear { position: absolute; top: 50%; right: 6px; display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; color: var(--nx-muted); background: transparent; cursor: pointer; transform: translateY(-50%); }
+.tenant-page-lookup-clear:hover, .tenant-page-lookup-clear:focus-visible { color: var(--nx-text); background: var(--nx-line-soft); outline: 0; }
+.tenant-page-lookup-list { position: absolute; z-index: 20; top: calc(100% + 2px); left: 0; right: 0; max-height: 260px; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); box-shadow: 0 6px 18px color-mix(in srgb, var(--nx-text) 14%, transparent); }
+.tenant-page-lookup-list [role="option"] { display: grid; gap: 1px; padding: 5px 10px; color: var(--nx-text); font-size: 12.5px; cursor: pointer; }
+.tenant-page-lookup-list [role="option"] small { color: var(--nx-muted); font-size: 11px; }
+.tenant-page-lookup-list [role="option"]:hover, .tenant-page-lookup-list [role="option"].is-active { background: color-mix(in srgb, var(--nx-primary) 10%, transparent); }
+.tenant-page-lookup-list [role="option"][aria-selected="true"] { font-weight: 600; }
+.tenant-page-lookup-state { padding: 6px 10px; color: var(--nx-muted); font-size: 12px; }
+
+/* Sunucu sayfalı liste: başlıktaki arama ve alt satır */
+.tenant-page-table-search { max-width: 320px; margin: 0 0 8px; }
+.tenant-page-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-pager-range { font-variant-numeric: tabular-nums; }
+.tenant-page-pager-meta { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+.tenant-page-pager-nav { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.tenant-page-pager-nav .tenant-page-button { min-height: 26px; padding: 2px 10px; font-size: 12px; }
+@media (max-width: 560px) { .tenant-page-pager-nav { margin-left: 0; } .tenant-page-table-search { max-width: none; } }
+
+/* Kayıt dizisi uyarısı, satır işlemleri, pencere ve görsel (Faz B). Pencere görünüm içinde çizilir; onay kutusu (z 20000) üstte kalır. */
+.tenant-page-action-feedback.is-warning { color: var(--nx-warn); }
+.tenant-page-table th.tenant-page-row-actions, .tenant-page-table td.tenant-page-row-actions { width: 1%; white-space: nowrap; text-align: right; }
+.tenant-page-row-action { min-height: 24px; margin-left: 4px; padding: 0 8px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); color: var(--nx-text); background: var(--nx-surface); font: 600 11.5px var(--nx-font); cursor: pointer; }
+.tenant-page-row-action:hover:not(:disabled) { border-color: var(--nx-primary); color: var(--nx-primary-strong); }
+.tenant-page-row-action:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: 1px; }
+.tenant-page-row-action:disabled { opacity: .45; cursor: not-allowed; }
+.tenant-page-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--nx-text) 38%, transparent); }
+.tenant-page-dialog { display: flex; flex-direction: column; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: hidden; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); box-shadow: 0 18px 48px color-mix(in srgb, var(--nx-text) 24%, transparent); }
+.tenant-page-dialog-backdrop:has(.tenant-page-dialog.is-drawer) { place-items: stretch end; padding: 0; }
+.tenant-page-dialog.is-drawer { width: min(560px, 100%); max-height: none; height: 100vh; border-radius: 0; }
+.tenant-page-dialog-header { padding: 12px 16px; border-bottom: 1px solid var(--nx-line); }
+.tenant-page-dialog-header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.tenant-page-dialog-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap, 12px); padding: 14px 16px; overflow-y: auto; }
+.tenant-page-dialog-body > * { grid-column: span 12; min-width: 0; }
+.tenant-page-dialog > .tenant-page-action-status { margin: 0 16px 10px; }
+.tenant-page-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--nx-line); }
+.tenant-page-dialog-footer .tenant-page-button.is-secondary { border-color: var(--nx-line); color: var(--nx-text); background: var(--nx-surface); }
+.tenant-page-dialog-footer .tenant-page-button.is-secondary:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-surface); }
+.tenant-page-image { box-sizing: border-box; margin: 0; overflow: hidden; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
+.tenant-page-image img { display: block; width: 100%; height: 100%; }
+.tenant-page-image-placeholder { display: grid; place-items: center; height: 100%; color: var(--nx-muted); font-size: 12px; }
+@media (max-width: 560px) { .tenant-page-dialog-backdrop { padding: 0; place-items: stretch; } .tenant-page-dialog { width: 100%; max-height: none; border-radius: 0; } .tenant-page-dialog-body > * { grid-column: span 12 !important; } }
+
+/* ERP kabuğunun eski `.app-shell :is([class*="-card"], [class*="-panel"], [class*="-tag"], [class*="-chip"], …)` köşe kuralı
+   (!important) özel sayfada etiketleri/çipleri köşeli, kartları 12px yapıyordu. Etiket ve çip tam yuvarlak; bloklar
+   tasarımcıda seçilen köşeyi (--tp-radius, satır içi stilden) korur.
+   Eski kurallardan biri `#root .app-shell:not(.standalone-studio) .workspace-page-main :is([class*="-card"] …)` olduğu için
+   seçiciler #root ile başlar (canlı sayfada ölçüldü: etiket/çip 999px, kartlar seçilen köşe). */
+#root .app-shell .tenant-custom-page .tenant-custom-page-content :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge) { border-radius: 999px !important; }
+#root .app-shell .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"],
+#root .app-shell .workspace-page-main .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"] { border-radius: var(--tp-radius) !important; }
+
+/* Düzenlenebilir tablo, özel alanlar bloğu ve değişiklik izleme (Faz B) */
+.tenant-page-grid-table { width: 100%; border-collapse: collapse; }
+.tenant-page-grid-table th, .tenant-page-grid-table td { padding: 4px 6px; border-bottom: 1px solid var(--nx-line-soft); text-align: left; vertical-align: top; }
+.tenant-page-grid-table td input:not([type=checkbox]) { width: 100%; min-width: 80px; }
+.tenant-page-grid-table tr.is-fixed td { color: var(--nx-muted); font-weight: 600; }
+.tenant-page-grid-table tr.is-removed td { opacity: .55; text-decoration: line-through; }
+.tenant-page-grid-table tr.is-removed td:nth-last-child(-n+2) { opacity: 1; text-decoration: none; }
+.tenant-page-grid-table td.is-invalid input { border-color: var(--nx-bad); }
+.tenant-page-grid-actions { width: 1%; white-space: nowrap; text-align: right; }
+.tenant-page-grid-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tenant-page-grid-preview { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
+.tenant-page-form-card-meta { display: inline-block; margin: 0 0 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-grid .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

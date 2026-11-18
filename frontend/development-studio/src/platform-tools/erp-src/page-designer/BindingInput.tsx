@@ -1,7 +1,18 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
-export type BindingSuggestion = { path: string; detail: string };
+export type BindingSuggestion = { path: string; detail: string; group?: string };
+
+/** Son odaklanılan bağlanabilir alan: değişken listesinden tıklanan ifade bu alana, imlecin olduğu yere eklenir. */
+type BindingTarget = { field: HTMLInputElement | HTMLTextAreaElement; insert: (text: string) => void };
+let lastTarget: BindingTarget | null = null;
+
+/** İfadeyi son odaklanılan alana ekler; alan yoksa, kaldırılmışsa ya da düzenlenemiyorsa false döner. */
+export function insertIntoLastBindingField(text: string): boolean {
+  if (!lastTarget || !lastTarget.field.isConnected || lastTarget.field.disabled) { lastTarget = null; return false; }
+  lastTarget.insert(text);
+  return true;
+}
 
 type Props = {
   value: string;
@@ -13,6 +24,8 @@ type Props = {
   disabled?: boolean;
   invalid?: boolean;
   maxLength?: number;
+  /** Tek ifade alan alanlar (sorgu parametresi bağlaması): listeden ekleme alanın tamamını değiştirir. */
+  replaceOnInsert?: boolean;
 };
 
 /** İmlecin önündeki kapanmamış "{{" ifadesini bulur: başlangıç konumu ve yazılan yol öneki. */
@@ -28,12 +41,35 @@ function openExpression(text: string, caret: number): { start: number; prefix: s
  * Bağlanabilir alan girişi: değer monospace yazılır, "{{" yazılınca değişken önerileri açılır.
  * Öneri listesi sağ paneldeki taşma kırpmasından etkilenmesin diye gövdeye sabit konumla çizilir.
  */
-export default function BindingInput({ value, onChange, suggestions, multiline = false, placeholder, ariaLabel, disabled = false, invalid = false, maxLength }: Props) {
+export default function BindingInput({ value, onChange, suggestions, multiline = false, placeholder, ariaLabel, disabled = false, invalid = false, maxLength, replaceOnInsert = false }: Props) {
   const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const [expression, setExpression] = useState<{ start: number; prefix: string } | null>(null);
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const pendingCaret = useRef<number | null>(null);
+  // Değişken listesinden ekleme, en güncel değeri ve onChange'i kullanmalı.
+  const latest = useRef({ value, onChange, maxLength, replaceOnInsert });
+  latest.current = { value, onChange, maxLength, replaceOnInsert };
+  const target = useRef<BindingTarget | null>(null);
+  useEffect(() => () => { if (lastTarget && lastTarget === target.current) lastTarget = null; }, []);
+  const registerTarget = () => {
+    const field = fieldRef.current;
+    if (!field) return;
+    target.current = {
+      field,
+      insert: (text) => {
+        const { value: current, onChange: change, maxLength: limit, replaceOnInsert: replace } = latest.current;
+        const start = replace ? 0 : Math.min(field.selectionStart ?? current.length, current.length);
+        const end = replace ? current.length : Math.min(field.selectionEnd ?? start, current.length);
+        const next = current.slice(0, start) + text + current.slice(end);
+        if (limit && next.length > limit) return;
+        pendingCaret.current = start + text.length;
+        change(next);
+        field.focus();
+      },
+    };
+    lastTarget = target.current;
+  };
 
   const prefix = expression?.prefix.toLowerCase() ?? "";
   const matches = expression ? suggestions.filter((item) => item.path.toLowerCase().startsWith(prefix) || (prefix.length > 1 && item.path.toLowerCase().includes(prefix))).slice(0, 40) : [];
@@ -98,6 +134,7 @@ export default function BindingInput({ value, onChange, suggestions, multiline =
     "aria-autocomplete": "list" as const,
     "aria-expanded": open,
     onKeyDown,
+    onFocus: registerTarget,
     onBlur: () => setExpression(null),
     onClick: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement }) => refresh(event.currentTarget.value, event.currentTarget.selectionStart),
     onChange: (event: { target: HTMLInputElement | HTMLTextAreaElement }) => { onChange(event.target.value); refresh(event.target.value, event.target.selectionStart); },

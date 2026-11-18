@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Sayfa tasarımcısı · tasarım dili bileşenleri ve şablonları</title>
+<style>
+/* nexora-ds.css (taslaklardaki ortak stil) */
+:root{--ink:#0f1b2d;--ink2:#1a2a40;--pri:#1f5fd1;--pri-d:#1846a3;--pri-soft:#e8f0fd;--bg:#f3f5f8;--line:#dfe3e9;--line2:#eef1f4;--tx:#1b2430;--mut:#667085;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b45309;--warn-bg:#fdf1e1;--bad:#c4321f;--bad-bg:#fde9e6}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto;margin-bottom:14px}
+.nx{min-width:1720px;font-size:12.5px;display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);box-shadow:0 4px 18px rgba(15,27,45,.10)}
+.k{font-family:Consolas,monospace;font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#fff;white-space:nowrap}
+/* sidebar */
+.side{width:58px;background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0}
+.side .lg{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#1f5fd1);margin-bottom:10px}
+.side .ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#8193ab;font-size:10px;flex-direction:column;gap:1px}
+.side .ic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+.side .ic.on{background:var(--ink2);color:#fff;box-shadow:inset 3px 0 0 #3b82f6}
+.sub-nav{width:178px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.sub-nav .h{font-weight:650;font-size:13.5px;padding:2px 8px 10px}
+.sub-nav .it{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between;color:#344054}
+.sub-nav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.sub-nav .it small{color:var(--mut)}
+.sub-nav .g{font-size:10px;letter-spacing:.08em;color:var(--mut);margin:14px 8px 4px}
+.sub-nav .fav{color:#344054;padding:5px 8px;display:flex;gap:6px}
+.sub-nav .fav b{color:#e0a100}
+/* app */
+.app{flex:1;display:flex;flex-direction:column;min-width:0}
+.topb{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.srch{width:320px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+.wtabs{display:flex;gap:2px;flex:1;align-self:flex-end}
+.wtabs span{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:7px 7px 0 0;background:var(--bg);color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
+.wtabs .on{background:#fff;color:var(--tx);font-weight:600;position:relative;top:1px}
+.wtabs i{font-style:normal;color:#98a2b3}
+.tr{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:12px}
+.bell{position:relative}.bell b{position:absolute;top:-6px;right:-8px;background:var(--bad);color:#fff;border-radius:999px;font-size:9px;padding:0 4px}
+.av{width:26px;height:26px;border-radius:50%;background:#dbe6fb;color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.page{background:#fff;flex:1;display:flex;flex-direction:column;min-height:0}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
+.ph .bc{color:var(--mut);font-size:11.5px}
+.ph h2{margin:1px 0 0;font-size:19px;font-weight:650;display:flex;gap:10px;align-items:center}
+.ph h2 .star{color:#e0a100;font-size:15px}
+.vsel{border:1px solid var(--line);border-radius:7px;padding:5px 10px;display:flex;gap:8px;align-items:center;color:#344054}
+.vsel b{color:var(--tx)}
+.vtabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.vtabs span{padding:7px 12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.vtabs span em{font-style:normal;background:#eef0f3;border-radius:999px;padding:0 7px;font-size:11px;color:#475467}
+.vtabs .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.vtabs .on em{background:var(--pri-soft);color:var(--pri-d)}
+.vtabs .r em{background:var(--bad-bg);color:var(--bad)}
+.vtabs .add{color:var(--pri)}
+.bar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.b{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;color:var(--tx);font-weight:500;white-space:nowrap}
+.b svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.b.pri{background:var(--pri);color:#fff}.b.pri .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.b.off{opacity:.38}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.grow{flex:1}
+.b.more{border:1px solid var(--line);background:#fff}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-left:6px}
+.seg span{padding:4px 8px;color:var(--mut)}.seg .on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+/* body */
+.wrap{display:flex;flex:1;min-height:0}
+.facet{width:200px;border-right:1px solid var(--line);padding:12px 12px;background:#fcfcfd;flex-shrink:0}
+.facet .ft{display:flex;justify-content:space-between;font-weight:650;margin-bottom:8px}
+.facet .ft a{font-weight:400;color:var(--pri);font-size:11.5px}
+.facet .fg{margin-bottom:14px}
+.facet .fg .t{font-size:11px;color:var(--mut);letter-spacing:.06em;margin-bottom:5px;text-transform:uppercase}
+.facet .o{display:flex;align-items:center;gap:7px;padding:3px 0;color:#344054}
+.facet .o small{margin-left:auto;color:var(--mut)}
+.cb{width:13px;height:13px;border:1.5px solid #b8c0cc;border-radius:3px;display:inline-block;flex-shrink:0;position:relative;background:#fff}
+.cb.on{background:var(--pri);border-color:var(--pri)}
+.cb.on::after{content:"";position:absolute;left:3px;top:0px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.rng{height:4px;background:#e8ebef;border-radius:3px;position:relative;margin:10px 4px 6px}
+.rng i{position:absolute;left:0;width:35%;height:100%;background:var(--pri);border-radius:3px}
+.rng b{position:absolute;top:-5px;width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--pri)}
+.rngl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.mk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px 4px}
+.mk>div{border:1px solid var(--line);border-radius:9px;padding:9px 12px;display:flex;align-items:center;gap:10px}
+.mk .icn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.mk .tx{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.mk small{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.mk b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
+.mk .tr2{font-size:11px}
+.mk svg.sp{margin-left:auto;width:70px;height:26px}
+.mk .act{border-color:#f0b4ab;background:#fff8f7}
+.chips{display:flex;gap:6px;padding:8px 14px;align-items:center;flex-wrap:wrap}
+.q{width:340px;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#98a2b3;display:flex;justify-content:space-between}
+.chip{border:1px solid #b5cdf7;background:var(--pri-soft);color:var(--pri-d);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.r{border-color:#f0b4ab;background:var(--bad-bg);color:var(--bad)}
+.chips .clr{color:var(--pri);font-size:12px}
+.chips .rt{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:12px}
+.gridw{flex:1;min-height:0;position:relative;border-top:1px solid var(--line);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:#475467;background:#f7f8fa;padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+th .fi{color:#98a2b3;margin-left:3px;font-size:10px}
+th.s{color:var(--pri-d)}
+td{padding:6px 9px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:Consolas,monospace;font-size:12px;color:#344054}
+tr.grp td{background:#f4f6f9;font-weight:600;color:#344054;border-bottom:1px solid var(--line);padding:5px 9px}
+tr.grp td .c{color:var(--mut);font-weight:400}
+tr.sel td{background:var(--pri-soft)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
+tr.chk td{background:#f5f9ff}
+tr.tot td{background:#f7f8fa;font-weight:650;border-top:1px solid var(--line)}
+.tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.t-ok{background:var(--ok-bg);color:var(--ok)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-bad{background:var(--bad-bg);color:var(--bad)}.t-off{background:#eef0f3;color:#667085}
+.low{color:var(--bad);font-weight:600}
+.lvl{display:inline-block;width:44px;height:5px;border-radius:3px;background:#e8ebef;vertical-align:middle;margin-left:6px;overflow:hidden}
+.lvl i{display:block;height:100%}
+.edit{outline:2px solid var(--pri);outline-offset:-2px;background:#fff!important;border-radius:3px}
+.edit::after{content:"|";color:var(--pri);margin-left:1px}
+.thumb{width:22px;height:22px;border-radius:5px;background:#eef1f5;display:inline-block;vertical-align:middle;margin-right:7px;border:1px solid var(--line2)}
+.bulk{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:7px 8px 7px 14px;display:flex;gap:4px;align-items:center;box-shadow:0 8px 24px rgba(15,27,45,.35);white-space:nowrap}
+.bulk b{margin-right:8px}
+.bulk span{padding:5px 9px;border-radius:6px;color:#d6deea}
+.bulk span:hover{background:var(--ink2)}
+.bulk .x{color:#8193ab}
+/* detail */
+.det{width:330px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.det .hd{padding:12px 14px 8px;border-bottom:1px solid var(--line2)}
+.det .hd .top{display:flex;justify-content:space-between;color:var(--mut)}
+.det h3{margin:4px 0 6px;font-size:15px}
+.det .dt{display:flex;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}
+.det .dt span{padding:8px 0;color:var(--mut)}.det .dt .on{color:var(--pri-d);font-weight:600;box-shadow:inset 0 -2px 0 var(--pri)}
+.det .bd{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.st4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st4 div{background:#f7f8fa;border-radius:8px;padding:7px 9px}
+.st4 small{display:block;color:var(--mut);font-size:11px}
+.st4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.sect{font-size:11px;letter-spacing:.07em;color:var(--mut);text-transform:uppercase;display:flex;justify-content:space-between}
+.sect a{color:var(--pri);text-transform:none;letter-spacing:0}
+.whr{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:2px 0}
+.whr .br{height:7px;background:#eef1f4;border-radius:4px;overflow:hidden}.whr .br i{display:block;height:100%;background:var(--pri)}
+.whr b{text-align:right}
+.sugg{border:1px solid #f3cf9c;background:#fffaf2;border-radius:8px;padding:9px 11px;font-size:12px}
+.sugg b{color:var(--warn)}
+.sugg .btns{display:flex;gap:6px;margin-top:7px}
+.sugg .btns span{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px}
+.sugg .btns .p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.foot{display:flex;justify-content:space-between;padding:7px 16px;border-top:1px solid var(--line);background:#fafbfc;color:var(--mut);font-size:11.5px}
+.foot b{color:var(--tx)}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:13px;margin:0 0 34px}
+.notes div{border-left:3px solid var(--pri);padding:2px 10px;background:#fff;border-radius:0 6px 6px 0}
+/* form */
+.fh{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line)}
+.fh .id{display:flex;gap:12px;align-items:center}
+.fh .img{width:46px;height:46px;border-radius:9px;background:#eef1f5;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:10px}
+.fh h2{margin:0;font-size:18px;font-weight:650}
+.fh .m{color:var(--mut);font-size:12px;margin-top:3px;display:flex;gap:10px;align-items:center}
+.fh .rt{display:flex;gap:10px;align-items:center;color:var(--mut)}
+.dirty{color:var(--warn);display:flex;gap:6px;align-items:center}.dirty i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rnav{display:flex;border:1px solid var(--line);border-radius:6px}.rnav span{padding:3px 8px}.rnav span+span{border-left:1px solid var(--line)}
+.fbody{display:flex;flex:1;min-height:0;background:var(--bg);overflow:hidden}
+.snav{width:210px;background:#fff;border-right:1px solid var(--line);padding:12px 8px;flex-shrink:0}
+.snav .it{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:6px;color:#344054}
+.snav .it.on{background:var(--pri-soft);color:var(--pri-d);font-weight:600}
+.snav .st{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.snav .done{background:var(--ok-bg);color:var(--ok)}.snav .err{background:var(--bad-bg);color:var(--bad)}.snav .emp{border:1.5px solid #cfd5dd}
+.snav .it small{margin-left:auto;color:var(--mut)}
+.snav .prog{margin:14px 8px 0;font-size:11.5px;color:var(--mut)}
+.snav .pb{height:5px;background:#eef1f4;border-radius:3px;margin-top:5px;overflow:hidden}.snav .pb i{display:block;width:72%;height:100%;background:var(--ok)}
+.fmain{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.card .ct{font-weight:650;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card .ct small{font-weight:400;color:var(--mut)}
+.fg3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+.w2{grid-column:span 2}.w3{grid-column:span 3}
+.f label{display:flex;justify-content:space-between;font-size:11.5px;color:#475467;margin-bottom:3px;font-weight:500}
+.f label b{color:var(--bad)}.f label i{font-style:normal;color:#98a2b3;font-weight:400}
+.inp{border:1px solid #cfd5dd;border-radius:6px;padding:6px 9px;background:#fff;min-height:31px;display:flex;justify-content:space-between;align-items:center}
+.inp.focus{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.inp.ro{background:#f6f7f9;color:var(--mut)}
+.inp.errb{border-color:var(--bad);background:#fffafa}
+.inp .suf{color:var(--mut);font-size:11.5px}
+.hint{font-size:11px;color:var(--mut);margin-top:3px}.hint.e{color:var(--bad)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:var(--pri);position:relative;vertical-align:middle;margin-right:6px}
+.sw::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.ut td,.ut th{padding:5px 8px}
+.ut td{border-bottom:1px solid var(--line2)}
+.ut .add{color:var(--pri)}
+.ctx{width:300px;padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.rel{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.rel .code{font-size:11.5px}
+.tl{position:relative;padding-left:14px;font-size:12px;color:#344054}
+.tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line)}
+.tl div{position:relative;padding:3px 0}
+.tl div::before{content:"";position:absolute;left:-13px;top:8px;width:7px;height:7px;border-radius:50%;background:#cfd5dd}
+.tl div:first-child::before{background:var(--pri)}
+.tl small{color:var(--mut)}
+
+/* bu taslağa özgü */
+.wrapw{max-width:1500px}
+h1+.sub{max-width:980px}
+section.blk{margin:0 0 30px}
+.cat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cell{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12.5px;min-width:0}
+.cell>.ttl{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px}
+.cell>.ttl b{font-size:13.5px}
+.cell>.ttl span{color:var(--mut);font-size:11.5px}
+.cfg{margin-top:10px;padding:8px 10px;border-radius:7px;background:#f7f8fa;color:#475467;font-size:11.5px;line-height:1.55}
+.cfg code{font-family:Consolas,monospace;color:var(--pri-d);font-size:11.5px}
+.new{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--pri-soft);color:var(--pri-d);font-size:10px;font-weight:700;vertical-align:middle}
+.upd{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:#eef0f3;color:#475467;font-size:10px;font-weight:700;vertical-align:middle}
+.mk.c2{grid-template-columns:repeat(2,1fr);padding:0}
+.mk.c4{padding:0}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tbl{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.bar.inl{border:1px solid var(--line);border-radius:8px;flex-wrap:wrap}
+.chips.inl{padding:0}
+.facet.inl{width:auto;border:1px solid var(--line);border-radius:8px}
+.card .fg3{grid-template-columns:repeat(3,1fr)}
+.dlg{width:400px;border:1px solid var(--line);border-radius:10px;box-shadow:0 16px 40px rgba(15,27,45,.18);background:#fff;overflow:hidden}
+.dlg .dh{padding:14px 16px 6px;font-weight:650;font-size:14px}
+.dlg .db{padding:0 16px 12px;color:#475467;line-height:1.5}
+.dlg .df{display:flex;justify-content:flex-end;gap:6px;padding:10px 12px;background:#fafbfc;border-top:1px solid var(--line)}
+.dlg .df span{border:1px solid var(--line);border-radius:6px;padding:5px 10px;background:#fff;display:flex;gap:6px;align-items:center}
+.dlg .df .p{background:var(--pri);color:#fff;border-color:var(--pri)}.dlg .df .p .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.dlg .alt{color:var(--pri)}
+/* şablon çerçevesi: ERP sayfa alanı (sol şerit ve menü ERP'nin kendisinden gelir) */
+.tpl{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 4px 18px rgba(15,27,45,.08);font-size:12.5px;margin-bottom:8px}
+.tpl .ph{padding:11px 14px 0}
+.tpl .bar{margin-top:9px}
+.tpl .wrap{min-height:330px}
+.tpl .center .mk{padding:10px 12px 2px}
+.tpl .chips{padding:8px 12px}
+.tpl table td,.tpl table th{padding:5px 9px}
+.tpl .foot{padding:6px 14px}
+.tpls{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.tpls .full{grid-column:1/-1}
+.meta{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px}
+.meta b{font-size:13.5px}.meta span{color:var(--mut);font-size:11.5px}
+.param{width:210px;border-right:1px solid var(--line);padding:12px;background:#fcfcfd;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
+.param .f label{font-size:11.5px}
+.param .run{background:var(--pri);color:#fff;border-radius:6px;padding:6px 10px;text-align:center;font-weight:600;display:flex;justify-content:center;gap:6px}
+.param .run .k{background:transparent;color:#cfe0ff;border-color:#4d80dc}
+.deflist{width:300px;border-right:1px solid var(--line);flex-shrink:0;display:flex;flex-direction:column}
+.deflist .q{width:auto;margin:10px 12px}
+.deflist .row{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line2)}
+.deflist .row.on{background:var(--pri-soft);box-shadow:inset 3px 0 0 var(--pri)}
+.home{display:grid;grid-template-columns:2fr 1fr;gap:12px;padding:12px}
+.home .card{padding:10px 12px}
+.todo div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2)}
+.cmd{border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:#98a2b3;display:flex;justify-content:space-between;background:var(--bg)}
+/* tasarımcı paleti */
+.pal{display:grid;grid-template-columns:260px 1fr;gap:16px}
+.pl{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12.5px}
+.pl h4{margin:10px 2px 5px;color:#8a96aa;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.pl .it{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;color:#2c3a54}
+.pl .it i{width:24px;height:24px;border-radius:6px;background:var(--pri-soft);color:var(--pri-d);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700}
+.pl .it.n{background:#f5f8ff}
+.tpick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tpick div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px}
+.tpick div.on{border-color:var(--pri);box-shadow:0 0 0 3px #d6e4fc}
+.tpick .mini{height:74px;border-radius:7px;background:var(--bg);margin-bottom:8px;position:relative;overflow:hidden;border:1px solid var(--line2)}
+.tpick .mini i{position:absolute;background:#fff;border:1px solid var(--line);border-radius:3px}
+.tpick b{display:block;margin-bottom:2px}.tpick small{color:var(--mut);line-height:1.4}
+.phase{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-size:13px}
+.phase div{border-left:3px solid var(--pri);padding:6px 12px;background:#fff;border-radius:0 8px 8px 0;line-height:1.55}
+.phase b{display:block;margin-bottom:3px}
+</style></head>
+<body><div class="wrapw">
+<h1>Sayfa tasarımcısı — tasarım dili bileşenleri ve şablonları</h1>
+<p class="sub">Taslak · 2026-11-17 · Studio sayfa tasarımcısında yönetici bu bileşenleri sürükler, şablonlardan başlar; ERP'de sayfa, onaylı tasarım dilinin (taslak 01–05) renk, yazı, ölçü ve İşlem Çubuğu kurallarıyla çizilir. Tasarımcının tuvali aynı görünür. <b>Yeni</b> etiketi yeni bileşeni, <b>Güncellenir</b> mevcut bileşenin yeni görünümünü gösterir.</p>
+
+<section class="blk">
+<p class="lbl">1 · BİLEŞENLER</p>
+<div class="cat">
+
+  <div class="cell">
+    <div class="ttl"><b>Özet kartı <span class="upd">GÜNCELLENİR · Veri göstergesi</span></b><span>taslak 01 · özet mini kartları</span></div>
+    <div class="mk c4" style="grid-template-columns:repeat(2,1fr)">
+      <div><span class="icn" style="background:var(--pri-soft);color:var(--pri-d)">S</span><span class="tx"><small>Stok kartı</small><b>1.248</b><span class="tr2" style="color:var(--ok)">▲ 12 bu ay</span></span><svg class="sp" viewBox="0 0 70 26"><polyline points="0,20 12,18 24,19 36,12 48,13 60,7 70,6" fill="none" stroke="#1f5fd1" stroke-width="1.6"/></svg></div>
+      <div class="act"><span class="icn" style="background:var(--bad-bg);color:var(--bad)">!</span><span class="tx"><small>Minimum altı</small><b style="color:var(--bad)">23</b><span class="tr2" style="color:var(--bad)">listeyi süz</span></span></div>
+    </div>
+    <div class="cfg">Ayarlar: <b>Etiket</b>, <b>Değer</b> (<code>{{sayilar.stockItems}}</code>, sorgu ya da sabit), <b>İkon</b>, <b>Anlam</b> (nötr / olumlu / dikkat / hata), <b>Eğilim</b> (isteğe bağlı sorgu), <b>Tıklayınca süz</b> (bir ızgara + giriş değeri). Süzülmüşken kart vurgulu görünür.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Durum etiketi <span class="upd">GÜNCELLENİR · Durum rozeti</span></b><span>§5.6 · renk anlam taşır</span></div>
+    <div class="tags"><span class="tag t-ok">Aktif</span><span class="tag t-warn">Bekliyor</span><span class="tag t-bad">Vadesi geçmiş</span><span class="tag t-off">Pasif</span><span class="tag" style="background:var(--pri-soft);color:var(--pri-d)">Taslak</span></div>
+    <div class="cfg">Ayarlar: <b>Metin</b> (<code>{{liste.seciliSatir.Durum}}</code> olabilir) ve <b>Anlam eşleme</b>: değere göre renk — ör. <code>Aktif → olumlu</code>, <code>Pasif → gri</code>. Izgarada bir sütuna da “durum etiketi” biçimi verilebilir.</div>
+  </div>
+
+  <div class="cell" style="grid-column:1/-1">
+    <div class="ttl"><b>Liste tablosu <span class="upd">GÜNCELLENİR · Izgara</span></b><span>taslak 01 · tablo, sayı biçimi, toplam satırı</span></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Stok kodu</th><th>Stok adı</th><th>Durum</th><th class="num">Miktar</th><th class="num">Birim fiyat</th><th class="num">Tutar</th></tr></thead>
+      <tbody>
+        <tr><td class="code">AMB-2040</td><td>Ambalaj kolisi 40x30</td><td><span class="tag t-ok">Aktif</span></td><td class="num">1.250</td><td class="num">4,80</td><td class="num">6.000,00</td></tr>
+        <tr class="sel"><td class="code">HAM-1102</td><td>Polietilen granül</td><td><span class="tag t-warn">Az</span></td><td class="num low">120</td><td class="num">62,40</td><td class="num">7.488,00</td></tr>
+        <tr><td class="code">YRD-0007</td><td>Etiket rulosu</td><td><span class="tag t-off">Pasif</span></td><td class="num">0</td><td class="num">35,00</td><td class="num">0,00</td></tr>
+        <tr class="tot"><td colspan="3">Toplam · 3 kayıt</td><td class="num">1.370</td><td></td><td class="num">13.488,00</td></tr>
+      </tbody></table></div>
+    <div class="cfg">Yeni ayarlar: <b>Yoğunluk</b> (Rahat 38px / Sık 30px), <b>Toplam satırı</b> (seçilen sayısal sütunlar), sütun başına <b>Biçim</b> (metin · kod · sayı <code>1.234,56</code> · para · tarih · durum etiketi). Satır seçimi <code>{{liste.seciliSatir.*}}</code> olarak kalır.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Filtre çipleri ve arama <span class="new">YENİ</span></b><span>taslak 01</span></div>
+    <div class="chips inl"><span class="q" style="width:230px">Kod, ad veya barkod ara <span class="k">Ctrl+F</span></span><span class="chip">Depo: Merkez ✕</span><span class="chip r">Minimum altı ✕</span><span class="clr">Temizle</span></div>
+    <div class="cfg">Sayfadaki giriş kutularının ve özet kartı süzmelerinin değerlerini çip olarak gösterir; ✕ ilgili girişi boşaltır. Arama kutusu bir giriş kutusuna bağlanır (<code>{{ara.value}}</code>).</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Yan filtre paneli <span class="new">YENİ</span></b><span>taslak 01 · facet</span></div>
+    <div class="facet inl">
+      <div class="ft">Filtreler <a>Temizle</a></div>
+      <div class="fg"><div class="t">Durum</div><div class="o"><span class="cb on"></span>Aktif<small>1.102</small></div><div class="o"><span class="cb"></span>Pasif<small>146</small></div></div>
+      <div class="fg" style="margin:0"><div class="t">Depo</div><div class="o"><span class="cb on"></span>Merkez<small>812</small></div><div class="o"><span class="cb"></span>Şube<small>436</small></div></div>
+    </div>
+    <div class="cfg">Seçenekler ve sayılar bir okuma sorgusundan gelir; seçilenler bir giriş değeri olarak sorgulara parametre olur.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Form kartı <span class="new">YENİ</span></b><span>taslak 01 alt · kayıt kartı bölümü</span></div>
+    <div class="card"><div class="ct">Genel bilgiler <small>3 alan</small></div>
+      <div class="fg3">
+        <div class="f"><label>Stok kodu <b>*</b></label><div class="inp ro">AMB-2040</div></div>
+        <div class="f w2"><label>Stok adı <b>*</b></label><div class="inp focus">Ambalaj kolisi 40x30</div></div>
+        <div class="f"><label>Birim</label><div class="inp">Adet <span class="suf">▾</span></div></div>
+        <div class="f"><label>Minimum <i>adet</i></label><div class="inp errb">-5</div><div class="hint e">0 veya büyük olmalı</div></div>
+      </div></div>
+    <div class="cfg">Giriş kutularını başlıklı bir kartta 1–3 sütunlu düzende toplar; zorunlu alan, salt okunur ve hata hâlleri tasarım dilindeki gibi.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Bağlam paneli <span class="new">YENİ</span></b><span>taslak 01 · sağ detay paneli</span></div>
+    <div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+      <div class="sect">Seçili kayıt <a>Aç ↵</a></div>
+      <div class="st4"><div><small>Eldeki</small><b>120</b></div><div><small>Minimum</small><b class="low">200</b></div></div>
+      <div class="sect">Son hareketler</div>
+      <div class="tl"><div>Giriş · 500 <small>· 14 Kas</small></div><div>Çıkış · 380 <small>· 12 Kas</small></div></div>
+    </div>
+    <div class="cfg">Izgarada seçilen satırı gösterir; içindeki bileşenler <code>{{liste.seciliSatir.*}}</code> ve ona bağlı sorgularla dolar. Dar ekranda kapanır (<span class="k">Ctrl+.</span>).</div>
+  </div>
+
+  <div class="cell" style="grid-column:1/-1">
+    <div class="ttl"><b>İşlem Çubuğu <span class="new">YENİ · sayfa başına bir</span></b><span>§5.5 · her ekranda aynı sıra</span></div>
+    <div class="bar inl">
+      <span class="b pri">+ Yeni <span class="k">F2</span></span><span class="b">Aç <span class="k">Enter</span></span><span class="b off">Kaydet <span class="k">Ctrl+S</span></span><span class="b off">Sil <span class="k">Ctrl+Del</span></span><span class="sep"></span>
+      <span class="b">Yenile <span class="k">F5</span></span><span class="b">Filtre <span class="k">Ctrl+F</span></span><span class="sep"></span><span class="b">Yazdır <span class="k">Ctrl+P</span></span><span class="b">Excel <span class="k">Ctrl+E</span></span>
+      <span class="grow"></span><span class="seg"><span>Rahat</span><span class="on">Sık</span></span><span class="b more">İşlemler ▾ <span class="k">Alt+İ</span></span>
+    </div>
+    <div class="cfg">Sıra ve kısayollar sabittir, yönetici değiştiremez. Yönetici yalnızca <b>bağlar</b>: Yeni → bir ekleme sorgusu ya da form; Kaydet / Sil → güncelleme / silme sorgusu; Yenile → okuma sorgularını yeniden çalıştırır; Excel → seçilen ızgarayı dışa aktarır; Yazdır → sayfanın yazdırma görünümü. Bağlanmayan düğme <b>soluk görünür, gizlenmez</b>. Sayfadaki diğer eylem düğmeleri <b>İşlemler</b> menüsünde toplanabilir. Yetkiler (Ekle / Güncelle / Sil) düğmeleri de soluklaştırır.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Onay penceresi <span class="upd">GÜNCELLENİR · düğme onayı</span></b><span>§5.6</span></div>
+    <div class="dlg"><div class="dh">“Merkez” deposu silinsin mi?</div><div class="db">Bu depoda 812 stok hareketi var; silinemez. Bunun yerine depoyu <span class="alt">pasife alabilirsiniz</span>.</div><div class="df"><span>Vazgeç <span class="k">Esc</span></span><span class="p">Pasife al <span class="k">Enter</span></span></div></div>
+    <div class="cfg">Sorgu düğmelerinin mevcut onay metni bu görünümle çizilir; isteğe bağlı <b>güvenli alternatif</b> düğmesi başka bir sorguya bağlanır.</div>
+  </div>
+
+  <div class="cell">
+    <div class="ttl"><b>Mevcut bileşenler</b><span>yalnız görünüm değişir</span></div>
+    <div style="line-height:1.7;color:#344054">Başlık, Açıklama, Etiket, Bilgi kartı, Bölüm başlığı, Ayırıcı, Boşluk, İlerleme göstergesi, Madde listesi, Eylem düğmesi, Özel form, Giriş kutusu, Bildirim kutusu: tasarım dilinin yazı tipi (Segoe UI 12,5px), renk token'ları, 6/8px köşe ve 31px kontrol yüksekliğiyle çizilir. Ayarları ve mevcut sayfalar <b>aynen çalışır</b>; yeni bir şey yapmanız gerekmez.</div>
+  </div>
+</div>
+</section>
+
+<section class="blk">
+<p class="lbl">2 · ŞABLONLAR (ekran tiplerinden)</p>
+<div class="tpls">
+
+  <div class="full">
+    <div class="meta"><b>A · Liste ekranı</b><span>İşlem Çubuğu · özet kartları · yan filtre · çipler · liste tablosu · bağlam paneli</span></div>
+    <div class="tpl">
+      <div class="ph"><div><div class="bc">Özel sayfalar › Stok</div><h2>Kritik stoklar</h2></div><span style="color:var(--mut)">1.248 kayıt</span></div>
+      <div class="bar"><span class="b pri">+ Yeni <span class="k">F2</span></span><span class="b">Aç <span class="k">Enter</span></span><span class="b off">Kaydet <span class="k">Ctrl+S</span></span><span class="b off">Sil <span class="k">Ctrl+Del</span></span><span class="sep"></span><span class="b">Yenile <span class="k">F5</span></span><span class="b">Filtre <span class="k">Ctrl+F</span></span><span class="sep"></span><span class="b off">Yazdır <span class="k">Ctrl+P</span></span><span class="b">Excel <span class="k">Ctrl+E</span></span><span class="grow"></span><span class="b more">İşlemler ▾ <span class="k">Alt+İ</span></span></div>
+      <div class="wrap">
+        <div class="facet"><div class="ft">Filtreler <a>Temizle</a></div><div class="fg"><div class="t">Durum</div><div class="o"><span class="cb on"></span>Aktif<small>1.102</small></div><div class="o"><span class="cb"></span>Pasif<small>146</small></div></div><div class="fg"><div class="t">Depo</div><div class="o"><span class="cb on"></span>Merkez<small>812</small></div><div class="o"><span class="cb"></span>Şube<small>436</small></div></div></div>
+        <div class="center">
+          <div class="mk"><div><span class="icn" style="background:var(--pri-soft);color:var(--pri-d)">S</span><span class="tx"><small>Stok kartı</small><b>1.248</b></span></div><div class="act"><span class="icn" style="background:var(--bad-bg);color:var(--bad)">!</span><span class="tx"><small>Minimum altı</small><b style="color:var(--bad)">23</b></span></div><div><span class="icn" style="background:var(--warn-bg);color:var(--warn)">~</span><span class="tx"><small>Maliyetsiz</small><b>7</b></span></div><div><span class="icn" style="background:var(--ok-bg);color:var(--ok)">₺</span><span class="tx"><small>Stok değeri</small><b>2.418.300</b></span></div></div>
+          <div class="chips"><span class="q">Kod, ad veya barkod ara <span class="k">Ctrl+F</span></span><span class="chip">Depo: Merkez ✕</span><span class="chip r">Minimum altı ✕</span><span class="clr">Temizle</span></div>
+          <div class="gridw"><table><thead><tr><th>Stok kodu</th><th>Stok adı</th><th>Durum</th><th class="num">Eldeki</th><th class="num">Minimum</th></tr></thead><tbody>
+            <tr class="sel"><td class="code">HAM-1102</td><td>Polietilen granül</td><td><span class="tag t-warn">Az</span></td><td class="num low">120</td><td class="num">200</td></tr>
+            <tr><td class="code">AMB-2040</td><td>Ambalaj kolisi 40x30</td><td><span class="tag t-bad">Tükendi</span></td><td class="num low">0</td><td class="num">50</td></tr>
+            <tr><td class="code">YRD-0031</td><td>Streç film</td><td><span class="tag t-warn">Az</span></td><td class="num low">8</td><td class="num">20</td></tr>
+            <tr class="tot"><td colspan="3">Toplam · 23 kayıt</td><td class="num">128</td><td class="num">270</td></tr></tbody></table></div>
+        </div>
+        <div class="det" style="width:260px"><div class="hd"><div class="top"><span class="code">HAM-1102</span><span class="tag t-warn">Az</span></div><h3>Polietilen granül</h3></div><div class="bd"><div class="st4"><div><small>Eldeki</small><b class="low">120</b></div><div><small>Minimum</small><b>200</b></div></div><div class="sect">Son hareketler</div><div class="tl"><div>Çıkış · 380 <small>· 12 Kas</small></div><div>Giriş · 500 <small>· 3 Kas</small></div></div></div></div>
+      </div>
+      <div class="foot"><span><span class="k">↑↓</span> gez · <span class="k">Enter</span> aç · <span class="k">F1</span> kısayollar</span><span>1 seçili · <b>23</b> kayıt</span></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="meta"><b>B · Kayıt kartı</b><span>bölüm gezgini · form kartları · bağlam paneli</span></div>
+    <div class="tpl">
+      <div class="fh"><div class="id"><div class="img">foto</div><div><h2>Ambalaj kolisi 40x30</h2><div class="m"><span class="code">AMB-2040</span><span class="tag t-ok">Aktif</span></div></div></div><div class="rt"><span class="dirty"><i></i>Kaydedilmedi</span><span class="rnav"><span>‹</span><span>3 / 23</span><span>›</span></span></div></div>
+      <div class="bar"><span class="b">+ Yeni <span class="k">F2</span></span><span class="b off">Aç</span><span class="b pri">Kaydet <span class="k">Ctrl+S</span></span><span class="b">Sil <span class="k">Ctrl+Del</span></span><span class="sep"></span><span class="b">Yenile <span class="k">F5</span></span><span class="grow"></span><span class="b more">İşlemler ▾</span></div>
+      <div class="fbody" style="min-height:260px">
+        <div class="snav" style="width:150px"><div class="it on"><span class="st done">✓</span>Genel</div><div class="it"><span class="st err">!</span>Stok</div><div class="it"><span class="st emp"></span>Fiyat</div></div>
+        <div class="fmain"><div class="card"><div class="ct">Genel bilgiler</div><div class="fg3" style="grid-template-columns:1fr 1fr"><div class="f"><label>Stok kodu</label><div class="inp ro">AMB-2040</div></div><div class="f"><label>Birim</label><div class="inp">Adet <span class="suf">▾</span></div></div><div class="f w2"><label>Stok adı <b>*</b></label><div class="inp focus">Ambalaj kolisi 40x30</div></div></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="meta"><b>F · Tanım</b><span>solda kompakt liste · sağda düzenleme formu</span></div>
+    <div class="tpl">
+      <div class="ph"><div><div class="bc">Özel sayfalar › Tanımlar</div><h2>Masraf merkezleri</h2></div><span style="color:var(--mut)">12 kayıt</span></div>
+      <div class="bar"><span class="b">+ Yeni <span class="k">F2</span></span><span class="b off">Aç</span><span class="b pri">Kaydet <span class="k">Ctrl+S</span></span><span class="b">Sil <span class="k">Ctrl+Del</span></span><span class="sep"></span><span class="b">Yenile <span class="k">F5</span></span><span class="grow"></span><span class="b more">İşlemler ▾</span></div>
+      <div class="wrap" style="min-height:260px">
+        <div class="deflist"><span class="q">Ara <span class="k">Ctrl+F</span></span><div class="row on"><span><span class="code">MM-01</span> Üretim</span><span class="tag t-ok">Aktif</span></div><div class="row"><span><span class="code">MM-02</span> Satış</span><span class="tag t-ok">Aktif</span></div><div class="row"><span><span class="code">MM-09</span> Eski depo</span><span class="tag t-off">Pasif</span></div></div>
+        <div class="fmain" style="background:var(--bg)"><div class="card"><div class="ct">MM-01 · Üretim</div><div class="fg3" style="grid-template-columns:1fr 1fr"><div class="f"><label>Kod</label><div class="inp ro">MM-01</div></div><div class="f"><label>Durum</label><div class="inp"><span><span class="sw"></span>Aktif</span></div></div><div class="f w2"><label>Ad <b>*</b></label><div class="inp focus">Üretim</div></div></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="meta"><b>E · Rapor</b><span>sol parametre paneli · sonuç tablosu · toplam</span></div>
+    <div class="tpl">
+      <div class="ph"><div><div class="bc">Özel sayfalar › Raporlar</div><h2>Depo bazında stok değeri</h2></div><span style="color:var(--mut)">Son çalıştırma 10:42</span></div>
+      <div class="bar"><span class="b off">+ Yeni</span><span class="b off">Aç</span><span class="b off">Kaydet</span><span class="b off">Sil</span><span class="sep"></span><span class="b">Yenile <span class="k">F5</span></span><span class="b">Filtre <span class="k">Ctrl+F</span></span><span class="sep"></span><span class="b">Yazdır <span class="k">Ctrl+P</span></span><span class="b">Excel <span class="k">Ctrl+E</span></span></div>
+      <div class="wrap" style="min-height:240px">
+        <div class="param"><div class="f"><label>Tarih</label><div class="inp">17.11.2026</div></div><div class="f"><label>Depo</label><div class="inp">Tümü <span class="suf">▾</span></div></div><span class="run">Raporu çalıştır <span class="k">F9</span></span></div>
+        <div class="center"><div class="gridw" style="border-top:0"><table><thead><tr><th>Depo</th><th class="num">Kalem</th><th class="num">Değer</th></tr></thead><tbody><tr><td>Merkez</td><td class="num">812</td><td class="num">1.604.200,00</td></tr><tr><td>Şube</td><td class="num">436</td><td class="num">814.100,00</td></tr><tr class="tot"><td>Toplam</td><td class="num">1.248</td><td class="num">2.418.300,00</td></tr></tbody></table></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="meta"><b>Ana sayfa paneli</b><span>komut kutusu · göstergeler · yapılacaklar · son kayıtlar</span></div>
+    <div class="tpl">
+      <div class="ph"><div><div class="bc">Özel sayfalar</div><h2>Satış paneli</h2></div><span style="color:var(--mut)">Merhaba, {{kullanici.ad}}</span></div>
+      <div class="home">
+        <div style="display:flex;flex-direction:column;gap:10px"><div class="cmd">Ekran, kayıt veya komut ara <span class="k">Ctrl+K</span></div>
+          <div class="mk c2"><div><span class="icn" style="background:var(--pri-soft);color:var(--pri-d)">F</span><span class="tx"><small>Bu ay fatura</small><b>184</b></span></div><div class="act"><span class="icn" style="background:var(--bad-bg);color:var(--bad)">!</span><span class="tx"><small>Vadesi geçmiş</small><b style="color:var(--bad)">9</b></span></div></div>
+          <div class="card"><div class="ct">Son faturalar <small>Tümü ›</small></div><table><tbody><tr><td class="code">SF-2026-0184</td><td>Akın Ltd.</td><td class="num">42.300,00</td></tr><tr><td class="code">SF-2026-0183</td><td>Deniz A.Ş.</td><td class="num">8.120,00</td></tr></tbody></table></div></div>
+        <div class="card todo"><div class="ct">Bugün yapılacaklar</div><div><span>Onay bekleyen teklif</span><b>4</b></div><div><span>Teslim tarihi bugün</span><b>2</b></div><div><span>Tahsilat hatırlatma</span><b style="color:var(--bad)">9</b></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<p class="sub" style="margin-top:4px">Belge (C) ve Hesap + ekstre (D) tipleri satır girişli tablo ve yürüyen bakiye gerektirdiği için bu turda şablon olmaz; ayrı iş olarak sonra.</p>
+</section>
+
+<section class="blk">
+<p class="lbl">3 · TASARIMCIDA NASIL GÖRÜNÜR</p>
+<div class="pal">
+  <div class="pl">
+    <h4>Tasarım dili</h4>
+    <div class="it n"><i>▦</i>İşlem Çubuğu</div><div class="it n"><i>◧</i>Özet kartı</div><div class="it n"><i>☰</i>Liste tablosu</div><div class="it n"><i>⌕</i>Filtre çipleri</div><div class="it n"><i>☷</i>Yan filtre paneli</div><div class="it n"><i>▤</i>Form kartı</div><div class="it n"><i>◨</i>Bağlam paneli</div><div class="it n"><i>●</i>Durum etiketi</div>
+    <h4>Metin ve düzen</h4><div class="it"><i>H</i>Başlık</div><div class="it"><i>¶</i>Açıklama</div><div class="it"><i>—</i>Ayırıcı</div>
+    <h4>Veri · Eylem ve form</h4><div class="it"><i>▥</i>Izgara</div><div class="it"><i>▸</i>Eylem düğmesi</div><div class="it"><i>⌨</i>Giriş kutusu</div>
+  </div>
+  <div>
+    <p style="margin:0 0 10px;color:#475467;font-size:13px">Sol paletin en üstünde <b>Tasarım dili</b> grubu; Şablon sekmesinde ekran tiplerinden şablonlar. Şablon seçilince sayfa, örnek sorgular ve bağlamalarla birlikte kurulur; yönetici yalnızca SQL'i ve etiketleri kendi verisine göre düzenler.</p>
+    <div class="tpick">
+      <div class="on"><div class="mini"><i style="left:6px;top:6px;right:6px;height:9px"></i><i style="left:6px;top:20px;width:32px;bottom:6px"></i><i style="left:42px;top:20px;width:24px;height:12px"></i><i style="left:70px;top:20px;width:24px;height:12px"></i><i style="left:42px;top:36px;right:40px;bottom:6px"></i><i style="right:6px;top:20px;width:30px;bottom:6px"></i></div><b>A · Liste ekranı</b><small>Özet kartları, filtreler, tablo ve seçili kayıt paneli.</small></div>
+      <div><div class="mini"><i style="left:6px;top:6px;right:6px;height:14px"></i><i style="left:6px;top:24px;width:30px;bottom:6px"></i><i style="left:40px;top:24px;right:6px;height:22px"></i><i style="left:40px;top:50px;right:6px;bottom:6px"></i></div><b>B · Kayıt kartı</b><small>Bölüm gezgini ve form kartları; kayıt güncelleme sorgusuna bağlı.</small></div>
+      <div><div class="mini"><i style="left:6px;top:6px;width:40px;bottom:6px"></i><i style="left:50px;top:6px;right:6px;bottom:6px"></i></div><b>F · Tanım</b><small>Solda liste, sağda ekle / güncelle / sil formu.</small></div>
+      <div><div class="mini"><i style="left:6px;top:6px;width:32px;bottom:6px"></i><i style="left:42px;top:6px;right:6px;bottom:6px"></i></div><b>E · Rapor</b><small>Parametre paneli, “Raporu çalıştır” ve toplamlı tablo.</small></div>
+      <div><div class="mini"><i style="left:6px;top:6px;right:40px;height:9px"></i><i style="left:6px;top:20px;width:28px;height:14px"></i><i style="left:38px;top:20px;width:28px;height:14px"></i><i style="left:6px;top:38px;right:40px;bottom:6px"></i><i style="right:6px;top:6px;width:30px;bottom:6px"></i></div><b>Ana sayfa paneli</b><small>Göstergeler, yapılacaklar, son kayıtlar.</small></div>
+      <div><div class="mini"></div><b>Boş sayfa</b><small>Bileşenleri kendiniz ekleyin.</small></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="blk">
+<p class="lbl">4 · UYGULAMA SIRASI (her biri ayrı PR, her adımda görsel kontrol)</p>
+<div class="phase">
+  <div><b>1 · Görünüm</b>ERP'deki özel sayfa gösterimi ve tasarımcı tuvali tasarım dili token'larına geçer; mevcut bileşenler yeni görünümü alır, mevcut sayfalar aynen çalışır. Özel sayfalar ERP çerçevesi ve İşlem Çubuğu içinde açılır.</div>
+  <div><b>2 · Yeni bileşenler</b>İşlem Çubuğu, Özet kartı, Liste tablosu ayarları, Filtre çipleri, Yan filtre paneli, Form kartı, Bağlam paneli, Durum etiketi eşlemesi. Sunucu şema doğrulaması yeni bileşenleri ve ayarları tanır.</div>
+  <div><b>3 · Şablonlar</b>A Liste, B Kayıt kartı, F Tanım, E Rapor, Ana sayfa paneli; örnek sorgu ve bağlamalarla. Belge (C) ve Ekstre (D) sonra.</div>
+</div>
+</section>
+</div></body></html>
