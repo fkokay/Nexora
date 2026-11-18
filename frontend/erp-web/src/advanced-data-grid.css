@@ -58,6 +58,18 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-row-select { display: inline-flex; align-items: center; gap: 7px; margin-right: 9px; vertical-align: middle; white-space: nowrap; color: var(--grid-muted); }
 .advanced-grid-row-select > span { display: inline-block; min-width: 2ch; color: var(--grid-muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .advanced-grid-empty { padding: 28px 12px !important; color: var(--grid-muted); text-align: center !important; }
+/* A page's own message row (td.table-empty, stretched over every column by the grid): centred, muted, roomy, with no
+   bottom line. Cells carrying their own empty-state markup (blocks, buttons) keep the page's layout. */
+#root .advanced-grid-table > tbody > tr > td.table-empty:not(:has(> :is(div, p, section, button))) {
+  height: auto !important;
+  padding: 44px 16px !important;
+  border-bottom: 0 !important;
+  background: transparent;
+  color: var(--nx-muted) !important;
+  font-size: 13px;
+  text-align: center !important;
+  vertical-align: middle;
+}
 .advanced-grid-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-border); border-top: 0; border-radius: 0 0 9px 9px; background: var(--erp-surface); color: var(--grid-muted); font-size: 10px; }
 .advanced-grid[data-server-hide-footer="true"] .advanced-grid-footer { display: none; }
 .advanced-grid-footer > label { display: flex; align-items: center; gap: 7px; }
