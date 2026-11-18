@@ -92,7 +92,7 @@ export default function LeftPanel(props: Props) {
       {palette.length === 0 && <p className="pd-empty-note">“{search.trim()}” ile eşleşen bileşen yok.</p>}
     </>;
     if (section === "layers") return <LayersTree items={props.layers} search={search} canEdit={props.canEdit} selectedId={props.selectedComponentId} onSelect={props.onSelectComponent}
-      dropTarget={props.dropTarget} onDragStart={props.onLayerDragStart} onDragEnd={props.onLayerDragEnd} onDragOver={props.onLayerDragOver} onDrop={props.onLayerDrop} onMove={props.onLayerMove}/>;
+      dropTarget={props.dropTarget} onDragStart={props.onLayerDragStart} onDragEnd={props.onLayerDragEnd} onDragOver={props.onLayerDragOver} onDrop={props.onLayerDrop} onMove={props.onLayerMove} rootCount={props.componentCount}/>;
     return props.queries.length === 0 ? <p className="pd-empty-note">Bu sayfada henüz sorgu yok. “＋” ile yeni sorgu ekleyin.</p>
       : queries.length === 0 ? <p className="pd-empty-note">“{search.trim()}” ile eşleşen sorgu yok.</p>
       : <ul className="pd-lp-queries">{queries.map((query) => <li key={query.id}>
