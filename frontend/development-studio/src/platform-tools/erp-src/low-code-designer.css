@@ -89,6 +89,14 @@
 .lcp-status.published{background:#e9f8f0;color:#17704a}
 .lcp-status.draft{background:#fff5dd;color:#8a5307}
 .lcp-status.builtin{background:#eef1f7;color:#55647c}
+.lcp-status.system{background:#e8f1ff;color:#1f5bb8}
+.lcp-status.standard{background:#eef1f7;color:#55647c}
+.lcp-status.preview{background:#fff1e6;color:#9a4a0c}
+.lcp-card-icon.system{background:#e8f1ff;color:#1f5bb8}
+.lcp-tags{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.lcp-new-tag{padding:2px 7px;border-radius:999px;background:#6242d8;color:#fff;font-size:10.5px;font-weight:700}
+.lcp-open:disabled{opacity:.5;cursor:not-allowed}
+.lcp-open:disabled:hover{background:#f8f6ff}
 .lcp-card-actions{display:flex;gap:6px;margin-top:8px}
 .lcp-open{flex:1;min-height:32px;padding:0 10px;border:1px solid #d8d0fb;border-radius:8px;background:#f8f6ff;color:#5638c7;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
 .lcp-open:hover{background:#efeaff}

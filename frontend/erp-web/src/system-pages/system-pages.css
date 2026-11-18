@@ -1,0 +1,7 @@
+.legacy-screen-bar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; margin-bottom: 10px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-primary-soft); color: var(--nx-muted); font-size: 12px; }
+.legacy-screen-bar .link-button,
+.system-page-legacy-link { padding: 0; border: 0; background: transparent; color: var(--nx-primary-strong); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.legacy-screen-bar .link-button:hover,
+.system-page-legacy-link:hover { text-decoration: underline; }
+.tenant-custom-page-header .system-page-legacy-link { margin-left: auto; flex: none; }
+.tenant-custom-page-state .system-page-legacy-link { margin-left: 12px; }

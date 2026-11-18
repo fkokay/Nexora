@@ -1,4 +1,4 @@
-import type { PageCommands } from "../commands/types";
+import type { MenuCommand, PageCommands } from "../commands/types";
 import { idList } from "./layoutRefs";
 
 /** İşlem Çubuğu (`actionBar`) bileşeninin komut kuralları: saf işlevler, React'e bağlı değildir. */
@@ -10,6 +10,7 @@ const NO_RIGHT = "Bu işlem için yetkiniz yok";
 const BUSY = "İşlem sürüyor…";
 const NEEDS_SELECTION = "Önce bir kayıt seçin";
 const TABLE_LOADING = "Liste henüz yüklenmedi";
+const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 /** Düzleştirilmiş bileşen dizisindeki ilk `actionBar`. */
 export function actionBarOf(components: Component[]): { id: string; props: Record<string, unknown> } | null {
@@ -33,11 +34,15 @@ export type PageActionDeps = {
   inputIds: Set<string>;
   tableState: (tableId: string) => { loading: boolean; error?: string; rowCount: number } | undefined;
   buttonLabel: (id: string) => string | undefined;
+  /** moreButtons düğmesinin koşul durumu: `visibleWhen` yanlışsa gizli (menüye girmez), `disabledWhen` doğruysa nedenli pasif. */
+  buttonGate?: (id: string) => { hidden?: boolean; disabled?: boolean; disabledReason?: string } | undefined;
   /** Silme sorgusu, seçimi olmayan bir tablonun `seciliSatir` alanına bağlıysa true. */
   deleteNeedsSelection: boolean;
   run: {
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
+    /** İşlem Çubuğu `saveSequence` kayıt dizisini çalıştırır. */
+    saveSequence(): void;
     refresh(): void;
     focus(inputId: string): void;
     print(): void;
@@ -53,7 +58,11 @@ const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 export function buildPageCommands(props: Record<string, unknown>, deps: PageActionDeps): PageCommands {
   const saveId = str(props.saveQuery);
   const saveKind = saveId ? deps.queryKind(saveId) : undefined;
-  const saveBound = saveKind === "insert" || saveKind === "update";
+  // Kayıt dizisi: her adım bir yazma sorgusu olmalı; komut her farklı adım türünün sayfa hakkını ister.
+  const sequenceIds = idList(props.saveSequence, 8);
+  const sequenceKinds = sequenceIds.map((id) => deps.queryKind(id));
+  const sequenceBound = sequenceIds.length > 0 && sequenceKinds.every((kind) => kind === "insert" || kind === "update" || kind === "delete");
+  const saveBound = sequenceBound || saveKind === "insert" || saveKind === "update";
   const deleteId = str(props.deleteQuery);
   const deleteBound = !!deleteId && deps.queryKind(deleteId) === "delete";
   const newIds = idList(props.newInputs).filter((id) => deps.inputIds.has(id));
@@ -61,12 +70,17 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const exportId = str(props.exportTable);
   const exportState = exportId ? deps.tableState(exportId) : undefined;
 
-  const gated = (right: string, run: () => void) =>
-    !deps.rights[right] ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
+  const gatedAll = (rights: string[], run: () => void) =>
+    rights.some((right) => !deps.rights[right]) ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
+  const gated = (right: string, run: () => void) => gatedAll([right], run);
 
-  const more = idList(props.moreButtons, 10).flatMap((id) => {
+  const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
-    return label ? [{ id, label, run: () => deps.run.button(id) }] : [];
+    if (!label) return [];
+    const gate = deps.buttonGate?.(id);
+    if (gate?.hidden) return [];
+    if (gate?.disabled) return [{ id, label, disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE }];
+    return [{ id, label, run: () => deps.run.button(id) }];
   });
 
   return {
@@ -74,7 +88,8 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
       : unbound,
     open: unbound,
-    save: saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
+    save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
+      : saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
     delete: !deleteBound ? unbound
       : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }
       : gated("delete", () => deps.run.write(deleteId, "delete")),

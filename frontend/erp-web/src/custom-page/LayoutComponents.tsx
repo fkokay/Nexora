@@ -2,9 +2,12 @@ import { Children, useEffect, useRef, type CSSProperties, type ReactNode } from 
 import { formatCell } from "./cellFormat";
 
 /** Form kartı — taslak `.card` + `.fg3`: başlık ve girişlerin 1/2/3 sütunlu ızgarası. */
-export function FormCard({ title, columns, children, style }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties }) {
+export function FormCard({ title, columns, children, style, meta }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties;
+  /** Başlık yanındaki kısa bilgi (değişiklik izleme: "<n> değişiklik"). */
+  meta?: string }) {
   return <section className="tenant-page-block tenant-page-form-card" style={style}>
     {title && <h3>{title}</h3>}
+    {meta && <span className="tenant-page-form-card-meta" role="status">{meta}</span>}
     <div className={`tenant-page-form-card-grid is-cols-${columns}`}>
       {Children.map(children, (child) => child == null || child === false ? null : <div className="tenant-page-form-card-cell">{child}</div>)}
     </div>
@@ -87,6 +90,8 @@ export function facetCount(cell: unknown): number | undefined {
 export type FacetGroup = {
   id: string; label: string; options: { value: string; label: string; count?: number }[];
   selected: string; loading: boolean; error?: string;
+  /** Girişin `disabledWhen` koşulu doğru: seçenekler pasif, "Temizle" bu grubu atlar. */
+  disabled?: boolean;
 };
 
 /** Yan filtre paneli — taslak `.facet`: gruplar halinde "Tümü" + seçenekler (düğme grubu, aria-pressed); seçiliye tekrar tıklamak süzgeci kaldırır. */
@@ -96,17 +101,17 @@ export function FacetPanel({ title, groups, onSelect, style }: {
   return <aside className="tenant-page-block tenant-page-facet" style={style}>
     <div className="tenant-page-facet-head">
       <h3>{title}</h3>
-      <button type="button" className="tenant-page-facet-clear" aria-label={`${title || "Süzgeç"} süzgeçlerini temizle`} onClick={() => groups.filter((group) => group.selected !== "").forEach((group) => onSelect(group.id, ""))}>Temizle</button>
+      <button type="button" className="tenant-page-facet-clear" aria-label={`${title || "Süzgeç"} süzgeçlerini temizle`} onClick={() => groups.filter((group) => group.selected !== "" && !group.disabled).forEach((group) => onSelect(group.id, ""))}>Temizle</button>
     </div>
     {groups.map((group) => <div className="tenant-page-facet-group" key={group.id} role="group" aria-label={group.label}>
       <div className="tenant-page-facet-label">{group.label}</div>
       {group.loading ? <p className="tenant-page-facet-state" role="status">Yükleniyor…</p> : <>
-        <button type="button" aria-pressed={group.selected === ""} className={`tenant-page-facet-option${group.selected === "" ? " is-selected" : ""}`} onClick={() => onSelect(group.id, "")}>
+        <button type="button" aria-pressed={group.selected === ""} disabled={group.disabled} className={`tenant-page-facet-option${group.selected === "" ? " is-selected" : ""}`} onClick={() => onSelect(group.id, "")}>
           <span>Tümü</span>
         </button>
         {group.options.map((option, index) => {
           const selected = group.selected === option.value;
-          return <button type="button" aria-pressed={selected} key={`${index}-${option.value}`} className={`tenant-page-facet-option${selected ? " is-selected" : ""}`} onClick={() => onSelect(group.id, selected ? "" : option.value)}>
+          return <button type="button" aria-pressed={selected} disabled={group.disabled} key={`${index}-${option.value}`} className={`tenant-page-facet-option${selected ? " is-selected" : ""}`} onClick={() => onSelect(group.id, selected ? "" : option.value)}>
             <span>{option.label}</span>
             {option.count !== undefined && <span className="tenant-page-facet-count">{option.count.toLocaleString("tr-TR")}</span>}
           </button>;

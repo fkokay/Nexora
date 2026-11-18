@@ -19576,6 +19576,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("int");
 
+                    b.Property<string>("ScreenKey")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("StandardVersion")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -19597,9 +19605,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[IsPublished] = 1");
 
+                    b.HasIndex(new[] { "TenantId", "ScreenKey" }, "IX_TenantCustomPages_ScreenKey")
+                        .HasFilter("[ScreenKey] IS NOT NULL");
+
                     b.ToTable("TenantCustomPages", null, t =>
                         {
                             t.HasCheckConstraint("CK_TenantCustomPages_Revision", "[Revision] >= 1");
+
+                            t.HasCheckConstraint("CK_TenantCustomPages_ScreenKey", "[ScreenKey] IS NULL OR ([Code] = '@' + [ScreenKey] AND [StandardVersion] IS NOT NULL AND [StandardVersion] >= 1)");
                         });
                 });
 
@@ -19759,6 +19772,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StandardVersion")
                         .HasColumnType("int");
 
                     b.Property<Guid>("TenantId")

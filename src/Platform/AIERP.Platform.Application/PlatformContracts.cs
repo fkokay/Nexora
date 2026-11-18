@@ -136,6 +136,8 @@ public sealed record InventoryBalanceView(Guid StockItemId, string Code, string 
 public sealed record InventoryBalancePageItem(InventoryBalanceView Balance, StockItemView StockItem);
 public sealed record InventoryBalancePage(IReadOnlyList<InventoryBalancePageItem> Items, int Page, int PageSize,
     int TotalCount, int BelowMinimumCount);
+public sealed record StockItemWarehouseBalanceView(Guid WarehouseId, string WarehouseCode, string WarehouseName, decimal QuantityOnHand,
+    decimal ReservedQuantity, decimal AvailableQuantity, decimal ValuationAmountBase, decimal UnvaluedQuantity, string BaseCurrencyCode);
 public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null,
     decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,

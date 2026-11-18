@@ -7,8 +7,14 @@ const GROUPS: { key: string; title: string; empty: string }[] = [
   { key: "Oturum", title: "Oturum", empty: "" },
   { key: "Sayılar", title: "Sayılar", empty: "Rapor kaynakları yüklenemedi." },
   { key: "Girişler", title: "Girişler", empty: "Bir giriş kutusuna Ad verin; değeri burada {{ad.value}} olarak görünür." },
-  { key: "Sorgular", title: "Sorgular", empty: "Sorgular sekmesinden bir okuma sorgusu ekleyin; sonuçları burada görünür." },
+  { key: "Sorgular", title: "Sorgular", empty: "Sorgular sekmesinden bir okuma sorgusu ya da ERP işlemi ekleyin; sonuçları burada görünür." },
   { key: "Izgarada seçili satır", title: "Izgarada seçili satır", empty: "Sorguya bağlı bir ızgaraya Ad verin; seçilen satırın sütunları burada görünür." },
+  // Faz B kökleri: düzenlenebilir tablo, özel alanlar bloğu, pencere, düğmenin gerekçe yanıtı ve kayıt dizisi (onceki).
+  { key: "Düzenlenebilir tablolar", title: "Düzenlenebilir tablolar", empty: "Sayfaya bir düzenlenebilir tablo ekleyin; satırları ve eklenen/silinen satırları burada görünür." },
+  { key: "Özel alanlar", title: "Özel alanlar", empty: "Sayfaya bir özel alanlar bloğu ekleyin; değerleri burada {{ad.degerler}} olarak görünür." },
+  { key: "Pencereler", title: "Pencereler", empty: "Bir Pencere bileşenine Ad verin; açık olup olmadığı burada {{ad.acik}} olarak görünür." },
+  { key: "Düğmeler", title: "Düğmeler", empty: "Adlı bir düğmede gerekçe sorusu tanımlayın; yanıtı burada {{ad.yanit}} olarak görünür." },
+  { key: "Kayıt dizisi", title: "Kayıt dizisi", empty: "Bir kayıt dizisi adımının parametresinde {{onceki.sonuc.X}} bir önceki adımın sonucudur." },
 ];
 
 type Props = { suggestions: BindingSuggestion[]; disabled?: boolean };
